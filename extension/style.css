@@ -218,9 +218,8 @@ header {
 
 /* ---- Mission Cards ---- */
 .missions {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  columns: 280px;
+  column-gap: 12px;
   margin-bottom: 40px;
 }
 
@@ -236,6 +235,8 @@ header {
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  break-inside: avoid;       /* don't split a card across columns */
+  margin-bottom: 12px;       /* vertical spacing (replaces grid gap) */
 }
 
 /* Colored top border instead of side bar for grid cards */
@@ -700,8 +701,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
    ================================================================ */
 
 .missions-empty-state {
-  /* Takes the full grid width — span all columns */
-  grid-column: 1 / -1;
+  /* Takes the full width — spans all columns */
+  column-span: all;
 
   display: flex;
   flex-direction: column;

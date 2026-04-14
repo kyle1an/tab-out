@@ -882,7 +882,7 @@ function renderDomainCard(group) {
       <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
-          <span class="mission-name">${isLanding ? 'Homepages' : friendlyDomain(group.domain)}</span>
+          <span class="mission-name">${isLanding ? 'Homepages' : (group.label || friendlyDomain(group.domain))}</span>
           ${tabBadge}
           ${dupeBadge}
         </div>
@@ -1067,10 +1067,39 @@ async function renderStaticDashboard() {
   const groupMap    = {};
   const landingTabs = [];
 
+  // Custom group rules from config.local.js (if any)
+  const customGroups = typeof LOCAL_CUSTOM_GROUPS !== 'undefined' ? LOCAL_CUSTOM_GROUPS : [];
+
+  // Check if a URL matches a custom group rule; returns the rule or null
+  function matchCustomGroup(url) {
+    try {
+      const parsed = new URL(url);
+      return customGroups.find(r => {
+        const hostMatch = r.hostname
+          ? parsed.hostname === r.hostname
+          : r.hostnameEndsWith
+            ? parsed.hostname.endsWith(r.hostnameEndsWith)
+            : false;
+        if (!hostMatch) return false;
+        if (r.pathPrefix) return parsed.pathname.startsWith(r.pathPrefix);
+        return true; // hostname matched, no path filter
+      }) || null;
+    } catch { return null; }
+  }
+
   for (const tab of realTabs) {
     try {
       if (isLandingPage(tab.url)) {
         landingTabs.push(tab);
+        continue;
+      }
+
+      // Check custom group rules first (e.g. merge subdomains, split by path)
+      const customRule = matchCustomGroup(tab.url);
+      if (customRule) {
+        const key = customRule.groupKey;
+        if (!groupMap[key]) groupMap[key] = { domain: key, label: customRule.groupLabel, tabs: [] };
+        groupMap[key].tabs.push(tab);
         continue;
       }
 
@@ -1320,7 +1349,9 @@ document.addEventListener('click', async (e) => {
     if (!group) return;
 
     const urls      = group.tabs.map(t => t.url);
-    const useExact  = group.domain === '__landing-pages__';
+    // Landing pages and custom groups (whose domain key isn't a real hostname)
+    // must use exact URL matching to avoid closing unrelated tabs
+    const useExact  = group.domain === '__landing-pages__' || !!group.label;
 
     if (useExact) {
       await closeTabsExact(urls);
@@ -1337,7 +1368,7 @@ document.addEventListener('click', async (e) => {
     const idx = domainGroups.indexOf(group);
     if (idx !== -1) domainGroups.splice(idx, 1);
 
-    const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : friendlyDomain(group.domain);
+    const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : (group.label || friendlyDomain(group.domain));
     showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
 
     const statTabs = document.getElementById('statTabs');
