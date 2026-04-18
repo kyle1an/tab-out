@@ -7,7 +7,6 @@
    • updateSectionCount — "X domains · Close N tabs" header
    • getFilteredTabs — getRealTabs() narrowed by current filter
    • pickFavicon — tab.favIconUrl > Google fallback
-   • checkTabOutDupes — show/hide the duplicate Tab Out banner
    ================================================================ */
 
 import { openTabs, fetchOpenTabs, getRealTabs } from './tabs.js';
@@ -129,23 +128,6 @@ export function updateSectionCount() {
   }
 
   sectionCount.innerHTML = domainText + closeBtn;
-}
-
-/**
- * checkTabOutDupes() — shows the banner when there are extra Tab Out tabs.
- */
-export function checkTabOutDupes() {
-  const tabOutTabs = openTabs.filter(t => t.isTabOut);
-  const banner  = document.getElementById('tabOutDupeBanner');
-  const countEl = document.getElementById('tabOutDupeCount');
-  if (!banner) return;
-
-  if (tabOutTabs.length > 1) {
-    if (countEl) countEl.textContent = tabOutTabs.length;
-    banner.style.display = 'flex';
-  } else {
-    banner.style.display = 'none';
-  }
 }
 
 /* ---- Overflow chips ("+N more") ---- */
@@ -448,5 +430,4 @@ export async function renderStaticDashboard() {
   }
 
   updateTabCountDisplays();
-  checkTabOutDupes();
 }

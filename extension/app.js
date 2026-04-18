@@ -87,7 +87,10 @@ if (chrome.tabGroups) {
 }
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') refreshDashboard();
+  if (document.visibilityState === 'visible') {
+    closeTabOutDupes();
+    refreshDashboard();
+  }
 });
 
 
@@ -118,19 +121,6 @@ document.addEventListener('click', async (e) => {
   if (!actionEl) return;
 
   const action = actionEl.dataset.action;
-
-  // ---- Close duplicate Tab Out tabs ----
-  if (action === 'close-tabout-dupes') {
-    await closeTabOutDupes();
-    const banner = document.getElementById('tabOutDupeBanner');
-    if (banner) {
-      banner.style.transition = 'opacity 0.4s';
-      banner.style.opacity = '0';
-      setTimeout(() => { banner.style.display = 'none'; banner.style.opacity = '1'; }, 400);
-    }
-    showToast('Closed extra Tab Out tabs');
-    return;
-  }
 
   const card = actionEl.closest('.mission-card');
 
@@ -316,5 +306,10 @@ document.addEventListener('click', async (e) => {
 
 /* ----------------------------------------------------------------
    INITIALIZE
+
+   Auto-close extra Tab Out tabs on load — only when this tab is
+   foregrounded, so background Tab Out tabs don't close each other
+   in a race. Each tab cleans up when the user actually focuses it.
    ---------------------------------------------------------------- */
+if (document.visibilityState === 'visible') closeTabOutDupes();
 renderStaticDashboard();
