@@ -465,6 +465,7 @@ export async function renderStaticDashboard() {
     return 0;
   });
 
+  const sectionHeaderWrap = document.getElementById('sectionHeaderWrap');
   if (domainGroups.length > 0 && openTabsSection) {
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
     openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
@@ -483,10 +484,12 @@ export async function renderStaticDashboard() {
       }
     });
     openTabsSection.style.display = 'block';
+    if (sectionHeaderWrap) sectionHeaderWrap.style.display = '';
     packMissionsMasonry();
     updateSectionCount();
-  } else if (openTabsSection) {
-    openTabsSection.style.display = 'none';
+  } else {
+    if (openTabsSection)    openTabsSection.style.display = 'none';
+    if (sectionHeaderWrap)  sectionHeaderWrap.style.display = 'none';
   }
 
   updateTabCountDisplays();
