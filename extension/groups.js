@@ -68,6 +68,21 @@ export async function fetchTabGroupColors() {
 }
 
 /**
+ * groupColorChanged(group) — returns true iff the incoming group's color
+ * differs from what we last rendered. Updates the cache as a side effect
+ * so subsequent calls reflect the new state. Used to gate tabGroups.onUpdated
+ * so collapse/expand/title edits don't trigger a full dashboard re-render.
+ */
+export function groupColorChanged(group) {
+  if (!group || group.id == null) return false;
+  const next = CHROME_GROUP_COLOR_HEX[group.color] || '#999';
+  const prev = groupColorCache[group.id];
+  if (prev === next) return false;
+  groupColorCache[group.id] = next;
+  return true;
+}
+
+/**
  * groupDotColor(groupId) — Chrome's actual group color when available;
  * otherwise a deterministic palette color from the id.
  */

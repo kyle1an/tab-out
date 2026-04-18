@@ -25,6 +25,7 @@ import {
   domainGroups, ICONS,
 } from './render.js';
 import { applyTabFilter } from './filter.js';
+import { groupColorChanged } from './groups.js';
 
 
 /* ----------------------------------------------------------------
@@ -76,7 +77,11 @@ if (chrome.tabs) {
 
 if (chrome.tabGroups) {
   chrome.tabGroups.onCreated.addListener(scheduleDashboardRefresh);
-  chrome.tabGroups.onUpdated.addListener(scheduleDashboardRefresh);
+  // onUpdated fires for collapsed, color, and title — only color affects
+  // what we render, so skip re-renders for the other two.
+  chrome.tabGroups.onUpdated.addListener((group) => {
+    if (groupColorChanged(group)) scheduleDashboardRefresh();
+  });
   chrome.tabGroups.onRemoved.addListener(scheduleDashboardRefresh);
   chrome.tabGroups.onMoved  .addListener(scheduleDashboardRefresh);
 }
