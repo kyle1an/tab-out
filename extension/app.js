@@ -261,6 +261,8 @@ function applyTabFilter(query) {
   // into the shortest column instead of leaving holes where hidden cards used
   // to be. When the filter clears we also unpin so the layout fully resets.
   packMissionsMasonry({ unpin: true });
+  // Reflect the filter result in the header tab count.
+  updateTabCountDisplays();
 }
 
 let __filterTimer = null;
@@ -742,14 +744,29 @@ function checkAndShowEmptyState() {
 
 /**
  * updateTabCountDisplays() — write the current real-tab count to the header
- * (#greeting, which serves as the main tab-count display). Call after any
- * action that opens/closes tabs.
+ * (#greeting, which serves as the main tab-count display). Reads the filter
+ * input directly so every call site automatically respects the active filter
+ * — no caller has to know whether the user is filtering.
+ *
+ *   No filter:  "182 Open tabs"
+ *   Filtering:  "14 of 182 Open tabs"
  */
 function updateTabCountDisplays() {
   const headerEl = document.getElementById('greeting');
   if (!headerEl) return;
-  const n = getRealTabs().length;
-  headerEl.textContent = `${n} Open tab${n !== 1 ? 's' : ''}`;
+  const total = getRealTabs().length;
+  const filterInput = document.getElementById('tabFilter');
+  const q = (filterInput && filterInput.value || '').trim().toLowerCase();
+  if (q.length === 0) {
+    headerEl.textContent = `${total} Open tab${total !== 1 ? 's' : ''}`;
+    return;
+  }
+  const matched = getRealTabs().filter(t => {
+    const text = (t.title || '').toLowerCase();
+    const url  = (t.url   || '').toLowerCase();
+    return text.includes(q) || url.includes(q);
+  }).length;
+  headerEl.textContent = `${matched} of ${total} Open tab${total !== 1 ? 's' : ''}`;
 }
 
 /**
