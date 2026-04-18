@@ -437,10 +437,6 @@ header {
   font-weight: 600;
 }
 
-/* Duplicate border highlight */
-.chip-has-dupes {
-  border-color: rgba(200, 113, 58, 0.25);
-}
 
 /* Action buttons grouped on the right */
 .chip-actions {

@@ -11,6 +11,18 @@
 import { packMissionsMasonry } from './layout.js';
 import { updateTabCountDisplays, updateSectionCount } from './render.js';
 
+// When the page has focus, the type-to-filter listener below captures
+// keystrokes from anywhere on the page. Surface that affordance in the
+// placeholder so the hint matches reality.
+const PLACEHOLDER_DEFAULT = 'Filter tabs…';
+const PLACEHOLDER_FOCUSED = 'Just start typing…';
+
+function updateFilterPlaceholder() {
+  const input = document.getElementById('tabFilter');
+  if (!input) return;
+  input.placeholder = document.hasFocus() ? PLACEHOLDER_FOCUSED : PLACEHOLDER_DEFAULT;
+}
+
 /**
  * applyTabFilter(query) — hide non-matching chips and any card left empty.
  * While filtering, the "+N more" overflow container is force-opened so a
@@ -82,6 +94,12 @@ document.addEventListener('keydown', (e) => {
     input.blur();
   }
 });
+
+// Keep the placeholder in sync with window focus state — hint only
+// shows "Just start typing…" while the page can actually capture keys.
+window.addEventListener('focus', updateFilterPlaceholder);
+window.addEventListener('blur',  updateFilterPlaceholder);
+updateFilterPlaceholder();
 
 // Type-to-filter: when the user starts typing anywhere (no modifier,
 // not already in an input), auto-focus the filter and pipe the
