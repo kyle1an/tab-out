@@ -278,18 +278,21 @@ function renderDomainCard(group) {
     </div>`;
   }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(8), urlCounts) : '');
 
-  let actionsHtml = '';
+  // Close-domain button moves to the top-right corner of the card as an
+  // icon-only button that expands to show its label on hover (iOS/macOS
+  // notification-center style). Dedup button stays in the inline actions row.
+  let closeCardBtn = '';
   if (closableCount > 0) {
     const closeLabel = closableCount === tabCount
       ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}`
       : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`;
-    actionsHtml += `
-      <button class="action-btn close-tabs" data-action="close-domain-tabs" data-domain-id="${stableId}">
-        ${ICONS.close}
-        ${closeLabel}
-      </button>`;
+    closeCardBtn = `<button class="card-close-btn" data-action="close-domain-tabs" data-domain-id="${stableId}" title="${closeLabel}">
+      ${ICONS.close}
+      <span class="card-close-btn-text">${closeLabel}</span>
+    </button>`;
   }
 
+  let actionsHtml = '';
   if (closableExtras > 0) {
     const dupeUrlsEncoded = closableDupeUrls.map(url => encodeURIComponent(url)).join(',');
     actionsHtml += `
@@ -301,6 +304,7 @@ function renderDomainCard(group) {
   return `
     <div class="mission-card domain-card${isAppCard ? ' is-app' : ''}" data-domain-id="${stableId}">
       <div class="status-bar"></div>
+      ${closeCardBtn}
       <div class="mission-content">
         <div class="mission-top">
           <span class="mission-name">${isLanding ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''))}</span>

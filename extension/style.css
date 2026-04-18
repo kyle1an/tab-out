@@ -246,6 +246,66 @@ header {
   box-shadow: 0 4px 20px var(--shadow);
 }
 
+/* Card close button — icon-only in the top-right corner; hover expands
+   to show the full label, iOS/macOS notification-center style. */
+.card-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 5px;
+  /* <button> elements don't inherit font-family by default — browsers
+     use their own "button font" (Arial on most platforms). Force the
+     same Chrome sans-serif the rest of the page uses. */
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, border-radius 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.card-close-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.card-close-btn-text {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-width 0.2s ease, opacity 0.15s ease;
+}
+
+.card-close-btn:hover {
+  background: rgba(82, 82, 82, 0.08);
+  border-color: rgba(82, 82, 82, 0.2);
+  border-radius: 10px;
+  padding: 5px 10px;
+  gap: 5px;
+  color: var(--ink);
+}
+
+.card-close-btn:hover .card-close-btn-text {
+  max-width: 200px;
+  opacity: 1;
+}
+
+/* Collapse the dedup-only actions row when empty so the flex gap
+   between mission-top and mission-pages stays consistent. */
+.actions:empty {
+  display: none;
+}
+
 /* Standalone-app card — PWAs / installed apps running in their own
    window. Dashed border hints "this is not a regular tab." */
 .mission-card.is-app {
