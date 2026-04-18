@@ -205,3 +205,26 @@ document.addEventListener('keydown', (e) => {
   input.value += e.key;
   applyTabFilter(input.value);
 });
+
+// Paste-to-filter: Cmd/Ctrl+V anywhere on the page routes into the
+// filter input. A dedicated `paste` listener is cleaner than special-
+// casing the keydown handler above — it catches the actual paste
+// action regardless of which shortcut triggered it (menu, keyboard,
+// or right-click paste from the future).
+document.addEventListener('paste', (e) => {
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT' ||
+    a.tagName === 'TEXTAREA' ||
+    a.tagName === 'SELECT' ||
+    a.isContentEditable
+  )) return;
+  const input = document.getElementById('tabFilter');
+  if (!input) return;
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  if (!text) return;
+  e.preventDefault();
+  input.focus();
+  input.value += text;
+  applyTabFilter(input.value);
+});
