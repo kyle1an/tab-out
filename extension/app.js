@@ -27,10 +27,42 @@
 let openTabs = [];
 
 /**
+ * unwrapSuspenderUrl(url)
+ *
+ * Tab-suspender extensions (The Marvellous Suspender, The Great Suspender, etc.)
+ * rewrite a tab's URL to chrome-extension://<id>/suspended.html#...&uri=<real>.
+ * The real URL is stored in the fragment's `uri=` param, and — because the
+ * real URL can itself contain `&` and `#` characters — it is always the LAST
+ * param. Parse by splitting on the literal `&uri=` marker (or leading `uri=`)
+ * instead of URLSearchParams, which would truncate at the first inner `&`.
+ */
+function unwrapSuspenderUrl(url) {
+  if (!url || !url.startsWith('chrome-extension://')) return url;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.pathname.endsWith('/suspended.html')) return url;
+    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : '';
+    const marker = '&uri=';
+    let encoded;
+    const idx = frag.indexOf(marker);
+    if (idx >= 0) encoded = frag.slice(idx + marker.length);
+    else if (frag.startsWith('uri=')) encoded = frag.slice(4);
+    else return url;
+    return decodeURIComponent(encoded) || url;
+  } catch {
+    return url;
+  }
+}
+
+/**
  * fetchOpenTabs()
  *
  * Reads all currently open browser tabs directly from Chrome.
  * Sets the extensionId flag so we can identify Tab Out's own pages.
+ *
+ * For tabs suspended by a suspender extension, `url` holds the unwrapped
+ * real URL (so grouping/display/filtering behave correctly), while `rawUrl`
+ * holds Chrome's actual URL (needed for chrome.tabs.* API matching).
  */
 async function fetchOpenTabs() {
   try {
@@ -39,15 +71,21 @@ async function fetchOpenTabs() {
     const newtabUrl = `chrome-extension://${extensionId}/index.html`;
 
     const tabs = await chrome.tabs.query({});
-    openTabs = tabs.map(t => ({
-      id:       t.id,
-      url:      t.url,
-      title:    t.title,
-      windowId: t.windowId,
-      active:   t.active,
-      // Flag Tab Out's own pages so we can detect duplicate new tabs
-      isTabOut: t.url === newtabUrl || t.url === 'chrome://newtab/',
-    }));
+    openTabs = tabs.map(t => {
+      const rawUrl = t.url || '';
+      const effectiveUrl = unwrapSuspenderUrl(rawUrl);
+      return {
+        id:        t.id,
+        url:       effectiveUrl,
+        rawUrl:    rawUrl,
+        suspended: rawUrl !== effectiveUrl,
+        title:     t.title,
+        windowId:  t.windowId,
+        active:    t.active,
+        // Flag Tab Out's own pages so we can detect duplicate new tabs
+        isTabOut:  rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
+      };
+    });
   } catch {
     // chrome.tabs API unavailable (shouldn't happen in an extension page)
     openTabs = [];
@@ -81,7 +119,8 @@ async function closeTabsByUrls(urls) {
   const allTabs = await chrome.tabs.query({});
   const toClose = allTabs
     .filter(tab => {
-      const tabUrl = tab.url || '';
+      // Unwrap suspender URLs so suspended tabs match by their real hostname
+      const tabUrl = unwrapSuspenderUrl(tab.url || '');
       if (tabUrl.startsWith('file://') && exactUrls.has(tabUrl)) return true;
       try {
         const tabHostname = new URL(tabUrl).hostname;
@@ -104,7 +143,8 @@ async function closeTabsExact(urls) {
   if (!urls || urls.length === 0) return;
   const urlSet = new Set(urls);
   const allTabs = await chrome.tabs.query({});
-  const toClose = allTabs.filter(t => urlSet.has(t.url)).map(t => t.id);
+  // Unwrap suspender URLs so a suspended copy of an effective URL still matches
+  const toClose = allTabs.filter(t => urlSet.has(unwrapSuspenderUrl(t.url))).map(t => t.id);
   if (toClose.length > 0) await chrome.tabs.remove(toClose);
   await fetchOpenTabs();
 }
@@ -120,15 +160,18 @@ async function focusTab(url) {
   const allTabs = await chrome.tabs.query({});
   const currentWindow = await chrome.windows.getCurrent();
 
-  // Try exact URL match first
-  let matches = allTabs.filter(t => t.url === url);
+  // Unwrap suspender URLs on both sides so suspended copies also match
+  const targetEffective = unwrapSuspenderUrl(url);
 
-  // Fall back to hostname match
+  // Try exact URL match first — check both raw and effective so callers can pass either
+  let matches = allTabs.filter(t => t.url === url || unwrapSuspenderUrl(t.url) === targetEffective);
+
+  // Fall back to hostname match (on effective URLs)
   if (matches.length === 0) {
     try {
-      const targetHost = new URL(url).hostname;
+      const targetHost = new URL(targetEffective).hostname;
       matches = allTabs.filter(t => {
-        try { return new URL(t.url).hostname === targetHost; }
+        try { return new URL(unwrapSuspenderUrl(t.url)).hostname === targetHost; }
         catch { return false; }
       });
     } catch {}
@@ -154,7 +197,8 @@ async function closeDuplicateTabs(urls, keepOne = true) {
   const toClose = [];
 
   for (const url of urls) {
-    const matching = allTabs.filter(t => t.url === url);
+    // Compare on effective URL so suspended copies are recognized as dupes
+    const matching = allTabs.filter(t => unwrapSuspenderUrl(t.url) === url);
     if (keepOne) {
       const keep = matching.find(t => t.active) || matching[0];
       for (const tab of matching) {
@@ -763,7 +807,9 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
-    const safeUrl   = (tab.url || '').replace(/"/g, '&quot;');
+    // Use rawUrl (Chrome's actual URL) as the chip identity so chrome.tabs.* calls match,
+    // even for suspended tabs where tab.url is the unwrapped real URL.
+    const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
     let domain = '';
     try { domain = new URL(tab.url).hostname; } catch {}
@@ -844,7 +890,9 @@ function renderDomainCard(group) {
     const count    = urlCounts[tab.url];
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const chipClass = count > 1 ? ' chip-has-dupes' : '';
-    const safeUrl   = (tab.url || '').replace(/"/g, '&quot;');
+    // Use rawUrl (Chrome's actual URL) as the chip identity so chrome.tabs.* calls match,
+    // even for suspended tabs where tab.url is the unwrapped real URL.
+    const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
     let domain = '';
     try { domain = new URL(tab.url).hostname; } catch {}
@@ -1159,7 +1207,7 @@ async function renderStaticDashboard() {
 
   // --- Footer stats ---
   const statTabs = document.getElementById('statTabs');
-  if (statTabs) statTabs.textContent = openTabs.length;
+  if (statTabs) statTabs.textContent = getRealTabs().length;
 
   // --- Check for duplicate Tab Out tabs ---
   checkTabOutDupes();
@@ -1227,9 +1275,12 @@ document.addEventListener('click', async (e) => {
     const tabUrl = actionEl.dataset.tabUrl;
     if (!tabUrl) return;
 
-    // Close the tab in Chrome directly
+    // Close the tab in Chrome directly. Match on both raw and effective URL
+    // so the chip still works if the tab has been (un)suspended since render.
     const allTabs = await chrome.tabs.query({});
-    const match   = allTabs.find(t => t.url === tabUrl);
+    const targetEffective = unwrapSuspenderUrl(tabUrl);
+    const match   = allTabs.find(t => t.url === tabUrl)
+                || allTabs.find(t => unwrapSuspenderUrl(t.url) === targetEffective);
     if (match) await chrome.tabs.remove(match.id);
     await fetchOpenTabs();
 
@@ -1258,7 +1309,7 @@ document.addEventListener('click', async (e) => {
 
     // Update footer
     const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = openTabs.length;
+    if (statTabs) statTabs.textContent = getRealTabs().length;
 
     showToast('Tab closed');
     return;
@@ -1268,21 +1319,26 @@ document.addEventListener('click', async (e) => {
   if (action === 'defer-single-tab') {
     e.stopPropagation();
     const tabUrl   = actionEl.dataset.tabUrl;
-    const tabTitle = actionEl.dataset.tabTitle || tabUrl;
+    // Save the *effective* URL — not the suspender wrapper — so the saved
+    // link keeps working even if the user uninstalls the suspender later.
+    const savedUrl = unwrapSuspenderUrl(tabUrl);
+    const tabTitle = actionEl.dataset.tabTitle || savedUrl;
     if (!tabUrl) return;
 
     // Save to chrome.storage.local
     try {
-      await saveTabForLater({ url: tabUrl, title: tabTitle });
+      await saveTabForLater({ url: savedUrl, title: tabTitle });
     } catch (err) {
       console.error('[tab-out] Failed to save tab:', err);
       showToast('Failed to save tab');
       return;
     }
 
-    // Close the tab in Chrome
+    // Close the tab in Chrome (raw or effective URL — handles suspended tabs too)
     const allTabs = await chrome.tabs.query({});
-    const match   = allTabs.find(t => t.url === tabUrl);
+    const targetEffective = unwrapSuspenderUrl(tabUrl);
+    const match   = allTabs.find(t => t.url === tabUrl)
+                || allTabs.find(t => unwrapSuspenderUrl(t.url) === targetEffective);
     if (match) await chrome.tabs.remove(match.id);
     await fetchOpenTabs();
 
@@ -1372,7 +1428,7 @@ document.addEventListener('click', async (e) => {
     showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
 
     const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = openTabs.length;
+    if (statTabs) statTabs.textContent = getRealTabs().length;
     return;
   }
 
@@ -1382,6 +1438,10 @@ document.addEventListener('click', async (e) => {
     const urls = urlsEncoded.split(',').map(u => decodeURIComponent(u)).filter(Boolean);
     if (urls.length === 0) return;
 
+    // Capture how many tabs will be closed, read from the button's own label
+    // ("Close N duplicates") before we start fading it out.
+    const extrasClosed = parseInt((actionEl.textContent.match(/\d+/) || ['0'])[0], 10);
+
     await closeDuplicateTabs(urls, true);
     playCloseSound();
 
@@ -1390,7 +1450,7 @@ document.addEventListener('click', async (e) => {
     actionEl.style.opacity    = '0';
     setTimeout(() => actionEl.remove(), 200);
 
-    // Remove dupe badges from the card
+    // Remove dupe badges from the card and drop the per-card tab counts
     if (card) {
       card.querySelectorAll('.chip-dupe-badge').forEach(b => {
         b.style.transition = 'opacity 0.2s';
@@ -1406,6 +1466,36 @@ document.addEventListener('click', async (e) => {
       });
       card.classList.remove('has-amber-bar');
       card.classList.add('has-neutral-bar');
+
+      // Decrement the card's visible tab counts by the number of dupes closed
+      const tabsBadge = Array.from(card.querySelectorAll('.open-tabs-badge'))
+        .find(b => /\btab(s)? open\b/.test(b.textContent));
+      if (tabsBadge) {
+        const current = parseInt((tabsBadge.textContent.match(/\d+/) || ['0'])[0], 10);
+        const next    = Math.max(0, current - extrasClosed);
+        tabsBadge.innerHTML = `${ICONS.tabs} ${next} tab${next !== 1 ? 's' : ''} open`;
+      }
+      const meta = card.querySelector('.mission-page-count');
+      if (meta) {
+        const current = parseInt(meta.textContent, 10) || 0;
+        meta.textContent = String(Math.max(0, current - extrasClosed));
+      }
+      const closeAllBtn = card.querySelector('[data-action="close-domain-tabs"]');
+      if (closeAllBtn) {
+        const current = parseInt((closeAllBtn.textContent.match(/\d+/) || ['0'])[0], 10);
+        const next    = Math.max(0, current - extrasClosed);
+        closeAllBtn.innerHTML = `${ICONS.close} Close all ${next} tab${next !== 1 ? 's' : ''}`;
+      }
+    }
+
+    // Update the footer stat and the section header's "Close all N tabs" button
+    const statTabs = document.getElementById('statTabs');
+    if (statTabs) statTabs.textContent = getRealTabs().length;
+    const sectionCloseAll = document.querySelector('#openTabsSectionCount [data-action="close-all-open-tabs"]');
+    if (sectionCloseAll) {
+      const current = parseInt((sectionCloseAll.textContent.match(/\d+/) || ['0'])[0], 10);
+      const next    = Math.max(0, current - extrasClosed);
+      sectionCloseAll.innerHTML = `${ICONS.close} Close all ${next} tab${next !== 1 ? 's' : ''}`;
     }
 
     showToast('Closed duplicates, kept one copy each');
@@ -1427,6 +1517,9 @@ document.addEventListener('click', async (e) => {
       );
       animateCardOut(c);
     });
+
+    const statTabs = document.getElementById('statTabs');
+    if (statTabs) statTabs.textContent = getRealTabs().length;
 
     showToast('All tabs closed. Fresh start.');
     return;
