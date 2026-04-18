@@ -16,7 +16,7 @@
   --status-active: #3d7a4a;
   --status-cooling: #b8892e;
   --status-abandoned: #b35a5a;
-  --card-bg: #fffdf9;
+  --card-bg: #ffffff;
   --shadow: rgba(26, 22, 19, 0.06);
 }
 
@@ -24,7 +24,6 @@
 
 body {
   font-family: sans-serif;
-  background: var(--paper);
   color: var(--ink);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
