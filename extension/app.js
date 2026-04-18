@@ -939,7 +939,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
  * Builds the HTML for one domain group card.
  * group = { domain: string, tabs: [{ url, title, id, windowId, active }] }
  */
-function renderDomainCard(group, index = 0) {
+function renderDomainCard(group) {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
   const isLanding = group.domain === '__landing-pages__';
@@ -1052,7 +1052,7 @@ function renderDomainCard(group, index = 0) {
   }
 
   return `
-    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}" style="--card-index:${index}">
+    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
       <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
@@ -1328,7 +1328,7 @@ async function renderStaticDashboard() {
       ? `&nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close ${closableRealCount === realTabs.length ? 'all ' : ''}${closableRealCount} tab${closableRealCount !== 1 ? 's' : ''}</button>`
       : '';
     openTabsSectionCount.innerHTML = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''}${closeAllBtn}`;
-    openTabsMissionsEl.innerHTML = domainGroups.map((g, i) => renderDomainCard(g, i)).join('');
+    openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
     openTabsSection.style.display = 'block';
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
