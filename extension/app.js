@@ -981,7 +981,6 @@ function renderDomainCard(group) {
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
   const closableTabs  = tabs.filter(t => !isGroupedTab(t));
   const closableCount = closableTabs.length;
-  const groupedCount  = tabCount - closableCount;
 
   // Count duplicates (exact URL match).
   // For the dedup button we only count *ungrouped* extras: grouped copies are
@@ -1020,12 +1019,6 @@ function renderDomainCard(group) {
     ${ICONS.tabs}
     ${tabCount} tab${tabCount !== 1 ? 's' : ''} open
   </span>`;
-
-  const groupedBadge = groupedCount > 0
-    ? `<span class="open-tabs-badge" style="color:var(--muted);background:rgba(120,120,120,0.08);" title="Tabs in a Chrome tab group — preserved by Close all / Close duplicates">
-        ${groupedCount} in group${groupedCount !== 1 ? 's' : ''}
-      </span>`
-    : '';
 
   const dupeBadge = hasDupes
     ? `<span class="open-tabs-badge" style="color:var(--accent-amber);background:rgba(200,113,58,0.08);">
@@ -1100,7 +1093,6 @@ function renderDomainCard(group) {
         <div class="mission-top">
           <span class="mission-name">${isLanding ? 'Homepages' : (group.label || friendlyDomain(group.domain))}</span>
           ${tabBadge}
-          ${groupedBadge}
           ${dupeBadge}
         </div>
         <div class="actions">${actionsHtml}</div>
