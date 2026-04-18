@@ -27,7 +27,6 @@ The agent will walk you through it. Takes about 1 minute.
 - **Close tabs with style** with swoosh sound + confetti burst
 - **Duplicate detection** flags when you have the same page open twice, with one-click cleanup
 - **Click any tab to jump to it** across windows, no new tab opened
-- **Save for later** bookmark tabs to a checklist before closing them
 - **Localhost grouping** shows port numbers next to each tab so you can tell your vibe coding projects apart
 - **Expandable groups** show the first 8 tabs with a clickable "+N more"
 - **100% local** your data never leaves your machine
@@ -64,10 +63,9 @@ You open a new tab
   -> Homepages (Gmail, X, etc.) get their own group at the top
   -> Click any tab title to jump to it
   -> Close groups you're done with (swoosh + confetti)
-  -> Save tabs for later before closing them
 ```
 
-Everything runs inside the Chrome extension. No external server, no API calls, no data sent anywhere. Saved tabs are stored in `chrome.storage.local`.
+Everything runs inside the Chrome extension. No external server, no API calls, no data sent anywhere.
 
 ---
 
@@ -76,7 +74,6 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 | What | How |
 |------|-----|
 | Extension | Chrome Manifest V3 |
-| Storage | chrome.storage.local |
 | Sound | Web Audio API (synthesized, no files) |
 | Animations | CSS transitions + JS confetti particles |
 
