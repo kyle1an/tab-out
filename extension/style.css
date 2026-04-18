@@ -25,18 +25,17 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-html {
-  /* `none` disables both scroll chaining AND the rubber-band bounce.
-     Applied at the root so the page never visually overscrolls — the
-     pinned sticky header stays anchored instead of rubber-banding with
-     the content. */
-  overscroll-behavior: none;
+html, body {
+  /* Lock page scroll to .container below. The window itself never
+     scrolls, so sticky headers inside the container stay rock-solid
+     when the user overscrolls — only the card-list area rubber-bands. */
+  height: 100vh;
+  overflow: hidden;
 }
 
 body {
   font-family: sans-serif;
   color: var(--ink);
-  min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -50,12 +49,45 @@ body::before {
   z-index: 0;
 }
 
-.container {
+/* Body is a flex column: pinned-top + scroll-region fill exactly 100vh.
+   Since `body { overflow: hidden }`, the window never scrolls — only
+   .scroll-region does, and only the card list within it rubber-bands. */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.pinned-top {
+  flex: 0 0 auto;
+  background: var(--paper);
+  position: relative;
+  z-index: 10;
+}
+
+.scroll-region {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   position: relative;
   z-index: 1;
+}
+
+/* Shared inner wrapper: max-width + horizontal padding match in both
+   regions so the scroll content visually aligns with the pinned bars. */
+.page-inner {
   max-width: 1600px;
   margin: 0 auto;
-  padding: 24px 32px 80px;
+  padding: 0 32px;
+}
+
+.pinned-top .page-inner {
+  padding-top: 24px;
+  padding-bottom: 12px;
+}
+
+.scroll-region .page-inner {
+  padding-top: 0;
+  padding-bottom: 80px;
 }
 
 /* ---- Header ---- */
@@ -67,17 +99,6 @@ header {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 12px;
-  /* Pin to the viewport top when the page scrolls. Solid background so
-     cards scrolling underneath don't bleed through; z-index keeps it
-     above the absolutely-positioned masonry cards. `padding-block`
-     gives the pinned bar breathing room + hides the container's top
-     padding that would otherwise peek above the header. */
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--paper);
-  padding-block: 12px;
-  margin-top: -24px;
 }
 
 .header-left {
@@ -184,21 +205,13 @@ header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 0;
   margin-top: 0;
+  padding-top: 8px;
   /* Reserve room for an action button's height so removing the dedup
      button (when extras are closed) doesn't collapse the row and shove
      all the cards below up by ~10px. */
   min-height: 28px;
-  /* Pins right below the top header when scrolling. `top` value matches
-     the top header's rendered height so the two bars stack flush.
-     z-index one below the header so the header stays on top if they
-     visually meet. */
-  position: sticky;
-  top: 80px;
-  z-index: 9;
-  background: var(--paper);
-  padding-block: 8px;
 }
 
 .section-header h2 {
@@ -247,6 +260,7 @@ header {
      re-packs, so expanding a card grows it within its own column without
      reshuffling any other card's column assignment. */
   position: relative;
+  margin-top: 20px;
   margin-bottom: 40px;
 }
 /* Transitions on top/left are enabled only AFTER the first pack so cards
