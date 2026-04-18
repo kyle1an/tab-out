@@ -637,12 +637,34 @@ header {
 .toast.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+  /* Restore clickability — without this the toast's Undo button can't
+     receive clicks even though it's visually present. */
+  pointer-events: auto;
 }
 
 .toast svg {
   width: 16px;
   height: 16px;
   color: var(--status-active);
+}
+
+/* Inline action button in the toast (e.g. Undo) */
+.toast-action {
+  margin-left: 8px;
+  font-family: sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--paper);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 4px 10px;
+  border-radius: 6px;
+  corner-shape: squircle;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 /* ---- Animations ---- */

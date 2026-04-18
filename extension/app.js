@@ -420,7 +420,7 @@ async function fetchOpenTabs() {
  * Special case: file:// URLs are matched exactly (they have no hostname).
  */
 async function closeTabsByUrls(urls, opts = {}) {
-  if (!urls || urls.length === 0) return;
+  if (!urls || urls.length === 0) return [];
   const { preserveGroups = false } = opts;
 
   // Separate file:// URLs (exact match) from regular URLs (hostname match)
@@ -437,22 +437,22 @@ async function closeTabsByUrls(urls, opts = {}) {
   }
 
   const allTabs = await chrome.tabs.query({});
-  const toClose = allTabs
-    .filter(tab => {
-      // Skip grouped tabs when caller asks — preserves the user's curated groups
-      if (preserveGroups && isGroupedTab(tab)) return false;
-      // Unwrap suspender URLs so suspended tabs match by their real hostname
-      const tabUrl = unwrapSuspenderUrl(tab.url || '');
-      if (tabUrl.startsWith('file://') && exactUrls.has(tabUrl)) return true;
-      try {
-        const tabHostname = new URL(tabUrl).hostname;
-        return tabHostname && targetHostnames.includes(tabHostname);
-      } catch { return false; }
-    })
-    .map(tab => tab.id);
+  const toCloseTabs = allTabs.filter(tab => {
+    // Skip grouped tabs when caller asks — preserves the user's curated groups
+    if (preserveGroups && isGroupedTab(tab)) return false;
+    // Unwrap suspender URLs so suspended tabs match by their real hostname
+    const tabUrl = unwrapSuspenderUrl(tab.url || '');
+    if (tabUrl.startsWith('file://') && exactUrls.has(tabUrl)) return true;
+    try {
+      const tabHostname = new URL(tabUrl).hostname;
+      return tabHostname && targetHostnames.includes(tabHostname);
+    } catch { return false; }
+  });
 
-  if (toClose.length > 0) await chrome.tabs.remove(toClose);
+  const snapshot = snapshotChromeTabs(toCloseTabs);
+  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map(t => t.id));
   await fetchOpenTabs();
+  return snapshot;
 }
 
 /**
@@ -462,17 +462,18 @@ async function closeTabsByUrls(urls, opts = {}) {
  * so closing "Gmail inbox" doesn't also close individual email threads.
  */
 async function closeTabsExact(urls, opts = {}) {
-  if (!urls || urls.length === 0) return;
+  if (!urls || urls.length === 0) return [];
   const { preserveGroups = false } = opts;
   const urlSet = new Set(urls);
   const allTabs = await chrome.tabs.query({});
   // Unwrap suspender URLs so a suspended copy of an effective URL still matches.
   // Skip grouped tabs when preserveGroups is set.
-  const toClose = allTabs
-    .filter(t => !(preserveGroups && isGroupedTab(t)) && urlSet.has(unwrapSuspenderUrl(t.url)))
-    .map(t => t.id);
-  if (toClose.length > 0) await chrome.tabs.remove(toClose);
+  const toCloseTabs = allTabs
+    .filter(t => !(preserveGroups && isGroupedTab(t)) && urlSet.has(unwrapSuspenderUrl(t.url)));
+  const snapshot = snapshotChromeTabs(toCloseTabs);
+  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map(t => t.id));
   await fetchOpenTabs();
+  return snapshot;
 }
 
 /**
@@ -522,13 +523,13 @@ async function closeDuplicateTabs(urls, keepOne = true) {
   const allTabs = await chrome.tabs.query({});
   let currentWindowId = -1;
   try { currentWindowId = (await chrome.windows.getCurrent()).id; } catch {}
-  const toClose = [];
+  const toCloseTabs = [];
 
   for (const url of urls) {
     // Compare on effective URL so suspended copies are recognized as dupes
     const matching = allTabs.filter(t => unwrapSuspenderUrl(t.url) === url);
     if (!keepOne) {
-      for (const tab of matching) toClose.push(tab.id);
+      for (const tab of matching) toCloseTabs.push(tab);
       continue;
     }
 
@@ -539,12 +540,12 @@ async function closeDuplicateTabs(urls, keepOne = true) {
 
     if (grouped.length >= 1 && ungrouped.length >= 1) {
       // Mixed: keep the grouped copies (the curated set), close every ungrouped one.
-      for (const t of ungrouped) toClose.push(t.id);
+      for (const t of ungrouped) toCloseTabs.push(t);
     } else if (ungrouped.length >= 2) {
       // All ungrouped — keep the highest-scoring one, close the rest.
       const keep = sortByScore(ungrouped)[0];
       for (const t of ungrouped) {
-        if (t.id !== keep.id) toClose.push(t.id);
+        if (t.id !== keep.id) toCloseTabs.push(t);
       }
     } else if (grouped.length >= 2) {
       // All copies are in groups. Allowed to dedup ONLY when every copy is in
@@ -555,14 +556,16 @@ async function closeDuplicateTabs(urls, keepOne = true) {
       if (distinctGroups.size === 1) {
         const keep = sortByScore(grouped)[0];
         for (const t of grouped) {
-          if (t.id !== keep.id) toClose.push(t.id);
+          if (t.id !== keep.id) toCloseTabs.push(t);
         }
       }
     }
   }
 
-  if (toClose.length > 0) await chrome.tabs.remove(toClose);
+  const snapshot = snapshotChromeTabs(toCloseTabs);
+  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map(t => t.id));
   await fetchOpenTabs();
+  return snapshot;
 }
 
 /**
@@ -697,11 +700,129 @@ function animateCardOut(card) {
  *
  * Brief pop-up notification at the bottom of the screen.
  */
-function showToast(message) {
+/**
+ * Undo state — holds the most recent close action's snapshot. Replaced on
+ * each new close (single "last action" model, like Cmd+Z).
+ *
+ * Each snapshot tab carries enough info to recreate the tab via
+ * chrome.tabs.create() if chrome.sessions.restore() can't reach it (e.g.,
+ * a bulk close that exceeded chrome.sessions's 25-result cap).
+ */
+let __lastClosure = null;
+
+function snapshotChromeTabs(chromeTabs) {
+  return chromeTabs.map(t => ({
+    url:      unwrapSuspenderUrl(t.url || ''),
+    title:    t.title || '',
+    pinned:   !!t.pinned,
+    groupId:  typeof t.groupId === 'number' ? t.groupId : -1,
+    windowId: t.windowId,
+    index:    typeof t.index === 'number' ? t.index : undefined,
+  })).filter(s => s.url && !s.url.startsWith('chrome://') && !s.url.startsWith('chrome-extension://'));
+}
+
+/**
+ * undoLastClose() — restore the most recently closed tabs.
+ *
+ * Hybrid strategy:
+ *   1. Pull the up-to-25 most recent sessions from chrome.sessions and
+ *      restore any that match a snapshot URL (preserves history & scroll).
+ *   2. For snapshot entries we couldn't match, recreate via chrome.tabs.create()
+ *      (just URL + window placement; loses page state but works without limit).
+ *   3. Re-group restored tabs into their original Chrome group when possible.
+ */
+async function undoLastClose() {
+  const closure = __lastClosure;
+  if (!closure || !closure.tabs || closure.tabs.length === 0) return;
+  __lastClosure = null;
+
+  const restored = new Set(); // snapshot indices already restored
+
+  // Step 1: try chrome.sessions.restore() for high-fidelity recovery
+  if (chrome.sessions) {
+    try {
+      const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 25 });
+      // Build a URL → snapshot-indices map (handles same URL appearing twice)
+      const urlToIndices = new Map();
+      closure.tabs.forEach((t, i) => {
+        if (!urlToIndices.has(t.url)) urlToIndices.set(t.url, []);
+        urlToIndices.get(t.url).push(i);
+      });
+      for (const session of sessions) {
+        if (!session.tab || !session.tab.url) continue;
+        const indices = urlToIndices.get(unwrapSuspenderUrl(session.tab.url));
+        if (!indices || indices.length === 0) continue;
+        try {
+          await chrome.sessions.restore(session.sessionId);
+          restored.add(indices.shift());
+        } catch { /* one bad session shouldn't kill the rest */ }
+      }
+    } catch { /* sessions API unavailable — fall through to recreate */ }
+  }
+
+  // Step 2 + 3: recreate any unmatched snapshots via chrome.tabs.create
+  for (let i = 0; i < closure.tabs.length; i++) {
+    if (restored.has(i)) continue;
+    const t = closure.tabs[i];
+    try {
+      const created = await chrome.tabs.create({
+        url:      t.url,
+        windowId: t.windowId,
+        pinned:   t.pinned,
+        active:   false,
+      });
+      if (t.groupId !== undefined && t.groupId !== -1 && chrome.tabs.group) {
+        try { await chrome.tabs.group({ tabIds: [created.id], groupId: t.groupId }); }
+        catch { /* group may have been dissolved — ignore */ }
+      }
+    } catch { /* tab create failed (e.g., bad URL) — skip */ }
+  }
+
+  showToast(`Restored ${closure.tabs.length} tab${closure.tabs.length !== 1 ? 's' : ''}`);
+}
+
+/**
+ * markClosure(snapshot, label?) — record a close action for undo + show
+ * the toast with an "Undo" button. Snapshot is the array returned by the
+ * close functions; label is the toast text (defaults to "Closed N tabs").
+ */
+function markClosure(snapshot, label) {
+  if (!snapshot || snapshot.length === 0) return;
+  __lastClosure = { tabs: snapshot, at: Date.now() };
+  const n = snapshot.length;
+  showToast(label || `Closed ${n} tab${n !== 1 ? 's' : ''}`, {
+    label:   'Undo',
+    onClick: undoLastClose,
+  });
+}
+
+let __toastTimer = null;
+/**
+ * showToast(message, action?)
+ *
+ * action is an optional { label, onClick } pair. With an action, the toast
+ * shows an inline button and stays visible longer (6 s instead of 2.5 s).
+ * A new showToast call replaces any existing toast (and its action).
+ */
+function showToast(message, action = null) {
   const toast = document.getElementById('toast');
+  if (!toast) return;
   document.getElementById('toastText').textContent = message;
+  // Strip any previous action button before maybe adding a new one.
+  toast.querySelectorAll('.toast-action').forEach(b => b.remove());
+  if (action && action.label && typeof action.onClick === 'function') {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => {
+      action.onClick();
+      toast.classList.remove('visible');
+    });
+    toast.appendChild(btn);
+  }
   toast.classList.add('visible');
-  setTimeout(() => toast.classList.remove('visible'), 2500);
+  clearTimeout(__toastTimer);
+  __toastTimer = setTimeout(() => toast.classList.remove('visible'), action ? 6000 : 2500);
 }
 
 /**
@@ -1547,6 +1668,7 @@ document.addEventListener('click', async (e) => {
     const targetEffective = unwrapSuspenderUrl(tabUrl);
     const match   = allTabs.find(t => t.url === tabUrl)
                 || allTabs.find(t => unwrapSuspenderUrl(t.url) === targetEffective);
+    const snapshot = match ? snapshotChromeTabs([match]) : [];
     if (match) await chrome.tabs.remove(match.id);
     await fetchOpenTabs();
 
@@ -1576,7 +1698,8 @@ document.addEventListener('click', async (e) => {
     // Update footer
     updateTabCountDisplays();
 
-    showToast('Tab closed');
+    if (snapshot.length > 0) markClosure(snapshot, 'Tab closed');
+    else showToast('Tab closed');
     return;
   }
 
@@ -1593,11 +1716,9 @@ document.addEventListener('click', async (e) => {
     // must use exact URL matching to avoid closing unrelated tabs
     const useExact  = group.domain === '__landing-pages__' || !!group.label;
 
-    if (useExact) {
-      await closeTabsExact(urls, { preserveGroups: true });
-    } else {
-      await closeTabsByUrls(urls, { preserveGroups: true });
-    }
+    const snapshot = useExact
+      ? await closeTabsExact(urls, { preserveGroups: true })
+      : await closeTabsByUrls(urls, { preserveGroups: true });
 
     if (card) {
       animateCardOut(card);
@@ -1608,7 +1729,8 @@ document.addEventListener('click', async (e) => {
     if (idx !== -1) domainGroups.splice(idx, 1);
 
     const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''));
-    showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
+    const closedCount = snapshot.length;
+    markClosure(snapshot, `Closed ${closedCount} tab${closedCount !== 1 ? 's' : ''} from ${groupLabel}`);
 
     updateTabCountDisplays();
     return;
@@ -1624,7 +1746,7 @@ document.addEventListener('click', async (e) => {
     // ("Close N duplicates") before we start fading it out.
     const extrasClosed = parseInt((actionEl.textContent.match(/\d+/) || ['0'])[0], 10);
 
-    await closeDuplicateTabs(urls, true);
+    const dupeSnapshot = await closeDuplicateTabs(urls, true);
 
     // Hide the dedup button
     actionEl.style.transition = 'opacity 0.2s';
@@ -1671,7 +1793,7 @@ document.addEventListener('click', async (e) => {
     // Card heights changed (badges removed) — re-pack after the fade-outs.
     setTimeout(packMissionsMasonry, 250);
 
-    showToast('Closed duplicates, kept one copy each');
+    markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`);
     return;
   }
 
@@ -1684,7 +1806,7 @@ document.addEventListener('click', async (e) => {
     const candidates = getFilteredTabs()
       .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
       .map(t => t.url);
-    await closeTabsExact(candidates, { preserveGroups: true });
+    const allSnapshot = await closeTabsExact(candidates, { preserveGroups: true });
 
     document.querySelectorAll('#openTabsMissions .mission-card').forEach(c => {
       shootConfetti(
@@ -1696,7 +1818,11 @@ document.addEventListener('click', async (e) => {
 
     updateTabCountDisplays();
 
-    showToast('All tabs closed. Fresh start.');
+    if (allSnapshot.length > 0) {
+      markClosure(allSnapshot, `Closed ${allSnapshot.length} tab${allSnapshot.length !== 1 ? 's' : ''}`);
+    } else {
+      showToast('Nothing to close');
+    }
     return;
   }
 });
