@@ -68,8 +68,6 @@ header {
   font-size: 13px;
   color: var(--muted);
   font-weight: 400;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
 }
 
 /* ---- Filter input (top of page, right side of header) ---- */
