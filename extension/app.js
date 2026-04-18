@@ -21,7 +21,7 @@ import { shootConfetti }                                           from './confe
 import { showToast, animateCardOut, updateCloseTabsButton }        from './ui.js';
 import { markClosure }                                             from './undo.js';
 import {
-  renderStaticDashboard, getFilteredTabs, updateTabCountDisplays,
+  renderStaticDashboard, updateTabCountDisplays,
   domainGroups, ICONS,
 } from './render.js';
 import { applyTabFilter } from './filter.js';
@@ -264,10 +264,6 @@ document.addEventListener('click', async (e) => {
     }
 
     updateTabCountDisplays();
-    updateCloseTabsButton(
-      document.querySelector('#openTabsSectionCount [data-action="close-all-open-tabs"]'),
-      extrasClosed
-    );
 
     setTimeout(() => packMissionsMasonry(), 250);
 
@@ -275,32 +271,30 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // ---- Close ALL open tabs (or only filter-matching tabs when active) ----
-  if (action === 'close-all-open-tabs') {
-    // When filter is active, exact URL match prevents closing sibling tabs
-    // from the same hostname that the user has filtered out.
-    const candidates = getFilteredTabs()
-      .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
-      .map(t => t.url);
-    const allSnapshot = await closeTabsExact(candidates, { preserveGroups: true });
+  // ---- Close duplicates across EVERY card ----
+  if (action === 'dedup-global-keep-one') {
+    const perCardBtns = document.querySelectorAll('#openTabsMissions [data-action="dedup-keep-one"]');
+    const allUrls = [];
+    perCardBtns.forEach(btn => {
+      (btn.dataset.dupeUrls || '')
+        .split(',').map(u => decodeURIComponent(u)).filter(Boolean)
+        .forEach(u => allUrls.push(u));
+    });
+    if (allUrls.length === 0) return;
 
-    document.querySelectorAll('#openTabsMissions .mission-card').forEach(c => {
-      shootConfetti(
-        c.getBoundingClientRect().left + c.offsetWidth / 2,
-        c.getBoundingClientRect().top  + c.offsetHeight / 2
-      );
-      animateCardOut(c);
+    // Fade the global button and each per-card dedup button before the
+    // live-sync refresh arrives and rebuilds them.
+    [actionEl, ...perCardBtns].forEach(b => {
+      b.style.transition = 'opacity 0.2s';
+      b.style.opacity    = '0';
+      setTimeout(() => b.remove(), 200);
     });
 
-    updateTabCountDisplays();
-
-    if (allSnapshot.length > 0) {
-      markClosure(allSnapshot, `Closed ${allSnapshot.length} tab${allSnapshot.length !== 1 ? 's' : ''}`);
-    } else {
-      showToast('Nothing to close');
-    }
+    const snapshot = await closeDuplicateTabs(allUrls, true);
+    markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`);
     return;
   }
+
 });
 
 
