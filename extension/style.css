@@ -250,12 +250,15 @@ header {
    to show the full label, iOS/macOS notification-center style. */
 .card-close-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  /* Tucked into the card's top-right corner, clipped by the card's
+     overflow:hidden + border-radius so the button naturally takes the
+     curve of the corner. */
+  top: 0;
+  right: 0;
   display: inline-flex;
   align-items: center;
   gap: 0;
-  padding: 5px;
+  padding: 8px 10px 6px 8px;
   /* <button> elements don't inherit font-family by default — browsers
      use their own "button font" (Arial on most platforms). Force the
      same Chrome sans-serif the rest of the page uses. */
@@ -264,10 +267,17 @@ header {
   font-weight: 500;
   color: var(--muted);
   background: transparent;
+  /* Transparent border reserves space so adding a visible border on
+     hover doesn't cause a 1px layout jump (box-sizing is border-box
+     globally). */
   border: 1px solid transparent;
-  border-radius: 50%;
+  /* Top-right matches a trimmed card corner; bottom-left is softly
+     rounded inward. Squircle keeps both corners consistent with the
+     rest of the UI. */
+  border-radius: 0 12px 0 8px;
+  corner-shape: squircle;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, border-radius 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
   z-index: 2;
   white-space: nowrap;
 }
@@ -287,10 +297,11 @@ header {
 }
 
 .card-close-btn:hover {
-  background: rgba(82, 82, 82, 0.08);
-  border-color: rgba(82, 82, 82, 0.2);
-  border-radius: 10px;
-  padding: 5px 10px;
+  /* Solid card-bg keeps the label readable when it overlaps the title;
+     a 1px border is the separation cue (no shadow needed). */
+  background: var(--card-bg);
+  border-color: var(--warm-gray);
+  padding: 8px 12px 6px 10px;
   gap: 5px;
   color: var(--ink);
 }
