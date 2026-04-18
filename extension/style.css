@@ -384,6 +384,18 @@ header {
   border-radius: 2px;
 }
 
+/* Tab-group dot — indicates this tab belongs to a Chrome tab group.
+   Color is derived from groupId at render time so tabs in the same group
+   share a dot color. "Close all" / "Close duplicates" skip grouped tabs. */
+.chip-group-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
 /* Title text — wraps naturally, no truncation */
 .chip-text {
   flex: 1;
