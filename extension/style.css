@@ -285,10 +285,23 @@ header {
   white-space: nowrap;
 }
 
+/* Icon fades + collapses on hover so the label can slide in without
+   the × reappearing instantly the moment the cursor leaves. Both
+   icon and text use the same max-width + opacity pattern so enter
+   and exit transitions mirror each other. */
 .card-close-btn svg {
   width: 13px;
   height: 13px;
+  max-width: 13px;
   flex-shrink: 0;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-width 0.2s ease, opacity 0.15s ease;
+}
+
+.card-close-btn:hover svg {
+  max-width: 0;
+  opacity: 0;
 }
 
 .card-close-btn-text {
@@ -301,11 +314,12 @@ header {
 
 .card-close-btn:hover {
   /* Solid card-bg keeps the label readable when it overlaps the title;
-     a 1px border is the separation cue (no shadow needed). */
+     a 1px border is the separation cue (no shadow needed). Symmetric
+     padding since there's no icon-to-text gap to balance anymore. */
   background: var(--card-bg);
   border-color: var(--warm-gray);
-  padding: 8px 12px 6px 10px;
-  gap: 5px;
+  padding: 8px 12px;
+  gap: 0;
   color: var(--ink);
 }
 
