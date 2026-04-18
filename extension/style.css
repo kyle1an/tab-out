@@ -44,7 +44,7 @@ body::before {
   z-index: 1;
   max-width: 1600px;
   margin: 0 auto;
-  padding: 48px 32px 80px;
+  padding: 24px 32px 80px;
 }
 
 /* ---- Header ---- */
