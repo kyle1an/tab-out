@@ -416,18 +416,47 @@ export async function renderStaticDashboard() {
   const openTabsSection      = document.getElementById('openTabsSection');
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
 
+  // Snapshot the existing DOM so we can preserve three things across the
+  // rebuild: animation state (no re-fade for cards already on screen),
+  // masonry column pinning, and vertical order within columns. Without
+  // the order snapshot, cards swap places whenever tab counts change and
+  // the default tab-count-desc sort reorders them.
+  const prevIds = new Set();
+  const prevColumns = new Map();
+  const prevOrder = new Map();
+  if (openTabsMissionsEl) {
+    let idx = 0;
+    for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
+      const id = c.dataset.domainId;
+      if (!id) continue;
+      prevIds.add(id);
+      prevOrder.set(id, idx++);
+      if (c.dataset.masonryCol !== undefined) {
+        prevColumns.set(id, c.dataset.masonryCol);
+      }
+    }
+  }
+
+  // Stable re-sort: previously-seen cards keep their prior order; new
+  // cards stay where the landing/priority/tab-count sort put them (at
+  // the end, since `return 0` preserves Array.prototype.sort stability).
+  const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-');
+  domainGroups.sort((a, b) => {
+    const aPrev = prevOrder.get(stableDomainId(a));
+    const bPrev = prevOrder.get(stableDomainId(b));
+    if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev;
+    if (aPrev !== undefined) return -1;
+    if (bPrev !== undefined) return 1;
+    return 0;
+  });
+
   if (domainGroups.length > 0 && openTabsSection) {
-    // Snapshot existing cards by domain id so we can skip the fade-in
-    // animation on cards that were already on screen. Only genuinely new
-    // cards should animate in on a live-sync refresh.
-    const prevIds = new Set(
-      Array.from(openTabsMissionsEl.querySelectorAll('.mission-card'))
-        .map(c => c.dataset.domainId)
-        .filter(Boolean)
-    );
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
     openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
-      if (prevIds.has(c.dataset.domainId)) c.classList.add('persisted');
+      const id = c.dataset.domainId;
+      if (prevIds.has(id)) c.classList.add('persisted');
+      const savedCol = prevColumns.get(id);
+      if (savedCol !== undefined) c.dataset.masonryCol = savedCol;
     });
     openTabsSection.style.display = 'block';
     packMissionsMasonry();
