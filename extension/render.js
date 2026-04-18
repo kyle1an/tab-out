@@ -112,10 +112,10 @@ export function updateSectionCount() {
     if (m) globalExtras += parseInt(m[0], 10);
   });
   if (globalExtras > 0) {
-    dedupBtn = `<span class="section-count-sep">·</span><button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button>`;
+    dedupBtn = `<button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button><span class="section-count-sep">·</span>`;
   }
 
-  sectionCount.innerHTML = domainText + dedupBtn;
+  sectionCount.innerHTML = dedupBtn + domainText;
 }
 
 /* ---- Overflow chips ("+N more") ---- */
