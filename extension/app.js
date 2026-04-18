@@ -1059,8 +1059,8 @@ function renderDomainCard(group) {
           ${groupedBadge}
           ${dupeBadge}
         </div>
-        <div class="mission-pages">${pageChips}</div>
         <div class="actions">${actionsHtml}</div>
+        <div class="mission-pages">${pageChips}</div>
       </div>
       <div class="mission-meta">
         <div class="mission-page-count">${tabCount}</div>
