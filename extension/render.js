@@ -223,9 +223,9 @@ function renderDomainCard(group) {
   // Visible "N duplicates" badge counts ALL extras (including grouped copies)
   const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
 
-  const tabBadge = `<span class="open-tabs-badge">
+  const tabBadge = `<span class="open-tabs-badge tab-count-badge" title="${tabCount} open tab${tabCount !== 1 ? 's' : ''}">
     ${ICONS.tabs}
-    ${tabCount} tab${tabCount !== 1 ? 's' : ''} open
+    ${tabCount}
   </span>`;
 
   const dupeBadge = hasDupes

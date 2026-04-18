@@ -253,12 +253,12 @@ document.addEventListener('click', async (e) => {
         }
       });
       // Decrement the card's visible tab counts by the number of dupes closed
-      const tabsBadge = Array.from(card.querySelectorAll('.open-tabs-badge'))
-        .find(b => /\btab(s)? open\b/.test(b.textContent));
+      const tabsBadge = card.querySelector('.tab-count-badge');
       if (tabsBadge) {
         const current = parseInt((tabsBadge.textContent.match(/\d+/) || ['0'])[0], 10);
         const next    = Math.max(0, current - extrasClosed);
-        tabsBadge.innerHTML = `${ICONS.tabs} ${next} tab${next !== 1 ? 's' : ''} open`;
+        tabsBadge.innerHTML = `${ICONS.tabs} ${next}`;
+        tabsBadge.title    = `${next} open tab${next !== 1 ? 's' : ''}`;
       }
       const meta = card.querySelector('.mission-page-count');
       if (meta) {
