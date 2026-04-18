@@ -53,9 +53,17 @@ body::before {
 /* ---- Header ---- */
 header {
   display: flex;
+  /* Filter sits on the left now; tab count + windows sub-line sits on
+     the right. `row-reverse` swaps positions without touching HTML. */
+  flex-direction: row-reverse;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
+}
+
+.header-left {
+  /* Right-aligned since this block is now on the right side of header. */
+  text-align: right;
 }
 
 .header-left h1 {
@@ -159,6 +167,10 @@ header {
   gap: 12px;
   margin-bottom: 20px;
   margin-top: 8px;
+  /* Reserve room for an action button's height so removing the dedup
+     button (when extras are closed) doesn't collapse the row and shove
+     all the cards below up by ~10px. */
+  min-height: 28px;
 }
 
 .section-header h2 {
