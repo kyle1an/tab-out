@@ -623,18 +623,18 @@ header { animation: fadeUp 0.5s ease both; }
 .tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
 .active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
-/* fill-mode is `backwards` (not `both`) on mission-cards so that after the
-   intro animation finishes, the locked-in `transform: translateY(0)` from
-   the animation's final keyframe is released — otherwise it would outrank
-   the :hover transform and silently disable the hover lift on these cards. */
-.active-section .missions .mission-card:nth-child(1) { animation: fadeUp 0.4s ease 0.25s backwards; }
-.active-section .missions .mission-card:nth-child(2) { animation: fadeUp 0.4s ease 0.3s backwards; }
-.active-section .missions .mission-card:nth-child(3) { animation: fadeUp 0.4s ease 0.35s backwards; }
-.active-section .missions .mission-card:nth-child(4) { animation: fadeUp 0.4s ease 0.4s backwards; }
+/* Every card fades in with a per-card stagger driven by --card-index
+   (set on each card by renderDomainCard at render time). fill-mode is
+   `backwards` so the animation only pins styles BEFORE running — after
+   it ends, the card releases its transform so :hover can win.
+   The min() clamp caps the total stagger so the 30th card doesn't
+   take 1.5 seconds to appear. */
+.active-section .missions .mission-card,
+.abandoned-section .missions .mission-card {
+  animation: fadeUp 0.4s ease backwards;
+  animation-delay: calc(0.25s + min(var(--card-index, 0), 12) * 0.04s);
+}
 .abandoned-section .section-header { animation: fadeUp 0.5s ease 0.45s both; }
-.abandoned-section .missions .mission-card:nth-child(1) { animation: fadeUp 0.4s ease 0.5s backwards; }
-.abandoned-section .missions .mission-card:nth-child(2) { animation: fadeUp 0.4s ease 0.55s backwards; }
-.abandoned-section .missions .mission-card:nth-child(3) { animation: fadeUp 0.4s ease 0.6s backwards; }
 footer { animation: fadeUp 0.5s ease 0.65s both; }
 
 .deferred-list .deferred-item:nth-child(1) { animation-delay: 0.05s; }
