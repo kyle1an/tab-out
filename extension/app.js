@@ -504,22 +504,33 @@ async function closeDuplicateTabs(urls, keepOne = true) {
       continue;
     }
 
-    const grouped   = matching.filter(t => isGroupedTab(t));
+    const grouped   = matching.filter(t =>  isGroupedTab(t));
     const ungrouped = matching.filter(t => !isGroupedTab(t));
+    const sortByScore = arr => arr.slice()
+      .sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId));
 
     if (grouped.length >= 1 && ungrouped.length >= 1) {
-      // Grouped copies are the canonical keep — close every ungrouped copy.
+      // Mixed: keep the grouped copies (the curated set), close every ungrouped one.
       for (const t of ungrouped) toClose.push(t.id);
-    } else if (grouped.length === 0 && ungrouped.length >= 2) {
-      // No grouped copies — keep the highest-scoring ungrouped, close the rest.
-      const keep = ungrouped
-        .slice()
-        .sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId))[0];
+    } else if (ungrouped.length >= 2) {
+      // All ungrouped — keep the highest-scoring one, close the rest.
+      const keep = sortByScore(ungrouped)[0];
       for (const t of ungrouped) {
         if (t.id !== keep.id) toClose.push(t.id);
       }
+    } else if (grouped.length >= 2) {
+      // All copies are in groups. Allowed to dedup ONLY when every copy is in
+      // the same Chrome group — closing then leaves that one group intact.
+      // If copies span multiple groups, skip — we'd otherwise empty a slot in
+      // each one and disperse user-curated arrangements.
+      const distinctGroups = new Set(grouped.map(t => t.groupId));
+      if (distinctGroups.size === 1) {
+        const keep = sortByScore(grouped)[0];
+        for (const t of grouped) {
+          if (t.id !== keep.id) toClose.push(t.id);
+        }
+      }
     }
-    // else: every copy is grouped — skip, can't dedup without breaking a group
   }
 
   if (toClose.length > 0) await chrome.tabs.remove(toClose);
@@ -1085,35 +1096,37 @@ function renderDomainCard(group) {
   const closableTabs  = tabs.filter(t => !isGroupedTab(t));
   const closableCount = closableTabs.length;
 
-  // Count duplicates (exact URL match).
-  // For the dedup button we only count *ungrouped* extras: grouped copies are
-  // never closed, so an all-grouped URL has no closable duplicates.
+  // Count duplicates per URL, tracking grouped/ungrouped + which groups they're in.
+  // Mirrors closeDuplicateTabs's policy so the button label matches what will close.
+  const dupeInfo = {}; // { url: { total, ungrouped, groupIds: Set } }
   const urlCounts = {};
-  const ungroupedCounts = {};
   for (const tab of tabs) {
     urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1;
-    if (!isGroupedTab(tab)) ungroupedCounts[tab.url] = (ungroupedCounts[tab.url] || 0) + 1;
+    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() };
+    const info = dupeInfo[tab.url];
+    info.total++;
+    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId);
+    else info.ungrouped++;
   }
-  const dupeUrls    = Object.entries(urlCounts).filter(([, c]) => c > 1);
-  const hasDupes    = dupeUrls.length > 0;
-  // Dedup logic mirrors closeDuplicateTabs:
-  //   • If a URL has ≥1 grouped + ≥1 ungrouped copy → close every ungrouped
-  //     (the grouped copy is the canonical keep).
-  //   • If a URL has 0 grouped + ≥2 ungrouped → keep one ungrouped, close the rest.
-  //   • Otherwise (all copies grouped) → can't dedup without breaking a group.
-  const closableDupeUrls = dupeUrls
-    .map(([u]) => u)
-    .filter(u => {
-      const ungrouped = ungroupedCounts[u] || 0;
-      const grouped   = (urlCounts[u] || 0) - ungrouped;
-      return (grouped >= 1 && ungrouped >= 1) || (grouped === 0 && ungrouped >= 2);
-    });
-  const closableExtras = closableDupeUrls.reduce((s, u) => {
-    const ungrouped = ungroupedCounts[u] || 0;
-    const grouped   = (urlCounts[u] || 0) - ungrouped;
-    if (grouped >= 1) return s + ungrouped;          // close all ungrouped
-    return s + (ungrouped - 1);                      // keep one ungrouped
-  }, 0);
+  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
+  const hasDupes = dupeUrls.length > 0;
+
+  // Dedup policy (mirrors closeDuplicateTabs):
+  //   • Mixed grouped + ungrouped → close every ungrouped (grouped is the keep).
+  //   • All ungrouped (≥2)        → keep one ungrouped, close the rest.
+  //   • All grouped, single group → keep one, close the rest within that group.
+  //   • All grouped, multi groups → skip (would empty a slot in each group).
+  function closableForUrl(u) {
+    const info = dupeInfo[u];
+    if (!info) return 0;
+    const grouped = info.total - info.ungrouped;
+    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped;        // close all ungrouped
+    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1;    // keep one ungrouped
+    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1;    // dedup within single group
+    return 0;
+  }
+  const closableDupeUrls = dupeUrls.map(([u]) => u).filter(u => closableForUrl(u) > 0);
+  const closableExtras   = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0);
 
   // Visible "N duplicates" badge counts all extras (including grouped copies)
   const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
@@ -1195,7 +1208,7 @@ function renderDomainCard(group) {
       <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
-          <span class="mission-name">${isLanding ? 'Homepages' : (group.label || friendlyDomain(group.domain))}</span>
+          <span class="mission-name">${isLanding ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''))}</span>
           ${tabBadge}
           ${dupeBadge}
         </div>
@@ -1508,7 +1521,7 @@ document.addEventListener('click', async (e) => {
     const idx = domainGroups.indexOf(group);
     if (idx !== -1) domainGroups.splice(idx, 1);
 
-    const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : (group.label || friendlyDomain(group.domain));
+    const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''));
     showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
 
     updateTabCountDisplays();
