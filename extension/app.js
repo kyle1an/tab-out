@@ -79,6 +79,24 @@ function groupDotColor(groupId) {
 }
 
 /**
+ * pickFavicon(tab) — prefer the tab's own favicon (chrome.tabs.favIconUrl,
+ * which Chrome scrapes from the page's <link rel="icon"> in <head>) and fall
+ * back to Google's favicon service when the page hasn't reported one yet,
+ * or when the URL is a chrome://, chrome-extension:// (e.g., suspender),
+ * or otherwise unusable source. The broken-image listener in app.js hides
+ * favicons that fail to load.
+ */
+function pickFavicon(tab) {
+  const fav = tab.favIconUrl || '';
+  if (fav && !fav.startsWith('chrome://') && !fav.startsWith('chrome-extension://')) {
+    return fav;
+  }
+  let domain = '';
+  try { domain = new URL(tab.url).hostname; } catch {}
+  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
+}
+
+/**
  * scoreForKeep(tab, currentWindowId) — priority score for which duplicate
  * to keep. Higher score wins. Used by closeDuplicateTabs.
  *
@@ -140,18 +158,19 @@ async function fetchOpenTabs() {
       const rawUrl = t.url || '';
       const effectiveUrl = unwrapSuspenderUrl(rawUrl);
       return {
-        id:        t.id,
-        url:       effectiveUrl,
-        rawUrl:    rawUrl,
-        suspended: rawUrl !== effectiveUrl,
-        title:     t.title,
-        windowId:  t.windowId,
-        active:    t.active,
-        pinned:    t.pinned,
+        id:         t.id,
+        url:        effectiveUrl,
+        rawUrl:     rawUrl,
+        suspended:  rawUrl !== effectiveUrl,
+        title:      t.title,
+        favIconUrl: t.favIconUrl || '',
+        windowId:   t.windowId,
+        active:     t.active,
+        pinned:     t.pinned,
         // groupId is always present in MV3 (-1 if the tab isn't grouped)
-        groupId:   typeof t.groupId === 'number' ? t.groupId : -1,
+        groupId:    typeof t.groupId === 'number' ? t.groupId : -1,
         // Flag Tab Out's own pages so we can detect duplicate new tabs
-        isTabOut:  rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
+        isTabOut:   rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
       };
     });
   } catch {
@@ -281,19 +300,22 @@ async function closeDuplicateTabs(urls, keepOne = true) {
       continue;
     }
 
-    // Never close a tab that's in a Chrome group — preserve user curation.
-    // If every copy is grouped, skip this URL entirely.
+    const grouped   = matching.filter(t => isGroupedTab(t));
     const ungrouped = matching.filter(t => !isGroupedTab(t));
-    if (ungrouped.length === 0) continue;
 
-    // Among ungrouped copies, keep the highest-scoring one, close the rest.
-    // (Grouped copies are untouched.)
-    const keep = ungrouped
-      .slice()
-      .sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId))[0];
-    for (const tab of ungrouped) {
-      if (tab.id !== keep.id) toClose.push(tab.id);
+    if (grouped.length >= 1 && ungrouped.length >= 1) {
+      // Grouped copies are the canonical keep — close every ungrouped copy.
+      for (const t of ungrouped) toClose.push(t.id);
+    } else if (grouped.length === 0 && ungrouped.length >= 2) {
+      // No grouped copies — keep the highest-scoring ungrouped, close the rest.
+      const keep = ungrouped
+        .slice()
+        .sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId))[0];
+      for (const t of ungrouped) {
+        if (t.id !== keep.id) toClose.push(t.id);
+      }
     }
+    // else: every copy is grouped — skip, can't dedup without breaking a group
   }
 
   if (toClose.length > 0) await chrome.tabs.remove(toClose);
@@ -900,9 +922,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
     // even for suspended tabs where tab.url is the unwrapped real URL.
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = pickFavicon(tab);
     const groupDot = isGroupedTab(tab)
       ? `<span class="chip-group-dot" style="background:${groupDotColor(tab.groupId)}" title="In a Chrome tab group — safe from Close all / Close duplicates"></span>`
       : '';
@@ -961,10 +981,24 @@ function renderDomainCard(group) {
   }
   const dupeUrls    = Object.entries(urlCounts).filter(([, c]) => c > 1);
   const hasDupes    = dupeUrls.length > 0;
+  // Dedup logic mirrors closeDuplicateTabs:
+  //   • If a URL has ≥1 grouped + ≥1 ungrouped copy → close every ungrouped
+  //     (the grouped copy is the canonical keep).
+  //   • If a URL has 0 grouped + ≥2 ungrouped → keep one ungrouped, close the rest.
+  //   • Otherwise (all copies grouped) → can't dedup without breaking a group.
   const closableDupeUrls = dupeUrls
     .map(([u]) => u)
-    .filter(u => (ungroupedCounts[u] || 0) > 1);
-  const closableExtras = closableDupeUrls.reduce((s, u) => s + (ungroupedCounts[u] - 1), 0);
+    .filter(u => {
+      const ungrouped = ungroupedCounts[u] || 0;
+      const grouped   = (urlCounts[u] || 0) - ungrouped;
+      return (grouped >= 1 && ungrouped >= 1) || (grouped === 0 && ungrouped >= 2);
+    });
+  const closableExtras = closableDupeUrls.reduce((s, u) => {
+    const ungrouped = ungroupedCounts[u] || 0;
+    const grouped   = (urlCounts[u] || 0) - ungrouped;
+    if (grouped >= 1) return s + ungrouped;          // close all ungrouped
+    return s + (ungrouped - 1);                      // keep one ungrouped
+  }, 0);
 
   // Visible "N duplicates" badge counts all extras (including grouped copies)
   const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
@@ -1010,9 +1044,7 @@ function renderDomainCard(group) {
     // even for suspended tabs where tab.url is the unwrapped real URL.
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
-    let domain = '';
-    try { domain = new URL(tab.url).hostname; } catch {}
-    const faviconUrl = domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=16` : '';
+    const faviconUrl = pickFavicon(tab);
     const groupDot = isGroupedTab(tab)
       ? `<span class="chip-group-dot" style="background:${groupDotColor(tab.groupId)}" title="In a Chrome tab group — safe from Close all / Close duplicates"></span>`
       : '';
