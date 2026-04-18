@@ -206,7 +206,6 @@ function renderDomainCard(group) {
     else info.ungrouped++;
   }
   const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
-  const hasDupes = dupeUrls.length > 0;
 
   // Dedup policy (mirrors closeDuplicateTabs):
   //   • Mixed grouped + ungrouped → close every ungrouped (grouped is the keep).
@@ -225,9 +224,6 @@ function renderDomainCard(group) {
   const closableDupeUrls = dupeUrls.map(([u]) => u).filter(u => closableForUrl(u) > 0);
   const closableExtras   = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0);
 
-  // Visible "N duplicates" badge counts ALL extras (including grouped copies)
-  const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
-
   // App cards merge the "App" label and the tab count into one pill.
   // Apps usually have one tab, so the count is only shown when >1.
   const tabBadge = isAppCard
@@ -236,12 +232,6 @@ function renderDomainCard(group) {
         ${ICONS.tabs}
         ${tabCount}
       </span>`;
-
-  const dupeBadge = hasDupes
-    ? `<span class="open-tabs-badge" style="color:var(--accent-amber);background:rgba(82,82,82,0.08);">
-        ${totalExtras} duplicate${totalExtras !== 1 ? 's' : ''}
-      </span>`
-    : '';
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
   const seen = new Set();
@@ -309,7 +299,6 @@ function renderDomainCard(group) {
         <div class="mission-top">
           <span class="mission-name">${isLanding ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''))}</span>
           ${tabBadge}
-          ${dupeBadge}
         </div>
         <div class="actions">${actionsHtml}</div>
         <div class="mission-pages">${pageChips}</div>
