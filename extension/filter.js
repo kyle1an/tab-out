@@ -20,7 +20,11 @@ const PLACEHOLDER_FOCUSED = 'Type anywhere to filter…';
 function updateFilterPlaceholder() {
   const input = document.getElementById('tabFilter');
   if (!input) return;
-  input.placeholder = document.hasFocus() ? PLACEHOLDER_FOCUSED : PLACEHOLDER_DEFAULT;
+  const pageFocused = document.hasFocus();
+  input.placeholder = pageFocused ? PLACEHOLDER_FOCUSED : PLACEHOLDER_DEFAULT;
+  // `.capture-ready` gives the input a subtler pre-focus look so the user
+  // trusts keystrokes will land here even before clicking in.
+  input.classList.toggle('capture-ready', pageFocused);
 }
 
 /**
