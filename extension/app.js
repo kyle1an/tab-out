@@ -130,6 +130,10 @@ document.addEventListener('click', async (e) => {
     if (overflowContainer) {
       overflowContainer.style.display = 'contents';
       actionEl.remove();
+      // Mark so a live-sync refresh (e.g. after closing a tab in this
+      // card) can restore the expanded state instead of collapsing back
+      // to the 8-visible-chips default.
+      if (card) card.dataset.chipsExpanded = 'true';
       packMissionsMasonry();
     }
     return;

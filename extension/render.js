@@ -437,6 +437,7 @@ export async function renderStaticDashboard() {
   const prevIds = new Set();
   const prevColumns = new Map();
   const prevOrder = new Map();
+  const prevExpanded = new Set();
   if (openTabsMissionsEl) {
     let idx = 0;
     for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
@@ -447,6 +448,7 @@ export async function renderStaticDashboard() {
       if (c.dataset.masonryCol !== undefined) {
         prevColumns.set(id, c.dataset.masonryCol);
       }
+      if (c.dataset.chipsExpanded === 'true') prevExpanded.add(id);
     }
   }
 
@@ -470,6 +472,15 @@ export async function renderStaticDashboard() {
       if (prevIds.has(id)) c.classList.add('persisted');
       const savedCol = prevColumns.get(id);
       if (savedCol !== undefined) c.dataset.masonryCol = savedCol;
+      // Re-apply the "expanded overflow" state so closing a tab inside
+      // an expanded card doesn't collapse its "+N more" back.
+      if (prevExpanded.has(id)) {
+        const overflow = c.querySelector('.page-chips-overflow');
+        if (overflow) overflow.style.display = 'contents';
+        const moreBtn = c.querySelector('.page-chip-overflow');
+        if (moreBtn) moreBtn.remove();
+        c.dataset.chipsExpanded = 'true';
+      }
     });
     openTabsSection.style.display = 'block';
     packMissionsMasonry();
