@@ -743,44 +743,37 @@ function checkAndShowEmptyState() {
 }
 
 /**
- * updateTabCountDisplays() — write the current real-tab count to the header
- * (#greeting, which serves as the main tab-count display). Reads the filter
- * input directly so every call site automatically respects the active filter
- * — no caller has to know whether the user is filtering.
+ * updateTabCountDisplays() — write the header line and the window-count
+ * sub-line. Reads the filter input directly so every call site respects
+ * the active filter without having to know about it.
  *
- *   No filter:  "182 Open tabs"
- *   Filtering:  "14 of 182 Open tabs"
+ *   No filter:  "182 Open tabs"     /  "Across 3 windows"
+ *   Filtering:  "14 of 182 Open tabs" / "Across 3 windows"
  */
 function updateTabCountDisplays() {
   const headerEl = document.getElementById('greeting');
+  const subEl    = document.getElementById('dateDisplay');
   if (!headerEl) return;
-  const total = getRealTabs().length;
+
+  const realTabs = getRealTabs();
+  const total    = realTabs.length;
+  const windows  = new Set(realTabs.map(t => t.windowId)).size;
+
   const filterInput = document.getElementById('tabFilter');
   const q = (filterInput && filterInput.value || '').trim().toLowerCase();
   if (q.length === 0) {
     headerEl.textContent = `${total} Open tab${total !== 1 ? 's' : ''}`;
-    return;
+  } else {
+    const matched = realTabs.filter(t => {
+      const text = (t.title || '').toLowerCase();
+      const url  = (t.url   || '').toLowerCase();
+      return text.includes(q) || url.includes(q);
+    }).length;
+    headerEl.textContent = `${matched} of ${total} Open tab${total !== 1 ? 's' : ''}`;
   }
-  const matched = getRealTabs().filter(t => {
-    const text = (t.title || '').toLowerCase();
-    const url  = (t.url   || '').toLowerCase();
-    return text.includes(q) || url.includes(q);
-  }).length;
-  headerEl.textContent = `${matched} of ${total} Open tab${total !== 1 ? 's' : ''}`;
-}
 
-/**
- * getDateDisplay() — "Friday, April 4, 2026"
- */
-function getDateDisplay() {
-  return new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    year:    'numeric',
-    month:   'long',
-    day:     'numeric',
-  });
+  if (subEl) subEl.textContent = `Across ${windows} window${windows !== 1 ? 's' : ''}`;
 }
-
 
 /* ----------------------------------------------------------------
    DOMAIN & TITLE CLEANUP HELPERS
@@ -1220,11 +1213,7 @@ function renderDomainCard(group) {
  * 5. Updates the header tab count and dupe banner
  */
 async function renderStaticDashboard() {
-  // --- Header (date) — tab count is written after the fetch completes ---
-  const dateEl = document.getElementById('dateDisplay');
-  if (dateEl) dateEl.textContent = getDateDisplay();
-
-  // --- Fetch tabs ---
+  // --- Fetch tabs (header is painted after, by updateTabCountDisplays) ---
   await fetchOpenTabs();
   const realTabs = getRealTabs();
   updateTabCountDisplays();
