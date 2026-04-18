@@ -428,7 +428,18 @@ export async function renderStaticDashboard() {
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
 
   if (domainGroups.length > 0 && openTabsSection) {
+    // Snapshot existing cards by domain id so we can skip the fade-in
+    // animation on cards that were already on screen. Only genuinely new
+    // cards should animate in on a live-sync refresh.
+    const prevIds = new Set(
+      Array.from(openTabsMissionsEl.querySelectorAll('.mission-card'))
+        .map(c => c.dataset.domainId)
+        .filter(Boolean)
+    );
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
+    openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
+      if (prevIds.has(c.dataset.domainId)) c.classList.add('persisted');
+    });
     openTabsSection.style.display = 'block';
     packMissionsMasonry();
     updateSectionCount();
