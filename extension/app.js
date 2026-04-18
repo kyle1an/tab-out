@@ -22,7 +22,7 @@ import { showToast, animateCardOut, updateCloseTabsButton }        from './ui.js
 import { markClosure }                                             from './undo.js';
 import {
   renderStaticDashboard, updateTabCountDisplays,
-  domainGroups, ICONS,
+  getFilteredCloseableUrls, domainGroups, ICONS,
 } from './render.js';
 import { applyTabFilter } from './filter.js';
 import { groupColorChanged } from './groups.js';
@@ -268,6 +268,19 @@ document.addEventListener('click', async (e) => {
     setTimeout(() => packMissionsMasonry(), 250);
 
     markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`);
+    return;
+  }
+
+  // ---- Close every tab matching the current filter ----
+  if (action === 'close-filtered-tabs') {
+    const urls = getFilteredCloseableUrls();
+    if (urls.length === 0) { showToast('Nothing to close'); return; }
+    const snapshot = await closeTabsExact(urls, { preserveGroups: true });
+    if (snapshot.length > 0) {
+      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`);
+    } else {
+      showToast('Nothing to close');
+    }
     return;
   }
 

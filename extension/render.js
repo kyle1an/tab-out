@@ -81,6 +81,38 @@ export function updateTabCountDisplays() {
 }
 
 /**
+ * getFilteredCloseableUrls() — URLs of tabs the "Close N filtered tabs"
+ * action would close: filter-matching, ungrouped, non-chrome. Returns []
+ * when no filter is active. Shared between the button label + the action
+ * handler so both see the same list.
+ */
+export function getFilteredCloseableUrls() {
+  const filterInput = document.getElementById('tabFilter');
+  const q = (filterInput && filterInput.value || '').trim().toLowerCase();
+  if (!q) return [];
+  return getRealTabs()
+    .filter(t => !isGroupedTab(t))
+    .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
+    .filter(t => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q))
+    .map(t => t.url);
+}
+
+/**
+ * updateFilteredActions() — left-side slot in `.section-header`. Empty
+ * unless the filter is active and at least one closable tab matches.
+ */
+export function updateFilteredActions() {
+  const el = document.getElementById('openTabsSectionActions');
+  if (!el) return;
+  const urls = getFilteredCloseableUrls();
+  if (urls.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `<button class="action-btn close-tabs" data-action="close-filtered-tabs" style="font-size:11px;padding:4px 12px;">${ICONS.close} Close ${urls.length} filtered tab${urls.length !== 1 ? 's' : ''}</button>`;
+}
+
+/**
  * updateSectionCount() — "X domains · Close N tabs" section header.
  * Domain count uses DOM-visible cards (so filter-hidden cards don't count).
  * Close button reflects ungrouped, filter-matching tabs only.
@@ -454,4 +486,5 @@ export async function renderStaticDashboard() {
   }
 
   updateTabCountDisplays();
+  updateFilteredActions();
 }
