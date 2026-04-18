@@ -42,7 +42,7 @@ body::before {
 .container {
   position: relative;
   z-index: 1;
-  max-width: 960px;
+  max-width: 1600px;
   margin: 0 auto;
   padding: 48px 32px 80px;
 }
