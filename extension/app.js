@@ -623,17 +623,15 @@ function timeAgo(dateStr) {
 }
 
 /**
- * updateTabCountDisplays() — write the current real-tab count to both the
- * header (#greeting, which now serves as the main tab-count display) and
- * the footer stat (#statTabs). Call after any action that opens/closes tabs
- * so both stay consistent.
+ * updateTabCountDisplays() — write the current real-tab count to the header
+ * (#greeting, which serves as the main tab-count display). Call after any
+ * action that opens/closes tabs.
  */
 function updateTabCountDisplays() {
-  const n = getRealTabs().length;
   const headerEl = document.getElementById('greeting');
-  if (headerEl) headerEl.textContent = `${n} Open tab${n !== 1 ? 's' : ''}`;
-  const statTabs = document.getElementById('statTabs');
-  if (statTabs) statTabs.textContent = n;
+  if (!headerEl) return;
+  const n = getRealTabs().length;
+  headerEl.textContent = `${n} Open tab${n !== 1 ? 's' : ''}`;
 }
 
 /**
