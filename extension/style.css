@@ -623,16 +623,12 @@ header { animation: fadeUp 0.5s ease both; }
 .tab-cleanup-banner { animation: fadeUp 0.5s ease 0.1s both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
 .active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
-/* Every card fades in with a per-card stagger driven by --card-index
-   (set on each card by renderDomainCard at render time). fill-mode is
-   `backwards` so the animation only pins styles BEFORE running — after
-   it ends, the card releases its transform so :hover can win.
-   The min() clamp caps the total stagger so the 30th card doesn't
-   take 1.5 seconds to appear. */
+/* Every card fades in together after the header animations settle.
+   fill-mode is `backwards` so the animation only pins styles BEFORE
+   running — after it ends the card releases its transform so :hover wins. */
 .active-section .missions .mission-card,
 .abandoned-section .missions .mission-card {
-  animation: fadeUp 0.4s ease backwards;
-  animation-delay: calc(0.25s + min(var(--card-index, 0), 12) * 0.04s);
+  animation: fadeUp 0.2s ease 0.1s backwards;
 }
 .abandoned-section .section-header { animation: fadeUp 0.5s ease 0.45s both; }
 footer { animation: fadeUp 0.5s ease 0.65s both; }
