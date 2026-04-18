@@ -86,6 +86,83 @@ function groupDotColor(groupId) {
  * or otherwise unusable source. The broken-image listener in app.js hides
  * favicons that fail to load.
  */
+/**
+ * packMissionsMasonry()
+ *
+ * Pinterest-style masonry layout for the mission cards. Each card is
+ * absolutely positioned in the shortest column on initial pack; on subsequent
+ * packs every card stays in the column it was first assigned to, so when one
+ * card grows (e.g., after clicking "+N more"), only that card and the cards
+ * below it in the same column move — every other card holds its position.
+ *
+ * Layout state is stored on each card in `dataset.masonryCol`. Column count
+ * changes (e.g., window resize crossing a breakpoint) reset all assignments.
+ */
+let __packLastColCount = null;
+let __packResizeTimer = null;
+
+function packMissionsMasonry() {
+  const container = document.getElementById('openTabsMissions');
+  if (!container) return;
+
+  const containerWidth = container.clientWidth;
+  if (containerWidth === 0) return; // section hidden — nothing to layout
+
+  const cards = Array.from(container.querySelectorAll('.mission-card:not(.closing)'));
+  if (cards.length === 0) {
+    container.style.height = '';
+    return;
+  }
+
+  const minColWidth = 280;
+  const gap = 12;
+  const colCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)));
+  const colWidth = (containerWidth - gap * (colCount - 1)) / colCount;
+
+  // If the column count changed (window resize), drop pinned assignments
+  // so cards redistribute fresh into the new layout.
+  if (__packLastColCount !== colCount) {
+    cards.forEach(c => delete c.dataset.masonryCol);
+    __packLastColCount = colCount;
+  }
+
+  // Set width up front so each card's height settles before measuring.
+  cards.forEach(card => {
+    card.style.position = 'absolute';
+    card.style.width = `${colWidth}px`;
+  });
+
+  const colHeights = new Array(colCount).fill(0);
+
+  cards.forEach(card => {
+    let col;
+    const prev = parseInt(card.dataset.masonryCol, 10);
+    if (Number.isInteger(prev) && prev >= 0 && prev < colCount) {
+      col = prev; // keep this card in the column it was assigned to
+    } else {
+      // First time we see this card — drop it into the shortest column.
+      col = 0;
+      for (let i = 1; i < colCount; i++) {
+        if (colHeights[i] < colHeights[col]) col = i;
+      }
+      card.dataset.masonryCol = String(col);
+    }
+    card.style.left = `${col * (colWidth + gap)}px`;
+    card.style.top  = `${colHeights[col]}px`;
+    colHeights[col] += card.getBoundingClientRect().height + gap;
+  });
+
+  container.style.height = `${Math.max(...colHeights) - gap}px`;
+  // Enable top/left transitions for subsequent packs (skipped on the very
+  // first pack so cards don't visibly slide from (0,0) into position).
+  requestAnimationFrame(() => container.classList.add('is-packed'));
+}
+
+window.addEventListener('resize', () => {
+  clearTimeout(__packResizeTimer);
+  __packResizeTimer = setTimeout(packMissionsMasonry, 100);
+});
+
 function pickFavicon(tab) {
   const fav = tab.favIconUrl || '';
   if (fav && !fav.startsWith('chrome://') && !fav.startsWith('chrome-extension://')) {
@@ -580,6 +657,7 @@ function animateCardOut(card) {
   setTimeout(() => {
     card.remove();
     checkAndShowEmptyState();
+    packMissionsMasonry();
   }, 300);
 }
 
@@ -1362,6 +1440,7 @@ async function renderStaticDashboard() {
     openTabsSectionCount.innerHTML = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''}${closeAllBtn}`;
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
     openTabsSection.style.display = 'block';
+    packMissionsMasonry();
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
   }
@@ -1427,6 +1506,9 @@ document.addEventListener('click', async (e) => {
     if (overflowContainer) {
       overflowContainer.style.display = 'contents';
       actionEl.remove();
+      // The card just grew — re-pack so cards in the same column flow
+      // around the new height. Other columns stay put.
+      packMissionsMasonry();
     }
     return;
   }
@@ -1473,6 +1555,8 @@ document.addEventListener('click', async (e) => {
             animateCardOut(c);
           }
         });
+        // Card just got shorter — re-pack so the column fills the gap.
+        packMissionsMasonry();
       }, 200);
     }
 
@@ -1516,7 +1600,10 @@ document.addEventListener('click', async (e) => {
       chip.style.transition = 'opacity 0.2s, transform 0.2s';
       chip.style.opacity    = '0';
       chip.style.transform  = 'scale(0.8)';
-      setTimeout(() => chip.remove(), 200);
+      setTimeout(() => {
+        chip.remove();
+        packMissionsMasonry();
+      }, 200);
     }
 
     showToast('Saved for later');
@@ -1656,6 +1743,9 @@ document.addEventListener('click', async (e) => {
       document.querySelector('#openTabsSectionCount [data-action="close-all-open-tabs"]'),
       extrasClosed
     );
+
+    // Card heights changed (badges removed) — re-pack after the fade-outs.
+    setTimeout(packMissionsMasonry, 250);
 
     showToast('Closed duplicates, kept one copy each');
     return;
