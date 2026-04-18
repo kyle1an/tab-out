@@ -215,14 +215,17 @@ header {
 
 /* ---- Mission Cards ---- */
 .missions {
-  /* CSS Grid (not multi-column) so cards keep their cell when expanded.
-     With multicol, expanding a card pushes everything below across column
-     boundaries, and the user loses track of where the card ended up. */
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  /* JS-driven masonry — packMissionsMasonry() in app.js absolutely positions
+     each .mission-card in the shortest column and pins it there for future
+     re-packs, so expanding a card grows it within its own column without
+     reshuffling any other card's column assignment. */
+  position: relative;
   margin-bottom: 40px;
-  align-items: start;
+}
+/* Transitions on top/left are enabled only AFTER the first pack so cards
+   don't visibly slide from 0,0 into position on initial render. */
+.missions.is-packed .mission-card {
+  transition: top 0.25s ease, left 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 
 .mission-card {
