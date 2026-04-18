@@ -905,7 +905,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
       ? `<span class="chip-group-dot" style="background:${groupDotColor(tab.groupId)}" title="In a Chrome tab group — safe from Close all / Close duplicates"></span>`
       : '';
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
       ${groupDot}
       <span class="chip-text">${label}</span>${dupeTag}
       <div class="chip-actions">
@@ -1015,7 +1015,7 @@ function renderDomainCard(group) {
       ? `<span class="chip-group-dot" style="background:${groupDotColor(tab.groupId)}" title="In a Chrome tab group — safe from Close all / Close duplicates"></span>`
       : '';
     return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="" onerror="this.style.display='none'">` : ''}
+      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
       ${groupDot}
       <span class="chip-text">${label}</span>${dupeTag}
       <div class="chip-actions">
@@ -1147,7 +1147,7 @@ function renderDeferredItem(item) {
       <input type="checkbox" class="deferred-checkbox" data-action="check-deferred" data-deferred-id="${item.id}">
       <div class="deferred-info">
         <a href="${item.url}" target="_blank" rel="noopener" class="deferred-title" title="${(item.title || '').replace(/"/g, '&quot;')}">
-          <img src="${faviconUrl}" alt="" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" onerror="this.style.display='none'">${item.title || item.url}
+          <img src="${faviconUrl}" alt="" style="width:14px;height:14px;vertical-align:-2px;margin-right:4px">${item.title || item.url}
         </a>
         <div class="deferred-meta">
           <span>${domain}</span>
@@ -1358,6 +1358,15 @@ async function renderDashboard() {
    Think of it as one security guard watching the whole building
    instead of one per door.
    ---------------------------------------------------------------- */
+
+// Hide any <img> that fails to load (favicons from google.com/s2/favicons
+// occasionally 404 or get blocked). Inline `onerror=...` attributes would
+// trip the Manifest V3 Content Security Policy, so we use a capture-phase
+// listener — error events don't bubble, but they do capture.
+document.addEventListener('error', (e) => {
+  const el = e.target;
+  if (el && el.tagName === 'IMG') el.style.display = 'none';
+}, true);
 
 document.addEventListener('click', async (e) => {
   // Walk up the DOM to find the nearest element with data-action
