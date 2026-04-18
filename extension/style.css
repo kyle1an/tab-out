@@ -76,7 +76,8 @@ header {
 .tab-cleanup-banner {
   background: linear-gradient(135deg, rgba(200, 113, 58, 0.04), rgba(200, 113, 58, 0.09));
   border: 1px solid rgba(200, 113, 58, 0.18);
-  border-radius: 8px;
+  border-radius: 18px;
+  corner-shape: squircle;
   padding: 16px 24px;
   display: flex;
   align-items: center;
@@ -122,7 +123,8 @@ header {
   font-size: 12px;
   font-weight: 600;
   padding: 8px 20px;
-  border-radius: 6px;
+  border-radius: 15px;
+  corner-shape: squircle;
   border: none;
   background: var(--accent-amber);
   color: white;
@@ -140,7 +142,8 @@ header {
 .nudge-banner {
   background: linear-gradient(135deg, rgba(179, 90, 90, 0.04), rgba(179, 90, 90, 0.08));
   border: 1px solid rgba(179, 90, 90, 0.15);
-  border-radius: 8px;
+  border-radius: 18px;
+  corner-shape: squircle;
   padding: 16px 24px;
   display: flex;
   align-items: center;
@@ -225,7 +228,8 @@ header {
 .mission-card {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
-  border-radius: 8px;
+  border-radius: 18px;
+  corner-shape: squircle;
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -287,7 +291,8 @@ header {
   letter-spacing: 1px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 3px;
+  border-radius: 8px;
+  corner-shape: squircle;
 }
 
 .mission-tag.active {
@@ -315,7 +320,8 @@ header {
   color: var(--accent-amber);
   background: rgba(200, 113, 58, 0.08);
   padding: 2px 8px;
-  border-radius: 3px;
+  border-radius: 8px;
+  corner-shape: squircle;
 }
 
 .open-tabs-badge svg {
@@ -381,7 +387,7 @@ header {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  border-radius: 2px;
+  border-radius: 0px;
   margin-top: 1px;
 }
 
@@ -512,7 +518,8 @@ header {
   font-family: sans-serif;
   font-weight: 500;
   padding: 5px 14px;
-  border-radius: 4px;
+  border-radius: 10px;
+  corner-shape: squircle;
   border: 1px solid var(--warm-gray);
   background: var(--card-bg);
   color: var(--muted);
@@ -586,7 +593,8 @@ header {
   font-size: 13px;
   font-weight: 500;
   padding: 12px 24px;
-  border-radius: 8px;
+  border-radius: 18px;
+  corner-shape: squircle;
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
   z-index: 100;
   opacity: 0;
@@ -733,7 +741,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   /* Sage green tint — matches accent-sage but very light */
   background: linear-gradient(135deg, rgba(90, 122, 98, 0.05), rgba(90, 122, 98, 0.10));
   border: 1px solid rgba(90, 122, 98, 0.22);
-  border-radius: 8px;
+  border-radius: 18px;
+  corner-shape: squircle;
   padding: 10px 16px;
 
   /* Push the header down slightly */
@@ -789,7 +798,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   color: #fff;
   background: var(--accent-sage);
   border: none;
-  border-radius: 5px;
+  border-radius: 12px;
+  corner-shape: squircle;
   padding: 5px 12px;
   cursor: pointer;
   letter-spacing: 0.2px;
@@ -816,7 +826,8 @@ footer { animation: fadeUp 0.5s ease 0.65s both; }
   border: none;
   background: transparent;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 10px;
+  corner-shape: squircle;
   color: var(--muted);
   transition: background 0.15s, color 0.15s;
   padding: 0;
