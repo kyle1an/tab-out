@@ -182,6 +182,16 @@ header {
   font-weight: 500;
   letter-spacing: 0.5px;
   white-space: nowrap;
+  /* inline-flex with cross-axis centering so buttons and text share a
+     common vertical midline instead of aligning on the text baseline. */
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-count-sep {
+  color: var(--muted);
+  opacity: 0.6;
 }
 
 /* ---- Mission Cards ---- */
@@ -449,7 +459,7 @@ header {
 }
 
 .chip-close:hover {
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(82, 82, 82, 0.1);
 }
 
 .page-chip.clickable {
@@ -634,9 +644,9 @@ header {
   to { opacity: 1; transform: translateY(0); }
 }
 
-header { animation: fadeUp 0.5s ease both; }
+header { animation: fadeUp 0.3s ease both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
-.active-section .section-header { animation: fadeUp 0.5s ease 0.2s both; }
+.active-section .section-header { animation: fadeUp 0.2s ease 0.1s both; }
 /* Every card fades in together after the header animations settle.
    fill-mode is `backwards` so the animation only pins styles BEFORE
    running — after it ends the card releases its transform so :hover wins. */

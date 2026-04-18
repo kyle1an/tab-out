@@ -4,8 +4,7 @@
    • renderStaticDashboard — top-level render, owns `domainGroups`
    • renderDomainCard / buildOverflowChips — per-card HTML
    • updateTabCountDisplays — header line + windows sub-line
-   • updateSectionCount — "X domains · Close N tabs" header
-   • getFilteredTabs — getRealTabs() narrowed by current filter
+   • updateSectionCount — "X domains · Close N duplicates" header
    • pickFavicon — tab.favIconUrl > Google fallback
    ================================================================ */
 
@@ -38,21 +37,6 @@ export function pickFavicon(tab) {
   let domain = '';
   try { domain = new URL(tab.url).hostname; } catch {}
   return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
-}
-
-/**
- * getFilteredTabs() — getRealTabs() narrowed by the current filter input.
- * Returns the full list when no filter is active.
- */
-export function getFilteredTabs() {
-  const realTabs = getRealTabs();
-  const filterInput = document.getElementById('tabFilter');
-  const q = (filterInput && filterInput.value || '').trim().toLowerCase();
-  if (q.length === 0) return realTabs;
-  return realTabs.filter(t =>
-    (t.title || '').toLowerCase().includes(q) ||
-    (t.url   || '').toLowerCase().includes(q)
-  );
 }
 
 /**
@@ -112,22 +96,26 @@ export function updateSectionCount() {
   const visibleDomains = Array.from(allCards)
     .filter(c => getComputedStyle(c).display !== 'none').length;
 
-  const realTabs       = getRealTabs();
-  const filteredTabs   = getFilteredTabs();
-  const closableActive = filteredTabs.filter(t => !isGroupedTab(t)).length;
-  const closableTotal  = realTabs.filter(t => !isGroupedTab(t)).length;
-
   const domainText = visibleDomains === totalDomains
     ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
     : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`;
 
-  let closeBtn = '';
-  if (closableActive > 0) {
-    const allWord = closableActive === closableTotal && closableActive === realTabs.length ? 'all ' : '';
-    closeBtn = `&nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:4px 12px;">${ICONS.close} Close ${allWord}${closableActive} tab${closableActive !== 1 ? 's' : ''}</button>`;
+  // Global dedup button — sum of closable extras across every per-card
+  // dedup button currently rendered. Keeps the 4-case policy intact
+  // (per-card buttons already encode only the closable URLs), so the
+  // global total equals the sum of what each card would close.
+  let dedupBtn = '';
+  const perCardDedupBtns = document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]');
+  let globalExtras = 0;
+  perCardDedupBtns.forEach(btn => {
+    const m = btn.textContent.match(/\d+/);
+    if (m) globalExtras += parseInt(m[0], 10);
+  });
+  if (globalExtras > 0) {
+    dedupBtn = `<span class="section-count-sep">·</span><button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button>`;
   }
 
-  sectionCount.innerHTML = domainText + closeBtn;
+  sectionCount.innerHTML = domainText + dedupBtn;
 }
 
 /* ---- Overflow chips ("+N more") ---- */
