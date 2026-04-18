@@ -1094,7 +1094,7 @@ function renderDomainCard(group) {
   }
 
   return `
-    <div class="mission-card domain-card ${hasDupes ? 'has-amber-bar' : 'has-neutral-bar'}" data-domain-id="${stableId}">
+    <div class="mission-card domain-card" data-domain-id="${stableId}">
       <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
@@ -1455,9 +1455,6 @@ document.addEventListener('click', async (e) => {
           setTimeout(() => badge.remove(), 200);
         }
       });
-      card.classList.remove('has-amber-bar');
-      card.classList.add('has-neutral-bar');
-
       // Decrement the card's visible tab counts by the number of dupes closed
       const tabsBadge = Array.from(card.querySelectorAll('.open-tabs-badge'))
         .find(b => /\btab(s)? open\b/.test(b.textContent));

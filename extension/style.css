@@ -236,21 +236,6 @@ header {
   overflow: hidden;
 }
 
-/* Colored top border instead of side bar for grid cards */
-.mission-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--warm-gray);
-}
-
-.mission-card.has-active-bar::before { background: var(--status-active); }
-.mission-card.has-amber-bar::before { background: var(--accent-amber); }
-.mission-card.has-neutral-bar::before { background: var(--warm-gray); }
-
 .mission-card:hover {
   box-shadow: 0 4px 20px var(--shadow);
 }
