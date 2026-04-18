@@ -40,15 +40,19 @@ export async function fetchOpenTabs() {
     const extensionId = chrome.runtime.id;
     const newtabUrl = `chrome-extension://${extensionId}/index.html`;
 
-    // Fetch tabs and tab-group colors in parallel — both are cheap
-    // network-free API calls.
-    const [tabs] = await Promise.all([
+    // Fetch tabs, windows, and tab-group colors in parallel — all
+    // network-free API calls. Window types tell us which tabs are
+    // running in standalone app/PWA windows (type === 'app' | 'popup').
+    const [tabs, windows] = await Promise.all([
       chrome.tabs.query({}),
+      chrome.windows.getAll(),
       fetchTabGroupColors(),
     ]);
+    const windowTypeById = new Map(windows.map(w => [w.id, w.type]));
     openTabs = tabs.map(t => {
       const rawUrl = t.url || '';
       const effectiveUrl = unwrapSuspenderUrl(rawUrl);
+      const windowType = windowTypeById.get(t.windowId);
       return {
         id:         t.id,
         url:        effectiveUrl,
@@ -61,6 +65,7 @@ export async function fetchOpenTabs() {
         pinned:     t.pinned,
         groupId:    typeof t.groupId === 'number' ? t.groupId : -1,
         isTabOut:   rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
+        isApp:      windowType === 'app' || windowType === 'popup',
       };
     });
   } catch {
