@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <!-- Transparent favicon — placed immediately after charset so the
+       HTML parser hits it as early as possible, minimizing the window
+       where Chrome's default extension icon briefly flashes on load.
+       Two forms (`icon` + `shortcut icon`) cover Chrome's fallback
+       chain in both modern and legacy paths. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
+  <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tab Out</title>
+  <title>‎</title>
 
   <!-- Typography: everything uses the user's Chrome "Sans-serif" setting
        (chrome://settings/fonts). No web fonts are loaded. -->
