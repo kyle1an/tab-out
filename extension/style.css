@@ -267,14 +267,17 @@ header {
   font-weight: 500;
   color: var(--muted);
   background: transparent;
-  /* Transparent border reserves space so adding a visible border on
-     hover doesn't cause a 1px layout jump (box-sizing is border-box
-     globally). */
-  border: 1px solid transparent;
+  /* Only the interior-facing sides (bottom + left) get a border — the
+     top and right sides are flush with the card's own border, so a
+     second line there would double up. Widths match in both states
+     (transparent → warm-gray) to avoid a layout jump. */
+  border-style: solid;
+  border-color: transparent;
+  border-width: 0 0 1px 1px;
   /* Top-right matches a trimmed card corner; bottom-left is softly
      rounded inward. Squircle keeps both corners consistent with the
      rest of the UI. */
-  border-radius: 0 12px 0 8px;
+  border-radius: 0 12px 0 18px;
   corner-shape: squircle;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
