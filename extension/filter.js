@@ -15,7 +15,7 @@ import { updateTabCountDisplays, updateSectionCount } from './render.js';
 // keystrokes from anywhere on the page. Surface that affordance in the
 // placeholder so the hint matches reality.
 const PLACEHOLDER_DEFAULT = 'Filter tabs…';
-const PLACEHOLDER_FOCUSED = 'Just start typing…';
+const PLACEHOLDER_FOCUSED = 'Type anywhere to filter…';
 
 function updateFilterPlaceholder() {
   const input = document.getElementById('tabFilter');
