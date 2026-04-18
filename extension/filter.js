@@ -9,7 +9,7 @@
    ================================================================ */
 
 import { packMissionsMasonry } from './layout.js';
-import { updateTabCountDisplays, updateSectionCount } from './render.js';
+import { updateTabCountDisplays, updateSectionCount, updateFilteredActions } from './render.js';
 
 // When the page has focus, the type-to-filter listener below captures
 // keystrokes from anywhere on the page. Surface that affordance in the
@@ -73,6 +73,7 @@ export function applyTabFilter(query) {
   packMissionsMasonry({ unpin: true });
   updateTabCountDisplays();
   updateSectionCount();
+  updateFilteredActions();
 }
 
 let filterTimer = null;
