@@ -58,7 +58,7 @@ header {
   flex-direction: row-reverse;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .header-left {
@@ -166,7 +166,7 @@ header {
   align-items: center;
   gap: 12px;
   margin-bottom: 20px;
-  margin-top: 8px;
+  margin-top: 0;
   /* Reserve room for an action button's height so removing the dedup
      button (when extras are closed) doesn't collapse the row and shove
      all the cards below up by ~10px. */
