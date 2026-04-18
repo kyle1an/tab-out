@@ -218,6 +218,26 @@ header {
   box-shadow: 0 4px 20px var(--shadow);
 }
 
+/* Standalone-app card — PWAs / installed apps running in their own
+   window. Dashed border hints "this is not a regular tab." */
+.mission-card.is-app {
+  border-style: dashed;
+  background: rgba(82, 82, 82, 0.02);
+}
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  color: var(--muted);
+  background: rgba(82, 82, 82, 0.08);
+  padding: 2px 8px;
+  border-radius: 8px;
+  corner-shape: squircle;
+}
+
 /* Closing animation — card scales down and fades out */
 .mission-card.closing {
   opacity: 0;

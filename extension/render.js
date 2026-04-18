@@ -166,6 +166,9 @@ function renderDomainCard(group) {
   const tabCount  = tabs.length;
   const isLanding = group.domain === '__landing-pages__';
   const stableId  = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
+  // Card is rendered as "app-style" only when every tab in it is running
+  // in a standalone window (PWA/Chrome app). Mixed = treat as regular card.
+  const isAppCard = tabs.length > 0 && tabs.every(t => t.isApp);
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
   const closableTabs  = tabs.filter(t => !isGroupedTab(t));
@@ -205,10 +208,14 @@ function renderDomainCard(group) {
   // Visible "N duplicates" badge counts ALL extras (including grouped copies)
   const totalExtras = dupeUrls.reduce((s, [, c]) => s + c - 1, 0);
 
-  const tabBadge = `<span class="open-tabs-badge tab-count-badge" title="${tabCount} open tab${tabCount !== 1 ? 's' : ''}">
-    ${ICONS.tabs}
-    ${tabCount}
-  </span>`;
+  // App cards merge the "App" label and the tab count into one pill.
+  // Apps usually have one tab, so the count is only shown when >1.
+  const tabBadge = isAppCard
+    ? `<span class="app-badge tab-count-badge" title="Running as a standalone app${tabCount > 1 ? ` · ${tabCount} tabs` : ''}">App${tabCount > 1 ? ` · ${tabCount}` : ''}</span>`
+    : `<span class="open-tabs-badge tab-count-badge" title="${tabCount} open tab${tabCount !== 1 ? 's' : ''}">
+        ${ICONS.tabs}
+        ${tabCount}
+      </span>`;
 
   const dupeBadge = hasDupes
     ? `<span class="open-tabs-badge" style="color:var(--accent-amber);background:rgba(82,82,82,0.08);">
@@ -272,7 +279,7 @@ function renderDomainCard(group) {
   }
 
   return `
-    <div class="mission-card domain-card" data-domain-id="${stableId}">
+    <div class="mission-card domain-card${isAppCard ? ' is-app' : ''}" data-domain-id="${stableId}">
       <div class="status-bar"></div>
       <div class="mission-content">
         <div class="mission-top">
