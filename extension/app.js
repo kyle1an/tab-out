@@ -939,12 +939,13 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
     const faviconUrl = pickFavicon(tab);
-    const groupDot = isGroupedTab(tab)
-      ? `<span class="chip-group-dot" style="background:${groupDotColor(tab.groupId)}" title="In a Chrome tab group — safe from Close all / Close duplicates"></span>`
+    // Grouped chips get a colored left stripe via inline style — non-grouped
+     // chips inherit the transparent default in CSS, so titles stay aligned.
+    const groupStyle = isGroupedTab(tab)
+      ? ` style="border-left-color:${groupDotColor(tab.groupId)}"`
       : '';
-    return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
+    return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
-      ${groupDot}
       <span class="chip-text">${label}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
@@ -1051,12 +1052,13 @@ function renderDomainCard(group) {
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const safeTitle = label.replace(/"/g, '&quot;');
     const faviconUrl = pickFavicon(tab);
-    const groupDot = isGroupedTab(tab)
-      ? `<span class="chip-group-dot" style="background:${groupDotColor(tab.groupId)}" title="In a Chrome tab group — safe from Close all / Close duplicates"></span>`
+    // Grouped chips get a colored left stripe via inline style — non-grouped
+     // chips inherit the transparent default in CSS, so titles stay aligned.
+    const groupStyle = isGroupedTab(tab)
+      ? ` style="border-left-color:${groupDotColor(tab.groupId)}"`
       : '';
-    return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}">
+    return `<div class="page-chip clickable${chipClass}" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
-      ${groupDot}
       <span class="chip-text">${label}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
