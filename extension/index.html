@@ -18,47 +18,52 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
 
-
-
-  <!-- ================================================================
-       HEADER — greeting on the left
-       ================================================================ -->
-  <header>
-    <div class="header-left">
-      <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
-      <h1 id="greeting"></h1>
-      <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
-      <div class="date" id="dateDisplay"></div>
-    </div>
-    <!-- Live filter — debounced; matches title text + URL substring;
-         hides non-matching chips and any card left empty. -->
-    <input
-      type="search"
-      id="tabFilter"
-      class="tab-filter"
-      placeholder="Filter tabs…"
-      autocomplete="off"
-      spellcheck="false">
-  </header>
-
-  <!-- ================================================================
-       OPEN TABS — domain/mission cards
-       ================================================================ -->
-  <div class="active-section" id="openTabsSection" style="display:none">
-    <div class="section-header">
-      <!-- Left slot: shown when filter is active; contains a
-           "Close N filtered tabs" button. Visually aligned under
-           the top-header filter input. -->
+<!-- ================================================================
+     PINNED TOP REGION — never scrolls, never rubber-bands
+     Lives outside the scroll container so overscroll bounce only
+     affects the card list below.
+     ================================================================ -->
+<div class="pinned-top">
+  <div class="page-inner">
+    <header>
+      <div class="header-left">
+        <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
+        <h1 id="greeting"></h1>
+        <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
+        <div class="date" id="dateDisplay"></div>
+      </div>
+      <!-- Live filter — debounced; matches title text + URL substring;
+           hides non-matching chips and any card left empty. -->
+      <input
+        type="search"
+        id="tabFilter"
+        class="tab-filter"
+        placeholder="Filter tabs…"
+        autocomplete="off"
+        spellcheck="false">
+    </header>
+    <!-- Section header lives up here too (out of the scroll region) so
+         it doesn't ride the rubber-band. render.js toggles its
+         visibility when there are cards to show. -->
+    <div class="section-header" id="sectionHeaderWrap" style="display:none">
       <div class="section-actions" id="openTabsSectionActions"></div>
       <div class="section-line"></div>
       <div class="section-count" id="openTabsSectionCount"></div>
     </div>
-    <div class="missions" id="openTabsMissions"></div>
   </div>
+</div>
 
-</div><!-- end .container -->
+<!-- ================================================================
+     SCROLL REGION — the only place that scrolls + rubber-bands
+     ================================================================ -->
+<div class="scroll-region">
+  <div class="page-inner">
+    <div class="active-section" id="openTabsSection" style="display:none">
+      <div class="missions" id="openTabsMissions"></div>
+    </div>
+  </div>
+</div><!-- end .scroll-region -->
 
 <!-- ================================================================
      TOAST — floats above everything, used for action confirmations
