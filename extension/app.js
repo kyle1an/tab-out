@@ -1365,6 +1365,65 @@ async function renderDashboard() {
 
 
 /* ----------------------------------------------------------------
+   LIVE SYNC — re-render when Chrome reports tab/group changes
+
+   Cheaper than polling and keeps the dashboard truthful when tabs
+   change in another window. Every event is debounced into one full
+   re-render that re-derives state from chrome.tabs.query — no risk
+   of in-memory state diverging from reality. While the page is hidden
+   we skip the work; on visibilitychange back to visible, we refresh
+   immediately so the user lands on a current view.
+   ---------------------------------------------------------------- */
+
+let __refreshTimer = null;
+
+async function refreshDashboard() {
+  if (document.visibilityState !== 'visible') return;
+  await renderStaticDashboard();
+  // Re-rendering wipes filter visibility state on the freshly built chips —
+  // reapply the active filter so what was hidden stays hidden.
+  const input = document.getElementById('tabFilter');
+  if (input && input.value) applyTabFilter(input.value);
+}
+
+function scheduleDashboardRefresh() {
+  clearTimeout(__refreshTimer);
+  __refreshTimer = setTimeout(refreshDashboard, 250);
+}
+
+if (chrome.tabs) {
+  chrome.tabs.onCreated .addListener(scheduleDashboardRefresh);
+  chrome.tabs.onRemoved .addListener(scheduleDashboardRefresh);
+  chrome.tabs.onMoved   .addListener(scheduleDashboardRefresh);
+  chrome.tabs.onAttached.addListener(scheduleDashboardRefresh);
+  chrome.tabs.onDetached.addListener(scheduleDashboardRefresh);
+  // onUpdated fires for many properties (audible, mutedInfo, status, etc.).
+  // Only refresh for changes that actually affect what we render.
+  chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
+    if (
+      changeInfo.title       !== undefined ||
+      changeInfo.url         !== undefined ||
+      changeInfo.favIconUrl  !== undefined ||
+      changeInfo.groupId     !== undefined ||
+      changeInfo.pinned      !== undefined ||
+      changeInfo.discarded   !== undefined
+    ) scheduleDashboardRefresh();
+  });
+}
+
+if (chrome.tabGroups) {
+  chrome.tabGroups.onCreated.addListener(scheduleDashboardRefresh);
+  chrome.tabGroups.onUpdated.addListener(scheduleDashboardRefresh);
+  chrome.tabGroups.onRemoved.addListener(scheduleDashboardRefresh);
+  chrome.tabGroups.onMoved  .addListener(scheduleDashboardRefresh);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshDashboard();
+});
+
+
+/* ----------------------------------------------------------------
    EVENT HANDLERS — using event delegation
 
    One listener on document handles ALL button clicks.
