@@ -9,7 +9,8 @@
    ================================================================ */
 
 import { packMissionsMasonry } from './layout.js';
-import { updateTabCountDisplays, updateSectionCount, updateFilteredActions } from './render.js';
+import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions, ICONS } from './render.js';
+import { isGroupedTab } from './groups.js';
 
 // When the page has focus, the type-to-filter listener below captures
 // keystrokes from anywhere on the page. Surface that affordance in the
@@ -33,6 +34,77 @@ function updateFilterPlaceholder() {
  * matching hidden chip isn't left invisible. Empty query restores the
  * default view.
  */
+/**
+ * Per-card counts + button labels that reflect the active filter. Shared
+ * with no filter case (matchingTabs === group.tabs), so the same pass
+ * also restores original labels when the filter is cleared.
+ */
+function updateCardStats(card, group, filtering, q) {
+  const matchingTabs = filtering
+    ? group.tabs.filter(t =>
+        (t.title || '').toLowerCase().includes(q) ||
+        (t.url   || '').toLowerCase().includes(q))
+    : group.tabs;
+  const closableTabs = matchingTabs.filter(t => !isGroupedTab(t));
+
+  // Tab count badge (skip app-badge — has its own format)
+  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)');
+  if (tabBadge) {
+    tabBadge.innerHTML = `${ICONS.tabs} ${matchingTabs.length}`;
+    tabBadge.title = `${matchingTabs.length} open tab${matchingTabs.length !== 1 ? 's' : ''}`;
+  }
+
+  // Close-domain button (top-right corner of card)
+  const closeBtn = card.querySelector('.card-close-btn');
+  if (closeBtn) {
+    if (closableTabs.length === 0) {
+      closeBtn.style.display = 'none';
+    } else {
+      closeBtn.style.display = '';
+      const label = closableTabs.length === matchingTabs.length
+        ? `Close all ${closableTabs.length} tab${closableTabs.length !== 1 ? 's' : ''}`
+        : `Close ${closableTabs.length} ungrouped tab${closableTabs.length !== 1 ? 's' : ''}`;
+      const textSpan = closeBtn.querySelector('.card-close-btn-text');
+      if (textSpan) textSpan.textContent = label;
+    }
+  }
+
+  // Dedup button — recompute the 4-case policy on matching tabs only
+  const dupeInfo = {};
+  const urlCounts = {};
+  for (const tab of matchingTabs) {
+    urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1;
+    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() };
+    const info = dupeInfo[tab.url];
+    info.total++;
+    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId);
+    else info.ungrouped++;
+  }
+  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
+  const closableForUrl = (u) => {
+    const info = dupeInfo[u];
+    if (!info) return 0;
+    const grouped = info.total - info.ungrouped;
+    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped;
+    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1;
+    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1;
+    return 0;
+  };
+  const closableDupeUrls = dupeUrls.map(([u]) => u).filter(u => closableForUrl(u) > 0);
+  const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0);
+
+  const dedupBtn = card.querySelector('[data-action="dedup-keep-one"]');
+  if (dedupBtn) {
+    if (closableExtras === 0) {
+      dedupBtn.style.display = 'none';
+    } else {
+      dedupBtn.style.display = '';
+      dedupBtn.textContent = `Close ${closableExtras} duplicate${closableExtras !== 1 ? 's' : ''}`;
+      dedupBtn.dataset.dupeUrls = closableDupeUrls.map(encodeURIComponent).join(',');
+    }
+  }
+}
+
 export function applyTabFilter(query) {
   const q = (query || '').trim().toLowerCase();
   const filtering = q.length > 0;
@@ -68,6 +140,13 @@ export function applyTabFilter(query) {
     if (moreBtn) moreBtn.style.display = filtering ? 'none' : '';
 
     card.style.display = anyMatch ? '' : 'none';
+
+    // Keep the card's counts + action buttons in sync with the filter
+    const domainId = card.dataset.domainId;
+    const group = domainGroups.find(g =>
+      'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId
+    );
+    if (group) updateCardStats(card, group, filtering, q);
   });
 
   packMissionsMasonry({ unpin: true });

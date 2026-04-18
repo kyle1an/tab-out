@@ -198,20 +198,34 @@ document.addEventListener('click', async (e) => {
     });
     if (!group) return;
 
-    const urls      = group.tabs.map(t => t.url);
+    // If a filter is active, scope the close to filter-matching tabs only
+    // — matches what the card's label now says ("Close N ungrouped tabs"
+    // reflects filtered count while filtering).
+    const filterInput = document.getElementById('tabFilter');
+    const fq = (filterInput && filterInput.value || '').trim().toLowerCase();
+    const scopedTabs = fq
+      ? group.tabs.filter(t =>
+          (t.title || '').toLowerCase().includes(fq) ||
+          (t.url   || '').toLowerCase().includes(fq))
+      : group.tabs;
+    const urls = scopedTabs.map(t => t.url);
     // Landing pages and custom groups (whose domain key isn't a real hostname)
-    // must use exact URL matching to avoid closing unrelated tabs.
-    const useExact  = group.domain === '__landing-pages__' || !!group.label;
+    // must use exact URL matching to avoid closing unrelated tabs. Filter mode
+    // also uses exact matching so sibling tabs on the same hostname don't get
+    // swept up when the user only meant the filtered subset.
+    const useExact  = !!fq || group.domain === '__landing-pages__' || !!group.label;
 
     const snapshot = useExact
       ? await closeTabsExact(urls, { preserveGroups: true })
       : await closeTabsByUrls(urls, { preserveGroups: true });
 
-    if (card) animateCardOut(card);
+    if (card && !fq) animateCardOut(card);
 
-    // Remove from in-memory groups
-    const idx = domainGroups.indexOf(group);
-    if (idx !== -1) domainGroups.splice(idx, 1);
+    // Remove from in-memory groups only when the whole group was closed
+    if (!fq) {
+      const idx = domainGroups.indexOf(group);
+      if (idx !== -1) domainGroups.splice(idx, 1);
+    }
 
     const groupLabel = group.domain === '__landing-pages__'
       ? 'Homepages'
