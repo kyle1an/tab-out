@@ -286,7 +286,7 @@ function renderDomainCard(group) {
     const closeLabel = closableCount === tabCount
       ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}`
       : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`;
-    closeCardBtn = `<button class="card-close-btn" data-action="close-domain-tabs" data-domain-id="${stableId}" title="${closeLabel}">
+    closeCardBtn = `<button class="card-close-btn" data-action="close-domain-tabs" data-domain-id="${stableId}">
       ${ICONS.close}
       <span class="card-close-btn-text">${closeLabel}</span>
     </button>`;
