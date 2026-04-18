@@ -91,6 +91,14 @@ header {
   user-select: none;
   -webkit-user-select: none;
 }
+/* Pre-focus cue: page has focus, so type-anywhere will route here. Amber
+   border at low opacity signals "ready" without mimicking the full focus
+   state; the background stays subtle so actually focusing still feels
+   like a step up. */
+.tab-filter.capture-ready {
+  border-color: rgba(200, 113, 58, 0.4);
+  background: rgba(200, 113, 58, 0.03);
+}
 .tab-filter:focus {
   border-color: var(--accent-amber);
   background: var(--card-bg);
