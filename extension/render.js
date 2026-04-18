@@ -125,7 +125,7 @@ export function updateSectionCount() {
   let closeBtn = '';
   if (closableActive > 0) {
     const allWord = closableActive === closableTotal && closableActive === realTabs.length ? 'all ' : '';
-    closeBtn = `&nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close ${allWord}${closableActive} tab${closableActive !== 1 ? 's' : ''}</button>`;
+    closeBtn = `&nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:4px 12px;">${ICONS.close} Close ${allWord}${closableActive} tab${closableActive !== 1 ? 's' : ''}</button>`;
   }
 
   sectionCount.innerHTML = domainText + closeBtn;
