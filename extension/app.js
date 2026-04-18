@@ -757,22 +757,34 @@ function updateTabCountDisplays() {
 
   const realTabs = getRealTabs();
   const total    = realTabs.length;
-  const windows  = new Set(realTabs.map(t => t.windowId)).size;
 
   const filterInput = document.getElementById('tabFilter');
   const q = (filterInput && filterInput.value || '').trim().toLowerCase();
+
+  // Compute the visible set once — used by both the header line and the
+  // window count, so they stay consistent under any filter.
+  const visibleTabs = q.length === 0
+    ? realTabs
+    : realTabs.filter(t =>
+        (t.title || '').toLowerCase().includes(q) ||
+        (t.url   || '').toLowerCase().includes(q)
+      );
+  const totalWindows   = new Set(realTabs.map(t => t.windowId)).size;
+  const visibleWindows = new Set(visibleTabs.map(t => t.windowId)).size;
+
   if (q.length === 0) {
     headerEl.textContent = `${total} Open tab${total !== 1 ? 's' : ''}`;
   } else {
-    const matched = realTabs.filter(t => {
-      const text = (t.title || '').toLowerCase();
-      const url  = (t.url   || '').toLowerCase();
-      return text.includes(q) || url.includes(q);
-    }).length;
-    headerEl.textContent = `${matched} of ${total} Open tab${total !== 1 ? 's' : ''}`;
+    headerEl.textContent = `${visibleTabs.length} of ${total} Open tab${total !== 1 ? 's' : ''}`;
   }
 
-  if (subEl) subEl.textContent = `Across ${windows} window${windows !== 1 ? 's' : ''}`;
+  if (subEl) {
+    // Only show "X of Y" when the filter actually narrows the window count;
+    // otherwise plain "Across N windows" — mirrors the header's filter framing.
+    subEl.textContent = visibleWindows === totalWindows
+      ? `Across ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
+      : `Across ${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`;
+  }
 }
 
 /* ----------------------------------------------------------------
