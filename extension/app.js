@@ -141,14 +141,16 @@ function groupDotColor(groupId) {
 let __packLastColCount = null;
 let __packResizeTimer = null;
 
-function packMissionsMasonry() {
+function packMissionsMasonry({ unpin = false } = {}) {
   const container = document.getElementById('openTabsMissions');
   if (!container) return;
 
   const containerWidth = container.clientWidth;
   if (containerWidth === 0) return; // section hidden — nothing to layout
 
-  const cards = Array.from(container.querySelectorAll('.mission-card:not(.closing)'));
+  // Skip closing cards AND filter-hidden cards (display:none).
+  const cards = Array.from(container.querySelectorAll('.mission-card:not(.closing)'))
+    .filter(c => getComputedStyle(c).display !== 'none');
   if (cards.length === 0) {
     container.style.height = '';
     return;
@@ -159,9 +161,10 @@ function packMissionsMasonry() {
   const colCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)));
   const colWidth = (containerWidth - gap * (colCount - 1)) / colCount;
 
-  // If the column count changed (window resize), drop pinned assignments
-  // so cards redistribute fresh into the new layout.
-  if (__packLastColCount !== colCount) {
+  // If the column count changed (window resize) OR the caller asked for a
+  // fresh distribution (e.g., filter changed and we want tight packing),
+  // drop pinned assignments so cards redistribute into the shortest column.
+  if (unpin || __packLastColCount !== colCount) {
     cards.forEach(c => delete c.dataset.masonryCol);
     __packLastColCount = colCount;
   }
@@ -201,6 +204,83 @@ function packMissionsMasonry() {
 window.addEventListener('resize', () => {
   clearTimeout(__packResizeTimer);
   __packResizeTimer = setTimeout(packMissionsMasonry, 100);
+});
+
+/**
+ * applyTabFilter(query)
+ *
+ * Live-filters the visible chips by case-insensitive substring on title text
+ * and URL. Hides cards left with no matching chips. While the filter is
+ * active, every chip in a card is rendered (overflow "+N more" effectively
+ * disabled) so a hidden match isn't, well, hidden.
+ *
+ * Empty query restores the default view: all chips visible, overflow chips
+ * back inside their hidden container, and the "+N more" button shown.
+ */
+function applyTabFilter(query) {
+  const q = (query || '').trim().toLowerCase();
+  const filtering = q.length > 0;
+  const container = document.getElementById('openTabsMissions');
+  if (!container) return;
+
+  container.querySelectorAll('.mission-card').forEach(card => {
+    const chips     = card.querySelectorAll('.page-chip[data-action="focus-tab"]');
+    const overflow  = card.querySelector('.page-chips-overflow');
+    const moreBtn   = card.querySelector('.page-chip-overflow');
+
+    let anyMatch = false;
+    chips.forEach(chip => {
+      if (!filtering) { chip.style.display = ''; anyMatch = true; return; }
+      const text = chip.textContent.toLowerCase();
+      const url  = (chip.dataset.tabUrl || '').toLowerCase();
+      const hit  = text.includes(q) || url.includes(q);
+      chip.style.display = hit ? '' : 'none';
+      if (hit) anyMatch = true;
+    });
+
+    // While filtering, force the overflow container open so any matching
+    // hidden chips are visible. Restore its prior display when filter clears.
+    if (overflow) {
+      if (filtering) {
+        if (overflow.dataset.preFilter === undefined) {
+          overflow.dataset.preFilter = overflow.style.display || '';
+        }
+        overflow.style.display = 'contents';
+      } else if (overflow.dataset.preFilter !== undefined) {
+        overflow.style.display = overflow.dataset.preFilter;
+        delete overflow.dataset.preFilter;
+      }
+    }
+    // Hide the "+N more" button while filtering — counts would be wrong.
+    if (moreBtn) moreBtn.style.display = filtering ? 'none' : '';
+
+    card.style.display = anyMatch ? '' : 'none';
+  });
+
+  // Visibility just changed — repack with unpin so visible cards collapse
+  // into the shortest column instead of leaving holes where hidden cards used
+  // to be. When the filter clears we also unpin so the layout fully resets.
+  packMissionsMasonry({ unpin: true });
+}
+
+let __filterTimer = null;
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'tabFilter') return;
+  clearTimeout(__filterTimer);
+  __filterTimer = setTimeout(() => applyTabFilter(e.target.value), 80);
+});
+
+// Esc clears the filter while it's focused — quick escape hatch.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const input = document.getElementById('tabFilter');
+  if (!input || document.activeElement !== input) return;
+  if (input.value !== '') {
+    input.value = '';
+    applyTabFilter('');
+  } else {
+    input.blur();
+  }
 });
 
 function pickFavicon(tab) {

@@ -72,6 +72,37 @@ header {
   text-transform: uppercase;
 }
 
+/* ---- Filter input (top of page, right side of header) ---- */
+.tab-filter {
+  font-family: sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  padding: 8px 14px;
+  width: 280px;
+  background: rgba(154, 145, 138, 0.06);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  corner-shape: squircle;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.tab-filter::placeholder {
+  color: var(--muted);
+  /* Prevent the placeholder text from being selected when the user
+     drag-selects across the page or triple-clicks the input area. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.tab-filter:focus {
+  border-color: var(--accent-amber);
+  background: var(--card-bg);
+}
+/* Hide the native search "X" clear button on Webkit/Chromium so it doesn't
+   fight our focus styles; users can clear with ⌘A + Delete or Esc. */
+.tab-filter::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
 /* ---- Tab cleanup banner ---- */
 .tab-cleanup-banner {
   background: linear-gradient(135deg, rgba(200, 113, 58, 0.04), rgba(200, 113, 58, 0.09));

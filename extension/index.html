@@ -25,6 +25,15 @@
       <!-- "Friday, April 4, 2026" — written by getDateDisplay() in app.js -->
       <div class="date" id="dateDisplay"></div>
     </div>
+    <!-- Live filter — debounced; matches title text + URL substring;
+         hides non-matching chips and any card left empty. -->
+    <input
+      type="search"
+      id="tabFilter"
+      class="tab-filter"
+      placeholder="Filter tabs…"
+      autocomplete="off"
+      spellcheck="false">
   </header>
 
   <!-- ================================================================
