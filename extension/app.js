@@ -1320,10 +1320,8 @@ async function renderStaticDashboard() {
   const openTabsSection      = document.getElementById('openTabsSection');
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
   const openTabsSectionCount = document.getElementById('openTabsSectionCount');
-  const openTabsSectionTitle = document.getElementById('openTabsSectionTitle');
 
   if (domainGroups.length > 0 && openTabsSection) {
-    if (openTabsSectionTitle) openTabsSectionTitle.textContent = 'Open tabs';
     // Section-level "Close all" preserves grouped tabs — reflect that in the count
     const closableRealCount = realTabs.filter(t => !isGroupedTab(t)).length;
     const closeAllBtn = closableRealCount > 0
