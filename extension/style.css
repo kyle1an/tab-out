@@ -370,6 +370,13 @@ header {
   line-height: 1.4;
 }
 
+/* Reserve right-side space for the absolutely-positioned close button
+   so the title can't run underneath it. The "+N more" overflow chip has
+   no .chip-actions, so :has() leaves it at the default tight padding. */
+.page-chip:has(.chip-actions) {
+  padding-right: 32px;
+}
+
 .page-chip:last-child,
 .page-chip-overflow {
   border-bottom: none;
@@ -427,12 +434,17 @@ header {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex-shrink: 0;
-  margin-left: auto;
-  /* Parent chip is align-items: flex-start (so favicon hits the first line);
-     keep the close button vertically centered relative to the whole chip
-     so it stays balanced regardless of how many lines the title wraps to. */
-  align-self: center;
+  /* Absolutely positioned so the close button DOESN'T contribute to the
+     chip's height. Without this, a tall icon button stretches a single-line
+     chip and the text/favicon end up top-aligned in a chip that's taller
+     than the line — visibly off-center. With absolute positioning:
+     • 1-line title  → chip = text height; everything sits on the same line.
+     • 2-line title  → chip = text height; text top-aligned, close button
+       stays vertically centered on the chip's full height (between lines). */
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 /* ---- Chip action buttons (save + close) ---- */
