@@ -623,13 +623,17 @@ function timeAgo(dateStr) {
 }
 
 /**
- * getGreeting() — "Good morning / afternoon / evening"
+ * updateTabCountDisplays() — write the current real-tab count to both the
+ * header (#greeting, which now serves as the main tab-count display) and
+ * the footer stat (#statTabs). Call after any action that opens/closes tabs
+ * so both stay consistent.
  */
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
+function updateTabCountDisplays() {
+  const n = getRealTabs().length;
+  const headerEl = document.getElementById('greeting');
+  if (headerEl) headerEl.textContent = `${n} Open tab${n !== 1 ? 's' : ''}`;
+  const statTabs = document.getElementById('statTabs');
+  if (statTabs) statTabs.textContent = n;
 }
 
 /**
@@ -1193,15 +1197,14 @@ function renderArchiveItem(item) {
  * 6. Renders the "Saved for Later" checklist
  */
 async function renderStaticDashboard() {
-  // --- Header ---
-  const greetingEl = document.getElementById('greeting');
-  const dateEl     = document.getElementById('dateDisplay');
-  if (greetingEl) greetingEl.textContent = getGreeting();
-  if (dateEl)     dateEl.textContent     = getDateDisplay();
+  // --- Header (date) — tab count is written after the fetch completes ---
+  const dateEl = document.getElementById('dateDisplay');
+  if (dateEl) dateEl.textContent = getDateDisplay();
 
   // --- Fetch tabs ---
   await fetchOpenTabs();
   const realTabs = getRealTabs();
+  updateTabCountDisplays();
 
   // --- Group tabs by domain ---
   // Landing pages (Gmail inbox, Twitter home, etc.) get their own special group
@@ -1335,9 +1338,8 @@ async function renderStaticDashboard() {
     openTabsSection.style.display = 'none';
   }
 
-  // --- Footer stats ---
-  const statTabs = document.getElementById('statTabs');
-  if (statTabs) statTabs.textContent = getRealTabs().length;
+  // --- Keep header + footer counts in sync ---
+  updateTabCountDisplays();
 
   // --- Check for duplicate Tab Out tabs ---
   checkTabOutDupes();
@@ -1447,8 +1449,7 @@ document.addEventListener('click', async (e) => {
     }
 
     // Update footer
-    const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = getRealTabs().length;
+    updateTabCountDisplays();
 
     showToast('Tab closed');
     return;
@@ -1566,8 +1567,7 @@ document.addEventListener('click', async (e) => {
     const groupLabel = group.domain === '__landing-pages__' ? 'Homepages' : (group.label || friendlyDomain(group.domain));
     showToast(`Closed ${urls.length} tab${urls.length !== 1 ? 's' : ''} from ${groupLabel}`);
 
-    const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = getRealTabs().length;
+    updateTabCountDisplays();
     return;
   }
 
@@ -1623,8 +1623,7 @@ document.addEventListener('click', async (e) => {
     }
 
     // Update the footer stat and the section header's "Close all N tabs" button
-    const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = getRealTabs().length;
+    updateTabCountDisplays();
     updateCloseTabsButton(
       document.querySelector('#openTabsSectionCount [data-action="close-all-open-tabs"]'),
       extrasClosed
@@ -1650,8 +1649,7 @@ document.addEventListener('click', async (e) => {
       animateCardOut(c);
     });
 
-    const statTabs = document.getElementById('statTabs');
-    if (statTabs) statTabs.textContent = getRealTabs().length;
+    updateTabCountDisplays();
 
     showToast('All tabs closed. Fresh start.');
     return;
