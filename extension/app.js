@@ -261,8 +261,9 @@ function applyTabFilter(query) {
   // into the shortest column instead of leaving holes where hidden cards used
   // to be. When the filter clears we also unpin so the layout fully resets.
   packMissionsMasonry({ unpin: true });
-  // Reflect the filter result in the header tab count.
+  // Reflect the filter result in the header tab count and section header.
   updateTabCountDisplays();
+  updateSectionCount();
 }
 
 let __filterTimer = null;
@@ -739,6 +740,61 @@ function checkAndShowEmptyState() {
  *   No filter:  "182 Open tabs"     /  "Across 3 windows"
  *   Filtering:  "14 of 182 Open tabs" / "Across 3 windows"
  */
+/**
+ * getFilteredTabs() — getRealTabs() narrowed by the current filter input.
+ * Returns the full list when no filter is active.
+ */
+function getFilteredTabs() {
+  const realTabs = getRealTabs();
+  const filterInput = document.getElementById('tabFilter');
+  const q = (filterInput && filterInput.value || '').trim().toLowerCase();
+  if (q.length === 0) return realTabs;
+  return realTabs.filter(t =>
+    (t.title || '').toLowerCase().includes(q) ||
+    (t.url   || '').toLowerCase().includes(q)
+  );
+}
+
+/**
+ * updateSectionCount() — repaints the "X domains · Close N tabs" section
+ * header from the current state of cards + filter. Call after an initial
+ * render and after the filter changes; the live-sync refresh path also
+ * goes through here.
+ *
+ * Domain count uses DOM-visible cards (so filter-hidden cards don't count).
+ * Close button reflects ungrouped, filter-matching tabs only.
+ */
+function updateSectionCount() {
+  const sectionCount = document.getElementById('openTabsSectionCount');
+  if (!sectionCount) return;
+
+  const allCards = document.querySelectorAll('#openTabsMissions .mission-card');
+  const totalDomains = allCards.length;
+  if (totalDomains === 0) { sectionCount.innerHTML = ''; return; }
+
+  const visibleDomains = Array.from(allCards)
+    .filter(c => getComputedStyle(c).display !== 'none').length;
+
+  const realTabs       = getRealTabs();
+  const filteredTabs   = getFilteredTabs();
+  const closableActive = filteredTabs.filter(t => !isGroupedTab(t)).length;
+  const closableTotal  = realTabs.filter(t => !isGroupedTab(t)).length;
+
+  const domainText = visibleDomains === totalDomains
+    ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
+    : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`;
+
+  let closeBtn = '';
+  if (closableActive > 0) {
+    // "all" qualifier only when nothing has narrowed the closable set
+    // (no filter active AND no tabs in groups).
+    const allWord = closableActive === closableTotal && closableActive === realTabs.length ? 'all ' : '';
+    closeBtn = `&nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close ${allWord}${closableActive} tab${closableActive !== 1 ? 's' : ''}</button>`;
+  }
+
+  sectionCount.innerHTML = domainText + closeBtn;
+}
+
 function updateTabCountDisplays() {
   const headerEl = document.getElementById('greeting');
   const subEl    = document.getElementById('dateDisplay');
@@ -1339,15 +1395,12 @@ async function renderStaticDashboard() {
   const openTabsSectionCount = document.getElementById('openTabsSectionCount');
 
   if (domainGroups.length > 0 && openTabsSection) {
-    // Section-level "Close all" preserves grouped tabs — reflect that in the count
-    const closableRealCount = realTabs.filter(t => !isGroupedTab(t)).length;
-    const closeAllBtn = closableRealCount > 0
-      ? `&nbsp;&middot;&nbsp; <button class="action-btn close-tabs" data-action="close-all-open-tabs" style="font-size:11px;padding:3px 10px;">${ICONS.close} Close ${closableRealCount === realTabs.length ? 'all ' : ''}${closableRealCount} tab${closableRealCount !== 1 ? 's' : ''}</button>`
-      : '';
-    openTabsSectionCount.innerHTML = `${domainGroups.length} domain${domainGroups.length !== 1 ? 's' : ''}${closeAllBtn}`;
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
     openTabsSection.style.display = 'block';
     packMissionsMasonry();
+    // Section count derived after the cards exist in the DOM so the
+    // visible-card check inside updateSectionCount() can see them.
+    updateSectionCount();
   } else if (openTabsSection) {
     openTabsSection.style.display = 'none';
   }
@@ -1622,12 +1675,16 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // ---- Close ALL open tabs ----
+  // ---- Close ALL open tabs (or only filter-matching tabs when active) ----
   if (action === 'close-all-open-tabs') {
-    const allUrls = openTabs
+    // When the filter is active, close only the matching tabs — exact URL
+    // match (closeTabsExact) so we don't accidentally take down sibling tabs
+    // from the same hostname that the user has filtered out.
+    // No filter → same set, no behavioral change.
+    const candidates = getFilteredTabs()
       .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
       .map(t => t.url);
-    await closeTabsByUrls(allUrls, { preserveGroups: true });
+    await closeTabsExact(candidates, { preserveGroups: true });
 
     document.querySelectorAll('#openTabsMissions .mission-card').forEach(c => {
       shootConfetti(
