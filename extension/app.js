@@ -63,17 +63,58 @@ function isGroupedTab(tab) {
 }
 
 /**
- * groupDotColor(groupId) — deterministic color for a group id.
- * Without the "tabGroups" permission we can't read Chrome's assigned color,
- * so we derive a stable one from the numeric id. Tabs in the same Chrome
- * group always get the same dot color.
+ * Chrome tab-group color names → hex values (Material palette Chrome uses).
+ * Source: https://developer.chrome.com/docs/extensions/reference/api/tabGroups#type-Color
+ */
+const CHROME_GROUP_COLOR_HEX = {
+  grey:   '#5F6368',
+  blue:   '#1A73E8',
+  red:    '#D93025',
+  yellow: '#F9AB00',
+  green:  '#1E8E3E',
+  pink:   '#FF8BCB',
+  purple: '#A142F4',
+  cyan:   '#007B83',
+  orange: '#FA903E',
+};
+
+/**
+ * Fallback palette used only if the "tabGroups" permission isn't granted —
+ * deterministic per groupId so the dot color is at least stable across renders.
  */
 const GROUP_DOT_COLORS = [
   '#5a9cff', '#ff9f43', '#2ecc71', '#d35400',
   '#9b59b6', '#16a085', '#e74c3c', '#34495e', '#f39c12',
 ];
+
+let __groupColorCache = {}; // { groupId: '#hex' } from chrome.tabGroups.query
+
+/**
+ * fetchTabGroupColors() — populates __groupColorCache from the tabGroups API.
+ * Silently no-ops if the permission isn't granted (cache stays empty, dots
+ * fall back to the deterministic palette).
+ */
+async function fetchTabGroupColors() {
+  if (!chrome.tabGroups) { __groupColorCache = {}; return; }
+  try {
+    const groups = await chrome.tabGroups.query({});
+    const next = {};
+    for (const g of groups) {
+      next[g.id] = CHROME_GROUP_COLOR_HEX[g.color] || '#999';
+    }
+    __groupColorCache = next;
+  } catch {
+    // Permission missing or API unavailable — keep last cache as best-effort
+  }
+}
+
+/**
+ * groupDotColor(groupId) — Chrome's actual group color when the "tabGroups"
+ * permission is granted; otherwise a deterministic palette color from the id.
+ */
 function groupDotColor(groupId) {
   if (groupId == null || groupId === -1) return 'transparent';
+  if (__groupColorCache[groupId]) return __groupColorCache[groupId];
   return GROUP_DOT_COLORS[Math.abs(groupId) % GROUP_DOT_COLORS.length];
 }
 
@@ -229,7 +270,12 @@ async function fetchOpenTabs() {
     // The new URL for this page is now index.html (not newtab.html)
     const newtabUrl = `chrome-extension://${extensionId}/index.html`;
 
-    const tabs = await chrome.tabs.query({});
+    // Fetch tabs and tab-group colors in parallel — cheap network-free API
+    // calls; the colors populate the dot palette used by chip rendering.
+    const [tabs] = await Promise.all([
+      chrome.tabs.query({}),
+      fetchTabGroupColors(),
+    ]);
     openTabs = tabs.map(t => {
       const rawUrl = t.url || '';
       const effectiveUrl = unwrapSuspenderUrl(rawUrl);
