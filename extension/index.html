@@ -86,7 +86,9 @@
      Manifest V3's CSP forbids inline event handlers. -->
 <script src="config.local.js"></script>
 
-<!-- Main dashboard logic — loads last so the DOM is ready -->
-<script src="app.js"></script>
+<!-- Main dashboard logic — loaded as an ES module so it can split across
+     multiple files (suspender.js, groups.js, tabs.js, render.js, etc.).
+     `type="module"` defers execution until DOMContentLoaded automatically. -->
+<script type="module" src="app.js"></script>
 </body>
 </html>
