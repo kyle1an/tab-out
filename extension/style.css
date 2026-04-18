@@ -680,6 +680,12 @@ header { animation: fadeUp 0.5s ease both; }
 .abandoned-section .missions .mission-card {
   animation: fadeUp 0.2s ease 0.1s backwards;
 }
+/* Cards that were already on screen before a live-sync refresh keep their
+   place quietly — only brand-new cards get the fade-in. */
+.active-section .missions .mission-card.persisted,
+.abandoned-section .missions .mission-card.persisted {
+  animation: none;
+}
 .abandoned-section .section-header { animation: fadeUp 0.5s ease 0.45s both; }
 footer { animation: fadeUp 0.5s ease 0.65s both; }
 
