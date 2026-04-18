@@ -240,13 +240,6 @@ document.addEventListener('click', async (e) => {
         b.style.opacity    = '0';
         setTimeout(() => b.remove(), 200);
       });
-      card.querySelectorAll('.open-tabs-badge').forEach(badge => {
-        if (badge.textContent.includes('duplicate')) {
-          badge.style.transition = 'opacity 0.2s';
-          badge.style.opacity    = '0';
-          setTimeout(() => badge.remove(), 200);
-        }
-      });
       // Decrement the card's visible tab counts by the number of dupes closed
       const tabsBadge = card.querySelector('.tab-count-badge');
       if (tabsBadge) {
