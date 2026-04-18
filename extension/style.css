@@ -25,6 +25,14 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+  /* `none` disables both scroll chaining AND the rubber-band bounce.
+     Applied at the root so the page never visually overscrolls — the
+     pinned sticky header stays anchored instead of rubber-banding with
+     the content. */
+  overscroll-behavior: none;
+}
+
 body {
   font-family: sans-serif;
   color: var(--ink);
