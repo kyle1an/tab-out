@@ -215,9 +215,14 @@ header {
 
 /* ---- Mission Cards ---- */
 .missions {
-  columns: 280px;
-  column-gap: 12px;
+  /* CSS Grid (not multi-column) so cards keep their cell when expanded.
+     With multicol, expanding a card pushes everything below across column
+     boundaries, and the user loses track of where the card ended up. */
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
   margin-bottom: 40px;
+  align-items: start;
 }
 
 .mission-card {
@@ -232,8 +237,6 @@ header {
   cursor: pointer;
   position: relative;
   overflow: hidden;
-  break-inside: avoid;       /* don't split a card across columns */
-  margin-bottom: 12px;       /* vertical spacing (replaces grid gap) */
 }
 
 /* Colored top border instead of side bar for grid cards */
@@ -253,7 +256,6 @@ header {
 
 .mission-card:hover {
   box-shadow: 0 4px 20px var(--shadow);
-  transform: translateY(-1px);
 }
 
 /* Closing animation — card scales down and fades out */
