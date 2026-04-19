@@ -24,7 +24,7 @@
 import { openTabs, fetchOpenTabs, getRealTabs } from './tabs.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { unwrapSuspenderUrl } from './suspender.js'
-import { cleanTitle, smartTitle, stripTitleNoise } from './titles.js'
+import { cleanTitle, stripTitleNoise } from './titles.js'
 import { packMissionsMasonry } from './layout.js'
 import { registrableDomain, subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
@@ -355,15 +355,19 @@ export function computeDomainCardViewModel(group) {
     }
   }
 
-  // Sort by title. stripTitleNoise first so leading "(1,234)" counts
-  // don't bucket every active inbox under '(' — the sort key should
-  // match what the user actually reads on the chip. `numeric: true`
-  // gives natural number ordering (Dashboard 2 before Dashboard 11).
-  uniqueTabs.sort((a, b) => {
-    const aTitle = stripTitleNoise(a.title || '').toLowerCase()
-    const bTitle = stripTitleNoise(b.title || '').toLowerCase()
-    return aTitle.localeCompare(bTitle, undefined, { numeric: true })
-  })
+  // Sort by title — the exact string the chip displays, so the visible
+  // order never diverges from the sort order. Runs the full display
+  // pipeline (stripTitleNoise → cleanTitle) per tab so what we compare
+  // is what we render. `numeric: true` gives natural number ordering
+  // (Dashboard 2 before Dashboard 11, PR #4488 before PR #4706).
+  function sortLabel(tab) {
+    let hostname = group.domain
+    try {
+      hostname = new URL(tab.url).hostname
+    } catch {}
+    return cleanTitle(stripTitleNoise(tab.title || ''), hostname).toLowerCase()
+  }
+  uniqueTabs.sort((a, b) => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }))
 
   // Group tabs by subdomain/port within the card. Root tabs (no
   // subdomain or lone "www") sit under an empty-string key.
@@ -410,7 +414,7 @@ export function computeDomainCardViewModel(group) {
       parsed = new URL(tab.url)
     } catch {}
     const hostname = parsed ? parsed.hostname : group.domain
-    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), hostname)
+    const label = cleanTitle(stripTitleNoise(tab.title || ''), hostname)
     let subPrefix = ''
     let portPrefix = ''
     if (parsed && showPrefix) {
