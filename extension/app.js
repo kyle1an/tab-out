@@ -124,26 +124,6 @@ document.addEventListener('click', async (e) => {
 
   const card = actionEl.closest('.mission-card');
 
-  // ---- Expand overflow chips ("+N more") ----
-  // Only handles pathgroup-section (cluster) overflow now. Flat-section
-  // overflow is handled component-locally by <FlatSection> in
-  // components/FlatSection.js (Phase 3 of the Preact migration).
-  // `:scope >` prevents a subdomain-level query from reaching into a
-  // child cluster's own overflow container.
-  if (action === 'expand-chips') {
-    const section = actionEl.closest('.pathgroup-section');
-    const overflowContainer = section && section.querySelector(':scope > .page-chips-overflow');
-    if (overflowContainer) {
-      overflowContainer.style.display = 'contents';
-      actionEl.remove();
-      // Mark the section so a live-sync refresh can restore this
-      // specific cluster's expansion (see prevExpanded in render.js).
-      if (section) section.dataset.expanded = 'true';
-      packMissionsMasonry();
-    }
-    return;
-  }
-
   // ---- Focus a specific tab ----
   if (action === 'focus-tab') {
     const tabUrl = actionEl.dataset.tabUrl;
@@ -195,31 +175,14 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // close-domain-tabs and dedup-keep-one are now handled component-
-  // locally in components/DomainCard.js (Phase 2 of the Preact +
-  // HTM migration). data-action="close-domain-tabs" and
-  // data-action="dedup-keep-one" attributes remain on the buttons
-  // so external lookups continue to find them:
-  //   • filter.js updates dedup's data-dupe-urls on filter change
-  //   • ui.js updateCloseTabsButton decrements the close-domain
-  //     button count after dedup closes extras
-  //   • dedup-global-keep-one below aggregates per-card dedup URLs
-
-  // ---- Close every tab in a path-group cluster ----
-  // URLs are encoded into the button's data attribute at render time;
-  // exact-URL matching + preserveGroups means sibling tabs on the same
-  // host and Chrome-grouped tabs are untouched.
-  if (action === 'close-pathgroup-tabs') {
-    const urlsEncoded = actionEl.dataset.pathgroupUrls || '';
-    const urls = urlsEncoded.split(',').map(u => decodeURIComponent(u)).filter(Boolean);
-    if (urls.length === 0) return;
-    const snapshot = await closeTabsExact(urls, { preserveGroups: true });
-    if (snapshot.length > 0) {
-      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`);
-    }
-    updateTabCountDisplays();
-    return;
-  }
+  // Component-local handlers (not in this switch):
+  //   close-domain-tabs, dedup-keep-one → components/DomainCard.js
+  //   expand-chips (for pathgroup-section) → components/PathgroupSection.js
+  //   close-pathgroup-tabs → components/PathgroupSection.js
+  //   expand-chips (for flat-section)     → components/FlatSection.js
+  // `data-action="close-domain-tabs"` and `data-action="dedup-keep-one"`
+  // still appear on their buttons as selector anchors for
+  // filter.js / ui.js / dedup-global-keep-one below.
 
   // ---- Close every tab matching the current filter ----
   if (action === 'close-filtered-tabs') {

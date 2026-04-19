@@ -105,30 +105,28 @@ body {
 }
 
 /* Invisible-in-layout wrappers used by Preact components whose
-   children are still template-string HTML (via dangerouslySetInnerHTML).
+   chip HTML is still template-string (via dangerouslySetInnerHTML).
    `display: contents` makes the wrapper present in DOM but ignored
-   for layout, so the inner chips/sections participate directly in
-   their parent's flex/grid flow as if the wrapper weren't there.
-   These rules are transitional — they'll disappear as the remaining
-   phases replace template-string inner HTML with real components. */
+   for layout, so inner chips participate directly in their parent's
+   flex/grid flow. These rules are transitional — they'll disappear
+   in Phase 5 when <PageChip> replaces the inner chip HTML. */
 .flat-visible-mount,
-.subdomain-cluster-mount {
+.pathgroup-chips-mount {
   display: contents;
 }
 
-/* Flat-section overflow container: Phase 3's <FlatSection> renders
-   this div unconditionally when there are hidden chips (so filter.js
-   can reach them on filter-match) and flips visibility via the
-   parent's data-expanded attribute instead of inline style. filter.js
-   still toggles inline display:contents when filter is active — inline
-   wins over this CSS, and after filter clears, CSS reverts to the
-   data-expanded decision. The pathgroup-section overflow keeps using
-   the inline `style="display:none"` set by buildOverflowChips until
-   Phase 4 migrates it. */
-.flat-section > .page-chips-overflow {
+/* Overflow containers inside flat-sections and pathgroup-sections:
+   hidden by default; shown (as display: contents) when the parent
+   sub-section's data-expanded="true". filter.js overrides with
+   inline `display: contents` while a filter is active so its chip
+   search can reach hidden chips; after filter clears, the inline
+   style is restored to '' and CSS regains control. */
+.flat-section > .page-chips-overflow,
+.pathgroup-section > .page-chips-overflow {
   display: none;
 }
-.flat-section[data-expanded="true"] > .page-chips-overflow {
+.flat-section[data-expanded="true"] > .page-chips-overflow,
+.pathgroup-section[data-expanded="true"] > .page-chips-overflow {
   display: contents;
 }
 
