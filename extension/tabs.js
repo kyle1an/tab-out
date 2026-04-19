@@ -179,49 +179,34 @@ export async function focusTab(url) {
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
 
+  // Anchor-guarantee: wherever the match lives, make sure that window
+  // has a PINNED Tab Out tab. Same logic whether we're crossing
+  // windows or staying in the same one — the user's "easier reach"
+  // goal is just "a pinned dashboard is always in this window." No
+  // tab-strip repositioning needed; pinned tabs are anchored to the
+  // leftmost section by Chrome, which is as reachable as it gets.
+  //
+  // Resolution order:
+  //   1. pinned Tab Out already present → nothing to do
+  //   2. unpinned Tab Out present → pin it (no duplicate, no churn)
+  //   3. no Tab Out in that window → create a fresh pinned tab
+  //      (Chrome auto-places it in the pinned section; no index
+  //      param needed). `active: false` keeps the clicked tab as the
+  //      focus target.
   const extensionId = chrome.runtime.id
   const newtabUrl = `chrome-extension://${extensionId}/index.html`
-
-  if (match.windowId !== currentWindow.id) {
-    // Cross-window hop: plant a fresh Tab Out tab in the target
-    // window (left of the match) unless one already exists there.
-    const hasTabOut = allTabs.some((t) => t.windowId === match.windowId && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
-    if (!hasTabOut) {
-      // index=match.index inserts BEFORE the match, shifting match to
-      // match.index+1. `active: false` keeps the clicked tab as the
-      // focus target; the Tab Out tab sits silently to its left.
+  const hasPinned = allTabs.some((t) => t.windowId === match.windowId && t.pinned && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
+  if (!hasPinned) {
+    const unpinned = allTabs.find((t) => t.windowId === match.windowId && !t.pinned && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
+    if (unpinned) {
+      await chrome.tabs.update(unpinned.id, { pinned: true })
+    } else {
       await chrome.tabs.create({
         windowId: match.windowId,
         url: newtabUrl,
-        index: match.index,
+        pinned: true,
         active: false
       })
-    }
-  } else {
-    // Same-window hop: move the existing Tab Out tab so it lands
-    // directly to the left of the matched tab. After the target
-    // becomes active, Tab Out is one "previous tab" keystroke away —
-    // the "easier reach" goal applies symmetrically for same-window
-    // and cross-window flows.
-    //
-    // Skip the move for pinned Tab Out tabs: Chrome confines pinned
-    // tabs to the pinned section at the left of the strip, so moving
-    // one past a non-pinned tab would either fail or break pinning.
-    // A pinned Tab Out is already in a stable, easily-reachable spot
-    // by design — leave it alone.
-    //
-    // Target-index math: chrome.tabs.move removes the tab from its
-    // current position before re-inserting. When Tab Out is already
-    // left of the match (tabOut.index < match.index), removal shifts
-    // match left by one, so the insert target is match.index - 1.
-    // When Tab Out is right of the match (tabOut.index > match.index),
-    // match doesn't shift, so the insert target is match.index.
-    const tabOutTab = allTabs.find((t) => t.windowId === currentWindow.id && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
-    if (tabOutTab && tabOutTab.id !== match.id && !tabOutTab.pinned) {
-      const targetIndex = tabOutTab.index < match.index ? match.index - 1 : match.index
-      if (targetIndex !== tabOutTab.index) {
-        await chrome.tabs.move(tabOutTab.id, { index: targetIndex })
-      }
     }
   }
 
