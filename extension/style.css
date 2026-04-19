@@ -96,7 +96,7 @@ body {
 }
 
 .scroll-region .page-inner {
-  padding-top: 0;
+  padding-top: 6px;
   padding-bottom: 80px;
 }
 
