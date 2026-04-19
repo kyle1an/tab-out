@@ -748,11 +748,14 @@ header {
 .pathgroup-close-btn {
   position: absolute;
   right: 0;
-  top: 50%;
+  /* Header padding is asymmetric (6px top / 2px bottom), so the content's
+     visual center is 2px below the geometric center. top: 50% would
+     anchor to the geometric center and leave the X sitting slightly
+     above the pill's baseline — +2px compensates. */
+  top: calc(50% + 2px);
   transform: translateY(-50%);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   width: 20px;
   height: 20px;
   padding: 0;
@@ -767,8 +770,10 @@ header {
 .pathgroup-section:hover .pathgroup-close-btn {
   opacity: 1;
 }
+/* Opaque hover background (NOT rgba) so the rule behind the button
+   doesn't bleed through as a horizontal line crossing the X. */
 .pathgroup-close-btn:hover {
-  background: rgba(115, 115, 115, 0.15);
+  background: #ededed;
 }
 .pathgroup-close-btn svg {
   width: 12px;
