@@ -220,36 +220,42 @@ export function updateFilteredActions() {
  */
 export function updateSectionCount() {
   const sectionCount = document.getElementById('openTabsSectionCount')
+  const dedupEl = document.getElementById('openTabsDedupAction')
   if (!sectionCount) return
 
   const allCards = document.querySelectorAll('#openTabsMissions .mission-card')
   const totalDomains = allCards.length
   if (totalDomains === 0) {
     sectionCount.innerHTML = ''
+    if (dedupEl) dedupEl.innerHTML = ''
     return
   }
 
   const visibleDomains = Array.from(allCards).filter((c) => getComputedStyle(c).display !== 'none').length
 
-  const domainText =
+  sectionCount.textContent =
     visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
 
   // Global dedup button — sum of closable extras across every per-card
   // dedup button currently rendered. Keeps the 4-case policy intact
   // (per-card buttons already encode only the closable URLs), so the
-  // global total equals the sum of what each card would close.
-  let dedupBtn = ''
-  const perCardDedupBtns = document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]')
-  let globalExtras = 0
-  perCardDedupBtns.forEach((btn) => {
-    const m = btn.textContent.match(/\d+/)
-    if (m) globalExtras += parseInt(m[0], 10)
-  })
-  if (globalExtras > 0) {
-    dedupBtn = /*html*/ `<button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button><span class="section-count-sep">·</span>`
+  // global total equals the sum of what each card would close. Renders
+  // into a dedicated slot (#openTabsDedupAction) sibling to the
+  // filtered-close button — buttons live in their own inline-flex
+  // cluster, independent of the numeric stats.
+  if (dedupEl) {
+    const perCardDedupBtns = document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]')
+    let globalExtras = 0
+    perCardDedupBtns.forEach((btn) => {
+      const m = btn.textContent.match(/\d+/)
+      if (m) globalExtras += parseInt(m[0], 10)
+    })
+    if (globalExtras > 0) {
+      dedupEl.innerHTML = /*html*/ `<button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button>`
+    } else {
+      dedupEl.innerHTML = ''
+    }
   }
-
-  sectionCount.innerHTML = dedupBtn + domainText
 }
 
 /**

@@ -30,25 +30,41 @@
     <div class="pinned-top">
       <div class="page-inner">
         <header>
-          <!-- Top row: filter input + tab-count greeting -->
+          <!-- Single row: all stats inline on one side, filter on the other.
+           row-reverse keeps the filter on the right without touching HTML
+           order. Stats collapse from the old stacked h1 + sub-line + action
+           row (~109px) into one ~32px line, reclaiming vertical space for
+           the card grid. -->
           <div class="header-row">
-            <div class="header-left">
-              <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
-              <h1 id="greeting"></h1>
-              <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
-              <div class="date" id="dateDisplay"></div>
+            <div class="header-stats">
+              <!-- Action buttons first — leftmost, fixed anchor. Stats never
+               shift when a button toggles on/off, so the cursor can't be
+               under the "182 Open tabs" text one moment and under a Close
+               button the next. Within the action group, dedup comes first
+               because it's the safer bulk op (only closes duplicate URLs,
+               keeping one per URL). Close-filtered can close arbitrary N
+               tabs matching a substring — higher mis-click impact, placed
+               second so typing in the filter doesn't slide the dedup
+               button out from under the cursor. -->
+              <span class="stat-actions">
+                <span id="openTabsDedupAction"></span>
+                <span class="section-actions" id="openTabsSectionActions"></span>
+              </span>
+              <!-- "182 Open tabs" — written by updateTabCountDisplays() -->
+              <span class="stat-primary" id="greeting"></span>
+              <span class="stat-sep">·</span>
+              <!-- "Across 3 windows" — written by updateTabCountDisplays() -->
+              <span class="date" id="dateDisplay"></span>
+              <!-- Domain count. Hidden with the rest of sectionHeaderWrap
+               when there are no cards; render.js toggles display. -->
+              <span class="stat-extras" id="sectionHeaderWrap" style="display: none">
+                <span class="stat-sep">·</span>
+                <span class="section-count" id="openTabsSectionCount"></span>
+              </span>
             </div>
             <!-- Live filter — debounced; matches title text + URL substring;
              hides non-matching chips and any card left empty. -->
             <input type="search" id="tabFilter" class="tab-filter" autocomplete="off" spellcheck="false" />
-          </div>
-          <!-- Bottom row: domain count + dedup + filtered-tabs actions.
-           Lives inside <header> so both rows share a single consistent
-           gap (header's flex-column gap). render.js toggles its
-           visibility when there are cards to show. -->
-          <div class="section-header" id="sectionHeaderWrap" style="display: none">
-            <div class="section-actions" id="openTabsSectionActions"></div>
-            <div class="section-count" id="openTabsSectionCount"></div>
           </div>
         </header>
       </div>
