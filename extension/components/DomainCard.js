@@ -187,8 +187,8 @@ export function DomainCard({ group }) {
               sectionCount=${s.sectionCount}
               showHeader=${s.showHeader}
               hasFlat=${s.hasFlat}
-              flatVisibleChipsHtml=${s.flatVisibleChipsHtml}
-              flatHiddenChipsHtml=${s.flatHiddenChipsHtml}
+              flatVisibleChips=${s.flatVisibleChips}
+              flatHiddenChips=${s.flatHiddenChips}
               flatHiddenCount=${s.flatHiddenCount}
               clusters=${s.clusters} />
           `)}
