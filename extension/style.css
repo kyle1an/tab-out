@@ -62,30 +62,25 @@ header {
   gap: 8px;
 }
 
-/* Button cluster — fixed leftmost anchor. Stays at a consistent position
-   regardless of which buttons are currently visible, so the numeric stats
-   behind it never shift under the cursor. `:empty` collapses individual
-   slots when render.js writes "", and `:has(...)` collapses the whole
-   cluster when both slots are empty so the 8px gap disappears too. */
-.stat-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  /* Extra breathing room between the action cluster and the stats that
-     follow — reads as a visual section break (buttons vs. readouts)
-     without needing a separator glyph. Collapses with the cluster when
-     `display: none` is applied below (no trailing gap when idle). */
-  margin-right: 8px;
-  /* Order slot: dupes-first, close-filtered-second. Keeps the dedup
-     button at a stable position even when a filter is active and the
-     close-filtered button appears to its right. */
-}
+/* Dedup and close-filtered each live in their own slot on opposite
+   sides of the stats row — dedup at the start (leftmost), close-
+   filtered at the end. The (never-clickable) stat spans between them
+   guarantee that neither button can ever slide into the other's
+   position when state changes. A cursor aimed at either button
+   always either hits that button, lands on a passive stat span, or
+   lands on blank space — never on a different action button.
+   `:empty` collapses each slot when render.js writes "", and the
+   extra margin only applies when the slot has content (so no
+   trailing gap is introduced when idle). */
 #openTabsDedupAction:empty,
 #openTabsSectionActions:empty {
   display: none;
 }
-.stat-actions:not(:has(:not(:empty))) {
-  display: none;
+#openTabsDedupAction:not(:empty) {
+  margin-right: 8px;
+}
+#openTabsSectionActions:not(:empty) {
+  margin-left: 8px;
 }
 
 /* ---- Filter input (top of page, right side of header) ---- */
