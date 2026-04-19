@@ -22,18 +22,18 @@ const html = htm.bind(h)
 export function SubdomainSection({ subdomainKey, sectionCount, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
   const dataKey = subdomainKey || '__root__'
 
-  return html /*html*/ `
+  return html`
     <div class="subdomain-section" data-subdomain-key=${dataKey}>
       ${showHeader &&
-      html /*html*/ `
+      html`
         <div class="subdomain-header">
           <span class="subdomain-header-name">${subdomainKey}</span>
           <span class="subdomain-header-count">${sectionCount}</span>
         </div>
       `}
-      ${hasFlat && html /*html*/ ` <${FlatSection} visibleChips=${flatVisibleChips} hiddenChips=${flatHiddenChips} hiddenCount=${flatHiddenCount} /> `}
+      ${hasFlat && html` <${FlatSection} visibleChips=${flatVisibleChips} hiddenChips=${flatHiddenChips} hiddenCount=${flatHiddenCount} /> `}
       ${clusters.map(
-        (c) => html /*html*/ `
+        (c) => html`
           <${PathgroupSection}
             key=${c.label}
             label=${c.label}

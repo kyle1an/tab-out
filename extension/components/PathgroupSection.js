@@ -28,7 +28,7 @@ const html = htm.bind(h)
 
 function PathgroupCloseButton({ count, onClick }) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
-  return html /*html*/ `
+  return html`
     <button class="pathgroup-close-btn" title=${title} onClick=${onClick}>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -57,19 +57,19 @@ export function PathgroupSection({ label, count, closableUrls, visibleChips, hid
     updateTabCountDisplays()
   }
 
-  return html /*html*/ `
+  return html`
     <div class="pathgroup-section" data-pathgroup-label=${label} data-expanded=${expanded ? 'true' : null}>
       <div class="pathgroup-header">
         <span class="chip-pathgroup">${label}</span>
         <span class="pathgroup-header-count">${count}</span>
         <span class="pathgroup-header-rule"></span>
-        ${closableUrls && closableUrls.length > 0 && html /*html*/ ` <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} /> `}
+        ${closableUrls && closableUrls.length > 0 && html` <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} /> `}
       </div>
-      ${visibleChips.map((chip) => html /*html*/ ` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}
-      ${hiddenCount > 0 && html /*html*/ ` <div class="page-chips-overflow">${hiddenChips.map((chip) => html /*html*/ ` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}</div> `}
+      ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}
+      ${hiddenCount > 0 && html` <div class="page-chips-overflow">${hiddenChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}</div> `}
       ${!expanded &&
       hiddenCount > 0 &&
-      html /*html*/ `
+      html`
         <div class="page-chip page-chip-overflow clickable" onClick=${onExpand}>
           <span class="chip-text">+${hiddenCount} more</span>
         </div>

@@ -16,22 +16,20 @@
    the previous prevExpanded DOM snapshot/restore.
    ================================================================ */
 
-import { h, Fragment } from '../vendor/preact.mjs';
-import htm from '../vendor/htm.mjs';
-import { DomainCard } from './DomainCard.js';
+import { h, Fragment } from '../vendor/preact.mjs'
+import htm from '../vendor/htm.mjs'
+import { DomainCard } from './DomainCard.js'
 
-const html = htm.bind(h);
+const html = htm.bind(h)
 
 function stableKey(group) {
-  return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
+  return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
 }
 
 export function Missions({ domains }) {
-  return html/*html*/`
+  return html`
     <${Fragment}>
-      ${domains.map(g => html/*html*/`
-        <${DomainCard} key=${stableKey(g)} group=${g} />
-      `)}
+      ${domains.map((g) => html` <${DomainCard} key=${stableKey(g)} group=${g} /> `)}
     </${Fragment}>
-  `;
+  `
 }
