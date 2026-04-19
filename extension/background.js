@@ -80,6 +80,38 @@ chrome.tabs.onUpdated.addListener(() => {
   updateBadge()
 })
 
+// Pin a Tab Out tab in every newly-created window so the dashboard
+// is always one click away, regardless of which window the user is
+// in. If Chrome's newtab override already spawned Tab Out as the
+// window's initial tab, just pin it; otherwise create a fresh pinned
+// Tab Out at index 0. Skipped for non-normal windows (popups, devtools
+// detach, etc.) — those aren't dashboards-worthy contexts.
+chrome.windows.onCreated.addListener(async (window) => {
+  if (window.type !== 'normal') return
+  try {
+    const extensionId = chrome.runtime.id
+    const newtabUrl = `chrome-extension://${extensionId}/index.html`
+    const tabs = await chrome.tabs.query({ windowId: window.id })
+    const existing = tabs.find((t) => {
+      const u = t.url || t.pendingUrl || ''
+      return u === newtabUrl || u === 'chrome://newtab/'
+    })
+    if (existing) {
+      if (!existing.pinned) await chrome.tabs.update(existing.id, { pinned: true })
+    } else {
+      await chrome.tabs.create({
+        windowId: window.id,
+        url: newtabUrl,
+        pinned: true,
+        active: false,
+        index: 0
+      })
+    }
+  } catch {
+    // Window may have closed between onCreated and our query; silently drop.
+  }
+})
+
 // ─── Initial run ─────────────────────────────────────────────────────────────
 
 // Run once immediately when the service worker first loads
