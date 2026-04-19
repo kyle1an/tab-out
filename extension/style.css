@@ -278,9 +278,14 @@ header {
 .mission-card {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
+  /* Concentric nesting: outerRadius − padding ≈ innerRadius.
+     Symmetric 14px padding on all sides → implied inner ~4px uniformly,
+     which is what "concentric" actually promises (equal corners on
+     all four sides). Child chips override that to 10px for visual
+     tappability — the concentric ideal sets the floor, not the ceiling. */
   border-radius: 18px;
   corner-shape: squircle;
-  padding: 16px 18px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -330,7 +335,12 @@ header {
   /* Top-right matches a trimmed card corner; bottom-left is softly
      rounded inward. Squircle keeps both corners consistent with the
      rest of the UI. */
-  border-radius: 0 12px 0 18px;
+  /* Outer corner (top-right: 18) mirrors the card's own corner — the
+     button visually extends the card edge. Inner corner (bottom-left:
+     10) matches the chip-level radius so the button's interior curve
+     belongs to the same radius family as everything else inside the
+     card. */
+  border-radius: 0 10px 0 18px;
   corner-shape: squircle;
   cursor: pointer;
   transition: opacity 0.15s ease, background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
@@ -408,7 +418,10 @@ header {
   color: var(--muted);
   background: rgba(82, 82, 82, 0.08);
   padding: 2px 8px;
-  border-radius: 8px;
+  /* Small leaf pill — radius scaled to element size. At only 2px
+     vertical padding an 8px radius was near-circular; 6px reads as a
+     proper "pill chip" without overwhelming the 10-15px text. */
+  border-radius: 6px;
   corner-shape: squircle;
 }
 
@@ -459,7 +472,7 @@ header {
   letter-spacing: 1px;
   font-weight: 600;
   padding: 2px 8px;
-  border-radius: 8px;
+  border-radius: 6px;
   corner-shape: squircle;
 }
 
@@ -488,7 +501,7 @@ header {
   color: var(--accent-amber);
   background: rgba(82, 82, 82, 0.08);
   padding: 2px 8px;
-  border-radius: 8px;
+  border-radius: 6px;
   corner-shape: squircle;
 }
 
@@ -514,7 +527,13 @@ header {
   /* padding-left = 12px reserves room for the group indicator stripe
      (see ::before below) plus a visual gap before the favicon. */
   padding: 8px 4px 8px 12px;
-  border-radius: 16px;
+  /* Concentric with .mission-card (18px radius, 14px vertical padding).
+     Strict math says ~4px, but chips are interactive rows that need
+     visible rounding to feel tappable — 10px is the "medium step"
+     below the card's 18px and matches .action-btn at the same depth.
+     The key win vs the old 16px: a clear radius-delta so the card
+     reads as container, chip as content. */
+  border-radius: 10px;
   corner-shape: squircle;
   border: none;
   position: relative;
