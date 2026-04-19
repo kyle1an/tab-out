@@ -14,11 +14,11 @@
    ================================================================ */
 
 import { unwrapSuspenderUrl }                                      from './suspender.js';
-import { closeTabsByUrls, closeTabsExact, closeDuplicateTabs,
+import { closeTabsExact, closeDuplicateTabs,
          closeTabOutDupes, focusTab, fetchOpenTabs, snapshotChromeTabs } from './tabs.js';
 import { packMissionsMasonry }                                     from './layout.js';
 import { shootConfetti }                                           from './confetti.js';
-import { showToast, animateCardOut, updateCloseTabsButton }        from './ui.js';
+import { showToast, animateCardOut }                               from './ui.js';
 import { markClosure }                                             from './undo.js';
 import {
   renderStaticDashboard, updateTabCountDisplays,
@@ -197,97 +197,15 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // ---- Close all tabs in a domain group ----
-  if (action === 'close-domain-tabs') {
-    const domainId = actionEl.dataset.domainId;
-    const group    = domainGroups.find(g => {
-      return 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId;
-    });
-    if (!group) return;
-
-    // If a filter is active, scope the close to filter-matching tabs only
-    // — matches what the card's label now says ("Close N ungrouped tabs"
-    // reflects filtered count while filtering).
-    const filterInput = document.getElementById('tabFilter');
-    const fq = (filterInput && filterInput.value || '').trim().toLowerCase();
-    const scopedTabs = fq
-      ? group.tabs.filter(t =>
-          (t.title || '').toLowerCase().includes(fq) ||
-          (t.url   || '').toLowerCase().includes(fq))
-      : group.tabs;
-    const urls = scopedTabs.map(t => t.url);
-    // Landing pages and custom groups (whose domain key isn't a real hostname)
-    // must use exact URL matching to avoid closing unrelated tabs. Filter mode
-    // also uses exact matching so sibling tabs on the same hostname don't get
-    // swept up when the user only meant the filtered subset.
-    const useExact  = !!fq || group.domain === '__landing-pages__' || !!group.label;
-
-    const snapshot = useExact
-      ? await closeTabsExact(urls, { preserveGroups: true })
-      : await closeTabsByUrls(urls, { preserveGroups: true });
-
-    if (card && !fq) animateCardOut(card);
-
-    // Remove from in-memory groups only when the whole group was closed
-    if (!fq) {
-      const idx = domainGroups.indexOf(group);
-      if (idx !== -1) domainGroups.splice(idx, 1);
-    }
-
-    const groupLabel = group.domain === '__landing-pages__'
-      ? 'Homepages'
-      : (group.label || group.domain.replace(/^www\./, ''));
-    markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${groupLabel}`);
-
-    updateTabCountDisplays();
-    return;
-  }
-
-  // ---- Close duplicates, keep one copy ----
-  if (action === 'dedup-keep-one') {
-    const urlsEncoded = actionEl.dataset.dupeUrls || '';
-    const urls = urlsEncoded.split(',').map(u => decodeURIComponent(u)).filter(Boolean);
-    if (urls.length === 0) return;
-
-    // Read the count from the button's own label before we fade it out.
-    const extrasClosed = parseInt((actionEl.textContent.match(/\d+/) || ['0'])[0], 10);
-
-    const dupeSnapshot = await closeDuplicateTabs(urls, true);
-
-    // Hide the dedup button
-    actionEl.style.transition = 'opacity 0.2s';
-    actionEl.style.opacity    = '0';
-    setTimeout(() => actionEl.remove(), 200);
-
-    if (card) {
-      card.querySelectorAll('.chip-dupe-badge').forEach(b => {
-        b.style.transition = 'opacity 0.2s';
-        b.style.opacity    = '0';
-        setTimeout(() => b.remove(), 200);
-      });
-      // Decrement the card's visible tab counts by the number of dupes closed
-      const tabsBadge = card.querySelector('.tab-count-badge');
-      if (tabsBadge) {
-        const current = parseInt((tabsBadge.textContent.match(/\d+/) || ['0'])[0], 10);
-        const next    = Math.max(0, current - extrasClosed);
-        tabsBadge.textContent = String(next);
-        tabsBadge.title       = `${next} open tab${next !== 1 ? 's' : ''}`;
-      }
-      const meta = card.querySelector('.mission-page-count');
-      if (meta) {
-        const current = parseInt(meta.textContent, 10) || 0;
-        meta.textContent = String(Math.max(0, current - extrasClosed));
-      }
-      updateCloseTabsButton(card.querySelector('[data-action="close-domain-tabs"]'), extrasClosed);
-    }
-
-    updateTabCountDisplays();
-
-    setTimeout(() => packMissionsMasonry(), 250);
-
-    markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`);
-    return;
-  }
+  // close-domain-tabs and dedup-keep-one are now handled component-
+  // locally in components/DomainCard.js (Phase 2 of the Preact +
+  // HTM migration). data-action="close-domain-tabs" and
+  // data-action="dedup-keep-one" attributes remain on the buttons
+  // so external lookups continue to find them:
+  //   • filter.js updates dedup's data-dupe-urls on filter change
+  //   • ui.js updateCloseTabsButton decrements the close-domain
+  //     button count after dedup closes extras
+  //   • dedup-global-keep-one below aggregates per-card dedup URLs
 
   // ---- Close every tab in a path-group cluster ----
   // URLs are encoded into the button's data attribute at render time;

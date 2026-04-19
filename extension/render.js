@@ -2,7 +2,7 @@
    Render — DOM building for the dashboard
 
    • renderStaticDashboard — top-level render, owns `domainGroups`
-   • renderDomainCard / buildOverflowChips — per-card HTML
+   • computeDomainCardViewModel / buildOverflowChips — per-card HTML + data
    • updateTabCountDisplays — header line + windows sub-line
    • updateSectionCount — "X domains · Close N duplicates" header
    • pickFavicon — tab.favIconUrl > Google fallback
@@ -319,12 +319,13 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
     </div>`;
 }
 
-/* ---- Domain card ----
-   Exported so the Preact <DomainCardShell> in components/Missions.js
-   can inject the existing template-string output via
-   dangerouslySetInnerHTML during Phase 1 of the migration. Later
-   phases will inline the rendering logic into real components. */
-export function renderDomainCard(group) {
+/* ---- Domain card view-model ----
+   Computes the per-card data consumed by the Preact <DomainCard>
+   component in components/DomainCard.js. Returns derived values
+   plus `pageChipsHtml`, the string of subdomain/pathgroup/chip
+   HTML that Phase 2 still injects via dangerouslySetInnerHTML.
+   Phases 3–5 replace pageChipsHtml with real components. */
+export function computeDomainCardViewModel(group) {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
   const isLanding = group.domain === '__landing-pages__';
@@ -366,12 +367,6 @@ export function renderDomainCard(group) {
   }
   const closableDupeUrls = dupeUrls.map(([u]) => u).filter(u => closableForUrl(u) > 0);
   const closableExtras   = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0);
-
-  // App cards merge the "App" label and the tab count into one pill.
-  // Apps usually have one tab, so the count is only shown when >1.
-  const tabBadge = isAppCard
-    ? `<span class="app-badge tab-count-badge" title="Running as a standalone app${tabCount > 1 ? ` · ${tabCount} tabs` : ''}">App${tabCount > 1 ? ` · ${tabCount}` : ''}</span>`
-    : `<span class="open-tabs-badge tab-count-badge" title="${tabCount} open tab${tabCount !== 1 ? 's' : ''}">${tabCount}</span>`;
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
   const seen = new Set();
@@ -614,47 +609,33 @@ export function renderDomainCard(group) {
     return `<div class="subdomain-section" data-subdomain-key="${sectionKey}">${header}${chips}${overflow}</div>`;
   }).join('');
 
-  // Close-domain button moves to the top-right corner of the card as an
-  // icon-only button that expands to show its label on hover (iOS/macOS
-  // notification-center style). Dedup button stays in the inline actions row.
-  let closeCardBtn = '';
-  if (closableCount > 0) {
-    const closeLabel = closableCount === tabCount
-      ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}`
-      : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`;
-    closeCardBtn = `<button class="card-close-btn" data-action="close-domain-tabs" data-domain-id="${stableId}">
-      <span class="card-close-btn-text">${closeLabel}</span>
-      ${ICONS.close}
-    </button>`;
-  }
+  // Labels derived for the Preact component to consume directly.
+  // closableCountLabel mirrors the original "Close all N tabs" vs
+  // "Close N ungrouped tabs" split so the button text matches.
+  const closableCountLabel = closableCount === tabCount
+    ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}`
+    : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`;
 
-  let actionsHtml = '';
-  if (closableExtras > 0) {
-    const dupeUrlsEncoded = closableDupeUrls.map(url => encodeURIComponent(url)).join(',');
-    actionsHtml += `
-      <button class="action-btn" data-action="dedup-keep-one" data-dupe-urls="${dupeUrlsEncoded}">
-        Close ${closableExtras} duplicate${closableExtras !== 1 ? 's' : ''}
-      </button>`;
-  }
+  const dupeUrlsEncoded = closableDupeUrls.map(url => encodeURIComponent(url)).join(',');
 
-  return `
-    <div class="mission-card domain-card${isAppCard ? ' is-app' : ''}" data-domain-id="${stableId}">
-      <div class="status-bar"></div>
-      ${closeCardBtn}
-      <div class="mission-content">
-        <div class="mission-top">
-          <span class="mission-name">${isLanding ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''))}</span>
-          ${singleSubdomainKey ? `<span class="mission-subdomain">${singleSubdomainKey}</span>` : ''}
-          ${tabBadge}
-        </div>
-        <div class="actions">${actionsHtml}</div>
-        <div class="mission-pages">${pageChips}</div>
-      </div>
-      <div class="mission-meta">
-        <div class="mission-page-count">${tabCount}</div>
-        <div class="mission-page-label">tabs</div>
-      </div>
-    </div>`;
+  const displayName = isLanding
+    ? 'Homepages'
+    : (group.label || group.domain.replace(/^www\./, ''));
+
+  return {
+    stableId,
+    isAppCard,
+    isLanding,
+    tabCount,
+    closableCount,
+    closableCountLabel,
+    closableDupeUrls,
+    closableExtras,
+    dupeUrlsEncoded,
+    singleSubdomainKey,
+    displayName,
+    pageChipsHtml: pageChips,
+  };
 }
 
 /* ---- Main render ---- */
@@ -780,11 +761,15 @@ export async function renderStaticDashboard() {
   const openTabsSection      = document.getElementById('openTabsSection');
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
 
-  // Snapshot the existing DOM so we can preserve masonry column
-  // pinning, vertical order within columns, and per-subdomain
-  // expansion state across rebuilds. Without the order snapshot,
-  // cards swap places whenever tab counts change.
-  const prevColumns = new Map();
+  // Snapshot the existing DOM so we can preserve vertical order
+  // within columns and per-subdomain expansion state across rebuilds.
+  //
+  // Phase 2 retired the prevColumns snapshot: now that <DomainCard>
+  // is a Preact component keyed by stableId, Preact's reconciliation
+  // preserves the .mission-card DOM node between renders. layout.js
+  // sets data-masonry-col directly on that node, and since Preact
+  // doesn't touch attributes it doesn't set as props, the column
+  // assignment survives re-renders without a manual snapshot.
   const prevOrder = new Map();
   // domainId -> Array<{ subdomainKey, pathgroupLabel? }>
   //   entry with pathgroupLabel=undefined marks a flat/singleton-level
@@ -797,9 +782,6 @@ export async function renderStaticDashboard() {
       const id = c.dataset.domainId;
       if (!id) continue;
       prevOrder.set(id, idx++);
-      if (c.dataset.masonryCol !== undefined) {
-        prevColumns.set(id, c.dataset.masonryCol);
-      }
       const expandedList = [];
       c.querySelectorAll('.pathgroup-section[data-expanded="true"]').forEach(s => {
         const pg   = s.dataset.pathgroupLabel;
@@ -831,18 +813,18 @@ export async function renderStaticDashboard() {
 
   const sectionHeaderWrap = document.getElementById('sectionHeaderWrap');
   if (domainGroups.length > 0 && openTabsSection) {
-    // Phase 1: Preact owns #openTabsMissions via <Missions>. Inside,
-    // <DomainCardShell> still emits the existing template-string card
-    // HTML via dangerouslySetInnerHTML, so the snapshot/restore loop
-    // below continues to work — it queries the newly-rendered
-    // .mission-card elements, which exist regardless of the Preact
-    // wrapper (`display: contents` keeps the wrapper invisible to
-    // layout + descendant selectors).
+    // Phase 2: Preact owns #openTabsMissions via <Missions>, which
+    // renders a <DomainCard> per group. Cards' outer chrome is fully
+    // Preact-managed (keyed by stableId so the DOM node persists); the
+    // inner .mission-pages content is still a dangerouslySetInnerHTML
+    // string until Phase 3+ migrates subdomain/pathgroup/chip layers.
+    // That inner wipe is why prevExpanded still needs to snapshot +
+    // restore data-expanded state on nested sub-sections — Preact
+    // doesn't know about expansion, and re-setting innerHTML loses
+    // any data-* attributes on the inner tree.
     preactRender(html/* html */`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl);
     openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
       const id = c.dataset.domainId;
-      const savedCol = prevColumns.get(id);
-      if (savedCol !== undefined) c.dataset.masonryCol = savedCol;
       // Re-apply the "expanded overflow" state per sub-section (either
       // subdomain-level for flat singletons or pathgroup-level for a
       // specific cluster) so closing a tab inside one expanded
