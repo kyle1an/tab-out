@@ -221,7 +221,10 @@ document.addEventListener('paste', (e) => {
   )) return;
   const input = document.getElementById('tabFilter');
   if (!input) return;
-  const text = (e.clipboardData || window.clipboardData).getData('text');
+  // Spec says clipboardData is populated for paste events, but some
+  // synthetic/programmatic paths can dispatch one without it — guard
+  // with optional chaining so a null doesn't throw.
+  const text = e.clipboardData?.getData('text');
   if (!text) return;
   e.preventDefault();
   input.focus();

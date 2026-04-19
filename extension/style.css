@@ -1,7 +1,10 @@
 /* ============================================================
    Tab Mission Control — Dashboard Styles
-   Extracted directly from mockup.html — do not modify unless
-   also updating the mockup. This is the approved design.
+
+   Browser support: last two Chrome versions only. No legacy vendor
+   prefixes, no cross-browser polyfills. The few -webkit- rules that
+   remain (font-smoothing, search-cancel-button, line-clamp + box
+   model) are still Chrome-only APIs with no unprefixed equivalent.
    ============================================================ */
 
 :root {
@@ -147,7 +150,6 @@ header {
   /* Prevent the placeholder text from being selected when the user
      drag-selects across the page or triple-clicks the input area. */
   user-select: none;
-  -webkit-user-select: none;
 }
 /* Pre-focus cue: page has focus, so type-anywhere will route here. Amber
    border at low opacity signals "ready" without mimicking the full focus
@@ -608,7 +610,6 @@ header {
 /* Fade the title text into the button area on chip hover so it doesn't
    read-through the × button. Mirrors Chrome's tab strip treatment. */
 .page-chip:hover .chip-text {
-  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
 }
 
