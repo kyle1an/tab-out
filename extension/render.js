@@ -71,21 +71,24 @@ export function pickFavicon(tab) {
 
 /**
  * stripPgLabel(label, pgLabel) — build the chip title as a segment
- * array where the pill-label occurrence (plus a trailing ref
+ * array where EVERY pill-label occurrence (plus a trailing ref
  * continuation like "@sha", "#N", "/path", ":branch") is replaced
- * IN PLACE by a placeholder object. Matches at any position and
- * preserves separators flanking the stripped region so the
- * remaining text reads naturally.
+ * in place by a placeholder object. Matches at any position —
+ * start, end, middle, or repeated — and preserves the separators
+ * flanking each stripped region so the remaining text reads
+ * naturally.
  *
- *   prefix: "owner/repo PR #4706"                     → [PH, "PR #4706"]
- *   suffix: "Pull Request #4706 · owner/repo"         → ["Pull Request #4706", PH]
- *   middle: "PR #4706 · owner/repo · GitHub"          → ["PR #4706", " · ", PH, " · ", "GitHub"]
- *   ref tail: "Size preview · owner/repo@296a5f1"     → ["Size preview", PH]
+ *   prefix:   "owner/repo PR #4706"                   → [PH, " PR #4706"]
+ *   suffix:   "Pull Request #4706 · owner/repo"       → ["Pull Request #4706 · ", PH]
+ *   middle:   "PR #4706 · owner/repo · GitHub"        → ["PR #4706", " · ", PH, " · GitHub"]
+ *   ref tail: "Size preview · owner/repo@296a5f1"     → ["Size preview", " · ", PH]
+ *   multi:    "owner/repo · log · owner/repo · PR"    → [PH, " · log", " · ", PH, " · PR"]
  *
  * Returns { segments, stripped }. When no separator-bounded
- * occurrence is found, or when the title equals the pill text
- * (repo-homepage case), `stripped` is false and `segments` is the
- * original label in a single-element array.
+ * occurrence is found, or when stripping would leave only
+ * separators + placeholders (e.g. the title is just the label, or
+ * label-sep-label with nothing else), the original label is
+ * returned as a single-segment array and `stripped` is false.
  */
 function stripPgLabel(label, pgLabel) {
   if (!pgLabel || !label || label === pgLabel) {
@@ -93,35 +96,35 @@ function stripPgLabel(label, pgLabel) {
   }
   const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const REF_TAIL = '(?:[@#/:]\\S*)?'
   const EL = esc(pgLabel)
-  const PH = { placeholder: true }
+  const REF_TAIL = '(?:[@#/:]\\S*)?'
+  const SEP = '(?:' + seps.map(esc).join('|') + ')'
+  const re = new RegExp(`(^|${SEP})(${EL}${REF_TAIL})(?=${SEP}|$)`, 'g')
 
-  for (const sep of seps) {
-    const ES = esc(sep)
-
-    const prefixMatch = label.match(new RegExp(`^${EL}${REF_TAIL}${ES}`))
-    if (prefixMatch) {
-      const rest = label.slice(prefixMatch[0].length).trim()
-      if (rest) return { segments: [PH, ' ', rest], stripped: true }
-    }
-
-    const suffixMatch = label.match(new RegExp(`${ES}${EL}${REF_TAIL}$`))
-    if (suffixMatch) {
-      const rest = label.slice(0, label.length - suffixMatch[0].length).trim()
-      if (rest) return { segments: [rest, ' ', PH], stripped: true }
-    }
-
-    const middleMatch = label.match(new RegExp(`${ES}${EL}${REF_TAIL}${ES}`))
-    if (middleMatch) {
-      const idx = label.indexOf(middleMatch[0])
-      const left = label.slice(0, idx).trim()
-      const right = label.slice(idx + middleMatch[0].length).trim()
-      if (left && right) return { segments: [left, sep, PH, sep, right], stripped: true }
-    }
+  const hits = []
+  let m
+  while ((m = re.exec(label)) !== null) {
+    hits.push({ index: m.index, length: m[0].length, prefixSep: m[1] })
+    if (m.index === re.lastIndex) re.lastIndex++
   }
+  if (hits.length === 0) return { segments: [label], stripped: false }
 
-  return { segments: [label], stripped: false }
+  const segments = []
+  let cursor = 0
+  for (const hit of hits) {
+    const textBefore = label.slice(cursor, hit.index)
+    if (textBefore) segments.push(textBefore)
+    if (hit.prefixSep) segments.push(hit.prefixSep)
+    segments.push({ placeholder: true })
+    cursor = hit.index + hit.length
+  }
+  const textAfter = label.slice(cursor)
+  if (textAfter) segments.push(textAfter)
+
+  const hasText = segments.some((s) => typeof s === 'string' && s.trim())
+  if (!hasText) return { segments: [label], stripped: false }
+
+  return { segments, stripped: true }
 }
 
 /**
