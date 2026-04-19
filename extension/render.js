@@ -555,17 +555,38 @@ export function computeDomainCardViewModel(group) {
     // Order chips within a cluster by sub-category (if the adapter
     // provided one), then by their display-label order (preserved via
     // stable sort, since sectionTabs was already sorted by display
-    // label above). For GitHub: PRs first, issues, commits, code
-    // browsing, everything else last — so "ABC-1234 PR" sits next to
-    // "ABC-5678 PR" instead of alphabetizing them between the Commits
-    // page and the Actions page. Unknown categories fall to 'other'.
+    // label above). Unknown categories fall to 'other'.
     const CATEGORY_ORDER = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
+
+    // Pull requests deserve their own section under a repo: they're
+    // action items ("review me"), not browsing state ("I'm reading
+    // this file"). Splitting them into a sibling sub-cluster lets
+    // each half claim its own CHIPS_PER_SECTION limit instead of
+    // fighting over one — 10 total visible for a PR-heavy repo
+    // instead of 5 with the rest hidden behind "+N more".
+    //
+    // Threshold: split only when the PR side has ≥2 tabs AND the
+    // non-PR side has ≥1. A single PR stays folded into the main
+    // cluster; a repo with only PRs stays as one section (and
+    // cosmetically still gets the PR label via `isPR`).
+    const rawClusters = []
+    for (const [lbl, tabs] of sortedClusters) {
+      const prTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category === 'pull')
+      const nonPrTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category !== 'pull')
+      if (prTabs.length >= 2 && nonPrTabs.length >= 1) {
+        rawClusters.push({ label: lbl, tabs: nonPrTabs, key: lbl, isPR: false })
+        rawClusters.push({ label: lbl, tabs: prTabs, key: lbl + ':pr', isPR: true })
+      } else {
+        const allArePRs = prTabs.length === tabs.length && tabs.length > 0
+        rawClusters.push({ label: lbl, tabs, key: lbl, isPR: allArePRs })
+      }
+    }
 
     // Per-cluster data objects. <PathgroupSection> handles the
     // header (pill + count + rule + close button), visible/hidden
     // chip split, and local expand state. <PageChip> consumes the
     // chip-data objects directly (Phase 5).
-    const clusters = sortedClusters.map(([lbl, tabs]) => {
+    const clusters = rawClusters.map(({ label, tabs, key, isPR }) => {
       const orderedTabs = tabs.slice().sort((a, b) => {
         const aCat = CATEGORY_ORDER[pgByUrl.get(a.url)?.category] ?? CATEGORY_ORDER.other
         const bCat = CATEGORY_ORDER[pgByUrl.get(b.url)?.category] ?? CATEGORY_ORDER.other
@@ -574,10 +595,12 @@ export function computeDomainCardViewModel(group) {
       const vis = orderedTabs.slice(0, CHIPS_PER_SECTION)
       const hid = orderedTabs.slice(CHIPS_PER_SECTION)
       const clusterClosable = orderedTabs.filter((t) => !isGroupedTab(t))
-      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', lbl))
-      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', lbl))
+      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
+      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
       return {
-        label: lbl,
+        key,
+        label,
+        isPR,
         count: tabs.length,
         closableUrls: clusterClosable.map((t) => t.url),
         visibleChips,

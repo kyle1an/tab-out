@@ -37,7 +37,7 @@ function PathgroupCloseButton({ count, onClick }) {
   `
 }
 
-export function PathgroupSection({ label, count, closableUrls, visibleChips, hiddenChips, hiddenCount }) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount }) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
@@ -58,9 +58,10 @@ export function PathgroupSection({ label, count, closableUrls, visibleChips, hid
   }
 
   return html`
-    <div class="pathgroup-section" data-pathgroup-label=${label} data-expanded=${expanded ? 'true' : null}>
+    <div class="pathgroup-section" data-pathgroup-label=${label} data-pr=${isPR ? 'true' : null} data-expanded=${expanded ? 'true' : null}>
       <div class="pathgroup-header">
         <span class="chip-pathgroup">${label}</span>
+        ${isPR && html`<span class="chip-pathgroup chip-pathgroup-pr">PRs</span>`}
         <span class="pathgroup-header-count">${count}</span>
         <span class="pathgroup-header-rule"></span>
         ${closableUrls && closableUrls.length > 0 && html` <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} /> `}

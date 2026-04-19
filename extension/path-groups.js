@@ -31,9 +31,12 @@ const BUILT_IN_PATH_GROUPERS = [
   {
     hostname: 'github.com',
     extract: (u) => {
-      // Capture up to the third path segment so we can classify the
-      // page as pull / issue / commit / code / other.
-      const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/([^/]+))?/)
+      // Capture up to the fourth path segment. The third segment
+      // classifies the page area (pull / issues / commits / code);
+      // the fourth distinguishes a specific item (a PR number, an
+      // issue number) from the browsing list at that path — e.g.
+      // /pull/1234 (action item) vs /pulls?q=… (browse all PRs).
+      const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?/)
       if (!m) return null
       const RESERVED = new Set([
         'orgs',
@@ -59,12 +62,20 @@ const BUILT_IN_PATH_GROUPERS = [
       if (RESERVED.has(m[1])) return null
       const label = `${m[1]}/${m[2]}`
       const sub = m[3] || ''
+      const item = m[4] || ''
       // Category: used by render.js to order chips within a cluster so
-      // PRs sit together, issues sit together, etc. — no new visual
-      // section, just a predictable grouping. `other` covers the repo
-      // homepage plus pages like /actions, /releases, /wiki.
+      // PRs sit together, issues sit together, etc. — and (for PRs)
+      // to split the cluster into a dedicated "PRs" sub-section with
+      // its own display limit. `other` covers the repo homepage plus
+      // pages like /actions, /releases, /wiki.
+      //
+      // IMPORTANT: `/pulls?q=…` (the browse-all-PRs list) is NOT a
+      // PR — it's a browsing page. Only /pull/<N> (singular + item)
+      // counts as a PR. Same rationale could apply to /issues/<N>
+      // vs /issues?q=… but we leave issues unsplit for now since
+      // they don't get their own sub-cluster anyway.
       let category = 'other'
-      if (sub === 'pull' || sub === 'pulls') category = 'pull'
+      if (sub === 'pull' && item) category = 'pull'
       else if (sub === 'issues') category = 'issue'
       else if (sub === 'commits' || sub === 'commit') category = 'commit'
       else if (sub === 'blob' || sub === 'tree') category = 'code'
