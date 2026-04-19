@@ -21,7 +21,18 @@ const PLACEHOLDER_IDLE = 'Filter tabs…';
 const PLACEHOLDER_HINT = 'Type anywhere to filter…';
 const PLACEHOLDER_EDIT = 'Title or URL…';
 
+// Focus/blur events can fire in rapid bursts (window focus churn when
+// DevTools open, OS alert popups, etc.). Debounce so we don't thrash
+// the placeholder/classes — reads of document.hasFocus() and
+// activeElement always happen at apply time, so late-arriving events
+// just replace the pending schedule rather than queuing up.
+let placeholderTimer = null;
 function updateFilterPlaceholder() {
+  clearTimeout(placeholderTimer);
+  placeholderTimer = setTimeout(applyFilterPlaceholder, 80);
+}
+
+function applyFilterPlaceholder() {
   const input = document.getElementById('tabFilter');
   if (!input) return;
   const pageFocused = document.hasFocus();
@@ -33,6 +44,10 @@ function updateFilterPlaceholder() {
   // trusts keystrokes will land here even before clicking in. Only shown
   // when type-anywhere is actually live (page focused, input not).
   input.classList.toggle('capture-ready', pageFocused && !inputFocused);
+  // `.capture-dormant` dims the input when the window lacks focus —
+  // a visual "this can't respond to keys right now" cue that reads
+  // faster than the placeholder text alone.
+  input.classList.toggle('capture-dormant', !pageFocused);
 }
 
 /**
