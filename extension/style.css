@@ -569,14 +569,24 @@ header {
   overflow: hidden;
   /* Default word-boundary breaking — short words never split
      mid-character ("code" stays whole, no "c / ode"). For long
-     unbreakable tokens (GitHub usernames, hashes, 15+ char
-     identifiers) render.js:injectBreakPoints pre-inserts
-     zero-width spaces (U+200B) every 5 chars so the browser can
-     wrap them when layout needs to. ZWSP renders as nothing — no
-     hyphen glyph — so line-2 breaks on those long tokens read as
-     a clipped edge, and the right-edge mask fade covers the
-     transition. */
+     tokens the browser has two sources of additional break points:
+       • Dictionary hyphenation (hyphens: auto + <html lang="en">)
+         — natural syllable boundaries for real English words like
+         "internationalization" → "international / ization" instead
+         of arbitrary 5-char chunks.
+       • ZWSP injection (render.js:injectBreakPoints) — fallback
+         break points every 5 chars inside 15+ char tokens that
+         the dictionary doesn't know (GitHub usernames, hashes,
+         compound identifiers like "alicebobacme").
+     hyphenate-character: '' suppresses the visible "-" glyph that
+     hyphens: auto would normally render at break points, so both
+     dictionary and ZWSP breaks read as a clipped edge with no
+     hyphen marker — the right-edge mask fade covers the transition
+     on the last line, and upper-line breaks in long tokens just
+     end the line cleanly. */
   word-break: normal;
+  hyphens: auto;
+  hyphenate-character: '';
   mask-image:
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
     linear-gradient(to right, black 0, black calc(100% - 60px), rgba(0, 0, 0, 0.35) calc(100% - 20px), transparent);
