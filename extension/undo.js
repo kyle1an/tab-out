@@ -23,13 +23,31 @@ let lastClosure = null
  *   2. For snapshot entries we couldn't match, recreate via chrome.tabs.create()
  *      (just URL + window placement; loses page state but works without limit).
  *   3. Re-group restored tabs into their original Chrome group when possible.
+ *
+ * Focus behavior: chrome.sessions.restore() activates the restored tab by
+ * default, which would yank the user off the dashboard. We capture the Tab
+ * Out page's tab id + window id before restoring and re-focus it afterwards
+ * so the user stays on the dashboard. The "Restored N tabs" toast offers a
+ * "Switch" button (single-tab undo only) so they can still jump to the
+ * restored tab if they want.
  */
 export async function undoLastClose() {
   const closure = lastClosure
   if (!closure || !closure.tabs || closure.tabs.length === 0) return
   lastClosure = null
 
-  const restored = new Set() // snapshot indices already restored
+  let selfTabId = null
+  let selfWindowId = null
+  try {
+    const self = await chrome.tabs.getCurrent()
+    if (self) {
+      selfTabId = self.id
+      selfWindowId = self.windowId
+    }
+  } catch {}
+
+  const restored = new Set()
+  const restoredTabIds = []
 
   if (chrome.sessions) {
     try {
@@ -44,7 +62,10 @@ export async function undoLastClose() {
         const indices = urlToIndices.get(unwrapSuspenderUrl(session.tab.url))
         if (!indices || indices.length === 0) continue
         try {
-          await chrome.sessions.restore(session.sessionId)
+          const result = await chrome.sessions.restore(session.sessionId)
+          if (result && result.tab && result.tab.id != null) {
+            restoredTabIds.push(result.tab.id)
+          }
           restored.add(indices.shift())
         } catch {
           /* one bad session shouldn't kill the rest */
@@ -65,6 +86,7 @@ export async function undoLastClose() {
         pinned: t.pinned,
         active: false
       })
+      if (created && created.id != null) restoredTabIds.push(created.id)
       if (t.groupId !== undefined && t.groupId !== -1 && chrome.tabs.group) {
         try {
           await chrome.tabs.group({ tabIds: [created.id], groupId: t.groupId })
@@ -77,7 +99,32 @@ export async function undoLastClose() {
     }
   }
 
-  showToast(`Restored ${closure.tabs.length} tab${closure.tabs.length !== 1 ? 's' : ''}`)
+  if (selfTabId != null) {
+    try {
+      await chrome.tabs.update(selfTabId, { active: true })
+      if (selfWindowId != null) await chrome.windows.update(selfWindowId, { focused: true })
+    } catch {
+      /* self-tab may have been closed in the meantime — ignore */
+    }
+  }
+
+  const n = closure.tabs.length
+  const firstId = restoredTabIds[0]
+  const msg = `Restored ${n} tab${n !== 1 ? 's' : ''}`
+  if (n === 1 && firstId != null) {
+    showToast(msg, {
+      label: 'Switch',
+      onClick: async () => {
+        try {
+          const tab = await chrome.tabs.get(firstId)
+          await chrome.tabs.update(firstId, { active: true })
+          await chrome.windows.update(tab.windowId, { focused: true })
+        } catch {}
+      }
+    })
+  } else {
+    showToast(msg)
+  }
 }
 
 /**
