@@ -553,9 +553,15 @@ function renderDomainCard(group) {
       const closeBtn = clusterClosable.length > 0
         ? `<button class="pathgroup-close-btn" data-action="close-pathgroup-tabs" data-pathgroup-urls="${clusterClosable.map(t => encodeURIComponent(t.url)).join(',')}" title="Close ${clusterClosable.length} tab${clusterClosable.length !== 1 ? 's' : ''}">${ICONS.close}</button>`
         : '';
+      // A stretchy hairline between the count and the close button:
+      // it doubles as the section separator, so the header reads as
+      // a "labeled rule" (pill on the left, action on the right) and
+      // the visual boundary between sub-sections lives in one element
+      // instead of two (previous between-section border is removed).
       const blockHeader = `<div class="pathgroup-header">
         <span class="chip-pathgroup">${escapeChipText(lbl)}</span>
         <span class="pathgroup-header-count">${tabs.length}</span>
+        <span class="pathgroup-header-rule"></span>
         ${closeBtn}
       </div>`;
       const visChips = vis.map(t =>
