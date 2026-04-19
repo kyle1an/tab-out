@@ -315,6 +315,11 @@ header {
   font-weight: 500;
   color: var(--muted);
   background: transparent;
+  /* Hidden until the parent card is hovered (Chrome-tab behavior for
+     the card-level close). pointer-events: none so the invisible
+     button can't catch clicks through the corner. */
+  opacity: 0;
+  pointer-events: none;
   /* Only the interior-facing sides (bottom + left) get a border — the
      top and right sides are flush with the card's own border, so a
      second line there would double up. Widths match in both states
@@ -328,9 +333,14 @@ header {
   border-radius: 0 12px 0 18px;
   corner-shape: squircle;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
+  transition: opacity 0.15s ease, background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
   z-index: 2;
   white-space: nowrap;
+}
+
+.mission-card:hover .card-close-btn {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* Icon fades + collapses on hover so the label can slide in without
