@@ -23,9 +23,11 @@ header {
 
 .header-row {
   display: flex;
-  /* Stats sit on the left, filter on the right. `row-reverse` keeps
-     filter-right without touching HTML order. */
-  flex-direction: row-reverse;
+  /* Stats on the left, filter on the right. `justify-content:
+     space-between` pushes the two end children apart — header-stats
+     at the far left, the filter input at the far right. Dropping
+     the old row-reverse indirection so DOM order matches visual
+     order; easier to reason about when reading the markup. */
   justify-content: space-between;
   align-items: center;
   gap: 16px;

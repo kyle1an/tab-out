@@ -30,11 +30,10 @@
     <div class="pinned-top">
       <div class="page-inner">
         <header>
-          <!-- Single row: all stats inline on one side, filter on the other.
-           row-reverse keeps the filter on the right without touching HTML
-           order. Stats collapse from the old stacked h1 + sub-line + action
-           row (~109px) into one ~32px line, reclaiming vertical space for
-           the card grid. -->
+          <!-- Single row: stats at the left, filter at the right. DOM order
+           matches visual order (no row-reverse trick). Stats collapse from
+           the old stacked h1 + sub-line + action row (~109px) into one
+           ~32px line, reclaiming vertical space for the card grid. -->
           <div class="header-row">
             <div class="header-stats">
               <!-- Action buttons first — leftmost, fixed anchor. Stats never
