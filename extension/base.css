@@ -15,24 +15,29 @@
   /* Tailwind `neutral` family — truly gray, zero undertone.
      Variable names are kept for diff size even though the values shifted
      from warm earth tones to pure neutrals. */
-  --ink: #0a0a0a;           /* neutral-950 */
-  --paper: #fafafa;         /* neutral-50  */
-  --warm-gray: #e5e5e5;     /* neutral-200 — border */
-  --muted: #737373;         /* neutral-500 — secondary text */
-  --accent-amber: #525252;  /* neutral-600 — primary accent */
-  --accent-sage: #16a34a;   /* green-600 — success (unused) */
-  --accent-slate: #737373;  /* neutral-500 */
-  --accent-rose: #ef4444;   /* red-500 (unused) */
+  --ink: #0a0a0a; /* neutral-950 */
+  --paper: #fafafa; /* neutral-50  */
+  --warm-gray: #e5e5e5; /* neutral-200 — border */
+  --muted: #737373; /* neutral-500 — secondary text */
+  --accent-amber: #525252; /* neutral-600 — primary accent */
+  --accent-sage: #16a34a; /* green-600 — success (unused) */
+  --accent-slate: #737373; /* neutral-500 */
+  --accent-rose: #ef4444; /* red-500 (unused) */
   --status-active: #22c55e; /* green-500 (unused) */
-  --status-cooling: #eab308;/* yellow-500 (unused) */
+  --status-cooling: #eab308; /* yellow-500 (unused) */
   --status-abandoned: #ef4444; /* red-500 — danger */
   --card-bg: #ffffff;
   --shadow: rgba(10, 10, 10, 0.06);
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-html, body {
+html,
+body {
   /* Lock page scroll to .container below. The window itself never
      scrolls, so sticky headers inside the container stay rock-solid
      when the user overscrolls — only the card-list area rubber-bands. */
@@ -114,8 +119,7 @@ body {
 .pathgroup-section > .page-chips-overflow {
   display: none;
 }
-.flat-section[data-expanded="true"] > .page-chips-overflow,
-.pathgroup-section[data-expanded="true"] > .page-chips-overflow {
+.flat-section[data-expanded='true'] > .page-chips-overflow,
+.pathgroup-section[data-expanded='true'] > .page-chips-overflow {
   display: contents;
 }
-

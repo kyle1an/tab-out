@@ -8,10 +8,10 @@
    extension pages).
    ================================================================ */
 
-import { unwrapSuspenderUrl } from './suspender.js';
-import { isGroupedTab, fetchTabGroupColors, scoreForKeep } from './groups.js';
+import { unwrapSuspenderUrl } from './suspender.js'
+import { isGroupedTab, fetchTabGroupColors, scoreForKeep } from './groups.js'
 
-export let openTabs = [];
+export let openTabs = []
 
 /**
  * snapshotChromeTabs(chromeTabs) — captures enough info per tab to
@@ -20,14 +20,16 @@ export let openTabs = [];
  * recreating.
  */
 export function snapshotChromeTabs(chromeTabs) {
-  return chromeTabs.map(t => ({
-    url:      unwrapSuspenderUrl(t.url || ''),
-    title:    t.title || '',
-    pinned:   !!t.pinned,
-    groupId:  typeof t.groupId === 'number' ? t.groupId : -1,
-    windowId: t.windowId,
-    index:    typeof t.index === 'number' ? t.index : undefined,
-  })).filter(s => s.url && !s.url.startsWith('chrome://') && !s.url.startsWith('chrome-extension://'));
+  return chromeTabs
+    .map((t) => ({
+      url: unwrapSuspenderUrl(t.url || ''),
+      title: t.title || '',
+      pinned: !!t.pinned,
+      groupId: typeof t.groupId === 'number' ? t.groupId : -1,
+      windowId: t.windowId,
+      index: typeof t.index === 'number' ? t.index : undefined
+    }))
+    .filter((s) => s.url && !s.url.startsWith('chrome://') && !s.url.startsWith('chrome-extension://'))
 }
 
 /**
@@ -37,39 +39,35 @@ export function snapshotChromeTabs(chromeTabs) {
  */
 export async function fetchOpenTabs() {
   try {
-    const extensionId = chrome.runtime.id;
-    const newtabUrl = `chrome-extension://${extensionId}/index.html`;
+    const extensionId = chrome.runtime.id
+    const newtabUrl = `chrome-extension://${extensionId}/index.html`
 
     // Fetch tabs, windows, and tab-group colors in parallel — all
     // network-free API calls. Window types tell us which tabs are
     // running in standalone app/PWA windows (type === 'app' | 'popup').
-    const [tabs, windows] = await Promise.all([
-      chrome.tabs.query({}),
-      chrome.windows.getAll(),
-      fetchTabGroupColors(),
-    ]);
-    const windowTypeById = new Map(windows.map(w => [w.id, w.type]));
-    openTabs = tabs.map(t => {
-      const rawUrl = t.url || '';
-      const effectiveUrl = unwrapSuspenderUrl(rawUrl);
-      const windowType = windowTypeById.get(t.windowId);
+    const [tabs, windows] = await Promise.all([chrome.tabs.query({}), chrome.windows.getAll(), fetchTabGroupColors()])
+    const windowTypeById = new Map(windows.map((w) => [w.id, w.type]))
+    openTabs = tabs.map((t) => {
+      const rawUrl = t.url || ''
+      const effectiveUrl = unwrapSuspenderUrl(rawUrl)
+      const windowType = windowTypeById.get(t.windowId)
       return {
-        id:         t.id,
-        url:        effectiveUrl,
-        rawUrl:     rawUrl,
-        suspended:  rawUrl !== effectiveUrl,
-        title:      t.title,
+        id: t.id,
+        url: effectiveUrl,
+        rawUrl: rawUrl,
+        suspended: rawUrl !== effectiveUrl,
+        title: t.title,
         favIconUrl: t.favIconUrl || '',
-        windowId:   t.windowId,
-        active:     t.active,
-        pinned:     t.pinned,
-        groupId:    typeof t.groupId === 'number' ? t.groupId : -1,
-        isTabOut:   rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
-        isApp:      windowType === 'app' || windowType === 'popup',
-      };
-    });
+        windowId: t.windowId,
+        active: t.active,
+        pinned: t.pinned,
+        groupId: typeof t.groupId === 'number' ? t.groupId : -1,
+        isTabOut: rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
+        isApp: windowType === 'app' || windowType === 'popup'
+      }
+    })
   } catch {
-    openTabs = [];
+    openTabs = []
   }
 }
 
@@ -78,16 +76,10 @@ export async function fetchOpenTabs() {
  * etc. The grid only ever shows real web pages.
  */
 export function getRealTabs() {
-  return openTabs.filter(t => {
-    const url = t.url || '';
-    return (
-      !url.startsWith('chrome://') &&
-      !url.startsWith('chrome-extension://') &&
-      !url.startsWith('about:') &&
-      !url.startsWith('edge://') &&
-      !url.startsWith('brave://')
-    );
-  });
+  return openTabs.filter((t) => {
+    const url = t.url || ''
+    return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
+  })
 }
 
 /**
@@ -96,37 +88,42 @@ export function getRealTabs() {
  * Returns a snapshot of what was closed for undo.
  */
 export async function closeTabsByUrls(urls, opts = {}) {
-  if (!urls || urls.length === 0) return [];
-  const { preserveGroups = false } = opts;
+  if (!urls || urls.length === 0) return []
+  const { preserveGroups = false } = opts
 
   // Separate file:// URLs (exact match) from regular URLs (hostname match)
-  const targetHostnames = [];
-  const exactUrls = new Set();
+  const targetHostnames = []
+  const exactUrls = new Set()
 
   for (const u of urls) {
     if (u.startsWith('file://')) {
-      exactUrls.add(u);
+      exactUrls.add(u)
     } else {
-      try { targetHostnames.push(new URL(u).hostname); }
-      catch { /* skip unparseable */ }
+      try {
+        targetHostnames.push(new URL(u).hostname)
+      } catch {
+        /* skip unparseable */
+      }
     }
   }
 
-  const allTabs = await chrome.tabs.query({});
-  const toCloseTabs = allTabs.filter(tab => {
-    if (preserveGroups && isGroupedTab(tab)) return false;
-    const tabUrl = unwrapSuspenderUrl(tab.url || '');
-    if (tabUrl.startsWith('file://') && exactUrls.has(tabUrl)) return true;
+  const allTabs = await chrome.tabs.query({})
+  const toCloseTabs = allTabs.filter((tab) => {
+    if (preserveGroups && isGroupedTab(tab)) return false
+    const tabUrl = unwrapSuspenderUrl(tab.url || '')
+    if (tabUrl.startsWith('file://') && exactUrls.has(tabUrl)) return true
     try {
-      const tabHostname = new URL(tabUrl).hostname;
-      return tabHostname && targetHostnames.includes(tabHostname);
-    } catch { return false; }
-  });
+      const tabHostname = new URL(tabUrl).hostname
+      return tabHostname && targetHostnames.includes(tabHostname)
+    } catch {
+      return false
+    }
+  })
 
-  const snapshot = snapshotChromeTabs(toCloseTabs);
-  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map(t => t.id));
-  await fetchOpenTabs();
-  return snapshot;
+  const snapshot = snapshotChromeTabs(toCloseTabs)
+  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map((t) => t.id))
+  await fetchOpenTabs()
+  return snapshot
 }
 
 /**
@@ -135,16 +132,15 @@ export async function closeTabsByUrls(urls, opts = {}) {
  * accidentally close unrelated tabs from the same hostname.
  */
 export async function closeTabsExact(urls, opts = {}) {
-  if (!urls || urls.length === 0) return [];
-  const { preserveGroups = false } = opts;
-  const urlSet = new Set(urls);
-  const allTabs = await chrome.tabs.query({});
-  const toCloseTabs = allTabs
-    .filter(t => !(preserveGroups && isGroupedTab(t)) && urlSet.has(unwrapSuspenderUrl(t.url)));
-  const snapshot = snapshotChromeTabs(toCloseTabs);
-  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map(t => t.id));
-  await fetchOpenTabs();
-  return snapshot;
+  if (!urls || urls.length === 0) return []
+  const { preserveGroups = false } = opts
+  const urlSet = new Set(urls)
+  const allTabs = await chrome.tabs.query({})
+  const toCloseTabs = allTabs.filter((t) => !(preserveGroups && isGroupedTab(t)) && urlSet.has(unwrapSuspenderUrl(t.url)))
+  const snapshot = snapshotChromeTabs(toCloseTabs)
+  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map((t) => t.id))
+  await fetchOpenTabs()
+  return snapshot
 }
 
 /**
@@ -152,29 +148,32 @@ export async function closeTabsExact(urls, opts = {}) {
  * hostname fallback) and focus its window.
  */
 export async function focusTab(url) {
-  if (!url) return;
-  const allTabs = await chrome.tabs.query({});
-  const currentWindow = await chrome.windows.getCurrent();
+  if (!url) return
+  const allTabs = await chrome.tabs.query({})
+  const currentWindow = await chrome.windows.getCurrent()
 
-  const targetEffective = unwrapSuspenderUrl(url);
+  const targetEffective = unwrapSuspenderUrl(url)
 
-  let matches = allTabs.filter(t => t.url === url || unwrapSuspenderUrl(t.url) === targetEffective);
+  let matches = allTabs.filter((t) => t.url === url || unwrapSuspenderUrl(t.url) === targetEffective)
 
   if (matches.length === 0) {
     try {
-      const targetHost = new URL(targetEffective).hostname;
-      matches = allTabs.filter(t => {
-        try { return new URL(unwrapSuspenderUrl(t.url)).hostname === targetHost; }
-        catch { return false; }
-      });
+      const targetHost = new URL(targetEffective).hostname
+      matches = allTabs.filter((t) => {
+        try {
+          return new URL(unwrapSuspenderUrl(t.url)).hostname === targetHost
+        } catch {
+          return false
+        }
+      })
     } catch {}
   }
 
-  if (matches.length === 0) return;
+  if (matches.length === 0) return
 
-  const match = matches.find(t => t.windowId !== currentWindow.id) || matches[0];
-  await chrome.tabs.update(match.id, { active: true });
-  await chrome.windows.update(match.windowId, { focused: true });
+  const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
+  await chrome.tabs.update(match.id, { active: true })
+  await chrome.windows.update(match.windowId, { focused: true })
 }
 
 /**
@@ -188,45 +187,46 @@ export async function focusTab(url) {
  * Returns a snapshot of what was closed for undo.
  */
 export async function closeDuplicateTabs(urls, keepOne = true) {
-  const allTabs = await chrome.tabs.query({});
-  let currentWindowId = -1;
-  try { currentWindowId = (await chrome.windows.getCurrent()).id; } catch {}
-  const toCloseTabs = [];
+  const allTabs = await chrome.tabs.query({})
+  let currentWindowId = -1
+  try {
+    currentWindowId = (await chrome.windows.getCurrent()).id
+  } catch {}
+  const toCloseTabs = []
 
   for (const url of urls) {
-    const matching = allTabs.filter(t => unwrapSuspenderUrl(t.url) === url);
+    const matching = allTabs.filter((t) => unwrapSuspenderUrl(t.url) === url)
     if (!keepOne) {
-      for (const tab of matching) toCloseTabs.push(tab);
-      continue;
+      for (const tab of matching) toCloseTabs.push(tab)
+      continue
     }
 
-    const grouped   = matching.filter(t =>  isGroupedTab(t));
-    const ungrouped = matching.filter(t => !isGroupedTab(t));
-    const sortByScore = arr => arr.slice()
-      .sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId));
+    const grouped = matching.filter((t) => isGroupedTab(t))
+    const ungrouped = matching.filter((t) => !isGroupedTab(t))
+    const sortByScore = (arr) => arr.slice().sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId))
 
     if (grouped.length >= 1 && ungrouped.length >= 1) {
-      for (const t of ungrouped) toCloseTabs.push(t);
+      for (const t of ungrouped) toCloseTabs.push(t)
     } else if (ungrouped.length >= 2) {
-      const keep = sortByScore(ungrouped)[0];
+      const keep = sortByScore(ungrouped)[0]
       for (const t of ungrouped) {
-        if (t.id !== keep.id) toCloseTabs.push(t);
+        if (t.id !== keep.id) toCloseTabs.push(t)
       }
     } else if (grouped.length >= 2) {
-      const distinctGroups = new Set(grouped.map(t => t.groupId));
+      const distinctGroups = new Set(grouped.map((t) => t.groupId))
       if (distinctGroups.size === 1) {
-        const keep = sortByScore(grouped)[0];
+        const keep = sortByScore(grouped)[0]
         for (const t of grouped) {
-          if (t.id !== keep.id) toCloseTabs.push(t);
+          if (t.id !== keep.id) toCloseTabs.push(t)
         }
       }
     }
   }
 
-  const snapshot = snapshotChromeTabs(toCloseTabs);
-  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map(t => t.id));
-  await fetchOpenTabs();
-  return snapshot;
+  const snapshot = snapshotChromeTabs(toCloseTabs)
+  if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map((t) => t.id))
+  await fetchOpenTabs()
+  return snapshot
 }
 
 /**
@@ -234,22 +234,17 @@ export async function closeDuplicateTabs(urls, keepOne = true) {
  * the active one in the current window.
  */
 export async function closeTabOutDupes() {
-  const extensionId = chrome.runtime.id;
-  const newtabUrl = `chrome-extension://${extensionId}/index.html`;
+  const extensionId = chrome.runtime.id
+  const newtabUrl = `chrome-extension://${extensionId}/index.html`
 
-  const allTabs = await chrome.tabs.query({});
-  const currentWindow = await chrome.windows.getCurrent();
-  const tabOutTabs = allTabs.filter(t =>
-    t.url === newtabUrl || t.url === 'chrome://newtab/'
-  );
+  const allTabs = await chrome.tabs.query({})
+  const currentWindow = await chrome.windows.getCurrent()
+  const tabOutTabs = allTabs.filter((t) => t.url === newtabUrl || t.url === 'chrome://newtab/')
 
-  if (tabOutTabs.length <= 1) return;
+  if (tabOutTabs.length <= 1) return
 
-  const keep =
-    tabOutTabs.find(t => t.active && t.windowId === currentWindow.id) ||
-    tabOutTabs.find(t => t.active) ||
-    tabOutTabs[0];
-  const toClose = tabOutTabs.filter(t => t.id !== keep.id).map(t => t.id);
-  if (toClose.length > 0) await chrome.tabs.remove(toClose);
-  await fetchOpenTabs();
+  const keep = tabOutTabs.find((t) => t.active && t.windowId === currentWindow.id) || tabOutTabs.find((t) => t.active) || tabOutTabs[0]
+  const toClose = tabOutTabs.filter((t) => t.id !== keep.id).map((t) => t.id)
+  if (toClose.length > 0) await chrome.tabs.remove(toClose)
+  await fetchOpenTabs()
 }

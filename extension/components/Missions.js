@@ -27,9 +27,9 @@ function stableKey(group) {
 }
 
 export function Missions({ domains }) {
-  return html/* html */`
+  return html/*html*/`
     <${Fragment}>
-      ${domains.map(g => html/* html */`
+      ${domains.map(g => html/*html*/`
         <${DomainCard} key=${stableKey(g)} group=${g} />
       `)}
     </${Fragment}>

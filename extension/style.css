@@ -63,7 +63,10 @@ header {
   border-radius: 12px;
   corner-shape: squircle;
   outline: none;
-  transition: border-color 0.15s, background 0.15s, opacity 0.2s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    opacity 0.2s;
 }
 .tab-filter::placeholder {
   color: var(--muted);
@@ -203,7 +206,11 @@ header {
 /* Transitions on top/left are enabled only AFTER the first pack so cards
    don't visibly slide from 0,0 into position on initial render. */
 .missions.is-packed .mission-card {
-  transition: top 0.25s ease, left 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+  transition:
+    top 0.25s ease,
+    left 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
 }
 
 .mission-card {
@@ -219,7 +226,9 @@ header {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  transition:
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -273,7 +282,13 @@ header {
   border-radius: 0 10px 0 24px;
   corner-shape: squircle;
   cursor: pointer;
-  transition: opacity 0.15s ease, background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
+  transition:
+    opacity 0.15s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    padding 0.2s ease,
+    gap 0.2s ease,
+    color 0.2s ease;
   z-index: 2;
   white-space: nowrap;
 }
@@ -294,7 +309,9 @@ header {
   flex-shrink: 0;
   opacity: 1;
   overflow: hidden;
-  transition: max-width 0.2s ease, opacity 0.15s ease;
+  transition:
+    max-width 0.2s ease,
+    opacity 0.15s ease;
 }
 
 .card-close-btn:hover svg {
@@ -307,7 +324,9 @@ header {
   max-width: 0;
   overflow: hidden;
   opacity: 0;
-  transition: max-width 0.2s ease, opacity 0.15s ease;
+  transition:
+    max-width 0.2s ease,
+    opacity 0.15s ease;
 }
 
 .card-close-btn:hover {
@@ -359,7 +378,9 @@ header {
 .mission-card.closing {
   opacity: 0;
   transform: scale(0.9);
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
   pointer-events: none;
 }
 
@@ -452,7 +473,6 @@ header {
   corner-shape: squircle;
 }
 
-
 .mission-summary {
   font-size: 13px;
   color: var(--muted);
@@ -515,7 +535,6 @@ header {
    chip hover (Chrome-tab style), so the extra right-side padding that
    was reserved for the always-visible × is no longer needed. Text
    fades into the button area on hover via a mask (below). */
-
 
 /* Favicon — same display size as Chrome's tab favicon (16×16 CSS px).
    margin-top nudges it down so it optically centers on the first text
@@ -600,7 +619,7 @@ header {
   padding: 0 6px;
   margin-right: 6px;
   border-radius: 4px;
-  background: rgba(115, 115, 115, 0.10);
+  background: rgba(115, 115, 115, 0.1);
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -677,7 +696,9 @@ header {
   color: var(--muted);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.15s, background 0.12s;
+  transition:
+    opacity 0.15s,
+    background 0.12s;
 }
 .pathgroup-section:hover .pathgroup-close-btn {
   opacity: 1;
@@ -745,7 +766,6 @@ header {
   padding-top: 2px;
 }
 
-
 /* Action buttons grouped on the right */
 .chip-actions {
   display: flex;
@@ -779,7 +799,10 @@ header {
   /* Hidden until the parent chip is hovered (Chrome-tab behavior). */
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    background 0.15s;
   flex-shrink: 0;
 }
 
@@ -941,7 +964,7 @@ header {
   padding: 12px 24px;
   border-radius: 18px;
   corner-shape: squircle;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   z-index: 100;
   opacity: 0;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -990,12 +1013,19 @@ header {
    header / section-header / cards / footer was removed — the dashboard
    now snaps into place on open without an intro. */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
-
+.nudge-banner {
+  animation: fadeUp 0.5s ease 0.15s both;
+}
 
 /* ================================================================
    STATIC DEFAULT VIEW — new elements added for "AI on demand"
@@ -1043,8 +1073,9 @@ header {
   border: 1.5px solid rgba(90, 122, 98, 0.3);
 
   /* Soft sage glow */
-  box-shadow: 0 0 0 8px rgba(90, 122, 98, 0.05),
-              0 0 0 16px rgba(90, 122, 98, 0.03);
+  box-shadow:
+    0 0 0 8px rgba(90, 122, 98, 0.05),
+    0 0 0 16px rgba(90, 122, 98, 0.03);
 
   display: flex;
   align-items: center;
@@ -1062,8 +1093,14 @@ header {
 }
 
 @keyframes checkPop {
-  from { transform: scale(0.6); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .empty-title {
@@ -1082,7 +1119,6 @@ header {
   letter-spacing: 0.3px;
 }
 
-
 /* ================================================================
    UPDATE BANNER
    Appears at the very top of the page when a new version is available.
@@ -1099,7 +1135,7 @@ header {
   gap: 12px;
 
   /* Sage green tint — matches accent-sage but very light */
-  background: linear-gradient(135deg, rgba(90, 122, 98, 0.05), rgba(90, 122, 98, 0.10));
+  background: linear-gradient(135deg, rgba(90, 122, 98, 0.05), rgba(90, 122, 98, 0.1));
   border: 1px solid rgba(90, 122, 98, 0.22);
   border-radius: 18px;
   corner-shape: squircle;
@@ -1113,8 +1149,14 @@ header {
 }
 
 @keyframes bannerSlideIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Left cluster: icon + text */
@@ -1163,7 +1205,9 @@ header {
   padding: 5px 12px;
   cursor: pointer;
   letter-spacing: 0.2px;
-  transition: background 0.2s, opacity 0.2s;
+  transition:
+    background 0.2s,
+    opacity 0.2s;
   white-space: nowrap;
 }
 
@@ -1189,7 +1233,9 @@ header {
   border-radius: 10px;
   corner-shape: squircle;
   color: var(--muted);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   padding: 0;
   flex-shrink: 0;
 }

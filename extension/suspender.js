@@ -12,19 +12,19 @@
    ================================================================ */
 
 export function unwrapSuspenderUrl(url) {
-  if (!url || !url.startsWith('chrome-extension://')) return url;
+  if (!url || !url.startsWith('chrome-extension://')) return url
   try {
-    const parsed = new URL(url);
-    if (!parsed.pathname.endsWith('/suspended.html')) return url;
-    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : '';
-    const marker = '&uri=';
-    let encoded;
-    const idx = frag.indexOf(marker);
-    if (idx >= 0) encoded = frag.slice(idx + marker.length);
-    else if (frag.startsWith('uri=')) encoded = frag.slice(4);
-    else return url;
-    return decodeURIComponent(encoded) || url;
+    const parsed = new URL(url)
+    if (!parsed.pathname.endsWith('/suspended.html')) return url
+    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+    const marker = '&uri='
+    let encoded
+    const idx = frag.indexOf(marker)
+    if (idx >= 0) encoded = frag.slice(idx + marker.length)
+    else if (frag.startsWith('uri=')) encoded = frag.slice(4)
+    else return url
+    return decodeURIComponent(encoded) || url
   } catch {
-    return url;
+    return url
   }
 }

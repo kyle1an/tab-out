@@ -1,99 +1,94 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <!-- Transparent favicon — placed immediately after charset so the
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Transparent favicon — placed immediately after charset so the
        HTML parser hits it as early as possible, minimizing the window
        where Chrome's default extension icon briefly flashes on load.
        Two forms (`icon` + `shortcut icon`) cover Chrome's fallback
        chain in both modern and legacy paths. -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
-  <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>‎</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" />
+    <link rel="shortcut icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>‎</title>
 
-  <!-- Typography: everything uses the user's Chrome "Sans-serif" setting
+    <!-- Typography: everything uses the user's Chrome "Sans-serif" setting
        (chrome://settings/fonts). No web fonts are loaded. -->
 
-  <!-- base.css must load first: defines CSS variables and layout skeleton
+    <!-- base.css must load first: defines CSS variables and layout skeleton
        that every rule in style.css relies on. Parallel-downloaded thanks
        to two separate <link>s (no @import serial round-trip). -->
-  <link rel="stylesheet" href="base.css">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-
-<!-- ================================================================
+    <link rel="stylesheet" href="base.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- ================================================================
      PINNED TOP REGION — never scrolls, never rubber-bands
      Lives outside the scroll container so overscroll bounce only
      affects the card list below.
      ================================================================ -->
-<div class="pinned-top">
-  <div class="page-inner">
-    <header>
-      <!-- Top row: filter input + tab-count greeting -->
-      <div class="header-row">
-        <div class="header-left">
-          <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
-          <h1 id="greeting"></h1>
-          <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
-          <div class="date" id="dateDisplay"></div>
-        </div>
-        <!-- Live filter — debounced; matches title text + URL substring;
+    <div class="pinned-top">
+      <div class="page-inner">
+        <header>
+          <!-- Top row: filter input + tab-count greeting -->
+          <div class="header-row">
+            <div class="header-left">
+              <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
+              <h1 id="greeting"></h1>
+              <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
+              <div class="date" id="dateDisplay"></div>
+            </div>
+            <!-- Live filter — debounced; matches title text + URL substring;
              hides non-matching chips and any card left empty. -->
-        <input
-          type="search"
-          id="tabFilter"
-          class="tab-filter"
-          autocomplete="off"
-          spellcheck="false">
-      </div>
-      <!-- Bottom row: domain count + dedup + filtered-tabs actions.
+            <input type="search" id="tabFilter" class="tab-filter" autocomplete="off" spellcheck="false" />
+          </div>
+          <!-- Bottom row: domain count + dedup + filtered-tabs actions.
            Lives inside <header> so both rows share a single consistent
            gap (header's flex-column gap). render.js toggles its
            visibility when there are cards to show. -->
-      <div class="section-header" id="sectionHeaderWrap" style="display:none">
-        <div class="section-actions" id="openTabsSectionActions"></div>
-        <div class="section-count" id="openTabsSectionCount"></div>
+          <div class="section-header" id="sectionHeaderWrap" style="display: none">
+            <div class="section-actions" id="openTabsSectionActions"></div>
+            <div class="section-count" id="openTabsSectionCount"></div>
+          </div>
+        </header>
       </div>
-    </header>
-  </div>
-</div>
+    </div>
 
-<!-- ================================================================
+    <!-- ================================================================
      SCROLL REGION — the only place that scrolls + rubber-bands
      ================================================================ -->
-<div class="scroll-region">
-  <div class="page-inner">
-    <div class="active-section" id="openTabsSection" style="display:none">
-      <div class="missions" id="openTabsMissions"></div>
+    <div class="scroll-region">
+      <div class="page-inner">
+        <div class="active-section" id="openTabsSection" style="display: none">
+          <div class="missions" id="openTabsMissions"></div>
+        </div>
+      </div>
     </div>
-  </div>
-</div><!-- end .scroll-region -->
+    <!-- end .scroll-region -->
 
-<!-- ================================================================
+    <!-- ================================================================
      TOAST — floats above everything, used for action confirmations
      Hidden by default via CSS (opacity:0, translateY)
      ================================================================ -->
-<div class="toast" id="toast">
-  <!-- Checkmark circle icon (Heroicons outline) -->
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-  </svg>
-  <span id="toastText"></span>
-</div>
+    <div class="toast" id="toast">
+      <!-- Checkmark circle icon (Heroicons outline) -->
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+      </svg>
+      <span id="toastText"></span>
+    </div>
 
-<!-- Personal config (gitignored) — defines LOCAL_LANDING_PAGE_PATTERNS etc.
+    <!-- Personal config (gitignored) — defines LOCAL_LANDING_PAGE_PATTERNS etc.
      If the file doesn't exist, Chrome logs a harmless 404; app.js checks
      for `typeof LOCAL_LANDING_PAGE_PATTERNS !== 'undefined'` and falls back
      to sensible defaults. We can't silence the 404 with onerror="..." because
      Manifest V3's CSP forbids inline event handlers. -->
-<script src="config.local.js"></script>
+    <script src="config.local.js"></script>
 
-<!-- Main dashboard logic — loaded as an ES module so it can split across
+    <!-- Main dashboard logic — loaded as an ES module so it can split across
      multiple files (suspender.js, groups.js, tabs.js, render.js,
      components/*, etc.). `type="module"` defers execution until
      DOMContentLoaded automatically. -->
-<script type="module" src="app.js"></script>
-</body>
+    <script type="module" src="app.js"></script>
+  </body>
 </html>

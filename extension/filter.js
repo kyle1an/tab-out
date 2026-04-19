@@ -8,9 +8,9 @@
      and pipes the keystroke through (Slack/Linear/GitHub style)
    ================================================================ */
 
-import { packMissionsMasonry } from './layout.js';
-import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions, ICONS } from './render.js';
-import { isGroupedTab } from './groups.js';
+import { packMissionsMasonry } from './layout.js'
+import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions, ICONS } from './render.js'
+import { isGroupedTab } from './groups.js'
 
 // Three placeholder states, so the hint always reflects reality:
 //   • IDLE — window lacks focus. Text is redundant since the dim
@@ -19,9 +19,9 @@ import { isGroupedTab } from './groups.js';
 //   • HINT — window has focus, input doesn't (type-anywhere is live)
 //   • EDIT — input is focused (the type-anywhere hint is redundant;
 //            swap in something informational about what gets matched)
-const PLACEHOLDER_IDLE = '';
-const PLACEHOLDER_HINT = 'Type anywhere to filter…';
-const PLACEHOLDER_EDIT = 'Title or URL…';
+const PLACEHOLDER_IDLE = ''
+const PLACEHOLDER_HINT = 'Type anywhere to filter…'
+const PLACEHOLDER_EDIT = 'Title or URL…'
 
 // Three named states collapse the (pageFocused, inputFocused) matrix:
 //   • 'idle' — window lacks focus. Keystrokes never arrive. Dimmed.
@@ -31,26 +31,23 @@ const PLACEHOLDER_EDIT = 'Title or URL…';
 // should win whenever the window can't receive input, regardless of
 // what activeElement technically is.
 function computeFilterState(pageFocused, inputFocused) {
-  if (!pageFocused) return 'idle';
-  return inputFocused ? 'edit' : 'hint';
+  if (!pageFocused) return 'idle'
+  return inputFocused ? 'edit' : 'hint'
 }
 
 function applyFilterPlaceholder() {
-  const input = document.getElementById('tabFilter');
-  if (!input) return;
-  const state = computeFilterState(document.hasFocus(), document.activeElement === input);
+  const input = document.getElementById('tabFilter')
+  if (!input) return
+  const state = computeFilterState(document.hasFocus(), document.activeElement === input)
 
-  input.placeholder =
-    state === 'edit' ? PLACEHOLDER_EDIT :
-    state === 'hint' ? PLACEHOLDER_HINT :
-                       PLACEHOLDER_IDLE;
+  input.placeholder = state === 'edit' ? PLACEHOLDER_EDIT : state === 'hint' ? PLACEHOLDER_HINT : PLACEHOLDER_IDLE
   // `.capture-ready` gives the input a subtler pre-focus look so the user
   // trusts keystrokes will land here even before clicking in.
-  input.classList.toggle('capture-ready', state === 'hint');
+  input.classList.toggle('capture-ready', state === 'hint')
   // `.capture-dormant` dims the input when the window lacks focus —
   // a visual "this can't respond to keys right now" cue that reads
   // faster than the placeholder text alone.
-  input.classList.toggle('capture-dormant', state === 'idle');
+  input.classList.toggle('capture-dormant', state === 'idle')
 }
 
 /**
@@ -65,163 +62,164 @@ function applyFilterPlaceholder() {
  * also restores original labels when the filter is cleared.
  */
 function updateCardStats(card, group, filtering, q) {
-  const matchingTabs = filtering
-    ? group.tabs.filter(t =>
-        (t.title || '').toLowerCase().includes(q) ||
-        (t.url   || '').toLowerCase().includes(q))
-    : group.tabs;
-  const closableTabs = matchingTabs.filter(t => !isGroupedTab(t));
+  const matchingTabs = filtering ? group.tabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q)) : group.tabs
+  const closableTabs = matchingTabs.filter((t) => !isGroupedTab(t))
 
   // Tab count badge (skip app-badge — has its own format)
-  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)');
+  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
   if (tabBadge) {
-    tabBadge.textContent = String(matchingTabs.length);
-    tabBadge.title = `${matchingTabs.length} open tab${matchingTabs.length !== 1 ? 's' : ''}`;
+    tabBadge.textContent = String(matchingTabs.length)
+    tabBadge.title = `${matchingTabs.length} open tab${matchingTabs.length !== 1 ? 's' : ''}`
   }
 
   // Close-domain button (top-right corner of card)
-  const closeBtn = card.querySelector('.card-close-btn');
+  const closeBtn = card.querySelector('.card-close-btn')
   if (closeBtn) {
     if (closableTabs.length === 0) {
-      closeBtn.style.display = 'none';
+      closeBtn.style.display = 'none'
     } else {
-      closeBtn.style.display = '';
-      const label = closableTabs.length === matchingTabs.length
-        ? `Close all ${closableTabs.length} tab${closableTabs.length !== 1 ? 's' : ''}`
-        : `Close ${closableTabs.length} ungrouped tab${closableTabs.length !== 1 ? 's' : ''}`;
-      const textSpan = closeBtn.querySelector('.card-close-btn-text');
-      if (textSpan) textSpan.textContent = label;
+      closeBtn.style.display = ''
+      const label =
+        closableTabs.length === matchingTabs.length
+          ? `Close all ${closableTabs.length} tab${closableTabs.length !== 1 ? 's' : ''}`
+          : `Close ${closableTabs.length} ungrouped tab${closableTabs.length !== 1 ? 's' : ''}`
+      const textSpan = closeBtn.querySelector('.card-close-btn-text')
+      if (textSpan) textSpan.textContent = label
     }
   }
 
   // Dedup button — recompute the 4-case policy on matching tabs only
-  const dupeInfo = {};
-  const urlCounts = {};
+  const dupeInfo = {}
+  const urlCounts = {}
   for (const tab of matchingTabs) {
-    urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1;
-    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() };
-    const info = dupeInfo[tab.url];
-    info.total++;
-    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId);
-    else info.ungrouped++;
+    urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1
+    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() }
+    const info = dupeInfo[tab.url]
+    info.total++
+    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId)
+    else info.ungrouped++
   }
-  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
+  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1)
   const closableForUrl = (u) => {
-    const info = dupeInfo[u];
-    if (!info) return 0;
-    const grouped = info.total - info.ungrouped;
-    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped;
-    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1;
-    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1;
-    return 0;
-  };
-  const closableDupeUrls = dupeUrls.map(([u]) => u).filter(u => closableForUrl(u) > 0);
-  const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0);
+    const info = dupeInfo[u]
+    if (!info) return 0
+    const grouped = info.total - info.ungrouped
+    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped
+    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1
+    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1
+    return 0
+  }
+  const closableDupeUrls = dupeUrls.map(([u]) => u).filter((u) => closableForUrl(u) > 0)
+  const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
-  const dedupBtn = card.querySelector('[data-action="dedup-keep-one"]');
+  const dedupBtn = card.querySelector('[data-action="dedup-keep-one"]')
   if (dedupBtn) {
     if (closableExtras === 0) {
-      dedupBtn.style.display = 'none';
+      dedupBtn.style.display = 'none'
     } else {
-      dedupBtn.style.display = '';
-      dedupBtn.textContent = `Close ${closableExtras} duplicate${closableExtras !== 1 ? 's' : ''}`;
-      dedupBtn.dataset.dupeUrls = closableDupeUrls.map(encodeURIComponent).join(',');
+      dedupBtn.style.display = ''
+      dedupBtn.textContent = `Close ${closableExtras} duplicate${closableExtras !== 1 ? 's' : ''}`
+      dedupBtn.dataset.dupeUrls = closableDupeUrls.map(encodeURIComponent).join(',')
     }
   }
 }
 
 export function applyTabFilter(query) {
-  const q = (query || '').trim().toLowerCase();
-  const filtering = q.length > 0;
-  const container = document.getElementById('openTabsMissions');
-  if (!container) return;
+  const q = (query || '').trim().toLowerCase()
+  const filtering = q.length > 0
+  const container = document.getElementById('openTabsMissions')
+  if (!container) return
 
-  container.querySelectorAll('.mission-card').forEach(card => {
-    const chips     = card.querySelectorAll('.page-chip[data-action="focus-tab"]');
+  container.querySelectorAll('.mission-card').forEach((card) => {
+    const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
     // Multiple overflow containers + "+N more" buttons per card now —
     // one per subdomain section. All need to be force-opened/hidden
     // uniformly while filtering is active.
-    const overflows = card.querySelectorAll('.page-chips-overflow');
-    const moreBtns  = card.querySelectorAll('.page-chip-overflow');
+    const overflows = card.querySelectorAll('.page-chips-overflow')
+    const moreBtns = card.querySelectorAll('.page-chip-overflow')
 
-    let anyMatch = false;
-    chips.forEach(chip => {
-      if (!filtering) { chip.style.display = ''; anyMatch = true; return; }
-      const text = chip.textContent.toLowerCase();
-      const url  = (chip.dataset.tabUrl || '').toLowerCase();
-      const hit  = text.includes(q) || url.includes(q);
-      chip.style.display = hit ? '' : 'none';
-      if (hit) anyMatch = true;
-    });
+    let anyMatch = false
+    chips.forEach((chip) => {
+      if (!filtering) {
+        chip.style.display = ''
+        anyMatch = true
+        return
+      }
+      const text = chip.textContent.toLowerCase()
+      const url = (chip.dataset.tabUrl || '').toLowerCase()
+      const hit = text.includes(q) || url.includes(q)
+      chip.style.display = hit ? '' : 'none'
+      if (hit) anyMatch = true
+    })
 
-    overflows.forEach(overflow => {
+    overflows.forEach((overflow) => {
       if (filtering) {
         if (overflow.dataset.preFilter === undefined) {
-          overflow.dataset.preFilter = overflow.style.display || '';
+          overflow.dataset.preFilter = overflow.style.display || ''
         }
-        overflow.style.display = 'contents';
+        overflow.style.display = 'contents'
       } else if (overflow.dataset.preFilter !== undefined) {
-        overflow.style.display = overflow.dataset.preFilter;
-        delete overflow.dataset.preFilter;
+        overflow.style.display = overflow.dataset.preFilter
+        delete overflow.dataset.preFilter
       }
-    });
-    moreBtns.forEach(btn => { btn.style.display = filtering ? 'none' : ''; });
+    })
+    moreBtns.forEach((btn) => {
+      btn.style.display = filtering ? 'none' : ''
+    })
 
-    card.style.display = anyMatch ? '' : 'none';
+    card.style.display = anyMatch ? '' : 'none'
 
     // Keep the card's counts + action buttons in sync with the filter
-    const domainId = card.dataset.domainId;
-    const group = domainGroups.find(g =>
-      'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId
-    );
-    if (group) updateCardStats(card, group, filtering, q);
-  });
+    const domainId = card.dataset.domainId
+    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
+    if (group) updateCardStats(card, group, filtering, q)
+  })
 
-  packMissionsMasonry({ unpin: true });
-  updateTabCountDisplays();
-  updateSectionCount();
-  updateFilteredActions();
+  packMissionsMasonry({ unpin: true })
+  updateTabCountDisplays()
+  updateSectionCount()
+  updateFilteredActions()
 }
 
-let filterTimer = null;
+let filterTimer = null
 
 /* ---- Listeners — set up once at module load ---- */
 
 // Debounced input on the filter field
 document.addEventListener('input', (e) => {
-  if (e.target.id !== 'tabFilter') return;
-  clearTimeout(filterTimer);
-  filterTimer = setTimeout(() => applyTabFilter(e.target.value), 80);
-});
+  if (e.target.id !== 'tabFilter') return
+  clearTimeout(filterTimer)
+  filterTimer = setTimeout(() => applyTabFilter(e.target.value), 80)
+})
 
 // Esc clears the filter while it's focused — quick escape hatch.
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  const input = document.getElementById('tabFilter');
-  if (!input || document.activeElement !== input) return;
+  if (e.key !== 'Escape') return
+  const input = document.getElementById('tabFilter')
+  if (!input || document.activeElement !== input) return
   if (input.value !== '') {
-    input.value = '';
-    applyTabFilter('');
+    input.value = ''
+    applyTabFilter('')
   } else {
-    input.blur();
+    input.blur()
   }
-});
+})
 
 // Keep the placeholder in sync with both window-level focus and
 // input-level focus — three states (IDLE / HINT / EDIT) need two
 // signal sources. The state cache inside applyFilterPlaceholder()
 // makes redundant event bursts a no-op, so the handler is safe to
 // attach directly without a debounce wrapper.
-window.addEventListener('focus', applyFilterPlaceholder);
-window.addEventListener('blur',  applyFilterPlaceholder);
+window.addEventListener('focus', applyFilterPlaceholder)
+window.addEventListener('blur', applyFilterPlaceholder)
 {
-  const tabFilter = document.getElementById('tabFilter');
+  const tabFilter = document.getElementById('tabFilter')
   if (tabFilter) {
-    tabFilter.addEventListener('focus', applyFilterPlaceholder);
-    tabFilter.addEventListener('blur',  applyFilterPlaceholder);
+    tabFilter.addEventListener('focus', applyFilterPlaceholder)
+    tabFilter.addEventListener('blur', applyFilterPlaceholder)
   }
 }
-applyFilterPlaceholder();
+applyFilterPlaceholder()
 
 // Type-to-filter: when the user starts typing anywhere (no modifier,
 // not already in an input), auto-focus the filter and pipe the
@@ -230,32 +228,27 @@ applyFilterPlaceholder();
 // typed via type-anywhere without having to click into the input
 // first — otherwise the "type anywhere" promise is only half true.
 document.addEventListener('keydown', (e) => {
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const a = document.activeElement;
-  if (a && (
-    a.tagName === 'INPUT' ||
-    a.tagName === 'TEXTAREA' ||
-    a.tagName === 'SELECT' ||
-    a.isContentEditable
-  )) return;
-  const input = document.getElementById('tabFilter');
-  if (!input) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) return
+  const a = document.activeElement
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return
+  const input = document.getElementById('tabFilter')
+  if (!input) return
 
   if (e.key === 'Backspace' || e.key === 'Delete') {
-    if (input.value === '') return;
-    e.preventDefault();
-    input.value = input.value.slice(0, -1);
-    input.focus();
-    applyTabFilter(input.value);
-    return;
+    if (input.value === '') return
+    e.preventDefault()
+    input.value = input.value.slice(0, -1)
+    input.focus()
+    applyTabFilter(input.value)
+    return
   }
 
-  if (e.key.length !== 1) return;
-  e.preventDefault();
-  input.focus();
-  input.value += e.key;
-  applyTabFilter(input.value);
-});
+  if (e.key.length !== 1) return
+  e.preventDefault()
+  input.focus()
+  input.value += e.key
+  applyTabFilter(input.value)
+})
 
 // Paste-to-filter: Cmd/Ctrl+V anywhere on the page routes into the
 // filter input. A dedicated `paste` listener is cleaner than special-
@@ -263,22 +256,17 @@ document.addEventListener('keydown', (e) => {
 // action regardless of which shortcut triggered it (menu, keyboard,
 // or right-click paste from the future).
 document.addEventListener('paste', (e) => {
-  const a = document.activeElement;
-  if (a && (
-    a.tagName === 'INPUT' ||
-    a.tagName === 'TEXTAREA' ||
-    a.tagName === 'SELECT' ||
-    a.isContentEditable
-  )) return;
-  const input = document.getElementById('tabFilter');
-  if (!input) return;
+  const a = document.activeElement
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return
+  const input = document.getElementById('tabFilter')
+  if (!input) return
   // Spec says clipboardData is populated for paste events, but some
   // synthetic/programmatic paths can dispatch one without it — guard
   // with optional chaining so a null doesn't throw.
-  const text = e.clipboardData?.getData('text');
-  if (!text) return;
-  e.preventDefault();
-  input.focus();
-  input.value += text;
-  applyTabFilter(input.value);
-});
+  const text = e.clipboardData?.getData('text')
+  if (!text) return
+  e.preventDefault()
+  input.focus()
+  input.value += text
+  applyTabFilter(input.value)
+})

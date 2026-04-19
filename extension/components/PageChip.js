@@ -82,29 +82,29 @@ export function PageChip({ chip }) {
 
   const style = chip.isGrouped ? `--group-color:${chip.groupDotColor}` : null;
 
-  return html/* html */`
+  return html/*html*/`
     <div class="page-chip clickable"
          data-action="focus-tab"
          data-tab-url=${chip.rawUrl}
          title=${chip.tooltip}
          style=${style}
          onClick=${onFocus}>
-      ${chip.faviconUrl && html/* html */`
+      ${chip.faviconUrl && html/*html*/`
         <img class="chip-favicon" src=${chip.faviconUrl} alt="" />
       `}
       <span class="chip-text">
-        ${chip.leadPrefix && html/* html */`
+        ${chip.leadPrefix && html/*html*/`
           <span class="chip-subdomain">${chip.leadPrefix}</span>
         `}
-        ${chip.pathGroupLabel && html/* html */`
+        ${chip.pathGroupLabel && html/*html*/`
           <span class="chip-pathgroup">${chip.pathGroupLabel}</span>
         `}
         ${chip.displayLabel}
-        ${chip.pathSuffix && html/* html */`
+        ${chip.pathSuffix && html/*html*/`
           <span class="chip-path">${chip.pathSuffix}</span>
         `}
       </span>
-      ${chip.dupeCount > 1 && html/* html */`
+      ${chip.dupeCount > 1 && html/*html*/`
         <span class="chip-dupe-badge">(${chip.dupeCount}x)</span>
       `}
       <div class="chip-actions">
