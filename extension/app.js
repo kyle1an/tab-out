@@ -133,7 +133,7 @@ document.addEventListener('click', async (e) => {
   // `:scope >` prevents a subdomain-level query from reaching into a
   // child cluster's own overflow container.
   if (action === 'expand-chips') {
-    const section = actionEl.closest('.pathgroup-section, .subdomain-section');
+    const section = actionEl.closest('.pathgroup-section, .flat-section, .subdomain-section');
     const overflowContainer = section && section.querySelector(':scope > .page-chips-overflow');
     if (overflowContainer) {
       overflowContainer.style.display = 'contents';

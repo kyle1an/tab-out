@@ -561,9 +561,12 @@ function renderDomainCard(group) {
       return `<div class="pathgroup-section" data-pathgroup-label="${safeLabel}">${blockHeader}${visChips}${blockOverflow}</div>`;
     }).join('');
 
-    // Flat singletons: own budget + overflow at the subdomain-section
-    // level (no wrapper). Singletons never carry a pill — threshold
-    // filter drops lone-member groups — so pgLabelByUrl is irrelevant.
+    // Flat singletons: own budget + overflow. Wrapped in .flat-section
+    // so CSS adjacency selectors can place a separator between the
+    // last cluster and the flat block, and so the expand handler can
+    // scope overflow-expansion to this block alone. Singletons never
+    // carry a pill (threshold filter drops lone-member groups), so
+    // pgLabelByUrl is passed as null.
     const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION);
     const flatHid = singletonTabs.slice(CHIPS_PER_SECTION);
     const flatChips = flatVis.map(t =>
@@ -572,9 +575,12 @@ function renderDomainCard(group) {
     const flatOverflow = flatHid.length > 0
       ? buildOverflowChips(flatHid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
       : '';
+    const flatHtml = singletonTabs.length > 0
+      ? `<div class="flat-section">${flatChips}${flatOverflow}</div>`
+      : '';
 
-    const chips = clusterHtml + flatChips;
-    const overflow = flatOverflow;
+    const chips = clusterHtml + flatHtml;
+    const overflow = '';
     // data-subdomain-key pairs with render.js's expanded-state restore
     // so a specific section stays open across live-sync rebuilds.
     const sectionKey = key || '__root__';
@@ -768,15 +774,16 @@ export async function renderStaticDashboard() {
         prevColumns.set(id, c.dataset.masonryCol);
       }
       const expandedList = [];
-      c.querySelectorAll('.subdomain-section[data-expanded="true"]').forEach(s => {
-        const k = s.dataset.subdomainKey;
-        if (k) expandedList.push({ subdomainKey: k });
-      });
       c.querySelectorAll('.pathgroup-section[data-expanded="true"]').forEach(s => {
-        const pg  = s.dataset.pathgroupLabel;
-        const sub = s.closest('.subdomain-section');
+        const pg   = s.dataset.pathgroupLabel;
+        const sub  = s.closest('.subdomain-section');
         const subK = sub && sub.dataset.subdomainKey;
         if (pg && subK) expandedList.push({ subdomainKey: subK, pathgroupLabel: pg });
+      });
+      c.querySelectorAll('.flat-section[data-expanded="true"]').forEach(s => {
+        const sub  = s.closest('.subdomain-section');
+        const subK = sub && sub.dataset.subdomainKey;
+        if (subK) expandedList.push({ subdomainKey: subK, flat: true });
       });
       if (expandedList.length > 0) prevExpanded.set(id, expandedList);
     }
@@ -811,16 +818,19 @@ export async function renderStaticDashboard() {
       // cluster's overflow.
       const expandedList = prevExpanded.get(id);
       if (expandedList) {
-        expandedList.forEach(({ subdomainKey, pathgroupLabel }) => {
+        expandedList.forEach(({ subdomainKey, pathgroupLabel, flat }) => {
           const sub = c.querySelector(
             `.subdomain-section[data-subdomain-key="${CSS.escape(subdomainKey)}"]`
           );
           if (!sub) return;
-          const target = pathgroupLabel
-            ? sub.querySelector(
-                `.pathgroup-section[data-pathgroup-label="${CSS.escape(pathgroupLabel)}"]`
-              )
-            : sub;
+          let target;
+          if (pathgroupLabel) {
+            target = sub.querySelector(
+              `.pathgroup-section[data-pathgroup-label="${CSS.escape(pathgroupLabel)}"]`
+            );
+          } else if (flat) {
+            target = sub.querySelector(':scope > .flat-section');
+          }
           if (!target) return;
           const overflow = target.querySelector(':scope > .page-chips-overflow');
           if (overflow) overflow.style.display = 'contents';
