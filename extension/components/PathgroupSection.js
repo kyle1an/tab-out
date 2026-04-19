@@ -1,21 +1,18 @@
 /* ================================================================
-   <PathgroupSection> — Phase 4 of the Preact + HTM migration.
+   <PathgroupSection> — Phase 4–5 of the Preact + HTM migration.
 
    Renders one path-group cluster inside a subdomain section: a
    labeled header (pill + count + ruled separator + optional close
-   button) plus visible chips, with hidden chips revealed in place
-   via a local "+N more" expander.
+   button) plus visible <PageChip>s, with hidden chips revealed in
+   place via a local "+N more" expander.
 
    Both the expand state (useState) and the cluster-level close
-   handler (onClick) now live on the component — the previous
-   app.js delegation cases `expand-chips` (for pathgroup-section)
-   and `close-pathgroup-tabs` are retired. Because the component's
-   stable key (its label, assigned by the parent's list render)
-   preserves the useState across live-sync re-renders, the
-   render.js prevExpanded snapshot/restore dance also goes away.
-
-   Chip HTML is still produced by render.js helpers (renderChip +
-   buildHiddenChipsHtml) — Phase 5 migrates those to <PageChip>.
+   handler live on the component — the previous app.js delegation
+   cases `expand-chips` (for pathgroup-section) and
+   `close-pathgroup-tabs` are retired. The component's stable key
+   (its label, assigned by the parent's list render) preserves the
+   useState across live-sync re-renders, so render.js no longer
+   snapshots or restores expansion state.
    ================================================================ */
 
 import { h } from '../vendor/preact.mjs';
@@ -25,6 +22,7 @@ import { closeTabsExact } from '../tabs.js';
 import { markClosure } from '../undo.js';
 import { packMissionsMasonry } from '../layout.js';
 import { updateTabCountDisplays } from '../render.js';
+import { PageChip } from './PageChip.js';
 
 const html = htm.bind(h);
 
@@ -44,8 +42,8 @@ export function PathgroupSection({
   label,
   count,
   closableUrls,
-  visibleChipsHtml,
-  hiddenChipsHtml,
+  visibleChips,
+  hiddenChips,
   hiddenCount,
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -55,10 +53,9 @@ export function PathgroupSection({
     requestAnimationFrame(() => packMissionsMasonry());
   }
 
-  // Close-cluster handler: mirrors the previous app.js
-  // close-pathgroup-tabs delegation case. Exact-URL matching +
-  // preserveGroups means sibling tabs on the same host and
-  // Chrome-grouped tabs are untouched.
+  // Close-cluster handler. Exact-URL matching + preserveGroups
+  // means sibling tabs on the same host and Chrome-grouped tabs
+  // are untouched.
   async function onCloseCluster() {
     if (!closableUrls || closableUrls.length === 0) return;
     const snapshot = await closeTabsExact(closableUrls, { preserveGroups: true });
@@ -80,11 +77,15 @@ export function PathgroupSection({
           <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} />
         `}
       </div>
-      <div class="pathgroup-chips-mount"
-           dangerouslySetInnerHTML=${{ __html: visibleChipsHtml }}></div>
+      ${visibleChips.map(chip => html/* html */`
+        <${PageChip} key=${chip.rawUrl} chip=${chip} />
+      `)}
       ${hiddenCount > 0 && html/* html */`
-        <div class="page-chips-overflow"
-             dangerouslySetInnerHTML=${{ __html: hiddenChipsHtml }}></div>
+        <div class="page-chips-overflow">
+          ${hiddenChips.map(chip => html/* html */`
+            <${PageChip} key=${chip.rawUrl} chip=${chip} />
+          `)}
+        </div>
       `}
       ${!expanded && hiddenCount > 0 && html/* html */`
         <div class="page-chip page-chip-overflow clickable" onClick=${onExpand}>

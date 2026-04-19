@@ -104,17 +104,6 @@ body {
   padding-bottom: 80px;
 }
 
-/* Invisible-in-layout wrappers used by Preact components whose
-   chip HTML is still template-string (via dangerouslySetInnerHTML).
-   `display: contents` makes the wrapper present in DOM but ignored
-   for layout, so inner chips participate directly in their parent's
-   flex/grid flow. These rules are transitional — they'll disappear
-   in Phase 5 when <PageChip> replaces the inner chip HTML. */
-.flat-visible-mount,
-.pathgroup-chips-mount {
-  display: contents;
-}
-
 /* Overflow containers inside flat-sections and pathgroup-sections:
    hidden by default; shown (as display: contents) when the parent
    sub-section's data-expanded="true". filter.js overrides with
