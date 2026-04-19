@@ -35,8 +35,9 @@ export function SubdomainSection({ subdomainKey, sectionCount, showHeader, hasFl
       ${clusters.map(
         (c) => html`
           <${PathgroupSection}
-            key=${c.label}
+            key=${c.key}
             label=${c.label}
+            isPR=${c.isPR}
             count=${c.count}
             closableUrls=${c.closableUrls}
             visibleChips=${c.visibleChips}
