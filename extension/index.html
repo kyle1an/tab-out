@@ -27,29 +27,33 @@
 <div class="pinned-top">
   <div class="page-inner">
     <header>
-      <div class="header-left">
-        <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
-        <h1 id="greeting"></h1>
-        <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
-        <div class="date" id="dateDisplay"></div>
+      <!-- Top row: filter input + tab-count greeting -->
+      <div class="header-row">
+        <div class="header-left">
+          <!-- "182 Open tabs" — written by updateTabCountDisplays() in app.js -->
+          <h1 id="greeting"></h1>
+          <!-- "Across 3 windows" — also written by updateTabCountDisplays(). -->
+          <div class="date" id="dateDisplay"></div>
+        </div>
+        <!-- Live filter — debounced; matches title text + URL substring;
+             hides non-matching chips and any card left empty. -->
+        <input
+          type="search"
+          id="tabFilter"
+          class="tab-filter"
+          placeholder="Filter tabs…"
+          autocomplete="off"
+          spellcheck="false">
       </div>
-      <!-- Live filter — debounced; matches title text + URL substring;
-           hides non-matching chips and any card left empty. -->
-      <input
-        type="search"
-        id="tabFilter"
-        class="tab-filter"
-        placeholder="Filter tabs…"
-        autocomplete="off"
-        spellcheck="false">
+      <!-- Bottom row: domain count + dedup + filtered-tabs actions.
+           Lives inside <header> so both rows share a single consistent
+           gap (header's flex-column gap). render.js toggles its
+           visibility when there are cards to show. -->
+      <div class="section-header" id="sectionHeaderWrap" style="display:none">
+        <div class="section-actions" id="openTabsSectionActions"></div>
+        <div class="section-count" id="openTabsSectionCount"></div>
+      </div>
     </header>
-    <!-- Section header lives up here too (out of the scroll region) so
-         it doesn't ride the rubber-band. render.js toggles its
-         visibility when there are cards to show. -->
-    <div class="section-header" id="sectionHeaderWrap" style="display:none">
-      <div class="section-actions" id="openTabsSectionActions"></div>
-      <div class="section-count" id="openTabsSectionCount"></div>
-    </div>
   </div>
 </div>
 

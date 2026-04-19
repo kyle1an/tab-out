@@ -101,14 +101,23 @@ body {
 }
 
 /* ---- Header ---- */
+/* Two-row stack: the top row (filter + tab count) and the section-header
+   (domain count + dedup action) share one consistent `gap` — no ad-hoc
+   margin-bottom on the top row, no padding-top on the section row, so
+   vertical rhythm stays uniform. */
 header {
   display: flex;
-  /* Filter sits on the left now; tab count + windows sub-line sits on
-     the right. `row-reverse` swaps positions without touching HTML. */
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-row {
+  display: flex;
+  /* Filter sits on the left; tab count + windows sub-line sits on the
+     right. `row-reverse` swaps positions without touching HTML. */
   flex-direction: row-reverse;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
 }
 
 .header-left {
@@ -209,14 +218,13 @@ header {
   font-weight: 600;
 }
 
-/* ---- Section Headers ---- */
+/* ---- Section Headers ----
+   Now a child of <header>, so vertical spacing is inherited from the
+   header's flex-column gap (no padding-top here, no margin-bottom). */
 .section-header {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 0;
-  margin-top: 0;
-  padding-top: 8px;
   /* Reserve room for an action button's height so removing the dedup
      button (when extras are closed) doesn't collapse the row and shove
      all the cards below up by ~10px. */
@@ -266,7 +274,11 @@ header {
      re-packs, so expanding a card grows it within its own column without
      reshuffling any other card's column assignment. */
   position: relative;
-  margin-top: 20px;
+  /* No top margin — the pinned-top's 12px bottom padding already
+     supplies the gap between the section-header and the first card,
+     keeping the vertical rhythm uniform with the header's own 12px
+     flex gap. */
+  margin-top: 0;
   margin-bottom: 40px;
 }
 /* Transitions on top/left are enabled only AFTER the first pack so cards
