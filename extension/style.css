@@ -510,6 +510,23 @@ header {
   background: rgba(239, 68, 68, 0.08);
 }
 
+/* Subdomain pill — rendered in the card header when the card rolls
+   up to a single non-empty subdomain (e.g. card title "example.com",
+   pill "dev2ca"). Replaces the repeated per-chip prefix, which reads
+   as noise on a single-section card. Styling mirrors .open-tabs-badge
+   so the two pills form a consistent trailing-metadata row. */
+.mission-subdomain {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  background: rgba(82, 82, 82, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+  corner-shape: squircle;
+}
+
 /* Tab indicator badge — shows how many Chrome tabs are still open for this mission */
 .open-tabs-badge {
   display: inline-flex;
