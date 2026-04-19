@@ -567,6 +567,17 @@ header {
   display: block;
   max-height: calc(2lh);
   overflow: hidden;
+  /* Break long words mid-character so the last visible line fills to
+     the right edge and the truncation fade has glyphs to dissolve.
+     `overflow-wrap: break-word` only triggers when a word can't fit
+     on ANY line — "username" would still fit on line 3 (even
+     though max-height clips it), so break-word never fires and line 2
+     ends prematurely with empty tail. `word-break: break-all` allows
+     arbitrary character-level breaks whenever needed to avoid pushing
+     text to a line that doesn't exist visually, which is the behavior
+     we want. Normal text keeps natural word-boundary breaks; only
+     lines that would otherwise leave tail space get broken mid-word. */
+  word-break: break-all;
   mask-image:
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
     linear-gradient(to right, black 0, black calc(100% - 60px), rgba(0, 0, 0, 0.35) calc(100% - 20px), transparent);
