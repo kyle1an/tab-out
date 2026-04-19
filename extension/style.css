@@ -770,7 +770,7 @@ header {
 .pathgroup-section + .pathgroup-section,
 .flat-section + .pathgroup-section,
 .pathgroup-section + .flat-section {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 /* Subdomain section — groups chips that share a subdomain inside a
