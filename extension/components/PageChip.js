@@ -99,6 +99,9 @@ export function PageChip({ chip }) {
         ${chip.pathGroupLabel && html/*html*/`
           <span class="chip-pathgroup">${chip.pathGroupLabel}</span>
         `}
+        ${chip.titleStripped && html/*html*/`
+          <span class="chip-strip-indicator" aria-hidden="true">…</span>
+        `}
         ${chip.displayLabel}
         ${chip.pathSuffix && html/*html*/`
           <span class="chip-path">${chip.pathSuffix}</span>
