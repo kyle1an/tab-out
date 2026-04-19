@@ -70,30 +70,48 @@ export function pickFavicon(tab) {
 }
 
 /**
- * stripPgPrefix(label, pgLabel) — remove a leading pill-label prefix
- * (plus a common separator) from the chip's title, so the pill and
- * the title don't both carry the same string.
+ * stripPgLabel(label, pgLabel) — remove a pill-label occurrence (plus
+ * a surrounding separator) from the chip's title, so the pill and
+ * the title don't both carry the same string. Matches in any
+ * position:
  *
- *   pill "Zennioptical/zenni-b2c-frontend"
- *   title "Zennioptical/zenni-b2c-frontend PR #4706"
- *   → displayed title: "PR #4706"
+ *   prefix: "Zennioptical/zenni-b2c-frontend PR #4706"  → "PR #4706"
+ *   suffix: "Pull Request #4706 · owner/repo"          → "Pull Request #4706"
+ *   middle: "PR #4706 · owner/repo · GitHub"           → "PR #4706 · GitHub"
  *
- * The title is left alone when it doesn't begin with the pill text
- * (e.g. Jira's "[CAB-1602] …" — pill is "CAB", title starts with
- * "["). And when the title is exactly the pill text (e.g. a repo
- * homepage), we keep the full title too — stripping would leave an
- * empty chip, which reads as a bug more than a feature.
+ * The title is left alone when no separator-bounded occurrence is
+ * found (e.g. Jira's "[CAB-1602] …" — pill is "CAB", title starts
+ * with "[") and when the title is exactly the pill text (e.g. a
+ * repo homepage, where stripping would leave an empty chip).
  */
-function stripPgPrefix(label, pgLabel) {
+function stripPgLabel(label, pgLabel) {
   if (!pgLabel || !label || label === pgLabel) return label
-  const seps = [' — ', ' – ', ' - ', ' · ', ': ', ' ']
+  const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
+
   for (const sep of seps) {
-    const p = pgLabel + sep
-    if (label.startsWith(p)) {
-      const rest = label.slice(p.length).trim()
-      return rest || label
+    const prefix = pgLabel + sep
+    if (label.startsWith(prefix)) {
+      const rest = label.slice(prefix.length).trim()
+      if (rest) return rest
     }
   }
+
+  for (const sep of seps) {
+    const suffix = sep + pgLabel
+    if (label.endsWith(suffix)) {
+      const rest = label.slice(0, label.length - suffix.length).trim()
+      if (rest) return rest
+    }
+  }
+
+  for (const sep of seps) {
+    const needle = sep + pgLabel + sep
+    const idx = label.indexOf(needle)
+    if (idx > 0) {
+      return (label.slice(0, idx) + sep + label.slice(idx + needle.length)).trim()
+    }
+  }
+
   return label
 }
 
@@ -389,7 +407,7 @@ export function computeDomainCardViewModel(group) {
     }
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
-    const displayLabel = stripPgPrefix(label, stripLabel || pgLabel)
+    const displayLabel = stripPgLabel(label, stripLabel || pgLabel)
     const titleStripped = displayLabel !== label
     const tooltip = [leadPrefix, pgLabel || stripLabel, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
