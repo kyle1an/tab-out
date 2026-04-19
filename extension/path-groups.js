@@ -31,7 +31,9 @@ const BUILT_IN_PATH_GROUPERS = [
   {
     hostname: 'github.com',
     extract: (u) => {
-      const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/|$)/)
+      // Capture up to the third path segment so we can classify the
+      // page as pull / issue / commit / code / other.
+      const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/([^/]+))?/)
       if (!m) return null
       const RESERVED = new Set([
         'orgs',
@@ -56,7 +58,17 @@ const BUILT_IN_PATH_GROUPERS = [
       ])
       if (RESERVED.has(m[1])) return null
       const label = `${m[1]}/${m[2]}`
-      return { key: label, label }
+      const sub = m[3] || ''
+      // Category: used by render.js to order chips within a cluster so
+      // PRs sit together, issues sit together, etc. — no new visual
+      // section, just a predictable grouping. `other` covers the repo
+      // homepage plus pages like /actions, /releases, /wiki.
+      let category = 'other'
+      if (sub === 'pull' || sub === 'pulls') category = 'pull'
+      else if (sub === 'issues') category = 'issue'
+      else if (sub === 'commits' || sub === 'commit') category = 'commit'
+      else if (sub === 'blob' || sub === 'tree') category = 'code'
+      return { key: label, label, category }
     }
   },
 
