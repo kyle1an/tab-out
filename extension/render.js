@@ -579,7 +579,11 @@ function renderDomainCard(group) {
       ? `<div class="flat-section">${flatChips}${flatOverflow}</div>`
       : '';
 
-    const chips = clusterHtml + flatHtml;
+    // Flat singletons render FIRST inside a subdomain section, then
+    // named clusters. Mirrors the root-subdomain-first pattern used
+    // at the card level — ungrouped/"no-label" items come before
+    // named groupings in both layers.
+    const chips = flatHtml + clusterHtml;
     const overflow = '';
     // data-subdomain-key pairs with render.js's expanded-state restore
     // so a specific section stays open across live-sync rebuilds.

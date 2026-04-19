@@ -719,12 +719,14 @@ header {
   opacity: 0.7;
 }
 
-/* Hairline separators between cluster sub-sections and between the
-   last cluster and the flat-singletons block. Mirrors the subdomain-
-   section separator pattern one level deeper. No separator between
-   .flat-section and a following .pathgroup-section because the flat
-   block always renders last. */
+/* Hairline separators at every flat/cluster transition inside a
+   subdomain section. Mirrors the subdomain-section separator pattern
+   one level deeper. Order is flat-first, then clusters alphabetical,
+   so `.flat-section + .pathgroup-section` is the common case; the
+   cluster-to-flat rule is harmless belt-and-suspenders if ordering
+   ever changes. */
 .pathgroup-section + .pathgroup-section,
+.flat-section + .pathgroup-section,
 .pathgroup-section + .flat-section {
   border-top: 1px solid rgba(115, 115, 115, 0.12);
   margin-top: 6px;
