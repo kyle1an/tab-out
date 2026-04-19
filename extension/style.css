@@ -334,7 +334,7 @@ header {
      use their own "button font" (Arial on most platforms). Force the
      same Chrome sans-serif the rest of the page uses. */
   font-family: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--muted);
   background: transparent;
@@ -517,7 +517,7 @@ header {
 .mission-subdomain {
   display: inline-flex;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--muted);
   background: rgba(82, 82, 82, 0.08);
@@ -531,7 +531,7 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--accent-amber);
   background: rgba(82, 82, 82, 0.08);
@@ -690,7 +690,7 @@ header {
   border-radius: 4px;
   background: rgba(115, 115, 115, 0.10);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   vertical-align: baseline;
 }
@@ -714,7 +714,7 @@ header {
   margin-right: 0;
 }
 .pathgroup-header-count {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   opacity: 0.7;
 }
@@ -758,7 +758,7 @@ header {
   align-items: baseline;
   gap: 6px;
   padding: 10px 12px 4px 12px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   letter-spacing: 0.2px;
@@ -888,7 +888,7 @@ header {
 }
 
 .action-btn {
-  font-size: 11px;
+  font-size: 12px;
   font-family: sans-serif;
   font-weight: 500;
   padding: 5px 12px;
