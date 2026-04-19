@@ -550,19 +550,17 @@ header {
 /* Title text — wraps up to 2 lines, then the last line fades out on the
    right in the style of Chrome's tab strip. We use max-height + overflow
    (NOT -webkit-line-clamp) because line-clamp hard-codes a "…" ellipsis
-   that even a transparent mask only hides partially (the glyph pokes out
-   of the fade's inner edge on wider titles). max-height: 2lh gives the
-   same 2-line visual clip with no ellipsis glyph to worry about.
+   that even a transparent mask only hides partially.
    Two mask layers (composited with 'add' by default for a comma list):
-     • Top layer: opaque everywhere except the last 1lh, which is
-       transparent. Keeps non-last lines fully visible.
-     • Bottom layer: horizontal black→transparent gradient across the
-       full height. On its own would fade every line; unioned with the
-       top layer the non-last lines stay opaque, only the last line
-       picks up the fade.
-   A 1-line title fits both layers into a single-line fade — Chrome's
-   tab behavior verbatim. Fade width is generous (~60 px) so truncated
-   text visibly dissolves rather than reading as a hard edge. */
+     • Top layer: opaque everywhere except the last 1lh, transparent.
+       Keeps non-last lines fully visible.
+     • Bottom layer: horizontal soft fade. On its own would fade every
+       line; unioned with the top layer only the last line fades.
+   Hover darkening of text behind the × button is handled by the
+   .page-chip::after overlay (below), not by swapping this mask —
+   animating gradient stops in a mask-image is either jumpy or
+   visually wobbly; transitioning a pseudo-element's opacity is
+   GPU-cheap and clean. */
 .chip-text {
   flex: 1;
   min-width: 0;
@@ -821,6 +819,9 @@ header {
   right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  /* Above .page-chip::after (z-index: 1) so the × stays on top of
+     the hover overlay that hides the title text behind it. */
+  z-index: 2;
 }
 
 /* ---- Chip action buttons (save + close) ---- */
@@ -850,10 +851,37 @@ header {
   pointer-events: auto;
 }
 
-/* Fade the title text into the button area on chip hover so it doesn't
-   read-through the × button. Mirrors Chrome's tab strip treatment. */
-.page-chip:hover .chip-text {
-  mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
+/* Right-edge overlay that reveals on chip hover. GPU-cheap opacity
+   transition gives a smooth fade-in; the endpoint color matches the
+   chip's COMPOSITE hover background (card-bg plus the faint
+   rgba(82,82,82,0.04) hover tint from .page-chip.clickable:hover)
+   via color-mix so it blends seamlessly rather than looking like a
+   white patch. z-index: 1 stacks it above .chip-text; .chip-actions
+   gets z-index: 2 so the × stays on top.
+   Matched corner radius + squircle so the overlay's right corners
+   fall exactly on the chip's outline. */
+.page-chip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 72px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--card-bg) 96%, rgb(82 82 82)) 50%
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 1;
+  border-top-right-radius: inherit;
+  border-bottom-right-radius: inherit;
+  corner-shape: squircle;
+}
+.page-chip:hover::after {
+  opacity: 1;
 }
 
 .chip-action svg {
