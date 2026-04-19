@@ -14,6 +14,7 @@ import { unwrapSuspenderUrl } from './suspender.js';
 import { cleanTitle, smartTitle, stripTitleNoise } from './titles.js';
 import { packMissionsMasonry } from './layout.js';
 import { registrableDomain, subdomainPrefix } from './domains.js';
+import { resolvePathGroup } from './path-groups.js';
 
 export let domainGroups = [];
 
@@ -48,6 +49,18 @@ export function pickFavicon(tab) {
   faviconUrl.searchParams.set('pageUrl', tab.url);
   faviconUrl.searchParams.set('size', '32');
   return faviconUrl.toString();
+}
+
+/**
+ * escapeChipText(s) — minimal HTML-escape for text interpolated into
+ * chip innerHTML. Used for path-group labels, which come from URL
+ * segments (via path-groups.js adapters) and can in principle contain
+ * `<`, `>`, or `&`. Tab titles aren't escaped elsewhere because they
+ * come from Chrome already-sanitized, but adapter output is derived
+ * from raw URLs so belt-and-suspenders is cheap.
+ */
+function escapeChipText(s) {
+  return String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 }
 
 /**
@@ -225,8 +238,10 @@ function disambiguatingPaths(urls) {
    prefix is redundant — suppress it in overflow chips too.
    pathByUrl: map of URL → disambiguating path suffix for colliding
    titles within this section; applies to overflow chips as well so
-   expansion stays consistent with visible chips. */
-function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null) {
+   expansion stays consistent with visible chips.
+   pgLabelByUrl: map of URL → path-group pill label (from resolvePathGroup),
+   filtered by the ≥2-member threshold in the caller. */
+function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
   const hiddenChips = hiddenTabs.map(tab => {
     const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
     let subPrefix = '';
@@ -237,14 +252,16 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
       } catch {}
     }
     const pathSuffix = pathByUrl ? (pathByUrl.get(tab.url) || '') : '';
+    const pgLabel    = pgLabelByUrl ? (pgLabelByUrl.get(tab.url) || '') : '';
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    const tooltip = [subPrefix, label, pathSuffix].filter(Boolean).join(' · ');
+    const tooltip = [subPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ');
     const safeTitle = tooltip.replace(/"/g, '&quot;');
-    let chipInner = subPrefix
-      ? `<span class="chip-subdomain">${subPrefix}</span>${label}`
-      : label;
+    let chipInner = '';
+    if (subPrefix) chipInner += `<span class="chip-subdomain">${subPrefix}</span>`;
+    if (pgLabel)   chipInner += `<span class="chip-pathgroup">${escapeChipText(pgLabel)}</span>`;
+    chipInner += label;
     if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
@@ -372,8 +389,11 @@ function renderDomainCard(group) {
   // Local chip renderer — closes over group + urlCounts. Extracted so
   // per-section iteration below stays readable. `pathSuffix` is the
   // disambiguation crumb shown when two tabs in the same section
-  // would otherwise render identical titles.
-  function renderChip(tab, showPrefix, pathSuffix) {
+  // would otherwise render identical titles. `pathGroupLabel` is the
+  // inline pill for path-level clusters (e.g. a GitHub repo, a Jira
+  // project) — already filtered by the ≥2-member threshold upstream,
+  // so any non-empty value is a confirmed cluster member.
+  function renderChip(tab, showPrefix, pathSuffix, pathGroupLabel) {
     let parsed = null;
     try { parsed = new URL(tab.url); } catch {}
     const hostname = parsed ? parsed.hostname : group.domain;
@@ -388,11 +408,13 @@ function renderDomainCard(group) {
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const leadPrefix = subPrefix || portPrefix;
-    const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ');
+    const pgLabel    = pathGroupLabel || '';
+    const tooltip = [leadPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ');
     const safeTitle = tooltip.replace(/"/g, '&quot;');
-    let chipInner = leadPrefix
-      ? `<span class="chip-subdomain">${leadPrefix}</span>${label}`
-      : label;
+    let chipInner = '';
+    if (leadPrefix) chipInner += `<span class="chip-subdomain">${leadPrefix}</span>`;
+    if (pgLabel)    chipInner += `<span class="chip-pathgroup">${escapeChipText(pgLabel)}</span>`;
+    chipInner += label;
     if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
@@ -443,15 +465,40 @@ function renderDomainCard(group) {
       const suffixes = disambiguatingPaths(collided.map(t => t.url));
       collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i]));
     }
+
+    // Path-group pills: resolve each tab's path group (github repo,
+    // jira project, contentful env, etc.) and only keep labels whose
+    // group has ≥2 members in this section. A lone group is silent
+    // clutter — the signal is "these belong together," which takes
+    // at least two chips to convey. Extra guardrail: drop labels that
+    // equal the subdomain or the card domain (redundant information
+    // already carried by the section header or card title).
+    const pgByUrl = new Map();
+    const pgKeyCount = new Map();
+    for (const t of sectionTabs) {
+      const pg = resolvePathGroup(t.url);
+      if (!pg) continue;
+      pgByUrl.set(t.url, pg);
+      pgKeyCount.set(pg.key, (pgKeyCount.get(pg.key) || 0) + 1);
+    }
+    const pgLabelByUrl = new Map();
+    for (const [url, pg] of pgByUrl) {
+      if (pgKeyCount.get(pg.key) < 2) continue;
+      if (pg.label === key || pg.label === group.domain) continue;
+      pgLabelByUrl.set(url, pg.label);
+    }
+
     const header = showHeader
       ? `<div class="subdomain-header">
           <span class="subdomain-header-name">${key}</span>
           <span class="subdomain-header-count">${sectionTabs.length}</span>
         </div>`
       : '';
-    const chips = visible.map(tab => renderChip(tab, showChipPrefix, pathByUrl.get(tab.url) || '')).join('');
+    const chips = visible.map(tab =>
+      renderChip(tab, showChipPrefix, pathByUrl.get(tab.url) || '', pgLabelByUrl.get(tab.url) || '')
+    ).join('');
     const overflow = hidden.length > 0
-      ? buildOverflowChips(hidden, urlCounts, group.domain, showChipPrefix, pathByUrl)
+      ? buildOverflowChips(hidden, urlCounts, group.domain, showChipPrefix, pathByUrl, pgLabelByUrl)
       : '';
     // data-subdomain-key pairs with render.js's expanded-state restore
     // so a specific section stays open across live-sync rebuilds.
