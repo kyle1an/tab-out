@@ -160,7 +160,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}) {
     const safeTitle = label.replace(/"/g, '&quot;');
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
-      ? ` style="border-left-color:${groupDotColor(tab.groupId)}"`
+      ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
       : '';
     return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
@@ -252,7 +252,7 @@ function renderDomainCard(group) {
     const safeTitle = label.replace(/"/g, '&quot;');
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
-      ? ` style="border-left-color:${groupDotColor(tab.groupId)}"`
+      ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
       : '';
     return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
