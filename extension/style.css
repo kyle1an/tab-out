@@ -719,14 +719,27 @@ header {
   opacity: 0.7;
 }
 
+/* Label-ruled separator: stretches through the empty middle of the
+   header, pulling the pill + count on the left and the close button
+   (when present) on the right. Doubles as the between-section border
+   — each cluster's header IS the boundary between itself and what
+   precedes it, so a separate inter-section border isn't needed. When
+   there's no close button, the rule simply extends to the header's
+   right padding edge, gracefully becoming a pure labeled-rule. */
+.pathgroup-header-rule {
+  flex: 1;
+  height: 1px;
+  background: rgba(115, 115, 115, 0.18);
+  min-width: 12px;
+}
+
 /* Cluster-level close — hidden by default, fades in when the cluster
    sub-section is hovered so it doesn't compete with chips during
-   normal scanning. `margin-left: auto` pushes it to the far right
-   of the flex header. Mirrors the card-close policy: clicking only
-   closes ungrouped tabs in the cluster (grouped tabs are preserved
-   upstream in closeTabsExact). */
+   normal scanning. Position is handled by the .pathgroup-header-rule
+   above (flex: 1 pushes the button to the far right). Mirrors the
+   card-close policy: clicking only closes ungrouped tabs in the
+   cluster (grouped tabs are preserved upstream in closeTabsExact). */
 .pathgroup-close-btn {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -752,16 +765,14 @@ header {
   display: block;
 }
 
-/* Hairline separators at every flat/cluster transition inside a
-   subdomain section. Mirrors the subdomain-section separator pattern
-   one level deeper. Order is flat-first, then clusters alphabetical,
-   so `.flat-section + .pathgroup-section` is the common case; the
-   cluster-to-flat rule is harmless belt-and-suspenders if ordering
-   ever changes. */
+/* Breathing room between adjacent sub-sections. The visual boundary
+   itself lives INSIDE each cluster's header (.pathgroup-header-rule),
+   so no border is drawn between sections — just a small gap so the
+   preceding chip's bottom edge doesn't press against the next
+   header's rule. */
 .pathgroup-section + .pathgroup-section,
 .flat-section + .pathgroup-section,
 .pathgroup-section + .flat-section {
-  border-top: 1px solid rgba(115, 115, 115, 0.12);
   margin-top: 6px;
 }
 
