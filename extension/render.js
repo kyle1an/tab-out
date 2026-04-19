@@ -70,49 +70,58 @@ export function pickFavicon(tab) {
 }
 
 /**
- * stripPgLabel(label, pgLabel) — remove a pill-label occurrence (plus
- * a surrounding separator) from the chip's title, so the pill and
- * the title don't both carry the same string. Matches in any
- * position:
+ * stripPgLabel(label, pgLabel) — build the chip title as a segment
+ * array where the pill-label occurrence (plus a trailing ref
+ * continuation like "@sha", "#N", "/path", ":branch") is replaced
+ * IN PLACE by a placeholder object. Matches at any position and
+ * preserves separators flanking the stripped region so the
+ * remaining text reads naturally.
  *
- *   prefix: "Zennioptical/zenni-b2c-frontend PR #4706"  → "PR #4706"
- *   suffix: "Pull Request #4706 · owner/repo"          → "Pull Request #4706"
- *   middle: "PR #4706 · owner/repo · GitHub"           → "PR #4706 · GitHub"
+ *   prefix: "owner/repo PR #4706"                     → [PH, "PR #4706"]
+ *   suffix: "Pull Request #4706 · owner/repo"         → ["Pull Request #4706", PH]
+ *   middle: "PR #4706 · owner/repo · GitHub"          → ["PR #4706", " · ", PH, " · ", "GitHub"]
+ *   ref tail: "Size preview · owner/repo@296a5f1"     → ["Size preview", PH]
  *
- * The title is left alone when no separator-bounded occurrence is
- * found (e.g. Jira's "[CAB-1602] …" — pill is "CAB", title starts
- * with "[") and when the title is exactly the pill text (e.g. a
- * repo homepage, where stripping would leave an empty chip).
+ * Returns { segments, stripped }. When no separator-bounded
+ * occurrence is found, or when the title equals the pill text
+ * (repo-homepage case), `stripped` is false and `segments` is the
+ * original label in a single-element array.
  */
 function stripPgLabel(label, pgLabel) {
-  if (!pgLabel || !label || label === pgLabel) return label
+  if (!pgLabel || !label || label === pgLabel) {
+    return { segments: [label], stripped: false }
+  }
   const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const REF_TAIL = '(?:[@#/:]\\S*)?'
+  const EL = esc(pgLabel)
+  const PH = { placeholder: true }
 
   for (const sep of seps) {
-    const prefix = pgLabel + sep
-    if (label.startsWith(prefix)) {
-      const rest = label.slice(prefix.length).trim()
-      if (rest) return rest
+    const ES = esc(sep)
+
+    const prefixMatch = label.match(new RegExp(`^${EL}${REF_TAIL}${ES}`))
+    if (prefixMatch) {
+      const rest = label.slice(prefixMatch[0].length).trim()
+      if (rest) return { segments: [PH, ' ', rest], stripped: true }
+    }
+
+    const suffixMatch = label.match(new RegExp(`${ES}${EL}${REF_TAIL}$`))
+    if (suffixMatch) {
+      const rest = label.slice(0, label.length - suffixMatch[0].length).trim()
+      if (rest) return { segments: [rest, ' ', PH], stripped: true }
+    }
+
+    const middleMatch = label.match(new RegExp(`${ES}${EL}${REF_TAIL}${ES}`))
+    if (middleMatch) {
+      const idx = label.indexOf(middleMatch[0])
+      const left = label.slice(0, idx).trim()
+      const right = label.slice(idx + middleMatch[0].length).trim()
+      if (left && right) return { segments: [left, sep, PH, sep, right], stripped: true }
     }
   }
 
-  for (const sep of seps) {
-    const suffix = sep + pgLabel
-    if (label.endsWith(suffix)) {
-      const rest = label.slice(0, label.length - suffix.length).trim()
-      if (rest) return rest
-    }
-  }
-
-  for (const sep of seps) {
-    const needle = sep + pgLabel + sep
-    const idx = label.indexOf(needle)
-    if (idx > 0) {
-      return (label.slice(0, idx) + sep + label.slice(idx + needle.length)).trim()
-    }
-  }
-
-  return label
+  return { segments: [label], stripped: false }
 }
 
 /**
@@ -407,8 +416,7 @@ export function computeDomainCardViewModel(group) {
     }
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
-    const displayLabel = stripPgLabel(label, stripLabel || pgLabel)
-    const titleStripped = displayLabel !== label
+    const { segments: displaySegments, stripped: titleStripped } = stripPgLabel(label, stripLabel || pgLabel)
     const tooltip = [leadPrefix, pgLabel || stripLabel, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     return {
@@ -416,7 +424,7 @@ export function computeDomainCardViewModel(group) {
       rawUrl: tab.rawUrl || tab.url,
       leadPrefix,
       pathGroupLabel: pgLabel,
-      displayLabel,
+      displaySegments,
       titleStripped,
       pathSuffix: pathSuffix || '',
       tooltip,
