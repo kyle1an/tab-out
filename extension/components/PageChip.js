@@ -99,10 +99,11 @@ export function PageChip({ chip }) {
         ${chip.pathGroupLabel && html/*html*/`
           <span class="chip-pathgroup">${chip.pathGroupLabel}</span>
         `}
-        ${chip.titleStripped && html/*html*/`
-          <span class="chip-strip-indicator" aria-hidden="true">…</span>
-        `}
-        ${chip.displayLabel}
+        ${chip.displaySegments.map((seg) =>
+          typeof seg === 'string'
+            ? seg
+            : html/*html*/`<span class="chip-strip-indicator" aria-hidden="true">…</span>`
+        )}
         ${chip.pathSuffix && html/*html*/`
           <span class="chip-path">${chip.pathSuffix}</span>
         `}
