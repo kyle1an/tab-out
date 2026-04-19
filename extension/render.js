@@ -151,10 +151,42 @@ export function updateSectionCount() {
   sectionCount.innerHTML = dedupBtn + domainText;
 }
 
+/**
+ * disambiguatingPaths(urls) — given a list of URLs that share a
+ * visible title, return the shortest trailing-stripped path for each
+ * that still uniquely identifies it. Common trailing path segments
+ * are stripped (they're identical across all URLs, so contribute no
+ * distinguishing info); whatever remains is what the user needs to
+ * see to tell the chips apart.
+ *
+ *   ["/admin/users/dashboard", "/user/dashboard"] → ["/admin/users", "/user"]
+ *   ["/dashboard", "/admin/dashboard"]            → ["/", "/admin"]
+ */
+function disambiguatingPaths(urls) {
+  const paths = urls.map(u => {
+    try { return new URL(u).pathname.split('/').filter(Boolean); }
+    catch { return []; }
+  });
+  let commonTrail = 0;
+  const minLen = Math.min(...paths.map(p => p.length));
+  for (let i = 1; i <= minLen; i++) {
+    const seg = paths[0][paths[0].length - i];
+    if (paths.every(p => p[p.length - i] === seg)) commonTrail = i;
+    else break;
+  }
+  return paths.map(p => {
+    const show = p.slice(0, p.length - commonTrail);
+    return show.length ? '/' + show.join('/') : '/';
+  });
+}
+
 /* ---- Overflow chips ("+N more") ----
    showPrefix: when a subdomain section has its own header, the chip
-   prefix is redundant — suppress it in overflow chips too. */
-function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true) {
+   prefix is redundant — suppress it in overflow chips too.
+   pathByUrl: map of URL → disambiguating path suffix for colliding
+   titles within this section; applies to overflow chips as well so
+   expansion stays consistent with visible chips. */
+function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null) {
   const hiddenChips = hiddenTabs.map(tab => {
     const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
     let subPrefix = '';
@@ -164,14 +196,16 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
         if (groupDomain) subPrefix = subdomainPrefix(parsed.hostname, groupDomain);
       } catch {}
     }
+    const pathSuffix = pathByUrl ? (pathByUrl.get(tab.url) || '') : '';
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    const tooltip   = subPrefix ? `${subPrefix} · ${label}` : label;
+    const tooltip = [subPrefix, label, pathSuffix].filter(Boolean).join(' · ');
     const safeTitle = tooltip.replace(/"/g, '&quot;');
-    const chipInner = subPrefix
+    let chipInner = subPrefix
       ? `<span class="chip-subdomain">${subPrefix}</span>${label}`
       : label;
+    if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
       ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
@@ -296,8 +330,10 @@ function renderDomainCard(group) {
     sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : '';
 
   // Local chip renderer — closes over group + urlCounts. Extracted so
-  // per-section iteration below stays readable.
-  function renderChip(tab, showPrefix) {
+  // per-section iteration below stays readable. `pathSuffix` is the
+  // disambiguation crumb shown when two tabs in the same section
+  // would otherwise render identical titles.
+  function renderChip(tab, showPrefix, pathSuffix) {
     let parsed = null;
     try { parsed = new URL(tab.url); } catch {}
     const hostname = parsed ? parsed.hostname : group.domain;
@@ -311,15 +347,13 @@ function renderDomainCard(group) {
     const count    = urlCounts[tab.url];
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    const tooltip   = subPrefix ? `${subPrefix} · ${label}`
-                    : portPrefix ? `${portPrefix} · ${label}`
-                    : label;
+    const leadPrefix = subPrefix || portPrefix;
+    const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ');
     const safeTitle = tooltip.replace(/"/g, '&quot;');
-    const chipInner = subPrefix
-      ? `<span class="chip-subdomain">${subPrefix}</span>${label}`
-      : portPrefix
-        ? `<span class="chip-subdomain">${portPrefix}</span>${label}`
-        : label;
+    let chipInner = leadPrefix
+      ? `<span class="chip-subdomain">${leadPrefix}</span>${label}`
+      : label;
+    if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
       ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
@@ -352,15 +386,32 @@ function renderDomainCard(group) {
     // elsewhere — either a section header (multi-subdomain card) or
     // the card-title pill (single-subdomain card).
     const showChipPrefix = !showHeader && !singleSubdomainKey;
+
+    // Title-collision disambiguation: if two tabs in this section
+    // render with the same visible title, append the smallest path
+    // crumb that tells them apart. Noiseless for the common case
+    // (no collision → empty string → renderChip skips the crumb span).
+    const pathByUrl = new Map();
+    const sameTitle = new Map();
+    for (const t of sectionTabs) {
+      const titleKey = stripTitleNoise(t.title || '').toLowerCase();
+      if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, []);
+      sameTitle.get(titleKey).push(t);
+    }
+    for (const collided of sameTitle.values()) {
+      if (collided.length < 2) continue;
+      const suffixes = disambiguatingPaths(collided.map(t => t.url));
+      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i]));
+    }
     const header = showHeader
       ? `<div class="subdomain-header">
           <span class="subdomain-header-name">${key}</span>
           <span class="subdomain-header-count">${sectionTabs.length}</span>
         </div>`
       : '';
-    const chips = visible.map(tab => renderChip(tab, showChipPrefix)).join('');
+    const chips = visible.map(tab => renderChip(tab, showChipPrefix, pathByUrl.get(tab.url) || '')).join('');
     const overflow = hidden.length > 0
-      ? buildOverflowChips(hidden, urlCounts, group.domain, showChipPrefix)
+      ? buildOverflowChips(hidden, urlCounts, group.domain, showChipPrefix, pathByUrl)
       : '';
     // data-subdomain-key pairs with render.js's expanded-state restore
     // so a specific section stays open across live-sync rebuilds.

@@ -634,6 +634,18 @@ header {
   font-weight: 600;
 }
 
+/* Path suffix — rendered only when two tabs in the same section
+   would otherwise display the same title (e.g. "/admin" vs "/user"
+   disambiguation). Muted + smaller so the title stays the primary
+   read; the path sits as a secondary label to the right. */
+.chip-path {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+  margin-left: 6px;
+  opacity: 0.75;
+}
+
 /* Subdomain prefix — shown on chips when the card rolls up multiple
    subdomains into one eTLD+1 grouping (e.g. dev2ca/dev11us on a
    zenniaws.com card). Muted + dot-separated so the page title stays
