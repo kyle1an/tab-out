@@ -516,32 +516,24 @@ function renderDomainCard(group) {
       pgLabelByUrl.set(url, pg.label);
     }
 
-    // Reorder so cluster members sit contiguously. sectionTabs is
-    // already title-sorted, so walking it and emitting each cluster
-    // in full on its first-encountered member anchors the cluster at
-    // the alphabetical slot of its earliest-named tab. Members within
-    // a cluster keep alphabetical order (inherited from the input),
-    // and non-clustered chips stay in their original position — only
-    // the later members of a cluster shift forward to join the first.
-    const clusterMembers = new Map();
+    // Build cluster blocks (≥2 members share a path-group label) and
+    // a singleton block. Clusters render as labeled sub-sections; the
+    // pill becomes the header and inner chips skip their per-chip
+    // pill. Singletons follow flat with no header. Each block manages
+    // its OWN visible/hidden split and its OWN "+N more" expander —
+    // when a cluster overflows, expansion happens inside the cluster
+    // so hidden members never leave their header's visual context.
+    const clusterByLabel = new Map();
+    const singletonTabs = [];
     for (const t of sectionTabs) {
       const lbl = pgLabelByUrl.get(t.url);
-      if (!lbl) continue;
-      if (!clusterMembers.has(lbl)) clusterMembers.set(lbl, []);
-      clusterMembers.get(lbl).push(t);
+      if (!lbl) { singletonTabs.push(t); continue; }
+      if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, []);
+      clusterByLabel.get(lbl).push(t);
     }
-    const seenClusters = new Set();
-    const orderedTabs = [];
-    for (const t of sectionTabs) {
-      const lbl = pgLabelByUrl.get(t.url);
-      if (!lbl) { orderedTabs.push(t); continue; }
-      if (seenClusters.has(lbl)) continue;
-      seenClusters.add(lbl);
-      orderedTabs.push(...clusterMembers.get(lbl));
-    }
-
-    const visible = orderedTabs.slice(0, CHIPS_PER_SECTION);
-    const hidden  = orderedTabs.slice(CHIPS_PER_SECTION);
+    const sortedClusters = [...clusterByLabel.entries()].sort(
+      (a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })
+    );
 
     const header = showHeader
       ? `<div class="subdomain-header">
@@ -549,12 +541,40 @@ function renderDomainCard(group) {
           <span class="subdomain-header-count">${sectionTabs.length}</span>
         </div>`
       : '';
-    const chips = visible.map(tab =>
-      renderChip(tab, showChipPrefix, pathByUrl.get(tab.url) || '', pgLabelByUrl.get(tab.url) || '')
+
+    // Per-cluster rendering with own budget + overflow.
+    const clusterHtml = sortedClusters.map(([lbl, tabs]) => {
+      const vis = tabs.slice(0, CHIPS_PER_SECTION);
+      const hid = tabs.slice(CHIPS_PER_SECTION);
+      const blockHeader = `<div class="pathgroup-header">
+        <span class="chip-pathgroup">${escapeChipText(lbl)}</span>
+        <span class="pathgroup-header-count">${tabs.length}</span>
+      </div>`;
+      const visChips = vis.map(t =>
+        renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
+      ).join('');
+      // Overflow inside a cluster: no pills (header carries the label).
+      const blockOverflow = hid.length > 0
+        ? buildOverflowChips(hid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
+        : '';
+      const safeLabel = lbl.replace(/"/g, '&quot;');
+      return `<div class="pathgroup-section" data-pathgroup-label="${safeLabel}">${blockHeader}${visChips}${blockOverflow}</div>`;
+    }).join('');
+
+    // Flat singletons: own budget + overflow at the subdomain-section
+    // level (no wrapper). Singletons never carry a pill — threshold
+    // filter drops lone-member groups — so pgLabelByUrl is irrelevant.
+    const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION);
+    const flatHid = singletonTabs.slice(CHIPS_PER_SECTION);
+    const flatChips = flatVis.map(t =>
+      renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
     ).join('');
-    const overflow = hidden.length > 0
-      ? buildOverflowChips(hidden, urlCounts, group.domain, showChipPrefix, pathByUrl, pgLabelByUrl)
+    const flatOverflow = flatHid.length > 0
+      ? buildOverflowChips(flatHid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
       : '';
+
+    const chips = clusterHtml + flatChips;
+    const overflow = flatOverflow;
     // data-subdomain-key pairs with render.js's expanded-state restore
     // so a specific section stays open across live-sync rebuilds.
     const sectionKey = key || '__root__';
@@ -733,7 +753,11 @@ export async function renderStaticDashboard() {
   // cards swap places whenever tab counts change.
   const prevColumns = new Map();
   const prevOrder = new Map();
-  const prevExpanded = new Map();  // domainId -> Set<subdomainKey>
+  // domainId -> Array<{ subdomainKey, pathgroupLabel? }>
+  //   entry with pathgroupLabel=undefined marks a flat/singleton-level
+  //   expansion (the subdomain section itself). With pathgroupLabel set,
+  //   it marks a cluster sub-section inside that subdomain.
+  const prevExpanded = new Map();
   if (openTabsMissionsEl) {
     let idx = 0;
     for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
@@ -743,12 +767,18 @@ export async function renderStaticDashboard() {
       if (c.dataset.masonryCol !== undefined) {
         prevColumns.set(id, c.dataset.masonryCol);
       }
-      const expandedKeys = new Set();
+      const expandedList = [];
       c.querySelectorAll('.subdomain-section[data-expanded="true"]').forEach(s => {
         const k = s.dataset.subdomainKey;
-        if (k) expandedKeys.add(k);
+        if (k) expandedList.push({ subdomainKey: k });
       });
-      if (expandedKeys.size > 0) prevExpanded.set(id, expandedKeys);
+      c.querySelectorAll('.pathgroup-section[data-expanded="true"]').forEach(s => {
+        const pg  = s.dataset.pathgroupLabel;
+        const sub = s.closest('.subdomain-section');
+        const subK = sub && sub.dataset.subdomainKey;
+        if (pg && subK) expandedList.push({ subdomainKey: subK, pathgroupLabel: pg });
+      });
+      if (expandedList.length > 0) prevExpanded.set(id, expandedList);
     }
   }
 
@@ -772,18 +802,31 @@ export async function renderStaticDashboard() {
       const id = c.dataset.domainId;
       const savedCol = prevColumns.get(id);
       if (savedCol !== undefined) c.dataset.masonryCol = savedCol;
-      // Re-apply the "expanded overflow" state per subdomain section so
-      // closing a tab inside one expanded sub-group doesn't collapse it.
-      const expandedKeys = prevExpanded.get(id);
-      if (expandedKeys) {
-        expandedKeys.forEach(key => {
-          const section = c.querySelector(`.subdomain-section[data-subdomain-key="${key}"]`);
-          if (!section) return;
-          const overflow = section.querySelector('.page-chips-overflow');
+      // Re-apply the "expanded overflow" state per sub-section (either
+      // subdomain-level for flat singletons or pathgroup-level for a
+      // specific cluster) so closing a tab inside one expanded
+      // sub-group doesn't collapse the others. `:scope >` constrains
+      // the overflow lookup to the section's OWN overflow, so a
+      // subdomain-level restore doesn't accidentally expand a child
+      // cluster's overflow.
+      const expandedList = prevExpanded.get(id);
+      if (expandedList) {
+        expandedList.forEach(({ subdomainKey, pathgroupLabel }) => {
+          const sub = c.querySelector(
+            `.subdomain-section[data-subdomain-key="${CSS.escape(subdomainKey)}"]`
+          );
+          if (!sub) return;
+          const target = pathgroupLabel
+            ? sub.querySelector(
+                `.pathgroup-section[data-pathgroup-label="${CSS.escape(pathgroupLabel)}"]`
+              )
+            : sub;
+          if (!target) return;
+          const overflow = target.querySelector(':scope > .page-chips-overflow');
           if (overflow) overflow.style.display = 'contents';
-          const moreBtn = section.querySelector('.page-chip-overflow');
+          const moreBtn = target.querySelector(':scope > .page-chip-overflow');
           if (moreBtn) moreBtn.remove();
-          section.dataset.expanded = 'true';
+          target.dataset.expanded = 'true';
         });
       }
     });
