@@ -204,6 +204,12 @@ export async function focusTab(url) {
     // the "easier reach" goal applies symmetrically for same-window
     // and cross-window flows.
     //
+    // Skip the move for pinned Tab Out tabs: Chrome confines pinned
+    // tabs to the pinned section at the left of the strip, so moving
+    // one past a non-pinned tab would either fail or break pinning.
+    // A pinned Tab Out is already in a stable, easily-reachable spot
+    // by design — leave it alone.
+    //
     // Target-index math: chrome.tabs.move removes the tab from its
     // current position before re-inserting. When Tab Out is already
     // left of the match (tabOut.index < match.index), removal shifts
@@ -211,7 +217,7 @@ export async function focusTab(url) {
     // When Tab Out is right of the match (tabOut.index > match.index),
     // match doesn't shift, so the insert target is match.index.
     const tabOutTab = allTabs.find((t) => t.windowId === currentWindow.id && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
-    if (tabOutTab && tabOutTab.id !== match.id) {
+    if (tabOutTab && tabOutTab.id !== match.id && !tabOutTab.pinned) {
       const targetIndex = tabOutTab.index < match.index ? match.index - 1 : match.index
       if (targetIndex !== tabOutTab.index) {
         await chrome.tabs.move(tabOutTab.id, { index: targetIndex })
@@ -278,7 +284,10 @@ export async function closeDuplicateTabs(urls, keepOne = true) {
 
 /**
  * closeTabOutDupes() — closes extra Tab Out new-tab pages, keeping
- * the active one in the current window.
+ * the active one in the current window. Pinned Tab Out tabs are
+ * excluded from the operation entirely — pinning signals "this is
+ * my anchor for this window, don't clean it up" (background.js pins
+ * a Tab Out on every new window creation for exactly this reason).
  */
 export async function closeTabOutDupes() {
   const extensionId = chrome.runtime.id
@@ -286,7 +295,7 @@ export async function closeTabOutDupes() {
 
   const allTabs = await chrome.tabs.query({})
   const currentWindow = await chrome.windows.getCurrent()
-  const tabOutTabs = allTabs.filter((t) => t.url === newtabUrl || t.url === 'chrome://newtab/')
+  const tabOutTabs = allTabs.filter((t) => (t.url === newtabUrl || t.url === 'chrome://newtab/') && !t.pinned)
 
   if (tabOutTabs.length <= 1) return
 
