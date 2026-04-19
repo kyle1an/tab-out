@@ -565,28 +565,6 @@ header {
   line-height: 1.4;
 }
 
-/* Divider between chips — a pseudo-element (not border-bottom) so the
-   line stays straight regardless of the chip's border-radius. A
-   `border-bottom` would curve with the radius. */
-.page-chip::after {
-  content: '';
-  position: absolute;
-  /* Inset horizontally so the divider doesn't run to the chip's
-     rounded edges — aligns with the favicon's left edge + breathing
-     room on the right. */
-  left: 12px;
-  right: 12px;
-  bottom: 0;
-  height: 1px;
-  background: rgba(115, 115, 115, 0.1);
-  pointer-events: none;
-}
-
-.page-chip:last-child::after,
-.page-chip-overflow::after {
-  content: none;
-}
-
 /* Tab-group indicator — inset 2px vertical stripe, positioned inside
    the rounded chip so the chip's border-radius and the indicator can
    each have their own clean shape. Color comes from the `--group-color`
