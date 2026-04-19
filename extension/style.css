@@ -223,14 +223,8 @@ header {
   white-space: nowrap;
 }
 
-.section-line {
-  flex: 1;
-  height: 1px;
-  background: var(--warm-gray);
-}
-
-/* Collapse the left actions slot out of the flex flow when it's empty
-   so the flex gap doesn't leave a 12px void before the divider line. */
+/* Collapse the left actions slot out of the flex flow when empty so
+   the flex gap doesn't leave a void before the section count. */
 .section-actions:empty {
   display: none;
 }
@@ -246,6 +240,9 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Push to the right edge of the section-header regardless of
+     whether .section-actions is present on the left. */
+  margin-left: auto;
 }
 
 .section-count-sep {
