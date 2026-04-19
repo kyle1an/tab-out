@@ -279,11 +279,10 @@ header {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
   /* Concentric nesting: outerRadius − padding ≈ innerRadius.
-     Symmetric 14px padding on all sides → implied inner ~4px uniformly,
-     which is what "concentric" actually promises (equal corners on
-     all four sides). Child chips override that to 10px for visual
-     tappability — the concentric ideal sets the floor, not the ceiling. */
-  border-radius: 18px;
+     Symmetric 14px padding on all sides → implied inner = 14px. Child
+     chips at 10px sit inside that envelope comfortably (the chip
+     doesn't have to hit the exact inner — it just has to be ≤ it). */
+  border-radius: 28px;
   corner-shape: squircle;
   padding: 14px;
   display: flex;
@@ -335,12 +334,12 @@ header {
   /* Top-right matches a trimmed card corner; bottom-left is softly
      rounded inward. Squircle keeps both corners consistent with the
      rest of the UI. */
-  /* Outer corner (top-right: 18) mirrors the card's own corner — the
+  /* Outer corner (top-right: 28) mirrors the card's own corner — the
      button visually extends the card edge. Inner corner (bottom-left:
      10) matches the chip-level radius so the button's interior curve
      belongs to the same radius family as everything else inside the
      card. */
-  border-radius: 0 10px 0 18px;
+  border-radius: 0 10px 0 28px;
   corner-shape: squircle;
   cursor: pointer;
   transition: opacity 0.15s ease, background 0.2s ease, border-color 0.2s ease, padding 0.2s ease, gap 0.2s ease, color 0.2s ease;
