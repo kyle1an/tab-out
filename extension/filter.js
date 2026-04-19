@@ -145,7 +145,10 @@ export function applyTabFilter(query) {
         anyMatch = true
         return
       }
-      const text = chip.textContent.toLowerCase()
+      // Strip U+200B that render.js:injectBreakPoints inserts into
+      // long tokens for line-wrap control — otherwise a filter like
+      // "alicebobacme" would miss "alice\u200Bbobac\u200B…".
+      const text = chip.textContent.replace(/\u200B/g, '').toLowerCase()
       const url = (chip.dataset.tabUrl || '').toLowerCase()
       const hit = text.includes(q) || url.includes(q)
       chip.style.display = hit ? '' : 'none'
