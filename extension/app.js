@@ -289,6 +289,22 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  // ---- Close every tab in a path-group cluster ----
+  // URLs are encoded into the button's data attribute at render time;
+  // exact-URL matching + preserveGroups means sibling tabs on the same
+  // host and Chrome-grouped tabs are untouched.
+  if (action === 'close-pathgroup-tabs') {
+    const urlsEncoded = actionEl.dataset.pathgroupUrls || '';
+    const urls = urlsEncoded.split(',').map(u => decodeURIComponent(u)).filter(Boolean);
+    if (urls.length === 0) return;
+    const snapshot = await closeTabsExact(urls, { preserveGroups: true });
+    if (snapshot.length > 0) {
+      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`);
+    }
+    updateTabCountDisplays();
+    return;
+  }
+
   // ---- Close every tab matching the current filter ----
   if (action === 'close-filtered-tabs') {
     const urls = getFilteredCloseableUrls();
