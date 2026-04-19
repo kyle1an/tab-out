@@ -315,7 +315,7 @@ header {
 }
 
 .mission-card:hover {
-  box-shadow: 0 4px 20px var(--shadow);
+  box-shadow: 0 2px 8px var(--shadow);
 }
 
 /* Card close button — icon-only in the top-right corner; hover expands
