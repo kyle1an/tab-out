@@ -331,3 +331,17 @@ document.addEventListener('click', async (e) => {
    ---------------------------------------------------------------- */
 if (document.visibilityState === 'visible') closeTabOutDupes();
 renderStaticDashboard();
+
+/* ----------------------------------------------------------------
+   Contextual shadow under the pinned-top bar — only appears when
+   the scroll region has scrolled away from the top.
+   ---------------------------------------------------------------- */
+{
+  const scrollRegion = document.querySelector('.scroll-region');
+  const pinnedTop    = document.querySelector('.pinned-top');
+  if (scrollRegion && pinnedTop) {
+    scrollRegion.addEventListener('scroll', () => {
+      pinnedTop.classList.toggle('is-scrolled', scrollRegion.scrollTop > 0);
+    }, { passive: true });
+  }
+}
