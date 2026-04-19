@@ -437,8 +437,6 @@ function renderDomainCard(group) {
   const CHIPS_PER_SECTION = 5;
 
   const pageChips = sections.map(([key, sectionTabs]) => {
-    const visible = sectionTabs.slice(0, CHIPS_PER_SECTION);
-    const hidden  = sectionTabs.slice(CHIPS_PER_SECTION);
     // Header appears only when a card has 2+ subdomain sections AND
     // the section isn't the empty-key "root" (card title already says
     // the root). When shown, the header replaces the per-chip prefix —
@@ -487,6 +485,33 @@ function renderDomainCard(group) {
       if (pg.label === key || pg.label === group.domain) continue;
       pgLabelByUrl.set(url, pg.label);
     }
+
+    // Reorder so cluster members sit contiguously. sectionTabs is
+    // already title-sorted, so walking it and emitting each cluster
+    // in full on its first-encountered member anchors the cluster at
+    // the alphabetical slot of its earliest-named tab. Members within
+    // a cluster keep alphabetical order (inherited from the input),
+    // and non-clustered chips stay in their original position — only
+    // the later members of a cluster shift forward to join the first.
+    const clusterMembers = new Map();
+    for (const t of sectionTabs) {
+      const lbl = pgLabelByUrl.get(t.url);
+      if (!lbl) continue;
+      if (!clusterMembers.has(lbl)) clusterMembers.set(lbl, []);
+      clusterMembers.get(lbl).push(t);
+    }
+    const seenClusters = new Set();
+    const orderedTabs = [];
+    for (const t of sectionTabs) {
+      const lbl = pgLabelByUrl.get(t.url);
+      if (!lbl) { orderedTabs.push(t); continue; }
+      if (seenClusters.has(lbl)) continue;
+      seenClusters.add(lbl);
+      orderedTabs.push(...clusterMembers.get(lbl));
+    }
+
+    const visible = orderedTabs.slice(0, CHIPS_PER_SECTION);
+    const hidden  = orderedTabs.slice(CHIPS_PER_SECTION);
 
     const header = showHeader
       ? `<div class="subdomain-header">
