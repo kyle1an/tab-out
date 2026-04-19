@@ -289,6 +289,11 @@ function renderDomainCard(group) {
     return a[0].localeCompare(b[0]);
   });
   const multipleSections = sections.length > 1;
+  // Single-subdomain card: hoist the subdomain up to a pill next to
+  // the card title so chips don't repeat the prefix on every row.
+  // Only for non-empty keys — all-root cards don't need a pill.
+  const singleSubdomainKey =
+    sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : '';
 
   // Local chip renderer — closes over group + urlCounts. Extracted so
   // per-section iteration below stays readable.
@@ -343,7 +348,10 @@ function renderDomainCard(group) {
     // the root). When shown, the header replaces the per-chip prefix —
     // repeating "dev2ca" on every chip under a "dev2ca" header is noise.
     const showHeader = multipleSections && key !== '';
-    const showChipPrefix = !showHeader;
+    // Suppress chip prefix whenever the subdomain info is shown
+    // elsewhere — either a section header (multi-subdomain card) or
+    // the card-title pill (single-subdomain card).
+    const showChipPrefix = !showHeader && !singleSubdomainKey;
     const header = showHeader
       ? `<div class="subdomain-header">
           <span class="subdomain-header-name">${key}</span>
@@ -390,6 +398,7 @@ function renderDomainCard(group) {
       <div class="mission-content">
         <div class="mission-top">
           <span class="mission-name">${isLanding ? 'Homepages' : (group.label || group.domain.replace(/^www\./, ''))}</span>
+          ${singleSubdomainKey ? `<span class="mission-subdomain">${singleSubdomainKey}</span>` : ''}
           ${tabBadge}
         </div>
         <div class="actions">${actionsHtml}</div>
