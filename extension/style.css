@@ -634,7 +634,8 @@ header {
 /* Subdomain prefix — shown on chips when the card rolls up multiple
    subdomains into one eTLD+1 grouping (e.g. dev2ca/dev11us on a
    zenniaws.com card). Muted + dot-separated so the page title stays
-   the dominant read. */
+   the dominant read. Suppressed on chips that live inside a section
+   that already has a .subdomain-header (avoids repeating the label). */
 .chip-subdomain {
   color: var(--muted);
   font-weight: 500;
@@ -644,6 +645,37 @@ header {
   content: '·';
   margin-left: 6px;
   opacity: 0.5;
+}
+
+/* Subdomain section — groups chips that share a subdomain inside a
+   card. Only rendered as a visible sub-group when the card has 2+
+   subdomains (otherwise there's just one section, flat-rendered). */
+.subdomain-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Small header above each subdomain section. Muted + lowercase so the
+   chip titles stay the primary read; the count nudges the user toward
+   "there are this many here, the +N more button is per-section." */
+.subdomain-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 10px 12px 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.2px;
+}
+.subdomain-header-count {
+  opacity: 0.55;
+  font-weight: 500;
+}
+/* First section's header doesn't need the top padding — its edge is
+   already the card's own padding. */
+.subdomain-section:first-child .subdomain-header {
+  padding-top: 2px;
 }
 
 
