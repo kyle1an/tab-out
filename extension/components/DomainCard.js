@@ -28,7 +28,7 @@ import { SubdomainSection } from './SubdomainSection.js'
 const html = htm.bind(h)
 
 function CardCloseButton({ label, onClick }) {
-  return html /*html*/ `
+  return html`
     <button class="card-close-btn" data-action="close-domain-tabs" onClick=${onClick}>
       <span class="card-close-btn-text">${label}</span>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -42,14 +42,14 @@ function TabBadge({ isAppCard, tabCount }) {
   if (isAppCard) {
     const title = `Running as a standalone app${tabCount > 1 ? ` · ${tabCount} tabs` : ''}`
     const text = `App${tabCount > 1 ? ` · ${tabCount}` : ''}`
-    return html /*html*/ ` <span class="app-badge tab-count-badge" title=${title}>${text}</span> `
+    return html` <span class="app-badge tab-count-badge" title=${title}>${text}</span> `
   }
   const title = `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
-  return html /*html*/ ` <span class="open-tabs-badge tab-count-badge" title=${title}>${tabCount}</span> `
+  return html` <span class="open-tabs-badge tab-count-badge" title=${title}>${tabCount}</span> `
 }
 
 function DedupButton({ count, dupeUrlsEncoded, onClick }) {
-  return html /*html*/ `
+  return html`
     <button class="action-btn" data-action="dedup-keep-one" data-dupe-urls=${dupeUrlsEncoded} onClick=${onClick}>Close ${count} duplicate${count !== 1 ? 's' : ''}</button>
   `
 }
@@ -138,22 +138,22 @@ export function DomainCard({ group }) {
 
   const classList = `mission-card domain-card${vm.isAppCard ? ' is-app' : ''}`
 
-  return html /*html*/ `
+  return html`
     <div class=${classList} data-domain-id=${vm.stableId}>
       <div class="status-bar"></div>
-      ${vm.closableCount > 0 && html /*html*/ ` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
+      ${vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
       <div class="mission-content">
         <div class="mission-top">
           <span class="mission-name">${vm.displayName}</span>
-          ${vm.singleSubdomainKey && html /*html*/ ` <span class="mission-subdomain">${vm.singleSubdomainKey}</span> `}
+          ${vm.singleSubdomainKey && html` <span class="mission-subdomain">${vm.singleSubdomainKey}</span> `}
           <${TabBadge} isAppCard=${vm.isAppCard} tabCount=${vm.tabCount} />
         </div>
         <div class="actions">
-          ${vm.closableExtras > 0 && html /*html*/ ` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
+          ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
         </div>
         <div class="mission-pages">
           ${vm.sections.map(
-            (s) => html /*html*/ `
+            (s) => html`
               <${SubdomainSection}
                 key=${s.key || '__root__'}
                 subdomainKey=${s.key}

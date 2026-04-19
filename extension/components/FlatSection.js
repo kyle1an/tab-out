@@ -16,41 +16,35 @@
    hiddenChips) come pre-computed from buildChipData() in render.js.
    ================================================================ */
 
-import { h } from '../vendor/preact.mjs';
-import htm from '../vendor/htm.mjs';
-import { useState } from '../vendor/preact-hooks.mjs';
-import { packMissionsMasonry } from '../layout.js';
-import { PageChip } from './PageChip.js';
+import { h } from '../vendor/preact.mjs'
+import htm from '../vendor/htm.mjs'
+import { useState } from '../vendor/preact-hooks.mjs'
+import { packMissionsMasonry } from '../layout.js'
+import { PageChip } from './PageChip.js'
 
-const html = htm.bind(h);
+const html = htm.bind(h)
 
 export function FlatSection({ visibleChips, hiddenChips, hiddenCount }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
-    setExpanded(true);
+    setExpanded(true)
     // Card heights change when hidden chips become visible; re-pack
     // masonry after the DOM settles so column bottoms realign.
-    requestAnimationFrame(() => packMissionsMasonry());
+    requestAnimationFrame(() => packMissionsMasonry())
   }
 
-  return html/*html*/`
+  return html`
     <div class="flat-section" data-expanded=${expanded ? 'true' : null}>
-      ${visibleChips.map(chip => html/*html*/`
-        <${PageChip} key=${chip.rawUrl} chip=${chip} />
-      `)}
-      ${hiddenCount > 0 && html/*html*/`
-        <div class="page-chips-overflow">
-          ${hiddenChips.map(chip => html/*html*/`
-            <${PageChip} key=${chip.rawUrl} chip=${chip} />
-          `)}
-        </div>
-      `}
-      ${!expanded && hiddenCount > 0 && html/*html*/`
+      ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}
+      ${hiddenCount > 0 && html` <div class="page-chips-overflow">${hiddenChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}</div> `}
+      ${!expanded &&
+      hiddenCount > 0 &&
+      html`
         <div class="page-chip page-chip-overflow clickable" onClick=${onExpand}>
           <span class="chip-text">+${hiddenCount} more</span>
         </div>
       `}
     </div>
-  `;
+  `
 }

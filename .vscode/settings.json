@@ -1,0 +1,4 @@
+{
+  "lit-plugin.rules.no-nullable-attribute-binding": "off",
+  "lit-plugin.rules.no-incompatible-type-binding": "off"
+}

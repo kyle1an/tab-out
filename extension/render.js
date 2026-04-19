@@ -738,7 +738,7 @@ export async function renderStaticDashboard() {
     // survives via Preact's keyed reconciliation preserving the
     // .mission-card node (data-masonry-col is set by layout.js and
     // Preact doesn't touch non-prop attributes).
-    preactRender(html /*html*/ `<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
+    preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
     openTabsSection.style.display = 'block'
     if (sectionHeaderWrap) sectionHeaderWrap.style.display = ''
     packMissionsMasonry()
