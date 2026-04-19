@@ -635,10 +635,17 @@ header {
 
 /* Subdomain section — groups chips that share a subdomain inside a
    card. Only rendered as a visible sub-group when the card has 2+
-   subdomains (otherwise there's just one section, flat-rendered). */
+   subdomains (otherwise there's just one section, flat-rendered).
+   Non-first sections draw a hairline top border: since sections span
+   the full chip-column width and have no border-radius of their own,
+   a plain border-top lands clean without the rounded-edge problem
+   that pushed chip dividers toward pseudo-elements. */
 .subdomain-section {
   display: flex;
   flex-direction: column;
+}
+.subdomain-section + .subdomain-section {
+  border-top: 1px solid rgba(115, 115, 115, 0.12);
 }
 
 /* Small header above each subdomain section. Muted + lowercase so the
