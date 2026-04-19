@@ -709,6 +709,11 @@ header {
   align-items: center;
   gap: 6px;
   padding: 6px 0 2px 0;
+  /* Anchor for the absolutely-positioned close button. Taking the
+     button out of flex flow lets .pathgroup-header-rule claim the
+     full remaining width when the button is hidden — the ruled
+     separator actually runs to the header's right edge. */
+  position: relative;
 }
 .pathgroup-header .chip-pathgroup {
   margin-right: 0;
@@ -720,12 +725,11 @@ header {
 }
 
 /* Label-ruled separator: stretches through the empty middle of the
-   header, pulling the pill + count on the left and the close button
-   (when present) on the right. Doubles as the between-section border
-   — each cluster's header IS the boundary between itself and what
-   precedes it, so a separate inter-section border isn't needed. When
-   there's no close button, the rule simply extends to the header's
-   right padding edge, gracefully becoming a pure labeled-rule. */
+   header, pulling the pill + count on the left and running to the
+   header's right edge. Because the close button is absolute-
+   positioned (out of flex flow), this rule always extends all the
+   way — no shortening when the button appears on hover. The button
+   fades in on top of the rule, occluding the last few pixels. */
 .pathgroup-header-rule {
   flex: 1;
   height: 1px;
@@ -733,31 +737,38 @@ header {
   min-width: 12px;
 }
 
-/* Cluster-level close — hidden by default, fades in when the cluster
-   sub-section is hovered so it doesn't compete with chips during
-   normal scanning. Position is handled by the .pathgroup-header-rule
-   above (flex: 1 pushes the button to the far right). Mirrors the
-   card-close policy: clicking only closes ungrouped tabs in the
-   cluster (grouped tabs are preserved upstream in closeTabsExact). */
+/* Cluster-level close — round, hidden by default, fades in on
+   section hover. Absolute positioning keeps it out of the flex
+   flow so the rule above can stretch the full header width.
+   `background: var(--card-bg)` makes the button fully occlude the
+   rule beneath it when visible, so the X doesn't get crossed out
+   by a running line. Mirrors the card-close policy: clicking only
+   closes ungrouped tabs in the cluster (grouped tabs are preserved
+   upstream in closeTabsExact). */
 .pathgroup-close-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: var(--card-bg);
   border: none;
-  padding: 2px 4px;
+  border-radius: 50%;
   color: var(--muted);
-  opacity: 0;
   cursor: pointer;
-  border-radius: 4px;
-  transition: opacity 0.12s, background 0.12s;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.12s;
 }
 .pathgroup-section:hover .pathgroup-close-btn {
-  opacity: 0.5;
+  opacity: 1;
 }
 .pathgroup-close-btn:hover {
-  opacity: 1 !important;
-  background: rgba(115, 115, 115, 0.10);
+  background: rgba(115, 115, 115, 0.15);
 }
 .pathgroup-close-btn svg {
   width: 12px;
