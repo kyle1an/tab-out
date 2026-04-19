@@ -153,30 +153,44 @@ export function updateSectionCount() {
 
 /**
  * disambiguatingPaths(urls) — given a list of URLs that share a
- * visible title, return the shortest trailing-stripped path for each
- * that still uniquely identifies it. Common trailing path segments
- * are stripped (they're identical across all URLs, so contribute no
- * distinguishing info); whatever remains is what the user needs to
- * see to tell the chips apart.
+ * visible title, return just the *differing* path segments for each.
+ * Strips BOTH the longest common leading prefix AND the longest
+ * common trailing suffix, so only the middle segments that actually
+ * tell the URLs apart are shown. Leading ellipsis ("…/") indicates
+ * truncated prefix — trailing ellipsis is implied by the lack of
+ * suffix and kept off to save horizontal space.
  *
- *   ["/admin/users/dashboard", "/user/dashboard"] → ["/admin/users", "/user"]
- *   ["/dashboard", "/admin/dashboard"]            → ["/", "/admin"]
+ *   ["/api/v1/accounts/team/dashboard",
+ *    "/api/v1/accounts/me/dashboard"]      → ["…/team", "…/me"]
+ *   ["/admin/dashboard", "/user/dashboard"] → ["/admin", "/user"]
+ *   ["/dashboard", "/admin/dashboard"]      → ["/", "/admin"]
  */
 function disambiguatingPaths(urls) {
   const paths = urls.map(u => {
     try { return new URL(u).pathname.split('/').filter(Boolean); }
     catch { return []; }
   });
-  let commonTrail = 0;
   const minLen = Math.min(...paths.map(p => p.length));
-  for (let i = 1; i <= minLen; i++) {
+
+  let commonLead = 0;
+  for (let i = 0; i < minLen; i++) {
+    const seg = paths[0][i];
+    if (paths.every(p => p[i] === seg)) commonLead = i + 1;
+    else break;
+  }
+
+  let commonTrail = 0;
+  const maxTrail = minLen - commonLead;
+  for (let i = 1; i <= maxTrail; i++) {
     const seg = paths[0][paths[0].length - i];
     if (paths.every(p => p[p.length - i] === seg)) commonTrail = i;
     else break;
   }
+
   return paths.map(p => {
-    const show = p.slice(0, p.length - commonTrail);
-    return show.length ? '/' + show.join('/') : '/';
+    const show = p.slice(commonLead, p.length - commonTrail);
+    if (show.length === 0) return '/';
+    return (commonLead > 0 ? '…/' : '/') + show.join('/');
   });
 }
 
