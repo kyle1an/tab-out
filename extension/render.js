@@ -266,16 +266,14 @@ function disambiguatingPaths(urls) {
   });
 }
 
-/* ---- Overflow chips ("+N more") ----
-   showPrefix: when a subdomain section has its own header, the chip
-   prefix is redundant — suppress it in overflow chips too.
-   pathByUrl: map of URL → disambiguating path suffix for colliding
-   titles within this section; applies to overflow chips as well so
-   expansion stays consistent with visible chips.
-   pgLabelByUrl: map of URL → path-group pill label (from resolvePathGroup),
-   filtered by the ≥2-member threshold in the caller. */
-function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
-  const hiddenChips = hiddenTabs.map(tab => {
+/* ---- Hidden chips HTML ----
+   Returns the inner chip HTML for an "overflow" set — the chips that
+   live behind a "+N more" expander. No wrapper div, no +N button.
+   Phase 3 <FlatSection> composes this with its own button; the
+   still-vanilla pathgroup-section overflow continues to use
+   buildOverflowChips() below for the wrapped form. */
+export function buildHiddenChipsHtml(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
+  return hiddenTabs.map(tab => {
     const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
     let subPrefix = '';
     if (showPrefix) {
@@ -311,7 +309,14 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
       </div>
     </div>`;
   }).join('');
+}
 
+/* ---- Overflow chips ("+N more") ----
+   Wraps buildHiddenChipsHtml in the display:none container + the
+   "+N more" button that the still-vanilla pathgroup-section overflow
+   uses. Clicked via the app.js expand-chips delegation case. */
+function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
+  const hiddenChips = buildHiddenChipsHtml(hiddenTabs, urlCounts, groupDomain, showPrefix, pathByUrl, pgLabelByUrl);
   return `
     <div class="page-chips-overflow" style="display:none">${hiddenChips}</div>
     <div class="page-chip page-chip-overflow clickable" data-action="expand-chips">
@@ -470,7 +475,7 @@ export function computeDomainCardViewModel(group) {
   // sub-group scannable while the card stays compact.
   const CHIPS_PER_SECTION = 5;
 
-  const pageChips = sections.map(([key, sectionTabs]) => {
+  const sectionsData = sections.map(([key, sectionTabs]) => {
     // Header appears only when a card has 2+ subdomain sections AND
     // the section isn't the empty-key "root" (card title already says
     // the root). When shown, the header replaces the per-chip prefix —
@@ -539,29 +544,15 @@ export function computeDomainCardViewModel(group) {
       (a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })
     );
 
-    const header = showHeader
-      ? `<div class="subdomain-header">
-          <span class="subdomain-header-name">${key}</span>
-          <span class="subdomain-header-count">${sectionTabs.length}</span>
-        </div>`
-      : '';
-
-    // Per-cluster rendering with own budget + overflow.
+    // Per-cluster HTML (still template-string; Phase 4 migrates
+    // pathgroup sections to a Preact component).
     const clusterHtml = sortedClusters.map(([lbl, tabs]) => {
       const vis = tabs.slice(0, CHIPS_PER_SECTION);
       const hid = tabs.slice(CHIPS_PER_SECTION);
-      // Cluster-level close: mirrors the card-close policy. Grouped
-      // tabs are preserved (preserveGroups: true); button is hidden
-      // when every cluster member is in a Chrome tab group.
       const clusterClosable = tabs.filter(t => !isGroupedTab(t));
       const closeBtn = clusterClosable.length > 0
         ? `<button class="pathgroup-close-btn" data-action="close-pathgroup-tabs" data-pathgroup-urls="${clusterClosable.map(t => encodeURIComponent(t.url)).join(',')}" title="Close ${clusterClosable.length} tab${clusterClosable.length !== 1 ? 's' : ''}">${ICONS.close}</button>`
         : '';
-      // A stretchy hairline between the count and the close button:
-      // it doubles as the section separator, so the header reads as
-      // a "labeled rule" (pill on the left, action on the right) and
-      // the visual boundary between sub-sections lives in one element
-      // instead of two (previous between-section border is removed).
       const blockHeader = `<div class="pathgroup-header">
         <span class="chip-pathgroup">${escapeChipText(lbl)}</span>
         <span class="pathgroup-header-count">${tabs.length}</span>
@@ -571,7 +562,6 @@ export function computeDomainCardViewModel(group) {
       const visChips = vis.map(t =>
         renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
       ).join('');
-      // Overflow inside a cluster: no pills (header carries the label).
       const blockOverflow = hid.length > 0
         ? buildOverflowChips(hid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
         : '';
@@ -579,35 +569,30 @@ export function computeDomainCardViewModel(group) {
       return `<div class="pathgroup-section" data-pathgroup-label="${safeLabel}">${blockHeader}${visChips}${blockOverflow}</div>`;
     }).join('');
 
-    // Flat singletons: own budget + overflow. Wrapped in .flat-section
-    // so CSS adjacency selectors can place a separator between the
-    // last cluster and the flat block, and so the expand handler can
-    // scope overflow-expansion to this block alone. Singletons never
-    // carry a pill (threshold filter drops lone-member groups), so
-    // pgLabelByUrl is passed as null.
+    // Flat singletons: split into visible + hidden as HTML strings.
+    // The Preact <FlatSection> composes its own "+N more" button with
+    // local useState so the expand action doesn't need the app.js
+    // delegation case or a render.js snapshot/restore anymore.
     const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION);
     const flatHid = singletonTabs.slice(CHIPS_PER_SECTION);
-    const flatChips = flatVis.map(t =>
+    const flatVisibleChipsHtml = flatVis.map(t =>
       renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
     ).join('');
-    const flatOverflow = flatHid.length > 0
-      ? buildOverflowChips(flatHid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
-      : '';
-    const flatHtml = singletonTabs.length > 0
-      ? `<div class="flat-section">${flatChips}${flatOverflow}</div>`
+    const flatHiddenChipsHtml = flatHid.length > 0
+      ? buildHiddenChipsHtml(flatHid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
       : '';
 
-    // Flat singletons render FIRST inside a subdomain section, then
-    // named clusters. Mirrors the root-subdomain-first pattern used
-    // at the card level — ungrouped/"no-label" items come before
-    // named groupings in both layers.
-    const chips = flatHtml + clusterHtml;
-    const overflow = '';
-    // data-subdomain-key pairs with render.js's expanded-state restore
-    // so a specific section stays open across live-sync rebuilds.
-    const sectionKey = key || '__root__';
-    return `<div class="subdomain-section" data-subdomain-key="${sectionKey}">${header}${chips}${overflow}</div>`;
-  }).join('');
+    return {
+      key,
+      sectionCount: sectionTabs.length,
+      showHeader,
+      hasFlat: singletonTabs.length > 0,
+      flatVisibleChipsHtml,
+      flatHiddenChipsHtml,
+      flatHiddenCount: flatHid.length,
+      clusterHtml,
+    };
+  });
 
   // Labels derived for the Preact component to consume directly.
   // closableCountLabel mirrors the original "Close all N tabs" vs
@@ -634,7 +619,7 @@ export function computeDomainCardViewModel(group) {
     dupeUrlsEncoded,
     singleSubdomainKey,
     displayName,
-    pageChipsHtml: pageChips,
+    sections: sectionsData,
   };
 }
 
@@ -783,16 +768,16 @@ export async function renderStaticDashboard() {
       if (!id) continue;
       prevOrder.set(id, idx++);
       const expandedList = [];
+      // Pathgroup-section expand state is still DOM-driven (app.js
+      // delegation + render.js restore) — Phase 4 will migrate it.
+      // Flat-section expand state is handled by <FlatSection>'s
+      // useState, which survives re-renders via the keyed Preact
+      // component — no snapshot/restore needed here.
       c.querySelectorAll('.pathgroup-section[data-expanded="true"]').forEach(s => {
         const pg   = s.dataset.pathgroupLabel;
         const sub  = s.closest('.subdomain-section');
         const subK = sub && sub.dataset.subdomainKey;
         if (pg && subK) expandedList.push({ subdomainKey: subK, pathgroupLabel: pg });
-      });
-      c.querySelectorAll('.flat-section[data-expanded="true"]').forEach(s => {
-        const sub  = s.closest('.subdomain-section');
-        const subK = sub && sub.dataset.subdomainKey;
-        if (subK) expandedList.push({ subdomainKey: subK, flat: true });
       });
       if (expandedList.length > 0) prevExpanded.set(id, expandedList);
     }
@@ -834,19 +819,14 @@ export async function renderStaticDashboard() {
       // cluster's overflow.
       const expandedList = prevExpanded.get(id);
       if (expandedList) {
-        expandedList.forEach(({ subdomainKey, pathgroupLabel, flat }) => {
+        expandedList.forEach(({ subdomainKey, pathgroupLabel }) => {
           const sub = c.querySelector(
             `.subdomain-section[data-subdomain-key="${CSS.escape(subdomainKey)}"]`
           );
           if (!sub) return;
-          let target;
-          if (pathgroupLabel) {
-            target = sub.querySelector(
-              `.pathgroup-section[data-pathgroup-label="${CSS.escape(pathgroupLabel)}"]`
-            );
-          } else if (flat) {
-            target = sub.querySelector(':scope > .flat-section');
-          }
+          const target = sub.querySelector(
+            `.pathgroup-section[data-pathgroup-label="${CSS.escape(pathgroupLabel)}"]`
+          );
           if (!target) return;
           const overflow = target.querySelector(':scope > .page-chips-overflow');
           if (overflow) overflow.style.display = 'contents';

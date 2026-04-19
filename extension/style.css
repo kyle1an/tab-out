@@ -697,10 +697,18 @@ header {
    itself lives INSIDE each cluster's header (.pathgroup-header-rule),
    so no border is drawn between sections — just a small gap so the
    preceding chip's bottom edge doesn't press against the next
-   header's rule. */
+   header's rule.
+   The `.flat-section + .subdomain-cluster-mount` variant handles the
+   Phase 3 transitional wrapper around cluster HTML: `.subdomain-cluster-mount`
+   is `display: contents` in base.css, but CSS adjacency selectors
+   don't see through display, so without this rule the gap between
+   flat singletons and the first cluster's header would vanish.
+   Phase 4 migrates pathgroup-sections to components and removes the
+   wrapper, at which point the extra rule can be deleted. */
 .pathgroup-section + .pathgroup-section,
 .flat-section + .pathgroup-section,
-.pathgroup-section + .flat-section {
+.pathgroup-section + .flat-section,
+.flat-section + .subdomain-cluster-mount > .pathgroup-section:first-child {
   margin-top: 6px;
 }
 

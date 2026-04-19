@@ -125,21 +125,19 @@ document.addEventListener('click', async (e) => {
   const card = actionEl.closest('.mission-card');
 
   // ---- Expand overflow chips ("+N more") ----
-  // Scope to the nearest expandable container: a pathgroup-section
-  // (cluster) wins over its enclosing subdomain-section, so clicking
-  // a cluster's "+N more" expands just that cluster — hidden chips
-  // stay inside their header's context. Subdomain-section is the
-  // fallback for flat singletons that aren't inside any cluster.
+  // Only handles pathgroup-section (cluster) overflow now. Flat-section
+  // overflow is handled component-locally by <FlatSection> in
+  // components/FlatSection.js (Phase 3 of the Preact migration).
   // `:scope >` prevents a subdomain-level query from reaching into a
   // child cluster's own overflow container.
   if (action === 'expand-chips') {
-    const section = actionEl.closest('.pathgroup-section, .flat-section, .subdomain-section');
+    const section = actionEl.closest('.pathgroup-section');
     const overflowContainer = section && section.querySelector(':scope > .page-chips-overflow');
     if (overflowContainer) {
       overflowContainer.style.display = 'contents';
       actionEl.remove();
       // Mark the section so a live-sync refresh can restore this
-      // specific sub-group's expansion (see prevExpanded in render.js).
+      // specific cluster's expansion (see prevExpanded in render.js).
       if (section) section.dataset.expanded = 'true';
       packMissionsMasonry();
     }
