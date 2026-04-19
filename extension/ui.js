@@ -11,6 +11,7 @@
 
 import { shootConfetti } from './confetti.js';
 import { packMissionsMasonry } from './layout.js';
+import { render as preactRender } from './vendor/preact.mjs';
 
 let toastTimer = null;
 
@@ -61,6 +62,14 @@ export function animateCardOut(card) {
 
 /**
  * checkAndShowEmptyState() — "Inbox zero" message when all cards gone.
+ *
+ * #openTabsMissions is a Preact mount root (see render.js →
+ * components/Missions.js). Overwriting its innerHTML directly would
+ * leave Preact's internal reconciler holding dangling DOM refs, and
+ * the next live-sync render would throw "insertBefore: parameter 1
+ * is not of type Node". We call `preactRender(null, el)` first to
+ * unmount Preact cleanly; the next renderStaticDashboard call
+ * re-mounts from scratch when new cards arrive.
  */
 export function checkAndShowEmptyState() {
   const missionsEl = document.getElementById('openTabsMissions');
@@ -68,6 +77,8 @@ export function checkAndShowEmptyState() {
 
   const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length;
   if (remaining > 0) return;
+
+  preactRender(null, missionsEl);
 
   missionsEl.innerHTML = `
     <div class="missions-empty-state">
