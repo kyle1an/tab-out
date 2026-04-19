@@ -50,7 +50,7 @@ function updateCardStats(card, group, filtering, q) {
   // Tab count badge (skip app-badge — has its own format)
   const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)');
   if (tabBadge) {
-    tabBadge.innerHTML = `${ICONS.tabs} ${matchingTabs.length}`;
+    tabBadge.textContent = String(matchingTabs.length);
     tabBadge.title = `${matchingTabs.length} open tab${matchingTabs.length !== 1 ? 's' : ''}`;
   }
 
