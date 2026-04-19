@@ -14,7 +14,7 @@ export function shootConfetti(x, y) {
     const size = 5 + Math.random() * 6 // 5–11 px
     const color = COLORS[Math.floor(Math.random() * COLORS.length)]
 
-    el.style.cssText = `
+    el.style.cssText = /*css*/ `
       position: fixed;
       left: ${x}px;
       top: ${y}px;

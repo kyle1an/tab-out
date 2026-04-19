@@ -90,7 +90,7 @@ export function checkAndShowEmptyState() {
 
   preactRender(null, missionsEl)
 
-  missionsEl.innerHTML = `
+  missionsEl.innerHTML = /*html*/ `
     <div class="missions-empty-state">
       <div class="empty-checkmark">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
