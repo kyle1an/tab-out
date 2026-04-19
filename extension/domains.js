@@ -14,7 +14,7 @@
    as single eTLD units so user.github.io stays on its own card.
    ================================================================ */
 
-const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/
 
 const PUBLIC_SUFFIXES = new Set([
   // User-space subdomains: each subdomain is an independent site, so
@@ -52,8 +52,8 @@ const PUBLIC_SUFFIXES = new Set([
   'com.mx',
   'ac.uk',
   'gov.uk',
-  'edu.au',
-]);
+  'edu.au'
+])
 
 /**
  * registrableDomain(hostname) — the "eTLD+1" of hostname.
@@ -66,16 +66,16 @@ const PUBLIC_SUFFIXES = new Set([
  *   ""                          → ""
  */
 export function registrableDomain(hostname) {
-  if (!hostname) return '';
-  if (IPV4_RE.test(hostname)) return hostname;
-  const parts = hostname.split('.');
-  if (parts.length <= 2) return hostname;
+  if (!hostname) return ''
+  if (IPV4_RE.test(hostname)) return hostname
+  const parts = hostname.split('.')
+  if (parts.length <= 2) return hostname
 
-  const lastTwo = parts.slice(-2).join('.');
+  const lastTwo = parts.slice(-2).join('.')
   if (PUBLIC_SUFFIXES.has(lastTwo)) {
-    return parts.slice(-3).join('.');
+    return parts.slice(-3).join('.')
   }
-  return parts.slice(-2).join('.');
+  return parts.slice(-2).join('.')
 }
 
 /**
@@ -89,10 +89,10 @@ export function registrableDomain(hostname) {
  *   ("example.com",         "example.com")  → ""
  */
 export function subdomainPrefix(hostname, registrable) {
-  if (!hostname || !registrable || hostname === registrable) return '';
-  const suffix = '.' + registrable;
-  if (!hostname.endsWith(suffix)) return '';
-  const prefix = hostname.slice(0, -suffix.length);
-  if (prefix === 'www') return '';
-  return prefix;
+  if (!hostname || !registrable || hostname === registrable) return ''
+  const suffix = '.' + registrable
+  if (!hostname.endsWith(suffix)) return ''
+  const prefix = hostname.slice(0, -suffix.length)
+  if (prefix === 'www') return ''
+  return prefix
 }

@@ -15,83 +15,65 @@
    snapshots or restores expansion state.
    ================================================================ */
 
-import { h } from '../vendor/preact.mjs';
-import htm from '../vendor/htm.mjs';
-import { useState } from '../vendor/preact-hooks.mjs';
-import { closeTabsExact } from '../tabs.js';
-import { markClosure } from '../undo.js';
-import { packMissionsMasonry } from '../layout.js';
-import { updateTabCountDisplays } from '../render.js';
-import { PageChip } from './PageChip.js';
+import { h } from '../vendor/preact.mjs'
+import htm from '../vendor/htm.mjs'
+import { useState } from '../vendor/preact-hooks.mjs'
+import { closeTabsExact } from '../tabs.js'
+import { markClosure } from '../undo.js'
+import { packMissionsMasonry } from '../layout.js'
+import { updateTabCountDisplays } from '../render.js'
+import { PageChip } from './PageChip.js'
 
-const html = htm.bind(h);
+const html = htm.bind(h)
 
 function PathgroupCloseButton({ count, onClick }) {
-  const title = `Close ${count} tab${count !== 1 ? 's' : ''}`;
-  return html/* html */`
+  const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
+  return html /*html*/ `
     <button class="pathgroup-close-btn" title=${title} onClick=${onClick}>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-           stroke-width="2" stroke="currentColor">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
     </button>
-  `;
+  `
 }
 
-export function PathgroupSection({
-  label,
-  count,
-  closableUrls,
-  visibleChips,
-  hiddenChips,
-  hiddenCount,
-}) {
-  const [expanded, setExpanded] = useState(false);
+export function PathgroupSection({ label, count, closableUrls, visibleChips, hiddenChips, hiddenCount }) {
+  const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
-    setExpanded(true);
-    requestAnimationFrame(() => packMissionsMasonry());
+    setExpanded(true)
+    requestAnimationFrame(() => packMissionsMasonry())
   }
 
   // Close-cluster handler. Exact-URL matching + preserveGroups
   // means sibling tabs on the same host and Chrome-grouped tabs
   // are untouched.
   async function onCloseCluster() {
-    if (!closableUrls || closableUrls.length === 0) return;
-    const snapshot = await closeTabsExact(closableUrls, { preserveGroups: true });
+    if (!closableUrls || closableUrls.length === 0) return
+    const snapshot = await closeTabsExact(closableUrls, { preserveGroups: true })
     if (snapshot.length > 0) {
-      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`);
+      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
     }
-    updateTabCountDisplays();
+    updateTabCountDisplays()
   }
 
-  return html/* html */`
-    <div class="pathgroup-section"
-         data-pathgroup-label=${label}
-         data-expanded=${expanded ? 'true' : null}>
+  return html /*html*/ `
+    <div class="pathgroup-section" data-pathgroup-label=${label} data-expanded=${expanded ? 'true' : null}>
       <div class="pathgroup-header">
         <span class="chip-pathgroup">${label}</span>
         <span class="pathgroup-header-count">${count}</span>
         <span class="pathgroup-header-rule"></span>
-        ${closableUrls && closableUrls.length > 0 && html/* html */`
-          <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} />
-        `}
+        ${closableUrls && closableUrls.length > 0 && html /*html*/ ` <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} /> `}
       </div>
-      ${visibleChips.map(chip => html/* html */`
-        <${PageChip} key=${chip.rawUrl} chip=${chip} />
-      `)}
-      ${hiddenCount > 0 && html/* html */`
-        <div class="page-chips-overflow">
-          ${hiddenChips.map(chip => html/* html */`
-            <${PageChip} key=${chip.rawUrl} chip=${chip} />
-          `)}
-        </div>
-      `}
-      ${!expanded && hiddenCount > 0 && html/* html */`
+      ${visibleChips.map((chip) => html /*html*/ ` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}
+      ${hiddenCount > 0 && html /*html*/ ` <div class="page-chips-overflow">${hiddenChips.map((chip) => html /*html*/ ` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}</div> `}
+      ${!expanded &&
+      hiddenCount > 0 &&
+      html /*html*/ `
         <div class="page-chip page-chip-overflow clickable" onClick=${onExpand}>
           <span class="chip-text">+${hiddenCount} more</span>
         </div>
       `}
     </div>
-  `;
+  `
 }

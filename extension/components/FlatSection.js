@@ -34,19 +34,19 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount }) {
     requestAnimationFrame(() => packMissionsMasonry());
   }
 
-  return html/* html */`
+  return html/*html*/`
     <div class="flat-section" data-expanded=${expanded ? 'true' : null}>
-      ${visibleChips.map(chip => html/* html */`
+      ${visibleChips.map(chip => html/*html*/`
         <${PageChip} key=${chip.rawUrl} chip=${chip} />
       `)}
-      ${hiddenCount > 0 && html/* html */`
+      ${hiddenCount > 0 && html/*html*/`
         <div class="page-chips-overflow">
-          ${hiddenChips.map(chip => html/* html */`
+          ${hiddenChips.map(chip => html/*html*/`
             <${PageChip} key=${chip.rawUrl} chip=${chip} />
           `)}
         </div>
       `}
-      ${!expanded && hiddenCount > 0 && html/* html */`
+      ${!expanded && hiddenCount > 0 && html/*html*/`
         <div class="page-chip page-chip-overflow clickable" onClick=${onExpand}>
           <span class="chip-text">+${hiddenCount} more</span>
         </div>

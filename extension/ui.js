@@ -9,11 +9,11 @@
                              button label, preserving wording.
    ================================================================ */
 
-import { shootConfetti } from './confetti.js';
-import { packMissionsMasonry } from './layout.js';
-import { render as preactRender } from './vendor/preact.mjs';
+import { shootConfetti } from './confetti.js'
+import { packMissionsMasonry } from './layout.js'
+import { render as preactRender } from './vendor/preact.mjs'
 
-let toastTimer = null;
+let toastTimer = null
 
 /**
  * showToast(message, action?)
@@ -23,23 +23,23 @@ let toastTimer = null;
  * A new showToast call replaces any existing toast (and its action).
  */
 export function showToast(message, action = null) {
-  const toast = document.getElementById('toast');
-  if (!toast) return;
-  document.getElementById('toastText').textContent = message;
-  toast.querySelectorAll('.toast-action').forEach(b => b.remove());
+  const toast = document.getElementById('toast')
+  if (!toast) return
+  document.getElementById('toastText').textContent = message
+  toast.querySelectorAll('.toast-action').forEach((b) => b.remove())
   if (action && action.label && typeof action.onClick === 'function') {
-    const btn = document.createElement('button');
-    btn.className = 'toast-action';
-    btn.textContent = action.label;
+    const btn = document.createElement('button')
+    btn.className = 'toast-action'
+    btn.textContent = action.label
     btn.addEventListener('click', () => {
-      action.onClick();
-      toast.classList.remove('visible');
-    });
-    toast.appendChild(btn);
+      action.onClick()
+      toast.classList.remove('visible')
+    })
+    toast.appendChild(btn)
   }
-  toast.classList.add('visible');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('visible'), action ? 6000 : 2500);
+  toast.classList.add('visible')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => toast.classList.remove('visible'), action ? 6000 : 2500)
 }
 
 /**
@@ -47,17 +47,17 @@ export function showToast(message, action = null) {
  * re-pack the masonry grid.
  */
 export function animateCardOut(card) {
-  if (!card) return;
+  if (!card) return
 
-  const rect = card.getBoundingClientRect();
-  shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  const rect = card.getBoundingClientRect()
+  shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
 
-  card.classList.add('closing');
+  card.classList.add('closing')
   setTimeout(() => {
-    card.remove();
-    checkAndShowEmptyState();
-    packMissionsMasonry();
-  }, 300);
+    card.remove()
+    checkAndShowEmptyState()
+    packMissionsMasonry()
+  }, 300)
 }
 
 /**
@@ -72,13 +72,13 @@ export function animateCardOut(card) {
  * re-mounts from scratch when new cards arrive.
  */
 export function checkAndShowEmptyState() {
-  const missionsEl = document.getElementById('openTabsMissions');
-  if (!missionsEl) return;
+  const missionsEl = document.getElementById('openTabsMissions')
+  if (!missionsEl) return
 
-  const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length;
-  if (remaining > 0) return;
+  const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length
+  if (remaining > 0) return
 
-  preactRender(null, missionsEl);
+  preactRender(null, missionsEl)
 
   missionsEl.innerHTML = `
     <div class="missions-empty-state">
@@ -90,10 +90,10 @@ export function checkAndShowEmptyState() {
       <div class="empty-title">Inbox zero, but for tabs.</div>
       <div class="empty-subtitle">You're free.</div>
     </div>
-  `;
+  `
 
-  const countEl = document.getElementById('openTabsSectionCount');
-  if (countEl) countEl.textContent = '0 domains';
+  const countEl = document.getElementById('openTabsSectionCount')
+  if (countEl) countEl.textContent = '0 domains'
 }
 
 /**
@@ -103,12 +103,9 @@ export function checkAndShowEmptyState() {
  * No-op if btn is null.
  */
 export function updateCloseTabsButton(btn, closed) {
-  if (!btn || !closed) return;
-  btn.innerHTML = btn.innerHTML.replace(
-    /(\d+)(\s+(?:\w+\s+)?)tabs?\b/,
-    (_, numStr, middle) => {
-      const next = Math.max(0, parseInt(numStr, 10) - closed);
-      return `${next}${middle}tab${next !== 1 ? 's' : ''}`;
-    }
-  );
+  if (!btn || !closed) return
+  btn.innerHTML = btn.innerHTML.replace(/(\d+)(\s+(?:\w+\s+)?)tabs?\b/, (_, numStr, middle) => {
+    const next = Math.max(0, parseInt(numStr, 10) - closed)
+    return `${next}${middle}tab${next !== 1 ? 's' : ''}`
+  })
 }

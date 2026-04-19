@@ -31,18 +31,33 @@ const BUILT_IN_PATH_GROUPERS = [
   {
     hostname: 'github.com',
     extract: (u) => {
-      const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/|$)/);
-      if (!m) return null;
+      const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/|$)/)
+      if (!m) return null
       const RESERVED = new Set([
-        'orgs', 'settings', 'notifications', 'marketplace', 'explore',
-        'pulls', 'issues', 'search', 'login', 'join', 'about', 'new',
-        'topics', 'trending', 'collections', 'events', 'sponsors',
-        'codespaces', 'account',
-      ]);
-      if (RESERVED.has(m[1])) return null;
-      const label = `${m[1]}/${m[2]}`;
-      return { key: label, label };
-    },
+        'orgs',
+        'settings',
+        'notifications',
+        'marketplace',
+        'explore',
+        'pulls',
+        'issues',
+        'search',
+        'login',
+        'join',
+        'about',
+        'new',
+        'topics',
+        'trending',
+        'collections',
+        'events',
+        'sponsors',
+        'codespaces',
+        'account'
+      ])
+      if (RESERVED.has(m[1])) return null
+      const label = `${m[1]}/${m[2]}`
+      return { key: label, label }
+    }
   },
 
   // Atlassian Jira: /browse/PROJ-N → group by project key prefix.
@@ -51,20 +66,20 @@ const BUILT_IN_PATH_GROUPERS = [
   {
     hostnameEndsWith: '.atlassian.net',
     extract: (u) => {
-      const m = u.pathname.match(/^\/browse\/([A-Z][A-Z0-9]+)-\d+/);
-      if (!m) return null;
-      return { key: `jira:${m[1]}`, label: m[1] };
-    },
+      const m = u.pathname.match(/^\/browse\/([A-Z][A-Z0-9]+)-\d+/)
+      if (!m) return null
+      return { key: `jira:${m[1]}`, label: m[1] }
+    }
   },
 
   // Atlassian Confluence: /wiki/spaces/<SPACE>/... → group by space.
   {
     hostnameEndsWith: '.atlassian.net',
     extract: (u) => {
-      const m = u.pathname.match(/^\/wiki\/spaces\/([^/]+)/);
-      if (!m) return null;
-      return { key: `wiki:${m[1]}`, label: m[1] };
-    },
+      const m = u.pathname.match(/^\/wiki\/spaces\/([^/]+)/)
+      if (!m) return null
+      return { key: `wiki:${m[1]}`, label: m[1] }
+    }
   },
 
   // Contentful: /spaces/<SPACE>/environments/<ENV>/... → group by env.
@@ -73,10 +88,10 @@ const BUILT_IN_PATH_GROUPERS = [
   {
     hostname: 'app.contentful.com',
     extract: (u) => {
-      const m = u.pathname.match(/^\/spaces\/([^/]+)\/environments\/([^/]+)/);
-      if (!m) return null;
-      return { key: `${m[1]}/${m[2]}`, label: m[2] };
-    },
+      const m = u.pathname.match(/^\/spaces\/([^/]+)\/environments\/([^/]+)/)
+      if (!m) return null
+      return { key: `${m[1]}/${m[2]}`, label: m[2] }
+    }
   },
 
   // Figma: /design/<fileId>/<decodedName> (and /file/ for legacy).
@@ -85,49 +100,48 @@ const BUILT_IN_PATH_GROUPERS = [
   {
     hostname: 'www.figma.com',
     extract: (u) => {
-      const m = u.pathname.match(/^\/(?:design|file)\/([^/]+)\/([^/?]+)/);
-      if (!m) return null;
-      let label;
-      try { label = decodeURIComponent(m[2]).replace(/[_-]+/g, ' ').trim(); }
-      catch { label = m[2]; }
-      return { key: m[1], label: label || m[1] };
-    },
+      const m = u.pathname.match(/^\/(?:design|file)\/([^/]+)\/([^/?]+)/)
+      if (!m) return null
+      let label
+      try {
+        label = decodeURIComponent(m[2]).replace(/[_-]+/g, ' ').trim()
+      } catch {
+        label = m[2]
+      }
+      return { key: m[1], label: label || m[1] }
+    }
   },
 
   // Reddit: /r/<subreddit>/... → group by subreddit.
   {
     hostname: 'www.reddit.com',
     extract: (u) => {
-      const m = u.pathname.match(/^\/r\/([^/]+)/);
-      if (!m) return null;
-      return { key: `r/${m[1]}`, label: `r/${m[1]}` };
-    },
-  },
-];
+      const m = u.pathname.match(/^\/r\/([^/]+)/)
+      if (!m) return null
+      return { key: `r/${m[1]}`, label: `r/${m[1]}` }
+    }
+  }
+]
 
 export function resolvePathGroup(url) {
-  if (!url) return null;
-  let parsed;
-  try { parsed = new URL(url); }
-  catch { return null; }
+  if (!url) return null
+  let parsed
+  try {
+    parsed = new URL(url)
+  } catch {
+    return null
+  }
 
-  const rules = [
-    ...(window.LOCAL_PATH_GROUPERS || []),
-    ...BUILT_IN_PATH_GROUPERS,
-  ];
+  const rules = [...(window.LOCAL_PATH_GROUPERS || []), ...BUILT_IN_PATH_GROUPERS]
   for (const rule of rules) {
-    const hostMatch = rule.hostname
-      ? parsed.hostname === rule.hostname
-      : rule.hostnameEndsWith
-        ? parsed.hostname.endsWith(rule.hostnameEndsWith)
-        : false;
-    if (!hostMatch) continue;
+    const hostMatch = rule.hostname ? parsed.hostname === rule.hostname : rule.hostnameEndsWith ? parsed.hostname.endsWith(rule.hostnameEndsWith) : false
+    if (!hostMatch) continue
     try {
-      const result = rule.extract(parsed);
-      if (result && result.key && result.label) return result;
+      const result = rule.extract(parsed)
+      if (result && result.key && result.label) return result
     } catch {
       // Adapter threw on an unexpected URL shape — treat as no match.
     }
   }
-  return null;
+  return null
 }
