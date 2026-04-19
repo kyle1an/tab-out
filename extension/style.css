@@ -667,7 +667,8 @@ header {
 .chip-strip-indicator {
   display: inline-block;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: 8px;
+  corner-shape: squircle;
   background: rgba(115, 115, 115, 0.1);
   color: var(--muted);
   font-size: 12px;
@@ -687,7 +688,8 @@ header {
   display: inline-block;
   padding: 0 6px;
   margin-right: 6px;
-  border-radius: 4px;
+  border-radius: 8px;
+  corner-shape: squircle;
   background: rgba(115, 115, 115, 0.1);
   color: var(--muted);
   font-size: 12px;
