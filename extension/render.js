@@ -228,10 +228,7 @@ function renderDomainCard(group) {
   // Apps usually have one tab, so the count is only shown when >1.
   const tabBadge = isAppCard
     ? `<span class="app-badge tab-count-badge" title="Running as a standalone app${tabCount > 1 ? ` · ${tabCount} tabs` : ''}">App${tabCount > 1 ? ` · ${tabCount}` : ''}</span>`
-    : `<span class="open-tabs-badge tab-count-badge" title="${tabCount} open tab${tabCount !== 1 ? 's' : ''}">
-        ${ICONS.tabs}
-        ${tabCount}
-      </span>`;
+    : `<span class="open-tabs-badge tab-count-badge" title="${tabCount} open tab${tabCount !== 1 ? 's' : ''}">${tabCount}</span>`;
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
   const seen = new Set();

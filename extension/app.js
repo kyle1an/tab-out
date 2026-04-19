@@ -263,8 +263,8 @@ document.addEventListener('click', async (e) => {
       if (tabsBadge) {
         const current = parseInt((tabsBadge.textContent.match(/\d+/) || ['0'])[0], 10);
         const next    = Math.max(0, current - extrasClosed);
-        tabsBadge.innerHTML = `${ICONS.tabs} ${next}`;
-        tabsBadge.title    = `${next} open tab${next !== 1 ? 's' : ''}`;
+        tabsBadge.textContent = String(next);
+        tabsBadge.title       = `${next} open tab${next !== 1 ? 's' : ''}`;
       }
       const meta = card.querySelector('.mission-page-count');
       if (meta) {
