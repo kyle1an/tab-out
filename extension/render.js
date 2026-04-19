@@ -390,6 +390,7 @@ export function computeDomainCardViewModel(group) {
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
     const displayLabel = stripPgPrefix(label, stripLabel || pgLabel)
+    const titleStripped = displayLabel !== label
     const tooltip = [leadPrefix, pgLabel || stripLabel, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     return {
@@ -398,6 +399,7 @@ export function computeDomainCardViewModel(group) {
       leadPrefix,
       pathGroupLabel: pgLabel,
       displayLabel,
+      titleStripped,
       pathSuffix: pathSuffix || '',
       tooltip,
       dupeCount: urlCounts[tab.url] || 1,
