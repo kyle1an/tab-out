@@ -60,7 +60,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
   return html`
     <div class="pathgroup-section" data-pathgroup-label=${label} data-pr=${isPR ? 'true' : null} data-expanded=${expanded ? 'true' : null}>
       <div class="pathgroup-header">
-        <span class="chip-pathgroup">${label}</span>
+        <span class="chip-pathgroup" title=${label}>${label}</span>
         ${isPR && html`<span class="chip-pathgroup chip-pathgroup-pr">PRs</span>`}
         <span class="pathgroup-header-count">${count}</span>
         <span class="pathgroup-header-rule"></span>

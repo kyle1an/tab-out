@@ -734,6 +734,19 @@ header {
 .pathgroup-header .chip-pathgroup {
   margin-right: 0;
 }
+
+/* Truncate overlong repo labels so the separator rule always has
+   room. Targets only the label pill — the "PRs" sibling is fixed-
+   width and shouldn't shrink. `min-width: 0` lets the pill shrink
+   below its intrinsic content width in flex flow; ellipsis reveals
+   the clipped edge. Full label stays accessible via the `title`
+   attribute (hover tooltip) on the pill. */
+.pathgroup-header .chip-pathgroup:not(.chip-pathgroup-pr) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .pathgroup-header-count {
   font-size: 12px;
   color: var(--muted);
@@ -742,15 +755,17 @@ header {
 
 /* Label-ruled separator: stretches through the empty middle of the
    header, pulling the pill + count on the left and running to the
-   header's right edge. Because the close button is absolute-
-   positioned (out of flex flow), this rule always extends all the
-   way — no shortening when the button appears on hover. The button
-   fades in on top of the rule, occluding the last few pixels. */
+   header's right edge. The close button is absolute-positioned on
+   top of this rule at `right: 0` with width 20px; so the rule's
+   min-width needs to exceed the close button's width or the rule
+   vanishes behind the button on hover (opacity:1 + opaque bg
+   occludes everything beneath). 30px keeps ≥20px of rule visible
+   even when the label is long enough to push the rule to its min. */
 .pathgroup-header-rule {
   flex: 1;
   height: 1px;
   background: rgba(115, 115, 115, 0.18);
-  min-width: 12px;
+  min-width: 30px;
 }
 
 /* Cluster-level close — round, hidden by default, fades in on
