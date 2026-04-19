@@ -512,11 +512,21 @@ export function computeDomainCardViewModel(group) {
 
     // Path-group pills: resolve each tab's path group (github repo,
     // jira project, contentful env, etc.) and only keep labels whose
-    // group has ≥2 members in this section. A lone group is silent
-    // clutter — the signal is "these belong together," which takes
-    // at least two chips to convey. Extra guardrail: drop labels that
-    // equal the subdomain or the card domain (redundant information
-    // already carried by the section header or card title).
+    // group has ≥2 members in this section. A lone group is usually
+    // silent clutter — the signal is "these belong together," which
+    // takes at least two chips to convey.
+    //
+    // Exception: adapters can opt in to `alwaysCluster: true` to
+    // bypass the threshold. Jira uses this so ticket keys stay as
+    // their own cluster even at member-count 1 — a self-contained
+    // identifier and, more importantly, a position-stable anchor.
+    // (Closing one of a two-member cluster without the flag would
+    // suddenly drop the survivor into the flat section; with it, the
+    // cluster persists in place.)
+    //
+    // Extra guardrail: drop labels that equal the subdomain or the
+    // card domain (redundant information already carried by the
+    // section header or card title).
     const pgByUrl = new Map()
     const pgKeyCount = new Map()
     for (const t of sectionTabs) {
@@ -527,7 +537,7 @@ export function computeDomainCardViewModel(group) {
     }
     const pgLabelByUrl = new Map()
     for (const [url, pg] of pgByUrl) {
-      if (pgKeyCount.get(pg.key) < 2) continue
+      if (!pg.alwaysCluster && pgKeyCount.get(pg.key) < 2) continue
       if (pg.label === key || pg.label === group.domain) continue
       pgLabelByUrl.set(url, pg.label)
     }
