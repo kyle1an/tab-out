@@ -12,20 +12,27 @@ import { packMissionsMasonry } from './layout.js';
 import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions, ICONS } from './render.js';
 import { isGroupedTab } from './groups.js';
 
-// When the page has focus, the type-to-filter listener below captures
-// keystrokes from anywhere on the page. Surface that affordance in the
-// placeholder so the hint matches reality.
-const PLACEHOLDER_DEFAULT = 'Filter tabs…';
-const PLACEHOLDER_FOCUSED = 'Type anywhere to filter…';
+// Three placeholder states, so the hint always reflects reality:
+//   • IDLE   — the window doesn't have focus (keystrokes don't reach us)
+//   • HINT   — window has focus, input doesn't (type-anywhere is live)
+//   • EDIT   — input is focused (the type-anywhere hint is redundant;
+//              swap in something informational about what gets matched)
+const PLACEHOLDER_IDLE = 'Filter tabs…';
+const PLACEHOLDER_HINT = 'Type anywhere to filter…';
+const PLACEHOLDER_EDIT = 'Title or URL…';
 
 function updateFilterPlaceholder() {
   const input = document.getElementById('tabFilter');
   if (!input) return;
   const pageFocused = document.hasFocus();
-  input.placeholder = pageFocused ? PLACEHOLDER_FOCUSED : PLACEHOLDER_DEFAULT;
+  const inputFocused = document.activeElement === input;
+  if (inputFocused)      input.placeholder = PLACEHOLDER_EDIT;
+  else if (pageFocused)  input.placeholder = PLACEHOLDER_HINT;
+  else                   input.placeholder = PLACEHOLDER_IDLE;
   // `.capture-ready` gives the input a subtler pre-focus look so the user
-  // trusts keystrokes will land here even before clicking in.
-  input.classList.toggle('capture-ready', pageFocused);
+  // trusts keystrokes will land here even before clicking in. Only shown
+  // when type-anywhere is actually live (page focused, input not).
+  input.classList.toggle('capture-ready', pageFocused && !inputFocused);
 }
 
 /**
@@ -179,18 +186,28 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Keep the placeholder in sync with window focus state — hint only
-// shows "Just start typing…" while the page can actually capture keys.
+// Keep the placeholder in sync with both window-level focus and
+// input-level focus — three states (IDLE / HINT / EDIT) need two
+// signal sources.
 window.addEventListener('focus', updateFilterPlaceholder);
 window.addEventListener('blur',  updateFilterPlaceholder);
+{
+  const tabFilter = document.getElementById('tabFilter');
+  if (tabFilter) {
+    tabFilter.addEventListener('focus', updateFilterPlaceholder);
+    tabFilter.addEventListener('blur',  updateFilterPlaceholder);
+  }
+}
 updateFilterPlaceholder();
 
 // Type-to-filter: when the user starts typing anywhere (no modifier,
 // not already in an input), auto-focus the filter and pipe the
 // keystroke in. Mirrors Slack / Linear / GitHub.
+// Also handles Backspace/Delete so the user can correct a filter they
+// typed via type-anywhere without having to click into the input
+// first — otherwise the "type anywhere" promise is only half true.
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.key.length !== 1) return;
   const a = document.activeElement;
   if (a && (
     a.tagName === 'INPUT' ||
@@ -200,6 +217,17 @@ document.addEventListener('keydown', (e) => {
   )) return;
   const input = document.getElementById('tabFilter');
   if (!input) return;
+
+  if (e.key === 'Backspace' || e.key === 'Delete') {
+    if (input.value === '') return;
+    e.preventDefault();
+    input.value = input.value.slice(0, -1);
+    input.focus();
+    applyTabFilter(input.value);
+    return;
+  }
+
+  if (e.key.length !== 1) return;
   e.preventDefault();
   input.focus();
   input.value += e.key;
