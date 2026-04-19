@@ -87,7 +87,7 @@ export function PageChip({ chip }) {
       <span class="chip-text">
         ${chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
         ${chip.pathGroupLabel && html` <span class="chip-pathgroup">${chip.pathGroupLabel}</span> `}
-        ${chip.displaySegments.map((seg) => (typeof seg === 'string' ? seg : html`<span class="chip-strip-indicator" aria-hidden="true">…</span>`))}
+        ${chip.displaySegments.map((seg) => (typeof seg === 'string' ? seg : html`<span class="chip-strip-indicator" aria-hidden="true">~</span>`))}
         ${chip.pathSuffix && html` <span class="chip-path">${chip.pathSuffix}</span> `}
       </span>
       ${chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
