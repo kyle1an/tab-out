@@ -71,20 +71,21 @@ export function pickFavicon(tab) {
 
 /**
  * stripPgLabel(label, pgLabel) — build the chip title as a segment
- * array where EVERY pill-label occurrence (plus a trailing ref
- * continuation like "@sha", "#N", "/path", ":branch") is replaced
- * in place by a placeholder object. Matches at any position —
- * start, end, middle, or repeated — and preserves the separators
- * flanking each stripped region so the remaining text reads
- * naturally.
+ * array where EVERY occurrence of the pill label (as an exact
+ * literal, nothing absorbed on either side) is replaced in place
+ * by a placeholder object. Whatever characters follow the match
+ * — a "@sha" commit hash, a "/tree/main" subpath, plain text —
+ * are kept verbatim; only the label itself becomes the placeholder.
+ * The char BEFORE the match must be a boundary (start of string or
+ * a separator) so "label" inside "prelabel" isn't falsely matched.
  *
  *   prefix:   "owner/repo PR #4706"                   → [PH, " PR #4706"]
  *   suffix:   "Pull Request #4706 · owner/repo"       → ["Pull Request #4706 · ", PH]
  *   middle:   "PR #4706 · owner/repo · GitHub"        → ["PR #4706", " · ", PH, " · GitHub"]
- *   ref tail: "Size preview · owner/repo@296a5f1"     → ["Size preview", " · ", PH]
+ *   ref tail: "Size preview · owner/repo@296a5f1"     → ["Size preview", " · ", PH, "@296a5f1"]
  *   multi:    "owner/repo · log · owner/repo · PR"    → [PH, " · log", " · ", PH, " · PR"]
  *
- * Returns { segments, stripped }. When no separator-bounded
+ * Returns { segments, stripped }. When no boundary-preceded
  * occurrence is found, or when stripping would leave only
  * separators + placeholders (e.g. the title is just the label, or
  * label-sep-label with nothing else), the original label is
@@ -97,9 +98,8 @@ function stripPgLabel(label, pgLabel) {
   const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const EL = esc(pgLabel)
-  const REF_TAIL = '(?:[@#/:]\\S*)?'
   const SEP = '(?:' + seps.map(esc).join('|') + ')'
-  const re = new RegExp(`(^|${SEP})(${EL}${REF_TAIL})(?=${SEP}|$)`, 'g')
+  const re = new RegExp(`(^|${SEP})(${EL})`, 'g')
 
   const hits = []
   let m
