@@ -20,6 +20,8 @@ let toastTimer = null
  *
  * action is an optional { label, onClick } pair. With an action, the toast
  * shows an inline button and stays visible longer (6 s instead of 2.5 s).
+ * Hovering the toast pauses the auto-hide timer — important for the Undo
+ * case so users can cross the mouse to the button without racing the clock.
  * A new showToast call replaces any existing toast (and its action).
  */
 export function showToast(message, action = null) {
@@ -39,7 +41,15 @@ export function showToast(message, action = null) {
   }
   toast.classList.add('visible')
   clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => toast.classList.remove('visible'), action ? 6000 : 2500)
+  const duration = action ? 6000 : 2500
+  const hide = () => toast.classList.remove('visible')
+  toastTimer = setTimeout(hide, duration)
+  toast.onmouseenter = () => clearTimeout(toastTimer)
+  toast.onmouseleave = () => {
+    if (!toast.classList.contains('visible')) return
+    clearTimeout(toastTimer)
+    toastTimer = setTimeout(hide, duration)
+  }
 }
 
 /**
