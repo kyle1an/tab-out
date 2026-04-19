@@ -90,7 +90,7 @@ export function PageChip({ chip }) {
          style=${style}
          onClick=${onFocus}>
       ${chip.faviconUrl && html/* html */`
-        <img class="chip-favicon" src=${chip.faviconUrl} alt="">
+        <img class="chip-favicon" src=${chip.faviconUrl} alt="" />
       `}
       <span class="chip-text">
         ${chip.leadPrefix && html/* html */`
