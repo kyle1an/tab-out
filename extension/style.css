@@ -514,12 +514,9 @@ header {
   /* padding-left = 12px reserves room for the group indicator stripe
      (see ::before below) plus a visual gap before the favicon. */
   padding: 8px 4px 8px 12px;
-  border-radius: 6px;
+  border-radius: 16px;
   corner-shape: squircle;
-  border-top: none;
-  border-right: none;
-  border-bottom: 1px solid rgba(115, 115, 115, 0.1);
-  border-left: none;
+  border: none;
   position: relative;
   display: flex;
   /* Top-align so the favicon lands on the first line of a wrapped title
@@ -528,6 +525,28 @@ header {
   align-items: flex-start;
   gap: 8px;
   line-height: 1.4;
+}
+
+/* Divider between chips — a pseudo-element (not border-bottom) so the
+   line stays straight regardless of the chip's border-radius. A
+   `border-bottom` would curve with the radius. */
+.page-chip::after {
+  content: '';
+  position: absolute;
+  /* Inset horizontally so the divider doesn't run to the chip's
+     rounded edges — aligns with the favicon's left edge + breathing
+     room on the right. */
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 1px;
+  background: rgba(115, 115, 115, 0.1);
+  pointer-events: none;
+}
+
+.page-chip:last-child::after,
+.page-chip-overflow::after {
+  content: none;
 }
 
 /* Tab-group indicator — inset 2px vertical stripe, positioned inside
@@ -553,10 +572,6 @@ header {
    was reserved for the always-visible × is no longer needed. Text
    fades into the button area on hover via a mask (below). */
 
-.page-chip:last-child,
-.page-chip-overflow {
-  border-bottom: none;
-}
 
 /* Favicon — same display size as Chrome's tab favicon (16×16 CSS px).
    margin-top nudges it down so it optically centers on the first text
