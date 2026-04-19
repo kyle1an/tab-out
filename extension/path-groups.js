@@ -86,12 +86,22 @@ const BUILT_IN_PATH_GROUPERS = [
   // Atlassian Jira: /browse/PROJ-N → group by project key prefix.
   // Only /browse/ carries a project in its URL; list views like
   // /jira/for-you or /issues?jql=... stay ungrouped (no signal).
+  //
+  // `alwaysCluster: true` bypasses render.js's "needs ≥2 members"
+  // threshold — a single ABC-123 tab still renders as a clustered
+  // section under an [ABC] header. Reason: ticket keys are
+  // self-contained identifiers that stay meaningful alone; the
+  // bigger payoff is position stability. If a project had two
+  // tickets clustered together and one gets closed, without this
+  // flag the surviving ticket would suddenly jump down into the
+  // flat singletons section — a jarring layout shift. With it, the
+  // cluster persists at its current spot regardless of member count.
   {
     hostnameEndsWith: '.atlassian.net',
     extract: (u) => {
       const m = u.pathname.match(/^\/browse\/([A-Z][A-Z0-9]+)-\d+/)
       if (!m) return null
-      return { key: `jira:${m[1]}`, label: m[1] }
+      return { key: `jira:${m[1]}`, label: m[1], alwaysCluster: true }
     }
   },
 
