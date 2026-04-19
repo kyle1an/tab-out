@@ -511,17 +511,15 @@ header {
   font-size: 13px;
   color: var(--ink);
   background: transparent;
-  /* padding-left = 6px sits between the 2px border-left and the favicon,
-     creating a visible gap so the colored stripe doesn't crowd the icon. */
-  padding: 8px 4px 8px 6px;
-  border-radius: 0;
+  /* padding-left = 12px reserves room for the group indicator stripe
+     (see ::before below) plus a visual gap before the favicon. */
+  padding: 8px 4px 8px 12px;
+  border-radius: 6px;
+  corner-shape: squircle;
   border-top: none;
   border-right: none;
   border-bottom: 1px solid rgba(115, 115, 115, 0.1);
-  /* Tab-group indicator — colored when chip is in a Chrome tab group, else
-     transparent so width/spacing stays identical. The actual color is set
-     inline by renderDomainCard / buildOverflowChips from the tabGroups API. */
-  border-left: 2px solid transparent;
+  border-left: none;
   position: relative;
   display: flex;
   /* Top-align so the favicon lands on the first line of a wrapped title
@@ -530,6 +528,24 @@ header {
   align-items: flex-start;
   gap: 8px;
   line-height: 1.4;
+}
+
+/* Tab-group indicator — inset 2px vertical stripe, positioned inside
+   the rounded chip so the chip's border-radius and the indicator can
+   each have their own clean shape. Color comes from the `--group-color`
+   custom property set inline by renderDomainCard / buildOverflowChips;
+   absent → transparent, so width/spacing stays identical for ungrouped
+   chips. */
+.page-chip::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 7px;
+  bottom: 7px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--group-color, transparent);
+  pointer-events: none;
 }
 
 /* Title runs full-width by default — the close button only appears on
