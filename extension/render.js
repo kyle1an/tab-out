@@ -2,7 +2,7 @@
    Render — DOM building for the dashboard
 
    • renderStaticDashboard — top-level render, owns `domainGroups`
-   • computeDomainCardViewModel / buildOverflowChips — per-card HTML + data
+   • computeDomainCardViewModel / buildHiddenChipsHtml — per-card data + overflow chips HTML
    • updateTabCountDisplays — header line + windows sub-line
    • updateSectionCount — "X domains · Close N duplicates" header
    • pickFavicon — tab.favIconUrl > Google fallback
@@ -268,10 +268,8 @@ function disambiguatingPaths(urls) {
 
 /* ---- Hidden chips HTML ----
    Returns the inner chip HTML for an "overflow" set — the chips that
-   live behind a "+N more" expander. No wrapper div, no +N button.
-   Phase 3 <FlatSection> composes this with its own button; the
-   still-vanilla pathgroup-section overflow continues to use
-   buildOverflowChips() below for the wrapped form. */
+   live behind a "+N more" expander. No wrapper div, no +N button;
+   <FlatSection> and <PathgroupSection> compose those themselves. */
 export function buildHiddenChipsHtml(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
   return hiddenTabs.map(tab => {
     const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
@@ -309,19 +307,6 @@ export function buildHiddenChipsHtml(hiddenTabs, urlCounts = {}, groupDomain = '
       </div>
     </div>`;
   }).join('');
-}
-
-/* ---- Overflow chips ("+N more") ----
-   Wraps buildHiddenChipsHtml in the display:none container + the
-   "+N more" button that the still-vanilla pathgroup-section overflow
-   uses. Clicked via the app.js expand-chips delegation case. */
-function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
-  const hiddenChips = buildHiddenChipsHtml(hiddenTabs, urlCounts, groupDomain, showPrefix, pathByUrl, pgLabelByUrl);
-  return `
-    <div class="page-chips-overflow" style="display:none">${hiddenChips}</div>
-    <div class="page-chip page-chip-overflow clickable" data-action="expand-chips">
-      <span class="chip-text">+${hiddenTabs.length} more</span>
-    </div>`;
 }
 
 /* ---- Domain card view-model ----
@@ -544,30 +529,29 @@ export function computeDomainCardViewModel(group) {
       (a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })
     );
 
-    // Per-cluster HTML (still template-string; Phase 4 migrates
-    // pathgroup sections to a Preact component).
-    const clusterHtml = sortedClusters.map(([lbl, tabs]) => {
+    // Per-cluster data objects. <PathgroupSection> handles the
+    // header (pill + count + rule + close button), visible/hidden
+    // chip split, and local expand state. We just hand it the
+    // pre-rendered chip HTML strings (Phase 5 will migrate chips).
+    const clusters = sortedClusters.map(([lbl, tabs]) => {
       const vis = tabs.slice(0, CHIPS_PER_SECTION);
       const hid = tabs.slice(CHIPS_PER_SECTION);
       const clusterClosable = tabs.filter(t => !isGroupedTab(t));
-      const closeBtn = clusterClosable.length > 0
-        ? `<button class="pathgroup-close-btn" data-action="close-pathgroup-tabs" data-pathgroup-urls="${clusterClosable.map(t => encodeURIComponent(t.url)).join(',')}" title="Close ${clusterClosable.length} tab${clusterClosable.length !== 1 ? 's' : ''}">${ICONS.close}</button>`
-        : '';
-      const blockHeader = `<div class="pathgroup-header">
-        <span class="chip-pathgroup">${escapeChipText(lbl)}</span>
-        <span class="pathgroup-header-count">${tabs.length}</span>
-        <span class="pathgroup-header-rule"></span>
-        ${closeBtn}
-      </div>`;
-      const visChips = vis.map(t =>
+      const visibleChipsHtml = vis.map(t =>
         renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
       ).join('');
-      const blockOverflow = hid.length > 0
-        ? buildOverflowChips(hid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
+      const hiddenChipsHtml = hid.length > 0
+        ? buildHiddenChipsHtml(hid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
         : '';
-      const safeLabel = lbl.replace(/"/g, '&quot;');
-      return `<div class="pathgroup-section" data-pathgroup-label="${safeLabel}">${blockHeader}${visChips}${blockOverflow}</div>`;
-    }).join('');
+      return {
+        label: lbl,
+        count: tabs.length,
+        closableUrls: clusterClosable.map(t => t.url),
+        visibleChipsHtml,
+        hiddenChipsHtml,
+        hiddenCount: hid.length,
+      };
+    });
 
     // Flat singletons: split into visible + hidden as HTML strings.
     // The Preact <FlatSection> composes its own "+N more" button with
@@ -590,7 +574,7 @@ export function computeDomainCardViewModel(group) {
       flatVisibleChipsHtml,
       flatHiddenChipsHtml,
       flatHiddenCount: flatHid.length,
-      clusterHtml,
+      clusters,
     };
   });
 
@@ -746,40 +730,21 @@ export async function renderStaticDashboard() {
   const openTabsSection      = document.getElementById('openTabsSection');
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
 
-  // Snapshot the existing DOM so we can preserve vertical order
-  // within columns and per-subdomain expansion state across rebuilds.
-  //
-  // Phase 2 retired the prevColumns snapshot: now that <DomainCard>
-  // is a Preact component keyed by stableId, Preact's reconciliation
-  // preserves the .mission-card DOM node between renders. layout.js
-  // sets data-masonry-col directly on that node, and since Preact
-  // doesn't touch attributes it doesn't set as props, the column
-  // assignment survives re-renders without a manual snapshot.
+  // Snapshot the existing DOM only to preserve vertical order within
+  // columns across rebuilds. Phase 2 retired prevColumns (Preact's
+  // keyed reconciliation preserves the .mission-card DOM node so
+  // layout.js's data-masonry-col survives unchanged). Phase 3 retired
+  // the flat-section expand snapshot (<FlatSection> owns it via
+  // useState). Phase 4 retires the pathgroup-section expand snapshot
+  // (<PathgroupSection> does too). Every expansion is now preserved
+  // via keyed component state, not DOM scraping.
   const prevOrder = new Map();
-  // domainId -> Array<{ subdomainKey, pathgroupLabel? }>
-  //   entry with pathgroupLabel=undefined marks a flat/singleton-level
-  //   expansion (the subdomain section itself). With pathgroupLabel set,
-  //   it marks a cluster sub-section inside that subdomain.
-  const prevExpanded = new Map();
   if (openTabsMissionsEl) {
     let idx = 0;
     for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
       const id = c.dataset.domainId;
       if (!id) continue;
       prevOrder.set(id, idx++);
-      const expandedList = [];
-      // Pathgroup-section expand state is still DOM-driven (app.js
-      // delegation + render.js restore) — Phase 4 will migrate it.
-      // Flat-section expand state is handled by <FlatSection>'s
-      // useState, which survives re-renders via the keyed Preact
-      // component — no snapshot/restore needed here.
-      c.querySelectorAll('.pathgroup-section[data-expanded="true"]').forEach(s => {
-        const pg   = s.dataset.pathgroupLabel;
-        const sub  = s.closest('.subdomain-section');
-        const subK = sub && sub.dataset.subdomainKey;
-        if (pg && subK) expandedList.push({ subdomainKey: subK, pathgroupLabel: pg });
-      });
-      if (expandedList.length > 0) prevExpanded.set(id, expandedList);
     }
   }
 
@@ -798,44 +763,15 @@ export async function renderStaticDashboard() {
 
   const sectionHeaderWrap = document.getElementById('sectionHeaderWrap');
   if (domainGroups.length > 0 && openTabsSection) {
-    // Phase 2: Preact owns #openTabsMissions via <Missions>, which
-    // renders a <DomainCard> per group. Cards' outer chrome is fully
-    // Preact-managed (keyed by stableId so the DOM node persists); the
-    // inner .mission-pages content is still a dangerouslySetInnerHTML
-    // string until Phase 3+ migrates subdomain/pathgroup/chip layers.
-    // That inner wipe is why prevExpanded still needs to snapshot +
-    // restore data-expanded state on nested sub-sections — Preact
-    // doesn't know about expansion, and re-setting innerHTML loses
-    // any data-* attributes on the inner tree.
+    // Phase 4: Preact owns everything down to the pathgroup level.
+    // <Missions> → <DomainCard> → <SubdomainSection> →
+    // {<FlatSection>, <PathgroupSection>}. Expand state and close
+    // handlers are all component-local; no DOM snapshot/restore
+    // dance here anymore. Only the masonry column assignment
+    // survives via Preact's keyed reconciliation preserving the
+    // .mission-card node (data-masonry-col is set by layout.js and
+    // Preact doesn't touch non-prop attributes).
     preactRender(html/* html */`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl);
-    openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
-      const id = c.dataset.domainId;
-      // Re-apply the "expanded overflow" state per sub-section (either
-      // subdomain-level for flat singletons or pathgroup-level for a
-      // specific cluster) so closing a tab inside one expanded
-      // sub-group doesn't collapse the others. `:scope >` constrains
-      // the overflow lookup to the section's OWN overflow, so a
-      // subdomain-level restore doesn't accidentally expand a child
-      // cluster's overflow.
-      const expandedList = prevExpanded.get(id);
-      if (expandedList) {
-        expandedList.forEach(({ subdomainKey, pathgroupLabel }) => {
-          const sub = c.querySelector(
-            `.subdomain-section[data-subdomain-key="${CSS.escape(subdomainKey)}"]`
-          );
-          if (!sub) return;
-          const target = sub.querySelector(
-            `.pathgroup-section[data-pathgroup-label="${CSS.escape(pathgroupLabel)}"]`
-          );
-          if (!target) return;
-          const overflow = target.querySelector(':scope > .page-chips-overflow');
-          if (overflow) overflow.style.display = 'contents';
-          const moreBtn = target.querySelector(':scope > .page-chip-overflow');
-          if (moreBtn) moreBtn.remove();
-          target.dataset.expanded = 'true';
-        });
-      }
-    });
     openTabsSection.style.display = 'block';
     if (sectionHeaderWrap) sectionHeaderWrap.style.display = '';
     packMissionsMasonry();

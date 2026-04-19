@@ -190,7 +190,7 @@ export function DomainCard({ group }) {
               flatVisibleChipsHtml=${s.flatVisibleChipsHtml}
               flatHiddenChipsHtml=${s.flatHiddenChipsHtml}
               flatHiddenCount=${s.flatHiddenCount}
-              clusterHtml=${s.clusterHtml} />
+              clusters=${s.clusters} />
           `)}
         </div>
       </div>
