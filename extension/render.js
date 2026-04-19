@@ -546,9 +546,17 @@ function renderDomainCard(group) {
     const clusterHtml = sortedClusters.map(([lbl, tabs]) => {
       const vis = tabs.slice(0, CHIPS_PER_SECTION);
       const hid = tabs.slice(CHIPS_PER_SECTION);
+      // Cluster-level close: mirrors the card-close policy. Grouped
+      // tabs are preserved (preserveGroups: true); button is hidden
+      // when every cluster member is in a Chrome tab group.
+      const clusterClosable = tabs.filter(t => !isGroupedTab(t));
+      const closeBtn = clusterClosable.length > 0
+        ? `<button class="pathgroup-close-btn" data-action="close-pathgroup-tabs" data-pathgroup-urls="${clusterClosable.map(t => encodeURIComponent(t.url)).join(',')}" title="Close ${clusterClosable.length} tab${clusterClosable.length !== 1 ? 's' : ''}">${ICONS.close}</button>`
+        : '';
       const blockHeader = `<div class="pathgroup-header">
         <span class="chip-pathgroup">${escapeChipText(lbl)}</span>
         <span class="pathgroup-header-count">${tabs.length}</span>
+        ${closeBtn}
       </div>`;
       const visChips = vis.map(t =>
         renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
