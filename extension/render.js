@@ -251,6 +251,16 @@ function renderDomainCard(group) {
     if (!seen.has(tab.url)) { seen.add(tab.url); uniqueTabs.push(tab); }
   }
 
+  // Sort by title. stripTitleNoise first so leading "(1,234)" counts
+  // don't bucket every active inbox under '(' — the sort key should
+  // match what the user actually reads on the chip. `numeric: true`
+  // gives natural number ordering (Dashboard 2 before Dashboard 11).
+  uniqueTabs.sort((a, b) => {
+    const aTitle = stripTitleNoise(a.title || '').toLowerCase();
+    const bTitle = stripTitleNoise(b.title || '').toLowerCase();
+    return aTitle.localeCompare(bTitle, undefined, { numeric: true });
+  });
+
   // Group tabs by subdomain/port within the card. Root tabs (no
   // subdomain or lone "www") sit under an empty-string key.
   const bySubdomain = new Map();
