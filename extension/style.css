@@ -701,16 +701,21 @@ header {
 }
 
 /* PR sub-cluster pill — appears alongside the repo label in a
-   PR-separated sub-cluster header ("[owner/repo] [PRs]"). Slightly
-   darker tint + bolder weight marks it as a category label (vs. the
-   repo pill, which is just a name). Stays on-palette with the
-   neutral aesthetic; swap `color` to `var(--accent-sage)` for a
-   conventional PR-green accent if desired. */
+   PR-separated sub-cluster header ("[owner/repo] [PRs]"). Reads as
+   a category marker on the repo pill rather than a separate label:
+   - negative margin offsets the flex gap so the two pills sit
+     close (4px visual gap, feels paired)
+   - slightly tighter horizontal padding slims the category marker
+   - bolder weight + darker bg distinguish it from the repo pill
+     without introducing a new color
+   Swap `color` to `var(--accent-sage)` for a conventional PR-green
+   accent if desired. */
 .chip-pathgroup-pr {
   color: var(--ink);
   font-weight: 600;
   background: rgba(115, 115, 115, 0.18);
-  margin-left: 6px;
+  margin-left: -2px;
+  padding: 0 5px;
 }
 
 /* Path-group sub-section — nested inside a subdomain section when
