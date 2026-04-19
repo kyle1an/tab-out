@@ -1,0 +1,105 @@
+/* ============================================================
+   Tab Out — Base layer
+
+   Variables, reset, body, paper texture, and the pinned-top /
+   scroll-region skeleton. Loaded BEFORE style.css so every other
+   stylesheet can rely on `:root` custom properties and the layout
+   containers defined here.
+
+   Everything in this file is foundational — changing a rule here
+   cascades to every card/chip/section. Feature-specific CSS lives
+   in style.css (being split incrementally into focused files).
+   ============================================================ */
+
+:root {
+  /* Tailwind `neutral` family — truly gray, zero undertone.
+     Variable names are kept for diff size even though the values shifted
+     from warm earth tones to pure neutrals. */
+  --ink: #0a0a0a;           /* neutral-950 */
+  --paper: #fafafa;         /* neutral-50  */
+  --warm-gray: #e5e5e5;     /* neutral-200 — border */
+  --muted: #737373;         /* neutral-500 — secondary text */
+  --accent-amber: #525252;  /* neutral-600 — primary accent */
+  --accent-sage: #16a34a;   /* green-600 — success (unused) */
+  --accent-slate: #737373;  /* neutral-500 */
+  --accent-rose: #ef4444;   /* red-500 (unused) */
+  --status-active: #22c55e; /* green-500 (unused) */
+  --status-cooling: #eab308;/* yellow-500 (unused) */
+  --status-abandoned: #ef4444; /* red-500 — danger */
+  --card-bg: #ffffff;
+  --shadow: rgba(10, 10, 10, 0.06);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  /* Lock page scroll to .container below. The window itself never
+     scrolls, so sticky headers inside the container stay rock-solid
+     when the user overscrolls — only the card-list area rubber-bands. */
+  height: 100vh;
+  overflow: hidden;
+}
+
+body {
+  font-family: sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle paper texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Body is a flex column: pinned-top + scroll-region fill exactly 100vh.
+   Since `body { overflow: hidden }`, the window never scrolls — only
+   .scroll-region does, and only the card list within it rubber-bands. */
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+.pinned-top {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 10;
+  /* No background at rest — pinned-top blends seamlessly with the
+     page. A contextual shadow (below) is the only separation cue,
+     triggered when the scroll region has scrolled away from the top. */
+  transition: box-shadow 0.2s ease;
+}
+
+.pinned-top.is-scrolled {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.scroll-region {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  position: relative;
+  z-index: 1;
+}
+
+/* Shared inner wrapper: max-width + horizontal padding match in both
+   regions so the scroll content visually aligns with the pinned bars. */
+.page-inner {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+.pinned-top .page-inner {
+  padding-top: 24px;
+  padding-bottom: 12px;
+}
+
+.scroll-region .page-inner {
+  padding-top: 6px;
+  padding-bottom: 80px;
+}

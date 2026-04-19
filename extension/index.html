@@ -15,6 +15,10 @@
   <!-- Typography: everything uses the user's Chrome "Sans-serif" setting
        (chrome://settings/fonts). No web fonts are loaded. -->
 
+  <!-- base.css must load first: defines CSS variables and layout skeleton
+       that every rule in style.css relies on. Parallel-downloaded thanks
+       to two separate <link>s (no @import serial round-trip). -->
+  <link rel="stylesheet" href="base.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
