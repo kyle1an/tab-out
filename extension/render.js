@@ -151,15 +151,19 @@ export function updateSectionCount() {
   sectionCount.innerHTML = dedupBtn + domainText;
 }
 
-/* ---- Overflow chips ("+N more") ---- */
-function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '') {
+/* ---- Overflow chips ("+N more") ----
+   showPrefix: when a subdomain section has its own header, the chip
+   prefix is redundant — suppress it in overflow chips too. */
+function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true) {
   const hiddenChips = hiddenTabs.map(tab => {
     const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
     let subPrefix = '';
-    try {
-      const parsed = new URL(tab.url);
-      if (groupDomain) subPrefix = subdomainPrefix(parsed.hostname, groupDomain);
-    } catch {}
+    if (showPrefix) {
+      try {
+        const parsed = new URL(tab.url);
+        if (groupDomain) subPrefix = subdomainPrefix(parsed.hostname, groupDomain);
+      } catch {}
+    }
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
@@ -247,28 +251,44 @@ function renderDomainCard(group) {
     if (!seen.has(tab.url)) { seen.add(tab.url); uniqueTabs.push(tab); }
   }
 
-  const visibleTabs = uniqueTabs.slice(0, 8);
-  const extraCount  = uniqueTabs.length - visibleTabs.length;
+  // Group tabs by subdomain/port within the card. Root tabs (no
+  // subdomain or lone "www") sit under an empty-string key.
+  const bySubdomain = new Map();
+  for (const tab of uniqueTabs) {
+    let key = '';
+    try {
+      const parsed = new URL(tab.url);
+      if (parsed.hostname === 'localhost' && parsed.port) {
+        key = parsed.port;
+      } else {
+        key = subdomainPrefix(parsed.hostname, group.domain);
+      }
+    } catch {}
+    if (!bySubdomain.has(key)) bySubdomain.set(key, []);
+    bySubdomain.get(key).push(tab);
+  }
 
-  const pageChips = visibleTabs.map(tab => {
-    // Parse once — hostname feeds both title cleaning (so "Dashboard
-    // - dev1.example.com" still strips properly even though the
-    // card is rolled up to example.com) and the subdomain prefix.
+  // Largest subdomain first — matches the card-sort policy (most-active
+  // on top). Stable within equal counts thanks to Map iteration order.
+  const sections = [...bySubdomain.entries()].sort((a, b) => b[1].length - a[1].length);
+  const multipleSections = sections.length > 1;
+
+  // Local chip renderer — closes over group + urlCounts. Extracted so
+  // per-section iteration below stays readable.
+  function renderChip(tab, showPrefix) {
     let parsed = null;
     try { parsed = new URL(tab.url); } catch {}
     const hostname = parsed ? parsed.hostname : group.domain;
     const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), hostname);
     let subPrefix = '';
     let portPrefix = '';
-    if (parsed) {
+    if (parsed && showPrefix) {
       if (parsed.hostname === 'localhost' && parsed.port) portPrefix = parsed.port;
       else subPrefix = subdomainPrefix(parsed.hostname, group.domain);
     }
     const count    = urlCounts[tab.url];
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    // Tooltip is plain text; display markup is assembled separately so
-    // the muted subdomain span doesn't leak into the title attribute.
     const tooltip   = subPrefix ? `${subPrefix} · ${label}`
                     : portPrefix ? `${portPrefix} · ${label}`
                     : label;
@@ -291,7 +311,37 @@ function renderDomainCard(group) {
         </button>
       </div>
     </div>`;
-  }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(8), urlCounts, group.domain) : '');
+  }
+
+  // Per-section visible limit. With multiple subdomain sections in one
+  // card, a global 8 would flood the card; 5 per section keeps each
+  // sub-group scannable while the card stays compact.
+  const CHIPS_PER_SECTION = 5;
+
+  const pageChips = sections.map(([key, sectionTabs]) => {
+    const visible = sectionTabs.slice(0, CHIPS_PER_SECTION);
+    const hidden  = sectionTabs.slice(CHIPS_PER_SECTION);
+    // Header appears only when a card has 2+ subdomain sections AND
+    // the section isn't the empty-key "root" (card title already says
+    // the root). When shown, the header replaces the per-chip prefix —
+    // repeating "dev2ca" on every chip under a "dev2ca" header is noise.
+    const showHeader = multipleSections && key !== '';
+    const showChipPrefix = !showHeader;
+    const header = showHeader
+      ? `<div class="subdomain-header">
+          <span class="subdomain-header-name">${key}</span>
+          <span class="subdomain-header-count">${sectionTabs.length}</span>
+        </div>`
+      : '';
+    const chips = visible.map(tab => renderChip(tab, showChipPrefix)).join('');
+    const overflow = hidden.length > 0
+      ? buildOverflowChips(hidden, urlCounts, group.domain, showChipPrefix)
+      : '';
+    // data-subdomain-key pairs with render.js's expanded-state restore
+    // so a specific section stays open across live-sync rebuilds.
+    const sectionKey = key || '__root__';
+    return `<div class="subdomain-section" data-subdomain-key="${sectionKey}">${header}${chips}${overflow}</div>`;
+  }).join('');
 
   // Close-domain button moves to the top-right corner of the card as an
   // icon-only button that expands to show its label on hover (iOS/macOS
@@ -458,13 +508,13 @@ export async function renderStaticDashboard() {
   const openTabsSection      = document.getElementById('openTabsSection');
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
 
-  // Snapshot the existing DOM so we can preserve two things across the
-  // rebuild: masonry column pinning, and vertical order within columns.
-  // Without the order snapshot, cards swap places whenever tab counts
-  // change and the default tab-count-desc sort reorders them.
+  // Snapshot the existing DOM so we can preserve masonry column
+  // pinning, vertical order within columns, and per-subdomain
+  // expansion state across rebuilds. Without the order snapshot,
+  // cards swap places whenever tab counts change.
   const prevColumns = new Map();
   const prevOrder = new Map();
-  const prevExpanded = new Set();
+  const prevExpanded = new Map();  // domainId -> Set<subdomainKey>
   if (openTabsMissionsEl) {
     let idx = 0;
     for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
@@ -474,7 +524,12 @@ export async function renderStaticDashboard() {
       if (c.dataset.masonryCol !== undefined) {
         prevColumns.set(id, c.dataset.masonryCol);
       }
-      if (c.dataset.chipsExpanded === 'true') prevExpanded.add(id);
+      const expandedKeys = new Set();
+      c.querySelectorAll('.subdomain-section[data-expanded="true"]').forEach(s => {
+        const k = s.dataset.subdomainKey;
+        if (k) expandedKeys.add(k);
+      });
+      if (expandedKeys.size > 0) prevExpanded.set(id, expandedKeys);
     }
   }
 
@@ -498,14 +553,19 @@ export async function renderStaticDashboard() {
       const id = c.dataset.domainId;
       const savedCol = prevColumns.get(id);
       if (savedCol !== undefined) c.dataset.masonryCol = savedCol;
-      // Re-apply the "expanded overflow" state so closing a tab inside
-      // an expanded card doesn't collapse its "+N more" back.
-      if (prevExpanded.has(id)) {
-        const overflow = c.querySelector('.page-chips-overflow');
-        if (overflow) overflow.style.display = 'contents';
-        const moreBtn = c.querySelector('.page-chip-overflow');
-        if (moreBtn) moreBtn.remove();
-        c.dataset.chipsExpanded = 'true';
+      // Re-apply the "expanded overflow" state per subdomain section so
+      // closing a tab inside one expanded sub-group doesn't collapse it.
+      const expandedKeys = prevExpanded.get(id);
+      if (expandedKeys) {
+        expandedKeys.forEach(key => {
+          const section = c.querySelector(`.subdomain-section[data-subdomain-key="${key}"]`);
+          if (!section) return;
+          const overflow = section.querySelector('.page-chips-overflow');
+          if (overflow) overflow.style.display = 'contents';
+          const moreBtn = section.querySelector('.page-chip-overflow');
+          if (moreBtn) moreBtn.remove();
+          section.dataset.expanded = 'true';
+        });
       }
     });
     openTabsSection.style.display = 'block';
