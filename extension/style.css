@@ -606,6 +606,16 @@ header {
   opacity: 0.5;
 }
 
+/* Strip indicator — placeholder shown when the chip title has had a
+   leading path-group label stripped off (because the cluster header
+   or another pill already carries that string). Signals "there was
+   more here" without duplicating the text. */
+.chip-strip-indicator {
+  color: var(--muted);
+  opacity: 0.5;
+  margin-right: 4px;
+}
+
 /* Path-group pill — shown on overflow chips (inside "+N more") so
    cluster membership is still visible when chips are expanded flat.
    Visible chips inside a .pathgroup-section suppress the pill
