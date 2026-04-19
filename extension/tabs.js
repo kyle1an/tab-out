@@ -146,6 +146,12 @@ export async function closeTabsExact(urls, opts = {}) {
 /**
  * focusTab(url) — switch Chrome to the tab matching `url` (exact first,
  * hostname fallback) and focus its window.
+ *
+ * Cross-window bonus: when the match lives in a different window than
+ * the dashboard, plant a Tab Out tab next to it (same window, one
+ * index before the match) so the user has a short path back to the
+ * dashboard from the newly-visited tab. No duplicate is created if
+ * that window already has a Tab Out tab open.
  */
 export async function focusTab(url) {
   if (!url) return
@@ -172,6 +178,24 @@ export async function focusTab(url) {
   if (matches.length === 0) return
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
+
+  if (match.windowId !== currentWindow.id) {
+    const extensionId = chrome.runtime.id
+    const newtabUrl = `chrome-extension://${extensionId}/index.html`
+    const hasTabOut = allTabs.some((t) => t.windowId === match.windowId && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
+    if (!hasTabOut) {
+      // index=match.index inserts BEFORE the match, shifting match to
+      // match.index+1. `active: false` keeps the clicked tab as the
+      // focus target; the Tab Out tab sits silently to its left.
+      await chrome.tabs.create({
+        windowId: match.windowId,
+        url: newtabUrl,
+        index: match.index,
+        active: false
+      })
+    }
+  }
+
   await chrome.tabs.update(match.id, { active: true })
   await chrome.windows.update(match.windowId, { focused: true })
 }
