@@ -33,6 +33,7 @@ import {
   updateTabCountDisplays,
   ICONS,
 } from '../render.js';
+import { SubdomainSection } from './SubdomainSection.js';
 
 const html = htm.bind(h);
 
@@ -178,8 +179,20 @@ export function DomainCard({ group }) {
                             onClick=${onDedup} />
           `}
         </div>
-        <div class="mission-pages"
-             dangerouslySetInnerHTML=${{ __html: vm.pageChipsHtml }}></div>
+        <div class="mission-pages">
+          ${vm.sections.map(s => html/* html */`
+            <${SubdomainSection}
+              key=${s.key || '__root__'}
+              subdomainKey=${s.key}
+              sectionCount=${s.sectionCount}
+              showHeader=${s.showHeader}
+              hasFlat=${s.hasFlat}
+              flatVisibleChipsHtml=${s.flatVisibleChipsHtml}
+              flatHiddenChipsHtml=${s.flatHiddenChipsHtml}
+              flatHiddenCount=${s.flatHiddenCount}
+              clusterHtml=${s.clusterHtml} />
+          `)}
+        </div>
       </div>
       <div class="mission-meta">
         <div class="mission-page-count">${vm.tabCount}</div>
