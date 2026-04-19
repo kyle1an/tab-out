@@ -158,6 +158,7 @@ export function DomainCard({ group }) {
                 key=${s.key || '__root__'}
                 subdomainKey=${s.key}
                 sectionCount=${s.sectionCount}
+                sectionClosableUrls=${s.sectionClosableUrls}
                 showHeader=${s.showHeader}
                 hasFlat=${s.hasFlat}
                 flatVisibleChips=${s.flatVisibleChips}

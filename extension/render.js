@@ -625,9 +625,17 @@ export function computeDomainCardViewModel(group) {
     const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
     const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
 
+    // Closable URLs for the subdomain-level close button in the
+    // SubdomainSection header (shown only on multi-subdomain cards,
+    // where the header itself is visible). Filters out tabs already
+    // in a Chrome tab group — matches the preserveGroups semantics
+    // used elsewhere. Union of every chip's URL in this section.
+    const sectionClosableUrls = sectionTabs.filter((t) => !isGroupedTab(t)).map((t) => t.url)
+
     return {
       key,
       sectionCount: sectionTabs.length,
+      sectionClosableUrls,
       showHeader,
       hasFlat: singletonTabs.length > 0,
       flatVisibleChips,
