@@ -1,11 +1,24 @@
 /* ================================================================
-   Render — DOM building for the dashboard
+   Render — data pipeline + Preact mount point for the dashboard.
 
-   • renderStaticDashboard — top-level render, owns `domainGroups`
-   • computeDomainCardViewModel — per-card view-model (data consumed by <DomainCard>)
-   • updateTabCountDisplays — header line + windows sub-line
-   • updateSectionCount — "X domains · Close N duplicates" header
-   • pickFavicon — tab.favIconUrl > Google fallback
+   After the Preact + HTM migration (Phases 1-5), this module no
+   longer emits HTML strings. It handles the data side — tab
+   fetching, domain/subdomain/cluster grouping, sort rules — and
+   hands the derived view-model off to <Missions> / <DomainCard>
+   / <SubdomainSection> / <PathgroupSection> / <FlatSection> /
+   <PageChip> for declarative rendering.
+
+   Exports used by components:
+   • renderStaticDashboard — top-level entry, rebuilds domainGroups
+                             and mounts the Preact tree
+   • computeDomainCardViewModel — per-card view-model (consumed by
+                                  <DomainCard>)
+   • domainGroups — live array of current grouping
+   • updateTabCountDisplays — header "N open tabs" / "Across M windows"
+   • updateSectionCount — section header "X domains · Close N dupes"
+   • updateFilteredActions — hides/shows the close-filtered button
+   • pickFavicon — tab.favIconUrl (preserves data: URIs) /
+                   chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
 import { openTabs, fetchOpenTabs, getRealTabs } from './tabs.js';
