@@ -15,6 +15,11 @@ import { cleanTitle, smartTitle, stripTitleNoise } from './titles.js';
 import { packMissionsMasonry } from './layout.js';
 import { registrableDomain, subdomainPrefix } from './domains.js';
 import { resolvePathGroup } from './path-groups.js';
+import { render as preactRender, h } from './vendor/preact.mjs';
+import htm from './vendor/htm.mjs';
+import { Missions } from './components/Missions.js';
+
+const html = htm.bind(h);
 
 export let domainGroups = [];
 
@@ -314,8 +319,12 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
     </div>`;
 }
 
-/* ---- Domain card ---- */
-function renderDomainCard(group) {
+/* ---- Domain card ----
+   Exported so the Preact <DomainCardShell> in components/Missions.js
+   can inject the existing template-string output via
+   dangerouslySetInnerHTML during Phase 1 of the migration. Later
+   phases will inline the rendering logic into real components. */
+export function renderDomainCard(group) {
   const tabs      = group.tabs || [];
   const tabCount  = tabs.length;
   const isLanding = group.domain === '__landing-pages__';
@@ -822,7 +831,14 @@ export async function renderStaticDashboard() {
 
   const sectionHeaderWrap = document.getElementById('sectionHeaderWrap');
   if (domainGroups.length > 0 && openTabsSection) {
-    openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
+    // Phase 1: Preact owns #openTabsMissions via <Missions>. Inside,
+    // <DomainCardShell> still emits the existing template-string card
+    // HTML via dangerouslySetInnerHTML, so the snapshot/restore loop
+    // below continues to work — it queries the newly-rendered
+    // .mission-card elements, which exist regardless of the Preact
+    // wrapper (`display: contents` keeps the wrapper invisible to
+    // layout + descendant selectors).
+    preactRender(html/* html */`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl);
     openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
       const id = c.dataset.domainId;
       const savedCol = prevColumns.get(id);

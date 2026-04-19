@@ -103,3 +103,15 @@ body {
   padding-top: 6px;
   padding-bottom: 80px;
 }
+
+/* Preact wrapper used by <DomainCardShell> during Phase 1 of the
+   Preact + HTM migration. `display: contents` makes the wrapper
+   invisible to layout — its child (.mission-card emitted by the
+   template-string renderDomainCard) participates in #openTabsMissions
+   as if the wrapper weren't there. Descendant selectors, masonry
+   `.mission-card` queries, and absolute positioning all behave
+   exactly as before. Remove this rule in Phase 6 once renderDomainCard
+   no longer needs the dangerouslySetInnerHTML shim. */
+.preact-card-mount {
+  display: contents;
+}
