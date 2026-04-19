@@ -125,11 +125,16 @@ document.addEventListener('click', async (e) => {
   const card = actionEl.closest('.mission-card');
 
   // ---- Expand overflow chips ("+N more") ----
-  // Scoped to the subdomain section the button lives in, so each sub-
-  // group expands independently when a card has multiple subdomains.
+  // Scope to the nearest expandable container: a pathgroup-section
+  // (cluster) wins over its enclosing subdomain-section, so clicking
+  // a cluster's "+N more" expands just that cluster — hidden chips
+  // stay inside their header's context. Subdomain-section is the
+  // fallback for flat singletons that aren't inside any cluster.
+  // `:scope >` prevents a subdomain-level query from reaching into a
+  // child cluster's own overflow container.
   if (action === 'expand-chips') {
-    const section = actionEl.closest('.subdomain-section');
-    const overflowContainer = section && section.querySelector('.page-chips-overflow');
+    const section = actionEl.closest('.pathgroup-section, .subdomain-section');
+    const overflowContainer = section && section.querySelector(':scope > .page-chips-overflow');
     if (overflowContainer) {
       overflowContainer.style.display = 'contents';
       actionEl.remove();
