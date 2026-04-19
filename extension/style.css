@@ -627,6 +627,13 @@ header {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* Collision-only expansion: when a disambiguating path is rendered,
+   relax the clamp to 3 lines so the path has room even if the title
+   fills 2 lines on its own. Only affects the ~5% of chips that carry
+   a path — non-colliding chips stay at the compact 2-line height. */
+.page-chip:has(.chip-path) .chip-text {
+  -webkit-line-clamp: 3;
+}
 
 /* Duplicate badge */
 .chip-dupe-badge {
