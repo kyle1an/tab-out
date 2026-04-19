@@ -524,12 +524,10 @@ header {
   line-height: 1.4;
 }
 
-/* Reserve right-side space for the absolutely-positioned close button
-   so the title can't run underneath it. The "+N more" overflow chip has
-   no .chip-actions, so :has() leaves it at the default tight padding. */
-.page-chip:has(.chip-actions) {
-  padding-right: 32px;
-}
+/* Title runs full-width by default — the close button only appears on
+   chip hover (Chrome-tab style), so the extra right-side padding that
+   was reserved for the always-visible × is no longer needed. Text
+   fades into the button area on hover via a mask (below). */
 
 .page-chip:last-child,
 .page-chip-overflow {
@@ -595,9 +593,23 @@ header {
   padding: 4px;
   /* Match Chrome tab strip's circular close-button affordance */
   border-radius: 50%;
-  opacity: 0.35;
+  /* Hidden until the parent chip is hovered (Chrome-tab behavior). */
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s, color 0.15s, background 0.15s;
   flex-shrink: 0;
+}
+
+.page-chip:hover .chip-action {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Fade the title text into the button area on chip hover so it doesn't
+   read-through the × button. Mirrors Chrome's tab strip treatment. */
+.page-chip:hover .chip-text {
+  -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, black 0, black calc(100% - 28px), transparent 100%);
 }
 
 .chip-action svg {
