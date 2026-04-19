@@ -69,6 +69,11 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  /* Extra breathing room between the action cluster and the stats that
+     follow — reads as a visual section break (buttons vs. readouts)
+     without needing a separator glyph. Collapses with the cluster when
+     `display: none` is applied below (no trailing gap when idle). */
+  margin-right: 8px;
   /* Order slot: dupes-first, close-filtered-second. Keeps the dedup
      button at a stable position even when a filter is active and the
      close-filtered button appears to its right. */
