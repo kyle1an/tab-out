@@ -606,14 +606,14 @@ header {
   opacity: 0.5;
 }
 
-/* Strip indicator — placeholder shown when the chip title has had a
-   leading path-group label stripped off (because the cluster header
-   or another pill already carries that string). Signals "there was
-   more here" without duplicating the text. */
+/* Strip indicator — placeholder shown in place of a stripped
+   path-group label (cluster header already carries that string).
+   Rendered mid-text as a muted ellipsis; spacing comes from the
+   explicit whitespace segments emitted by stripPgLabel, not margin,
+   so the placeholder sits flush where the original label lived. */
 .chip-strip-indicator {
   color: var(--muted);
   opacity: 0.5;
-  margin-right: 4px;
 }
 
 /* Path-group pill — shown on overflow chips (inside "+N more") so
