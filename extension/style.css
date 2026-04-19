@@ -637,8 +637,15 @@ header {
 /* Path suffix — rendered only when two tabs in the same section
    would otherwise display the same title (e.g. "/admin" vs "/user"
    disambiguation). Muted + smaller so the title stays the primary
-   read; the path sits as a secondary label to the right. */
+   read; the path sits as a secondary label to the right.
+   inline-block + nowrap make the path an atomic unit for
+   line-wrapping: a long path either fits next to the title or
+   drops whole to the next line, instead of breaking mid-path and
+   producing different visual shapes for chips with same title
+   but different path lengths. */
 .chip-path {
+  display: inline-block;
+  white-space: nowrap;
   color: var(--muted);
   font-weight: 400;
   font-size: 12px;
