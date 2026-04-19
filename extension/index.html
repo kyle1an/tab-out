@@ -90,6 +90,10 @@
      Manifest V3's CSP forbids inline event handlers. -->
 <script src="config.local.js"></script>
 
+<!-- TEMPORARY — Preact + HTM sanity check. Remove once the first
+     real component migration lands (see preact-sanity.js comment). -->
+<script type="module" src="preact-sanity.js"></script>
+
 <!-- Main dashboard logic — loaded as an ES module so it can split across
      multiple files (suspender.js, groups.js, tabs.js, render.js, etc.).
      `type="module"` defers execution until DOMContentLoaded automatically. -->
