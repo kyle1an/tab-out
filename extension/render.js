@@ -374,7 +374,7 @@ export function computeDomainCardViewModel(group) {
   // favicon URL, tooltip, prefix/path/pg/dupe annotations. Phase 5
   // replaced the old renderChip HTML-string emitter with this
   // data-shape so components can render declaratively.
-  function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel) {
+  function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel, stripLabel) {
     let parsed = null
     try {
       parsed = new URL(tab.url)
@@ -389,8 +389,8 @@ export function computeDomainCardViewModel(group) {
     }
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
-    const displayLabel = stripPgPrefix(label, pgLabel)
-    const tooltip = [leadPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ')
+    const displayLabel = stripPgPrefix(label, stripLabel || pgLabel)
+    const tooltip = [leadPrefix, pgLabel || stripLabel, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     return {
       tabUrl: tab.url,
@@ -490,8 +490,8 @@ export function computeDomainCardViewModel(group) {
       const vis = tabs.slice(0, CHIPS_PER_SECTION)
       const hid = tabs.slice(CHIPS_PER_SECTION)
       const clusterClosable = tabs.filter((t) => !isGroupedTab(t))
-      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
-      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', lbl))
+      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', lbl))
       return {
         label: lbl,
         count: tabs.length,
