@@ -64,6 +64,34 @@ function escapeChipText(s) {
 }
 
 /**
+ * stripPgPrefix(label, pgLabel) — remove a leading pill-label prefix
+ * (plus a common separator) from the chip's title, so the pill and
+ * the title don't both carry the same string.
+ *
+ *   pill "Zennioptical/zenni-b2c-frontend"
+ *   title "Zennioptical/zenni-b2c-frontend PR #4706"
+ *   → displayed title: "PR #4706"
+ *
+ * The title is left alone when it doesn't begin with the pill text
+ * (e.g. Jira's "[CAB-1602] …" — pill is "CAB", title starts with
+ * "["). And when the title is exactly the pill text (e.g. a repo
+ * homepage), we keep the full title too — stripping would leave an
+ * empty chip, which reads as a bug more than a feature.
+ */
+function stripPgPrefix(label, pgLabel) {
+  if (!pgLabel || !label || label === pgLabel) return label;
+  const seps = [' — ', ' – ', ' - ', ' · ', ': ', ' '];
+  for (const sep of seps) {
+    const p = pgLabel + sep;
+    if (label.startsWith(p)) {
+      const rest = label.slice(p.length).trim();
+      return rest || label;
+    }
+  }
+  return label;
+}
+
+/**
  * updateTabCountDisplays() — header line + window-count sub-line.
  * Reads the filter input directly so every call site respects the
  * active filter without having to know about it.
@@ -253,6 +281,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
     }
     const pathSuffix = pathByUrl ? (pathByUrl.get(tab.url) || '') : '';
     const pgLabel    = pgLabelByUrl ? (pgLabelByUrl.get(tab.url) || '') : '';
+    const displayLabel = stripPgPrefix(label, pgLabel);
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
@@ -261,7 +290,7 @@ function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '', showPr
     let chipInner = '';
     if (subPrefix) chipInner += `<span class="chip-subdomain">${subPrefix}</span>`;
     if (pgLabel)   chipInner += `<span class="chip-pathgroup">${escapeChipText(pgLabel)}</span>`;
-    chipInner += label;
+    chipInner += displayLabel;
     if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
@@ -409,12 +438,13 @@ function renderDomainCard(group) {
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const leadPrefix = subPrefix || portPrefix;
     const pgLabel    = pathGroupLabel || '';
+    const displayLabel = stripPgPrefix(label, pgLabel);
     const tooltip = [leadPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ');
     const safeTitle = tooltip.replace(/"/g, '&quot;');
     let chipInner = '';
     if (leadPrefix) chipInner += `<span class="chip-subdomain">${leadPrefix}</span>`;
     if (pgLabel)    chipInner += `<span class="chip-pathgroup">${escapeChipText(pgLabel)}</span>`;
-    chipInner += label;
+    chipInner += displayLabel;
     if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
