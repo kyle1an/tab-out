@@ -70,6 +70,23 @@ export function pickFavicon(tab) {
 }
 
 /**
+ * injectBreakPoints(str) — insert U+200B (zero-width space) into
+ * long unbreakable tokens so the browser can wrap them without us
+ * setting `word-break: break-all`. ZWSP is a Unicode break
+ * opportunity that renders as nothing — no hyphen, no visible glyph,
+ * just an invisible break point.
+ *
+ * Threshold: tokens of 15+ letters/digits/underscore get a ZWSP
+ * inserted every 5 chars. Below that threshold, words pass through
+ * untouched so natural-length English wraps at word boundaries and
+ * short words never break mid-character.
+ */
+function injectBreakPoints(str) {
+  if (!str) return str
+  return str.replace(/[A-Za-z0-9_]{15,}/g, (token) => token.replace(/(.{5})(?=.)/g, '$1\u200B'))
+}
+
+/**
  * stripPgLabel(label, pgLabel) — build the chip title as a segment
  * array where EVERY occurrence of the pill label (as an exact
  * literal, nothing absorbed on either side) is replaced in place
@@ -423,7 +440,19 @@ export function computeDomainCardViewModel(group) {
     }
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
-    const { segments: displaySegments, stripped: titleStripped } = stripPgLabel(label, stripLabel || pgLabel)
+    const { segments: rawSegments, stripped: titleStripped } = stripPgLabel(label, stripLabel || pgLabel)
+    // Inject zero-width spaces into long unbreakable tokens so the
+    // browser can break them if layout needs to — without us setting
+    // global `word-break: break-all` (which would also break SHORT
+    // words awkwardly, e.g. "Highlight c / ode"). ZWSP is invisible
+    // and doesn't render as a hyphen, so line-2 breaks on these long
+    // tokens read as a clipped edge (the fade mask handles the
+    // visual). Threshold 15 chars + every 5-char split keeps natural
+    // English words (which are almost always <15 chars outside
+    // "internationalization"-class outliers) intact and only tags
+    // compound identifiers / usernames / hashes / slugs. Tooltip
+    // keeps the unmodified string so copy-paste stays clean.
+    const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     return {
