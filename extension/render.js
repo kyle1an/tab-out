@@ -2,7 +2,7 @@
    Render — DOM building for the dashboard
 
    • renderStaticDashboard — top-level render, owns `domainGroups`
-   • computeDomainCardViewModel / buildHiddenChipsHtml — per-card data + overflow chips HTML
+   • computeDomainCardViewModel — per-card view-model (data consumed by <DomainCard>)
    • updateTabCountDisplays — header line + windows sub-line
    • updateSectionCount — "X domains · Close N duplicates" header
    • pickFavicon — tab.favIconUrl > Google fallback
@@ -54,18 +54,6 @@ export function pickFavicon(tab) {
   faviconUrl.searchParams.set('pageUrl', tab.url);
   faviconUrl.searchParams.set('size', '32');
   return faviconUrl.toString();
-}
-
-/**
- * escapeChipText(s) — minimal HTML-escape for text interpolated into
- * chip innerHTML. Used for path-group labels, which come from URL
- * segments (via path-groups.js adapters) and can in principle contain
- * `<`, `>`, or `&`. Tab titles aren't escaped elsewhere because they
- * come from Chrome already-sanitized, but adapter output is derived
- * from raw URLs so belt-and-suspenders is cheap.
- */
-function escapeChipText(s) {
-  return String(s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
 }
 
 /**
@@ -266,49 +254,6 @@ function disambiguatingPaths(urls) {
   });
 }
 
-/* ---- Hidden chips HTML ----
-   Returns the inner chip HTML for an "overflow" set — the chips that
-   live behind a "+N more" expander. No wrapper div, no +N button;
-   <FlatSection> and <PathgroupSection> compose those themselves. */
-export function buildHiddenChipsHtml(hiddenTabs, urlCounts = {}, groupDomain = '', showPrefix = true, pathByUrl = null, pgLabelByUrl = null) {
-  return hiddenTabs.map(tab => {
-    const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
-    let subPrefix = '';
-    if (showPrefix) {
-      try {
-        const parsed = new URL(tab.url);
-        if (groupDomain) subPrefix = subdomainPrefix(parsed.hostname, groupDomain);
-      } catch {}
-    }
-    const pathSuffix = pathByUrl ? (pathByUrl.get(tab.url) || '') : '';
-    const pgLabel    = pgLabelByUrl ? (pgLabelByUrl.get(tab.url) || '') : '';
-    const displayLabel = stripPgPrefix(label, pgLabel);
-    const count    = urlCounts[tab.url] || 1;
-    const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
-    const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    const tooltip = [subPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ');
-    const safeTitle = tooltip.replace(/"/g, '&quot;');
-    let chipInner = '';
-    if (subPrefix) chipInner += `<span class="chip-subdomain">${subPrefix}</span>`;
-    if (pgLabel)   chipInner += `<span class="chip-pathgroup">${escapeChipText(pgLabel)}</span>`;
-    chipInner += displayLabel;
-    if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
-    const faviconUrl = pickFavicon(tab);
-    const groupStyle = isGroupedTab(tab)
-      ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
-      : '';
-    return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
-      <span class="chip-text">${chipInner}</span>${dupeTag}
-      <div class="chip-actions">
-        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
 /* ---- Domain card view-model ----
    Computes the per-card data consumed by the Preact <DomainCard>
    component in components/DomainCard.js. Returns derived values
@@ -409,14 +354,13 @@ export function computeDomainCardViewModel(group) {
   const singleSubdomainKey =
     sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : '';
 
-  // Local chip renderer — closes over group + urlCounts. Extracted so
-  // per-section iteration below stays readable. `pathSuffix` is the
-  // disambiguation crumb shown when two tabs in the same section
-  // would otherwise render identical titles. `pathGroupLabel` is the
-  // inline pill for path-level clusters (e.g. a GitHub repo, a Jira
-  // project) — already filtered by the ≥2-member threshold upstream,
-  // so any non-empty value is a confirmed cluster member.
-  function renderChip(tab, showPrefix, pathSuffix, pathGroupLabel) {
+  // Per-chip data builder. Closes over group + urlCounts so the
+  // section loop below can call it without repeating context.
+  // Returns the display-only fields <PageChip> needs — title,
+  // favicon URL, tooltip, prefix/path/pg/dupe annotations. Phase 5
+  // replaced the old renderChip HTML-string emitter with this
+  // data-shape so components can render declaratively.
+  function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel) {
     let parsed = null;
     try { parsed = new URL(tab.url); } catch {}
     const hostname = parsed ? parsed.hostname : group.domain;
@@ -427,32 +371,24 @@ export function computeDomainCardViewModel(group) {
       if (parsed.hostname === 'localhost' && parsed.port) portPrefix = parsed.port;
       else subPrefix = subdomainPrefix(parsed.hostname, group.domain);
     }
-    const count    = urlCounts[tab.url];
-    const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
-    const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
     const leadPrefix = subPrefix || portPrefix;
-    const pgLabel    = pathGroupLabel || '';
+    const pgLabel = pathGroupLabel || '';
     const displayLabel = stripPgPrefix(label, pgLabel);
     const tooltip = [leadPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ');
-    const safeTitle = tooltip.replace(/"/g, '&quot;');
-    let chipInner = '';
-    if (leadPrefix) chipInner += `<span class="chip-subdomain">${leadPrefix}</span>`;
-    if (pgLabel)    chipInner += `<span class="chip-pathgroup">${escapeChipText(pgLabel)}</span>`;
-    chipInner += displayLabel;
-    if (pathSuffix) chipInner += `<span class="chip-path">${pathSuffix}</span>`;
-    const faviconUrl = pickFavicon(tab);
-    const groupStyle = isGroupedTab(tab)
-      ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
-      : '';
-    return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
-      ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
-      <span class="chip-text">${chipInner}</span>${dupeTag}
-      <div class="chip-actions">
-        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-        </button>
-      </div>
-    </div>`;
+    const grouped = isGroupedTab(tab);
+    return {
+      tabUrl: tab.url,
+      rawUrl: tab.rawUrl || tab.url,
+      leadPrefix,
+      pathGroupLabel: pgLabel,
+      displayLabel,
+      pathSuffix: pathSuffix || '',
+      tooltip,
+      dupeCount: urlCounts[tab.url] || 1,
+      faviconUrl: pickFavicon(tab),
+      isGrouped: grouped,
+      groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
+    };
   }
 
   // Per-section visible limit. With multiple subdomain sections in one
@@ -474,7 +410,7 @@ export function computeDomainCardViewModel(group) {
     // Title-collision disambiguation: if two tabs in this section
     // render with the same visible title, append the smallest path
     // crumb that tells them apart. Noiseless for the common case
-    // (no collision → empty string → renderChip skips the crumb span).
+    // (no collision → empty string → <PageChip> skips the crumb span).
     const pathByUrl = new Map();
     const sameTitle = new Map();
     for (const t of sectionTabs) {
@@ -531,48 +467,45 @@ export function computeDomainCardViewModel(group) {
 
     // Per-cluster data objects. <PathgroupSection> handles the
     // header (pill + count + rule + close button), visible/hidden
-    // chip split, and local expand state. We just hand it the
-    // pre-rendered chip HTML strings (Phase 5 will migrate chips).
+    // chip split, and local expand state. <PageChip> consumes the
+    // chip-data objects directly (Phase 5).
     const clusters = sortedClusters.map(([lbl, tabs]) => {
       const vis = tabs.slice(0, CHIPS_PER_SECTION);
       const hid = tabs.slice(CHIPS_PER_SECTION);
       const clusterClosable = tabs.filter(t => !isGroupedTab(t));
-      const visibleChipsHtml = vis.map(t =>
-        renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
-      ).join('');
-      const hiddenChipsHtml = hid.length > 0
-        ? buildHiddenChipsHtml(hid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
-        : '';
+      const visibleChips = vis.map(t =>
+        buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
+      );
+      const hiddenChips = hid.map(t =>
+        buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
+      );
       return {
         label: lbl,
         count: tabs.length,
         closableUrls: clusterClosable.map(t => t.url),
-        visibleChipsHtml,
-        hiddenChipsHtml,
+        visibleChips,
+        hiddenChips,
         hiddenCount: hid.length,
       };
     });
 
-    // Flat singletons: split into visible + hidden as HTML strings.
-    // The Preact <FlatSection> composes its own "+N more" button with
-    // local useState so the expand action doesn't need the app.js
-    // delegation case or a render.js snapshot/restore anymore.
+    // Flat singletons: split into visible + hidden chip-data arrays.
     const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION);
     const flatHid = singletonTabs.slice(CHIPS_PER_SECTION);
-    const flatVisibleChipsHtml = flatVis.map(t =>
-      renderChip(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
-    ).join('');
-    const flatHiddenChipsHtml = flatHid.length > 0
-      ? buildHiddenChipsHtml(flatHid, urlCounts, group.domain, showChipPrefix, pathByUrl, null)
-      : '';
+    const flatVisibleChips = flatVis.map(t =>
+      buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
+    );
+    const flatHiddenChips = flatHid.map(t =>
+      buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
+    );
 
     return {
       key,
       sectionCount: sectionTabs.length,
       showHeader,
       hasFlat: singletonTabs.length > 0,
-      flatVisibleChipsHtml,
-      flatHiddenChipsHtml,
+      flatVisibleChips,
+      flatHiddenChips,
       flatHiddenCount: flatHid.length,
       clusters,
     };

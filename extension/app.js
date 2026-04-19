@@ -13,13 +13,9 @@
      render.js     filter.js
    ================================================================ */
 
-import { unwrapSuspenderUrl }                                      from './suspender.js';
-import { closeTabsExact, closeDuplicateTabs,
-         closeTabOutDupes, focusTab, fetchOpenTabs, snapshotChromeTabs } from './tabs.js';
-import { packMissionsMasonry }                                     from './layout.js';
-import { shootConfetti }                                           from './confetti.js';
-import { showToast, animateCardOut }                               from './ui.js';
-import { markClosure }                                             from './undo.js';
+import { closeTabsExact, closeDuplicateTabs, closeTabOutDupes } from './tabs.js';
+import { showToast }                                            from './ui.js';
+import { markClosure }                                          from './undo.js';
 import {
   renderStaticDashboard, updateTabCountDisplays,
   getFilteredCloseableUrls, domainGroups, ICONS,
@@ -122,64 +118,12 @@ document.addEventListener('click', async (e) => {
 
   const action = actionEl.dataset.action;
 
-  const card = actionEl.closest('.mission-card');
-
-  // ---- Focus a specific tab ----
-  if (action === 'focus-tab') {
-    const tabUrl = actionEl.dataset.tabUrl;
-    if (tabUrl) await focusTab(tabUrl);
-    return;
-  }
-
-  // ---- Close a single tab ----
-  if (action === 'close-single-tab') {
-    e.stopPropagation(); // don't trigger parent chip's focus-tab
-    const tabUrl = actionEl.dataset.tabUrl;
-    if (!tabUrl) return;
-
-    // Match on both raw and effective URL so the chip works even if the
-    // tab has been (un)suspended since the last render.
-    const allTabs = await chrome.tabs.query({});
-    const targetEffective = unwrapSuspenderUrl(tabUrl);
-    const match   = allTabs.find(t => t.url === tabUrl)
-                || allTabs.find(t => unwrapSuspenderUrl(t.url) === targetEffective);
-    const snapshot = match ? snapshotChromeTabs([match]) : [];
-    if (match) await chrome.tabs.remove(match.id);
-    await fetchOpenTabs();
-
-    // Animate chip out
-    const chip = actionEl.closest('.page-chip');
-    if (chip) {
-      const rect = chip.getBoundingClientRect();
-      shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2);
-      chip.style.transition = 'opacity 0.2s, transform 0.2s';
-      chip.style.opacity    = '0';
-      chip.style.transform  = 'scale(0.8)';
-      setTimeout(() => {
-        chip.remove();
-        const parentCard = document.querySelector('.mission-card:has(.mission-pages:empty)');
-        if (parentCard) animateCardOut(parentCard);
-        document.querySelectorAll('.mission-card').forEach(c => {
-          if (c.querySelectorAll('.page-chip[data-action="focus-tab"]').length === 0) {
-            animateCardOut(c);
-          }
-        });
-        packMissionsMasonry();
-      }, 200);
-    }
-
-    updateTabCountDisplays();
-
-    if (snapshot.length > 0) markClosure(snapshot, 'Tab closed');
-    else showToast('Tab closed');
-    return;
-  }
-
   // Component-local handlers (not in this switch):
   //   close-domain-tabs, dedup-keep-one → components/DomainCard.js
   //   expand-chips (for pathgroup-section) → components/PathgroupSection.js
   //   close-pathgroup-tabs → components/PathgroupSection.js
   //   expand-chips (for flat-section)     → components/FlatSection.js
+  //   focus-tab, close-single-tab         → components/PageChip.js
   // `data-action="close-domain-tabs"` and `data-action="dedup-keep-one"`
   // still appear on their buttons as selector anchors for
   // filter.js / ui.js / dedup-global-keep-one below.

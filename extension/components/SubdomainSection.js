@@ -24,8 +24,8 @@ export function SubdomainSection({
   sectionCount,
   showHeader,
   hasFlat,
-  flatVisibleChipsHtml,
-  flatHiddenChipsHtml,
+  flatVisibleChips,
+  flatHiddenChips,
   flatHiddenCount,
   clusters,
 }) {
@@ -41,8 +41,8 @@ export function SubdomainSection({
       `}
       ${hasFlat && html/* html */`
         <${FlatSection}
-          visibleChipsHtml=${flatVisibleChipsHtml}
-          hiddenChipsHtml=${flatHiddenChipsHtml}
+          visibleChips=${flatVisibleChips}
+          hiddenChips=${flatHiddenChips}
           hiddenCount=${flatHiddenCount} />
       `}
       ${clusters.map(c => html/* html */`
@@ -51,8 +51,8 @@ export function SubdomainSection({
           label=${c.label}
           count=${c.count}
           closableUrls=${c.closableUrls}
-          visibleChipsHtml=${c.visibleChipsHtml}
-          hiddenChipsHtml=${c.hiddenChipsHtml}
+          visibleChips=${c.visibleChips}
+          hiddenChips=${c.hiddenChips}
           hiddenCount=${c.hiddenCount} />
       `)}
     </div>
