@@ -153,44 +153,60 @@ export function updateSectionCount() {
 
 /**
  * disambiguatingPaths(urls) — given a list of URLs that share a
- * visible title, return just the *differing* path segments for each.
- * Strips BOTH the longest common leading prefix AND the longest
- * common trailing suffix, so only the middle segments that actually
- * tell the URLs apart are shown. Leading ellipsis ("…/") indicates
- * truncated prefix — trailing ellipsis is implied by the lack of
- * suffix and kept off to save horizontal space.
+ * visible title, return just the *differing* tokens for each. Path
+ * segments, query string, and hash are all treated as tokens in a
+ * single list, so differences in any of them can disambiguate. The
+ * longest common leading AND trailing tokens are stripped; only
+ * what differs is shown.
  *
  *   ["/api/v1/accounts/team/dashboard",
  *    "/api/v1/accounts/me/dashboard"]      → ["…/team", "…/me"]
  *   ["/admin/dashboard", "/user/dashboard"] → ["/admin", "/user"]
  *   ["/dashboard", "/admin/dashboard"]      → ["/", "/admin"]
+ *   ["/rewards?state=open",
+ *    "/rewards?state=closed"]               → ["…?state=open", "…?state=closed"]
+ *   ["/doc#intro", "/doc#conclusion"]       → ["…#intro", "…#conclusion"]
  */
 function disambiguatingPaths(urls) {
-  const paths = urls.map(u => {
-    try { return new URL(u).pathname.split('/').filter(Boolean); }
-    catch { return []; }
+  const tokens = urls.map(u => {
+    try {
+      const parsed = new URL(u);
+      const t = parsed.pathname.split('/').filter(Boolean);
+      if (parsed.search) t.push(parsed.search);   // "?foo=bar"
+      if (parsed.hash)   t.push(parsed.hash);     // "#section"
+      return t;
+    } catch { return []; }
   });
-  const minLen = Math.min(...paths.map(p => p.length));
+  const minLen = Math.min(...tokens.map(t => t.length));
 
   let commonLead = 0;
   for (let i = 0; i < minLen; i++) {
-    const seg = paths[0][i];
-    if (paths.every(p => p[i] === seg)) commonLead = i + 1;
+    const seg = tokens[0][i];
+    if (tokens.every(t => t[i] === seg)) commonLead = i + 1;
     else break;
   }
 
   let commonTrail = 0;
   const maxTrail = minLen - commonLead;
   for (let i = 1; i <= maxTrail; i++) {
-    const seg = paths[0][paths[0].length - i];
-    if (paths.every(p => p[p.length - i] === seg)) commonTrail = i;
+    const seg = tokens[0][tokens[0].length - i];
+    if (tokens.every(t => t[t.length - i] === seg)) commonTrail = i;
     else break;
   }
 
-  return paths.map(p => {
-    const show = p.slice(commonLead, p.length - commonTrail);
+  return tokens.map(t => {
+    const show = t.slice(commonLead, t.length - commonTrail);
     if (show.length === 0) return '/';
-    return (commonLead > 0 ? '…/' : '/') + show.join('/');
+    // Path segments join with '/'; query/hash attach without a slash
+    // (their leading sigil '?' or '#' is already a delimiter).
+    let joined = '';
+    for (const seg of show) {
+      if (seg.startsWith('?') || seg.startsWith('#')) joined += seg;
+      else joined += (joined ? '/' : '') + seg;
+    }
+    const firstIsPath = !show[0].startsWith('?') && !show[0].startsWith('#');
+    const lead = commonLead > 0 ? '…' : '';
+    return lead + (firstIsPath ? '/' : '') + joined;
   });
 }
 
