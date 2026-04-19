@@ -13,16 +13,12 @@
      render.js     filter.js
    ================================================================ */
 
-import { closeTabsExact, closeDuplicateTabs, closeTabOutDupes } from './tabs.js';
-import { showToast }                                            from './ui.js';
-import { markClosure }                                          from './undo.js';
-import {
-  renderStaticDashboard, updateTabCountDisplays,
-  getFilteredCloseableUrls, domainGroups, ICONS,
-} from './render.js';
-import { applyTabFilter } from './filter.js';
-import { groupColorChanged } from './groups.js';
-
+import { closeTabsExact, closeDuplicateTabs, closeTabOutDupes } from './tabs.js'
+import { showToast } from './ui.js'
+import { markClosure } from './undo.js'
+import { renderStaticDashboard, updateTabCountDisplays, getFilteredCloseableUrls, domainGroups, ICONS } from './render.js'
+import { applyTabFilter } from './filter.js'
+import { groupColorChanged } from './groups.js'
 
 /* ----------------------------------------------------------------
    LIVE SYNC — re-render on chrome.tabs / chrome.tabGroups events
@@ -35,60 +31,60 @@ import { groupColorChanged } from './groups.js';
    immediately so the user lands on a current view.
    ---------------------------------------------------------------- */
 
-let refreshTimer = null;
+let refreshTimer = null
 
 async function refreshDashboard() {
-  if (document.visibilityState !== 'visible') return;
-  await renderStaticDashboard();
+  if (document.visibilityState !== 'visible') return
+  await renderStaticDashboard()
   // Re-rendering wipes filter visibility on the freshly built chips —
   // reapply the active filter so what was hidden stays hidden.
-  const input = document.getElementById('tabFilter');
-  if (input && input.value) applyTabFilter(input.value);
+  const input = document.getElementById('tabFilter')
+  if (input && input.value) applyTabFilter(input.value)
 }
 
 function scheduleDashboardRefresh() {
-  clearTimeout(refreshTimer);
-  refreshTimer = setTimeout(refreshDashboard, 250);
+  clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(refreshDashboard, 250)
 }
 
 if (chrome.tabs) {
-  chrome.tabs.onCreated .addListener(scheduleDashboardRefresh);
-  chrome.tabs.onRemoved .addListener(scheduleDashboardRefresh);
-  chrome.tabs.onMoved   .addListener(scheduleDashboardRefresh);
-  chrome.tabs.onAttached.addListener(scheduleDashboardRefresh);
-  chrome.tabs.onDetached.addListener(scheduleDashboardRefresh);
+  chrome.tabs.onCreated.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onRemoved.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onMoved.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onAttached.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onDetached.addListener(scheduleDashboardRefresh)
   // onUpdated fires for many properties (audible, mutedInfo, status, etc.).
   // Only refresh for changes that actually affect what we render.
   chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
     if (
-      changeInfo.title       !== undefined ||
-      changeInfo.url         !== undefined ||
-      changeInfo.favIconUrl  !== undefined ||
-      changeInfo.groupId     !== undefined ||
-      changeInfo.pinned      !== undefined ||
-      changeInfo.discarded   !== undefined
-    ) scheduleDashboardRefresh();
-  });
+      changeInfo.title !== undefined ||
+      changeInfo.url !== undefined ||
+      changeInfo.favIconUrl !== undefined ||
+      changeInfo.groupId !== undefined ||
+      changeInfo.pinned !== undefined ||
+      changeInfo.discarded !== undefined
+    )
+      scheduleDashboardRefresh()
+  })
 }
 
 if (chrome.tabGroups) {
-  chrome.tabGroups.onCreated.addListener(scheduleDashboardRefresh);
+  chrome.tabGroups.onCreated.addListener(scheduleDashboardRefresh)
   // onUpdated fires for collapsed, color, and title — only color affects
   // what we render, so skip re-renders for the other two.
   chrome.tabGroups.onUpdated.addListener((group) => {
-    if (groupColorChanged(group)) scheduleDashboardRefresh();
-  });
-  chrome.tabGroups.onRemoved.addListener(scheduleDashboardRefresh);
-  chrome.tabGroups.onMoved  .addListener(scheduleDashboardRefresh);
+    if (groupColorChanged(group)) scheduleDashboardRefresh()
+  })
+  chrome.tabGroups.onRemoved.addListener(scheduleDashboardRefresh)
+  chrome.tabGroups.onMoved.addListener(scheduleDashboardRefresh)
 }
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    closeTabOutDupes();
-    refreshDashboard();
+    closeTabOutDupes()
+    refreshDashboard()
   }
-});
-
+})
 
 /* ----------------------------------------------------------------
    CAPTURE-PHASE IMAGE ERROR LISTENER
@@ -99,11 +95,14 @@ document.addEventListener('visibilitychange', () => {
    events don't bubble, but they do capture.
    ---------------------------------------------------------------- */
 
-document.addEventListener('error', (e) => {
-  const el = e.target;
-  if (el && el.tagName === 'IMG') el.style.display = 'none';
-}, true);
-
+document.addEventListener(
+  'error',
+  (e) => {
+    const el = e.target
+    if (el && el.tagName === 'IMG') el.style.display = 'none'
+  },
+  true
+)
 
 /* ----------------------------------------------------------------
    DOCUMENT-LEVEL CLICK DELEGATION
@@ -113,10 +112,10 @@ document.addEventListener('error', (e) => {
    ---------------------------------------------------------------- */
 
 document.addEventListener('click', async (e) => {
-  const actionEl = e.target.closest('[data-action]');
-  if (!actionEl) return;
+  const actionEl = e.target.closest('[data-action]')
+  if (!actionEl) return
 
-  const action = actionEl.dataset.action;
+  const action = actionEl.dataset.action
 
   // Component-local handlers (not in this switch):
   //   close-domain-tabs, dedup-keep-one → components/DomainCard.js
@@ -130,43 +129,46 @@ document.addEventListener('click', async (e) => {
 
   // ---- Close every tab matching the current filter ----
   if (action === 'close-filtered-tabs') {
-    const urls = getFilteredCloseableUrls();
-    if (urls.length === 0) { showToast('Nothing to close'); return; }
-    const snapshot = await closeTabsExact(urls, { preserveGroups: true });
-    if (snapshot.length > 0) {
-      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`);
-    } else {
-      showToast('Nothing to close');
+    const urls = getFilteredCloseableUrls()
+    if (urls.length === 0) {
+      showToast('Nothing to close')
+      return
     }
-    return;
+    const snapshot = await closeTabsExact(urls, { preserveGroups: true })
+    if (snapshot.length > 0) {
+      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
+    } else {
+      showToast('Nothing to close')
+    }
+    return
   }
 
   // ---- Close duplicates across EVERY card ----
   if (action === 'dedup-global-keep-one') {
-    const perCardBtns = document.querySelectorAll('#openTabsMissions [data-action="dedup-keep-one"]');
-    const allUrls = [];
-    perCardBtns.forEach(btn => {
-      (btn.dataset.dupeUrls || '')
-        .split(',').map(u => decodeURIComponent(u)).filter(Boolean)
-        .forEach(u => allUrls.push(u));
-    });
-    if (allUrls.length === 0) return;
+    const perCardBtns = document.querySelectorAll('#openTabsMissions [data-action="dedup-keep-one"]')
+    const allUrls = []
+    perCardBtns.forEach((btn) => {
+      ;(btn.dataset.dupeUrls || '')
+        .split(',')
+        .map((u) => decodeURIComponent(u))
+        .filter(Boolean)
+        .forEach((u) => allUrls.push(u))
+    })
+    if (allUrls.length === 0) return
 
     // Fade the global button and each per-card dedup button before the
     // live-sync refresh arrives and rebuilds them.
-    [actionEl, ...perCardBtns].forEach(b => {
-      b.style.transition = 'opacity 0.2s';
-      b.style.opacity    = '0';
-      setTimeout(() => b.remove(), 200);
-    });
+    ;[actionEl, ...perCardBtns].forEach((b) => {
+      b.style.transition = 'opacity 0.2s'
+      b.style.opacity = '0'
+      setTimeout(() => b.remove(), 200)
+    })
 
-    const snapshot = await closeDuplicateTabs(allUrls, true);
-    markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`);
-    return;
+    const snapshot = await closeDuplicateTabs(allUrls, true)
+    markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
+    return
   }
-
-});
-
+})
 
 /* ----------------------------------------------------------------
    INITIALIZE
@@ -175,19 +177,23 @@ document.addEventListener('click', async (e) => {
    foregrounded, so background Tab Out tabs don't close each other
    in a race. Each tab cleans up when the user actually focuses it.
    ---------------------------------------------------------------- */
-if (document.visibilityState === 'visible') closeTabOutDupes();
-renderStaticDashboard();
+if (document.visibilityState === 'visible') closeTabOutDupes()
+renderStaticDashboard()
 
 /* ----------------------------------------------------------------
    Contextual shadow under the pinned-top bar — only appears when
    the scroll region has scrolled away from the top.
    ---------------------------------------------------------------- */
 {
-  const scrollRegion = document.querySelector('.scroll-region');
-  const pinnedTop    = document.querySelector('.pinned-top');
+  const scrollRegion = document.querySelector('.scroll-region')
+  const pinnedTop = document.querySelector('.pinned-top')
   if (scrollRegion && pinnedTop) {
-    scrollRegion.addEventListener('scroll', () => {
-      pinnedTop.classList.toggle('is-scrolled', scrollRegion.scrollTop > 0);
-    }, { passive: true });
+    scrollRegion.addEventListener(
+      'scroll',
+      () => {
+        pinnedTop.classList.toggle('is-scrolled', scrollRegion.scrollTop > 0)
+      },
+      { passive: true }
+    )
   }
 }

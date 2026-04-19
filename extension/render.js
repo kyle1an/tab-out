@@ -21,28 +21,28 @@
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
-import { openTabs, fetchOpenTabs, getRealTabs } from './tabs.js';
-import { isGroupedTab, groupDotColor } from './groups.js';
-import { unwrapSuspenderUrl } from './suspender.js';
-import { cleanTitle, smartTitle, stripTitleNoise } from './titles.js';
-import { packMissionsMasonry } from './layout.js';
-import { registrableDomain, subdomainPrefix } from './domains.js';
-import { resolvePathGroup } from './path-groups.js';
-import { render as preactRender, h } from './vendor/preact.mjs';
-import htm from './vendor/htm.mjs';
-import { Missions } from './components/Missions.js';
+import { openTabs, fetchOpenTabs, getRealTabs } from './tabs.js'
+import { isGroupedTab, groupDotColor } from './groups.js'
+import { unwrapSuspenderUrl } from './suspender.js'
+import { cleanTitle, smartTitle, stripTitleNoise } from './titles.js'
+import { packMissionsMasonry } from './layout.js'
+import { registrableDomain, subdomainPrefix } from './domains.js'
+import { resolvePathGroup } from './path-groups.js'
+import { render as preactRender, h } from './vendor/preact.mjs'
+import htm from './vendor/htm.mjs'
+import { Missions } from './components/Missions.js'
 
-const html = htm.bind(h);
+const html = htm.bind(h)
 
-export let domainGroups = [];
+export let domainGroups = []
 
 /* ---- SVG icon strings ---- */
 export const ICONS = {
-  tabs:    `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>`,
-  close:   `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`,
+  tabs: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>`,
+  close: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`,
   archive: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>`,
-  focus:   `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>`,
-};
+  focus: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>`
+}
 
 /**
  * pickFavicon(tab) — two-path favicon resolver:
@@ -60,13 +60,13 @@ export const ICONS = {
  * fail to load. Requires the "favicon" permission in manifest.json.
  */
 export function pickFavicon(tab) {
-  const fav = tab.favIconUrl || '';
-  if (fav.startsWith('data:')) return fav;
-  if (!tab.url) return '';
-  const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'));
-  faviconUrl.searchParams.set('pageUrl', tab.url);
-  faviconUrl.searchParams.set('size', '32');
-  return faviconUrl.toString();
+  const fav = tab.favIconUrl || ''
+  if (fav.startsWith('data:')) return fav
+  if (!tab.url) return ''
+  const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'))
+  faviconUrl.searchParams.set('pageUrl', tab.url)
+  faviconUrl.searchParams.set('size', '32')
+  return faviconUrl.toString()
 }
 
 /**
@@ -85,16 +85,16 @@ export function pickFavicon(tab) {
  * empty chip, which reads as a bug more than a feature.
  */
 function stripPgPrefix(label, pgLabel) {
-  if (!pgLabel || !label || label === pgLabel) return label;
-  const seps = [' — ', ' – ', ' - ', ' · ', ': ', ' '];
+  if (!pgLabel || !label || label === pgLabel) return label
+  const seps = [' — ', ' – ', ' - ', ' · ', ': ', ' ']
   for (const sep of seps) {
-    const p = pgLabel + sep;
+    const p = pgLabel + sep
     if (label.startsWith(p)) {
-      const rest = label.slice(p.length).trim();
-      return rest || label;
+      const rest = label.slice(p.length).trim()
+      return rest || label
     }
   }
-  return label;
+  return label
 }
 
 /**
@@ -106,35 +106,31 @@ function stripPgPrefix(label, pgLabel) {
  *   Filtering:  "14 of 182 Open tabs" / "Across 2 of 3 windows"
  */
 export function updateTabCountDisplays() {
-  const headerEl = document.getElementById('greeting');
-  const subEl    = document.getElementById('dateDisplay');
-  if (!headerEl) return;
+  const headerEl = document.getElementById('greeting')
+  const subEl = document.getElementById('dateDisplay')
+  if (!headerEl) return
 
-  const realTabs = getRealTabs();
-  const total    = realTabs.length;
+  const realTabs = getRealTabs()
+  const total = realTabs.length
 
-  const filterInput = document.getElementById('tabFilter');
-  const q = (filterInput && filterInput.value || '').trim().toLowerCase();
+  const filterInput = document.getElementById('tabFilter')
+  const q = ((filterInput && filterInput.value) || '').trim().toLowerCase()
 
-  const visibleTabs = q.length === 0
-    ? realTabs
-    : realTabs.filter(t =>
-        (t.title || '').toLowerCase().includes(q) ||
-        (t.url   || '').toLowerCase().includes(q)
-      );
-  const totalWindows   = new Set(realTabs.map(t => t.windowId)).size;
-  const visibleWindows = new Set(visibleTabs.map(t => t.windowId)).size;
+  const visibleTabs = q.length === 0 ? realTabs : realTabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q))
+  const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
+  const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
 
   if (q.length === 0) {
-    headerEl.textContent = `${total} Open tab${total !== 1 ? 's' : ''}`;
+    headerEl.textContent = `${total} Open tab${total !== 1 ? 's' : ''}`
   } else {
-    headerEl.textContent = `${visibleTabs.length} of ${total} Open tab${total !== 1 ? 's' : ''}`;
+    headerEl.textContent = `${visibleTabs.length} of ${total} Open tab${total !== 1 ? 's' : ''}`
   }
 
   if (subEl) {
-    subEl.textContent = visibleWindows === totalWindows
-      ? `Across ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
-      : `Across ${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`;
+    subEl.textContent =
+      visibleWindows === totalWindows
+        ? `Across ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
+        : `Across ${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
   }
 }
 
@@ -145,14 +141,14 @@ export function updateTabCountDisplays() {
  * handler so both see the same list.
  */
 export function getFilteredCloseableUrls() {
-  const filterInput = document.getElementById('tabFilter');
-  const q = (filterInput && filterInput.value || '').trim().toLowerCase();
-  if (!q) return [];
+  const filterInput = document.getElementById('tabFilter')
+  const q = ((filterInput && filterInput.value) || '').trim().toLowerCase()
+  if (!q) return []
   return getRealTabs()
-    .filter(t => !isGroupedTab(t))
-    .filter(t => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
-    .filter(t => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q))
-    .map(t => t.url);
+    .filter((t) => !isGroupedTab(t))
+    .filter((t) => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
+    .filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q))
+    .map((t) => t.url)
 }
 
 /**
@@ -160,14 +156,14 @@ export function getFilteredCloseableUrls() {
  * unless the filter is active and at least one closable tab matches.
  */
 export function updateFilteredActions() {
-  const el = document.getElementById('openTabsSectionActions');
-  if (!el) return;
-  const urls = getFilteredCloseableUrls();
+  const el = document.getElementById('openTabsSectionActions')
+  if (!el) return
+  const urls = getFilteredCloseableUrls()
   if (urls.length === 0) {
-    el.innerHTML = '';
-    return;
+    el.innerHTML = ''
+    return
   }
-  el.innerHTML = `<button class="action-btn close-tabs" data-action="close-filtered-tabs" style="font-size:11px;padding:4px 12px;">${ICONS.close} Close ${urls.length} filtered tab${urls.length !== 1 ? 's' : ''}</button>`;
+  el.innerHTML = `<button class="action-btn close-tabs" data-action="close-filtered-tabs" style="font-size:11px;padding:4px 12px;">${ICONS.close} Close ${urls.length} filtered tab${urls.length !== 1 ? 's' : ''}</button>`
 }
 
 /**
@@ -176,36 +172,37 @@ export function updateFilteredActions() {
  * Close button reflects ungrouped, filter-matching tabs only.
  */
 export function updateSectionCount() {
-  const sectionCount = document.getElementById('openTabsSectionCount');
-  if (!sectionCount) return;
+  const sectionCount = document.getElementById('openTabsSectionCount')
+  if (!sectionCount) return
 
-  const allCards = document.querySelectorAll('#openTabsMissions .mission-card');
-  const totalDomains = allCards.length;
-  if (totalDomains === 0) { sectionCount.innerHTML = ''; return; }
+  const allCards = document.querySelectorAll('#openTabsMissions .mission-card')
+  const totalDomains = allCards.length
+  if (totalDomains === 0) {
+    sectionCount.innerHTML = ''
+    return
+  }
 
-  const visibleDomains = Array.from(allCards)
-    .filter(c => getComputedStyle(c).display !== 'none').length;
+  const visibleDomains = Array.from(allCards).filter((c) => getComputedStyle(c).display !== 'none').length
 
-  const domainText = visibleDomains === totalDomains
-    ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
-    : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`;
+  const domainText =
+    visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
 
   // Global dedup button — sum of closable extras across every per-card
   // dedup button currently rendered. Keeps the 4-case policy intact
   // (per-card buttons already encode only the closable URLs), so the
   // global total equals the sum of what each card would close.
-  let dedupBtn = '';
-  const perCardDedupBtns = document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]');
-  let globalExtras = 0;
-  perCardDedupBtns.forEach(btn => {
-    const m = btn.textContent.match(/\d+/);
-    if (m) globalExtras += parseInt(m[0], 10);
-  });
+  let dedupBtn = ''
+  const perCardDedupBtns = document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]')
+  let globalExtras = 0
+  perCardDedupBtns.forEach((btn) => {
+    const m = btn.textContent.match(/\d+/)
+    if (m) globalExtras += parseInt(m[0], 10)
+  })
   if (globalExtras > 0) {
-    dedupBtn = `<button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button><span class="section-count-sep">·</span>`;
+    dedupBtn = `<button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button><span class="section-count-sep">·</span>`
   }
 
-  sectionCount.innerHTML = dedupBtn + domainText;
+  sectionCount.innerHTML = dedupBtn + domainText
 }
 
 /**
@@ -225,46 +222,48 @@ export function updateSectionCount() {
  *   ["/doc#intro", "/doc#conclusion"]       → ["…#intro", "…#conclusion"]
  */
 function disambiguatingPaths(urls) {
-  const tokens = urls.map(u => {
+  const tokens = urls.map((u) => {
     try {
-      const parsed = new URL(u);
-      const t = parsed.pathname.split('/').filter(Boolean);
-      if (parsed.search) t.push(parsed.search);   // "?foo=bar"
-      if (parsed.hash)   t.push(parsed.hash);     // "#section"
-      return t;
-    } catch { return []; }
-  });
-  const minLen = Math.min(...tokens.map(t => t.length));
+      const parsed = new URL(u)
+      const t = parsed.pathname.split('/').filter(Boolean)
+      if (parsed.search) t.push(parsed.search) // "?foo=bar"
+      if (parsed.hash) t.push(parsed.hash) // "#section"
+      return t
+    } catch {
+      return []
+    }
+  })
+  const minLen = Math.min(...tokens.map((t) => t.length))
 
-  let commonLead = 0;
+  let commonLead = 0
   for (let i = 0; i < minLen; i++) {
-    const seg = tokens[0][i];
-    if (tokens.every(t => t[i] === seg)) commonLead = i + 1;
-    else break;
+    const seg = tokens[0][i]
+    if (tokens.every((t) => t[i] === seg)) commonLead = i + 1
+    else break
   }
 
-  let commonTrail = 0;
-  const maxTrail = minLen - commonLead;
+  let commonTrail = 0
+  const maxTrail = minLen - commonLead
   for (let i = 1; i <= maxTrail; i++) {
-    const seg = tokens[0][tokens[0].length - i];
-    if (tokens.every(t => t[t.length - i] === seg)) commonTrail = i;
-    else break;
+    const seg = tokens[0][tokens[0].length - i]
+    if (tokens.every((t) => t[t.length - i] === seg)) commonTrail = i
+    else break
   }
 
-  return tokens.map(t => {
-    const show = t.slice(commonLead, t.length - commonTrail);
-    if (show.length === 0) return '/';
+  return tokens.map((t) => {
+    const show = t.slice(commonLead, t.length - commonTrail)
+    if (show.length === 0) return '/'
     // Path segments join with '/'; query/hash attach without a slash
     // (their leading sigil '?' or '#' is already a delimiter).
-    let joined = '';
+    let joined = ''
     for (const seg of show) {
-      if (seg.startsWith('?') || seg.startsWith('#')) joined += seg;
-      else joined += (joined ? '/' : '') + seg;
+      if (seg.startsWith('?') || seg.startsWith('#')) joined += seg
+      else joined += (joined ? '/' : '') + seg
     }
-    const firstIsPath = !show[0].startsWith('?') && !show[0].startsWith('#');
-    const lead = commonLead > 0 ? '…' : '';
-    return lead + (firstIsPath ? '/' : '') + joined;
-  });
+    const firstIsPath = !show[0].startsWith('?') && !show[0].startsWith('#')
+    const lead = commonLead > 0 ? '…' : ''
+    return lead + (firstIsPath ? '/' : '') + joined
+  })
 }
 
 /* ---- Domain card view-model ----
@@ -274,30 +273,30 @@ function disambiguatingPaths(urls) {
    HTML that Phase 2 still injects via dangerouslySetInnerHTML.
    Phases 3–5 replace pageChipsHtml with real components. */
 export function computeDomainCardViewModel(group) {
-  const tabs      = group.tabs || [];
-  const tabCount  = tabs.length;
-  const isLanding = group.domain === '__landing-pages__';
-  const stableId  = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-');
+  const tabs = group.tabs || []
+  const tabCount = tabs.length
+  const isLanding = group.domain === '__landing-pages__'
+  const stableId = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
   // Card is rendered as "app-style" only when every tab in it is running
   // in a standalone window (PWA/Chrome app). Mixed = treat as regular card.
-  const isAppCard = tabs.length > 0 && tabs.every(t => t.isApp);
+  const isAppCard = tabs.length > 0 && tabs.every((t) => t.isApp)
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
-  const closableTabs  = tabs.filter(t => !isGroupedTab(t));
-  const closableCount = closableTabs.length;
+  const closableTabs = tabs.filter((t) => !isGroupedTab(t))
+  const closableCount = closableTabs.length
 
   // Count duplicates per URL, tracking grouped/ungrouped + which groups they're in.
-  const dupeInfo = {}; // { url: { total, ungrouped, groupIds: Set } }
-  const urlCounts = {};
+  const dupeInfo = {} // { url: { total, ungrouped, groupIds: Set } }
+  const urlCounts = {}
   for (const tab of tabs) {
-    urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1;
-    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() };
-    const info = dupeInfo[tab.url];
-    info.total++;
-    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId);
-    else info.ungrouped++;
+    urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1
+    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() }
+    const info = dupeInfo[tab.url]
+    info.total++
+    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId)
+    else info.ungrouped++
   }
-  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1);
+  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1)
 
   // Dedup policy (mirrors closeDuplicateTabs):
   //   • Mixed grouped + ungrouped → close every ungrouped (grouped is the keep).
@@ -305,22 +304,25 @@ export function computeDomainCardViewModel(group) {
   //   • All grouped, single group → keep one, close the rest within that group.
   //   • All grouped, multi groups → skip (would empty a slot in each group).
   function closableForUrl(u) {
-    const info = dupeInfo[u];
-    if (!info) return 0;
-    const grouped = info.total - info.ungrouped;
-    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped;
-    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1;
-    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1;
-    return 0;
+    const info = dupeInfo[u]
+    if (!info) return 0
+    const grouped = info.total - info.ungrouped
+    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped
+    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1
+    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1
+    return 0
   }
-  const closableDupeUrls = dupeUrls.map(([u]) => u).filter(u => closableForUrl(u) > 0);
-  const closableExtras   = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0);
+  const closableDupeUrls = dupeUrls.map(([u]) => u).filter((u) => closableForUrl(u) > 0)
+  const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
-  const seen = new Set();
-  const uniqueTabs = [];
+  const seen = new Set()
+  const uniqueTabs = []
   for (const tab of tabs) {
-    if (!seen.has(tab.url)) { seen.add(tab.url); uniqueTabs.push(tab); }
+    if (!seen.has(tab.url)) {
+      seen.add(tab.url)
+      uniqueTabs.push(tab)
+    }
   }
 
   // Sort by title. stripTitleNoise first so leading "(1,234)" counts
@@ -328,26 +330,26 @@ export function computeDomainCardViewModel(group) {
   // match what the user actually reads on the chip. `numeric: true`
   // gives natural number ordering (Dashboard 2 before Dashboard 11).
   uniqueTabs.sort((a, b) => {
-    const aTitle = stripTitleNoise(a.title || '').toLowerCase();
-    const bTitle = stripTitleNoise(b.title || '').toLowerCase();
-    return aTitle.localeCompare(bTitle, undefined, { numeric: true });
-  });
+    const aTitle = stripTitleNoise(a.title || '').toLowerCase()
+    const bTitle = stripTitleNoise(b.title || '').toLowerCase()
+    return aTitle.localeCompare(bTitle, undefined, { numeric: true })
+  })
 
   // Group tabs by subdomain/port within the card. Root tabs (no
   // subdomain or lone "www") sit under an empty-string key.
-  const bySubdomain = new Map();
+  const bySubdomain = new Map()
   for (const tab of uniqueTabs) {
-    let key = '';
+    let key = ''
     try {
-      const parsed = new URL(tab.url);
+      const parsed = new URL(tab.url)
       if (parsed.hostname === 'localhost' && parsed.port) {
-        key = parsed.port;
+        key = parsed.port
       } else {
-        key = subdomainPrefix(parsed.hostname, group.domain);
+        key = subdomainPrefix(parsed.hostname, group.domain)
       }
     } catch {}
-    if (!bySubdomain.has(key)) bySubdomain.set(key, []);
-    bySubdomain.get(key).push(tab);
+    if (!bySubdomain.has(key)) bySubdomain.set(key, [])
+    bySubdomain.get(key).push(tab)
   }
 
   // Sort policy: root tabs (empty key) first, then the rest
@@ -355,17 +357,16 @@ export function computeDomainCardViewModel(group) {
   // same subdomain always lands in the same spot across refreshes,
   // regardless of tab counts or Chrome tab-strip order.
   const sections = [...bySubdomain.entries()].sort((a, b) => {
-    if (a[0] === b[0]) return 0;
-    if (a[0] === '') return -1;
-    if (b[0] === '') return 1;
-    return a[0].localeCompare(b[0]);
-  });
-  const multipleSections = sections.length > 1;
+    if (a[0] === b[0]) return 0
+    if (a[0] === '') return -1
+    if (b[0] === '') return 1
+    return a[0].localeCompare(b[0])
+  })
+  const multipleSections = sections.length > 1
   // Single-subdomain card: hoist the subdomain up to a pill next to
   // the card title so chips don't repeat the prefix on every row.
   // Only for non-empty keys — all-root cards don't need a pill.
-  const singleSubdomainKey =
-    sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : '';
+  const singleSubdomainKey = sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : ''
 
   // Per-chip data builder. Closes over group + urlCounts so the
   // section loop below can call it without repeating context.
@@ -374,21 +375,23 @@ export function computeDomainCardViewModel(group) {
   // replaced the old renderChip HTML-string emitter with this
   // data-shape so components can render declaratively.
   function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel) {
-    let parsed = null;
-    try { parsed = new URL(tab.url); } catch {}
-    const hostname = parsed ? parsed.hostname : group.domain;
-    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), hostname);
-    let subPrefix = '';
-    let portPrefix = '';
+    let parsed = null
+    try {
+      parsed = new URL(tab.url)
+    } catch {}
+    const hostname = parsed ? parsed.hostname : group.domain
+    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), hostname)
+    let subPrefix = ''
+    let portPrefix = ''
     if (parsed && showPrefix) {
-      if (parsed.hostname === 'localhost' && parsed.port) portPrefix = parsed.port;
-      else subPrefix = subdomainPrefix(parsed.hostname, group.domain);
+      if (parsed.hostname === 'localhost' && parsed.port) portPrefix = parsed.port
+      else subPrefix = subdomainPrefix(parsed.hostname, group.domain)
     }
-    const leadPrefix = subPrefix || portPrefix;
-    const pgLabel = pathGroupLabel || '';
-    const displayLabel = stripPgPrefix(label, pgLabel);
-    const tooltip = [leadPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ');
-    const grouped = isGroupedTab(tab);
+    const leadPrefix = subPrefix || portPrefix
+    const pgLabel = pathGroupLabel || ''
+    const displayLabel = stripPgPrefix(label, pgLabel)
+    const tooltip = [leadPrefix, pgLabel, label, pathSuffix].filter(Boolean).join(' · ')
+    const grouped = isGroupedTab(tab)
     return {
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
@@ -400,41 +403,41 @@ export function computeDomainCardViewModel(group) {
       dupeCount: urlCounts[tab.url] || 1,
       faviconUrl: pickFavicon(tab),
       isGrouped: grouped,
-      groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
-    };
+      groupDotColor: grouped ? groupDotColor(tab.groupId) : null
+    }
   }
 
   // Per-section visible limit. With multiple subdomain sections in one
   // card, a global 8 would flood the card; 5 per section keeps each
   // sub-group scannable while the card stays compact.
-  const CHIPS_PER_SECTION = 5;
+  const CHIPS_PER_SECTION = 5
 
   const sectionsData = sections.map(([key, sectionTabs]) => {
     // Header appears only when a card has 2+ subdomain sections AND
     // the section isn't the empty-key "root" (card title already says
     // the root). When shown, the header replaces the per-chip prefix —
     // repeating "dev2ca" on every chip under a "dev2ca" header is noise.
-    const showHeader = multipleSections && key !== '';
+    const showHeader = multipleSections && key !== ''
     // Suppress chip prefix whenever the subdomain info is shown
     // elsewhere — either a section header (multi-subdomain card) or
     // the card-title pill (single-subdomain card).
-    const showChipPrefix = !showHeader && !singleSubdomainKey;
+    const showChipPrefix = !showHeader && !singleSubdomainKey
 
     // Title-collision disambiguation: if two tabs in this section
     // render with the same visible title, append the smallest path
     // crumb that tells them apart. Noiseless for the common case
     // (no collision → empty string → <PageChip> skips the crumb span).
-    const pathByUrl = new Map();
-    const sameTitle = new Map();
+    const pathByUrl = new Map()
+    const sameTitle = new Map()
     for (const t of sectionTabs) {
-      const titleKey = stripTitleNoise(t.title || '').toLowerCase();
-      if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, []);
-      sameTitle.get(titleKey).push(t);
+      const titleKey = stripTitleNoise(t.title || '').toLowerCase()
+      if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
+      sameTitle.get(titleKey).push(t)
     }
     for (const collided of sameTitle.values()) {
-      if (collided.length < 2) continue;
-      const suffixes = disambiguatingPaths(collided.map(t => t.url));
-      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i]));
+      if (collided.length < 2) continue
+      const suffixes = disambiguatingPaths(collided.map((t) => t.url))
+      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i]))
     }
 
     // Path-group pills: resolve each tab's path group (github repo,
@@ -444,19 +447,19 @@ export function computeDomainCardViewModel(group) {
     // at least two chips to convey. Extra guardrail: drop labels that
     // equal the subdomain or the card domain (redundant information
     // already carried by the section header or card title).
-    const pgByUrl = new Map();
-    const pgKeyCount = new Map();
+    const pgByUrl = new Map()
+    const pgKeyCount = new Map()
     for (const t of sectionTabs) {
-      const pg = resolvePathGroup(t.url);
-      if (!pg) continue;
-      pgByUrl.set(t.url, pg);
-      pgKeyCount.set(pg.key, (pgKeyCount.get(pg.key) || 0) + 1);
+      const pg = resolvePathGroup(t.url)
+      if (!pg) continue
+      pgByUrl.set(t.url, pg)
+      pgKeyCount.set(pg.key, (pgKeyCount.get(pg.key) || 0) + 1)
     }
-    const pgLabelByUrl = new Map();
+    const pgLabelByUrl = new Map()
     for (const [url, pg] of pgByUrl) {
-      if (pgKeyCount.get(pg.key) < 2) continue;
-      if (pg.label === key || pg.label === group.domain) continue;
-      pgLabelByUrl.set(url, pg.label);
+      if (pgKeyCount.get(pg.key) < 2) continue
+      if (pg.label === key || pg.label === group.domain) continue
+      pgLabelByUrl.set(url, pg.label)
     }
 
     // Build cluster blocks (≥2 members share a path-group label) and
@@ -466,51 +469,44 @@ export function computeDomainCardViewModel(group) {
     // its OWN visible/hidden split and its OWN "+N more" expander —
     // when a cluster overflows, expansion happens inside the cluster
     // so hidden members never leave their header's visual context.
-    const clusterByLabel = new Map();
-    const singletonTabs = [];
+    const clusterByLabel = new Map()
+    const singletonTabs = []
     for (const t of sectionTabs) {
-      const lbl = pgLabelByUrl.get(t.url);
-      if (!lbl) { singletonTabs.push(t); continue; }
-      if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, []);
-      clusterByLabel.get(lbl).push(t);
+      const lbl = pgLabelByUrl.get(t.url)
+      if (!lbl) {
+        singletonTabs.push(t)
+        continue
+      }
+      if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, [])
+      clusterByLabel.get(lbl).push(t)
     }
-    const sortedClusters = [...clusterByLabel.entries()].sort(
-      (a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })
-    );
+    const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
 
     // Per-cluster data objects. <PathgroupSection> handles the
     // header (pill + count + rule + close button), visible/hidden
     // chip split, and local expand state. <PageChip> consumes the
     // chip-data objects directly (Phase 5).
     const clusters = sortedClusters.map(([lbl, tabs]) => {
-      const vis = tabs.slice(0, CHIPS_PER_SECTION);
-      const hid = tabs.slice(CHIPS_PER_SECTION);
-      const clusterClosable = tabs.filter(t => !isGroupedTab(t));
-      const visibleChips = vis.map(t =>
-        buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
-      );
-      const hiddenChips = hid.map(t =>
-        buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
-      );
+      const vis = tabs.slice(0, CHIPS_PER_SECTION)
+      const hid = tabs.slice(CHIPS_PER_SECTION)
+      const clusterClosable = tabs.filter((t) => !isGroupedTab(t))
+      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
       return {
         label: lbl,
         count: tabs.length,
-        closableUrls: clusterClosable.map(t => t.url),
+        closableUrls: clusterClosable.map((t) => t.url),
         visibleChips,
         hiddenChips,
-        hiddenCount: hid.length,
-      };
-    });
+        hiddenCount: hid.length
+      }
+    })
 
     // Flat singletons: split into visible + hidden chip-data arrays.
-    const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION);
-    const flatHid = singletonTabs.slice(CHIPS_PER_SECTION);
-    const flatVisibleChips = flatVis.map(t =>
-      buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
-    );
-    const flatHiddenChips = flatHid.map(t =>
-      buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '')
-    );
+    const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION)
+    const flatHid = singletonTabs.slice(CHIPS_PER_SECTION)
+    const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+    const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
 
     return {
       key,
@@ -520,22 +516,19 @@ export function computeDomainCardViewModel(group) {
       flatVisibleChips,
       flatHiddenChips,
       flatHiddenCount: flatHid.length,
-      clusters,
-    };
-  });
+      clusters
+    }
+  })
 
   // Labels derived for the Preact component to consume directly.
   // closableCountLabel mirrors the original "Close all N tabs" vs
   // "Close N ungrouped tabs" split so the button text matches.
-  const closableCountLabel = closableCount === tabCount
-    ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}`
-    : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`;
+  const closableCountLabel =
+    closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`
 
-  const dupeUrlsEncoded = closableDupeUrls.map(url => encodeURIComponent(url)).join(',');
+  const dupeUrlsEncoded = closableDupeUrls.map((url) => encodeURIComponent(url)).join(',')
 
-  const displayName = isLanding
-    ? 'Homepages'
-    : (group.label || group.domain.replace(/^www\./, ''));
+  const displayName = isLanding ? 'Homepages' : group.label || group.domain.replace(/^www\./, '')
 
   return {
     stableId,
@@ -549,132 +542,129 @@ export function computeDomainCardViewModel(group) {
     dupeUrlsEncoded,
     singleSubdomainKey,
     displayName,
-    sections: sectionsData,
-  };
+    sections: sectionsData
+  }
 }
 
 /* ---- Main render ---- */
 export async function renderStaticDashboard() {
-  await fetchOpenTabs();
-  const realTabs = getRealTabs();
-  updateTabCountDisplays();
+  await fetchOpenTabs()
+  const realTabs = getRealTabs()
+  updateTabCountDisplays()
 
   // Group tabs by domain. Landing pages (Gmail inbox, X home, etc.) get
   // their own special group so they can be closed together without
   // affecting content tabs on the same domain.
   const LANDING_PAGE_PATTERNS = [
-    { hostname: 'mail.google.com', test: (p, h) =>
-        !h.includes('#inbox/') && !h.includes('#sent/') && !h.includes('#search/') },
-    { hostname: 'x.com',               pathExact: ['/home'] },
-    { hostname: 'www.linkedin.com',    pathExact: ['/'] },
-    { hostname: 'github.com',          pathExact: ['/'] },
-    { hostname: 'www.youtube.com',     pathExact: ['/'] },
+    { hostname: 'mail.google.com', test: (p, h) => !h.includes('#inbox/') && !h.includes('#sent/') && !h.includes('#search/') },
+    { hostname: 'x.com', pathExact: ['/home'] },
+    { hostname: 'www.linkedin.com', pathExact: ['/'] },
+    { hostname: 'github.com', pathExact: ['/'] },
+    { hostname: 'www.youtube.com', pathExact: ['/'] },
     // Merge personal patterns from config.local.js (if it exists).
     // config.local.js is a classic script; its globals are on window.
-    ...(window.LOCAL_LANDING_PAGE_PATTERNS || []),
-  ];
+    ...(window.LOCAL_LANDING_PAGE_PATTERNS || [])
+  ]
 
   function isLandingPage(url) {
     try {
-      const parsed = new URL(url);
-      return LANDING_PAGE_PATTERNS.some(p => {
-        const hostnameMatch = p.hostname
-          ? parsed.hostname === p.hostname
-          : p.hostnameEndsWith
-            ? parsed.hostname.endsWith(p.hostnameEndsWith)
-            : false;
-        if (!hostnameMatch) return false;
-        if (p.test)       return p.test(parsed.pathname, url);
-        if (p.pathPrefix) return parsed.pathname.startsWith(p.pathPrefix);
-        if (p.pathExact)  return p.pathExact.includes(parsed.pathname);
-        return parsed.pathname === '/';
-      });
-    } catch { return false; }
+      const parsed = new URL(url)
+      return LANDING_PAGE_PATTERNS.some((p) => {
+        const hostnameMatch = p.hostname ? parsed.hostname === p.hostname : p.hostnameEndsWith ? parsed.hostname.endsWith(p.hostnameEndsWith) : false
+        if (!hostnameMatch) return false
+        if (p.test) return p.test(parsed.pathname, url)
+        if (p.pathPrefix) return parsed.pathname.startsWith(p.pathPrefix)
+        if (p.pathExact) return p.pathExact.includes(parsed.pathname)
+        return parsed.pathname === '/'
+      })
+    } catch {
+      return false
+    }
   }
 
-  domainGroups = [];
-  const groupMap    = {};
-  const landingTabs = [];
+  domainGroups = []
+  const groupMap = {}
+  const landingTabs = []
 
   // Custom group rules from config.local.js (if any)
-  const customGroups = window.LOCAL_CUSTOM_GROUPS || [];
+  const customGroups = window.LOCAL_CUSTOM_GROUPS || []
 
   function matchCustomGroup(url) {
     try {
-      const parsed = new URL(url);
-      return customGroups.find(r => {
-        const hostMatch = r.hostname
-          ? parsed.hostname === r.hostname
-          : r.hostnameEndsWith
-            ? parsed.hostname.endsWith(r.hostnameEndsWith)
-            : false;
-        if (!hostMatch) return false;
-        if (r.pathPrefix) return parsed.pathname.startsWith(r.pathPrefix);
-        return true;
-      }) || null;
-    } catch { return null; }
+      const parsed = new URL(url)
+      return (
+        customGroups.find((r) => {
+          const hostMatch = r.hostname ? parsed.hostname === r.hostname : r.hostnameEndsWith ? parsed.hostname.endsWith(r.hostnameEndsWith) : false
+          if (!hostMatch) return false
+          if (r.pathPrefix) return parsed.pathname.startsWith(r.pathPrefix)
+          return true
+        }) || null
+      )
+    } catch {
+      return null
+    }
   }
 
   for (const tab of realTabs) {
     try {
       if (isLandingPage(tab.url)) {
-        landingTabs.push(tab);
-        continue;
+        landingTabs.push(tab)
+        continue
       }
 
-      const customRule = matchCustomGroup(tab.url);
+      const customRule = matchCustomGroup(tab.url)
       if (customRule) {
-        const key = customRule.groupKey;
-        if (!groupMap[key]) groupMap[key] = { domain: key, label: customRule.groupLabel, tabs: [] };
-        groupMap[key].tabs.push(tab);
-        continue;
+        const key = customRule.groupKey
+        if (!groupMap[key]) groupMap[key] = { domain: key, label: customRule.groupLabel, tabs: [] }
+        groupMap[key].tabs.push(tab)
+        continue
       }
 
-      let hostname;
+      let hostname
       if (tab.url && tab.url.startsWith('file://')) {
-        hostname = 'local-files';
+        hostname = 'local-files'
       } else {
-        hostname = new URL(tab.url).hostname;
+        hostname = new URL(tab.url).hostname
       }
-      if (!hostname) continue;
+      if (!hostname) continue
 
       // Roll up subdomains so dev1.foo.com + dev2.foo.com share one
       // card. registrableDomain() is a no-op for IPs, localhost, and
       // user-space suffixes like user.github.io — see domains.js.
-      const key = registrableDomain(hostname);
-      if (!groupMap[key]) groupMap[key] = { domain: key, tabs: [] };
-      groupMap[key].tabs.push(tab);
+      const key = registrableDomain(hostname)
+      if (!groupMap[key]) groupMap[key] = { domain: key, tabs: [] }
+      groupMap[key].tabs.push(tab)
     } catch {
       // Skip malformed URLs
     }
   }
 
   if (landingTabs.length > 0) {
-    groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs };
+    groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs }
   }
 
   // Sort: landing pages first, then domains from landing-page sites, then by tab count.
-  const landingHostnames = new Set(LANDING_PAGE_PATTERNS.map(p => p.hostname).filter(Boolean));
-  const landingSuffixes = LANDING_PAGE_PATTERNS.map(p => p.hostnameEndsWith).filter(Boolean);
+  const landingHostnames = new Set(LANDING_PAGE_PATTERNS.map((p) => p.hostname).filter(Boolean))
+  const landingSuffixes = LANDING_PAGE_PATTERNS.map((p) => p.hostnameEndsWith).filter(Boolean)
   function isLandingDomain(domain) {
-    if (landingHostnames.has(domain)) return true;
-    return landingSuffixes.some(s => domain.endsWith(s));
+    if (landingHostnames.has(domain)) return true
+    return landingSuffixes.some((s) => domain.endsWith(s))
   }
   domainGroups = Object.values(groupMap).sort((a, b) => {
-    const aIsLanding = a.domain === '__landing-pages__';
-    const bIsLanding = b.domain === '__landing-pages__';
-    if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1;
+    const aIsLanding = a.domain === '__landing-pages__'
+    const bIsLanding = b.domain === '__landing-pages__'
+    if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1
 
-    const aIsPriority = isLandingDomain(a.domain);
-    const bIsPriority = isLandingDomain(b.domain);
-    if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1;
+    const aIsPriority = isLandingDomain(a.domain)
+    const bIsPriority = isLandingDomain(b.domain)
+    if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1
 
-    return b.tabs.length - a.tabs.length;
-  });
+    return b.tabs.length - a.tabs.length
+  })
 
   // --- Render domain cards ---
-  const openTabsSection      = document.getElementById('openTabsSection');
-  const openTabsMissionsEl   = document.getElementById('openTabsMissions');
+  const openTabsSection = document.getElementById('openTabsSection')
+  const openTabsMissionsEl = document.getElementById('openTabsMissions')
 
   // Snapshot the existing DOM only to preserve vertical order within
   // columns across rebuilds. Phase 2 retired prevColumns (Preact's
@@ -684,30 +674,30 @@ export async function renderStaticDashboard() {
   // useState). Phase 4 retires the pathgroup-section expand snapshot
   // (<PathgroupSection> does too). Every expansion is now preserved
   // via keyed component state, not DOM scraping.
-  const prevOrder = new Map();
+  const prevOrder = new Map()
   if (openTabsMissionsEl) {
-    let idx = 0;
+    let idx = 0
     for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
-      const id = c.dataset.domainId;
-      if (!id) continue;
-      prevOrder.set(id, idx++);
+      const id = c.dataset.domainId
+      if (!id) continue
+      prevOrder.set(id, idx++)
     }
   }
 
   // Stable re-sort: previously-seen cards keep their prior order; new
   // cards stay where the landing/priority/tab-count sort put them (at
   // the end, since `return 0` preserves Array.prototype.sort stability).
-  const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-');
+  const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
   domainGroups.sort((a, b) => {
-    const aPrev = prevOrder.get(stableDomainId(a));
-    const bPrev = prevOrder.get(stableDomainId(b));
-    if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev;
-    if (aPrev !== undefined) return -1;
-    if (bPrev !== undefined) return 1;
-    return 0;
-  });
+    const aPrev = prevOrder.get(stableDomainId(a))
+    const bPrev = prevOrder.get(stableDomainId(b))
+    if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev
+    if (aPrev !== undefined) return -1
+    if (bPrev !== undefined) return 1
+    return 0
+  })
 
-  const sectionHeaderWrap = document.getElementById('sectionHeaderWrap');
+  const sectionHeaderWrap = document.getElementById('sectionHeaderWrap')
   if (domainGroups.length > 0 && openTabsSection) {
     // Phase 4: Preact owns everything down to the pathgroup level.
     // <Missions> → <DomainCard> → <SubdomainSection> →
@@ -717,16 +707,16 @@ export async function renderStaticDashboard() {
     // survives via Preact's keyed reconciliation preserving the
     // .mission-card node (data-masonry-col is set by layout.js and
     // Preact doesn't touch non-prop attributes).
-    preactRender(html/* html */`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl);
-    openTabsSection.style.display = 'block';
-    if (sectionHeaderWrap) sectionHeaderWrap.style.display = '';
-    packMissionsMasonry();
-    updateSectionCount();
+    preactRender(html /*html*/ `<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
+    openTabsSection.style.display = 'block'
+    if (sectionHeaderWrap) sectionHeaderWrap.style.display = ''
+    packMissionsMasonry()
+    updateSectionCount()
   } else {
-    if (openTabsSection)    openTabsSection.style.display = 'none';
-    if (sectionHeaderWrap)  sectionHeaderWrap.style.display = 'none';
+    if (openTabsSection) openTabsSection.style.display = 'none'
+    if (sectionHeaderWrap) sectionHeaderWrap.style.display = 'none'
   }
 
-  updateTabCountDisplays();
-  updateFilteredActions();
+  updateTabCountDisplays()
+  updateFilteredActions()
 }
