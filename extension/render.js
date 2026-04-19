@@ -517,14 +517,28 @@ export function computeDomainCardViewModel(group) {
     }
     const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
 
+    // Order chips within a cluster by sub-category (if the adapter
+    // provided one), then by their display-label order (preserved via
+    // stable sort, since sectionTabs was already sorted by display
+    // label above). For GitHub: PRs first, issues, commits, code
+    // browsing, everything else last — so "ABC-1234 PR" sits next to
+    // "ABC-5678 PR" instead of alphabetizing them between the Commits
+    // page and the Actions page. Unknown categories fall to 'other'.
+    const CATEGORY_ORDER = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
+
     // Per-cluster data objects. <PathgroupSection> handles the
     // header (pill + count + rule + close button), visible/hidden
     // chip split, and local expand state. <PageChip> consumes the
     // chip-data objects directly (Phase 5).
     const clusters = sortedClusters.map(([lbl, tabs]) => {
-      const vis = tabs.slice(0, CHIPS_PER_SECTION)
-      const hid = tabs.slice(CHIPS_PER_SECTION)
-      const clusterClosable = tabs.filter((t) => !isGroupedTab(t))
+      const orderedTabs = tabs.slice().sort((a, b) => {
+        const aCat = CATEGORY_ORDER[pgByUrl.get(a.url)?.category] ?? CATEGORY_ORDER.other
+        const bCat = CATEGORY_ORDER[pgByUrl.get(b.url)?.category] ?? CATEGORY_ORDER.other
+        return aCat - bCat
+      })
+      const vis = orderedTabs.slice(0, CHIPS_PER_SECTION)
+      const hid = orderedTabs.slice(CHIPS_PER_SECTION)
+      const clusterClosable = orderedTabs.filter((t) => !isGroupedTab(t))
       const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', lbl))
       const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', lbl))
       return {
