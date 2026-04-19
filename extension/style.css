@@ -631,6 +631,21 @@ header {
   font-weight: 600;
 }
 
+/* Subdomain prefix — shown on chips when the card rolls up multiple
+   subdomains into one eTLD+1 grouping (e.g. dev2ca/dev11us on a
+   zenniaws.com card). Muted + dot-separated so the page title stays
+   the dominant read. */
+.chip-subdomain {
+  color: var(--muted);
+  font-weight: 500;
+  margin-right: 6px;
+}
+.chip-subdomain::after {
+  content: '·';
+  margin-left: 6px;
+  opacity: 0.5;
+}
+
 
 /* Action buttons grouped on the right */
 .chip-actions {

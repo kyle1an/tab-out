@@ -13,6 +13,7 @@ import { isGroupedTab, groupDotColor } from './groups.js';
 import { unwrapSuspenderUrl } from './suspender.js';
 import { cleanTitle, smartTitle, stripTitleNoise } from './titles.js';
 import { packMissionsMasonry } from './layout.js';
+import { registrableDomain, subdomainPrefix } from './domains.js';
 
 export let domainGroups = [];
 
@@ -151,20 +152,29 @@ export function updateSectionCount() {
 }
 
 /* ---- Overflow chips ("+N more") ---- */
-function buildOverflowChips(hiddenTabs, urlCounts = {}) {
+function buildOverflowChips(hiddenTabs, urlCounts = {}, groupDomain = '') {
   const hiddenChips = hiddenTabs.map(tab => {
     const label    = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), '');
+    let subPrefix = '';
+    try {
+      const parsed = new URL(tab.url);
+      if (groupDomain) subPrefix = subdomainPrefix(parsed.hostname, groupDomain);
+    } catch {}
     const count    = urlCounts[tab.url] || 1;
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
+    const tooltip   = subPrefix ? `${subPrefix} · ${label}` : label;
+    const safeTitle = tooltip.replace(/"/g, '&quot;');
+    const chipInner = subPrefix
+      ? `<span class="chip-subdomain">${subPrefix}</span>${label}`
+      : label;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
       ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
       : '';
     return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
+      <span class="chip-text">${chipInner}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -241,29 +251,47 @@ function renderDomainCard(group) {
   const extraCount  = uniqueTabs.length - visibleTabs.length;
 
   const pageChips = visibleTabs.map(tab => {
-    let label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), group.domain);
-    try {
-      const parsed = new URL(tab.url);
-      if (parsed.hostname === 'localhost' && parsed.port) label = `${parsed.port} ${label}`;
-    } catch {}
+    // Parse once — hostname feeds both title cleaning (so "Dashboard
+    // - dev2ca.zenniaws.com" still strips properly even though the
+    // card is rolled up to zenniaws.com) and the subdomain prefix.
+    let parsed = null;
+    try { parsed = new URL(tab.url); } catch {}
+    const hostname = parsed ? parsed.hostname : group.domain;
+    const label = cleanTitle(smartTitle(stripTitleNoise(tab.title || ''), tab.url), hostname);
+    let subPrefix = '';
+    let portPrefix = '';
+    if (parsed) {
+      if (parsed.hostname === 'localhost' && parsed.port) portPrefix = parsed.port;
+      else subPrefix = subdomainPrefix(parsed.hostname, group.domain);
+    }
     const count    = urlCounts[tab.url];
     const dupeTag  = count > 1 ? ` <span class="chip-dupe-badge">(${count}x)</span>` : '';
     const safeUrl   = (tab.rawUrl || tab.url || '').replace(/"/g, '&quot;');
-    const safeTitle = label.replace(/"/g, '&quot;');
+    // Tooltip is plain text; display markup is assembled separately so
+    // the muted subdomain span doesn't leak into the title attribute.
+    const tooltip   = subPrefix ? `${subPrefix} · ${label}`
+                    : portPrefix ? `${portPrefix} · ${label}`
+                    : label;
+    const safeTitle = tooltip.replace(/"/g, '&quot;');
+    const chipInner = subPrefix
+      ? `<span class="chip-subdomain">${subPrefix}</span>${label}`
+      : portPrefix
+        ? `<span class="chip-subdomain">${portPrefix}</span>${label}`
+        : label;
     const faviconUrl = pickFavicon(tab);
     const groupStyle = isGroupedTab(tab)
       ? ` style="--group-color:${groupDotColor(tab.groupId)}"`
       : '';
     return `<div class="page-chip clickable" data-action="focus-tab" data-tab-url="${safeUrl}" title="${safeTitle}"${groupStyle}>
       ${faviconUrl ? `<img class="chip-favicon" src="${faviconUrl}" alt="">` : ''}
-      <span class="chip-text">${label}</span>${dupeTag}
+      <span class="chip-text">${chipInner}</span>${dupeTag}
       <div class="chip-actions">
         <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url="${safeUrl}" title="Close this tab">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
         </button>
       </div>
     </div>`;
-  }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(8), urlCounts) : '');
+  }).join('') + (extraCount > 0 ? buildOverflowChips(uniqueTabs.slice(8), urlCounts, group.domain) : '');
 
   // Close-domain button moves to the top-right corner of the card as an
   // icon-only button that expands to show its label on hover (iOS/macOS
@@ -392,8 +420,12 @@ export async function renderStaticDashboard() {
       }
       if (!hostname) continue;
 
-      if (!groupMap[hostname]) groupMap[hostname] = { domain: hostname, tabs: [] };
-      groupMap[hostname].tabs.push(tab);
+      // Roll up subdomains so dev1.foo.com + dev2.foo.com share one
+      // card. registrableDomain() is a no-op for IPs, localhost, and
+      // user-space suffixes like user.github.io — see domains.js.
+      const key = registrableDomain(hostname);
+      if (!groupMap[key]) groupMap[key] = { domain: key, tabs: [] };
+      groupMap[key].tabs.push(tab);
     } catch {
       // Skip malformed URLs
     }
