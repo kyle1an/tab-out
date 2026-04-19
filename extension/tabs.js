@@ -179,9 +179,12 @@ export async function focusTab(url) {
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
 
+  const extensionId = chrome.runtime.id
+  const newtabUrl = `chrome-extension://${extensionId}/index.html`
+
   if (match.windowId !== currentWindow.id) {
-    const extensionId = chrome.runtime.id
-    const newtabUrl = `chrome-extension://${extensionId}/index.html`
+    // Cross-window hop: plant a fresh Tab Out tab in the target
+    // window (left of the match) unless one already exists there.
     const hasTabOut = allTabs.some((t) => t.windowId === match.windowId && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
     if (!hasTabOut) {
       // index=match.index inserts BEFORE the match, shifting match to
@@ -193,6 +196,26 @@ export async function focusTab(url) {
         index: match.index,
         active: false
       })
+    }
+  } else {
+    // Same-window hop: move the existing Tab Out tab so it lands
+    // directly to the left of the matched tab. After the target
+    // becomes active, Tab Out is one "previous tab" keystroke away —
+    // the "easier reach" goal applies symmetrically for same-window
+    // and cross-window flows.
+    //
+    // Target-index math: chrome.tabs.move removes the tab from its
+    // current position before re-inserting. When Tab Out is already
+    // left of the match (tabOut.index < match.index), removal shifts
+    // match left by one, so the insert target is match.index - 1.
+    // When Tab Out is right of the match (tabOut.index > match.index),
+    // match doesn't shift, so the insert target is match.index.
+    const tabOutTab = allTabs.find((t) => t.windowId === currentWindow.id && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
+    if (tabOutTab && tabOutTab.id !== match.id) {
+      const targetIndex = tabOutTab.index < match.index ? match.index - 1 : match.index
+      if (targetIndex !== tabOutTab.index) {
+        await chrome.tabs.move(tabOutTab.id, { index: targetIndex })
+      }
     }
   }
 
