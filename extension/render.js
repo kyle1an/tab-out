@@ -420,7 +420,7 @@ export function computeDomainCardViewModel(group) {
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
     const { segments: displaySegments, stripped: titleStripped } = stripPgLabel(label, stripLabel || pgLabel)
-    const tooltip = [leadPrefix, pgLabel || stripLabel, label, pathSuffix].filter(Boolean).join(' · ')
+    const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     return {
       tabUrl: tab.url,
