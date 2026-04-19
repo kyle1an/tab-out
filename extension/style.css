@@ -646,6 +646,9 @@ header {
 }
 .subdomain-section + .subdomain-section {
   border-top: 1px solid rgba(115, 115, 115, 0.12);
+  /* Breathing room above the separator so the previous section's
+     last chip doesn't press its hover background into the line. */
+  margin-top: 6px;
 }
 
 /* Small header above each subdomain section. Muted + lowercase so the
