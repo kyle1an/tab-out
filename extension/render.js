@@ -426,12 +426,10 @@ export async function renderStaticDashboard() {
   const openTabsSection      = document.getElementById('openTabsSection');
   const openTabsMissionsEl   = document.getElementById('openTabsMissions');
 
-  // Snapshot the existing DOM so we can preserve three things across the
-  // rebuild: animation state (no re-fade for cards already on screen),
-  // masonry column pinning, and vertical order within columns. Without
-  // the order snapshot, cards swap places whenever tab counts change and
-  // the default tab-count-desc sort reorders them.
-  const prevIds = new Set();
+  // Snapshot the existing DOM so we can preserve two things across the
+  // rebuild: masonry column pinning, and vertical order within columns.
+  // Without the order snapshot, cards swap places whenever tab counts
+  // change and the default tab-count-desc sort reorders them.
   const prevColumns = new Map();
   const prevOrder = new Map();
   const prevExpanded = new Set();
@@ -440,7 +438,6 @@ export async function renderStaticDashboard() {
     for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
       const id = c.dataset.domainId;
       if (!id) continue;
-      prevIds.add(id);
       prevOrder.set(id, idx++);
       if (c.dataset.masonryCol !== undefined) {
         prevColumns.set(id, c.dataset.masonryCol);
@@ -467,7 +464,6 @@ export async function renderStaticDashboard() {
     openTabsMissionsEl.innerHTML = domainGroups.map(g => renderDomainCard(g)).join('');
     openTabsMissionsEl.querySelectorAll('.mission-card').forEach(c => {
       const id = c.dataset.domainId;
-      if (prevIds.has(id)) c.classList.add('persisted');
       const savedCol = prevColumns.get(id);
       if (savedCol !== undefined) c.dataset.masonryCol = savedCol;
       // Re-apply the "expanded overflow" state so closing a tab inside
