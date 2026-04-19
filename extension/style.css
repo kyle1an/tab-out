@@ -623,13 +623,26 @@ header {
 }
 
 /* Strip indicator — placeholder shown in place of a stripped
-   path-group label (cluster header already carries that string).
-   Rendered mid-text as a muted ellipsis; spacing comes from the
-   explicit whitespace segments emitted by stripPgLabel, not margin,
-   so the placeholder sits flush where the original label lived. */
+   path-group label. Styled as a soft pill with a single `~` glyph
+   to mirror dictionary typography's convention of using tilde as a
+   "refers to the headword" marker: under a headword entry,
+   sub-definitions write `~ fast` instead of repeating the headword.
+   Here the cluster header pill plays the role of the headword; the
+   chip uses a matching pill shape so the two read as a deliberate
+   pair — the reader's eye is cued that "this stands in for that."
+   Shape/colors mirror .chip-pathgroup so the pills feel from the
+   same family. Spacing comes from the explicit whitespace segments
+   emitted by stripPgLabel, not margin, so the pill sits flush where
+   the original label lived. */
 .chip-strip-indicator {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: rgba(115, 115, 115, 0.1);
   color: var(--muted);
-  opacity: 0.5;
+  font-size: 12px;
+  font-weight: 500;
+  vertical-align: baseline;
 }
 
 /* Path-group pill — shown on overflow chips (inside "+N more") so
