@@ -125,15 +125,17 @@ document.addEventListener('click', async (e) => {
   const card = actionEl.closest('.mission-card');
 
   // ---- Expand overflow chips ("+N more") ----
+  // Scoped to the subdomain section the button lives in, so each sub-
+  // group expands independently when a card has multiple subdomains.
   if (action === 'expand-chips') {
-    const overflowContainer = actionEl.parentElement.querySelector('.page-chips-overflow');
+    const section = actionEl.closest('.subdomain-section');
+    const overflowContainer = section && section.querySelector('.page-chips-overflow');
     if (overflowContainer) {
       overflowContainer.style.display = 'contents';
       actionEl.remove();
-      // Mark so a live-sync refresh (e.g. after closing a tab in this
-      // card) can restore the expanded state instead of collapsing back
-      // to the 8-visible-chips default.
-      if (card) card.dataset.chipsExpanded = 'true';
+      // Mark the section so a live-sync refresh can restore this
+      // specific sub-group's expansion (see prevExpanded in render.js).
+      if (section) section.dataset.expanded = 'true';
       packMissionsMasonry();
     }
     return;

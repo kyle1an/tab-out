@@ -120,8 +120,11 @@ export function applyTabFilter(query) {
 
   container.querySelectorAll('.mission-card').forEach(card => {
     const chips     = card.querySelectorAll('.page-chip[data-action="focus-tab"]');
-    const overflow  = card.querySelector('.page-chips-overflow');
-    const moreBtn   = card.querySelector('.page-chip-overflow');
+    // Multiple overflow containers + "+N more" buttons per card now —
+    // one per subdomain section. All need to be force-opened/hidden
+    // uniformly while filtering is active.
+    const overflows = card.querySelectorAll('.page-chips-overflow');
+    const moreBtns  = card.querySelectorAll('.page-chip-overflow');
 
     let anyMatch = false;
     chips.forEach(chip => {
@@ -133,7 +136,7 @@ export function applyTabFilter(query) {
       if (hit) anyMatch = true;
     });
 
-    if (overflow) {
+    overflows.forEach(overflow => {
       if (filtering) {
         if (overflow.dataset.preFilter === undefined) {
           overflow.dataset.preFilter = overflow.style.display || '';
@@ -143,8 +146,8 @@ export function applyTabFilter(query) {
         overflow.style.display = overflow.dataset.preFilter;
         delete overflow.dataset.preFilter;
       }
-    }
-    if (moreBtn) moreBtn.style.display = filtering ? 'none' : '';
+    });
+    moreBtns.forEach(btn => { btn.style.display = filtering ? 'none' : ''; });
 
     card.style.display = anyMatch ? '' : 'none';
 
