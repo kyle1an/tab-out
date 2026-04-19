@@ -13,10 +13,9 @@
    ============================================================ */
 
 /* ---- Header ---- */
-/* Two-row stack: the top row (filter + tab count) and the section-header
-   (domain count + dedup action) share one consistent `gap` — no ad-hoc
-   margin-bottom on the top row, no padding-top on the section row, so
-   vertical rhythm stays uniform. */
+/* Single row: stats inline on one side, filter on the other. The old
+   stacked h1 + sub-line + section-header layout collapsed into this
+   ~32px bar to give the card grid ~75px more vertical real estate. */
 header {
   display: flex;
   flex-direction: column;
@@ -24,31 +23,62 @@ header {
 
 .header-row {
   display: flex;
-  /* Filter sits on the left; tab count + windows sub-line sits on the
-     right. `row-reverse` swaps positions without touching HTML. */
+  /* Stats sit on the left, filter on the right. `row-reverse` keeps
+     filter-right without touching HTML order. */
   flex-direction: row-reverse;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 16px;
 }
 
-.header-left {
-  /* Right-aligned since this block is now on the right side of header. */
-  text-align: right;
-}
-
-.header-left h1 {
-  font-family: sans-serif;
-  font-weight: 300;
-  font-size: 28px;
-  letter-spacing: -0.5px;
-  color: var(--ink);
-  margin-bottom: 4px;
-}
-
-.header-left .date {
+.header-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--muted);
   font-weight: 400;
+  /* Reserve a consistent row height so the bar doesn't reflow when the
+     dedup / filtered-close buttons toggle on and off. Matches the old
+     .section-header min-height. */
+  min-height: 32px;
+}
+
+.stat-primary {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.stat-sep {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+.stat-extras {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Button cluster — fixed leftmost anchor. Stays at a consistent position
+   regardless of which buttons are currently visible, so the numeric stats
+   behind it never shift under the cursor. `:empty` collapses individual
+   slots when render.js writes "", and `:has(...)` collapses the whole
+   cluster when both slots are empty so the 8px gap disappears too. */
+.stat-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* Order slot: dupes-first, close-filtered-second. Keeps the dedup
+     button at a stable position even when a filter is active and the
+     close-filtered button appears to its right. */
+}
+#openTabsDedupAction:empty,
+#openTabsSectionActions:empty {
+  display: none;
+}
+.stat-actions:not(:has(:not(:empty))) {
+  display: none;
 }
 
 /* ---- Filter input (top of page, right side of header) ---- */
@@ -140,53 +170,33 @@ header {
   font-weight: 600;
 }
 
-/* ---- Section Headers ----
-   Now a child of <header>, so vertical spacing is inherited from the
-   header's flex-column gap (no padding-top here, no margin-bottom). */
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  /* Reserve room for an action button's height so removing the dedup
-     button (when extras are closed) doesn't collapse the row and shove
-     all the cards below up by ~10px. */
-  min-height: 28px;
-}
-
-.section-header h2 {
-  font-family: sans-serif;
-  font-weight: 400;
-  font-size: 18px;
-  font-style: italic;
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-/* Collapse the left actions slot out of the flex flow when empty so
-   the flex gap doesn't leave a void before the section count. */
+/* ---- Inline section stats (domain count + actions) ----
+   Lives inside .header-stats now — no longer its own row. The action
+   buttons (dedup, close-filtered) render inline at 11px, matching the
+   stats font size so they don't balloon the bar height. */
 .section-actions:empty {
   display: none;
 }
 
-.section-count {
-  font-size: 12px;
-  color: var(--muted);
-  font-weight: 500;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  /* inline-flex with cross-axis centering so buttons and text share a
-     common vertical midline instead of aligning on the text baseline. */
+.section-actions {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  /* Push to the right edge of the section-header regardless of
-     whether .section-actions is present on the left. */
-  margin-left: auto;
+}
+
+.section-count {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 400;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .section-count-sep {
   color: var(--muted);
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 /* ---- Mission Cards ---- */
