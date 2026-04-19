@@ -675,9 +675,10 @@ header {
   opacity: 0.5;
 }
 
-/* Path-group pill — shown on a chip when 2+ chips in the same
-   subdomain section share a path-level group (same GitHub repo,
-   same Jira project, same Contentful environment, etc). Rendered
+/* Path-group pill — shown on overflow chips (inside "+N more") so
+   cluster membership is still visible when chips are expanded flat.
+   Visible chips inside a .pathgroup-section suppress the pill
+   because the section header already conveys the label. Rendered
    as a soft filled pill so it reads as a distinct signal from
    .chip-subdomain's dot-prefix — they're orthogonal kinds of
    clustering. Threshold-filtered upstream in render.js; any pill
@@ -692,6 +693,29 @@ header {
   font-size: 11px;
   font-weight: 500;
   vertical-align: baseline;
+}
+
+/* Path-group sub-section — nested inside a subdomain section when
+   2+ chips share a path-level cluster (same repo, same Jira project,
+   etc). One level deeper than .subdomain-section; the header reuses
+   the pill style as its label, followed by a muted member count. */
+.pathgroup-section {
+  display: flex;
+  flex-direction: column;
+}
+.pathgroup-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 12px 2px 12px;
+}
+.pathgroup-header .chip-pathgroup {
+  margin-right: 0;
+}
+.pathgroup-header-count {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 /* Subdomain section — groups chips that share a subdomain inside a
