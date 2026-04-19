@@ -59,9 +59,16 @@ body {
 
 .pinned-top {
   flex: 0 0 auto;
-  background: var(--paper);
   position: relative;
   z-index: 10;
+  /* No background at rest — pinned-top blends seamlessly with the
+     page. A contextual shadow (below) is the only separation cue,
+     triggered when the scroll region has scrolled away from the top. */
+  transition: box-shadow 0.2s ease;
+}
+
+.pinned-top.is-scrolled {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .scroll-region {
