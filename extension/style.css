@@ -547,22 +547,38 @@ header {
   margin-top: 1px;
 }
 
-/* Title text — wraps naturally, no truncation */
+/* Title text — wraps up to 2 lines, then the last line fades out on the
+   right in the style of Chrome's tab strip. We use max-height + overflow
+   (NOT -webkit-line-clamp) because line-clamp hard-codes a "…" ellipsis
+   that even a transparent mask only hides partially (the glyph pokes out
+   of the fade's inner edge on wider titles). max-height: 2lh gives the
+   same 2-line visual clip with no ellipsis glyph to worry about.
+   Two mask layers (composited with 'add' by default for a comma list):
+     • Top layer: opaque everywhere except the last 1lh, which is
+       transparent. Keeps non-last lines fully visible.
+     • Bottom layer: horizontal black→transparent gradient across the
+       full height. On its own would fade every line; unioned with the
+       top layer the non-last lines stay opaque, only the last line
+       picks up the fade.
+   A 1-line title fits both layers into a single-line fade — Chrome's
+   tab behavior verbatim. Fade width is generous (~60 px) so truncated
+   text visibly dissolves rather than reading as a hard edge. */
 .chip-text {
   flex: 1;
   min-width: 0;
-  /* Show up to 2 lines, then ellipsis */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: block;
+  max-height: calc(2lh);
   overflow: hidden;
+  mask-image:
+    linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
+    linear-gradient(to right, black 0, black calc(100% - 60px), rgba(0, 0, 0, 0.35) calc(100% - 20px), transparent);
 }
 /* Collision-only expansion: when a disambiguating path is rendered,
    relax the clamp to 3 lines so the path has room even if the title
    fills 2 lines on its own. Only affects the ~5% of chips that carry
    a path — non-colliding chips stay at the compact 2-line height. */
 .page-chip:has(.chip-path) .chip-text {
-  -webkit-line-clamp: 3;
+  max-height: calc(3lh);
 }
 
 /* Duplicate badge */
