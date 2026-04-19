@@ -817,7 +817,11 @@ header {
 
 header { animation: fadeUp 0.3s ease both; }
 .nudge-banner { animation: fadeUp 0.5s ease 0.15s both; }
-.active-section .section-header { animation: fadeUp 0.2s ease 0.1s both; }
+/* Section-header lives in .pinned-top now (post-restructure). Matched
+   timing with `header` so both the top bar and the section bar fade in
+   as a single unit — different durations/delays made them feel out of
+   sync. */
+.pinned-top .section-header { animation: fadeUp 0.3s ease both; }
 /* Every card fades in together after the header animations settle.
    fill-mode is `backwards` so the animation only pins styles BEFORE
    running — after it ends the card releases its transform so :hover wins. */
