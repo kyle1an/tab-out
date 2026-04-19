@@ -850,7 +850,11 @@ header {
    "there are this many here, the +N more button is per-section." */
 .subdomain-header {
   display: flex;
-  align-items: baseline;
+  /* Center-align — the header mixes text (name, count) and an icon
+     button (close). Text-text alignment is unaffected since both
+     are the same font-size, but the icon box now centers on the
+     text's visual midline instead of sitting on the baseline. */
+  align-items: center;
   gap: 6px;
   padding: 10px 12px 4px 12px;
   font-size: 12px;
@@ -861,6 +865,40 @@ header {
 .subdomain-header-count {
   opacity: 0.55;
   font-weight: 500;
+}
+
+/* Subdomain-level close — sits right next to the count, clustered
+   with the rest of the header text so the pairing reads as "here's
+   this subdomain's stats, and here's the close for it." Hidden by
+   default, fades in on subdomain-section hover (mirrors the
+   pathgroup-close-btn pattern for a consistent user discovery
+   model: "hover a section header to reveal its close action"). */
+.subdomain-close-btn {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background 0.12s;
+}
+.subdomain-section:hover .subdomain-close-btn {
+  opacity: 1;
+}
+.subdomain-close-btn:hover {
+  background: #ededed;
+}
+.subdomain-close-btn svg {
+  width: 11px;
+  height: 11px;
+  display: block;
 }
 /* First section's header doesn't need the top padding — its edge is
    already the card's own padding. */

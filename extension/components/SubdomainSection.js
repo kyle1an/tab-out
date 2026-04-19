@@ -14,13 +14,41 @@
 
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
+import { closeTabsExact } from '../tabs.js'
+import { markClosure } from '../undo.js'
+import { updateTabCountDisplays } from '../render.js'
 import { FlatSection } from './FlatSection.js'
 import { PathgroupSection } from './PathgroupSection.js'
 
 const html = htm.bind(h)
 
-export function SubdomainSection({ subdomainKey, sectionCount, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
+function SubdomainCloseButton({ count, onClick }) {
+  const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
+  return html`
+    <button class="subdomain-close-btn" title=${title} onClick=${onClick}>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+      </svg>
+    </button>
+  `
+}
+
+export function SubdomainSection({ subdomainKey, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
   const dataKey = subdomainKey || '__root__'
+  const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
+
+  // Close-subdomain handler. Mirrors PathgroupSection's cluster close
+  // — exact-URL match + preserveGroups so Chrome tab groups survive.
+  // Only wired when `showHeader` is true (multi-subdomain cards), so
+  // single-subdomain cards still rely on the card-level close button.
+  async function onCloseSubdomain() {
+    if (!sectionClosableUrls || sectionClosableUrls.length === 0) return
+    const snapshot = await closeTabsExact(sectionClosableUrls, { preserveGroups: true })
+    if (snapshot.length > 0) {
+      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
+    }
+    updateTabCountDisplays()
+  }
 
   return html`
     <div class="subdomain-section" data-subdomain-key=${dataKey}>
@@ -29,6 +57,7 @@ export function SubdomainSection({ subdomainKey, sectionCount, showHeader, hasFl
         <div class="subdomain-header">
           <span class="subdomain-header-name">${subdomainKey}</span>
           <span class="subdomain-header-count">${sectionCount}</span>
+          ${hasClose && html` <${SubdomainCloseButton} count=${sectionClosableUrls.length} onClick=${onCloseSubdomain} /> `}
         </div>
       `}
       ${hasFlat && html` <${FlatSection} visibleChips=${flatVisibleChips} hiddenChips=${flatHiddenChips} hiddenCount=${flatHiddenCount} /> `}
