@@ -268,9 +268,16 @@ function renderDomainCard(group) {
     bySubdomain.get(key).push(tab);
   }
 
-  // Largest subdomain first — matches the card-sort policy (most-active
-  // on top). Stable within equal counts thanks to Map iteration order.
-  const sections = [...bySubdomain.entries()].sort((a, b) => b[1].length - a[1].length);
+  // Sort policy: root tabs (empty key) first, then the rest
+  // alphabetically by subdomain. Alphabetical is predictable — the
+  // same subdomain always lands in the same spot across refreshes,
+  // regardless of tab counts or Chrome tab-strip order.
+  const sections = [...bySubdomain.entries()].sort((a, b) => {
+    if (a[0] === b[0]) return 0;
+    if (a[0] === '') return -1;
+    if (b[0] === '') return 1;
+    return a[0].localeCompare(b[0]);
+  });
   const multipleSections = sections.length > 1;
 
   // Local chip renderer — closes over group + urlCounts. Extracted so
