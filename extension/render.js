@@ -26,18 +26,28 @@ export const ICONS = {
 };
 
 /**
- * pickFavicon(tab) — prefer the page's own favicon (chrome scrapes it
- * from the page's <link rel="icon">), fall back to Google's service.
- * The capture-phase error listener in app.js hides any that fail to load.
+ * pickFavicon(tab) — two-path favicon resolver:
+ *   • If tab.favIconUrl is a `data:` URI, use it as-is. That covers
+ *     both pages that inline their favicons (fast already) AND other
+ *     extensions that rewrite the favicon (e.g. The Marvellous
+ *     Suspender dims it for suspended tabs — a signal we want to
+ *     preserve). Going through _favicon/ here would silently drop
+ *     the modification.
+ *   • Otherwise fall through to Chrome's internal favicon cache
+ *     (`_favicon/` scheme, Chrome 104+). Same cache the tab strip
+ *     uses; eliminates network fetches for plain https: favicons.
+ *
+ * The capture-phase error listener in app.js hides any that still
+ * fail to load. Requires the "favicon" permission in manifest.json.
  */
 export function pickFavicon(tab) {
   const fav = tab.favIconUrl || '';
-  if (fav && !fav.startsWith('chrome://') && !fav.startsWith('chrome-extension://')) {
-    return fav;
-  }
-  let domain = '';
-  try { domain = new URL(tab.url).hostname; } catch {}
-  return domain ? `https://www.google.com/s2/favicons?domain=${domain}&sz=32` : '';
+  if (fav.startsWith('data:')) return fav;
+  if (!tab.url) return '';
+  const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'));
+  faviconUrl.searchParams.set('pageUrl', tab.url);
+  faviconUrl.searchParams.set('size', '32');
+  return faviconUrl.toString();
 }
 
 /**
