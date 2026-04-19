@@ -13,41 +13,44 @@ import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFiltere
 import { isGroupedTab } from './groups.js';
 
 // Three placeholder states, so the hint always reflects reality:
-//   • IDLE   — the window doesn't have focus (keystrokes don't reach us)
-//   • HINT   — window has focus, input doesn't (type-anywhere is live)
-//   • EDIT   — input is focused (the type-anywhere hint is redundant;
-//              swap in something informational about what gets matched)
-const PLACEHOLDER_IDLE = 'Filter tabs…';
+//   • IDLE — window lacks focus. Text is redundant since the dim
+//            visual already signals "can't receive keys" — cleaner
+//            to leave the input blank.
+//   • HINT — window has focus, input doesn't (type-anywhere is live)
+//   • EDIT — input is focused (the type-anywhere hint is redundant;
+//            swap in something informational about what gets matched)
+const PLACEHOLDER_IDLE = '';
 const PLACEHOLDER_HINT = 'Type anywhere to filter…';
 const PLACEHOLDER_EDIT = 'Title or URL…';
 
-// Focus/blur events can fire in rapid bursts (window focus churn when
-// DevTools open, OS alert popups, etc.). Debounce so we don't thrash
-// the placeholder/classes — reads of document.hasFocus() and
-// activeElement always happen at apply time, so late-arriving events
-// just replace the pending schedule rather than queuing up.
-let placeholderTimer = null;
-function updateFilterPlaceholder() {
-  clearTimeout(placeholderTimer);
-  placeholderTimer = setTimeout(applyFilterPlaceholder, 80);
+// Three named states collapse the (pageFocused, inputFocused) matrix:
+//   • 'idle' — window lacks focus. Keystrokes never arrive. Dimmed.
+//   • 'hint' — window focused, input isn't. Type-anywhere is live.
+//   • 'edit' — input itself has focus. Normal editing UI.
+// Page-blurred-but-input-focused is folded into 'idle' — the dim
+// should win whenever the window can't receive input, regardless of
+// what activeElement technically is.
+function computeFilterState(pageFocused, inputFocused) {
+  if (!pageFocused) return 'idle';
+  return inputFocused ? 'edit' : 'hint';
 }
 
 function applyFilterPlaceholder() {
   const input = document.getElementById('tabFilter');
   if (!input) return;
-  const pageFocused = document.hasFocus();
-  const inputFocused = document.activeElement === input;
-  if (inputFocused)      input.placeholder = PLACEHOLDER_EDIT;
-  else if (pageFocused)  input.placeholder = PLACEHOLDER_HINT;
-  else                   input.placeholder = PLACEHOLDER_IDLE;
+  const state = computeFilterState(document.hasFocus(), document.activeElement === input);
+
+  input.placeholder =
+    state === 'edit' ? PLACEHOLDER_EDIT :
+    state === 'hint' ? PLACEHOLDER_HINT :
+                       PLACEHOLDER_IDLE;
   // `.capture-ready` gives the input a subtler pre-focus look so the user
-  // trusts keystrokes will land here even before clicking in. Only shown
-  // when type-anywhere is actually live (page focused, input not).
-  input.classList.toggle('capture-ready', pageFocused && !inputFocused);
+  // trusts keystrokes will land here even before clicking in.
+  input.classList.toggle('capture-ready', state === 'hint');
   // `.capture-dormant` dims the input when the window lacks focus —
   // a visual "this can't respond to keys right now" cue that reads
   // faster than the placeholder text alone.
-  input.classList.toggle('capture-dormant', !pageFocused);
+  input.classList.toggle('capture-dormant', state === 'idle');
 }
 
 /**
@@ -206,17 +209,19 @@ document.addEventListener('keydown', (e) => {
 
 // Keep the placeholder in sync with both window-level focus and
 // input-level focus — three states (IDLE / HINT / EDIT) need two
-// signal sources.
-window.addEventListener('focus', updateFilterPlaceholder);
-window.addEventListener('blur',  updateFilterPlaceholder);
+// signal sources. The state cache inside applyFilterPlaceholder()
+// makes redundant event bursts a no-op, so the handler is safe to
+// attach directly without a debounce wrapper.
+window.addEventListener('focus', applyFilterPlaceholder);
+window.addEventListener('blur',  applyFilterPlaceholder);
 {
   const tabFilter = document.getElementById('tabFilter');
   if (tabFilter) {
-    tabFilter.addEventListener('focus', updateFilterPlaceholder);
-    tabFilter.addEventListener('blur',  updateFilterPlaceholder);
+    tabFilter.addEventListener('focus', applyFilterPlaceholder);
+    tabFilter.addEventListener('blur',  applyFilterPlaceholder);
   }
 }
-updateFilterPlaceholder();
+applyFilterPlaceholder();
 
 // Type-to-filter: when the user starts typing anywhere (no modifier,
 // not already in an input), auto-focus the filter and pipe the
