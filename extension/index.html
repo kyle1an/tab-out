@@ -36,19 +36,11 @@
            ~32px line, reclaiming vertical space for the card grid. -->
           <div class="header-row">
             <div class="header-stats">
-              <!-- Action buttons first — leftmost, fixed anchor. Stats never
-               shift when a button toggles on/off, so the cursor can't be
-               under the "182 Open tabs" text one moment and under a Close
-               button the next. Within the action group, dedup comes first
-               because it's the safer bulk op (only closes duplicate URLs,
-               keeping one per URL). Close-filtered can close arbitrary N
-               tabs matching a substring — higher mis-click impact, placed
-               second so typing in the filter doesn't slide the dedup
-               button out from under the cursor. -->
-              <span class="stat-actions">
-                <span id="openTabsDedupAction"></span>
-                <span class="section-actions" id="openTabsSectionActions"></span>
-              </span>
+              <!-- Dedup button — leftmost anchor. Lives alone at the start
+               of the stats row; nothing can slide into its position when
+               it hides. A cursor aimed at dedup either clicks dedup or
+               lands on a passive stat span, never on another action. -->
+              <span id="openTabsDedupAction"></span>
               <!-- "182 Open tabs" — written by updateTabCountDisplays() -->
               <span class="stat-primary" id="greeting"></span>
               <span class="stat-sep">·</span>
@@ -60,6 +52,12 @@
                 <span class="stat-sep">·</span>
                 <span class="section-count" id="openTabsSectionCount"></span>
               </span>
+              <!-- Close-filtered button — anchored at the END of the stats
+               row, separated from dedup by the (never-clickable) stat
+               spans between them. Two independent slots, so neither
+               action button can slide into the other's position when
+               state changes. Only appears while a filter is active. -->
+              <span class="section-actions" id="openTabsSectionActions"></span>
             </div>
             <!-- Live filter — debounced; matches title text + URL substring;
              hides non-matching chips and any card left empty. -->
