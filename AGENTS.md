@@ -77,10 +77,12 @@ Once the extension is loaded:
 > Here's how it works:
 > 1. **Your open tabs are grouped by domain** in a grid layout.
 > 2. **Homepages** (Gmail inbox, X home, YouTube, etc.) are in their own group at the top.
-> 3. **Click any tab title** to jump directly to that tab.
-> 4. **Click the X** next to any tab to close just that one (with confetti).
-> 5. **Click "Close all N tabs"** on a group to close the whole thing.
-> 6. **Duplicate tabs** are flagged with an amber "(2x)" badge. Click "Close duplicates" to keep one copy.
+> 3. **Click any tab title** to jump directly to that tab — even across Chrome windows.
+> 4. **Click the X** next to any tab to close just that one (with confetti). Undo is in the toast.
+> 5. **Click "Close all N tabs"** on a group header to close the whole card.
+> 6. **Duplicate tabs** show an "(2x)" badge. Click the card's **"Dedupe N"** button (or the global **"Dedupe N"** in the top bar) to keep one copy per URL.
+> 7. **Live filter:** just start typing anywhere on the page. Matching tabs stay put; the rest slide into an "Other tabs" section below so everything stays accounted for. Press Esc or click the ✕ inside the input to clear.
+> 8. **Cross-subdomain fold:** if a page exists in multiple subdomains (dev/qa/prod, or tenant subdomains, etc.), it shows as one chip with a row of clickable env pills under an "Across subdomains" section.
 >
 > That's it! No server to run, no config files. Everything works right away.
 
