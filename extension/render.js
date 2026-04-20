@@ -8,17 +8,18 @@
    / <SubdomainSection> / <PathgroupSection> / <FlatSection> /
    <PageChip> for declarative rendering.
 
-   Exports used by components:
+   Exports:
    • renderStaticDashboard — top-level entry, rebuilds domainGroups
                              and mounts the Preact tree
-   • computeDomainCardViewModel — per-card view-model (consumed by
-                                  <DomainCard>)
+   • mountMissions — re-renders the card grids against the current
+                     filter; called by both renderStaticDashboard
+                     (after a fetch) and filter.js (after a query change)
+   • computeDomainCardViewModel — per-card VM, takes { filter, mode }
+                                  and returns match-scoped fields
+                                  (consumed by <DomainCard>)
+   • renderHeaderStats — (re)renders the pinned-top stats row via
+                         <HeaderStats>
    • domainGroups — live array of current grouping
-   • renderHeaderStats — (re)renders the pinned-top stats row via the
-                         <HeaderStats> component. updateTabCountDisplays,
-                         updateSectionCount, and updateFilteredActions
-                         are kept as aliases so existing callers still
-                         work after the migration.
    • getFilteredCloseableUrls — URLs the "Close N filtered tabs" action
                                 would close (shared with app.js handler)
    • pickFavicon — tab.favIconUrl (preserves data: URIs) /
@@ -161,12 +162,10 @@ export function getFilteredCloseableUrls() {
 /**
  * renderHeaderStats() — (re)render the pinned-top stats row via Preact.
  *
- * Replaces the previous updateTabCountDisplays + updateSectionCount +
- * updateFilteredActions trio. One Preact render mounts a fresh
- * <HeaderStats> tree into .header-stats; all counts + action buttons
- * come out of the same snapshot so the row never shows inconsistent
- * intermediate states (e.g. a stale "Close 3 filtered tabs" button
- * lingering after the filter was cleared).
+ * One Preact render mounts a fresh <HeaderStats> tree into .header-stats;
+ * all counts + action buttons come out of the same snapshot so the row
+ * never shows inconsistent intermediate states (e.g. a stale "Close 3
+ * filtered tabs" button lingering after the filter was cleared).
  *
  * Data sources — every count goes through computeDomainCardViewModel
  * so the header reads the same VM that drives the card grid. No more
@@ -215,12 +214,6 @@ export function renderHeaderStats() {
   )
 }
 
-// Backwards-compat shims. Every call site of the old API still works
-// because all three names point at the same re-render. Kept separate
-// so follow-up cleanups can migrate callers one at a time.
-export const updateTabCountDisplays = renderHeaderStats
-export const updateSectionCount = renderHeaderStats
-export const updateFilteredActions = renderHeaderStats
 
 /**
  * disambiguatingPaths(urls) — given a list of URLs that share a

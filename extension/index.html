@@ -41,10 +41,15 @@
                it hides. A cursor aimed at dedup either clicks dedup or
                lands on a passive stat span, never on another action. -->
               <span id="openTabsDedupAction"></span>
-              <!-- "182 Open tabs" — written by updateTabCountDisplays() -->
+              <!-- "182 Open tabs · Across 3 windows · 17 domains" +
+                   the Dedupe-N + Close-N-filtered-tabs buttons are
+                   all rendered by <HeaderStats> (components/HeaderStats.js)
+                   into this .header-stats node. The inner spans below
+                   are placeholder markup that Preact replaces on the
+                   first renderHeaderStats() call; the IDs are kept
+                   purely for inspector familiarity. -->
               <span class="stat-primary" id="greeting"></span>
               <span class="stat-sep">·</span>
-              <!-- "Across 3 windows" — written by updateTabCountDisplays() -->
               <span class="date" id="dateDisplay"></span>
               <!-- Domain count. Hidden with the rest of sectionHeaderWrap
                when there are no cards; render.js toggles display. -->

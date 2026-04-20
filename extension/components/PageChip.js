@@ -98,11 +98,9 @@ export function PageChip({ chip }) {
       await new Promise((r) => setTimeout(r, 200))
     }
 
-    // Always full re-render at this point — handles both branches:
-    //   • last tab: chip is gone from the VM, card may collapse too
-    //   • duplicate set: (Nx) badge decrements via the fresh VM
-    // Subsumes the previous split updateTabCountDisplays +
-    // packMissionsMasonry + per-card DOM probing.
+    // Full re-render handles both branches: last tab → chip gone
+    // from VM, card may collapse too; duplicate set → (Nx) badge
+    // decrements via the fresh VM.
     await renderStaticDashboard()
 
     if (snapshot.length > 0) {
