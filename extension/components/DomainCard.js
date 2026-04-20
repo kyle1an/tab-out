@@ -42,12 +42,7 @@ function TabBadge({ isAppCard, tabCount }) {
     return html` <span class="app-badge tab-count-badge" title=${title}>${text}</span> `
   }
   const title = `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
-  // `data-original-count` preserves the view-model tab count so
-  // filter.js can restore it after the filter is cleared. Preact
-  // updates the attribute on every live-sync re-render, so it always
-  // matches the current true count (unlike a DOM-text snapshot, which
-  // would capture whatever a prior mutation left behind).
-  return html` <span class="open-tabs-badge tab-count-badge" title=${title} data-original-count=${tabCount}>${tabCount}</span> `
+  return html` <span class="open-tabs-badge tab-count-badge" title=${title}>${tabCount}</span> `
 }
 
 function DedupButton({ count, dupeUrlsEncoded, onClick }) {
@@ -64,8 +59,10 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
   `
 }
 
-export function DomainCard({ group }) {
-  const vm = computeDomainCardViewModel(group)
+export function DomainCard({ group, filter = '', mode = 'matched' }) {
+  const vm = computeDomainCardViewModel(group, { filter, mode })
+
+  if (vm.isHidden) return null
 
   // Close-domain handler: scopes to filter-matching tabs when the
   // filter is active, preserves Chrome tab groups, animates the card
@@ -78,15 +75,17 @@ export function DomainCard({ group }) {
   async function onCloseDomain(e) {
     const card = e.currentTarget.closest('.mission-card')
 
-    const filterInput = document.getElementById('tabFilter')
-    const fq = (filterInput?.value || '').trim().toLowerCase()
-    const scopedTabs = fq ? group.tabs.filter((t) => (t.title || '').toLowerCase().includes(fq) || (t.url || '').toLowerCase().includes(fq)) : group.tabs
+    // `filter` prop already carries the normalized query, so we don't
+    // have to reach into the DOM for it.
+    const scopedTabs = filter
+      ? group.tabs.filter((t) => (t.title || '').toLowerCase().includes(filter) || (t.url || '').toLowerCase().includes(filter))
+      : group.tabs
     const urls = scopedTabs.map((t) => t.url)
-    const useExact = !!fq || group.domain === '__landing-pages__' || !!group.label
+    const useExact = !!filter || group.domain === '__landing-pages__' || !!group.label
 
     const snapshot = useExact ? await closeTabsExact(urls, { preserveGroups: true }) : await closeTabsByUrls(urls, { preserveGroups: true })
 
-    if (card && !fq) {
+    if (card && !filter) {
       const rect = card.getBoundingClientRect()
       shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
       card.classList.add('closing')
@@ -125,7 +124,7 @@ export function DomainCard({ group }) {
     await renderStaticDashboard()
   }
 
-  const classList = `mission-card domain-card${vm.isAppCard ? ' is-app' : ''}`
+  const classList = `mission-card domain-card${vm.isAppCard ? ' is-app' : ''}${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
 
   return html`
     <div class=${classList} data-domain-id=${vm.stableId}>

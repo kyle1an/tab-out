@@ -34,7 +34,6 @@ function SubdomainCloseButton({ count, onClick }) {
 }
 
 export function SubdomainSection({ subdomainKey, isShared, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
-  const dataKey = subdomainKey || '__root__'
   const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
   // "Across subdomains" pseudo-section gets a descriptive label.
   // Neutral phrasing (not "envs") since the fold logic is generic —
@@ -61,12 +60,12 @@ export function SubdomainSection({ subdomainKey, isShared, sectionCount, section
   }
 
   return html`
-    <div class="subdomain-section" data-subdomain-key=${dataKey} data-shared=${isShared ? 'true' : null}>
+    <div class="subdomain-section" data-shared=${isShared ? 'true' : null}>
       ${showHeader &&
       html`
         <div class="subdomain-header">
           <span class="subdomain-header-name">${headerLabel}</span>
-          <span class="subdomain-header-count" data-original-count=${sectionCount}>${sectionCount}</span>
+          <span class="subdomain-header-count">${sectionCount}</span>
           ${hasClose && html` <${SubdomainCloseButton} count=${sectionClosableUrls.length} onClick=${onCloseSubdomain} /> `}
         </div>
       `}

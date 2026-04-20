@@ -17,7 +17,9 @@ import { closeTabsExact, closeDuplicateTabs, closeTabOutDupes } from './tabs.js'
 import { showToast } from './ui.js'
 import { markClosure } from './undo.js'
 import { renderStaticDashboard, getFilteredCloseableUrls } from './render.js'
-import { applyTabFilter } from './filter.js'
+// filter.js is imported for its side effects only — attaching the
+// input / keyboard / paste listeners at module load.
+import './filter.js'
 import { groupColorChanged } from './groups.js'
 import { mountToast } from './components/Toast.js'
 
@@ -37,10 +39,9 @@ let refreshTimer = null
 async function refreshDashboard() {
   if (document.visibilityState !== 'visible') return
   await renderStaticDashboard()
-  // Re-rendering wipes filter visibility on the freshly built chips —
-  // reapply the active filter so what was hidden stays hidden.
-  const input = document.getElementById('tabFilter')
-  if (input && input.value) applyTabFilter(input.value)
+  // No need to reapply the filter — the VM reads filter.js's state
+  // on every render, so filter-scoped visibility is reproduced
+  // automatically on every rebuild.
 }
 
 function scheduleDashboardRefresh() {
