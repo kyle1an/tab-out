@@ -103,7 +103,7 @@ export function PageChip({ chip }) {
   const style = chip.isGrouped ? `--group-color:${chip.groupDotColor}` : null
 
   return html`
-    <div class="page-chip clickable" data-action="focus-tab" data-tab-url=${chip.rawUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
+    <div class="page-chip clickable" data-action="focus-tab" data-tab-url=${chip.tabUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
       ${chip.faviconUrl && html` <img class="chip-favicon" src=${chip.faviconUrl} alt="" /> `}
       <span class="chip-text">
         ${chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
@@ -113,7 +113,7 @@ export function PageChip({ chip }) {
       </span>
       ${chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
       <div class="chip-actions">
-        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url=${chip.rawUrl} title="Close this tab" onClick=${onClose}>
+        <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url=${chip.tabUrl} title="Close this tab" onClick=${onClose}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
