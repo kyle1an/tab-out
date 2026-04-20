@@ -45,7 +45,12 @@ function TabBadge({ isAppCard, tabCount }) {
     return html` <span class="app-badge tab-count-badge" title=${title}>${text}</span> `
   }
   const title = `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
-  return html` <span class="open-tabs-badge tab-count-badge" title=${title}>${tabCount}</span> `
+  // `data-original-count` preserves the view-model tab count so
+  // filter.js can restore it after the filter is cleared. Preact
+  // updates the attribute on every live-sync re-render, so it always
+  // matches the current true count (unlike a DOM-text snapshot, which
+  // would capture whatever a prior mutation left behind).
+  return html` <span class="open-tabs-badge tab-count-badge" title=${title} data-original-count=${tabCount}>${tabCount}</span> `
 }
 
 function DedupButton({ count, dupeUrlsEncoded, onClick }) {
