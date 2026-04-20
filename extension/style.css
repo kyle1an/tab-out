@@ -406,12 +406,6 @@ header {
   opacity: 1;
 }
 
-/* Collapse the dedup-only actions row when empty so the flex gap
-   between mission-top and mission-pages stays consistent. */
-.actions:empty {
-  display: none;
-}
-
 /* Standalone-app card — PWAs / installed apps running in their own
    window. Dashed border hints "this is not a regular tab." */
 .mission-card.is-app {
@@ -473,7 +467,7 @@ header {
 
 .mission-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--ink);
   letter-spacing: -0.2px;
 }
@@ -996,7 +990,12 @@ header {
      text's visual midline instead of sitting on the baseline. */
   align-items: center;
   gap: 6px;
-  padding: 10px 12px 4px 12px;
+  /* Vertical padding tightened 10/4 → 6/2. With the header's own
+     12px font size and the chips' compact line-height, 6/2 reads as
+     deliberate section separation without the extra breathing room
+     the old values gave. Scales across every subdomain / cluster /
+     flat section that renders a header. */
+  padding: 6px 12px 2px 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
@@ -1194,17 +1193,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* ---- Actions row ---- */
-.actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 0;
-  margin-bottom: 10px;
-}
-/* Collapse spacing when the action bar is empty (e.g. all tabs in groups) */
-.actions:empty {
-  margin: 0;
-}
 
 .action-btn {
   font-size: 12px;
