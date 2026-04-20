@@ -124,7 +124,7 @@ export function PageChip({ chip }) {
     updateTabCountDisplays()
 
     if (snapshot.length > 0) {
-      const label = isFolded ? `Closed ${snapshot.length} env ${snapshot.length === 1 ? 'copy' : 'copies'}` : 'Tab closed'
+      const label = isFolded ? `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} across subdomains` : 'Tab closed'
       markClosure(snapshot, label)
     } else {
       showToast('Nothing to close')
