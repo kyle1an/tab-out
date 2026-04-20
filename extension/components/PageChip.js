@@ -30,7 +30,7 @@ import { markClosure } from '../undo.js'
 import { showToast, animateCardOut } from '../ui.js'
 import { shootConfetti } from '../confetti.js'
 import { packMissionsMasonry } from '../layout.js'
-import { updateTabCountDisplays } from '../render.js'
+import { updateTabCountDisplays, renderStaticDashboard } from '../render.js'
 
 const html = htm.bind(h)
 
@@ -46,31 +46,52 @@ export function PageChip({ chip }) {
     const chipEl = e.currentTarget.closest('.page-chip')
 
     // Match on both raw and effective URL so the chip works even if
-    // the tab has been (un)suspended since the last render.
+    // the tab has been (un)suspended since the last render. Collect
+    // ALL matches (a chip with an (Nx) dupe badge represents >1 tab
+    // at the same URL) so we can distinguish "removed the last tab
+    // for this URL" from "still have siblings to render".
     const allTabs = await chrome.tabs.query({})
     const targetEffective = unwrapSuspenderUrl(chip.tabUrl)
-    const match = allTabs.find((t) => t.url === chip.tabUrl) || allTabs.find((t) => unwrapSuspenderUrl(t.url) === targetEffective)
-    const snapshot = match ? snapshotChromeTabs([match]) : []
-    if (match) await chrome.tabs.remove(match.id)
+    const matches = allTabs.filter((t) => t.url === chip.tabUrl || unwrapSuspenderUrl(t.url) === targetEffective)
+    const toClose = matches[0]
+    const snapshot = toClose ? snapshotChromeTabs([toClose]) : []
+    if (toClose) await chrome.tabs.remove(toClose.id)
     await fetchOpenTabs()
 
-    if (chipEl) {
-      const rect = chipEl.getBoundingClientRect()
-      shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
-      chipEl.style.transition = 'opacity 0.2s, transform 0.2s'
-      chipEl.style.opacity = '0'
-      chipEl.style.transform = 'scale(0.8)'
-      setTimeout(() => {
-        chipEl.remove()
-        const parentCard = document.querySelector('.mission-card:has(.mission-pages:empty)')
-        if (parentCard) animateCardOut(parentCard)
-        document.querySelectorAll('.mission-card').forEach((c) => {
-          if (c.querySelectorAll('.page-chip[data-action="focus-tab"]').length === 0) {
-            animateCardOut(c)
-          }
-        })
-        packMissionsMasonry()
-      }, 200)
+    const isLastTabForUrl = matches.length <= 1
+
+    if (isLastTabForUrl) {
+      // Only tab for this URL is gone — animate the chip out and
+      // cascade to animateCardOut if the card is now empty.
+      if (chipEl) {
+        const rect = chipEl.getBoundingClientRect()
+        shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
+        chipEl.style.transition = 'opacity 0.2s, transform 0.2s'
+        chipEl.style.opacity = '0'
+        chipEl.style.transform = 'scale(0.8)'
+        setTimeout(() => {
+          chipEl.remove()
+          const parentCard = document.querySelector('.mission-card:has(.mission-pages:empty)')
+          if (parentCard) animateCardOut(parentCard)
+          document.querySelectorAll('.mission-card').forEach((c) => {
+            if (c.querySelectorAll('.page-chip[data-action="focus-tab"]').length === 0) {
+              animateCardOut(c)
+            }
+          })
+          packMissionsMasonry()
+        }, 200)
+      }
+    } else {
+      // Chip represented a duplicate set (e.g. "(2x)" badge). Closing
+      // one of them should shrink the badge, not remove the chip —
+      // the remaining sibling tab(s) still exist and must stay
+      // represented in the UI. Re-rendering the whole dashboard is
+      // the safe fix: computeDomainCardViewModel re-derives counts,
+      // card-level tab-count badges update, and the (Nx) badge
+      // either decrements or disappears for (N-1) ≤ 1. Previously
+      // the chipEl was animated out unconditionally, silently
+      // hiding the survivor until a manual refresh.
+      renderStaticDashboard()
     }
 
     updateTabCountDisplays()
