@@ -38,8 +38,9 @@ export function SubdomainSection({ subdomainKey, isShared, sectionCount, section
   const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
   // "Shared across envs" pseudo-section gets a descriptive label; real
   // subdomain sections render just the subdomain name here — the
-  // trailing DNS-style "." suffix is added via CSS `::after` so it
-  // can render muted/thinner than the name itself (see style.css).
+  // trailing "." suffix (FQDN-style hostname cue) is added via CSS
+  // `::after` so it can render muted/thinner than the name itself
+  // (see style.css).
   const headerLabel = isShared ? 'Shared across envs' : subdomainKey
 
   // Close-subdomain handler. Mirrors PathgroupSection's cluster close
