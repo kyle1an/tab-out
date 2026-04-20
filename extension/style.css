@@ -884,7 +884,11 @@ header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 0 2px 0;
+  /* Top padding 6 → 3 — the inter-section margin trim alone wasn't
+     visible because this padding dominated the gap between the
+     preceding chip and the cluster label. Bottom kept at 2 so the
+     label still has a hair of air above the first chip. */
+  padding: 3px 0 2px 0;
   /* Anchor for the absolutely-positioned close button. Taking the
      button out of flex flow lets .pathgroup-header-rule claim the
      full remaining width when the button is hidden — the ruled

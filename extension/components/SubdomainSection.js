@@ -36,12 +36,16 @@ function SubdomainCloseButton({ count, onClick }) {
 export function SubdomainSection({ subdomainKey, isShared, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
   const dataKey = subdomainKey || '__root__'
   const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
-  // "Shared across envs" pseudo-section gets a descriptive label; real
+  // "Across subdomains" pseudo-section gets a descriptive label.
+  // Neutral phrasing (not "envs") since the fold logic is generic —
+  // it matches identical paths across any 2+ subdomains of a card,
+  // which may or may not represent environments (could equally be
+  // tenants, regions, user pods, staging variants, etc). Real
   // subdomain sections render just the subdomain name here — the
   // trailing "." suffix (FQDN-style hostname cue) is added via CSS
   // `::after` so it can render muted/thinner than the name itself
   // (see style.css).
-  const headerLabel = isShared ? 'Shared across envs' : subdomainKey
+  const headerLabel = isShared ? 'Across subdomains' : subdomainKey
 
   // Close-subdomain handler. Mirrors PathgroupSection's cluster close
   // — exact-URL match + preserveGroups so Chrome tab groups survive.
