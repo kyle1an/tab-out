@@ -36,6 +36,7 @@ import { render as preactRender, h } from './vendor/preact.mjs'
 import htm from './vendor/htm.mjs'
 import { Missions } from './components/Missions.js'
 import { HeaderStats } from './components/HeaderStats.js'
+import { getFilter } from './filter.js'
 
 const html = htm.bind(h)
 
@@ -144,12 +145,11 @@ function stripPgLabel(label, pgLabel) {
 /**
  * getFilteredCloseableUrls() — URLs of tabs the "Close N filtered tabs"
  * action would close: filter-matching, ungrouped, non-chrome. Returns []
- * when no filter is active. Shared between the button label + the action
- * handler so both see the same list.
+ * when no filter is active. Shared between the HeaderStats button label
+ * and the action handler in app.js so both see the same list.
  */
 export function getFilteredCloseableUrls() {
-  const filterInput = document.getElementById('tabFilter')
-  const q = ((filterInput && filterInput.value) || '').trim().toLowerCase()
+  const q = getFilter()
   if (!q) return []
   return getRealTabs()
     .filter((t) => !isGroupedTab(t))
@@ -168,36 +168,33 @@ export function getFilteredCloseableUrls() {
  * intermediate states (e.g. a stale "Close 3 filtered tabs" button
  * lingering after the filter was cleared).
  *
- * Data sources:
- *   • getRealTabs() + #tabFilter value — drives tab/window counts and
- *     the "Close N filtered tabs" button.
- *   • #openTabsMissions .mission-card  — visibleDomains count and the
- *     global Dedupe-N button are summed from per-card state already
- *     rendered into the primary grid. Both can be lifted into the
- *     view-model in a follow-up.
+ * Data sources — every count goes through computeDomainCardViewModel
+ * so the header reads the same VM that drives the card grid. No more
+ * DOM scraping for visibleDomains (`c.style.display !== 'none'`) or
+ * dedupCount (`.action-btn text content`); if you trust the cards
+ * are right, the header's right by construction.
  */
 export function renderHeaderStats() {
   const mountEl = document.querySelector('.header-stats')
   if (!mountEl) return
 
   const realTabs = getRealTabs()
-  const filterInput = document.getElementById('tabFilter')
-  const q = ((filterInput && filterInput.value) || '').trim().toLowerCase()
+  const q = getFilter()
   const filtering = q.length > 0
 
   const visibleTabs = filtering ? realTabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
 
-  const allCards = document.querySelectorAll('#openTabsMissions .mission-card')
-  const totalDomains = allCards.length
-  const visibleDomains = Array.from(allCards).filter((c) => c.style.display !== 'none').length
-
+  const totalDomains = domainGroups.length
+  let visibleDomains = 0
   let dedupCount = 0
-  document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]').forEach((btn) => {
-    const m = btn.textContent.match(/\d+/)
-    if (m) dedupCount += parseInt(m[0], 10)
-  })
+  for (const g of domainGroups) {
+    const vm = computeDomainCardViewModel(g, { filter: q, mode: 'matched' })
+    if (vm.isHidden) continue
+    visibleDomains++
+    dedupCount += vm.closableExtras || 0
+  }
 
   const filteredCloseCount = getFilteredCloseableUrls().length
 
@@ -287,16 +284,66 @@ function disambiguatingPaths(urls) {
 }
 
 /* ---- Domain card view-model ----
-   Computes the per-card data consumed by the Preact <DomainCard>
-   component in components/DomainCard.js. Returns derived values
-   plus `pageChipsHtml`, the string of subdomain/pathgroup/chip
-   HTML that Phase 2 still injects via dangerouslySetInnerHTML.
-   Phases 3–5 replace pageChipsHtml with real components. */
-export function computeDomainCardViewModel(group) {
-  const tabs = group.tabs || []
+   Builds the per-card data consumed by <DomainCard>. Filtering used
+   to be done imperatively in filter.js — walk each chip's DOM,
+   toggle style.display, update each section-count, recompute the
+   close-domain / dedup labels from per-card state. The whole thing
+   is now inside this function: pass `{ filter, mode }` and get back
+   a VM whose visibleChips / sections / closableCount already reflect
+   the current filter scope.
+
+     • filter — normalized (trim + lowercase) query string ('' means
+                no filter)
+     • mode   — 'matched' (keep tabs that match the filter) or
+                'unmatched' (keep tabs that DON'T match; used for the
+                secondary "Other tabs" grid). Empty filter in
+                'unmatched' yields an all-hidden card — nothing can
+                not-match an empty query.
+
+   Returned fields:
+     • isHidden     — true when the card has zero chips under the
+                      current filter; <Missions> skips it entirely
+     • displayMode  — 'normal' | 'unmatched'; <DomainCard> applies
+                      the card-unmatched class + suppresses bulk-
+                      close buttons when 'unmatched'
+     • filtering    — convenience flag; sections/chips use it to
+                      bypass the "+N more" overflow split so every
+                      matching chip is visible at once
+*/
+function tabMatchesFilter(tab, filter) {
+  if (!filter) return true
+  const title = (tab.title || '').toLowerCase()
+  const url = (tab.url || '').toLowerCase()
+  return title.includes(filter) || url.includes(filter)
+}
+
+export function computeDomainCardViewModel(group, { filter = '', mode = 'matched' } = {}) {
+  const allTabs = group.tabs || []
+  const filtering = filter !== ''
+  const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
+  const stableId = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
+
+  // First thing: narrow the tab set to what this grid should show.
+  // Unfiltered matched mode keeps everything; unmatched mode with an
+  // empty filter keeps nothing (secondary grid is hidden upstream in
+  // that case anyway, but bail early so we don't produce a ghost
+  // VM full of chips).
+  const tabs =
+    filtering
+      ? allTabs.filter((t) => {
+          const m = tabMatchesFilter(t, filter)
+          return mode === 'unmatched' ? !m : m
+        })
+      : mode === 'unmatched'
+        ? []
+        : allTabs
+
+  if (tabs.length === 0) {
+    return { stableId, isHidden: true, displayMode, filtering }
+  }
+
   const tabCount = tabs.length
   const isLanding = group.domain === '__landing-pages__'
-  const stableId = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
   // Card is rendered as "app-style" only when every tab in it is running
   // in a standalone window (PWA/Chrome app). Mixed = treat as regular card.
   const isAppCard = tabs.length > 0 && tabs.every((t) => t.isApp)
@@ -491,8 +538,14 @@ export function computeDomainCardViewModel(group) {
   // when N would be 1, the button itself takes about the same vertical
   // space as rendering the one chip inline — so the collapse saves
   // nothing. Roll that last chip into the visible set instead.
+  //
+  // While filtering we bypass the split entirely: every chip that
+  // made it through the filter is, by definition, something the user
+  // is trying to see. Collapsing any of them behind "+N more" would
+  // defeat the filter. (Previously filter.js forced all .page-chips-
+  // overflow elements to display:contents; the VM handles it now.)
   function splitForOverflow(tabs) {
-    if (tabs.length <= CHIPS_PER_SECTION + 1) {
+    if (filtering || tabs.length <= CHIPS_PER_SECTION + 1) {
       return { vis: tabs, hid: [] }
     }
     return { vis: tabs.slice(0, CHIPS_PER_SECTION), hid: tabs.slice(CHIPS_PER_SECTION) }
@@ -746,19 +799,41 @@ export function computeDomainCardViewModel(group) {
 
   const displayName = isLanding ? 'Homepages' : group.label || group.domain.replace(/^www\./, '')
 
+  // In the secondary ("unmatched") grid, every bulk-close action is
+  // suppressed — we don't want to offer a "Close 4 tabs" on a card
+  // rendered as the user's NON-match set, that would close the tabs
+  // they didn't type "github" about. Zero out the closable fields so
+  // the buttons just don't render (components are already conditional
+  // on closableCount > 0 / closableUrls.length > 0).
+  const isUnmatched = displayMode === 'unmatched'
+  const vmClosableCount = isUnmatched ? 0 : closableCount
+  const vmClosableExtras = isUnmatched ? 0 : closableExtras
+  const vmClosableDupeUrls = isUnmatched ? [] : closableDupeUrls
+  const vmDupeUrlsEncoded = isUnmatched ? '' : dupeUrlsEncoded
+  const vmSections = isUnmatched
+    ? sectionsData.map((s) => ({
+        ...s,
+        sectionClosableUrls: [],
+        clusters: s.clusters.map((c) => ({ ...c, closableUrls: [] }))
+      }))
+    : sectionsData
+
   return {
     stableId,
+    isHidden: false,
+    displayMode,
+    filtering,
     isAppCard,
     isLanding,
     tabCount,
-    closableCount,
+    closableCount: vmClosableCount,
     closableCountLabel,
-    closableDupeUrls,
-    closableExtras,
-    dupeUrlsEncoded,
+    closableDupeUrls: vmClosableDupeUrls,
+    closableExtras: vmClosableExtras,
+    dupeUrlsEncoded: vmDupeUrlsEncoded,
     singleSubdomainKey,
     displayName,
-    sections: sectionsData
+    sections: vmSections
   }
 }
 
@@ -766,7 +841,6 @@ export function computeDomainCardViewModel(group) {
 export async function renderStaticDashboard() {
   await fetchOpenTabs()
   const realTabs = getRealTabs()
-  updateTabCountDisplays()
 
   // Group tabs by domain. Landing pages (Gmail inbox, X home, etc.) get
   // their own special group so they can be closed together without
@@ -878,19 +952,14 @@ export async function renderStaticDashboard() {
     return b.tabs.length - a.tabs.length
   })
 
-  // --- Render domain cards ---
-  const openTabsSection = document.getElementById('openTabsSection')
+  // Snapshot current card order so the next render preserves it.
+  // Phase 2 retired prevColumns (Preact's keyed reconciliation preserves
+  // the .mission-card DOM node so layout.js's data-masonry-col survives).
+  // Phase 3/4 retired expand-state snapshots (<FlatSection> and
+  // <PathgroupSection> own their expand state via useState). Only the
+  // top-level card order still needs a hint here: it's what domainGroups
+  // is sorted against below.
   const openTabsMissionsEl = document.getElementById('openTabsMissions')
-  const openTabsMissionsUnmatchedEl = document.getElementById('openTabsMissionsUnmatched')
-
-  // Snapshot the existing DOM only to preserve vertical order within
-  // columns across rebuilds. Phase 2 retired prevColumns (Preact's
-  // keyed reconciliation preserves the .mission-card DOM node so
-  // layout.js's data-masonry-col survives unchanged). Phase 3 retired
-  // the flat-section expand snapshot (<FlatSection> owns it via
-  // useState). Phase 4 retires the pathgroup-section expand snapshot
-  // (<PathgroupSection> does too). Every expansion is now preserved
-  // via keyed component state, not DOM scraping.
   const prevOrder = new Map()
   if (openTabsMissionsEl) {
     let idx = 0
@@ -914,22 +983,53 @@ export async function renderStaticDashboard() {
     return 0
   })
 
-  // <Missions> owns both containers. An empty domainGroups array
-  // renders the "Inbox zero" empty state from inside the component,
-  // so openTabsSection stays mounted at all times (no more .display
-  // toggle — collapsing the section would hide the empty state too).
-  // Secondary grid is always rendered; filter.js hides its wrapper
-  // (#openTabsMissionsOther) until there's an unmatched card to show.
-  if (openTabsSection) openTabsSection.style.display = 'block'
-  preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
-  if (openTabsMissionsUnmatchedEl) {
-    preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsUnmatchedEl)
-  }
-  if (domainGroups.length > 0) packMissionsMasonry()
+  mountMissions()
+}
 
-  // Single pass now that <HeaderStats> handles every field. The
-  // previous trio (updateTabCountDisplays / updateSectionCount /
-  // updateFilteredActions) all alias to renderHeaderStats so this is
-  // also the only call most other callers need.
+/**
+ * mountMissions() — (re)render both card grids using the current
+ * filter state. Called both from the top-level renderStaticDashboard
+ * (after fetchOpenTabs + grouping) and from filter.js after the filter
+ * query changes (no fetch needed — domainGroups is already fresh).
+ *
+ * Each DomainCard re-computes its VM from (group, filter, mode), so
+ * filter changes flow through the component tree the same way tab
+ * changes do: new VM → Preact diff → DOM update. No imperative
+ * hide/show walks; filter.js stays a thin listener layer.
+ *
+ * The secondary ("Other tabs") grid is only rendered while a filter
+ * is active; its wrapper's visibility follows whether any card has
+ * unmatched content to show.
+ */
+export function mountMissions() {
+  const openTabsSection = document.getElementById('openTabsSection')
+  const openTabsMissionsEl = document.getElementById('openTabsMissions')
+  const openTabsMissionsUnmatchedEl = document.getElementById('openTabsMissionsUnmatched')
+  const secondaryWrap = document.getElementById('openTabsMissionsOther')
+  if (!openTabsMissionsEl) return
+
+  const filter = getFilter()
+
+  if (openTabsSection) openTabsSection.style.display = 'block'
+
+  preactRender(html`<${Missions} domains=${domainGroups} filter=${filter} mode="matched" />`, openTabsMissionsEl)
+
+  if (openTabsMissionsUnmatchedEl) {
+    if (filter) {
+      preactRender(html`<${Missions} domains=${domainGroups} filter=${filter} mode="unmatched" />`, openTabsMissionsUnmatchedEl)
+    } else {
+      preactRender(null, openTabsMissionsUnmatchedEl)
+    }
+  }
+
+  // Wrapper visibility follows "does secondary actually have any
+  // card to show?" — computed from the same VM logic, so the decision
+  // stays consistent with what <Missions> rendered above.
+  if (secondaryWrap) {
+    const hasUnmatched = !!filter && domainGroups.some((g) => !computeDomainCardViewModel(g, { filter, mode: 'unmatched' }).isHidden)
+    secondaryWrap.style.display = hasUnmatched ? '' : 'none'
+  }
+
+  if (domainGroups.length > 0) packMissionsMasonry({ unpin: true })
   renderHeaderStats()
 }
