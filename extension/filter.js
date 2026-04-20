@@ -161,12 +161,30 @@ function styleSecondaryCard(card) {
   })
 }
 
-/** Count chips in an element whose inline display isn't 'none'. */
+/** Count chips in an element whose inline display isn't 'none'. Used
+ *  for section visibility — a section with zero visible chips is
+ *  collapsed even if the chips it contains each represent many tabs. */
 function countVisibleChips(el) {
   const chips = el.querySelectorAll('.page-chip[data-action="focus-tab"]')
   let n = 0
   chips.forEach((c) => {
     if (c.style.display !== 'none') n++
+  })
+  return n
+}
+
+/** Sum the tab counts represented by currently-visible chips in `el`.
+ *  Each chip carries `data-tab-count` set by PageChip — envs.length
+ *  for folded chips, dupeCount for regular chips, else 1. Using this
+ *  for header counts keeps the unit consistent with the unfiltered
+ *  state (which always shows tab counts); counting chips instead
+ *  would silently change the meaning of the number across states. */
+function countVisibleTabs(el) {
+  const chips = el.querySelectorAll('.page-chip[data-action="focus-tab"]')
+  let n = 0
+  chips.forEach((c) => {
+    if (c.style.display === 'none') return
+    n += parseInt(c.dataset.tabCount, 10) || 1
   })
   return n
 }
@@ -186,45 +204,51 @@ function countVisibleChips(el) {
  *  how many times the filter has been toggled.
  */
 function refreshCardAfterFilter(card, filtering) {
-  // Pathgroup cluster sections — header count + visibility
+  // Pathgroup cluster sections — header count + visibility. Chip
+  // count drives visibility (hide when zero chips remain), tab count
+  // drives the displayed number so the unit stays consistent with
+  // the unfiltered state.
   card.querySelectorAll('.pathgroup-section').forEach((sec) => {
-    const visible = countVisibleChips(sec)
+    const visibleChips = countVisibleChips(sec)
+    const visibleTabs = countVisibleTabs(sec)
     const countEl = sec.querySelector('.pathgroup-header-count')
     if (countEl) {
       const original = countEl.dataset.originalCount || countEl.textContent || ''
-      countEl.textContent = filtering ? String(visible) : original
+      countEl.textContent = filtering ? String(visibleTabs) : original
     }
-    sec.style.display = filtering && visible === 0 ? 'none' : ''
+    sec.style.display = filtering && visibleChips === 0 ? 'none' : ''
   })
 
   // Flat singletons sections — no header count, just visibility
   card.querySelectorAll('.flat-section').forEach((sec) => {
-    const visible = countVisibleChips(sec)
-    sec.style.display = filtering && visible === 0 ? 'none' : ''
+    const visibleChips = countVisibleChips(sec)
+    sec.style.display = filtering && visibleChips === 0 ? 'none' : ''
   })
 
-  // Subdomain sections — header count + visibility. Count includes
-  // chips across all inner flat + cluster sections.
+  // Subdomain sections — header count + visibility. "Shared across
+  // envs" is one of these; its folded chips each represent multiple
+  // env tabs, so tab-count summing is load-bearing here specifically.
   card.querySelectorAll('.subdomain-section').forEach((sec) => {
-    const visible = countVisibleChips(sec)
+    const visibleChips = countVisibleChips(sec)
+    const visibleTabs = countVisibleTabs(sec)
     const countEl = sec.querySelector('.subdomain-header-count')
     if (countEl) {
       const original = countEl.dataset.originalCount || countEl.textContent || ''
-      countEl.textContent = filtering ? String(visible) : original
+      countEl.textContent = filtering ? String(visibleTabs) : original
     }
-    sec.style.display = filtering && visible === 0 ? 'none' : ''
+    sec.style.display = filtering && visibleChips === 0 ? 'none' : ''
   })
 
-  // Card-level badge — reflects total visible chips while filtering,
-  // the view-model original otherwise. Skip app badges (they carry
-  // their own "App · N" format).
-  const totalVisible = countVisibleChips(card)
+  // Card-level badge — tab count while filtering (sum of visible
+  // chips' data-tab-count), view-model original otherwise. Skip app
+  // badges (they carry their own "App · N" format).
   const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
   if (tabBadge) {
     const original = tabBadge.dataset.originalCount || tabBadge.textContent || ''
     if (filtering) {
-      tabBadge.textContent = String(totalVisible)
-      tabBadge.title = `${totalVisible} tab${totalVisible !== 1 ? 's' : ''} in this view`
+      const visibleTabs = countVisibleTabs(card)
+      tabBadge.textContent = String(visibleTabs)
+      tabBadge.title = `${visibleTabs} tab${visibleTabs !== 1 ? 's' : ''} in this view`
     } else {
       tabBadge.textContent = original
       const n = parseInt(original, 10) || 0
