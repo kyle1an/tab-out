@@ -566,8 +566,12 @@ header {
   color: var(--ink);
   background: transparent;
   /* padding-left = 12px reserves room for the group indicator stripe
-     (see ::before below) plus a visual gap before the favicon. */
-  padding: 8px 4px 8px 12px;
+     (see ::before below) plus a visual gap before the favicon.
+     Vertical padding trimmed 8→5 + line-height tightened 1.4→1.3 for
+     denser rows — cumulative across 10+ chips per card this gives
+     back real vertical space without the chip feeling cramped.
+     Horizontal padding left intact so text doesn't butt the edge. */
+  padding: 5px 4px 5px 12px;
   /* Concentric with .mission-card (18px radius, 14px vertical padding).
      Strict math says ~4px, but chips are interactive rows that need
      visible rounding to feel tappable — 10px is the "medium step"
@@ -584,7 +588,7 @@ header {
      their own vertical adjustments below. */
   align-items: flex-start;
   gap: 8px;
-  line-height: 1.4;
+  line-height: 1.3;
 }
 
 /* Tab-group indicator — inset 2px vertical stripe, positioned inside
