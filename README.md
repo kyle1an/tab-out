@@ -24,13 +24,18 @@ The agent will walk you through it. Takes about 1 minute.
 
 - **See all your tabs at a glance** on a clean grid, grouped by domain
 - **Homepages group** pulls Gmail inbox, X home, YouTube, LinkedIn, GitHub homepages into one card
-- **Close tabs with style** with a confetti burst
-- **Duplicate detection** flags when you have the same page open twice, with one-click cleanup
-- **Click any tab to jump to it** across windows, no new tab opened
-- **Localhost grouping** shows port numbers next to each tab so you can tell your vibe coding projects apart
-- **Expandable groups** show the first 8 tabs with a clickable "+N more"
+- **Close tabs with style** with a confetti burst, undoable via toast
+- **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
+- **Click any tab to jump to it** across windows; a pinned Tab Out is auto-planted in every window so the dashboard is always one click away
+- **Live filter** with type-anywhere — start typing and keystrokes route into the filter input; Esc clears; paste works too. Non-matching tabs move to an "Other tabs" section so every tab stays accounted for
+- **Cross-subdomain fold** — a page that exists in multiple subdomains (e.g. `dev2`, `dev11`, `qa` envs) collapses into one chip with a row of clickable env pills; each pill jumps to that specific env's tab
+- **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill
+- **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally
+- **Localhost grouping** shows port numbers next to each tab so you can tell your dev projects apart
+- **Path-group clusters** — GitHub repos, Jira projects, Confluence spaces, Contentful envs, Figma files, and subreddits each cluster under a labeled sub-section within their domain card
+- **Expandable sections** show the first 5 chips with a clickable "+N more" (skipped when N would be 1)
 - **100% local** your data never leaves your machine
-- **Pure Chrome extension** no server, no Node.js, no npm, no setup beyond loading the extension
+- **Pure Chrome extension** no server, no Node.js, no npm, no build step — Preact + HTM are vendored as ES modules so edits reload instantly
 
 ---
 
@@ -73,8 +78,11 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 
 | What | How |
 |------|-----|
-| Extension | Chrome Manifest V3 |
+| Extension | Chrome Manifest V3 (service worker + new-tab override) |
+| Rendering | Preact 10 + HTM (both vendored as ES modules, no build step) |
+| Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS confetti particles |
+| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; no server, no storage |
 
 ---
 
