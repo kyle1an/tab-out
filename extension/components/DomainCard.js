@@ -54,8 +54,16 @@ function TabBadge({ isAppCard, tabCount }) {
 }
 
 function DedupButton({ count, dupeUrlsEncoded, onClick }) {
+  // Short label ("Dedupe 2") keeps the inline mission-top row from
+  // wrapping when the card also carries a subdomain pill. Full
+  // "Close N duplicates" was ~150px wide at typical counts and
+  // pushed the button below the tab badge on narrower cards. The
+  // title attribute spells out the full action on hover for anyone
+  // uncertain what "Dedupe" means here.
+  const label = `Dedupe ${count}`
+  const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return html`
-    <button class="action-btn" data-action="dedup-keep-one" data-dupe-urls=${dupeUrlsEncoded} onClick=${onClick}>Close ${count} duplicate${count !== 1 ? 's' : ''}</button>
+    <button class="action-btn" data-action="dedup-keep-one" data-dupe-urls=${dupeUrlsEncoded} title=${title} onClick=${onClick}>${label}</button>
   `
 }
 

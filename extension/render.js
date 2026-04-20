@@ -253,7 +253,12 @@ export function updateSectionCount() {
       if (m) globalExtras += parseInt(m[0], 10)
     })
     if (globalExtras > 0) {
-      dedupEl.innerHTML = /*html*/ `<button class="action-btn" data-action="dedup-global-keep-one" style="font-size:11px;padding:4px 12px;">Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}</button>`
+      // Label matches the per-card "Dedupe N" buttons so the same
+      // word means the same action at both scopes; the tooltip still
+      // spells out "Close N duplicates" for anyone uncertain what
+      // "Dedupe" implies here.
+      const title = `Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}`
+      dedupEl.innerHTML = /*html*/ `<button class="action-btn" data-action="dedup-global-keep-one" title="${title}" style="font-size:11px;padding:4px 12px;">Dedupe ${globalExtras}</button>`
     } else {
       dedupEl.innerHTML = ''
     }
