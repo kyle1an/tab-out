@@ -73,7 +73,22 @@
     <div class="scroll-region">
       <div class="page-inner">
         <div class="active-section" id="openTabsSection" style="display: none">
+          <!-- Primary missions grid: cards that have at least one tab
+               matching the filter. When the filter is empty, this holds
+               every card. -->
           <div class="missions" id="openTabsMissions"></div>
+          <!-- "Other tabs" section: same cards rendered AGAIN with their
+               non-matching chips. A card with mixed tabs appears in both
+               — matched chips above, non-matched chips here. Hidden when
+               filter is empty or every tab happens to match. -->
+          <div class="missions-other" id="openTabsMissionsOther" style="display: none">
+            <div class="missions-divider" role="separator">
+              <span class="missions-divider-rule"></span>
+              <span class="missions-divider-label">Other tabs</span>
+              <span class="missions-divider-rule"></span>
+            </div>
+            <div class="missions" id="openTabsMissionsUnmatched"></div>
+          </div>
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@
    ================================================================ */
 
 import { packMissionsMasonry } from './layout.js'
-import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions, ICONS } from './render.js'
+import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions } from './render.js'
 import { isGroupedTab } from './groups.js'
 
 // Three placeholder states, so the hint always reflects reality:
@@ -51,15 +51,26 @@ function applyFilterPlaceholder() {
 }
 
 /**
- * applyTabFilter(query) — hide non-matching chips inside matched cards,
- * and mark cards with no matches as `.card-unmatched` so masonry demotes
- * them to the "Other tabs" group below the divider. Unmatched cards
- * keep all their chips visible (context) but have filter-scoped action
- * buttons (close-domain, dedup) hidden to prevent accidental bulk
- * actions on content the user didn't filter for. While filtering, the
- * "+N more" overflow container is force-opened inside matched cards so
- * a matching hidden chip isn't left invisible. Empty query restores the
- * default view.
+ * applyTabFilter(query) — split each domain card across two rendered
+ * grids. Every card is rendered twice (by render.js): once into the
+ * primary `#openTabsMissions` grid and once into the secondary
+ * `#openTabsMissionsUnmatched` grid under the "Other tabs" divider.
+ * This function sets the per-chip and per-card display for each copy
+ * so that the same domain can appear in both places — matching chips
+ * in the primary copy, non-matching chips in the secondary copy.
+ *
+ *   Primary copy:   show cards with ≥1 matching chip; hide non-matching
+ *                   chips inside those cards; full-strength opacity.
+ *   Secondary copy: show cards with ≥1 non-matching chip; hide matching
+ *                   chips inside those cards; `.card-unmatched` class
+ *                   dims the whole card, filter-scoped action buttons
+ *                   stay hidden (typing "github" shouldn't expose a
+ *                   bulk close for unrelated reddit tabs).
+ *
+ * While filtering, the "+N more" overflow container is force-opened in
+ * both copies so every chip of interest is visible without expanding.
+ * Empty query restores the default (one copy visible, the other grid's
+ * wrapper hidden).
  */
 /**
  * Per-card counts + button labels that reflect the active filter. Shared
@@ -142,63 +153,43 @@ function chipMatches(chip, q) {
   return text.includes(q) || url.includes(q)
 }
 
-/** Unmatched card: show all chips + restore original tab count badge.
- *  Explicitly hide filter-scoped action buttons so the user can't
- *  accidentally trigger a bulk close/dedup on content they didn't
- *  filter for (they typed "github" — closing unrelated reddit tabs
- *  would be a surprise). Chips inside an unmatched card don't need
- *  the `.chip-unmatched` class — the card's own dim covers them, and
- *  double-dim (card opacity × chip opacity) would make them illegible. */
-function styleUnmatchedCard(card, group) {
-  const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
-  chips.forEach((chip) => {
-    chip.classList.remove('chip-unmatched')
-    chip.style.display = ''
-  })
-
+/** Style a card in the secondary ("Other tabs") grid. Shows the count
+ *  of non-matching tabs in the badge and hides every bulk-close button
+ *  — close-domain, dedup, cluster-close, subdomain-close. All those
+ *  buttons operate on the card's full tab set (not just the chips
+ *  visible in this grid), so exposing them here would let a user who
+ *  typed "github" accidentally bulk-close matching tabs too. Per-chip
+ *  close (the `×` on each chip) stays active for targeted cleanup. */
+function styleSecondaryCard(card, unmatchedTabCount) {
   const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
   if (tabBadge) {
-    tabBadge.textContent = String(group.tabs.length)
-    tabBadge.title = `${group.tabs.length} open tab${group.tabs.length !== 1 ? 's' : ''}`
+    tabBadge.textContent = String(unmatchedTabCount)
+    tabBadge.title = `${unmatchedTabCount} non-matching tab${unmatchedTabCount !== 1 ? 's' : ''}`
   }
 
-  const closeBtn = card.querySelector('.card-close-btn')
-  if (closeBtn) closeBtn.style.display = 'none'
-  const dedupBtn = card.querySelector('[data-action="dedup-keep-one"]')
-  if (dedupBtn) dedupBtn.style.display = 'none'
+  card.querySelectorAll('.card-close-btn, [data-action="dedup-keep-one"], .pathgroup-close-btn, .subdomain-close-btn').forEach((btn) => {
+    btn.style.display = 'none'
+  })
 }
 
-export function applyTabFilter(query) {
-  const q = (query || '').trim().toLowerCase()
-  const filtering = q.length > 0
-  const container = document.getElementById('openTabsMissions')
-  if (!container) return
+/** Apply filter to one rendered grid. `mode` is either 'matched' (hide
+ *  non-matching chips, show cards with ≥1 match) or 'unmatched' (hide
+ *  matching chips, show cards with ≥1 non-match). Returns the number
+ *  of visible cards in this grid after filtering so the caller can
+ *  decide whether to show/hide the grid's wrapper. */
+function filterGrid(containerId, q, filtering, mode) {
+  const container = document.getElementById(containerId)
+  if (!container) return 0
+  let visibleCardCount = 0
 
   container.querySelectorAll('.mission-card').forEach((card) => {
     const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
-    // Multiple overflow containers + "+N more" buttons per card now —
-    // one per subdomain section. While filtering (matched or
-    // unmatched) we force them all open so every chip is visible:
-    //   • matched card: reveals chips hidden in overflow so the
-    //     filter's chip-search isn't blind to them
-    //   • unmatched card: "Other tabs" section shows full context,
-    //     so all chips of the card should render
     const overflows = card.querySelectorAll('.page-chips-overflow')
     const moreBtns = card.querySelectorAll('.page-chip-overflow')
 
-    let anyMatch = false
-    if (filtering) {
-      chips.forEach((chip) => {
-        if (chipMatches(chip, q)) anyMatch = true
-      })
-    } else {
-      anyMatch = true
-    }
-
-    const cardUnmatched = filtering && !anyMatch
-    card.classList.toggle('card-unmatched', cardUnmatched)
-    card.style.display = ''
-
+    // Force all overflows open while filtering so hidden chips take
+    // part in the visible set rather than staying tucked in a
+    // collapsed "+N more" wrapper.
     overflows.forEach((overflow) => {
       if (filtering) {
         if (overflow.dataset.preFilter === undefined) {
@@ -214,31 +205,89 @@ export function applyTabFilter(query) {
       btn.style.display = filtering ? 'none' : ''
     })
 
-    const domainId = card.dataset.domainId
-    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
-
-    if (cardUnmatched) {
-      if (group) styleUnmatchedCard(card, group)
+    // When filter is empty, primary shows everything and secondary
+    // hides every card (its wrapper is hidden too, but zero out the
+    // card display anyway so a flash of stale visibility doesn't
+    // leak through if the wrapper is momentarily shown).
+    if (!filtering) {
+      chips.forEach((chip) => {
+        chip.style.display = ''
+        chip.classList.remove('chip-unmatched')
+      })
+      if (mode === 'unmatched') {
+        card.style.display = 'none'
+        card.classList.remove('card-unmatched')
+      } else {
+        card.style.display = ''
+        card.classList.remove('card-unmatched')
+        const domainId = card.dataset.domainId
+        const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
+        if (group) updateCardStats(card, group, false, '')
+        visibleCardCount++
+      }
       return
     }
 
-    // Matched card: keep every chip in the DOM flow so all tabs stay
-    // accounted for. Matching chips render normally; non-matching chips
-    // get `.chip-unmatched` (dimmed) so the user can still see them in
-    // their domain/cluster context. Previously non-matching chips were
-    // display:none'd — that hid them, making matched cards look smaller
-    // than they are and stranding unmatched tabs with no visible home.
+    // Filtering is active — partition chips, decide if this card has
+    // anything to show in this mode, and toggle visibility accordingly.
+    let matchedCount = 0
+    let unmatchedCount = 0
     chips.forEach((chip) => {
-      chip.style.display = ''
-      if (!filtering) {
-        chip.classList.remove('chip-unmatched')
-        return
-      }
-      chip.classList.toggle('chip-unmatched', !chipMatches(chip, q))
+      const match = chipMatches(chip, q)
+      if (match) matchedCount++
+      else unmatchedCount++
+      const shouldShow = mode === 'matched' ? match : !match
+      chip.style.display = shouldShow ? '' : 'none'
+      chip.classList.remove('chip-unmatched')
     })
 
-    if (group) updateCardStats(card, group, filtering, q)
+    const relevantCount = mode === 'matched' ? matchedCount : unmatchedCount
+    if (relevantCount === 0) {
+      card.style.display = 'none'
+      return
+    }
+    card.style.display = ''
+    visibleCardCount++
+
+    const domainId = card.dataset.domainId
+    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
+
+    if (mode === 'matched') {
+      card.classList.remove('card-unmatched')
+      if (group) updateCardStats(card, group, true, q)
+    } else {
+      // Secondary grid: dim the card as a whole and show the
+      // unmatched-tab count in the badge. The unmatched count of
+      // chip-level elements isn't the same as tab count (dedup
+      // collapses duplicate URLs), so use the per-tab count derived
+      // from group.tabs so the badge matches what a user would
+      // expect "this many tabs aren't in my filter".
+      card.classList.add('card-unmatched')
+      if (group) {
+        const unmatchedTabCount = group.tabs.filter((t) => {
+          const title = (t.title || '').toLowerCase()
+          const url = (t.url || '').toLowerCase()
+          return !(title.includes(q) || url.includes(q))
+        }).length
+        styleSecondaryCard(card, unmatchedTabCount)
+      }
+    }
   })
+
+  return visibleCardCount
+}
+
+export function applyTabFilter(query) {
+  const q = (query || '').trim().toLowerCase()
+  const filtering = q.length > 0
+
+  filterGrid('openTabsMissions', q, filtering, 'matched')
+  const secondaryVisible = filterGrid('openTabsMissionsUnmatched', q, filtering, 'unmatched')
+
+  const secondaryWrap = document.getElementById('openTabsMissionsOther')
+  if (secondaryWrap) {
+    secondaryWrap.style.display = filtering && secondaryVisible > 0 ? '' : 'none'
+  }
 
   packMissionsMasonry({ unpin: true })
   updateTabCountDisplays()
