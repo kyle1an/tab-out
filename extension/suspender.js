@@ -28,3 +28,31 @@ export function unwrapSuspenderUrl(url) {
     return url
   }
 }
+
+/**
+ * unwrapSuspenderTitle(url) — pull the `ttl=` param out of a suspender
+ * fragment. The Marvellous/Great Suspender store the original page
+ * title there, which is what we want to render on the chip — Chrome's
+ * own `tab.title` for a not-yet-rendered suspended tab is unreliable
+ * (sometimes the full suspender URL, sometimes empty, sometimes a
+ * stale cached value). Returns '' when the URL isn't a suspender URL
+ * or when no `ttl=` fragment is present.
+ *
+ * Unlike `uri=` which is always the LAST fragment param (since the
+ * real URL can itself contain `&`), `ttl=` values are URL-encoded so
+ * any literal `&` in the title shows up as `%26` — safe to split at
+ * the next raw `&`.
+ */
+export function unwrapSuspenderTitle(url) {
+  if (!url || !url.startsWith('chrome-extension://')) return ''
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.endsWith('/suspended.html')) return ''
+    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+    const match = frag.match(/(?:^|&)ttl=([^&]*)/)
+    if (!match) return ''
+    return decodeURIComponent(match[1]) || ''
+  } catch {
+    return ''
+  }
+}

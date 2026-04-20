@@ -8,7 +8,7 @@
    extension pages).
    ================================================================ */
 
-import { unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderUrl, unwrapSuspenderTitle } from './suspender.js'
 import { isGroupedTab, fetchTabGroupColors, scoreForKeep } from './groups.js'
 
 export let openTabs = []
@@ -50,13 +50,24 @@ export async function fetchOpenTabs() {
     openTabs = tabs.map((t) => {
       const rawUrl = t.url || ''
       const effectiveUrl = unwrapSuspenderUrl(rawUrl)
+      const suspended = rawUrl !== effectiveUrl
+      // For suspended tabs, Chrome's tab.title is unreliable — it can
+      // be the full suspender URL, empty, or stale — but the suspender
+      // always stores the original page title in the `ttl=` fragment
+      // param. Prefer that when it's available so the chip renders
+      // the real page title instead of `chrome-extension://.../...`.
+      let title = t.title || ''
+      if (suspended) {
+        const suspenderTitle = unwrapSuspenderTitle(rawUrl)
+        if (suspenderTitle) title = suspenderTitle
+      }
       const windowType = windowTypeById.get(t.windowId)
       return {
         id: t.id,
         url: effectiveUrl,
         rawUrl: rawUrl,
-        suspended: rawUrl !== effectiveUrl,
-        title: t.title,
+        suspended,
+        title,
         favIconUrl: t.favIconUrl || '',
         windowId: t.windowId,
         active: t.active,
