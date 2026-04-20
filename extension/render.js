@@ -394,10 +394,47 @@ export function computeDomainCardViewModel(group) {
   }
   uniqueTabs.sort((a, b) => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }))
 
-  // Group tabs by subdomain/port within the card. Root tabs (no
+  // Detect cross-subdomain shared paths — the "same page in dev2us +
+  // dev11us + qaus" pattern that floods multi-env cards with near-
+  // duplicates. A path (pathname + search + hash) present in 2+ named
+  // subdomains gets folded into a single chip that carries an env-pill
+  // stack; those tabs are then excluded from the per-subdomain sections
+  // below so they don't appear twice.
+  const foldedTabUrls = new Set()
+  const foldGroups = [] // each entry is an array of tabs sharing the same path
+  {
+    const pathMap = new Map()
+    for (const tab of uniqueTabs) {
+      try {
+        const parsed = new URL(tab.url)
+        const sub = subdomainPrefix(parsed.hostname, group.domain)
+        if (!sub) continue // root-level tabs have no env to compare
+        const pathKey = parsed.pathname + parsed.search + parsed.hash
+        if (!pathMap.has(pathKey)) pathMap.set(pathKey, [])
+        pathMap.get(pathKey).push(tab)
+      } catch {
+        // unparseable URL — skip
+      }
+    }
+    for (const tabs of pathMap.values()) {
+      const subs = new Set()
+      for (const t of tabs) {
+        try {
+          subs.add(subdomainPrefix(new URL(t.url).hostname, group.domain))
+        } catch {}
+      }
+      if (subs.size < 2) continue
+      foldGroups.push(tabs)
+      tabs.forEach((t) => foldedTabUrls.add(t.url))
+    }
+  }
+
+  // Group tabs by subdomain/port within the card, EXCLUDING any tabs
+  // that got folded into the shared section above. Root tabs (no
   // subdomain or lone "www") sit under an empty-string key.
   const bySubdomain = new Map()
   for (const tab of uniqueTabs) {
+    if (foldedTabUrls.has(tab.url)) continue
     let key = ''
     try {
       const parsed = new URL(tab.url)
@@ -475,7 +512,8 @@ export function computeDomainCardViewModel(group) {
       dupeCount: urlCounts[tab.url] || 1,
       faviconUrl: pickFavicon(tab),
       isGrouped: grouped,
-      groupDotColor: grouped ? groupDotColor(tab.groupId) : null
+      groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
+      envs: null
     }
   }
 
@@ -493,6 +531,70 @@ export function computeDomainCardViewModel(group) {
       return { vis: tabs, hid: [] }
     }
     return { vis: tabs.slice(0, CHIPS_PER_SECTION), hid: tabs.slice(CHIPS_PER_SECTION) }
+  }
+
+  // Folded (cross-env) chip data — one chip representing the same path
+  // present in 2+ subdomains. The env-pill stack replaces the usual
+  // subdomain prefix; clicking a pill focuses that env's tab and the
+  // chip's close button (handled in PageChip) closes every env copy.
+  function buildFoldedChipData(tabs) {
+    const primary = tabs[0]
+    let parsed = null
+    try {
+      parsed = new URL(primary.url)
+    } catch {}
+    const hostname = parsed ? parsed.hostname : group.domain
+    const label = cleanTitle(stripTitleNoise(primary.title || ''), hostname)
+    const { segments: rawSegments, stripped: titleStripped } = stripPgLabel(label, '')
+    const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
+    const envs = tabs.map((t) => {
+      let sub = ''
+      try {
+        sub = subdomainPrefix(new URL(t.url).hostname, group.domain)
+      } catch {}
+      return { prefix: sub || '?', tabUrl: t.url, rawUrl: t.rawUrl || t.url }
+    })
+    const tooltip = [envs.map((e) => e.prefix).join(' · '), label].filter(Boolean).join(' · ')
+    return {
+      tabUrl: primary.url,
+      rawUrl: primary.rawUrl || primary.url,
+      leadPrefix: '',
+      pathGroupLabel: '',
+      displaySegments,
+      titleStripped,
+      pathSuffix: '',
+      tooltip,
+      dupeCount: 1,
+      faviconUrl: pickFavicon(primary),
+      isGrouped: false,
+      groupDotColor: null,
+      envs
+    }
+  }
+
+  // Assemble the shared section (appears first in the card when any
+  // fold groups exist). It's a virtual subdomain: one flat list of
+  // folded chips, no cluster sub-sections. Close-section closes every
+  // tab across every env in every fold group.
+  let sharedSectionData = null
+  if (foldGroups.length > 0) {
+    const sortedFolds = foldGroups.slice().sort((a, b) => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true }))
+    const foldedChipData = sortedFolds.map((tabs) => buildFoldedChipData(tabs))
+    const { vis, hid } = splitForOverflow(foldedChipData)
+    const sharedClosableUrls = sortedFolds.flatMap((tabs) => tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url))
+    const totalFoldedTabs = sortedFolds.reduce((sum, tabs) => sum + tabs.length, 0)
+    sharedSectionData = {
+      key: '__shared__',
+      sectionCount: totalFoldedTabs,
+      sectionClosableUrls: sharedClosableUrls,
+      showHeader: true,
+      isShared: true,
+      hasFlat: true,
+      flatVisibleChips: vis,
+      flatHiddenChips: hid,
+      flatHiddenCount: hid.length,
+      clusters: []
+    }
   }
 
   const sectionsData = sections.map(([key, sectionTabs]) => {
@@ -648,6 +750,7 @@ export function computeDomainCardViewModel(group) {
       sectionCount: sectionTabs.length,
       sectionClosableUrls,
       showHeader,
+      isShared: false,
       hasFlat: singletonTabs.length > 0,
       flatVisibleChips,
       flatHiddenChips,
@@ -655,6 +758,11 @@ export function computeDomainCardViewModel(group) {
       clusters
     }
   })
+
+  // Prepend the cross-env fold section so it sits above the per-
+  // subdomain sections — it reads as a TL;DR of "these pages are the
+  // same across your envs, you probably want to see them grouped."
+  if (sharedSectionData) sectionsData.unshift(sharedSectionData)
 
   // Labels derived for the Preact component to consume directly.
   // closableCountLabel mirrors the original "Close all N tabs" vs

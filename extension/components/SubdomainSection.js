@@ -33,9 +33,14 @@ function SubdomainCloseButton({ count, onClick }) {
   `
 }
 
-export function SubdomainSection({ subdomainKey, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
+export function SubdomainSection({ subdomainKey, isShared, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
   const dataKey = subdomainKey || '__root__'
-  const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
+  const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
+  // "Shared across envs" pseudo-section gets a descriptive label; real
+  // subdomain sections render just the subdomain name here — the
+  // trailing DNS-style "." suffix is added via CSS `::after` so it
+  // can render muted/thinner than the name itself (see style.css).
+  const headerLabel = isShared ? 'Shared across envs' : subdomainKey
 
   // Close-subdomain handler. Mirrors PathgroupSection's cluster close
   // — exact-URL match + preserveGroups so Chrome tab groups survive.
@@ -51,11 +56,11 @@ export function SubdomainSection({ subdomainKey, sectionCount, sectionClosableUr
   }
 
   return html`
-    <div class="subdomain-section" data-subdomain-key=${dataKey}>
+    <div class="subdomain-section" data-subdomain-key=${dataKey} data-shared=${isShared ? 'true' : null}>
       ${showHeader &&
       html`
         <div class="subdomain-header">
-          <span class="subdomain-header-name">${subdomainKey}</span>
+          <span class="subdomain-header-name">${headerLabel}</span>
           <span class="subdomain-header-count" data-original-count=${sectionCount}>${sectionCount}</span>
           ${hasClose && html` <${SubdomainCloseButton} count=${sectionClosableUrls.length} onClick=${onCloseSubdomain} /> `}
         </div>

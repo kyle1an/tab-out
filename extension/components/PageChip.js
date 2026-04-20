@@ -35,8 +35,18 @@ import { updateTabCountDisplays, renderStaticDashboard } from '../render.js'
 const html = htm.bind(h)
 
 export function PageChip({ chip }) {
+  const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
+
   async function onFocus() {
-    if (chip.tabUrl) await focusTab(chip.tabUrl)
+    // Folded chip: clicking the chip body focuses the first env. Use
+    // env-pill clicks to pick a specific one.
+    const targetUrl = isFolded ? chip.envs[0].tabUrl : chip.tabUrl
+    if (targetUrl) await focusTab(targetUrl)
+  }
+
+  async function onEnvClick(e, env) {
+    e.stopPropagation()
+    if (env.tabUrl) await focusTab(env.tabUrl)
   }
 
   // Capture chipEl before any await — e.currentTarget is only
@@ -45,20 +55,37 @@ export function PageChip({ chip }) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
 
-    // Match on both raw and effective URL so the chip works even if
-    // the tab has been (un)suspended since the last render. Collect
-    // ALL matches (a chip with an (Nx) dupe badge represents >1 tab
-    // at the same URL) so we can distinguish "removed the last tab
-    // for this URL" from "still have siblings to render".
+    // Folded chip: close every env copy at once. Regular chip: match
+    // on both raw and effective URL (handles (un)suspended tabs) and
+    // close only the first match — siblings with the same URL survive
+    // and the (Nx) badge decrements on re-render.
     const allTabs = await chrome.tabs.query({})
-    const targetEffective = unwrapSuspenderUrl(chip.tabUrl)
-    const matches = allTabs.filter((t) => t.url === chip.tabUrl || unwrapSuspenderUrl(t.url) === targetEffective)
-    const toClose = matches[0]
-    const snapshot = toClose ? snapshotChromeTabs([toClose]) : []
-    if (toClose) await chrome.tabs.remove(toClose.id)
+    let toCloseList = []
+    let matchCount = 0
+    if (isFolded) {
+      const targetEffectives = new Set(chip.envs.map((e) => unwrapSuspenderUrl(e.tabUrl)))
+      const targetUrls = new Set(chip.envs.map((e) => e.tabUrl))
+      toCloseList = allTabs.filter((t) => targetUrls.has(t.url) || targetEffectives.has(unwrapSuspenderUrl(t.url)))
+      matchCount = toCloseList.length
+    } else {
+      const targetEffective = unwrapSuspenderUrl(chip.tabUrl)
+      const matches = allTabs.filter((t) => t.url === chip.tabUrl || unwrapSuspenderUrl(t.url) === targetEffective)
+      toCloseList = matches.slice(0, 1)
+      matchCount = matches.length
+    }
+    const snapshot = toCloseList.length > 0 ? snapshotChromeTabs(toCloseList) : []
+    for (const t of toCloseList) {
+      try {
+        await chrome.tabs.remove(t.id)
+      } catch {}
+    }
     await fetchOpenTabs()
 
-    const isLastTabForUrl = matches.length <= 1
+    // Folded chip: we closed every env in one go, so the chip is
+    // done either way. Regular chip: only "last tab for this URL"
+    // when there was just one match — otherwise siblings survive
+    // and the (Nx) badge needs to decrement via a fresh re-render.
+    const isLastTabForUrl = isFolded || matchCount <= 1
 
     if (isLastTabForUrl) {
       // Only tab for this URL is gone — animate the chip out and
@@ -96,17 +123,35 @@ export function PageChip({ chip }) {
 
     updateTabCountDisplays()
 
-    if (snapshot.length > 0) markClosure(snapshot, 'Tab closed')
-    else showToast('Tab closed')
+    if (snapshot.length > 0) {
+      const label = isFolded ? `Closed ${snapshot.length} env ${snapshot.length === 1 ? 'copy' : 'copies'}` : 'Tab closed'
+      markClosure(snapshot, label)
+    } else {
+      showToast('Nothing to close')
+    }
   }
 
   const style = chip.isGrouped ? `--group-color:${chip.groupDotColor}` : null
+  // Filter-matching reads data-tab-url. For a folded chip we join all
+  // env URLs so "dev11us" or "qaus" in the filter box still matches
+  // this chip (even though the chip's primary URL is dev2us's).
+  const dataTabUrl = isFolded ? chip.envs.map((e) => e.tabUrl).join(' ') : chip.tabUrl
 
   return html`
-    <div class="page-chip clickable" data-action="focus-tab" data-tab-url=${chip.tabUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
+    <div class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}" data-action="focus-tab" data-tab-url=${dataTabUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
       ${chip.faviconUrl && html` <img class="chip-favicon" src=${chip.faviconUrl} alt="" /> `}
       <span class="chip-text">
-        ${chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
+        ${isFolded &&
+        html`
+          <span class="chip-env-stack">
+            ${chip.envs.map(
+              (env) => html`
+                <span class="chip-env clickable" data-action="focus-env" data-tab-url=${env.tabUrl} title=${`Focus ${env.prefix} tab`} onClick=${(e) => onEnvClick(e, env)}>${env.prefix}</span>
+              `
+            )}
+          </span>
+        `}
+        ${!isFolded && chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
         ${chip.pathGroupLabel && html` <span class="chip-pathgroup">${chip.pathGroupLabel}</span> `}
         ${chip.displaySegments.map((seg) => (typeof seg === 'string' ? seg : html`<span class="chip-strip-indicator" aria-hidden="true">~</span>`))}
         ${chip.pathSuffix && html` <span class="chip-path">${chip.pathSuffix}</span> `}
