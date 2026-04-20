@@ -27,7 +27,7 @@ import htm from '../vendor/htm.mjs'
 import { focusTab, fetchOpenTabs, snapshotChromeTabs } from '../tabs.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
 import { markClosure } from '../undo.js'
-import { showToast } from '../ui.js'
+import { showToast } from './Toast.js'
 import { shootConfetti } from '../confetti.js'
 import { renderStaticDashboard } from '../render.js'
 
