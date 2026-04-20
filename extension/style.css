@@ -796,6 +796,18 @@ header {
   color: var(--ink);
 }
 
+/* Same DNS-continuation cue as the subdomain header — thinner +
+   dimmer trailing "." so each env pill reads as "dev2us.<domain>"
+   rather than just "dev2us". Applied via ::after to keep the pill's
+   textContent clean (filter matching reads textContent, and a literal
+   "." would match any query containing a period). */
+.chip-env::after {
+  content: '.';
+  margin-left: 1px;
+  font-weight: 400;
+  opacity: 0.45;
+}
+
 /* Folded chip's parent row reads as slightly heavier since it
    stands for multiple tabs. No visual weight change right now —
    the env-pill row already signals the fold — but keep a hook in
