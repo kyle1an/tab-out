@@ -869,6 +869,15 @@ header {
   /* placeholder for future tweaks */
 }
 
+/* No close button on folded chips (see PageChip.js), so the ::after
+   hover overlay — which only existed to cushion the × against the
+   text behind it — is pure noise here. The .chip-text's last-line
+   right-edge fade stays: that's the general truncation treatment
+   and is useful regardless of whether there's a close button. */
+.page-chip-folded::after {
+  display: none;
+}
+
 /* Shared-across-envs section header — visually distinguished from
    regular subdomain section headers so users recognize it as a
    TL;DR of their cross-env duplicates. Uses the same header layout
