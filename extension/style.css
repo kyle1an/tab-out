@@ -587,10 +587,11 @@ header {
   background: transparent;
   /* padding-left = 12px reserves room for the group indicator stripe
      (see ::before below) plus a visual gap before the favicon.
-     Vertical padding trimmed 8→5 + line-height tightened 1.4→1.3 for
-     denser rows — cumulative across 10+ chips per card this gives
-     back real vertical space without the chip feeling cramped.
-     Horizontal padding left intact so text doesn't butt the edge. */
+     Vertical padding trimmed 8→5 + line-height tightened 1.4→1.25
+     for denser rows — cumulative across 10+ chips per card this
+     gives back real vertical space without the chip feeling
+     cramped. Horizontal padding left intact so text doesn't butt
+     the edge. */
   padding: 5px 4px 5px 12px;
   /* Concentric with .mission-card (18px radius, 14px vertical padding).
      Strict math says ~4px, but chips are interactive rows that need
@@ -608,7 +609,7 @@ header {
      their own vertical adjustments below. */
   align-items: flex-start;
   gap: 8px;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 /* Tab-group indicator — inset 2px vertical stripe, positioned inside
@@ -635,12 +636,12 @@ header {
    fades into the button area on hover via a mask (below). */
 
 /* Favicon — same display size as Chrome's tab favicon (16×16 CSS px).
-   With the tighter line-height (1.3 × 13 ≈ 17px line-box), the text's
-   optical center sits at ~8.5px from the line-box top; a 16px favicon
-   with no margin-top centers at ~8px, which is close enough to read
-   as aligned on both single- and multi-line chips. Bumping the margin
-   back (as we did at line-height 1.4) would re-offset it below the
-   text on the now-tighter first line. */
+   With line-height 1.25 the line box is 13 × 1.25 ≈ 16.25px, so the
+   text's optical center sits at ~8.1px from the line-box top and a
+   16px favicon with no margin-top centers at 8px — essentially
+   perfect single-line alignment. On a wrapped two-line chip the
+   favicon still sits on the first line courtesy of the parent's
+   flex-start (see .page-chip above). */
 .chip-favicon {
   width: 16px;
   height: 16px;
