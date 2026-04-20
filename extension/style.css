@@ -615,14 +615,17 @@ header {
    fades into the button area on hover via a mask (below). */
 
 /* Favicon — same display size as Chrome's tab favicon (16×16 CSS px).
-   margin-top nudges it down so it optically centers on the first text
-   line (which has line-height ~18px from font-size 13 × 1.4). */
+   With the tighter line-height (1.3 × 13 ≈ 17px line-box), the text's
+   optical center sits at ~8.5px from the line-box top; a 16px favicon
+   with no margin-top centers at ~8px, which is close enough to read
+   as aligned on both single- and multi-line chips. Bumping the margin
+   back (as we did at line-height 1.4) would re-offset it below the
+   text on the now-tighter first line. */
 .chip-favicon {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
   border-radius: 0px;
-  margin-top: 1px;
 }
 
 /* Title text — wraps up to 2 lines, then the last line fades out on the
