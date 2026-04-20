@@ -21,7 +21,7 @@ import { useState } from '../vendor/preact-hooks.mjs'
 import { closeTabsExact } from '../tabs.js'
 import { markClosure } from '../undo.js'
 import { packMissionsMasonry } from '../layout.js'
-import { updateTabCountDisplays } from '../render.js'
+import { renderStaticDashboard } from '../render.js'
 import { PageChip } from './PageChip.js'
 
 const html = htm.bind(h)
@@ -54,7 +54,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
     if (snapshot.length > 0) {
       markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
     }
-    updateTabCountDisplays()
+    await renderStaticDashboard()
   }
 
   return html`

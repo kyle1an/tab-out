@@ -41,14 +41,6 @@ const html = htm.bind(h)
 
 export let domainGroups = []
 
-/* ---- SVG icon strings ---- */
-export const ICONS = {
-  tabs: /*html*/ `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8.25V18a2.25 2.25 0 0 0 2.25 2.25h13.5A2.25 2.25 0 0 0 21 18V8.25m-18 0V6a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 6v2.25m-18 0h18" /></svg>`,
-  close: /*html*/ `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`,
-  archive: /*html*/ `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m6 4.125l2.25 2.25m0 0l2.25 2.25M12 13.875l2.25-2.25M12 13.875l-2.25 2.25M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" /></svg>`,
-  focus: /*html*/ `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 19.5 15-15m0 0H8.25m11.25 0v11.25" /></svg>`
-}
-
 /**
  * pickFavicon(tab) — two-path favicon resolver:
  *   • If tab.favIconUrl is a `data:` URI, use it as-is. That covers
@@ -922,29 +914,18 @@ export async function renderStaticDashboard() {
     return 0
   })
 
-  if (domainGroups.length > 0 && openTabsSection) {
-    // Phase 4: Preact owns everything down to the pathgroup level.
-    // <Missions> → <DomainCard> → <SubdomainSection> →
-    // {<FlatSection>, <PathgroupSection>}. Expand state and close
-    // handlers are all component-local; no DOM snapshot/restore
-    // dance here anymore. Only the masonry column assignment
-    // survives via Preact's keyed reconciliation preserving the
-    // .mission-card node (data-masonry-col is set by layout.js and
-    // Preact doesn't touch non-prop attributes).
-    preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
-    // Second Preact tree into the "Other tabs" container so the same
-    // cards have their own live DOM with working click handlers and
-    // state. Component-local useState (expand states, etc.) is
-    // independent between the two trees; both trees re-render on the
-    // next live-sync refresh so diverged state stays bounded.
-    if (openTabsMissionsUnmatchedEl) {
-      preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsUnmatchedEl)
-    }
-    openTabsSection.style.display = 'block'
-    packMissionsMasonry()
-  } else {
-    if (openTabsSection) openTabsSection.style.display = 'none'
+  // <Missions> owns both containers. An empty domainGroups array
+  // renders the "Inbox zero" empty state from inside the component,
+  // so openTabsSection stays mounted at all times (no more .display
+  // toggle — collapsing the section would hide the empty state too).
+  // Secondary grid is always rendered; filter.js hides its wrapper
+  // (#openTabsMissionsOther) until there's an unmatched card to show.
+  if (openTabsSection) openTabsSection.style.display = 'block'
+  preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
+  if (openTabsMissionsUnmatchedEl) {
+    preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsUnmatchedEl)
   }
+  if (domainGroups.length > 0) packMissionsMasonry()
 
   // Single pass now that <HeaderStats> handles every field. The
   // previous trio (updateTabCountDisplays / updateSectionCount /

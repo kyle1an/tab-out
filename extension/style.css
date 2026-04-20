@@ -490,13 +490,32 @@ header {
   corner-shape: squircle;
 }
 
-/* Closing animation — card scales down and fades out */
+/* Closing animation — shared by the per-card close, the chip ×, the
+   dedup button and every (Nx) dupe badge. Every handler just does
+   `el.classList.add('closing')` + awaits the CSS transition, then
+   re-renders — no more inline style mutations in JS. */
 .mission-card.closing {
   opacity: 0;
   transform: scale(0.9);
   transition:
     opacity 0.25s ease,
     transform 0.25s ease;
+  pointer-events: none;
+}
+
+.page-chip.closing {
+  opacity: 0;
+  transform: scale(0.8);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  pointer-events: none;
+}
+
+.action-btn.closing,
+.chip-dupe-badge.closing {
+  opacity: 0;
+  transition: opacity 0.2s ease;
   pointer-events: none;
 }
 

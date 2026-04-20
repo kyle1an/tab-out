@@ -16,7 +16,7 @@ import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { closeTabsExact } from '../tabs.js'
 import { markClosure } from '../undo.js'
-import { updateTabCountDisplays } from '../render.js'
+import { renderStaticDashboard } from '../render.js'
 import { FlatSection } from './FlatSection.js'
 import { PathgroupSection } from './PathgroupSection.js'
 
@@ -57,7 +57,7 @@ export function SubdomainSection({ subdomainKey, isShared, sectionCount, section
     if (snapshot.length > 0) {
       markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
     }
-    updateTabCountDisplays()
+    await renderStaticDashboard()
   }
 
   return html`

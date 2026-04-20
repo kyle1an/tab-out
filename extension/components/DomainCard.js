@@ -11,8 +11,6 @@
    data-action attributes are kept on the buttons so external
    lookups still find them:
      • filter.js updates dedup's data-dupe-urls on filter change
-     • ui.js updateCloseTabsButton decrements the close-domain
-       button's count after dedup closes extras
      • dedup-global-keep-one in app.js aggregates per-card dedup URLs
    ================================================================ */
 
@@ -20,9 +18,8 @@ import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { closeTabsByUrls, closeTabsExact, closeDuplicateTabs } from '../tabs.js'
 import { markClosure } from '../undo.js'
-import { animateCardOut, updateCloseTabsButton } from '../ui.js'
-import { packMissionsMasonry } from '../layout.js'
-import { computeDomainCardViewModel, domainGroups, updateTabCountDisplays } from '../render.js'
+import { shootConfetti } from '../confetti.js'
+import { computeDomainCardViewModel, renderStaticDashboard } from '../render.js'
 import { SubdomainSection } from './SubdomainSection.js'
 
 const html = htm.bind(h)
@@ -70,10 +67,10 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
 export function DomainCard({ group }) {
   const vm = computeDomainCardViewModel(group)
 
-  // Close-domain handler: mirrors the previous app.js delegation
-  // logic. Scopes to filter-matching tabs when the filter is
-  // active, preserves Chrome tab groups, animates the card out if
-  // the whole group is closed.
+  // Close-domain handler: scopes to filter-matching tabs when the
+  // filter is active, preserves Chrome tab groups, animates the card
+  // out (confetti + `.closing` CSS class) when the whole group is
+  // closed, then re-renders from scratch.
   //
   // `card` is captured BEFORE the first await — `e.currentTarget`
   // is only valid during event dispatch, so accessing it after the
@@ -89,59 +86,43 @@ export function DomainCard({ group }) {
 
     const snapshot = useExact ? await closeTabsExact(urls, { preserveGroups: true }) : await closeTabsByUrls(urls, { preserveGroups: true })
 
-    if (card && !fq) animateCardOut(card)
-
-    if (!fq) {
-      const idx = domainGroups.indexOf(group)
-      if (idx !== -1) domainGroups.splice(idx, 1)
+    if (card && !fq) {
+      const rect = card.getBoundingClientRect()
+      shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      card.classList.add('closing')
+      await new Promise((r) => setTimeout(r, 250))
     }
 
-    const groupLabel = vm.displayName
-    markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${groupLabel}`)
-    updateTabCountDisplays()
+    markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${vm.displayName}`)
+    await renderStaticDashboard()
   }
 
-  // Dedup handler: same behavior as the old app.js case — fade the
-  // clicked button, close duplicates keeping one, fade the (Nx)
-  // chip badges, decrement the card's visible counts, update the
-  // sibling close-domain button via ui.js, re-pack masonry after
-  // the animation, mark closure for undo.
+  // Dedup handler: fade the clicked button + every (Nx) badge via the
+  // shared `.closing` CSS class, then renderStaticDashboard() rebuilds
+  // the VM — Preact removes the button + badges from the DOM, counts
+  // refresh from the fresh VM, masonry re-packs. The previous code
+  // imperatively decremented tabsBadge + called updateCloseTabsButton
+  // to avoid the 250 ms live-sync lag; explicit re-render subsumes
+  // both.
   async function onDedup(e) {
     const btn = e.currentTarget
-    const urlsEncoded = btn.dataset.dupeUrls || ''
-    const urls = urlsEncoded
+    const urls = (btn.dataset.dupeUrls || '')
       .split(',')
       .map((u) => decodeURIComponent(u))
       .filter(Boolean)
     if (urls.length === 0) return
 
-    const extrasClosed = parseInt((btn.textContent.match(/\d+/) || ['0'])[0], 10)
     const dupeSnapshot = await closeDuplicateTabs(urls, true)
 
-    btn.style.transition = 'opacity 0.2s'
-    btn.style.opacity = '0'
-    setTimeout(() => btn.remove(), 200)
-
+    btn.classList.add('closing')
     const card = btn.closest('.mission-card')
     if (card) {
-      card.querySelectorAll('.chip-dupe-badge').forEach((b) => {
-        b.style.transition = 'opacity 0.2s'
-        b.style.opacity = '0'
-        setTimeout(() => b.remove(), 200)
-      })
-      const tabsBadge = card.querySelector('.tab-count-badge')
-      if (tabsBadge) {
-        const current = parseInt((tabsBadge.textContent.match(/\d+/) || ['0'])[0], 10)
-        const next = Math.max(0, current - extrasClosed)
-        tabsBadge.textContent = String(next)
-        tabsBadge.title = `${next} open tab${next !== 1 ? 's' : ''}`
-      }
-      updateCloseTabsButton(card.querySelector('[data-action="close-domain-tabs"]'), extrasClosed)
+      card.querySelectorAll('.chip-dupe-badge').forEach((b) => b.classList.add('closing'))
     }
+    await new Promise((r) => setTimeout(r, 200))
 
-    updateTabCountDisplays()
-    setTimeout(() => packMissionsMasonry(), 250)
     markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`)
+    await renderStaticDashboard()
   }
 
   const classList = `mission-card domain-card${vm.isAppCard ? ' is-app' : ''}`
