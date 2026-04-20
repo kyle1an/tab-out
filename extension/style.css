@@ -84,6 +84,58 @@ header {
 }
 
 /* ---- Filter input (top of page, right side of header) ---- */
+/* Wrapper around the input + custom clear button. The ✕ button is
+   absolutely positioned inside the wrapper's right edge and only
+   rendered when the wrapper has `.has-value` (set by filter.js on
+   every input event). Using a JS-toggled class instead of
+   :placeholder-shown because the input's placeholder can be empty
+   in the "idle" state — :placeholder-shown would lie in that case. */
+.tab-filter-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tab-filter-wrap.has-value .tab-filter {
+  /* Reserve room so typed text doesn't run under the clear button. */
+  padding-right: 30px;
+}
+
+.tab-filter-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.tab-filter-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tab-filter-clear:hover {
+  background: rgba(10, 10, 10, 0.08);
+  color: var(--ink);
+}
+
+.tab-filter-wrap.has-value .tab-filter-clear {
+  display: inline-flex;
+}
+
 .tab-filter {
   font-family: sans-serif;
   font-size: 14px;
@@ -469,7 +521,11 @@ header {
   font-weight: 600;
   font-size: 14px;
   color: var(--ink);
-  letter-spacing: -0.2px;
+  /* Letter-spacing relaxed from -0.2 → 0.2 so the domain title reads
+     slightly more open — at 14px the glyphs crowd each other when
+     tracking is negative, and the extra air lets each word sit as
+     its own unit against the rest of the card header. */
+  letter-spacing: 0.2px;
 }
 
 .mission-tag {

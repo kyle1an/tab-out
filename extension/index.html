@@ -60,8 +60,17 @@
               <span class="section-actions" id="openTabsSectionActions"></span>
             </div>
             <!-- Live filter — debounced; matches title text + URL substring;
-             hides non-matching chips and any card left empty. -->
-            <input type="search" id="tabFilter" class="tab-filter" autocomplete="off" spellcheck="false" />
+             hides non-matching chips and any card left empty. Wrapped so
+             the custom ✕ clear button can sit inside the input's right
+             edge; visibility toggled via `.has-value` on the wrapper. -->
+            <div class="tab-filter-wrap" id="tabFilterWrap">
+              <input type="search" id="tabFilter" class="tab-filter" autocomplete="off" spellcheck="false" />
+              <button class="tab-filter-clear" id="tabFilterClear" type="button" title="Clear filter" aria-label="Clear filter">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         </header>
       </div>
