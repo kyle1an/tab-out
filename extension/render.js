@@ -547,13 +547,20 @@ export function computeDomainCardViewModel(group) {
     const label = cleanTitle(stripTitleNoise(primary.title || ''), hostname)
     const { segments: rawSegments, stripped: titleStripped } = stripPgLabel(label, '')
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
-    const envs = tabs.map((t) => {
-      let sub = ''
-      try {
-        sub = subdomainPrefix(new URL(t.url).hostname, group.domain)
-      } catch {}
-      return { prefix: sub || '?', tabUrl: t.url, rawUrl: t.rawUrl || t.url }
-    })
+    // Sort envs by prefix with numeric-aware compare so dev2us lands
+    // before dev11us (plain lexicographic would give dev11us, dev2us,
+    // qaus — technically right but wrong for a human-natural read).
+    // Stable across refreshes since `tabs` is derived from the same
+    // pathMap + subdomain prefix every time.
+    const envs = tabs
+      .map((t) => {
+        let sub = ''
+        try {
+          sub = subdomainPrefix(new URL(t.url).hostname, group.domain)
+        } catch {}
+        return { prefix: sub || '?', tabUrl: t.url, rawUrl: t.rawUrl || t.url }
+      })
+      .sort((a, b) => a.prefix.localeCompare(b.prefix, undefined, { numeric: true }))
     const tooltip = [envs.map((e) => e.prefix).join(' · '), label].filter(Boolean).join(' · ')
     return {
       tabUrl: primary.url,
