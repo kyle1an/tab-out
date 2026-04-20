@@ -295,7 +295,10 @@ header {
   transition:
     box-shadow 0.25s ease,
     transform 0.25s ease;
-  cursor: pointer;
+  /* No cursor: pointer here — the card itself isn't a click target.
+     Actual clickable descendants (chips, buttons, env pills) carry
+     their own cursor: pointer, so hovering blank card area now shows
+     the default arrow like any non-interactive surface. */
   position: relative;
   overflow: hidden;
 }
