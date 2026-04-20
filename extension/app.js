@@ -105,6 +105,63 @@ document.addEventListener(
 )
 
 /* ----------------------------------------------------------------
+   URL PREVIEW — Chrome-style bottom-left status bar
+
+   Shows the target URL whenever the cursor hovers an element whose
+   click would switch tabs: regular chip body (data-action="focus-tab")
+   and folded-chip env pills (data-action="focus-env"). Uses mouseover
+   / mouseout delegation with a `.closest()` selector so transitions
+   between overlapping matching elements (pill inside chip) never
+   flicker — when the cursor moves from pill to surrounding chip body,
+   mouseover on the new target replaces the text in-place.
+
+   Folded chips carry every env URL space-joined in data-tab-url (for
+   filter matching); the preview shows just the first URL since that's
+   what a click on the chip body actually focuses.
+   ---------------------------------------------------------------- */
+{
+  const urlPreview = document.getElementById('urlPreview')
+  const urlPreviewText = document.getElementById('urlPreviewText')
+  const HOVER_SELECTOR = '[data-action="focus-tab"], [data-action="focus-env"]'
+  let currentHoverTarget = null
+
+  function hidePreview() {
+    if (!urlPreview) return
+    urlPreview.classList.remove('visible')
+    currentHoverTarget = null
+  }
+
+  document.addEventListener('mouseover', (e) => {
+    if (!urlPreview || !urlPreviewText) return
+    const target = e.target.closest(HOVER_SELECTOR)
+    if (!target || target === currentHoverTarget) return
+    const raw = target.dataset.tabUrl || ''
+    const displayUrl = raw.split(' ')[0]
+    if (!displayUrl) return
+    urlPreviewText.textContent = displayUrl
+    urlPreview.classList.add('visible')
+    currentHoverTarget = target
+  })
+
+  document.addEventListener('mouseout', (e) => {
+    if (!currentHoverTarget) return
+    const to = e.relatedTarget
+    const nextTarget = to && to.closest ? to.closest(HOVER_SELECTOR) : null
+    // Still inside the same matching element (cursor crossed into a
+    // child like the favicon or close button) — keep the preview.
+    if (nextTarget === currentHoverTarget) return
+    // If moving to a DIFFERENT matching element, the paired mouseover
+    // will switch the text; only hide when leaving the selector set.
+    if (!nextTarget) hidePreview()
+  })
+
+  // Scroll / blur cleanup so a preview stranded by an unrelated DOM
+  // change doesn't stay on-screen.
+  window.addEventListener('blur', hidePreview)
+  document.addEventListener('scroll', hidePreview, { passive: true, capture: true })
+}
+
+/* ----------------------------------------------------------------
    DOCUMENT-LEVEL CLICK DELEGATION
 
    One listener handles every action button on the page. Each

@@ -1246,6 +1246,41 @@ header {
   color: var(--status-abandoned);
 }
 
+/* ---- URL preview (Chrome-style bottom-left link status) ----
+   Anchored to the bottom-left corner so it sits exactly where the
+   browser's own status bar appears when hovering a link. Rounded
+   only on the top-right corner (the edge that faces into the page),
+   matching the native look. Hidden with opacity 0 + pointer-events
+   off so it can't block clicks while fading out. Wiring in app.js. */
+.url-preview {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  max-width: 50vw;
+  padding: 4px 10px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: sans-serif;
+  font-size: 12px;
+  border: 1px solid var(--warm-gray);
+  border-left: none;
+  border-bottom: none;
+  border-radius: 0 6px 0 0;
+  corner-shape: squircle;
+  box-shadow: 0 -2px 8px var(--shadow);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+  z-index: 100;
+}
+
+.url-preview.visible {
+  opacity: 1;
+}
+
 /* ---- Toast notification ---- */
 .toast {
   position: fixed;

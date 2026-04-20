@@ -95,6 +95,16 @@
     <!-- end .scroll-region -->
 
     <!-- ================================================================
+     URL PREVIEW — mimics Chrome's bottom-left link status bar. Shown
+     while the cursor hovers any element whose click focuses a tab
+     (chip body, env pill). Wired via delegation in app.js. Hidden by
+     default via CSS (opacity:0).
+     ================================================================ -->
+    <div class="url-preview" id="urlPreview" aria-hidden="true">
+      <span id="urlPreviewText"></span>
+    </div>
+
+    <!-- ================================================================
      TOAST — floats above everything, used for action confirmations
      Hidden by default via CSS (opacity:0, translateY)
      ================================================================ -->
