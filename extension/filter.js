@@ -174,8 +174,12 @@ export function applyTabFilter(query) {
   container.querySelectorAll('.mission-card').forEach((card) => {
     const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
     // Multiple overflow containers + "+N more" buttons per card now —
-    // one per subdomain section. All need to be force-opened/hidden
-    // uniformly inside matched cards while filtering is active.
+    // one per subdomain section. While filtering (matched or
+    // unmatched) we force them all open so every chip is visible:
+    //   • matched card: reveals chips hidden in overflow so the
+    //     filter's chip-search isn't blind to them
+    //   • unmatched card: "Other tabs" section shows full context,
+    //     so all chips of the card should render
     const overflows = card.querySelectorAll('.page-chips-overflow')
     const moreBtns = card.querySelectorAll('.page-chip-overflow')
 
@@ -190,35 +194,7 @@ export function applyTabFilter(query) {
 
     const cardUnmatched = filtering && !anyMatch
     card.classList.toggle('card-unmatched', cardUnmatched)
-    // Cards are never display:none'd anymore — unmatched ones are
-    // demoted to the "Other tabs" section via the class + two-pass
-    // masonry pack, not hidden.
     card.style.display = ''
-
-    const domainId = card.dataset.domainId
-    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
-
-    if (cardUnmatched) {
-      overflows.forEach((overflow) => {
-        if (overflow.dataset.preFilter !== undefined) {
-          overflow.style.display = overflow.dataset.preFilter
-          delete overflow.dataset.preFilter
-        }
-      })
-      moreBtns.forEach((btn) => {
-        btn.style.display = ''
-      })
-      if (group) styleUnmatchedCard(card, group)
-      return
-    }
-
-    chips.forEach((chip) => {
-      if (!filtering) {
-        chip.style.display = ''
-        return
-      }
-      chip.style.display = chipMatches(chip, q) ? '' : 'none'
-    })
 
     overflows.forEach((overflow) => {
       if (filtering) {
@@ -233,6 +209,22 @@ export function applyTabFilter(query) {
     })
     moreBtns.forEach((btn) => {
       btn.style.display = filtering ? 'none' : ''
+    })
+
+    const domainId = card.dataset.domainId
+    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
+
+    if (cardUnmatched) {
+      if (group) styleUnmatchedCard(card, group)
+      return
+    }
+
+    chips.forEach((chip) => {
+      if (!filtering) {
+        chip.style.display = ''
+        return
+      }
+      chip.style.display = chipMatches(chip, q) ? '' : 'none'
     })
 
     if (group) updateCardStats(card, group, filtering, q)
