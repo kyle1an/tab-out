@@ -27,10 +27,9 @@ import htm from '../vendor/htm.mjs'
 import { focusTab, fetchOpenTabs, snapshotChromeTabs } from '../tabs.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
 import { markClosure } from '../undo.js'
-import { showToast, animateCardOut } from '../ui.js'
+import { showToast } from '../ui.js'
 import { shootConfetti } from '../confetti.js'
-import { packMissionsMasonry } from '../layout.js'
-import { updateTabCountDisplays, renderStaticDashboard } from '../render.js'
+import { renderStaticDashboard } from '../render.js'
 
 const html = htm.bind(h)
 
@@ -87,41 +86,24 @@ export function PageChip({ chip }) {
     // and the (Nx) badge needs to decrement via a fresh re-render.
     const isLastTabForUrl = isFolded || matchCount <= 1
 
-    if (isLastTabForUrl) {
-      // Only tab for this URL is gone — animate the chip out and
-      // cascade to animateCardOut if the card is now empty.
-      if (chipEl) {
-        const rect = chipEl.getBoundingClientRect()
-        shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
-        chipEl.style.transition = 'opacity 0.2s, transform 0.2s'
-        chipEl.style.opacity = '0'
-        chipEl.style.transform = 'scale(0.8)'
-        setTimeout(() => {
-          chipEl.remove()
-          const parentCard = document.querySelector('.mission-card:has(.mission-pages:empty)')
-          if (parentCard) animateCardOut(parentCard)
-          document.querySelectorAll('.mission-card').forEach((c) => {
-            if (c.querySelectorAll('.page-chip[data-action="focus-tab"]').length === 0) {
-              animateCardOut(c)
-            }
-          })
-          packMissionsMasonry()
-        }, 200)
-      }
-    } else {
-      // Chip represented a duplicate set (e.g. "(2x)" badge). Closing
-      // one of them should shrink the badge, not remove the chip —
-      // the remaining sibling tab(s) still exist and must stay
-      // represented in the UI. Re-rendering the whole dashboard is
-      // the safe fix: computeDomainCardViewModel re-derives counts,
-      // card-level tab-count badges update, and the (Nx) badge
-      // either decrements or disappears for (N-1) ≤ 1. Previously
-      // the chipEl was animated out unconditionally, silently
-      // hiding the survivor until a manual refresh.
-      renderStaticDashboard()
+    if (isLastTabForUrl && chipEl) {
+      // Only tab for this URL is gone — animate the chip out via
+      // the shared `.closing` CSS class, then let renderStaticDashboard
+      // rebuild the VM. Preact drops the chip from the tree (and, if
+      // the card ended up empty, the card too) without us having to
+      // traverse the DOM looking for empty .mission-pages.
+      const rect = chipEl.getBoundingClientRect()
+      shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      chipEl.classList.add('closing')
+      await new Promise((r) => setTimeout(r, 200))
     }
 
-    updateTabCountDisplays()
+    // Always full re-render at this point — handles both branches:
+    //   • last tab: chip is gone from the VM, card may collapse too
+    //   • duplicate set: (Nx) badge decrements via the fresh VM
+    // Subsumes the previous split updateTabCountDisplays +
+    // packMissionsMasonry + per-card DOM probing.
+    await renderStaticDashboard()
 
     if (snapshot.length > 0) {
       const label = isFolded ? `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} across subdomains` : 'Tab closed'

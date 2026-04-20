@@ -16,7 +16,7 @@
 import { closeTabsExact, closeDuplicateTabs, closeTabOutDupes } from './tabs.js'
 import { showToast } from './ui.js'
 import { markClosure } from './undo.js'
-import { renderStaticDashboard, updateTabCountDisplays, getFilteredCloseableUrls, domainGroups, ICONS } from './render.js'
+import { renderStaticDashboard, getFilteredCloseableUrls } from './render.js'
 import { applyTabFilter } from './filter.js'
 import { groupColorChanged } from './groups.js'
 
@@ -213,16 +213,16 @@ document.addEventListener('click', async (e) => {
     })
     if (allUrls.length === 0) return
 
-    // Fade the global button and each per-card dedup button before the
-    // live-sync refresh arrives and rebuilds them.
-    ;[actionEl, ...perCardBtns].forEach((b) => {
-      b.style.transition = 'opacity 0.2s'
-      b.style.opacity = '0'
-      setTimeout(() => b.remove(), 200)
-    })
+    // Fade the global button + every per-card dedup button via the
+    // shared `.closing` CSS class, then wait out the transition and
+    // explicitly re-render — Preact drops the now-absent buttons +
+    // (Nx) badges from the VM, counts refresh atomically.
+    ;[actionEl, ...perCardBtns].forEach((b) => b.classList.add('closing'))
 
     const snapshot = await closeDuplicateTabs(allUrls, true)
     markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
+    await new Promise((r) => setTimeout(r, 200))
+    await renderStaticDashboard()
     return
   }
 })

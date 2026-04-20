@@ -1,17 +1,19 @@
 /* ================================================================
-   Generic UI helpers — toast, card animations, button updates
+   Generic UI helpers — toast only.
 
-   showToast              — bottom-screen notification, optionally
-                             with an inline action button (e.g. Undo).
-   animateCardOut         — fade + scale-down + confetti, then re-pack.
-   checkAndShowEmptyState — "Inbox zero" message when grid is empty.
-   updateCloseTabsButton  — decrements the count in a "Close N tabs"
-                             button label, preserving wording.
+   Close animations now live in CSS (`.closing` class on .mission-card,
+   .page-chip, .action-btn, .chip-dupe-badge). Every handler that used
+   to call animateCardOut / imperative style mutations now just adds
+   the class, awaits the transition, and lets renderStaticDashboard
+   rebuild the VM — Preact drops the absent nodes on its own.
+
+   The "Inbox zero" empty state moved into the <Missions> component,
+   so checkAndShowEmptyState (which injected innerHTML into a Preact-
+   owned root) is gone too.
+
+   showToast — bottom-screen notification, optionally with an inline
+               action button (e.g. Undo).
    ================================================================ */
-
-import { shootConfetti } from './confetti.js'
-import { packMissionsMasonry } from './layout.js'
-import { render as preactRender } from './vendor/preact.mjs'
 
 let toastTimer = null
 
@@ -52,78 +54,3 @@ export function showToast(message, action = null) {
   }
 }
 
-/**
- * animateCardOut(card) — fade + scale-down + confetti, then remove and
- * re-pack the masonry grid.
- */
-export function animateCardOut(card) {
-  if (!card) return
-
-  const rect = card.getBoundingClientRect()
-  shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
-
-  card.classList.add('closing')
-  setTimeout(() => {
-    card.remove()
-    checkAndShowEmptyState()
-    packMissionsMasonry()
-  }, 300)
-}
-
-/**
- * checkAndShowEmptyState() — "Inbox zero" message when all cards gone.
- *
- * #openTabsMissions is a Preact mount root (see render.js →
- * components/Missions.js). Overwriting its innerHTML directly would
- * leave Preact's internal reconciler holding dangling DOM refs, and
- * the next live-sync render would throw "insertBefore: parameter 1
- * is not of type Node". We call `preactRender(null, el)` first to
- * unmount Preact cleanly; the next renderStaticDashboard call
- * re-mounts from scratch when new cards arrive.
- */
-export function checkAndShowEmptyState() {
-  const missionsEl = document.getElementById('openTabsMissions')
-  if (!missionsEl) return
-
-  const remaining = missionsEl.querySelectorAll('.mission-card:not(.closing)').length
-  if (remaining > 0) return
-
-  preactRender(null, missionsEl)
-
-  missionsEl.innerHTML = /*html*/ `
-    <div class="missions-empty-state">
-      <div class="empty-checkmark">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-      </div>
-      <div class="empty-title">Inbox zero, but for tabs.</div>
-      <div class="empty-subtitle">You're free.</div>
-    </div>
-  `
-
-  const countEl = document.getElementById('openTabsSectionCount')
-  if (countEl) countEl.textContent = '0 domains'
-}
-
-/**
- * updateCloseTabsButton(btn, closed) — decrements the numeric count in a
- * "Close ... N tab(s)" button's label by `closed`, preserving any modifier
- * word (e.g. "all" / "ungrouped") and fixing tab/tabs pluralization.
- * No-op if btn is null.
- *
- * Operates on the inner text span (`.card-close-btn-text`) via textContent
- * rather than resetting the button's innerHTML. Resetting innerHTML
- * reparses every descendant, which detaches the DOM nodes Preact was
- * tracking in its vdom; Preact then fails to reconcile on the next render
- * and appends a new card-close-btn beside the orphaned one — manifests as
- * two ×s in the header after each dedup click.
- */
-export function updateCloseTabsButton(btn, closed) {
-  if (!btn || !closed) return
-  const textEl = btn.querySelector('.card-close-btn-text') || btn
-  textEl.textContent = textEl.textContent.replace(/(\d+)(\s+(?:\w+\s+)?)tabs?\b/, (_, numStr, middle) => {
-    const next = Math.max(0, parseInt(numStr, 10) - closed)
-    return `${next}${middle}tab${next !== 1 ? 's' : ''}`
-  })
-}
