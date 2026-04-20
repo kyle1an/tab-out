@@ -518,6 +518,16 @@ header {
   corner-shape: squircle;
 }
 
+/* DNS-continuation cue — same treatment as .subdomain-header-name and
+   .chip-env: a thinner, dimmer trailing "." so the pill reads as
+   "dev2us.<domain>" rather than a bare subdomain fragment. */
+.mission-subdomain::after {
+  content: '.';
+  margin-left: 1px;
+  font-weight: 400;
+  opacity: 0.45;
+}
+
 /* Tab indicator badge — shows how many Chrome tabs are still open for this mission */
 .open-tabs-badge {
   display: inline-flex;
