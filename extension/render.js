@@ -14,9 +14,13 @@
    • computeDomainCardViewModel — per-card view-model (consumed by
                                   <DomainCard>)
    • domainGroups — live array of current grouping
-   • updateTabCountDisplays — header "N open tabs" / "Across M windows"
-   • updateSectionCount — section header "X domains · Close N dupes"
-   • updateFilteredActions — hides/shows the close-filtered button
+   • renderHeaderStats — (re)renders the pinned-top stats row via the
+                         <HeaderStats> component. updateTabCountDisplays,
+                         updateSectionCount, and updateFilteredActions
+                         are kept as aliases so existing callers still
+                         work after the migration.
+   • getFilteredCloseableUrls — URLs the "Close N filtered tabs" action
+                                would close (shared with app.js handler)
    • pickFavicon — tab.favIconUrl (preserves data: URIs) /
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
@@ -31,6 +35,7 @@ import { resolvePathGroup } from './path-groups.js'
 import { render as preactRender, h } from './vendor/preact.mjs'
 import htm from './vendor/htm.mjs'
 import { Missions } from './components/Missions.js'
+import { HeaderStats } from './components/HeaderStats.js'
 
 const html = htm.bind(h)
 
@@ -145,43 +150,6 @@ function stripPgLabel(label, pgLabel) {
 }
 
 /**
- * updateTabCountDisplays() — header line + window-count sub-line.
- * Reads the filter input directly so every call site respects the
- * active filter without having to know about it.
- *
- *   No filter:  "182 Open tabs"     /  "Across 3 windows"
- *   Filtering:  "14 of 182 Open tabs" / "Across 2 of 3 windows"
- */
-export function updateTabCountDisplays() {
-  const headerEl = document.getElementById('greeting')
-  const subEl = document.getElementById('dateDisplay')
-  if (!headerEl) return
-
-  const realTabs = getRealTabs()
-  const total = realTabs.length
-
-  const filterInput = document.getElementById('tabFilter')
-  const q = ((filterInput && filterInput.value) || '').trim().toLowerCase()
-
-  const visibleTabs = q.length === 0 ? realTabs : realTabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q))
-  const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
-  const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
-
-  if (q.length === 0) {
-    headerEl.textContent = `${total} Open tab${total !== 1 ? 's' : ''}`
-  } else {
-    headerEl.textContent = `${visibleTabs.length} of ${total} Open tab${total !== 1 ? 's' : ''}`
-  }
-
-  if (subEl) {
-    subEl.textContent =
-      visibleWindows === totalWindows
-        ? `Across ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
-        : `Across ${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
-  }
-}
-
-/**
  * getFilteredCloseableUrls() — URLs of tabs the "Close N filtered tabs"
  * action would close: filter-matching, ungrouped, non-chrome. Returns []
  * when no filter is active. Shared between the button label + the action
@@ -199,71 +167,71 @@ export function getFilteredCloseableUrls() {
 }
 
 /**
- * updateFilteredActions() — left-side slot in `.section-header`. Empty
- * unless the filter is active and at least one closable tab matches.
+ * renderHeaderStats() — (re)render the pinned-top stats row via Preact.
+ *
+ * Replaces the previous updateTabCountDisplays + updateSectionCount +
+ * updateFilteredActions trio. One Preact render mounts a fresh
+ * <HeaderStats> tree into .header-stats; all counts + action buttons
+ * come out of the same snapshot so the row never shows inconsistent
+ * intermediate states (e.g. a stale "Close 3 filtered tabs" button
+ * lingering after the filter was cleared).
+ *
+ * Data sources:
+ *   • getRealTabs() + #tabFilter value — drives tab/window counts and
+ *     the "Close N filtered tabs" button.
+ *   • #openTabsMissions .mission-card  — visibleDomains count and the
+ *     global Dedupe-N button are summed from per-card state already
+ *     rendered into the primary grid. Both can be lifted into the
+ *     view-model in a follow-up.
  */
-export function updateFilteredActions() {
-  const el = document.getElementById('openTabsSectionActions')
-  if (!el) return
-  const urls = getFilteredCloseableUrls()
-  if (urls.length === 0) {
-    el.innerHTML = ''
-    return
-  }
-  el.innerHTML = /*html*/ `<button class="action-btn close-tabs" data-action="close-filtered-tabs" style="font-size:11px;padding:4px 12px;">${ICONS.close} Close ${urls.length} filtered tab${urls.length !== 1 ? 's' : ''}</button>`
-}
+export function renderHeaderStats() {
+  const mountEl = document.querySelector('.header-stats')
+  if (!mountEl) return
 
-/**
- * updateSectionCount() — "X domains · Close N tabs" section header.
- * Domain count uses DOM-visible cards (so filter-hidden cards don't count).
- * Close button reflects ungrouped, filter-matching tabs only.
- */
-export function updateSectionCount() {
-  const sectionCount = document.getElementById('openTabsSectionCount')
-  const dedupEl = document.getElementById('openTabsDedupAction')
-  if (!sectionCount) return
+  const realTabs = getRealTabs()
+  const filterInput = document.getElementById('tabFilter')
+  const q = ((filterInput && filterInput.value) || '').trim().toLowerCase()
+  const filtering = q.length > 0
+
+  const visibleTabs = filtering ? realTabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q)) : realTabs
+  const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
+  const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
 
   const allCards = document.querySelectorAll('#openTabsMissions .mission-card')
   const totalDomains = allCards.length
-  if (totalDomains === 0) {
-    sectionCount.innerHTML = ''
-    if (dedupEl) dedupEl.innerHTML = ''
-    return
-  }
-
-  // Visible domains are cards in the primary grid that weren't hidden
-  // by the filter (display:none when the domain has zero matches).
   const visibleDomains = Array.from(allCards).filter((c) => c.style.display !== 'none').length
 
-  sectionCount.textContent =
-    visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
+  let dedupCount = 0
+  document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]').forEach((btn) => {
+    const m = btn.textContent.match(/\d+/)
+    if (m) dedupCount += parseInt(m[0], 10)
+  })
 
-  // Global dedup button — sum of closable extras across every per-card
-  // dedup button currently rendered. Keeps the 4-case policy intact
-  // (per-card buttons already encode only the closable URLs), so the
-  // global total equals the sum of what each card would close. Renders
-  // into a dedicated slot (#openTabsDedupAction) sibling to the
-  // filtered-close button — buttons live in their own inline-flex
-  // cluster, independent of the numeric stats.
-  if (dedupEl) {
-    const perCardDedupBtns = document.querySelectorAll('#openTabsMissions .action-btn[data-action="dedup-keep-one"]')
-    let globalExtras = 0
-    perCardDedupBtns.forEach((btn) => {
-      const m = btn.textContent.match(/\d+/)
-      if (m) globalExtras += parseInt(m[0], 10)
-    })
-    if (globalExtras > 0) {
-      // Label matches the per-card "Dedupe N" buttons so the same
-      // word means the same action at both scopes; the tooltip still
-      // spells out "Close N duplicates" for anyone uncertain what
-      // "Dedupe" implies here.
-      const title = `Close ${globalExtras} duplicate${globalExtras !== 1 ? 's' : ''}`
-      dedupEl.innerHTML = /*html*/ `<button class="action-btn" data-action="dedup-global-keep-one" title="${title}" style="font-size:11px;padding:4px 12px;">Dedupe ${globalExtras}</button>`
-    } else {
-      dedupEl.innerHTML = ''
-    }
-  }
+  const filteredCloseCount = getFilteredCloseableUrls().length
+
+  preactRender(
+    html`<${HeaderStats}
+      totalTabs=${realTabs.length}
+      visibleTabs=${visibleTabs.length}
+      totalWindows=${totalWindows}
+      visibleWindows=${visibleWindows}
+      totalDomains=${totalDomains}
+      visibleDomains=${visibleDomains}
+      dedupCount=${dedupCount}
+      filteredCloseCount=${filteredCloseCount}
+      hasCards=${totalDomains > 0}
+      filtering=${filtering}
+    />`,
+    mountEl
+  )
 }
+
+// Backwards-compat shims. Every call site of the old API still works
+// because all three names point at the same re-render. Kept separate
+// so follow-up cleanups can migrate callers one at a time.
+export const updateTabCountDisplays = renderHeaderStats
+export const updateSectionCount = renderHeaderStats
+export const updateFilteredActions = renderHeaderStats
 
 /**
  * disambiguatingPaths(urls) — given a list of URLs that share a
@@ -954,7 +922,6 @@ export async function renderStaticDashboard() {
     return 0
   })
 
-  const sectionHeaderWrap = document.getElementById('sectionHeaderWrap')
   if (domainGroups.length > 0 && openTabsSection) {
     // Phase 4: Preact owns everything down to the pathgroup level.
     // <Missions> → <DomainCard> → <SubdomainSection> →
@@ -974,14 +941,14 @@ export async function renderStaticDashboard() {
       preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsUnmatchedEl)
     }
     openTabsSection.style.display = 'block'
-    if (sectionHeaderWrap) sectionHeaderWrap.style.display = ''
     packMissionsMasonry()
-    updateSectionCount()
   } else {
     if (openTabsSection) openTabsSection.style.display = 'none'
-    if (sectionHeaderWrap) sectionHeaderWrap.style.display = 'none'
   }
 
-  updateTabCountDisplays()
-  updateFilteredActions()
+  // Single pass now that <HeaderStats> handles every field. The
+  // previous trio (updateTabCountDisplays / updateSectionCount /
+  // updateFilteredActions) all alias to renderHeaderStats so this is
+  // also the only call most other callers need.
+  renderHeaderStats()
 }

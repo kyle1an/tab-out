@@ -9,7 +9,7 @@
    ================================================================ */
 
 import { packMissionsMasonry } from './layout.js'
-import { domainGroups, updateTabCountDisplays, updateSectionCount, updateFilteredActions } from './render.js'
+import { domainGroups, renderHeaderStats } from './render.js'
 import { isGroupedTab } from './groups.js'
 
 // Three placeholder states, so the hint always reflects reality:
@@ -369,9 +369,7 @@ export function applyTabFilter(query) {
   }
 
   packMissionsMasonry({ unpin: true })
-  updateTabCountDisplays()
-  updateSectionCount()
-  updateFilteredActions()
+  renderHeaderStats()
 }
 
 let filterTimer = null
