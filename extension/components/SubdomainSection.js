@@ -56,7 +56,7 @@ export function SubdomainSection({ subdomainKey, sectionCount, sectionClosableUr
       html`
         <div class="subdomain-header">
           <span class="subdomain-header-name">${subdomainKey}</span>
-          <span class="subdomain-header-count">${sectionCount}</span>
+          <span class="subdomain-header-count" data-original-count=${sectionCount}>${sectionCount}</span>
           ${hasClose && html` <${SubdomainCloseButton} count=${sectionClosableUrls.length} onClick=${onCloseSubdomain} /> `}
         </div>
       `}

@@ -81,12 +81,9 @@ function updateCardStats(card, group, filtering, q) {
   const matchingTabs = filtering ? group.tabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q)) : group.tabs
   const closableTabs = matchingTabs.filter((t) => !isGroupedTab(t))
 
-  // Tab count badge (skip app-badge — has its own format)
-  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
-  if (tabBadge) {
-    tabBadge.textContent = String(matchingTabs.length)
-    tabBadge.title = `${matchingTabs.length} open tab${matchingTabs.length !== 1 ? 's' : ''}`
-  }
+  // Tab count badge is owned by refreshCardAfterFilter so its value
+  // reflects the VISIBLE chip count (not tab count) during filter —
+  // updating it here would race and leave the wrong number on screen.
 
   // Close-domain button (top-right corner of card)
   const closeBtn = card.querySelector('.card-close-btn')
@@ -153,23 +150,87 @@ function chipMatches(chip, q) {
   return text.includes(q) || url.includes(q)
 }
 
-/** Style a card in the secondary ("Other tabs") grid. Shows the count
- *  of non-matching tabs in the badge and hides every bulk-close button
- *  — close-domain, dedup, cluster-close, subdomain-close. All those
- *  buttons operate on the card's full tab set (not just the chips
- *  visible in this grid), so exposing them here would let a user who
- *  typed "github" accidentally bulk-close matching tabs too. Per-chip
- *  close (the `×` on each chip) stays active for targeted cleanup. */
-function styleSecondaryCard(card, unmatchedTabCount) {
-  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
-  if (tabBadge) {
-    tabBadge.textContent = String(unmatchedTabCount)
-    tabBadge.title = `${unmatchedTabCount} non-matching tab${unmatchedTabCount !== 1 ? 's' : ''}`
-  }
-
+/** Style a card in the secondary ("Other tabs") grid. Hides every
+ *  bulk-close button — close-domain, dedup, cluster-close,
+ *  subdomain-close — so a user who typed "github" can't accidentally
+ *  bulk-close matching tabs by clicking a button on the "other tabs"
+ *  copy. Per-chip close (the `×` on each chip) stays active. */
+function styleSecondaryCard(card) {
   card.querySelectorAll('.card-close-btn, [data-action="dedup-keep-one"], .pathgroup-close-btn, .subdomain-close-btn').forEach((btn) => {
     btn.style.display = 'none'
   })
+}
+
+/** Count chips in an element whose inline display isn't 'none'. */
+function countVisibleChips(el) {
+  const chips = el.querySelectorAll('.page-chip[data-action="focus-tab"]')
+  let n = 0
+  chips.forEach((c) => {
+    if (c.style.display !== 'none') n++
+  })
+  return n
+}
+
+/** After chip-level display toggles, walk the card's sub-section tree
+ *  and reconcile the visible counts:
+ *    • hide pathgroup / flat / subdomain sections that now have zero
+ *      visible chips — otherwise their headers (cluster label, subdomain
+ *      name) stay on-screen with nothing under them
+ *    • update the pathgroup cluster count and subdomain count badges
+ *      to reflect how many chips are visible in this section
+ *    • set the card's tab-count badge to the card's total visible chip
+ *      count so "filter matches N" reads directly off the card header
+ *  Originals are read from `data-original-count` attributes that the
+ *  Preact components set (and re-set on every live-sync render), so we
+ *  always have a source-of-truth for "N when unfiltered" regardless of
+ *  how many times the filter has been toggled.
+ */
+function refreshCardAfterFilter(card, filtering) {
+  // Pathgroup cluster sections — header count + visibility
+  card.querySelectorAll('.pathgroup-section').forEach((sec) => {
+    const visible = countVisibleChips(sec)
+    const countEl = sec.querySelector('.pathgroup-header-count')
+    if (countEl) {
+      const original = countEl.dataset.originalCount || countEl.textContent || ''
+      countEl.textContent = filtering ? String(visible) : original
+    }
+    sec.style.display = filtering && visible === 0 ? 'none' : ''
+  })
+
+  // Flat singletons sections — no header count, just visibility
+  card.querySelectorAll('.flat-section').forEach((sec) => {
+    const visible = countVisibleChips(sec)
+    sec.style.display = filtering && visible === 0 ? 'none' : ''
+  })
+
+  // Subdomain sections — header count + visibility. Count includes
+  // chips across all inner flat + cluster sections.
+  card.querySelectorAll('.subdomain-section').forEach((sec) => {
+    const visible = countVisibleChips(sec)
+    const countEl = sec.querySelector('.subdomain-header-count')
+    if (countEl) {
+      const original = countEl.dataset.originalCount || countEl.textContent || ''
+      countEl.textContent = filtering ? String(visible) : original
+    }
+    sec.style.display = filtering && visible === 0 ? 'none' : ''
+  })
+
+  // Card-level badge — reflects total visible chips while filtering,
+  // the view-model original otherwise. Skip app badges (they carry
+  // their own "App · N" format).
+  const totalVisible = countVisibleChips(card)
+  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
+  if (tabBadge) {
+    const original = tabBadge.dataset.originalCount || tabBadge.textContent || ''
+    if (filtering) {
+      tabBadge.textContent = String(totalVisible)
+      tabBadge.title = `${totalVisible} tab${totalVisible !== 1 ? 's' : ''} in this view`
+    } else {
+      tabBadge.textContent = original
+      const n = parseInt(original, 10) || 0
+      tabBadge.title = `${n} open tab${n !== 1 ? 's' : ''}`
+    }
+  }
 }
 
 /** Apply filter to one rendered grid. `mode` is either 'matched' (hide
@@ -212,7 +273,6 @@ function filterGrid(containerId, q, filtering, mode) {
     if (!filtering) {
       chips.forEach((chip) => {
         chip.style.display = ''
-        chip.classList.remove('chip-unmatched')
       })
       if (mode === 'unmatched') {
         card.style.display = 'none'
@@ -223,6 +283,7 @@ function filterGrid(containerId, q, filtering, mode) {
         const domainId = card.dataset.domainId
         const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
         if (group) updateCardStats(card, group, false, '')
+        refreshCardAfterFilter(card, false)
         visibleCardCount++
       }
       return
@@ -238,7 +299,6 @@ function filterGrid(containerId, q, filtering, mode) {
       else unmatchedCount++
       const shouldShow = mode === 'matched' ? match : !match
       chip.style.display = shouldShow ? '' : 'none'
-      chip.classList.remove('chip-unmatched')
     })
 
     const relevantCount = mode === 'matched' ? matchedCount : unmatchedCount
@@ -249,29 +309,24 @@ function filterGrid(containerId, q, filtering, mode) {
     card.style.display = ''
     visibleCardCount++
 
-    const domainId = card.dataset.domainId
-    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
-
     if (mode === 'matched') {
       card.classList.remove('card-unmatched')
+      const domainId = card.dataset.domainId
+      const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
       if (group) updateCardStats(card, group, true, q)
     } else {
-      // Secondary grid: dim the card as a whole and show the
-      // unmatched-tab count in the badge. The unmatched count of
-      // chip-level elements isn't the same as tab count (dedup
-      // collapses duplicate URLs), so use the per-tab count derived
-      // from group.tabs so the badge matches what a user would
-      // expect "this many tabs aren't in my filter".
+      // Secondary grid: dim the card and hide bulk-close buttons so
+      // they can't accidentally close matching tabs too.
       card.classList.add('card-unmatched')
-      if (group) {
-        const unmatchedTabCount = group.tabs.filter((t) => {
-          const title = (t.title || '').toLowerCase()
-          const url = (t.url || '').toLowerCase()
-          return !(title.includes(q) || url.includes(q))
-        }).length
-        styleSecondaryCard(card, unmatchedTabCount)
-      }
+      styleSecondaryCard(card)
     }
+
+    // Hide empty sub-sections, update header counts, and sync the
+    // card's tab-count badge to the visible chip count. Handled in a
+    // single helper because the same logic applies to matched and
+    // unmatched grids — both want "show what's visible, hide what's
+    // not" at the section level.
+    refreshCardAfterFilter(card, true)
   })
 
   return visibleCardCount
