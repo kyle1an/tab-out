@@ -1,23 +1,16 @@
 /* ================================================================
    <HeaderStats> — Preact component for the pinned-top stats row.
 
-   Replaces three imperative-DOM functions that used to live in
-   render.js:
-     • updateTabCountDisplays  ("182 Open tabs" + "Across 3 windows")
-     • updateSectionCount      ("17 domains" + "Dedupe N" button)
-     • updateFilteredActions   ("Close N filtered tabs" button)
+   Renders the tab count ("182 Open tabs" + "Across 3 windows"), the
+   domain count ("17 domains"), the global Dedupe-N button, and the
+   Close-N-filtered-tabs button. Props are snapshot values computed
+   by renderHeaderStats() in render.js — which reads the current
+   filter query + domainGroups + getRealTabs() and feeds the same
+   VM that drives the card grid.
 
-   Single mount point: .header-stats. Props are snapshot values;
-   renderHeaderStats() in render.js computes them from getRealTabs()
-   + the #tabFilter value + the primary card grid's current DOM and
-   calls preactRender.
-
-   The filter input wrapper (.tab-filter-wrap) is a SIBLING of the
-   mount point — untouched by this render.
-
-   Two counts still peek at DOM (visibleDomains, dedupCount) because
-   they depend on per-card state that currently lives outside this
-   component tree; elevating them into the view-model is a follow-up.
+   Single mount point: .header-stats. The filter input wrapper
+   (.tab-filter-wrap) is a SIBLING of the mount point — untouched
+   by this render.
    ================================================================ */
 
 import { h, Fragment } from '../vendor/preact.mjs'

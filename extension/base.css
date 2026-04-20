@@ -116,10 +116,11 @@ body {
 
 /* Overflow containers inside flat-sections and pathgroup-sections:
    hidden by default; shown (as display: contents) when the parent
-   sub-section's data-expanded="true". filter.js overrides with
-   inline `display: contents` while a filter is active so its chip
-   search can reach hidden chips; after filter clears, the inline
-   style is restored to '' and CSS regains control. */
+   sub-section's data-expanded="true". The parent's expand state
+   is local useState in <FlatSection> / <PathgroupSection>.
+   Filter-scoped visibility is handled inside the VM (matching chips
+   land in visibleChips, hidden=[] while filtering) — no inline style
+   override needed. */
 .flat-section > .page-chips-overflow,
 .pathgroup-section > .page-chips-overflow {
   display: none;
