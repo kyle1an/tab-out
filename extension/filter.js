@@ -51,9 +51,14 @@ function applyFilterPlaceholder() {
 }
 
 /**
- * applyTabFilter(query) — hide non-matching chips and any card left empty.
- * While filtering, the "+N more" overflow container is force-opened so a
- * matching hidden chip isn't left invisible. Empty query restores the
+ * applyTabFilter(query) — hide non-matching chips inside matched cards,
+ * and mark cards with no matches as `.card-unmatched` so masonry demotes
+ * them to the "Other tabs" group below the divider. Unmatched cards
+ * keep all their chips visible (context) but have filter-scoped action
+ * buttons (close-domain, dedup) hidden to prevent accidental bulk
+ * actions on content the user didn't filter for. While filtering, the
+ * "+N more" overflow container is force-opened inside matched cards so
+ * a matching hidden chip isn't left invisible. Empty query restores the
  * default view.
  */
 /**
@@ -124,6 +129,42 @@ function updateCardStats(card, group, filtering, q) {
   }
 }
 
+/**
+ * chipMatches(chip, q) — does this chip match the (already lowercased)
+ * filter query? Checks the chip's display text and its tab URL.
+ * Strips U+200B that render.js:injectBreakPoints inserts into long
+ * tokens for line-wrap control — otherwise a filter like
+ * "alicebobacme" would miss "alice\u200Bbobac\u200B…".
+ */
+function chipMatches(chip, q) {
+  const text = chip.textContent.replace(/\u200B/g, '').toLowerCase()
+  const url = (chip.dataset.tabUrl || '').toLowerCase()
+  return text.includes(q) || url.includes(q)
+}
+
+/** Unmatched card: show all chips + restore original tab count badge.
+ *  Explicitly hide filter-scoped action buttons so the user can't
+ *  accidentally trigger a bulk close/dedup on content they didn't
+ *  filter for (they typed "github" — closing unrelated reddit tabs
+ *  would be a surprise). */
+function styleUnmatchedCard(card, group) {
+  const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
+  chips.forEach((chip) => {
+    chip.style.display = ''
+  })
+
+  const tabBadge = card.querySelector('.tab-count-badge:not(.app-badge)')
+  if (tabBadge) {
+    tabBadge.textContent = String(group.tabs.length)
+    tabBadge.title = `${group.tabs.length} open tab${group.tabs.length !== 1 ? 's' : ''}`
+  }
+
+  const closeBtn = card.querySelector('.card-close-btn')
+  if (closeBtn) closeBtn.style.display = 'none'
+  const dedupBtn = card.querySelector('[data-action="dedup-keep-one"]')
+  if (dedupBtn) dedupBtn.style.display = 'none'
+}
+
 export function applyTabFilter(query) {
   const q = (query || '').trim().toLowerCase()
   const filtering = q.length > 0
@@ -134,25 +175,49 @@ export function applyTabFilter(query) {
     const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
     // Multiple overflow containers + "+N more" buttons per card now —
     // one per subdomain section. All need to be force-opened/hidden
-    // uniformly while filtering is active.
+    // uniformly inside matched cards while filtering is active.
     const overflows = card.querySelectorAll('.page-chips-overflow')
     const moreBtns = card.querySelectorAll('.page-chip-overflow')
 
     let anyMatch = false
+    if (filtering) {
+      chips.forEach((chip) => {
+        if (chipMatches(chip, q)) anyMatch = true
+      })
+    } else {
+      anyMatch = true
+    }
+
+    const cardUnmatched = filtering && !anyMatch
+    card.classList.toggle('card-unmatched', cardUnmatched)
+    // Cards are never display:none'd anymore — unmatched ones are
+    // demoted to the "Other tabs" section via the class + two-pass
+    // masonry pack, not hidden.
+    card.style.display = ''
+
+    const domainId = card.dataset.domainId
+    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
+
+    if (cardUnmatched) {
+      overflows.forEach((overflow) => {
+        if (overflow.dataset.preFilter !== undefined) {
+          overflow.style.display = overflow.dataset.preFilter
+          delete overflow.dataset.preFilter
+        }
+      })
+      moreBtns.forEach((btn) => {
+        btn.style.display = ''
+      })
+      if (group) styleUnmatchedCard(card, group)
+      return
+    }
+
     chips.forEach((chip) => {
       if (!filtering) {
         chip.style.display = ''
-        anyMatch = true
         return
       }
-      // Strip U+200B that render.js:injectBreakPoints inserts into
-      // long tokens for line-wrap control — otherwise a filter like
-      // "alicebobacme" would miss "alice\u200Bbobac\u200B…".
-      const text = chip.textContent.replace(/\u200B/g, '').toLowerCase()
-      const url = (chip.dataset.tabUrl || '').toLowerCase()
-      const hit = text.includes(q) || url.includes(q)
-      chip.style.display = hit ? '' : 'none'
-      if (hit) anyMatch = true
+      chip.style.display = chipMatches(chip, q) ? '' : 'none'
     })
 
     overflows.forEach((overflow) => {
@@ -170,11 +235,6 @@ export function applyTabFilter(query) {
       btn.style.display = filtering ? 'none' : ''
     })
 
-    card.style.display = anyMatch ? '' : 'none'
-
-    // Keep the card's counts + action buttons in sync with the filter
-    const domainId = card.dataset.domainId
-    const group = domainGroups.find((g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-') === domainId)
     if (group) updateCardStats(card, group, filtering, q)
   })
 

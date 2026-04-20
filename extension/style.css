@@ -250,6 +250,45 @@ header {
   box-shadow: 0 2px 8px var(--shadow);
 }
 
+/* Unmatched card — non-matching cards stay visible under the "Other
+   tabs" divider instead of being display:none'd. Dimmed so the match
+   set reads as primary; lifts back to full opacity on hover when the
+   user wants to inspect. */
+.card-unmatched {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+
+.card-unmatched:hover {
+  opacity: 1;
+}
+
+/* "Other tabs · N" separator between matched and unmatched cards.
+   Absolutely positioned inside #openTabsMissions by layout.js; its
+   top is computed each pack from the bottom of the matched group. */
+.missions-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  pointer-events: none;
+}
+
+.missions-divider-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--warm-gray);
+}
+
+.missions-divider-label {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Card close button — icon-only in the top-right corner; hover expands
    to show the full label, iOS/macOS notification-center style. */
 .card-close-btn {
