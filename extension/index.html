@@ -114,16 +114,11 @@
     </div>
 
     <!-- ================================================================
-     TOAST — floats above everything, used for action confirmations
-     Hidden by default via CSS (opacity:0, translateY)
+     TOAST — floats above everything, used for action confirmations.
+     Preact-owned: <Toast> in components/Toast.js emits the .toast
+     element on demand. This wrapper is just a static mount point.
      ================================================================ -->
-    <div class="toast" id="toast">
-      <!-- Checkmark circle icon (Heroicons outline) -->
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-      </svg>
-      <span id="toastText"></span>
-    </div>
+    <div id="toastRoot"></div>
 
     <!-- Personal config (gitignored) — defines LOCAL_LANDING_PAGE_PATTERNS etc.
      If the file doesn't exist, Chrome logs a harmless 404; app.js checks
