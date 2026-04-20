@@ -231,7 +231,10 @@ export function updateSectionCount() {
     return
   }
 
-  const visibleDomains = Array.from(allCards).filter((c) => getComputedStyle(c).display !== 'none').length
+  // Matched cards are the ones WITHOUT .card-unmatched — unmatched
+  // cards are still visible (in the "Other tabs" group) but don't
+  // count toward the "X of Y domains" match ratio.
+  const visibleDomains = Array.from(allCards).filter((c) => !c.classList.contains('card-unmatched')).length
 
   sectionCount.textContent =
     visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
