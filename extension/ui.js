@@ -111,10 +111,18 @@ export function checkAndShowEmptyState() {
  * "Close ... N tab(s)" button's label by `closed`, preserving any modifier
  * word (e.g. "all" / "ungrouped") and fixing tab/tabs pluralization.
  * No-op if btn is null.
+ *
+ * Operates on the inner text span (`.card-close-btn-text`) via textContent
+ * rather than resetting the button's innerHTML. Resetting innerHTML
+ * reparses every descendant, which detaches the DOM nodes Preact was
+ * tracking in its vdom; Preact then fails to reconcile on the next render
+ * and appends a new card-close-btn beside the orphaned one — manifests as
+ * two ×s in the header after each dedup click.
  */
 export function updateCloseTabsButton(btn, closed) {
   if (!btn || !closed) return
-  btn.innerHTML = btn.innerHTML.replace(/(\d+)(\s+(?:\w+\s+)?)tabs?\b/, (_, numStr, middle) => {
+  const textEl = btn.querySelector('.card-close-btn-text') || btn
+  textEl.textContent = textEl.textContent.replace(/(\d+)(\s+(?:\w+\s+)?)tabs?\b/, (_, numStr, middle) => {
     const next = Math.max(0, parseInt(numStr, 10) - closed)
     return `${next}${middle}tab${next !== 1 ? 's' : ''}`
   })
