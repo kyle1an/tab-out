@@ -153,6 +153,21 @@ const BUILT_IN_PATH_GROUPERS = [
       if (!m) return null
       return { key: `r/${m[1]}`, label: `r/${m[1]}` }
     }
+  },
+
+  // Google Search: /search (web, images, news, shopping — all share
+  // the same path, only URL params differ). Groups results under a
+  // "Google Search" cluster so the "- Google Search" title suffix
+  // that survives cleanTitle() stops dominating the card; chips
+  // inside the cluster get that suffix stripped via the shared
+  // label pattern. Homepage (/) and other google.com paths
+  // (/mail redirect, /maps redirect, etc.) stay ungrouped.
+  {
+    hostname: 'www.google.com',
+    extract: (u) => {
+      if (u.pathname !== '/search') return null
+      return { key: 'google:search', label: 'Google Search' }
+    }
   }
 ]
 
