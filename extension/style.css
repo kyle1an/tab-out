@@ -307,7 +307,10 @@ header {
 }
 
 .mission-card:hover {
-  box-shadow: 0 2px 8px var(--shadow);
+  /* Middle ground between the prior heavy 0 2px 8px and the too-
+     soft 0 1px 4px. Keeps the 2px y-offset for a clear "lift"
+     cue, drops the blur 8 → 6 so it doesn't spill as far. */
+  box-shadow: 0 2px 6px var(--shadow);
 }
 
 /* Card in the "Other tabs" grid — the same domain card is rendered a
