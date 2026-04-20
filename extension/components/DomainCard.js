@@ -152,8 +152,6 @@ export function DomainCard({ group }) {
           <span class="mission-name">${vm.displayName}</span>
           ${vm.singleSubdomainKey && html` <span class="mission-subdomain">${vm.singleSubdomainKey}</span> `}
           <${TabBadge} isAppCard=${vm.isAppCard} tabCount=${vm.tabCount} />
-        </div>
-        <div class="actions">
           ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
         </div>
         <div class="mission-pages">

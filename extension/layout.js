@@ -48,7 +48,10 @@ function packContainer(containerId, unpin) {
   // already truncates with an ellipsis, so a slightly narrower card
   // reads the same as a wider one but packs more per row.
   const minColWidth = 260
-  const gap = 12
+  // Inter-card gap tightened 12→10 — chips already have their own
+  // vertical rhythm, so 10px reads as deliberate card separation
+  // without the extra breathing room the larger gap added.
+  const gap = 10
   const colCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)))
   const colWidth = (containerWidth - gap * (colCount - 1)) / colCount
 
