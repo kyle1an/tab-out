@@ -512,15 +512,20 @@ header {
   font-size: 12px;
   font-weight: 500;
   color: var(--muted);
-  background: rgba(82, 82, 82, 0.08);
+  /* Lighter than .chip-pathgroup (0.1) so subdomain pills read as a
+     distinct family from cluster-label pills — subdomains are
+     hostname-context, pathgroups are content-clusters. */
+  background: rgba(82, 82, 82, 0.04);
   padding: 2px 8px;
   border-radius: 6px;
   corner-shape: squircle;
 }
 
-/* DNS-continuation cue — same treatment as .subdomain-header-name and
+/* Hostname-suffix cue — same treatment as .subdomain-header-name and
    .chip-env: a thinner, dimmer trailing "." so the pill reads as
-   "dev2us.<domain>" rather than a bare subdomain fragment. */
+   "dev2us.<domain>" rather than a bare subdomain fragment. Visually
+   evokes FQDN-style absolute-name notation even though the suffix is
+   implied, not rendered. */
 .mission-subdomain::after {
   content: '.';
   margin-left: 1px;
@@ -791,7 +796,11 @@ header {
   padding: 0 6px;
   border-radius: 8px;
   corner-shape: squircle;
-  background: rgba(115, 115, 115, 0.12);
+  /* Lighter than .chip-pathgroup (0.1) so the subdomain/env pill
+     family reads as lighter than the content-cluster pill family at
+     a glance. Hover bumps up past .chip-pathgroup's resting state so
+     the affordance is obvious. */
+  background: rgba(115, 115, 115, 0.05);
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -806,7 +815,7 @@ header {
   color: var(--ink);
 }
 
-/* Same DNS-continuation cue as the subdomain header — thinner +
+/* Same hostname-suffix cue as the subdomain header — thinner +
    dimmer trailing "." so each env pill reads as "dev2us.<domain>"
    rather than just "dev2us". Applied via ::after to keep the pill's
    textContent clean (filter matching reads textContent, and a literal
@@ -989,13 +998,13 @@ header {
   font-weight: 500;
 }
 
-/* Trailing DNS-style "." after a real subdomain name ("dev2us.")
-   reads as "there's more hostname after this" — a continuation cue,
-   not a sentence terminator. Thinner + dimmer than the name itself
-   so it registers as punctuation the eye can skim past, but still
-   present enough to signal the DNS-label convention. Scoped to
-   non-shared sections (the shared-envs section uses a sentence-y
-   "Shared across envs" label where a trailing dot would be wrong). */
+/* Trailing "." after a real subdomain name ("dev2us.") evokes the
+   FQDN-style absolute-name notation where the missing suffix is
+   implied by context (card title / base domain). Thinner + dimmer
+   than the name itself so it registers as quiet punctuation rather
+   than a sentence terminator. Scoped to non-shared sections (the
+   shared-envs section uses a sentence-y "Shared across envs" label
+   where a trailing dot would be wrong). */
 .subdomain-section:not([data-shared='true']) .subdomain-header-name::after {
   content: '.';
   margin-left: 1px;
