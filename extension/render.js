@@ -484,6 +484,17 @@ export function computeDomainCardViewModel(group) {
   // sub-group scannable while the card stays compact.
   const CHIPS_PER_SECTION = 5
 
+  // "+N more" collapses hidden chips behind an expander button. But
+  // when N would be 1, the button itself takes about the same vertical
+  // space as rendering the one chip inline — so the collapse saves
+  // nothing. Roll that last chip into the visible set instead.
+  function splitForOverflow(tabs) {
+    if (tabs.length <= CHIPS_PER_SECTION + 1) {
+      return { vis: tabs, hid: [] }
+    }
+    return { vis: tabs.slice(0, CHIPS_PER_SECTION), hid: tabs.slice(CHIPS_PER_SECTION) }
+  }
+
   const sectionsData = sections.map(([key, sectionTabs]) => {
     // Header appears only when a card has 2+ subdomain sections AND
     // the section isn't the empty-key "root" (card title already says
@@ -604,8 +615,7 @@ export function computeDomainCardViewModel(group) {
         const bCat = CATEGORY_ORDER[pgByUrl.get(b.url)?.category] ?? CATEGORY_ORDER.other
         return aCat - bCat
       })
-      const vis = orderedTabs.slice(0, CHIPS_PER_SECTION)
-      const hid = orderedTabs.slice(CHIPS_PER_SECTION)
+      const { vis, hid } = splitForOverflow(orderedTabs)
       const clusterClosable = orderedTabs.filter((t) => !isGroupedTab(t))
       const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
       const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
@@ -622,8 +632,7 @@ export function computeDomainCardViewModel(group) {
     })
 
     // Flat singletons: split into visible + hidden chip-data arrays.
-    const flatVis = singletonTabs.slice(0, CHIPS_PER_SECTION)
-    const flatHid = singletonTabs.slice(CHIPS_PER_SECTION)
+    const { vis: flatVis, hid: flatHid } = splitForOverflow(singletonTabs)
     const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
     const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
 
