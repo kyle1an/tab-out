@@ -354,11 +354,34 @@ let filterTimer = null
 
 /* ---- Listeners — set up once at module load ---- */
 
+/** Sync the wrapper's `.has-value` class to the input's current value so
+ *  the ✕ clear button CSS can toggle visibility without JS on each
+ *  frame. Called from the input listener + after the ✕ click. */
+function syncFilterWrapClass(input) {
+  const wrap = input && input.closest ? input.closest('.tab-filter-wrap') : null
+  if (wrap) wrap.classList.toggle('has-value', input.value.length > 0)
+}
+
 // Debounced input on the filter field
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'tabFilter') return
+  syncFilterWrapClass(e.target)
   clearTimeout(filterTimer)
   filterTimer = setTimeout(() => applyTabFilter(e.target.value), 80)
+})
+
+// Clear button (✕) inside the filter wrapper. One-shot reset: blanks
+// the input, re-applies the empty filter (which restores every card),
+// and leaves the input focused so the user can immediately type a
+// new query.
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.tab-filter-clear')) return
+  const input = document.getElementById('tabFilter')
+  if (!input) return
+  input.value = ''
+  syncFilterWrapClass(input)
+  applyTabFilter('')
+  input.focus()
 })
 
 // Esc clears the filter while it's focused — quick escape hatch.
@@ -368,6 +391,7 @@ document.addEventListener('keydown', (e) => {
   if (!input || document.activeElement !== input) return
   if (input.value !== '') {
     input.value = ''
+    syncFilterWrapClass(input)
     applyTabFilter('')
   } else {
     input.blur()
@@ -407,6 +431,7 @@ document.addEventListener('keydown', (e) => {
     if (input.value === '') return
     e.preventDefault()
     input.value = input.value.slice(0, -1)
+    syncFilterWrapClass(input)
     input.focus()
     applyTabFilter(input.value)
     return
@@ -416,6 +441,7 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault()
   input.focus()
   input.value += e.key
+  syncFilterWrapClass(input)
   applyTabFilter(input.value)
 })
 
@@ -437,5 +463,6 @@ document.addEventListener('paste', (e) => {
   e.preventDefault()
   input.focus()
   input.value += text
+  syncFilterWrapClass(input)
   applyTabFilter(input.value)
 })
