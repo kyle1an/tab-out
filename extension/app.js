@@ -19,6 +19,7 @@ import { markClosure } from './undo.js'
 import { renderStaticDashboard, getFilteredCloseableUrls } from './render.js'
 import { applyTabFilter } from './filter.js'
 import { groupColorChanged } from './groups.js'
+import { mountToast } from './components/Toast.js'
 
 /* ----------------------------------------------------------------
    LIVE SYNC — re-render on chrome.tabs / chrome.tabGroups events
@@ -234,6 +235,7 @@ document.addEventListener('click', async (e) => {
    foregrounded, so background Tab Out tabs don't close each other
    in a race. Each tab cleans up when the user actually focuses it.
    ---------------------------------------------------------------- */
+mountToast()
 if (document.visibilityState === 'visible') closeTabOutDupes()
 renderStaticDashboard()
 
