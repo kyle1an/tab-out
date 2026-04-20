@@ -250,10 +250,10 @@ header {
   box-shadow: 0 2px 8px var(--shadow);
 }
 
-/* Unmatched card — non-matching cards stay visible under the "Other
-   tabs" divider instead of being display:none'd. Dimmed so the match
-   set reads as primary; lifts back to full opacity on hover when the
-   user wants to inspect. */
+/* Card in the "Other tabs" grid — the same domain card is rendered a
+   second time into #openTabsMissionsUnmatched to surface its
+   non-matching chips. Dimmed so the match set (primary grid) stays
+   the visual anchor; lifts on hover for inspection. */
 .card-unmatched {
   opacity: 0.45;
   transition: opacity 0.2s ease;
@@ -263,27 +263,21 @@ header {
   opacity: 1;
 }
 
-/* Unmatched chip inside a matched card — the card has at least one
-   matching chip, so it lives in the primary section, but this
-   specific chip didn't match. Dimmed so matches remain the visual
-   anchor while every tab stays represented. Lifts on hover so
-   clicking/closing still feels natural. */
-.chip-unmatched {
-  opacity: 0.4;
-  transition: opacity 0.15s ease;
+/* Wrapper around the divider + secondary missions grid. Block-level in
+   document flow so the secondary grid naturally sits below the primary
+   masonry. Hidden when the filter is empty or every tab matches. */
+.missions-other {
+  margin-top: 24px;
 }
 
-.chip-unmatched:hover {
-  opacity: 1;
-}
-
-/* "Other tabs · N" separator between matched and unmatched cards.
-   Absolutely positioned inside #openTabsMissions by layout.js; its
-   top is computed each pack from the bottom of the matched group. */
+/* "Other tabs" separator — static HTML now; lives between the two
+   masonry containers. Flex row with thin rules flanking a centered
+   label. */
 .missions-divider {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-bottom: 16px;
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);

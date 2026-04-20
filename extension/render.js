@@ -231,10 +231,9 @@ export function updateSectionCount() {
     return
   }
 
-  // Matched cards are the ones WITHOUT .card-unmatched — unmatched
-  // cards are still visible (in the "Other tabs" group) but don't
-  // count toward the "X of Y domains" match ratio.
-  const visibleDomains = Array.from(allCards).filter((c) => !c.classList.contains('card-unmatched')).length
+  // Visible domains are cards in the primary grid that weren't hidden
+  // by the filter (display:none when the domain has zero matches).
+  const visibleDomains = Array.from(allCards).filter((c) => c.style.display !== 'none').length
 
   sectionCount.textContent =
     visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
@@ -793,6 +792,7 @@ export async function renderStaticDashboard() {
   // --- Render domain cards ---
   const openTabsSection = document.getElementById('openTabsSection')
   const openTabsMissionsEl = document.getElementById('openTabsMissions')
+  const openTabsMissionsUnmatchedEl = document.getElementById('openTabsMissionsUnmatched')
 
   // Snapshot the existing DOM only to preserve vertical order within
   // columns across rebuilds. Phase 2 retired prevColumns (Preact's
@@ -836,6 +836,14 @@ export async function renderStaticDashboard() {
     // .mission-card node (data-masonry-col is set by layout.js and
     // Preact doesn't touch non-prop attributes).
     preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsEl)
+    // Second Preact tree into the "Other tabs" container so the same
+    // cards have their own live DOM with working click handlers and
+    // state. Component-local useState (expand states, etc.) is
+    // independent between the two trees; both trees re-render on the
+    // next live-sync refresh so diverged state stays bounded.
+    if (openTabsMissionsUnmatchedEl) {
+      preactRender(html`<${Missions} domains=${domainGroups} />`, openTabsMissionsUnmatchedEl)
+    }
     openTabsSection.style.display = 'block'
     if (sectionHeaderWrap) sectionHeaderWrap.style.display = ''
     packMissionsMasonry()
