@@ -146,10 +146,13 @@ function chipMatches(chip, q) {
  *  Explicitly hide filter-scoped action buttons so the user can't
  *  accidentally trigger a bulk close/dedup on content they didn't
  *  filter for (they typed "github" — closing unrelated reddit tabs
- *  would be a surprise). */
+ *  would be a surprise). Chips inside an unmatched card don't need
+ *  the `.chip-unmatched` class — the card's own dim covers them, and
+ *  double-dim (card opacity × chip opacity) would make them illegible. */
 function styleUnmatchedCard(card, group) {
   const chips = card.querySelectorAll('.page-chip[data-action="focus-tab"]')
   chips.forEach((chip) => {
+    chip.classList.remove('chip-unmatched')
     chip.style.display = ''
   })
 
@@ -219,12 +222,19 @@ export function applyTabFilter(query) {
       return
     }
 
+    // Matched card: keep every chip in the DOM flow so all tabs stay
+    // accounted for. Matching chips render normally; non-matching chips
+    // get `.chip-unmatched` (dimmed) so the user can still see them in
+    // their domain/cluster context. Previously non-matching chips were
+    // display:none'd — that hid them, making matched cards look smaller
+    // than they are and stranding unmatched tabs with no visible home.
     chips.forEach((chip) => {
+      chip.style.display = ''
       if (!filtering) {
-        chip.style.display = ''
+        chip.classList.remove('chip-unmatched')
         return
       }
-      chip.style.display = chipMatches(chip, q) ? '' : 'none'
+      chip.classList.toggle('chip-unmatched', !chipMatches(chip, q))
     })
 
     if (group) updateCardStats(card, group, filtering, q)

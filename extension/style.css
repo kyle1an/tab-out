@@ -263,6 +263,20 @@ header {
   opacity: 1;
 }
 
+/* Unmatched chip inside a matched card — the card has at least one
+   matching chip, so it lives in the primary section, but this
+   specific chip didn't match. Dimmed so matches remain the visual
+   anchor while every tab stays represented. Lifts on hover so
+   clicking/closing still feels natural. */
+.chip-unmatched {
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
+}
+
+.chip-unmatched:hover {
+  opacity: 1;
+}
+
 /* "Other tabs · N" separator between matched and unmatched cards.
    Absolutely positioned inside #openTabsMissions by layout.js; its
    top is computed each pack from the bottom of the matched group. */
