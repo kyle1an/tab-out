@@ -228,13 +228,15 @@ header {
 .mission-card {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
-  /* Concentric nesting: outerRadius − padding = innerRadius. Card 24
-     minus symmetric 14px padding lands the implied inner at exactly 10,
+  /* Concentric nesting: outerRadius − padding = innerRadius. Card 22
+     minus symmetric 12px padding lands the implied inner at exactly 10,
      matching .page-chip's radius — the chip's outer curve shares a
-     center with the card's inner curve (true concentric). */
-  border-radius: 24px;
+     center with the card's inner curve (true concentric). Padding
+     tightened 14→12 to reclaim vertical + horizontal space; outer
+     radius adjusted in lockstep to preserve the concentric relation. */
+  border-radius: 22px;
   corner-shape: squircle;
-  padding: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
