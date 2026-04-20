@@ -106,7 +106,12 @@ body {
 
 .scroll-region .page-inner {
   padding-top: 6px;
-  padding-bottom: 80px;
+  /* Scroll-end buffer — enough room for the last card to scroll up
+     past where the window height would naturally clip it, without
+     leaving an awkward empty expanse. 80 → 50 after the density
+     sweep; the prior value stacked with .missions margin-bottom
+     made the total feel like a dead-zone below the grid. */
+  padding-bottom: 50px;
 }
 
 /* Overflow containers inside flat-sections and pathgroup-sections:
