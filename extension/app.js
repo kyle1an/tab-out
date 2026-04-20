@@ -14,14 +14,13 @@
    ================================================================ */
 
 import { closeTabsExact, closeDuplicateTabs, closeTabOutDupes } from './tabs.js'
-import { showToast } from './ui.js'
+import { showToast, mountToast } from './components/Toast.js'
 import { markClosure } from './undo.js'
 import { renderStaticDashboard, getFilteredCloseableUrls } from './render.js'
 // filter.js is imported for its side effects only — attaching the
 // input / keyboard / paste listeners at module load.
 import './filter.js'
 import { groupColorChanged } from './groups.js'
-import { mountToast } from './components/Toast.js'
 
 /* ----------------------------------------------------------------
    LIVE SYNC — re-render on chrome.tabs / chrome.tabGroups events

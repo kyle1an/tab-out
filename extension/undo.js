@@ -14,7 +14,7 @@
    place, so we use it exclusively.
    ================================================================ */
 
-import { showToast } from './ui.js'
+import { showToast } from './components/Toast.js'
 
 let lastClosure = null
 
