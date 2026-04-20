@@ -136,9 +136,15 @@ export function PageChip({ chip }) {
   // env URLs so "dev11us" or "qaus" in the filter box still matches
   // this chip (even though the chip's primary URL is dev2us's).
   const dataTabUrl = isFolded ? chip.envs.map((e) => e.tabUrl).join(' ') : chip.tabUrl
+  // data-tab-count is the number of underlying tabs this single chip
+  // stands for — envs.length for a folded cross-env chip, dupeCount
+  // for a regular chip carrying an (Nx) badge, else 1. filter.js
+  // sums this across visible chips so header counts read in tabs
+  // (matching the unfiltered view) instead of chips.
+  const dataTabCount = isFolded ? chip.envs.length : chip.dupeCount || 1
 
   return html`
-    <div class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}" data-action="focus-tab" data-tab-url=${dataTabUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
+    <div class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}" data-action="focus-tab" data-tab-url=${dataTabUrl} data-tab-count=${dataTabCount} title=${chip.tooltip} style=${style} onClick=${onFocus}>
       ${chip.faviconUrl && html` <img class="chip-favicon" src=${chip.faviconUrl} alt="" /> `}
       <span class="chip-text">
         ${isFolded &&
