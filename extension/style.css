@@ -265,7 +265,10 @@ header {
      keeping the vertical rhythm uniform with the header's own 12px
      flex gap. */
   margin-top: 0;
-  margin-bottom: 40px;
+  /* No margin-bottom — .scroll-region's .page-inner padding-bottom
+     handles the bottom buffer. Keeping it here as 0 avoids stacking
+     two sources of bottom whitespace. */
+  margin-bottom: 0;
 }
 /* Transitions on top/left are enabled only AFTER the first pack so cards
    don't visibly slide from 0,0 into position on initial render. */
