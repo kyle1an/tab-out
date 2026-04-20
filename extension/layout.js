@@ -43,7 +43,11 @@ function packContainer(containerId, unpin) {
     return
   }
 
-  const minColWidth = 280
+  // 260 (was 280) picks up one extra column at common viewport widths
+  // (1280, 1440, 1600) without making cards feel cramped — chip text
+  // already truncates with an ellipsis, so a slightly narrower card
+  // reads the same as a wider one but packs more per row.
+  const minColWidth = 260
   const gap = 12
   const colCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)))
   const colWidth = (containerWidth - gap * (colCount - 1)) / colCount
