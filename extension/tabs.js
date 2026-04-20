@@ -190,6 +190,23 @@ export async function focusTab(url) {
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
 
+  // Skip the pin-anchor guarantee when the match lives in an app or
+  // popup window (standalone PWA, DevTools, extension popup). Those
+  // windows don't accept new pinned tabs the way a normal browsing
+  // window does — `chrome.tabs.create({ windowId: appWindowId,
+  // pinned: true })` silently redirects the new tab into the current
+  // normal window, which already has its own pinned Tab Out. The
+  // result is a duplicate pinned dashboard in the browsing window
+  // every time the user focuses an app tab. Resolve the match's
+  // window type first and bail the anchor logic when it's not a
+  // standard browsing window.
+  let matchWindowType = 'normal'
+  try {
+    const w = await chrome.windows.get(match.windowId)
+    matchWindowType = w.type
+  } catch {}
+  const matchIsApp = matchWindowType === 'app' || matchWindowType === 'popup' || matchWindowType === 'devtools'
+
   // Anchor-guarantee: wherever the match lives, make sure that window
   // has a PINNED Tab Out tab. Same logic whether we're crossing
   // windows or staying in the same one — the user's "easier reach"
@@ -207,7 +224,7 @@ export async function focusTab(url) {
   const extensionId = chrome.runtime.id
   const newtabUrl = `chrome-extension://${extensionId}/index.html`
   const hasPinned = allTabs.some((t) => t.windowId === match.windowId && t.pinned && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
-  if (!hasPinned) {
+  if (!matchIsApp && !hasPinned) {
     const unpinned = allTabs.find((t) => t.windowId === match.windowId && !t.pinned && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
     if (unpinned) {
       await chrome.tabs.update(unpinned.id, { pinned: true })
