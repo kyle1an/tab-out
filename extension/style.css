@@ -514,6 +514,13 @@ header {
   gap: 10px;
   margin-bottom: 6px;
   flex-wrap: wrap;
+  /* Reserve the height of the tallest item the row can hold (the
+     .action-btn dedup button: 12px line-height + 5px × 2 padding +
+     1px × 2 border ≈ 26px). Without this, cards that start out
+     with a dedup button visibly shrink after the user closes
+     duplicates — the button vanishes and the row collapses to the
+     ~18px height of the title text. */
+  min-height: 26px;
 }
 
 .mission-name {
