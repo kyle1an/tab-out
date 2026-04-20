@@ -498,18 +498,8 @@ header {
   display: none !important;
 }
 
-/* Old side status bar — hidden, replaced by top border via ::before */
-.status-bar {
-  display: none;
-}
-
 .mission-content {
   min-width: 0;
-}
-
-/* Hide the right-side meta (page count) — info is already in the badge */
-.mission-meta {
-  display: none;
 }
 
 .mission-top {
@@ -529,31 +519,6 @@ header {
      tracking is negative, and the extra air lets each word sit as
      its own unit against the rest of the card header. */
   letter-spacing: 0.2px;
-}
-
-.mission-tag {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 6px;
-  corner-shape: squircle;
-}
-
-.mission-tag.active {
-  color: var(--status-active);
-  background: rgba(61, 122, 74, 0.08);
-}
-
-.mission-tag.cooling {
-  color: var(--status-cooling);
-  background: rgba(184, 137, 46, 0.08);
-}
-
-.mission-tag.abandoned {
-  color: var(--status-abandoned);
-  background: rgba(239, 68, 68, 0.08);
 }
 
 /* Subdomain pill — rendered in the card header when the card rolls
@@ -1017,7 +982,11 @@ header {
 .pathgroup-section + .pathgroup-section,
 .flat-section + .pathgroup-section,
 .pathgroup-section + .flat-section {
-  margin-top: 4px;
+  /* Trimmed 4 → 2 — the pathgroup header's own rule + padding
+     already reads as a section boundary, so a thicker gap on top
+     was decorative. 2px keeps the preceding chip's bottom edge
+     from pressing against the next header. */
+  margin-top: 2px;
 }
 
 /* Subdomain section — groups chips that share a subdomain inside a
@@ -1229,30 +1198,6 @@ header {
   padding: 6px 4px;
 }
 
-/* mission-meta hidden — see above */
-
-.mission-time {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 4px;
-}
-
-.mission-page-count {
-  font-size: 20px;
-  font-family: sans-serif;
-  font-weight: 300;
-  color: var(--ink);
-  line-height: 1;
-}
-
-.mission-page-label {
-  font-size: 10px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-
 .action-btn {
   font-size: 12px;
   font-family: sans-serif;
@@ -1440,17 +1385,6 @@ header {
 /* ================================================================
    STATIC DEFAULT VIEW — new elements added for "AI on demand"
    ================================================================ */
-
-/* ---- Neutral status bar (domain-grouped cards, no AI color) ---- */
-.status-bar.neutral {
-  background: var(--warm-gray);
-}
-
-/* ---- "Domain" tag on static domain cards ---- */
-.mission-tag.neutral {
-  color: var(--muted);
-  background: rgba(115, 115, 115, 0.1);
-}
 
 /* ================================================================
    MISSIONS EMPTY STATE
@@ -1658,4 +1592,17 @@ header {
 .update-banner-dismiss svg {
   width: 14px;
   height: 14px;
+}
+
+/* ---- Keyboard focus ring ----
+   Scoped to :focus-visible so mouse clicks don't leave a lingering
+   outline — only keyboard Tab-nav reveals the ring. Covers every
+   native focusable element in the dashboard (buttons + the filter
+   input). Chip <div>s aren't keyboard-focusable today (they'd need
+   tabindex=0), so this is a partial pass; adding chip tabindex is
+   a separate accessibility step. */
+button:focus-visible,
+.tab-filter:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 2px;
 }

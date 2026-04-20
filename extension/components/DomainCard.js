@@ -1,10 +1,10 @@
 /* ================================================================
    <DomainCard> — top-level card component for a domain group.
 
-   Renders the card chrome (status bar, close button, mission-top
-   with title / subdomain pill / count badge, dedup action,
-   mission-meta) declaratively via HTM, and delegates the inner
-   subdomain/cluster/chip tree to <SubdomainSection>.
+   Renders the card chrome (close button, mission-top with title /
+   subdomain pill / count badge / dedup action) declaratively via
+   HTM, and delegates the inner subdomain/cluster/chip tree to
+   <SubdomainSection>.
 
    Event handlers for close-domain-tabs and dedup-keep-one live
    here (moved from the app.js delegation switch in Phase 2).
@@ -136,11 +136,6 @@ export function DomainCard({ group }) {
         tabsBadge.textContent = String(next)
         tabsBadge.title = `${next} open tab${next !== 1 ? 's' : ''}`
       }
-      const meta = card.querySelector('.mission-page-count')
-      if (meta) {
-        const current = parseInt(meta.textContent, 10) || 0
-        meta.textContent = String(Math.max(0, current - extrasClosed))
-      }
       updateCloseTabsButton(card.querySelector('[data-action="close-domain-tabs"]'), extrasClosed)
     }
 
@@ -153,7 +148,6 @@ export function DomainCard({ group }) {
 
   return html`
     <div class=${classList} data-domain-id=${vm.stableId}>
-      <div class="status-bar"></div>
       ${vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
       <div class="mission-content">
         <div class="mission-top">
@@ -181,10 +175,6 @@ export function DomainCard({ group }) {
             `
           )}
         </div>
-      </div>
-      <div class="mission-meta">
-        <div class="mission-page-count">${vm.tabCount}</div>
-        <div class="mission-page-label">tabs</div>
       </div>
     </div>
   `
