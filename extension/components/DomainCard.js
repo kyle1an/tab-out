@@ -162,6 +162,7 @@ export function DomainCard({ group }) {
               <${SubdomainSection}
                 key=${s.key || '__root__'}
                 subdomainKey=${s.key}
+                isShared=${s.isShared}
                 sectionCount=${s.sectionCount}
                 sectionClosableUrls=${s.sectionClosableUrls}
                 showHeader=${s.showHeader}

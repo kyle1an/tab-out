@@ -762,6 +762,57 @@ header {
   padding: 0 5px;
 }
 
+/* Env-pill stack on a folded cross-env chip. Replaces the usual
+   .chip-subdomain dot-prefix with a row of small clickable pills,
+   one per environment the page exists in (dev2us, dev11us, qaus,
+   etc.). Each pill focuses its env's tab on click; the chip body
+   click falls back to the first env. The pill uses the same soft-
+   filled shape family as .chip-pathgroup so the two pill kinds
+   (env vs cluster) read as siblings. */
+.chip-env-stack {
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 6px;
+  vertical-align: baseline;
+}
+
+.chip-env {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: rgba(115, 115, 115, 0.12);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.chip-env:hover {
+  background: rgba(10, 10, 10, 0.12);
+  color: var(--ink);
+}
+
+/* Folded chip's parent row reads as slightly heavier since it
+   stands for multiple tabs. No visual weight change right now —
+   the env-pill row already signals the fold — but keep a hook in
+   case we want to tune later. */
+.page-chip-folded {
+  /* placeholder for future tweaks */
+}
+
+/* Shared-across-envs section header — visually distinguished from
+   regular subdomain section headers so users recognize it as a
+   TL;DR of their cross-env duplicates. Uses the same header layout
+   but with an emphasized label. */
+.subdomain-section[data-shared='true'] .subdomain-header-name {
+  font-style: italic;
+  color: var(--ink);
+}
+
 /* Path-group sub-section — nested inside a subdomain section when
    2+ chips share a path-level cluster (same repo, same Jira project,
    etc). One level deeper than .subdomain-section; the header reuses
@@ -914,6 +965,20 @@ header {
 .subdomain-header-count {
   opacity: 0.55;
   font-weight: 500;
+}
+
+/* Trailing DNS-style "." after a real subdomain name ("dev2us.")
+   reads as "there's more hostname after this" — a continuation cue,
+   not a sentence terminator. Thinner + dimmer than the name itself
+   so it registers as punctuation the eye can skim past, but still
+   present enough to signal the DNS-label convention. Scoped to
+   non-shared sections (the shared-envs section uses a sentence-y
+   "Shared across envs" label where a trailing dot would be wrong). */
+.subdomain-section:not([data-shared='true']) .subdomain-header-name::after {
+  content: '.';
+  margin-left: 1px;
+  font-weight: 400;
+  opacity: 0.45;
 }
 
 /* Subdomain-level close — sits right next to the count, clustered
