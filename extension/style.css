@@ -536,26 +536,22 @@ header {
 }
 
 /* ---- Domain header ----
-   Title on its own first row (section-header style, iOS Settings /
-   Apple Music), metadata + actions on a second row below. Flush-left
-   with the card edge (padding:0).
+   Title + subdomain pill + tab badge + Dedupe-N in one flowing row,
+   with `flex-wrap: wrap` so siblings spill onto a second row only
+   when they don't fit next to the title. Flush-left with the card
+   edge (padding:0). Close× is absolute-positioned (see .card-close-btn)
+   so it never participates in this flow.
 
-   Two rows instead of one because on narrow columns (260-ish) a card
-   with a long subdomain pill (`zennioptical.`) + tab badge + Dedupe-N
-   + close× left the title ~30 px of room and truncated it to "gi…"
-   or "atlassi…" — exactly the thing the "lift header out of the card"
-   redesign was supposed to prevent. Two rows means the title claims
-   a full line regardless of how much metadata the card carries; the
-   second row's items shrink/overflow their row without bothering the
-   title.
+   With natural flex-basis (no 100% override), a short card like
+   github.com renders in one row — "github.com · 23 · Dedupe 2" all
+   inline — and a card with extra metadata like atlassian.net
+   ("atlassian.net · zennioptical. · 34 · Dedupe 1") wraps whichever
+   item doesn't fit to row 2. The header height auto-adjusts from ~22 px
+   (one row) to ~52 px (two rows) per card.
 
-   `flex-basis: 100%` on .mission-name is what forces the second row —
-   the title consumes the entire first row, pushing every sibling to
-   the next line. All cards end up with the same header height
-   (~52 px), so chip-tops align across a masonry row.
-
-   column-gap / row-gap split so siblings on row 2 sit close to the
-   title (4 px) but breathe horizontally (10 px) against each other. */
+   column-gap / row-gap split so the wrap gap (4 px) is tighter than
+   the horizontal gap (10 px) — siblings that wrapped still read as
+   one header unit with the title above. */
 .domain-header {
   display: flex;
   flex-direction: row;
@@ -573,12 +569,12 @@ header {
    of a header rather than a co-equal badge. Tracking eased slightly
    (0.2 → 0.1) because glyph crowding eases at the larger size.
 
-   `flex: 1 1 100%` gives it basis:100% (full row width) + grow/shrink,
-   so it fills its row and pushes siblings to the next. `min-width:0` +
-   overflow/ellipsis/nowrap lets a truly overlong title truncate
-   gracefully rather than overflow its row. */
+   `flex: 0 1 auto` = natural-content-width, shrinks if forced. With
+   `min-width: 0` + overflow/ellipsis/nowrap the title truncates
+   cleanly when even after wrapping there still isn't room for it —
+   rare, but possible on really tight column widths. */
 .mission-name {
-  flex: 1 1 100%;
+  flex: 0 1 auto;
   min-width: 0;
   font-weight: 600;
   font-size: 15px;
