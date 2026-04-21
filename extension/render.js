@@ -947,16 +947,16 @@ export async function renderStaticDashboard() {
 
   // Snapshot current card order so the next render preserves it.
   // Phase 2 retired prevColumns (Preact's keyed reconciliation preserves
-  // the .mission-card DOM node so layout.js's data-masonry-col survives).
+  // the .domain-block DOM node so layout.js's data-masonry-col survives).
   // Phase 3/4 retired expand-state snapshots (<FlatSection> and
   // <PathgroupSection> own their expand state via useState). Only the
-  // top-level card order still needs a hint here: it's what domainGroups
+  // top-level block order still needs a hint here: it's what domainGroups
   // is sorted against below.
   const openTabsMissionsEl = document.getElementById('openTabsMissions')
   const prevOrder = new Map()
   if (openTabsMissionsEl) {
     let idx = 0
-    for (const c of openTabsMissionsEl.querySelectorAll('.mission-card')) {
+    for (const c of openTabsMissionsEl.querySelectorAll('.domain-block')) {
       const id = c.dataset.domainId
       if (!id) continue
       prevOrder.set(id, idx++)

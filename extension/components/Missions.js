@@ -9,7 +9,7 @@
 
    Key prop: uses the stableId scheme already proven in render.js so
    Preact's reconciliation matches cards across live-sync rebuilds
-   — the `.mission-card` DOM node is preserved between renders, and
+   — the `.domain-block` DOM node is preserved between renders, and
    external mutations like data-masonry-col (set by layout.js) ride
    along unchanged. Component-local useState inside descendant
    <FlatSection>s and <PathgroupSection>s also survives, replacing

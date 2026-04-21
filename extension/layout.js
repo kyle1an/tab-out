@@ -1,10 +1,16 @@
 /* ================================================================
    Masonry layout for the two missions grids
 
-   Pinterest-style: each card is absolutely positioned in the shortest
-   column on first sight, then PINNED to that column for subsequent
-   re-packs. Growing one card only shifts the cards below it in the
-   same column — others hold position.
+   Pinterest-style: each .domain-block is absolutely positioned in the
+   shortest column on first sight, then PINNED to that column for
+   subsequent re-packs. Growing one block only shifts the blocks below
+   it in the same column — others hold position.
+
+   The block is the masonry unit (not the inner .mission-card) because
+   the header moved out of the card in the "title as section label"
+   redesign: title + pill + badges + actions live in .domain-header,
+   and the rounded chip container is inside a sibling .mission-card.
+   Masonry needs to measure both as one unit.
 
    There are two parallel grids — `#openTabsMissions` (primary: cards
    with matching chips) and `#openTabsMissionsUnmatched` (secondary:
@@ -13,10 +19,10 @@
    algorithm; the secondary grid is skipped when its wrapper is
    display:none (filter inactive or nothing unmatched).
 
-   Layout state is stored on each card in `dataset.masonryCol`. Column
-   count changes (window resize crossing a breakpoint) reset all
-   assignments. The `unpin` flag also resets, used by the filter
-   when the visible card set changes.
+   Layout state is stored on each block in `dataset.masonryCol`.
+   Column count changes (window resize crossing a breakpoint) reset
+   all assignments. The `unpin` flag also resets, used by the filter
+   when the visible block set changes.
    ================================================================ */
 
 const CONTAINER_IDS = ['openTabsMissions', 'openTabsMissionsUnmatched']
@@ -37,7 +43,7 @@ function packContainer(containerId, unpin) {
   const containerWidth = container.clientWidth
   if (containerWidth === 0) return // section hidden — nothing to layout
 
-  const cards = Array.from(container.querySelectorAll('.mission-card:not(.closing)')).filter((c) => getComputedStyle(c).display !== 'none')
+  const cards = Array.from(container.querySelectorAll('.domain-block:not(.closing)')).filter((c) => getComputedStyle(c).display !== 'none')
   if (cards.length === 0) {
     container.style.height = ''
     return
