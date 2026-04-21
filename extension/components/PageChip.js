@@ -119,7 +119,7 @@ export function PageChip({ chip }) {
 
   return html`
     <div class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}" data-action="focus-tab" data-tab-url=${dataTabUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
-      ${chip.faviconUrl && html` <img class="chip-favicon" src=${chip.faviconUrl} alt="" /> `}
+      ${chip.faviconUrl && html` <img class=${'chip-favicon' + (chip.isApp ? ' is-app' : '')} src=${chip.faviconUrl} alt="" /> `}
       <span class="chip-text">
         ${isFolded &&
         html`
