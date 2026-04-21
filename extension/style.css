@@ -583,6 +583,40 @@ header {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 22px;
+}
+
+/* All header items — subdomain pill, tab badge, app badge, Dedupe-N
+   button, and the absolute-positioned close × — share a fixed 22 px
+   height. Without this, the Dedupe button (`padding: 5px 12px` + 1 px
+   border ≈ 27 px) was ~5 px taller than the inert pills/badges, so
+   cards with a Dedupe button had a visibly taller header than cards
+   without — row height jumped the moment the user closed duplicates.
+   22 px matches the title's line-height so the title sits on the
+   same baseline as every pill/button, and the close × (which is
+   out-of-flow at top:0) aligns perfectly with the row it overlays. */
+.domain-header .mission-subdomain,
+.domain-header .tab-count-badge,
+.domain-header .action-btn,
+.card-close-btn {
+  height: 22px;
+  box-sizing: border-box;
+  /* Zero the vertical padding — with explicit height + flex
+     align-items:center on each pill/button, the content auto-centers.
+     Leftover vertical padding would eat into the content area (the
+     Dedupe button's `padding: 5px 12px` would leave only 10 px for
+     text inside a 22 px box). Horizontal padding is preserved so
+     the pill/button width still breathes around its label. */
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Hover state keeps the unified height too — without this override,
+   `.card-close-btn:hover` would reset `padding: 4px 10px` and push
+   the button over 22 px again. */
+.card-close-btn:hover {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* Subdomain pill — rendered in the card header when the card rolls
