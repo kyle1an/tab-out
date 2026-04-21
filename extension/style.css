@@ -374,12 +374,26 @@ header {
   flex-shrink: 0;
 }
 
-/* Card close button — lives at the end of .domain-header now (right-
-   aligned via margin-left:auto). Hidden at rest; revealed on block
-   hover, with the icon→label hover-expand preserved so the header
-   stays uncluttered most of the time. */
+/* Card close button — absolute-positioned over the top-right of the
+   .domain-block so its hover-expand OVERLAYS the title and row-2
+   metadata instead of pushing them out of the flex flow. Two reasons:
+     1. With the two-row header, an in-flow close button would either
+        reserve width on row 2 (eating Dedupe-N's space) or break to a
+        third row on hover-expand (layout jump). Taking it out of flow
+        sidesteps both.
+     2. When the button expands to "Close all N tabs", its solid
+        card-bg + border cleanly covers whatever's underneath, so the
+        user sees a single readable label instead of two overlapping
+        items. Same pattern the original card-corner close used.
+
+   At rest the button is opacity:0 + pointer-events:none so the
+   invisible button can't catch clicks. Revealed on .domain-block:hover
+   (Chrome-tab pattern). */
 .card-close-btn {
-  margin-left: auto; /* push to the far right of the flex header */
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 0;
@@ -392,9 +406,6 @@ header {
   font-weight: 500;
   color: var(--muted);
   background: transparent;
-  /* Hidden until the block is hovered — Chrome-tab pattern for the
-     domain-level close. pointer-events: none so the invisible button
-     can't steal clicks. */
   opacity: 0;
   pointer-events: none;
   border: 1px solid transparent;
@@ -413,8 +424,8 @@ header {
   white-space: nowrap;
 }
 
-/* Reveal on domain-block hover — hovering the header (above the card)
-   or the card itself both trigger the reveal. */
+/* Reveal on domain-block hover — hovering the header or the card
+   both trigger the reveal since both are inside the positioned block. */
 .domain-block:hover .card-close-btn {
   opacity: 1;
   pointer-events: auto;
