@@ -382,17 +382,23 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     }
   }
 
-  // Sort by title — the exact string the chip displays, so the visible
-  // order never diverges from the sort order. Runs the full display
-  // pipeline (stripTitleNoise → cleanTitle) per tab so what we compare
-  // is what we render. `numeric: true` gives natural number ordering
-  // (Dashboard 2 before Dashboard 11, PR #4488 before PR #4706).
-  function sortLabel(tab) {
+  // Build the exact title string the chip displays BEFORE path crumbs
+  // and path-group placeholders. Shared by sort order and collision
+  // detection so both reason over the same visible label.
+  function displayTitle(tab) {
     let hostname = group.domain
     try {
       hostname = new URL(tab.url).hostname
     } catch {}
-    return cleanTitle(stripTitleNoise(tab.title || ''), hostname).toLowerCase()
+    return cleanTitle(stripTitleNoise(tab.title || ''), hostname)
+  }
+
+  // Sort by title — the exact string the chip displays, so the visible
+  // order never diverges from the sort order. `numeric: true` gives
+  // natural number ordering (Dashboard 2 before Dashboard 11, PR #4488
+  // before PR #4706).
+  function sortLabel(tab) {
+    return displayTitle(tab).toLowerCase()
   }
   uniqueTabs.sort((a, b) => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }))
 
@@ -643,7 +649,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     const pathByUrl = new Map()
     const sameTitle = new Map()
     for (const t of sectionTabs) {
-      const titleKey = stripTitleNoise(t.title || '').toLowerCase()
+      const titleKey = displayTitle(t).toLowerCase()
       if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
       sameTitle.get(titleKey).push(t)
     }

@@ -98,6 +98,7 @@ document.addEventListener('click', (e) => {
 
 // Esc clears the filter while it's focused — quick escape hatch.
 document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return
   if (e.key !== 'Escape') return
   const input = document.getElementById('tabFilter')
   if (!input || document.activeElement !== input) return
@@ -130,6 +131,7 @@ applyFilterPlaceholder()
 // Also handles Backspace/Delete so a type-anywhere correction works
 // without the user having to click into the input first.
 document.addEventListener('keydown', (e) => {
+  if (e.defaultPrevented) return
   if (e.metaKey || e.ctrlKey || e.altKey) return
   const a = document.activeElement
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return
@@ -159,6 +161,7 @@ document.addEventListener('keydown', (e) => {
 // regardless of which shortcut triggered it (menu, keyboard, or
 // right-click paste).
 document.addEventListener('paste', (e) => {
+  if (e.defaultPrevented) return
   const a = document.activeElement
   if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return
   const input = document.getElementById('tabFilter')

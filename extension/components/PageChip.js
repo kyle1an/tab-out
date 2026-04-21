@@ -36,6 +36,10 @@ const html = htm.bind(h)
 export function PageChip({ chip }) {
   const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
 
+  function isKeyboardActivation(e) {
+    return e.key === 'Enter' || e.key === ' '
+  }
+
   async function onFocus() {
     // Folded chip: clicking the chip body focuses the first env. Use
     // env-pill clicks to pick a specific one.
@@ -43,7 +47,21 @@ export function PageChip({ chip }) {
     if (targetUrl) await focusTab(targetUrl)
   }
 
+  async function onChipKeyDown(e) {
+    if (e.target !== e.currentTarget) return
+    if (!isKeyboardActivation(e)) return
+    e.preventDefault()
+    await onFocus()
+  }
+
   async function onEnvClick(e, env) {
+    e.stopPropagation()
+    if (env.tabUrl) await focusTab(env.tabUrl)
+  }
+
+  async function onEnvKeyDown(e, env) {
+    if (!isKeyboardActivation(e)) return
+    e.preventDefault()
     e.stopPropagation()
     if (env.tabUrl) await focusTab(env.tabUrl)
   }
@@ -118,7 +136,16 @@ export function PageChip({ chip }) {
   const dataTabUrl = isFolded ? chip.envs.map((e) => e.tabUrl).join(' ') : chip.tabUrl
 
   return html`
-    <div class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}" data-action="focus-tab" data-tab-url=${dataTabUrl} title=${chip.tooltip} style=${style} onClick=${onFocus}>
+    <div
+      class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}"
+      data-action="focus-tab"
+      data-tab-url=${dataTabUrl}
+      title=${chip.tooltip}
+      style=${style}
+      tabIndex="0"
+      onClick=${onFocus}
+      onKeyDown=${onChipKeyDown}
+    >
       ${chip.faviconUrl && html` <img class=${'chip-favicon' + (chip.isApp ? ' is-app' : '')} src=${chip.faviconUrl} alt="" /> `}
       <span class="chip-text">
         ${isFolded &&
@@ -126,7 +153,17 @@ export function PageChip({ chip }) {
           <span class="chip-env-stack">
             ${chip.envs.map(
               (env) => html`
-                <span class="chip-env clickable" data-action="focus-env" data-tab-url=${env.tabUrl} title=${`Focus ${env.prefix} tab`} onClick=${(e) => onEnvClick(e, env)}>${env.prefix}</span>
+                <span
+                  class="chip-env clickable"
+                  data-action="focus-env"
+                  data-tab-url=${env.tabUrl}
+                  title=${`Focus ${env.prefix} tab`}
+                  tabIndex="0"
+                  onClick=${(e) => onEnvClick(e, env)}
+                  onKeyDown=${(e) => onEnvKeyDown(e, env)}
+                >
+                  ${env.prefix}
+                </span>
               `
             )}
           </span>
