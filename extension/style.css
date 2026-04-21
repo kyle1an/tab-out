@@ -525,51 +525,57 @@ header {
 }
 
 /* ---- Domain header ----
-   Title + subdomain pill + tab badge + Dedupe-N + close×, sitting
-   above the chip container in a single row. Flush-left with the card
-   edge (padding: 0), so the title's leftmost glyph aligns with the
-   card's leftmost pixel.
+   Title on its own first row (section-header style, iOS Settings /
+   Apple Music), metadata + actions on a second row below. Flush-left
+   with the card edge (padding:0).
 
-   `flex-wrap: nowrap` + `height: 26px` is load-bearing — with wrap
-   enabled, a card that also carries a subdomain pill (e.g.
-   atlassian.net with `zennioptical.`) had the pill push other items
-   onto a second row and each item re-centered on its own line, so
-   cards ended up with 2-line headers while sibling cards had 1-line
-   headers, and their chip-tops across a masonry row stopped aligning.
-   Single fixed-height row keeps every card's first chip anchored at
-   the same y. The title ellipses via .mission-name's min-width:0 +
-   overflow:hidden if it ever outruns the available space. */
+   Two rows instead of one because on narrow columns (260-ish) a card
+   with a long subdomain pill (`zennioptical.`) + tab badge + Dedupe-N
+   + close× left the title ~30 px of room and truncated it to "gi…"
+   or "atlassi…" — exactly the thing the "lift header out of the card"
+   redesign was supposed to prevent. Two rows means the title claims
+   a full line regardless of how much metadata the card carries; the
+   second row's items shrink/overflow their row without bothering the
+   title.
+
+   `flex-basis: 100%` on .mission-name is what forces the second row —
+   the title consumes the entire first row, pushing every sibling to
+   the next line. All cards end up with the same header height
+   (~52 px), so chip-tops align across a masonry row.
+
+   column-gap / row-gap split so siblings on row 2 sit close to the
+   title (4 px) but breathe horizontally (10 px) against each other. */
 .domain-header {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  height: 26px;
-  flex-wrap: nowrap;
+  column-gap: 10px;
+  row-gap: 4px;
   padding: 0;
   min-width: 0;
 }
 
-/* Title is now the section header for its chip list — typographically
-   promoted from the in-card 14px to 15px so it carries the weight of
-   a header rather than a co-equal badge. Tracking eased slightly
+/* Title is the section header for its chip list — typographically
+   promoted from the in-card 14 px to 15 px so it carries the weight
+   of a header rather than a co-equal badge. Tracking eased slightly
    (0.2 → 0.1) because glyph crowding eases at the larger size.
 
-   min-width:0 + nowrap/overflow/ellipsis lets the title shrink when
-   the header runs out of space — without this the flex item defaults
-   to min-width:auto (= content size) and can't shrink, forcing either
-   overflow or wrap. */
+   `flex: 1 1 100%` gives it basis:100% (full row width) + grow/shrink,
+   so it fills its row and pushes siblings to the next. `min-width:0` +
+   overflow/ellipsis/nowrap lets a truly overlong title truncate
+   gracefully rather than overflow its row. */
 .mission-name {
+  flex: 1 1 100%;
+  min-width: 0;
   font-weight: 600;
   font-size: 15px;
   color: var(--ink);
   letter-spacing: 0.1px;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 0 1 auto;
 }
 
 /* Subdomain pill — rendered in the card header when the card rolls
