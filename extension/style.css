@@ -651,6 +651,19 @@ header {
   opacity: 0.45;
 }
 
+/* Port pill (localhost cards use the port as the "subdomain" key) —
+   prefix with `:` and drop the trailing `.` so the pill reads as
+   `:3000` the way `localhost:3000` naturally concatenates. */
+.mission-subdomain.is-port::before {
+  content: ':';
+  font-weight: 400;
+  opacity: 0.45;
+}
+
+.mission-subdomain.is-port::after {
+  content: none;
+}
+
 /* Tab indicator badge — shows how many Chrome tabs are still open for this mission */
 .open-tabs-badge {
   display: inline-flex;
@@ -1158,6 +1171,19 @@ header {
   margin-left: 1px;
   font-weight: 400;
   opacity: 0.45;
+}
+
+/* Port section (multi-port localhost card) — `:3000` instead of
+   `3000.`. Mirror the mission-subdomain.is-port pattern so the pill
+   and the section header read identically. */
+.subdomain-section[data-kind='port'] .subdomain-header-name::before {
+  content: ':';
+  font-weight: 400;
+  opacity: 0.45;
+}
+
+.subdomain-section[data-kind='port'] .subdomain-header-name::after {
+  content: none;
 }
 
 /* Subdomain-level close — sits right next to the count, clustered

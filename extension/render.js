@@ -469,6 +469,14 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // Only for non-empty keys — all-root cards don't need a pill.
   const singleSubdomainKey = sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : ''
 
+  // Localhost cards use the port as the "subdomain" key (see the
+  // bySubdomain loop above), so the pill / header for those should
+  // render as `:3000` — prefix colon, no trailing dot — instead of
+  // the FQDN-style `dev2us.` treatment. Flag it here so <DomainCard>
+  // + <SubdomainSection> + the CSS pseudo-elements can branch.
+  const isPortGroup = group.domain === 'localhost'
+  const singleSubdomainIsPort = isPortGroup && !!singleSubdomainKey
+
   // Per-chip data builder. Closes over group + urlCounts so the
   // section loop below can call it without repeating context.
   // Returns the display-only fields <PageChip> needs — title,
@@ -769,6 +777,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       sectionClosableUrls,
       showHeader,
       isShared: false,
+      isPort: isPortGroup,
       hasFlat: singletonTabs.length > 0,
       flatVisibleChips,
       flatHiddenChips,
@@ -825,6 +834,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     closableExtras: vmClosableExtras,
     dupeUrlsEncoded: vmDupeUrlsEncoded,
     singleSubdomainKey,
+    singleSubdomainIsPort,
     displayName,
     sections: vmSections
   }

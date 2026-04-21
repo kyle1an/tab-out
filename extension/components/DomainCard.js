@@ -140,7 +140,9 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
     <div class=${classList} data-domain-id=${vm.stableId}>
       <header class="domain-header">
         <span class="mission-name">${vm.displayName}</span>
-        ${vm.singleSubdomainKey && html` <span class="mission-subdomain">${vm.singleSubdomainKey}</span> `}
+        ${vm.singleSubdomainKey && html`
+          <span class=${'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>${vm.singleSubdomainKey}</span>
+        `}
         <${TabBadge} isAppCard=${vm.isAppCard} tabCount=${vm.tabCount} />
         ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
         ${vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
@@ -153,6 +155,7 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
                 key=${s.key || '__root__'}
                 subdomainKey=${s.key}
                 isShared=${s.isShared}
+                isPort=${s.isPort}
                 sectionCount=${s.sectionCount}
                 sectionClosableUrls=${s.sectionClosableUrls}
                 showHeader=${s.showHeader}
