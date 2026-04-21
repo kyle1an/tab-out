@@ -1751,13 +1751,13 @@ header {
 
 /* ---- Keyboard focus ring ----
    Scoped to :focus-visible so mouse clicks don't leave a lingering
-   outline — only keyboard Tab-nav reveals the ring. Covers every
-   native focusable element in the dashboard (buttons + the filter
-   input). Chip <div>s aren't keyboard-focusable today (they'd need
-   tabindex=0), so this is a partial pass; adding chip tabindex is
-   a separate accessibility step. */
+   outline — only keyboard Tab-nav reveals the ring. Covers native
+   controls plus the chip / env-pill focus targets, which opt in with
+   tabindex in PageChip.js. */
 button:focus-visible,
-.tab-filter:focus-visible {
+.tab-filter:focus-visible,
+.page-chip:focus-visible,
+.chip-env:focus-visible {
   outline: 2px solid var(--accent-amber);
   outline-offset: 2px;
 }
