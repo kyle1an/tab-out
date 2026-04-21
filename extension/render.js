@@ -523,6 +523,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       faviconUrl: pickFavicon(tab),
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
+      isApp: !!tab.isApp,
       envs: null
     }
   }
@@ -591,6 +592,10 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       faviconUrl: pickFavicon(primary),
       isGrouped: false,
       groupDotColor: null,
+      // Folded chip reads as "app" only when every env tab behind it
+      // is running in an app window — a mixed set isn't clearly one
+      // or the other, so we bias toward "not app" (no dashed marker).
+      isApp: tabs.every((t) => t.isApp),
       envs
     }
   }

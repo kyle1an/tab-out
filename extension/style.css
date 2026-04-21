@@ -736,6 +736,24 @@ header {
   border-radius: 0px;
 }
 
+/* Standalone-app tab indicator — a soft squircle outline around the
+   favicon signals "this tab runs in its own window (PWA / Chrome
+   app)." `outline` (not `border`) so it sits OUTSIDE the 16x16 box
+   without shrinking the image or reflowing the chip row. The outline
+   follows the element's `border-radius` + `corner-shape`, so adding
+   those to .is-app is what turns the straight rectangle into a
+   rounded squircle frame.
+
+   `outline-offset: 1px` gives a breathing gap between the favicon
+   and its frame, so the outline reads as an intentional decoration
+   rather than a tight wrap around the icon. */
+.chip-favicon.is-app {
+  outline: 2px solid rgba(115, 115, 115, 0.45);
+  outline-offset: 2px;
+  border-radius: 8px;
+  corner-shape: squircle;
+}
+
 /* Title text — wraps up to 2 lines, then the last line fades out on the
    right in the style of Chrome's tab strip. We use max-height + overflow
    (NOT -webkit-line-clamp) because line-clamp hard-codes a "…" ellipsis
