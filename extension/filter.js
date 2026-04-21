@@ -40,21 +40,14 @@ export function applyTabFilter(query) {
   mountMissions()
 }
 
-// Three placeholder states, so the hint always reflects reality:
-//   • IDLE — window lacks focus. Text is redundant since the dim
-//            visual already signals "can't receive keys" — cleaner
-//            to leave the input blank.
-//   • HINT — window has focus, input doesn't (type-anywhere is live)
-//   • EDIT — input is focused (the type-anywhere hint is redundant;
-//            swap in something informational about what gets matched)
-const PLACEHOLDER_IDLE = ''
-const PLACEHOLDER_HINT = 'Type anywhere to filter…'
-const PLACEHOLDER_EDIT = 'Title or URL…'
-
-// Three named states collapse the (pageFocused, inputFocused) matrix:
-//   • 'idle' — window lacks focus. Keystrokes never arrive. Dimmed.
-//   • 'hint' — window focused, input isn't. Type-anywhere is live.
-//   • 'edit' — input itself has focus. Normal editing UI.
+// Placeholder lives in index.html and stays constant across all
+// focus states — the focus outline already communicates input vs.
+// idle, so swapping the text adds visual chatter without new info.
+// Two classes still carry state-dependent visuals though:
+//   • .capture-ready — window focused, input isn't. Subtle "keystrokes
+//                      will route here" cue for the type-anywhere path.
+//   • .capture-dormant — window blurred. Dims the input to signal
+//                      "keystrokes can't arrive right now."
 // Page-blurred-but-input-focused is folded into 'idle' — the dim
 // should win whenever the window can't receive input, regardless of
 // what activeElement technically is.
@@ -67,14 +60,7 @@ function applyFilterPlaceholder() {
   const input = document.getElementById('tabFilter')
   if (!input) return
   const state = computeFilterState(document.hasFocus(), document.activeElement === input)
-
-  input.placeholder = state === 'edit' ? PLACEHOLDER_EDIT : state === 'hint' ? PLACEHOLDER_HINT : PLACEHOLDER_IDLE
-  // `.capture-ready` gives the input a subtler pre-focus look so the user
-  // trusts keystrokes will land here even before clicking in.
   input.classList.toggle('capture-ready', state === 'hint')
-  // `.capture-dormant` dims the input when the window lacks focus —
-  // a visual "this can't respond to keys right now" cue that reads
-  // faster than the placeholder text alone.
   input.classList.toggle('capture-dormant', state === 'idle')
 }
 
