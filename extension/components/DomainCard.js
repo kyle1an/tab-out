@@ -1,17 +1,25 @@
 /* ================================================================
-   <DomainCard> — top-level card component for a domain group.
+   <DomainCard> — top-level component for a domain group.
 
-   Renders the card chrome (close button, mission-top with title /
-   subdomain pill / count badge / dedup action) declaratively via
-   HTM, and delegates the inner subdomain/cluster/chip tree to
-   <SubdomainSection>.
+   Structure:
+     .domain-block            — masonry unit; carries is-app / .closing /
+                                .card-unmatched so the header dims with
+                                the card
+       .domain-header         — title + subdomain pill + tab badge +
+                                Dedupe-N + close× (inline, right-aligned)
+       .mission-card          — rounded container; just holds chips now
+         .mission-pages       — the subdomain/cluster/chip tree
+           <SubdomainSection> — one per subdomain in the group
 
-   Event handlers for close-domain-tabs and dedup-keep-one live
-   here (moved from the app.js delegation switch in Phase 2).
-   data-action attributes are kept on the buttons so external
-   lookups still find them:
-     • filter.js updates dedup's data-dupe-urls on filter change
+   The title used to live inside the card as .mission-top; moved out so
+   it reads as the section header for its chip list rather than "one
+   more element in the top row of a card."
+
+   Event handlers for close-domain-tabs and dedup-keep-one live here.
+   data-action attributes are kept on the buttons so external lookups
+   still find them:
      • dedup-global-keep-one in app.js aggregates per-card dedup URLs
+       via `document.querySelectorAll('[data-action="dedup-keep-one"]')`
    ================================================================ */
 
 import { h } from '../vendor/preact.mjs'
@@ -46,12 +54,12 @@ function TabBadge({ isAppCard, tabCount }) {
 }
 
 function DedupButton({ count, dupeUrlsEncoded, onClick }) {
-  // Short label ("Dedupe 2") keeps the inline mission-top row from
-  // wrapping when the card also carries a subdomain pill. Full
-  // "Close N duplicates" was ~150px wide at typical counts and
-  // pushed the button below the tab badge on narrower cards. The
-  // title attribute spells out the full action on hover for anyone
-  // uncertain what "Dedupe" means here.
+  // Short label ("Dedupe 2") keeps the inline header row from wrapping
+  // when the card also carries a subdomain pill. Full "Close N
+  // duplicates" was ~150px wide at typical counts and pushed the
+  // button below the tab badge on narrower cards. The title attribute
+  // spells out the full action on hover for anyone uncertain what
+  // "Dedupe" means here.
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return html`
@@ -65,15 +73,17 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
   if (vm.isHidden) return null
 
   // Close-domain handler: scopes to filter-matching tabs when the
-  // filter is active, preserves Chrome tab groups, animates the card
-  // out (confetti + `.closing` CSS class) when the whole group is
-  // closed, then re-renders from scratch.
+  // filter is active, preserves Chrome tab groups, animates the whole
+  // block out (confetti + `.closing` CSS class) when the full group is
+  // closed, then re-renders from scratch. Animating .domain-block
+  // instead of .mission-card means the header fades with the card as
+  // one visual unit.
   //
-  // `card` is captured BEFORE the first await — `e.currentTarget`
-  // is only valid during event dispatch, so accessing it after the
-  // await would return null.
+  // `block` is captured BEFORE the first await — `e.currentTarget` is
+  // only valid during event dispatch, so accessing it after the await
+  // would return null.
   async function onCloseDomain(e) {
-    const card = e.currentTarget.closest('.mission-card')
+    const block = e.currentTarget.closest('.domain-block')
 
     // `filter` prop already carries the normalized query, so we don't
     // have to reach into the DOM for it.
@@ -85,10 +95,10 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
 
     const snapshot = useExact ? await closeTabsExact(urls, { preserveGroups: true }) : await closeTabsByUrls(urls, { preserveGroups: true })
 
-    if (card && !filter) {
-      const rect = card.getBoundingClientRect()
+    if (block && !filter) {
+      const rect = block.getBoundingClientRect()
       shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
-      card.classList.add('closing')
+      block.classList.add('closing')
       await new Promise((r) => setTimeout(r, 250))
     }
 
@@ -114,9 +124,9 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
     const dupeSnapshot = await closeDuplicateTabs(urls, true)
 
     btn.classList.add('closing')
-    const card = btn.closest('.mission-card')
-    if (card) {
-      card.querySelectorAll('.chip-dupe-badge').forEach((b) => b.classList.add('closing'))
+    const block = btn.closest('.domain-block')
+    if (block) {
+      block.querySelectorAll('.chip-dupe-badge').forEach((b) => b.classList.add('closing'))
     }
     await new Promise((r) => setTimeout(r, 200))
 
@@ -124,18 +134,18 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
     await renderStaticDashboard()
   }
 
-  const classList = `mission-card domain-card${vm.isAppCard ? ' is-app' : ''}${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
+  const classList = `domain-block${vm.isAppCard ? ' is-app' : ''}${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
 
   return html`
     <div class=${classList} data-domain-id=${vm.stableId}>
-      ${vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
-      <div class="mission-content">
-        <div class="mission-top">
-          <span class="mission-name">${vm.displayName}</span>
-          ${vm.singleSubdomainKey && html` <span class="mission-subdomain">${vm.singleSubdomainKey}</span> `}
-          <${TabBadge} isAppCard=${vm.isAppCard} tabCount=${vm.tabCount} />
-          ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
-        </div>
+      <header class="domain-header">
+        <span class="mission-name">${vm.displayName}</span>
+        ${vm.singleSubdomainKey && html` <span class="mission-subdomain">${vm.singleSubdomainKey}</span> `}
+        <${TabBadge} isAppCard=${vm.isAppCard} tabCount=${vm.tabCount} />
+        ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
+        ${vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
+      </header>
+      <div class="mission-card">
         <div class="mission-pages">
           ${vm.sections.map(
             (s) => html`

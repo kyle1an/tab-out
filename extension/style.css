@@ -255,10 +255,11 @@ header {
 
 /* ---- Mission Cards ---- */
 .missions {
-  /* JS-driven masonry — packMissionsMasonry() in app.js absolutely positions
-     each .mission-card in the shortest column and pins it there for future
-     re-packs, so expanding a card grows it within its own column without
-     reshuffling any other card's column assignment. */
+  /* JS-driven masonry — packMissionsMasonry() in layout.js absolutely
+     positions each .domain-block (the unit wrapping .domain-header +
+     .mission-card) in the shortest column and pins it there for future
+     re-packs. Expanding one block grows it within its own column without
+     reshuffling any other block's column assignment. */
   position: relative;
   /* No top margin — the pinned-top's 12px bottom padding already
      supplies the gap between the section-header and the first card,
@@ -270,28 +271,51 @@ header {
      two sources of bottom whitespace. */
   margin-bottom: 0;
 }
-/* Transitions on top/left are enabled only AFTER the first pack so cards
-   don't visibly slide from 0,0 into position on initial render. */
-.missions.is-packed .mission-card {
+/* Transitions on top/left are enabled only AFTER the first pack so blocks
+   don't visibly slide from 0,0 into position on initial render. The
+   masonry unit is .domain-block (which wraps .domain-header +
+   .mission-card), so top/left transitions live on the block. */
+.missions.is-packed .domain-block {
   transition:
     top 0.25s ease,
-    left 0.25s ease,
-    box-shadow 0.25s ease,
-    transform 0.25s ease;
+    left 0.25s ease;
+}
+
+/* ---- Domain Block ----
+   Wraps the .domain-header and the .mission-card as a single masonry
+   unit. Carries the .is-app / .card-unmatched / .closing state so the
+   header dims / fades with the card as one visual unit. */
+.domain-block {
+  display: flex;
+  flex-direction: column;
+  /* Small gap between the header and the card. The header is visually
+     "attached" to its chip list — tight spacing keeps that connection
+     obvious; too much air would break the group. */
+  gap: 4px;
+  position: relative;
+}
+
+/* Block in the "Other tabs" grid — dimmed so the match set (primary
+   grid) stays the visual anchor; lifts on hover for inspection. */
+.domain-block.card-unmatched {
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+
+.domain-block.card-unmatched:hover {
+  opacity: 1;
 }
 
 .mission-card {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
   /* Concentric nesting: outerRadius − padding = innerRadius. Card 22
-     minus symmetric 12px padding lands the implied inner at exactly 10,
-     matching .page-chip's radius — the chip's outer curve shares a
-     center with the card's inner curve (true concentric). Padding
-     tightened 14→12 to reclaim vertical + horizontal space; outer
-     radius adjusted in lockstep to preserve the concentric relation. */
+     minus symmetric 8px padding lands the implied inner at 14, close
+     enough to .page-chip's 10 for the chip's outer curve to read as
+     sharing a center with the card's inner curve. */
   border-radius: 22px;
   corner-shape: squircle;
-  padding: 12px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -306,24 +330,14 @@ header {
   overflow: hidden;
 }
 
-.mission-card:hover {
-  /* Middle ground between the prior heavy 0 2px 8px and the too-
-     soft 0 1px 4px. Keeps the 2px y-offset for a clear "lift"
-     cue, drops the blur 8 → 6 so it doesn't spill as far. */
+/* Hover shadow lifted to the block level — hovering the header (which
+   sits above the card, outside its border) also lifts the card, so
+   the block reads as one cohesive hover target. */
+.domain-block:hover .mission-card {
+  /* Middle ground between the prior heavy 0 2px 8px and the too-soft
+     0 1px 4px. Keeps the 2px y-offset for a clear "lift" cue, drops
+     the blur 8 → 6 so it doesn't spill as far. */
   box-shadow: 0 2px 6px var(--shadow);
-}
-
-/* Card in the "Other tabs" grid — the same domain card is rendered a
-   second time into #openTabsMissionsUnmatched to surface its
-   non-matching chips. Dimmed so the match set (primary grid) stays
-   the visual anchor; lifts on hover for inspection. */
-.card-unmatched {
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
-}
-
-.card-unmatched:hover {
-  opacity: 1;
 }
 
 /* Wrapper around the divider + secondary missions grid. Block-level in
@@ -360,19 +374,16 @@ header {
   flex-shrink: 0;
 }
 
-/* Card close button — icon-only in the top-right corner; hover expands
-   to show the full label, iOS/macOS notification-center style. */
+/* Card close button — lives at the end of .domain-header now (right-
+   aligned via margin-left:auto). Hidden at rest; revealed on block
+   hover, with the icon→label hover-expand preserved so the header
+   stays uncluttered most of the time. */
 .card-close-btn {
-  position: absolute;
-  /* Tucked into the card's top-right corner, clipped by the card's
-     overflow:hidden + border-radius so the button naturally takes the
-     curve of the corner. */
-  top: 0;
-  right: 0;
+  margin-left: auto; /* push to the far right of the flex header */
   display: inline-flex;
   align-items: center;
   gap: 0;
-  padding: 8px 10px 6px 8px;
+  padding: 4px 6px;
   /* <button> elements don't inherit font-family by default — browsers
      use their own "button font" (Arial on most platforms). Force the
      same Chrome sans-serif the rest of the page uses. */
@@ -381,27 +392,16 @@ header {
   font-weight: 500;
   color: var(--muted);
   background: transparent;
-  /* Hidden until the parent card is hovered (Chrome-tab behavior for
-     the card-level close). pointer-events: none so the invisible
-     button can't catch clicks through the corner. */
+  /* Hidden until the block is hovered — Chrome-tab pattern for the
+     domain-level close. pointer-events: none so the invisible button
+     can't steal clicks. */
   opacity: 0;
   pointer-events: none;
-  /* Only the interior-facing sides (bottom + left) get a border — the
-     top and right sides are flush with the card's own border, so a
-     second line there would double up. Widths match in both states
-     (transparent → warm-gray) to avoid a layout jump. */
-  border-style: solid;
-  border-color: transparent;
-  border-width: 0 0 1px 1px;
-  /* Top-right matches a trimmed card corner; bottom-left is softly
-     rounded inward. Squircle keeps both corners consistent with the
-     rest of the UI. */
-  /* Outer corner (top-right: 24) mirrors the card's own corner — the
-     button visually extends the card edge. Inner corner (bottom-left:
-     10) matches the chip-level radius so the button's interior curve
-     belongs to the same radius family as everything else inside the
-     card. */
-  border-radius: 0 10px 0 24px;
+  border: 1px solid transparent;
+  /* Small squircle, concentric with .action-btn / .open-tabs-badge
+     family so the close button sits in the same radius league as the
+     other header metadata. */
+  border-radius: 8px;
   corner-shape: squircle;
   cursor: pointer;
   transition:
@@ -409,13 +409,13 @@ header {
     background 0.2s ease,
     border-color 0.2s ease,
     padding 0.2s ease,
-    gap 0.2s ease,
     color 0.2s ease;
-  z-index: 2;
   white-space: nowrap;
 }
 
-.mission-card:hover .card-close-btn {
+/* Reveal on domain-block hover — hovering the header (above the card)
+   or the card itself both trigger the reveal. */
+.domain-block:hover .card-close-btn {
   opacity: 1;
   pointer-events: auto;
 }
@@ -452,13 +452,12 @@ header {
 }
 
 .card-close-btn:hover {
-  /* Solid card-bg keeps the label readable when it overlaps the title;
-     a 1px border is the separation cue (no shadow needed). Symmetric
-     padding since there's no icon-to-text gap to balance anymore. */
+  /* Solid card-bg keeps the label readable against the page bg; a 1px
+     border is the separation cue (no shadow needed). Symmetric padding
+     since there's no icon-to-text gap to balance anymore. */
   background: var(--card-bg);
   border-color: var(--warm-gray);
-  padding: 8px 12px;
-  gap: 0;
+  padding: 4px 10px;
   color: var(--ink);
 }
 
@@ -468,8 +467,10 @@ header {
 }
 
 /* Standalone-app card — PWAs / installed apps running in their own
-   window. Dashed border hints "this is not a regular tab." */
-.mission-card.is-app {
+   window. Dashed border on the chip container hints "this is not a
+   regular tab." Lives on the card (not the block) because the visual
+   change is specifically the chip container's border. */
+.domain-block.is-app .mission-card {
   border-style: dashed;
   background: rgba(82, 82, 82, 0.02);
 }
@@ -490,11 +491,15 @@ header {
   corner-shape: squircle;
 }
 
-/* Closing animation — shared by the per-card close, the chip ×, the
-   dedup button and every (Nx) dupe badge. Every handler just does
+/* Closing animation — shared by the whole domain block, the chip ×,
+   the dedup button and every (Nx) dupe badge. Every handler just does
    `el.classList.add('closing')` + awaits the CSS transition, then
-   re-renders — no more inline style mutations in JS. */
-.mission-card.closing {
+   re-renders — no more inline style mutations in JS.
+
+   Animating at the .domain-block level means the header fades with
+   the card as one unit on close, rather than the card collapsing out
+   from under a still-visible title. */
+.domain-block.closing {
   opacity: 0;
   transform: scale(0.9);
   transition:
@@ -519,38 +524,31 @@ header {
   pointer-events: none;
 }
 
-.mission-card.collapsed {
-  display: none !important;
-}
-
-.mission-content {
-  min-width: 0;
-}
-
-.mission-top {
+/* ---- Domain header ----
+   Title + subdomain pill + tab badge + Dedupe-N + close×, sitting
+   above the chip container. Flush-left with the card edge (no outer
+   padding), so the title's leftmost glyph aligns with the card's
+   leftmost pixel. Min-height matches the tallest possible row item
+   (the .action-btn dedupe button ≈ 26px) so the header doesn't
+   shrink when the dedupe button disappears after a dedupe action. */
+.domain-header {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-  /* Reserve the height of the tallest item the row can hold (the
-     .action-btn dedup button: 12px line-height + 5px × 2 padding +
-     1px × 2 border ≈ 26px). Without this, cards that start out
-     with a dedup button visibly shrink after the user closes
-     duplicates — the button vanishes and the row collapses to the
-     ~18px height of the title text. */
   min-height: 26px;
+  flex-wrap: wrap;
+  padding: 0 2px;
 }
 
+/* Title is now the section header for its chip list — typographically
+   promoted from the in-card 14px to 15px so it carries the weight of
+   a header rather than a co-equal badge. Tracking eased slightly
+   (0.2 → 0.1) because glyph crowding eases at the larger size. */
 .mission-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--ink);
-  /* Letter-spacing relaxed from -0.2 → 0.2 so the domain title reads
-     slightly more open — at 14px the glyphs crowd each other when
-     tracking is negative, and the extra air lets each word sit as
-     its own unit against the rest of the card header. */
-  letter-spacing: 0.2px;
+  letter-spacing: 0.1px;
 }
 
 /* Subdomain pill — rendered in the card header when the card rolls
@@ -1327,7 +1325,7 @@ header {
      cut short earlier than needed — Chrome's native preview stretches
      nearly the whole width before truncating. */
   max-width: calc(100vw - 32px);
-  padding: 6px 12px;
+  padding: 5px 8px;
   background: var(--card-bg);
   color: var(--ink);
   font-family: sans-serif;
