@@ -394,10 +394,23 @@ header {
   top: 0;
   right: 0;
   z-index: 2;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  /* flex-end keeps the label pinned to the button's right edge — as
+     the label's max-width grows the label's LEFT edge travels
+     leftward, not the right. Combined with the absolute × below
+     (out of flex flow entirely), there's nothing left in the row
+     whose shift could drag the text rightward. */
+  justify-content: flex-end;
   gap: 0;
-  padding: 4px 6px;
+  padding: 0 10px;
+  /* min-width matches the × + padding footprint so the button has
+     something to show at rest even though text max-width is 0.
+     Without this the button would collapse to padding-width and
+     the × (absolute) would float outside it. */
+  min-width: 22px;
+  box-sizing: border-box;
+  height: 22px;
   /* <button> elements don't inherit font-family by default — browsers
      use their own "button font" (Arial on most platforms). Force the
      same Chrome sans-serif the rest of the page uses. */
@@ -423,11 +436,10 @@ header {
   corner-shape: squircle;
   cursor: pointer;
   transition:
-    opacity 0.15s ease,
-    background 0.2s ease,
-    border-color 0.2s ease,
-    padding 0.2s ease,
-    color 0.2s ease;
+    opacity 0.2s ease-out,
+    background 0.2s ease-out,
+    border-color 0.2s ease-out,
+    color 0.2s ease-out;
   white-space: nowrap;
 }
 
@@ -438,24 +450,24 @@ header {
   pointer-events: auto;
 }
 
-/* Icon fades + collapses on hover so the label can slide in without
-   the × reappearing instantly the moment the cursor leaves. Both
-   icon and text use the same max-width + opacity pattern so enter
-   and exit transitions mirror each other. */
+/* The × is pulled OUT of flex flow so it doesn't reserve row width.
+   As the × fades out on hover its space doesn't get "reclaimed" by
+   the label (which used to slide the label's right edge rightward
+   and make the whole thing feel like a left-to-right reveal). Now
+   the label's right edge is pinned by justify-content: flex-end
+   and the × just cross-fades in place above that anchor. */
 .card-close-btn svg {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
   width: 13px;
   height: 13px;
-  max-width: 13px;
-  flex-shrink: 0;
   opacity: 1;
-  overflow: hidden;
-  transition:
-    max-width 0.2s ease,
-    opacity 0.15s ease;
+  transition: opacity 0.2s ease-out;
 }
 
 .card-close-btn:hover svg {
-  max-width: 0;
   opacity: 0;
 }
 
@@ -464,18 +476,30 @@ header {
   max-width: 0;
   overflow: hidden;
   opacity: 0;
+  /* text-align: right makes the characters surface from the label's
+     RIGHT edge as max-width grows — last character visible first,
+     preceding chars revealing leftward. Matches the button frame's
+     own right-anchored expansion (the button is
+     `position: absolute; right: 0`, so its left edge travels
+     leftward as it grows). Without this override the button grew
+     left while the characters inside revealed left-to-right, which
+     read as the text animation running the wrong direction. */
+  text-align: right;
   transition:
-    max-width 0.2s ease,
-    opacity 0.15s ease;
+    max-width 0.2s ease-out,
+    opacity 0.2s ease-out;
 }
 
 .card-close-btn:hover {
-  /* Hover intensifies the danger cue: red fill + matching border,
-     white label on top so "Close all N tabs" is unambiguous. */
-  background: var(--status-abandoned);
+  /* Hover shows danger via red border + red text (the "outlined
+     destructive" pattern), not a solid red fill. The card-bg
+     background keeps the label readable against the page bg while
+     the red stroke on border + text (+ currentColor-inherited ×)
+     communicates intent. Quieter than red-fill + white-text, but
+     still unambiguously destructive. */
+  background: var(--card-bg);
   border-color: var(--status-abandoned);
-  padding: 4px 10px;
-  color: #fff;
+  color: var(--status-abandoned);
 }
 
 .card-close-btn:hover .card-close-btn-text {
@@ -589,14 +613,6 @@ header {
      Dedupe button's `padding: 5px 12px` would leave only 10 px for
      text inside a 22 px box). Horizontal padding is preserved so
      the pill/button width still breathes around its label. */
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-/* Hover state keeps the unified height too — without this override,
-   `.card-close-btn:hover` would reset `padding: 4px 10px` and push
-   the button over 22 px again. */
-.card-close-btn:hover {
   padding-top: 0;
   padding-bottom: 0;
 }
