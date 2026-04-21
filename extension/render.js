@@ -337,9 +337,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
 
   const tabCount = tabs.length
   const isLanding = group.domain === '__landing-pages__'
-  // Card is rendered as "app-style" only when every tab in it is running
-  // in a standalone window (PWA/Chrome app). Mixed = treat as regular card.
-  const isAppCard = tabs.length > 0 && tabs.every((t) => t.isApp)
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
   const closableTabs = tabs.filter((t) => !isGroupedTab(t))
@@ -825,7 +822,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     isHidden: false,
     displayMode,
     filtering,
-    isAppCard,
     isLanding,
     tabCount,
     closableCount: vmClosableCount,
