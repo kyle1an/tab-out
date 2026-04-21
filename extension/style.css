@@ -526,29 +526,50 @@ header {
 
 /* ---- Domain header ----
    Title + subdomain pill + tab badge + Dedupe-N + close×, sitting
-   above the chip container. Flush-left with the card edge (no outer
-   padding), so the title's leftmost glyph aligns with the card's
-   leftmost pixel. Min-height matches the tallest possible row item
-   (the .action-btn dedupe button ≈ 26px) so the header doesn't
-   shrink when the dedupe button disappears after a dedupe action. */
+   above the chip container in a single row. Flush-left with the card
+   edge (padding: 0), so the title's leftmost glyph aligns with the
+   card's leftmost pixel.
+
+   `flex-wrap: nowrap` + `height: 26px` is load-bearing — with wrap
+   enabled, a card that also carries a subdomain pill (e.g.
+   atlassian.net with `zennioptical.`) had the pill push other items
+   onto a second row and each item re-centered on its own line, so
+   cards ended up with 2-line headers while sibling cards had 1-line
+   headers, and their chip-tops across a masonry row stopped aligning.
+   Single fixed-height row keeps every card's first chip anchored at
+   the same y. The title ellipses via .mission-name's min-width:0 +
+   overflow:hidden if it ever outruns the available space. */
 .domain-header {
   display: flex;
+  flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
-  min-height: 26px;
-  flex-wrap: wrap;
-  padding: 0 2px;
+  height: 26px;
+  flex-wrap: nowrap;
+  padding: 0;
+  min-width: 0;
 }
 
 /* Title is now the section header for its chip list — typographically
    promoted from the in-card 14px to 15px so it carries the weight of
    a header rather than a co-equal badge. Tracking eased slightly
-   (0.2 → 0.1) because glyph crowding eases at the larger size. */
+   (0.2 → 0.1) because glyph crowding eases at the larger size.
+
+   min-width:0 + nowrap/overflow/ellipsis lets the title shrink when
+   the header runs out of space — without this the flex item defaults
+   to min-width:auto (= content size) and can't shrink, forcing either
+   overflow or wrap. */
 .mission-name {
   font-weight: 600;
   font-size: 15px;
   color: var(--ink);
   letter-spacing: 0.1px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
 }
 
 /* Subdomain pill — rendered in the card header when the card rolls
