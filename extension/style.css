@@ -1064,11 +1064,12 @@ header {
 .pathgroup-close-btn {
   position: absolute;
   right: 0;
-  /* Header padding is asymmetric (6px top / 2px bottom), so the content's
-     visual center is 2px below the geometric center. top: 50% would
-     anchor to the geometric center and leave the X sitting slightly
-     above the pill's baseline — +2px compensates. */
-  top: calc(50% + 2px);
+  /* Header padding is now ~symmetric (3 top / 2 bottom after the
+     earlier density trim) so the geometric center and the content's
+     visual center are within 0.5 px of each other — just center
+     normally. The old +2px offset was calibrated for the earlier
+     6/2 padding and left the × sitting below the pill's baseline. */
+  top: 50%;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
