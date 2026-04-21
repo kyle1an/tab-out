@@ -16,10 +16,9 @@
    more element in the top row of a card."
 
    Event handlers for close-domain-tabs and dedup-keep-one live here.
-   data-action attributes are kept on the buttons so external lookups
-   still find them:
-     • dedup-global-keep-one in app.js aggregates per-card dedup URLs
-       via `document.querySelectorAll('[data-action="dedup-keep-one"]')`
+   The buttons keep their data-action attributes as stable selectors
+   for styling / inspector familiarity, but no longer feed a global
+   document-level click router.
    ================================================================ */
 
 import { h } from '../vendor/preact.mjs'
@@ -27,7 +26,8 @@ import htm from '../vendor/htm.mjs'
 import { closeTabsByUrls, closeTabsExact, closeDuplicateTabs } from '../tabs.js'
 import { markClosure } from '../undo.js'
 import { shootConfetti } from '../confetti.js'
-import { computeDomainCardViewModel, renderStaticDashboard } from '../render.js'
+import { requestDashboardRefresh } from '../dashboard-controller.js'
+import { computeDomainCardViewModel } from '../render.js'
 import { SubdomainSection } from './SubdomainSection.js'
 
 const html = htm.bind(h)
@@ -62,7 +62,7 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
   `
 }
 
-export function DomainCard({ group, filter = '', mode = 'matched' }) {
+export function DomainCard({ group, filter = '', mode = 'matched', onHoverUrlChange = null }) {
   const vm = computeDomainCardViewModel(group, { filter, mode })
 
   if (vm.isHidden) return null
@@ -98,11 +98,11 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
     }
 
     markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${vm.displayName}`)
-    await renderStaticDashboard()
+    await requestDashboardRefresh()
   }
 
   // Dedup handler: fade the clicked button + every (Nx) badge via the
-  // shared `.closing` CSS class, then renderStaticDashboard() rebuilds
+  // shared `.closing` CSS class, then a dashboard refresh rebuilds
   // the VM — Preact removes the button + badges from the DOM, counts
   // refresh from the fresh VM, masonry re-packs. The previous code
   // imperatively decremented tabsBadge + called updateCloseTabsButton
@@ -126,7 +126,7 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
     await new Promise((r) => setTimeout(r, 200))
 
     markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`)
-    await renderStaticDashboard()
+    await requestDashboardRefresh()
   }
 
   const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
@@ -159,6 +159,7 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
                 flatHiddenChips=${s.flatHiddenChips}
                 flatHiddenCount=${s.flatHiddenCount}
                 clusters=${s.clusters}
+                onHoverUrlChange=${onHoverUrlChange}
               />
             `
           )}

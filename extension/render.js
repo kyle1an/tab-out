@@ -1,45 +1,30 @@
 /* ================================================================
-   Render — data pipeline + Preact mount point for the dashboard.
+   Render — data pipeline + derived dashboard selectors.
 
-   After the Preact + HTM migration (Phases 1-5), this module no
-   longer emits HTML strings. It handles the data side — tab
-   fetching, domain/subdomain/cluster grouping, sort rules — and
-   hands the derived view-model off to <Missions> / <DomainCard>
-   / <SubdomainSection> / <PathgroupSection> / <FlatSection> /
-   <PageChip> for declarative rendering.
+   This module is now Preact-agnostic: it owns the tab-fetching and
+   view-model derivation, while the component tree mounts elsewhere.
 
    Exports:
-   • renderStaticDashboard — top-level entry, rebuilds domainGroups
-                             and mounts the Preact tree
-   • mountMissions — re-renders the card grids against the current
-                     filter; called by both renderStaticDashboard
-                     (after a fetch) and filter.js (after a query change)
+   • fetchDashboardData — refreshes chrome.tabs state and returns the
+                          current { realTabs, domainGroups } snapshot
    • computeDomainCardViewModel — per-card VM, takes { filter, mode }
                                   and returns match-scoped fields
-                                  (consumed by <DomainCard>)
-   • renderHeaderStats — (re)renders the pinned-top stats row via
-                         <HeaderStats>
+   • getFilteredCloseableUrls — exact URLs the global filtered-close
+                                action should remove
+   • getHeaderStats — snapshot counts + action-state for the header
+   • getGlobalDedupeUrls — dedupe targets aggregated across cards
+   • hasUnmatchedTabs — whether the secondary "Other tabs" grid should show
    • domainGroups — live array of current grouping
-   • getFilteredCloseableUrls — URLs the "Close N filtered tabs" action
-                                would close (shared with app.js handler)
    • pickFavicon — tab.favIconUrl (preserves data: URIs) /
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
-import { openTabs, fetchOpenTabs, getRealTabs } from './tabs.js'
+import { fetchOpenTabs, getRealTabs } from './tabs.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { unwrapSuspenderUrl } from './suspender.js'
 import { cleanTitle, stripTitleNoise } from './titles.js'
-import { packMissionsMasonry } from './layout.js'
 import { registrableDomain, subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
-import { render as preactRender, h } from './vendor/preact.mjs'
-import htm from './vendor/htm.mjs'
-import { Missions } from './components/Missions.js'
-import { HeaderStats } from './components/HeaderStats.js'
-import { getFilter } from './filter.js'
-
-const html = htm.bind(h)
 
 export let domainGroups = []
 
@@ -143,75 +128,74 @@ function stripPgLabel(label, pgLabel) {
   return { segments, stripped: true }
 }
 
-/**
- * getFilteredCloseableUrls() — URLs of tabs the "Close N filtered tabs"
- * action would close: filter-matching, ungrouped, non-chrome. Returns []
- * when no filter is active. Shared between the HeaderStats button label
- * and the action handler in app.js so both see the same list.
- */
-export function getFilteredCloseableUrls() {
-  const q = getFilter()
-  if (!q) return []
-  return getRealTabs()
-    .filter((t) => !isGroupedTab(t))
-    .filter((t) => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
-    .filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q))
-    .map((t) => t.url)
+function tabMatchesFilter(tab, filter) {
+  if (!filter) return true
+  const q = filter.toLowerCase()
+  const title = (tab.title || '').toLowerCase()
+  const url = (tab.url || '').toLowerCase()
+  return title.includes(q) || url.includes(q)
 }
 
 /**
- * renderHeaderStats() — (re)render the pinned-top stats row via Preact.
- *
- * One Preact render mounts a fresh <HeaderStats> tree into .header-stats;
- * all counts + action buttons come out of the same snapshot so the row
- * never shows inconsistent intermediate states (e.g. a stale "Close 3
- * filtered tabs" button lingering after the filter was cleared).
- *
- * Data sources — every count goes through computeDomainCardViewModel
- * so the header reads the same VM that drives the card grid. No more
- * DOM scraping for visibleDomains (`c.style.display !== 'none'`) or
- * dedupCount (`.action-btn text content`); if you trust the cards
- * are right, the header's right by construction.
+ * getFilteredCloseableUrls(realTabs, filter) — URLs of tabs the global
+ * "Close N filtered tabs" action should close: filter-matching,
+ * ungrouped, non-chrome. Returns [] when no filter is active.
  */
-export function renderHeaderStats() {
-  const mountEl = document.querySelector('.header-stats')
-  if (!mountEl) return
+export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') {
+  if (!filter) return []
+  return realTabs
+    .filter((t) => !isGroupedTab(t))
+    .filter((t) => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
+    .filter((t) => tabMatchesFilter(t, filter))
+    .map((t) => t.url)
+}
 
-  const realTabs = getRealTabs()
-  const q = getFilter()
-  const filtering = q.length > 0
+export function getGlobalDedupeUrls(groups = domainGroups, filter = '') {
+  const urls = []
+  for (const group of groups) {
+    const vm = computeDomainCardViewModel(group, { filter, mode: 'matched' })
+    if (vm.isHidden || !vm.closableDupeUrls) continue
+    vm.closableDupeUrls.forEach((url) => urls.push(url))
+  }
+  return urls
+}
 
-  const visibleTabs = filtering ? realTabs.filter((t) => (t.title || '').toLowerCase().includes(q) || (t.url || '').toLowerCase().includes(q)) : realTabs
+export function hasUnmatchedTabs(groups = domainGroups, filter = '') {
+  return !!filter && groups.some((g) => !computeDomainCardViewModel(g, { filter, mode: 'unmatched' }).isHidden)
+}
+
+/**
+ * getHeaderStats({ realTabs, domainGroups, filter }) — snapshot counts and
+ * aggregated action-state for the header row. Uses the same per-card VM as
+ * the missions grid, so the header cannot drift from what the cards render.
+ */
+export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = domainGroups, filter = '' } = {}) {
+  const filtering = filter.length > 0
+  const visibleTabs = filtering ? realTabs.filter((t) => tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
 
-  const totalDomains = domainGroups.length
   let visibleDomains = 0
   let dedupCount = 0
-  for (const g of domainGroups) {
-    const vm = computeDomainCardViewModel(g, { filter: q, mode: 'matched' })
+  for (const group of groups) {
+    const vm = computeDomainCardViewModel(group, { filter, mode: 'matched' })
     if (vm.isHidden) continue
     visibleDomains++
     dedupCount += vm.closableExtras || 0
   }
 
-  const filteredCloseCount = getFilteredCloseableUrls().length
-
-  preactRender(
-    html`<${HeaderStats}
-      totalTabs=${realTabs.length}
-      visibleTabs=${visibleTabs.length}
-      totalWindows=${totalWindows}
-      visibleWindows=${visibleWindows}
-      totalDomains=${totalDomains}
-      visibleDomains=${visibleDomains}
-      dedupCount=${dedupCount}
-      filteredCloseCount=${filteredCloseCount}
-      hasCards=${totalDomains > 0}
-      filtering=${filtering}
-    />`,
-    mountEl
-  )
+  return {
+    totalTabs: realTabs.length,
+    visibleTabs: visibleTabs.length,
+    totalWindows,
+    visibleWindows,
+    totalDomains: groups.length,
+    visibleDomains,
+    dedupCount,
+    filteredCloseCount: getFilteredCloseableUrls(realTabs, filter).length,
+    hasCards: groups.length > 0,
+    filtering
+  }
 }
 
 
@@ -303,13 +287,6 @@ function disambiguatingPaths(urls) {
                       bypass the "+N more" overflow split so every
                       matching chip is visible at once
 */
-function tabMatchesFilter(tab, filter) {
-  if (!filter) return true
-  const title = (tab.title || '').toLowerCase()
-  const url = (tab.url || '').toLowerCase()
-  return title.includes(filter) || url.includes(filter)
-}
-
 export function computeDomainCardViewModel(group, { filter = '', mode = 'matched' } = {}) {
   const allTabs = group.tabs || []
   const filtering = filter !== ''
@@ -847,11 +824,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
 }
 
-/* ---- Main render ---- */
-export async function renderStaticDashboard() {
-  await fetchOpenTabs()
-  const realTabs = getRealTabs()
-
+function buildDomainGroups(realTabs) {
   // Group tabs by domain. Landing pages (Gmail inbox, X home, etc.) get
   // their own special group so they can be closed together without
   // affecting content tabs on the same domain.
@@ -882,7 +855,6 @@ export async function renderStaticDashboard() {
     }
   }
 
-  domainGroups = []
   const groupMap = {}
   const landingTabs = []
 
@@ -950,7 +922,7 @@ export async function renderStaticDashboard() {
     if (landingHostnames.has(domain)) return true
     return landingSuffixes.some((s) => domain.endsWith(s))
   }
-  domainGroups = Object.values(groupMap).sort((a, b) => {
+  const groupedDomains = Object.values(groupMap).sort((a, b) => {
     const aIsLanding = a.domain === '__landing-pages__'
     const bIsLanding = b.domain === '__landing-pages__'
     if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1
@@ -984,7 +956,7 @@ export async function renderStaticDashboard() {
   // cards stay where the landing/priority/tab-count sort put them (at
   // the end, since `return 0` preserves Array.prototype.sort stability).
   const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
-  domainGroups.sort((a, b) => {
+  groupedDomains.sort((a, b) => {
     const aPrev = prevOrder.get(stableDomainId(a))
     const bPrev = prevOrder.get(stableDomainId(b))
     if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev
@@ -993,53 +965,16 @@ export async function renderStaticDashboard() {
     return 0
   })
 
-  mountMissions()
+  return groupedDomains
 }
 
 /**
- * mountMissions() — (re)render both card grids using the current
- * filter state. Called both from the top-level renderStaticDashboard
- * (after fetchOpenTabs + grouping) and from filter.js after the filter
- * query changes (no fetch needed — domainGroups is already fresh).
- *
- * Each DomainCard re-computes its VM from (group, filter, mode), so
- * filter changes flow through the component tree the same way tab
- * changes do: new VM → Preact diff → DOM update. No imperative
- * hide/show walks; filter.js stays a thin listener layer.
- *
- * The secondary ("Other tabs") grid is only rendered while a filter
- * is active; its wrapper's visibility follows whether any card has
- * unmatched content to show.
+ * fetchDashboardData() — refresh chrome.tabs state and return the
+ * current dashboard snapshot consumed by the Preact App root.
  */
-export function mountMissions() {
-  const openTabsSection = document.getElementById('openTabsSection')
-  const openTabsMissionsEl = document.getElementById('openTabsMissions')
-  const openTabsMissionsUnmatchedEl = document.getElementById('openTabsMissionsUnmatched')
-  const secondaryWrap = document.getElementById('openTabsMissionsOther')
-  if (!openTabsMissionsEl) return
-
-  const filter = getFilter()
-
-  if (openTabsSection) openTabsSection.style.display = 'block'
-
-  preactRender(html`<${Missions} domains=${domainGroups} filter=${filter} mode="matched" />`, openTabsMissionsEl)
-
-  if (openTabsMissionsUnmatchedEl) {
-    if (filter) {
-      preactRender(html`<${Missions} domains=${domainGroups} filter=${filter} mode="unmatched" />`, openTabsMissionsUnmatchedEl)
-    } else {
-      preactRender(null, openTabsMissionsUnmatchedEl)
-    }
-  }
-
-  // Wrapper visibility follows "does secondary actually have any
-  // card to show?" — computed from the same VM logic, so the decision
-  // stays consistent with what <Missions> rendered above.
-  if (secondaryWrap) {
-    const hasUnmatched = !!filter && domainGroups.some((g) => !computeDomainCardViewModel(g, { filter, mode: 'unmatched' }).isHidden)
-    secondaryWrap.style.display = hasUnmatched ? '' : 'none'
-  }
-
-  if (domainGroups.length > 0) packMissionsMasonry({ unpin: true })
-  renderHeaderStats()
+export async function fetchDashboardData() {
+  await fetchOpenTabs()
+  const realTabs = getRealTabs()
+  domainGroups = buildDomainGroups(realTabs)
+  return { realTabs, domainGroups }
 }

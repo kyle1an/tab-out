@@ -62,34 +62,11 @@ header {
   gap: 8px;
 }
 
-/* Dedup and close-filtered each live in their own slot on opposite
-   sides of the stats row — dedup at the start (leftmost), close-
-   filtered at the end. The (never-clickable) stat spans between them
-   guarantee that neither button can ever slide into the other's
-   position when state changes. A cursor aimed at either button
-   always either hits that button, lands on a passive stat span, or
-   lands on blank space — never on a different action button.
-   `:empty` collapses each slot when render.js writes "", and the
-   extra margin only applies when the slot has content (so no
-   trailing gap is introduced when idle). */
-#openTabsDedupAction:empty,
-#openTabsSectionActions:empty {
-  display: none;
-}
-#openTabsDedupAction:not(:empty) {
-  margin-right: 8px;
-}
-#openTabsSectionActions:not(:empty) {
-  margin-left: 8px;
-}
-
 /* ---- Filter input (top of page, right side of header) ---- */
 /* Wrapper around the input + custom clear button. The ✕ button is
    absolutely positioned inside the wrapper's right edge and only
-   rendered when the wrapper has `.has-value` (set by filter.js on
-   every input event). Using a JS-toggled class instead of
-   :placeholder-shown because the input's placeholder can be empty
-   in the "idle" state — :placeholder-shown would lie in that case. */
+   rendered when the wrapper has `.has-value`, which the Preact
+   header bar derives directly from the current filter value. */
 .tab-filter-wrap {
   position: relative;
   display: inline-flex;

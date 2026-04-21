@@ -47,7 +47,7 @@ function EmptyState() {
   `
 }
 
-export function Missions({ domains, filter = '', mode = 'matched' }) {
+export function Missions({ domains, filter = '', mode = 'matched', onHoverUrlChange = null }) {
   if (!domains || domains.length === 0) {
     // Empty state only shows in the primary ("matched") grid — the
     // secondary grid is already hidden upstream when there's nothing
@@ -56,7 +56,7 @@ export function Missions({ domains, filter = '', mode = 'matched' }) {
   }
   return html`
     <${Fragment}>
-      ${domains.map((g) => html` <${DomainCard} key=${stableKey(g)} group=${g} filter=${filter} mode=${mode} /> `)}
+      ${domains.map((g) => html` <${DomainCard} key=${stableKey(g)} group=${g} filter=${filter} mode=${mode} onHoverUrlChange=${onHoverUrlChange} /> `)}
     </${Fragment}>
   `
 }

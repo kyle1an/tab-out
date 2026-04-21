@@ -19,9 +19,9 @@ import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { useState } from '../vendor/preact-hooks.mjs'
 import { closeTabsExact } from '../tabs.js'
+import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { markClosure } from '../undo.js'
 import { packMissionsMasonry } from '../layout.js'
-import { renderStaticDashboard } from '../render.js'
 import { PageChip } from './PageChip.js'
 
 const html = htm.bind(h)
@@ -37,7 +37,7 @@ function PathgroupCloseButton({ count, onClick }) {
   `
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount }) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null }) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
@@ -54,7 +54,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
     if (snapshot.length > 0) {
       markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
     }
-    await renderStaticDashboard()
+    await requestDashboardRefresh()
   }
 
   return html`
@@ -66,8 +66,9 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         <span class="pathgroup-header-rule"></span>
         ${closableUrls && closableUrls.length > 0 && html` <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} /> `}
       </div>
-      ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}
-      ${hiddenCount > 0 && html` <div class="page-chips-overflow">${hiddenChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} /> `)}</div> `}
+      ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}
+      ${hiddenCount > 0 &&
+      html` <div class="page-chips-overflow">${hiddenChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}</div> `}
       ${!expanded &&
       hiddenCount > 0 &&
       html`

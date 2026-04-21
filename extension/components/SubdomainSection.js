@@ -15,8 +15,8 @@
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { closeTabsExact } from '../tabs.js'
+import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { markClosure } from '../undo.js'
-import { renderStaticDashboard } from '../render.js'
 import { FlatSection } from './FlatSection.js'
 import { PathgroupSection } from './PathgroupSection.js'
 
@@ -33,7 +33,7 @@ function SubdomainCloseButton({ count, onClick }) {
   `
 }
 
-export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters }) {
+export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters, onHoverUrlChange = null }) {
   const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
   // "Across subdomains" pseudo-section gets a descriptive label.
   // Neutral phrasing (not "envs") since the fold logic is generic —
@@ -56,7 +56,7 @@ export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount,
     if (snapshot.length > 0) {
       markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
     }
-    await renderStaticDashboard()
+    await requestDashboardRefresh()
   }
 
   return html`
@@ -69,7 +69,15 @@ export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount,
           ${hasClose && html` <${SubdomainCloseButton} count=${sectionClosableUrls.length} onClick=${onCloseSubdomain} /> `}
         </div>
       `}
-      ${hasFlat && html` <${FlatSection} visibleChips=${flatVisibleChips} hiddenChips=${flatHiddenChips} hiddenCount=${flatHiddenCount} /> `}
+      ${hasFlat &&
+      html`
+        <${FlatSection}
+          visibleChips=${flatVisibleChips}
+          hiddenChips=${flatHiddenChips}
+          hiddenCount=${flatHiddenCount}
+          onHoverUrlChange=${onHoverUrlChange}
+        />
+      `}
       ${clusters.map(
         (c) => html`
           <${PathgroupSection}
@@ -81,6 +89,7 @@ export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount,
             visibleChips=${c.visibleChips}
             hiddenChips=${c.hiddenChips}
             hiddenCount=${c.hiddenCount}
+            onHoverUrlChange=${onHoverUrlChange}
           />
         `
       )}
