@@ -43,12 +43,7 @@ function CardCloseButton({ label, onClick }) {
   `
 }
 
-function TabBadge({ isAppCard, tabCount }) {
-  if (isAppCard) {
-    const title = `Running as a standalone app${tabCount > 1 ? ` · ${tabCount} tabs` : ''}`
-    const text = `App${tabCount > 1 ? ` · ${tabCount}` : ''}`
-    return html` <span class="app-badge tab-count-badge" title=${title}>${text}</span> `
-  }
+function TabBadge({ tabCount }) {
   const title = `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
   return html` <span class="open-tabs-badge tab-count-badge" title=${title}>${tabCount}</span> `
 }
@@ -134,7 +129,7 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
     await renderStaticDashboard()
   }
 
-  const classList = `domain-block${vm.isAppCard ? ' is-app' : ''}${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
+  const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
 
   return html`
     <div class=${classList} data-domain-id=${vm.stableId}>
@@ -143,7 +138,7 @@ export function DomainCard({ group, filter = '', mode = 'matched' }) {
         ${vm.singleSubdomainKey && html`
           <span class=${'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>${vm.singleSubdomainKey}</span>
         `}
-        <${TabBadge} isAppCard=${vm.isAppCard} tabCount=${vm.tabCount} />
+        <${TabBadge} tabCount=${vm.tabCount} />
         ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
         ${vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
       </header>

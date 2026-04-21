@@ -477,30 +477,6 @@ header {
   opacity: 1;
 }
 
-/* Standalone-app card — PWAs / installed apps running in their own
-   window. Dashed border on the chip container hints "this is not a
-   regular tab." Lives on the card (not the block) because the visual
-   change is specifically the chip container's border. */
-.domain-block.is-app .mission-card {
-  border-style: dashed;
-  background: rgba(82, 82, 82, 0.02);
-}
-
-.app-badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
-  color: var(--muted);
-  background: rgba(82, 82, 82, 0.08);
-  padding: 2px 8px;
-  /* Small leaf pill — radius scaled to element size. At only 2px
-     vertical padding an 8px radius was near-circular; 6px reads as a
-     proper "pill chip" without overwhelming the 10-15px text. */
-  border-radius: 6px;
-  corner-shape: squircle;
-}
 
 /* Closing animation — shared by the whole domain block, the chip ×,
    the dedup button and every (Nx) dupe badge. Every handler just does
