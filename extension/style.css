@@ -404,6 +404,13 @@ header {
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
+  /* Gray at rest — the × matches every other close button in the
+     app (chip ×, subdomain ×, cluster ×). Red only fires on hover
+     of the button itself (see .card-close-btn:hover below). Commit-
+     escalation pattern: button appears on block hover = "an option
+     exists," hovering the button itself escalates to the red danger
+     cue. Reversible destructive action (undo toast lives for 6 s)
+     fits this tier better than ambient red. */
   color: var(--muted);
   background: transparent;
   opacity: 0;
@@ -463,13 +470,12 @@ header {
 }
 
 .card-close-btn:hover {
-  /* Solid card-bg keeps the label readable against the page bg; a 1px
-     border is the separation cue (no shadow needed). Symmetric padding
-     since there's no icon-to-text gap to balance anymore. */
-  background: var(--card-bg);
-  border-color: var(--warm-gray);
+  /* Hover intensifies the danger cue: red fill + matching border,
+     white label on top so "Close all N tabs" is unambiguous. */
+  background: var(--status-abandoned);
+  border-color: var(--status-abandoned);
   padding: 4px 10px;
-  color: var(--ink);
+  color: #fff;
 }
 
 .card-close-btn:hover .card-close-btn-text {
