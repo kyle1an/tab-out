@@ -14,27 +14,24 @@
        onto the undo stack.
 
    data-action="focus-tab" and data-action="close-single-tab" are
-   kept on the rendered elements as selector anchors. filter.js
-   queries `.page-chip[data-action="focus-tab"]` to find filterable
-   chips, and the post-close "is this card empty now?" check uses
-   the same selector to decide whether to animate the whole card
-   out. The app.js delegation cases for those data-actions are
-   retired in this phase — click handling is now component-local.
+   kept on the rendered elements as stable selector anchors, but all
+   focus / close / preview behavior is component-local.
    ================================================================ */
 
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { focusTab, fetchOpenTabs, snapshotChromeTabs } from '../tabs.js'
+import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
 import { markClosure } from '../undo.js'
 import { showToast } from './Toast.js'
 import { shootConfetti } from '../confetti.js'
-import { renderStaticDashboard } from '../render.js'
 
 const html = htm.bind(h)
 
-export function PageChip({ chip }) {
+export function PageChip({ chip, onHoverUrlChange = null }) {
   const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
+  const primaryPreviewUrl = isFolded ? chip.envs[0]?.tabUrl || '' : chip.tabUrl || ''
 
   function isKeyboardActivation(e) {
     return e.key === 'Enter' || e.key === ' '
@@ -64,6 +61,54 @@ export function PageChip({ chip }) {
     e.preventDefault()
     e.stopPropagation()
     if (env.tabUrl) await focusTab(env.tabUrl)
+  }
+
+  function setPreview(url) {
+    if (onHoverUrlChange) onHoverUrlChange(url || '')
+  }
+
+  function onChipMouseEnter() {
+    setPreview(primaryPreviewUrl)
+  }
+
+  function onChipMouseLeave(e) {
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return
+    setPreview('')
+  }
+
+  function onChipFocus() {
+    setPreview(primaryPreviewUrl)
+  }
+
+  function onChipBlur(e) {
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return
+    setPreview('')
+  }
+
+  function onEnvMouseEnter(env) {
+    setPreview(env.tabUrl)
+  }
+
+  function onEnvMouseLeave(e) {
+    const chipEl = e.currentTarget.closest('.page-chip')
+    if (chipEl && e.relatedTarget && chipEl.contains(e.relatedTarget)) {
+      setPreview(primaryPreviewUrl)
+      return
+    }
+    setPreview('')
+  }
+
+  function onEnvFocus(env) {
+    setPreview(env.tabUrl)
+  }
+
+  function onEnvBlur(e) {
+    const chipEl = e.currentTarget.closest('.page-chip')
+    if (chipEl && e.relatedTarget && chipEl.contains(e.relatedTarget)) {
+      setPreview(primaryPreviewUrl)
+      return
+    }
+    setPreview('')
   }
 
   // Capture chipEl before any await — e.currentTarget is only
@@ -106,8 +151,8 @@ export function PageChip({ chip }) {
 
     if (isLastTabForUrl && chipEl) {
       // Only tab for this URL is gone — animate the chip out via
-      // the shared `.closing` CSS class, then let renderStaticDashboard
-      // rebuild the VM. Preact drops the chip from the tree (and, if
+      // the shared `.closing` CSS class, then let the next dashboard
+      // refresh rebuild the VM. Preact drops the chip from the tree (and, if
       // the card ended up empty, the card too) without us having to
       // traverse the DOM looking for empty .mission-pages.
       const rect = chipEl.getBoundingClientRect()
@@ -119,7 +164,8 @@ export function PageChip({ chip }) {
     // Full re-render handles both branches: last tab → chip gone
     // from VM, card may collapse too; duplicate set → (Nx) badge
     // decrements via the fresh VM.
-    await renderStaticDashboard()
+    setPreview('')
+    await requestDashboardRefresh()
 
     if (snapshot.length > 0) {
       const label = isFolded ? `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} across subdomains` : 'Tab closed'
@@ -145,6 +191,10 @@ export function PageChip({ chip }) {
       tabIndex="0"
       onClick=${onFocus}
       onKeyDown=${onChipKeyDown}
+      onMouseEnter=${onChipMouseEnter}
+      onMouseLeave=${onChipMouseLeave}
+      onFocus=${onChipFocus}
+      onBlur=${onChipBlur}
     >
       ${chip.faviconUrl && html` <img class=${'chip-favicon' + (chip.isApp ? ' is-app' : '')} src=${chip.faviconUrl} alt="" /> `}
       <span class="chip-text">
@@ -161,6 +211,10 @@ export function PageChip({ chip }) {
                   tabIndex="0"
                   onClick=${(e) => onEnvClick(e, env)}
                   onKeyDown=${(e) => onEnvKeyDown(e, env)}
+                  onMouseEnter=${() => onEnvMouseEnter(env)}
+                  onMouseLeave=${onEnvMouseLeave}
+                  onFocus=${() => onEnvFocus(env)}
+                  onBlur=${onEnvBlur}
                 >
                   ${env.prefix}
                 </span>
