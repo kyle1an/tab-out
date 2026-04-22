@@ -184,10 +184,10 @@ export async function closeTabsExact(urls, opts = {}) {
  * that window already has a Tab Out tab open.
  *
  * @param {string} url
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>}
  */
 export async function focusTab(url) {
-  if (!url) return
+  if (!url) return false
   const allTabs = await chrome.tabs.query({})
   const currentWindow = await chrome.windows.getCurrent()
 
@@ -208,7 +208,7 @@ export async function focusTab(url) {
     } catch {}
   }
 
-  if (matches.length === 0) return
+  if (matches.length === 0) return false
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
 
@@ -262,6 +262,32 @@ export async function focusTab(url) {
 
   await chrome.tabs.update(match.id, { active: true })
   await chrome.windows.update(match.windowId, { focused: true })
+  return true
+}
+
+/**
+ * focusExactTab(url) — focus an already-open tab whose effective URL matches
+ * exactly. Unlike focusTab(), this does not fall back to hostname matching.
+ *
+ * @param {string} url
+ * @returns {Promise<boolean>}
+ */
+export async function focusExactTab(url) {
+  if (!url) return false
+  const allTabs = await chrome.tabs.query({})
+  const targetEffective = unwrapSuspenderUrl(url)
+  const matches = allTabs.filter((t) => t.url === url || unwrapSuspenderUrl(t.url) === targetEffective)
+  if (matches.length === 0) return false
+
+  let currentWindowId = -1
+  try {
+    currentWindowId = (await chrome.windows.getCurrent()).id
+  } catch {}
+
+  const match = matches.find((t) => t.windowId === currentWindowId) || matches[0]
+  await chrome.tabs.update(match.id, { active: true })
+  await chrome.windows.update(match.windowId, { focused: true })
+  return true
 }
 
 /**
