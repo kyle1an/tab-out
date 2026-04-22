@@ -20,7 +20,7 @@
 
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
-import { focusTab, fetchOpenTabs, snapshotChromeTabs } from '../tabs.js'
+import { focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../tabs.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
 import { markClosure } from '../undo.js'
@@ -41,7 +41,12 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     // Folded chip: clicking the chip body focuses the first env. Use
     // env-pill clicks to pick a specific one.
     const targetUrl = isFolded ? chip.envs[0].tabUrl : chip.tabUrl
-    if (targetUrl) await focusTab(targetUrl)
+    if (!targetUrl) return
+    if (chip.sourceType === 'bookmark') {
+      await openTabUrl(targetUrl)
+      return
+    }
+    await focusTab(targetUrl)
   }
 
   async function onChipKeyDown(e) {
@@ -53,14 +58,24 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
 
   async function onEnvClick(e, env) {
     e.stopPropagation()
-    if (env.tabUrl) await focusTab(env.tabUrl)
+    if (!env.tabUrl) return
+    if (chip.sourceType === 'bookmark') {
+      await openTabUrl(env.tabUrl)
+      return
+    }
+    await focusTab(env.tabUrl)
   }
 
   async function onEnvKeyDown(e, env) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
-    if (env.tabUrl) await focusTab(env.tabUrl)
+    if (!env.tabUrl) return
+    if (chip.sourceType === 'bookmark') {
+      await openTabUrl(env.tabUrl)
+      return
+    }
+    await focusTab(env.tabUrl)
   }
 
   function setPreview(url) {
@@ -183,10 +198,11 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
 
   return html`
     <div
-      class="page-chip clickable ${isFolded ? 'page-chip-folded' : ''}"
+      class=${'page-chip clickable' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
       data-action="focus-tab"
       data-tab-url=${dataTabUrl}
       title=${chip.tooltip}
+      aria-label=${chip.tooltip}
       style=${style}
       tabIndex="0"
       onClick=${onFocus}
@@ -197,38 +213,43 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       onBlur=${onChipBlur}
     >
       ${chip.faviconUrl && html` <img class=${'chip-favicon' + (chip.isApp ? ' is-app' : '')} src=${chip.faviconUrl} alt="" /> `}
-      <span class="chip-text">
-        ${isFolded &&
-        html`
-          <span class="chip-env-stack">
-            ${chip.envs.map(
-              (env) => html`
-                <span
-                  class="chip-env clickable"
-                  data-action="focus-env"
-                  data-tab-url=${env.tabUrl}
-                  title=${`Focus ${env.prefix} tab`}
-                  tabIndex="0"
-                  onClick=${(e) => onEnvClick(e, env)}
-                  onKeyDown=${(e) => onEnvKeyDown(e, env)}
-                  onMouseEnter=${() => onEnvMouseEnter(env)}
-                  onMouseLeave=${onEnvMouseLeave}
-                  onFocus=${() => onEnvFocus(env)}
-                  onBlur=${onEnvBlur}
-                >
-                  ${env.prefix}
-                </span>
-              `
-            )}
-          </span>
-        `}
-        ${!isFolded && chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
-        ${chip.pathGroupLabel && html` <span class="chip-pathgroup">${chip.pathGroupLabel}</span> `}
-        ${chip.displaySegments.map((seg) => (typeof seg === 'string' ? seg : html`<span class="chip-strip-indicator" aria-hidden="true">~</span>`))}
-        ${chip.pathSuffix && html` <span class="chip-path">${chip.pathSuffix}</span> `}
-      </span>
-      ${chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
+      ${!chip.iconOnly &&
+      html`
+        <span class="chip-text">
+          ${isFolded &&
+          html`
+            <span class="chip-env-stack">
+              ${chip.envs.map(
+                (env) => html`
+                  <span
+                    class="chip-env clickable"
+                    data-action="focus-env"
+                    data-tab-url=${env.tabUrl}
+                    title=${`Focus ${env.prefix} tab`}
+                    tabIndex="0"
+                    onClick=${(e) => onEnvClick(e, env)}
+                    onKeyDown=${(e) => onEnvKeyDown(e, env)}
+                    onMouseEnter=${() => onEnvMouseEnter(env)}
+                    onMouseLeave=${onEnvMouseLeave}
+                    onFocus=${() => onEnvFocus(env)}
+                    onBlur=${onEnvBlur}
+                  >
+                    ${env.prefix}
+                  </span>
+                `
+              )}
+            </span>
+          `}
+          ${!isFolded && chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
+          ${chip.pathGroupLabel && html` <span class="chip-pathgroup">${chip.pathGroupLabel}</span> `}
+          ${chip.displaySegments.map((seg) => (typeof seg === 'string' ? seg : html`<span class="chip-strip-indicator" aria-hidden="true">~</span>`))}
+          ${chip.pathSuffix && html` <span class="chip-path">${chip.pathSuffix}</span> `}
+        </span>
+      `}
+      ${!chip.iconOnly && chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
       ${!isFolded &&
+      !chip.iconOnly &&
+      chip.sourceType !== 'bookmark' &&
       html`
         <div class="chip-actions">
           <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url=${chip.tabUrl} title="Close this tab" onClick=${onClose}>

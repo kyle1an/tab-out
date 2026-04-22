@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
+import { flattenBookmarkNodes } from '../extension/bookmarks.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
 
 globalThis.chrome = {
@@ -57,6 +58,26 @@ test('buildDomainGroups separates landing pages from same-host content tabs', ()
   assert.deepEqual(githubGroup.tabs.map((tab) => tab.url), ['https://github.com/openai/openai'])
 })
 
+test('buildDomainGroups collects standalone app tabs into a dedicated apps card', () => {
+  const groups = buildDomainGroups([
+    makeTab({ url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),
+    makeTab({ id: 2, url: 'https://calendar.google.com/calendar/u/0/r', title: 'Calendar', isApp: true }),
+    makeTab({ id: 3, url: 'https://github.com/openai/openai', title: 'openai/openai' })
+  ])
+
+  const appsGroup = groups.find((group) => group.domain === '__standalone-apps__')
+  assert.ok(appsGroup)
+  assert.equal(appsGroup.label, 'Apps')
+  assert.deepEqual(
+    appsGroup.tabs.map((tab) => tab.url),
+    ['https://mail.google.com/mail/u/0/', 'https://calendar.google.com/calendar/u/0/r']
+  )
+
+  const appsVm = computeDomainCardViewModel(appsGroup)
+  assert.equal(appsVm.displayName, 'Apps')
+  assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => chip.iconOnly), true)
+})
+
 test('computeDomainCardViewModel disambiguates collisions by rendered title', () => {
   const group = {
     domain: 'example.com',
@@ -96,7 +117,52 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.deepEqual(vm.filteredCloseUrls, ['https://alpha.example.com/beta'])
 })
 
+test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {
+  const bookmarks = flattenBookmarkNodes([
+    {
+      id: '1',
+      title: 'Root',
+      children: [
+        { id: '2', title: 'OpenAI', url: 'https://openai.com/' },
+        {
+          id: '3',
+          title: 'Nested',
+          children: [{ id: '4', title: 'GitHub', url: 'https://github.com/' }]
+        }
+      ]
+    }
+  ])
+
+  assert.deepEqual(
+    bookmarks.map((bookmark) => ({ url: bookmark.url, sourceType: bookmark.sourceType })),
+    [
+      { url: 'https://openai.com/', sourceType: 'bookmark' },
+      { url: 'https://github.com/', sourceType: 'bookmark' }
+    ]
+  )
+})
+
+test('buildDashboardViewModel disables destructive actions for bookmarks source', () => {
+  const groups = buildDomainGroups([
+    makeTab({ url: 'https://bookmarks.test/a', title: 'Bookmark A', sourceType: 'bookmark' }),
+    makeTab({ id: 2, url: 'https://bookmarks.test/b', title: 'Bookmark B', sourceType: 'bookmark' })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const vm = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    source: 'bookmarks'
+  })
+
+  assert.equal(vm.source, 'bookmarks')
+  assert.equal(vm.stats.dedupCount, 0)
+  assert.deepEqual(vm.filteredCloseUrls, [])
+  assert.equal(vm.matchedCards[0].vm.closableCount, 0)
+  assert.equal(vm.matchedCards[0].vm.sections[0].flatVisibleChips.every((chip) => chip.sourceType === 'bookmark'), true)
+})
+
 test('manifest keeps only the permissions used by the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
-  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'favicon'])
+  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'favicon'])
 })

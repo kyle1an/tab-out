@@ -1,5 +1,5 @@
 export interface DashboardTab {
-  id?: number
+  id?: number | string
   url: string
   rawUrl: string
   suspended: boolean
@@ -11,6 +11,7 @@ export interface DashboardTab {
   groupId: number
   isTabOut: boolean
   isApp: boolean
+  sourceType?: 'tab' | 'bookmark'
   index?: number
 }
 
@@ -62,6 +63,7 @@ export interface DashboardChipEnv {
 export interface DashboardChipData {
   tabUrl: string
   rawUrl: string
+  sourceType?: 'tab' | 'bookmark'
   leadPrefix: string
   pathGroupLabel: string
   displaySegments: DashboardSegment[]
@@ -73,6 +75,7 @@ export interface DashboardChipData {
   isGrouped: boolean
   groupDotColor: string | null
   isApp: boolean
+  iconOnly?: boolean
   envs: DashboardChipEnv[] | null
 }
 
@@ -138,6 +141,7 @@ export interface DashboardStats {
 }
 
 export interface DashboardViewModel {
+  source: 'tabs' | 'bookmarks'
   stats: DashboardStats
   matchedCards: DashboardCardEntry[]
   unmatchedCards: DashboardCardEntry[]

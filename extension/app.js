@@ -52,6 +52,15 @@ if (chrome.tabGroups) {
   chrome.tabGroups.onMoved.addListener(scheduleDashboardRefresh)
 }
 
+if (chrome.bookmarks) {
+  chrome.bookmarks.onCreated.addListener(scheduleDashboardRefresh)
+  chrome.bookmarks.onRemoved.addListener(scheduleDashboardRefresh)
+  chrome.bookmarks.onChanged.addListener(scheduleDashboardRefresh)
+  chrome.bookmarks.onMoved.addListener(scheduleDashboardRefresh)
+  chrome.bookmarks.onChildrenReordered.addListener(scheduleDashboardRefresh)
+  chrome.bookmarks.onImportEnded?.addListener(scheduleDashboardRefresh)
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     closeTabOutDupes()

@@ -19,11 +19,15 @@ function stableGroupId(group) {
 
 export function App({ initialDashboard = null }) {
   const [dashboard, setDashboard] = useState(initialDashboard)
+  const [source, setSource] = useState('tabs')
   const [filter, setFilter] = useState('')
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
   const refreshRef = useRef(async () => {})
-  const previousOrderRef = useRef(new Map())
+  const previousOrderRef = useRef({
+    tabs: new Map(),
+    bookmarks: new Map()
+  })
   const scrollRegionRef = useRef(null)
   const primaryMissionsRef = useRef(null)
   const unmatchedMissionsRef = useRef(null)
@@ -34,11 +38,16 @@ export function App({ initialDashboard = null }) {
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
-    const next = await fetchDashboardData(previousOrderRef.current)
+    const next = await fetchDashboardData(previousOrderRef.current[source] || new Map(), source)
     setDashboard(next)
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
+
+  useEffect(() => {
+    setHoveredUrl('')
+    requestAnimationFrame(() => refreshRef.current())
+  }, [source])
 
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
@@ -63,7 +72,8 @@ export function App({ initialDashboard = null }) {
   const dashboardVm = buildDashboardViewModel({
     realTabs,
     domainGroups,
-    filter
+    filter,
+    source
   })
 
   async function onCloseFiltered() {
@@ -95,14 +105,15 @@ export function App({ initialDashboard = null }) {
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
 
   useEffect(() => {
-    previousOrderRef.current = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
-  }, [domainGroups, filter, isReady])
+    previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+  }, [domainGroups, filter, isReady, source])
 
   return html`
     <${Fragment}>
       <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
         <div class="page-inner">
           <${HeaderBar}
+            source=${source}
             totalTabs=${stats.totalTabs}
             visibleTabs=${stats.visibleTabs}
             totalWindows=${stats.totalWindows}
@@ -116,6 +127,7 @@ export function App({ initialDashboard = null }) {
             ready=${isReady}
             filter=${filter}
             onFilterChange=${setFilter}
+            onSourceChange=${setSource}
             onCloseFiltered=${onCloseFiltered}
             onDedupAll=${onDedupAll}
           />
