@@ -6,7 +6,6 @@
      • Schedule data refreshes from chrome.tabs / chrome.tabGroups
      • Auto-close duplicate Tab Out tabs on focus
      • Hide broken favicons with a capture-phase image-error listener
-     • Add the contextual top-bar shadow while scrolling
 
    The actual page UI (header, filter, missions grids, URL preview)
    lives under components/App.js.
@@ -76,18 +75,6 @@ async function initializeApp() {
   if (document.visibilityState === 'visible') {
     closeTabOutDupes()
     requestDashboardRefresh()
-  }
-
-  const scrollRegion = document.querySelector('.scroll-region')
-  const pinnedTop = document.querySelector('.pinned-top')
-  if (scrollRegion && pinnedTop) {
-    scrollRegion.addEventListener(
-      'scroll',
-      () => {
-        pinnedTop.classList.toggle('is-scrolled', scrollRegion.scrollTop > 0)
-      },
-      { passive: true }
-    )
   }
 }
 

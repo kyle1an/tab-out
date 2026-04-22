@@ -33,7 +33,21 @@ function SubdomainCloseButton({ count, onClick }) {
   `
 }
 
-export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount, sectionClosableUrls, showHeader, hasFlat, flatVisibleChips, flatHiddenChips, flatHiddenCount, clusters, onHoverUrlChange = null }) {
+export function SubdomainSection({
+  subdomainKey,
+  isShared,
+  isPort,
+  sectionCount,
+  sectionClosableUrls,
+  showHeader,
+  hasFlat,
+  flatVisibleChips,
+  flatHiddenChips,
+  flatHiddenCount,
+  clusters,
+  onHoverUrlChange = null,
+  onLayoutChange = null
+}) {
   const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
   // "Across subdomains" pseudo-section gets a descriptive label.
   // Neutral phrasing (not "envs") since the fold logic is generic —
@@ -76,6 +90,7 @@ export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount,
           hiddenChips=${flatHiddenChips}
           hiddenCount=${flatHiddenCount}
           onHoverUrlChange=${onHoverUrlChange}
+          onLayoutChange=${onLayoutChange}
         />
       `}
       ${clusters.map(
@@ -90,6 +105,7 @@ export function SubdomainSection({ subdomainKey, isShared, isPort, sectionCount,
             hiddenChips=${c.hiddenChips}
             hiddenCount=${c.hiddenCount}
             onHoverUrlChange=${onHoverUrlChange}
+            onLayoutChange=${onLayoutChange}
           />
         `
       )}

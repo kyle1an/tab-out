@@ -25,19 +25,19 @@
    when the visible block set changes.
    ================================================================ */
 
-const CONTAINER_IDS = ['openTabsMissions', 'openTabsMissionsUnmatched']
+import { useEffect, useRef } from './vendor/preact-hooks.mjs'
 
-let lastColCount = null
-let resizeTimer = null
+const MIN_COL_WIDTH = 260
+const GAP = 10
 
-export function packMissionsMasonry({ unpin = false } = {}) {
-  for (const id of CONTAINER_IDS) {
-    packContainer(id, unpin)
+export function packMissionsMasonry(containers, { unpin = false, lastColCounts = null } = {}) {
+  const targets = Array.isArray(containers) ? containers : [containers]
+  for (const container of targets) {
+    packContainer(container, unpin, lastColCounts)
   }
 }
 
-function packContainer(containerId, unpin) {
-  const container = document.getElementById(containerId)
+function packContainer(container, unpin, lastColCounts) {
   if (!container) return
 
   const containerWidth = container.clientWidth
@@ -53,17 +53,16 @@ function packContainer(containerId, unpin) {
   // (1280, 1440, 1600) without making cards feel cramped — chip text
   // already truncates with an ellipsis, so a slightly narrower card
   // reads the same as a wider one but packs more per row.
-  const minColWidth = 260
   // Inter-card gap tightened 12→10 — chips already have their own
   // vertical rhythm, so 10px reads as deliberate card separation
   // without the extra breathing room the larger gap added.
-  const gap = 10
-  const colCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)))
-  const colWidth = (containerWidth - gap * (colCount - 1)) / colCount
+  const colCount = Math.max(1, Math.floor((containerWidth + GAP) / (MIN_COL_WIDTH + GAP)))
+  const colWidth = (containerWidth - GAP * (colCount - 1)) / colCount
 
-  if (unpin || lastColCount !== colCount) {
+  const prevColCount = lastColCounts?.get(container)
+  if (unpin || prevColCount !== colCount) {
     cards.forEach((c) => delete c.dataset.masonryCol)
-    lastColCount = colCount
+    lastColCounts?.set(container, colCount)
   }
 
   cards.forEach((card) => {
@@ -84,16 +83,53 @@ function packContainer(containerId, unpin) {
       }
       card.dataset.masonryCol = String(col)
     }
-    card.style.left = `${col * (colWidth + gap)}px`
+    card.style.left = `${col * (colWidth + GAP)}px`
     card.style.top = `${colHeights[col]}px`
-    colHeights[col] += card.getBoundingClientRect().height + gap
+    colHeights[col] += card.getBoundingClientRect().height + GAP
   })
 
-  container.style.height = `${Math.max(...colHeights) - gap}px`
+  container.style.height = `${Math.max(...colHeights) - GAP}px`
   requestAnimationFrame(() => container.classList.add('is-packed'))
 }
 
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => packMissionsMasonry(), 100)
-})
+export function useMissionsMasonry(primaryRef, secondaryRef) {
+  const lastColCountsRef = useRef(new WeakMap())
+  const rafIdRef = useRef(0)
+  const observerRef = useRef(null)
+
+  function packMissionsMasonryNow({ unpin = false } = {}) {
+    packMissionsMasonry([primaryRef.current, secondaryRef.current], {
+      unpin,
+      lastColCounts: lastColCountsRef.current
+    })
+  }
+
+  function scheduleMissionsMasonry({ unpin = false } = {}) {
+    cancelAnimationFrame(rafIdRef.current)
+    rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin }))
+  }
+
+  useEffect(() => {
+    if (typeof ResizeObserver !== 'function') return
+    let observer = observerRef.current
+    if (!observer) {
+      observer = new ResizeObserver(() => scheduleMissionsMasonry())
+      observerRef.current = observer
+    }
+    observer.disconnect()
+    ;[primaryRef.current, secondaryRef.current].forEach((container) => {
+      if (container) observer.observe(container)
+    })
+    return () => observer.disconnect()
+  }, [primaryRef.current, secondaryRef.current])
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(rafIdRef.current)
+      observerRef.current?.disconnect()
+    },
+    []
+  )
+
+  return { packMissionsMasonryNow, scheduleMissionsMasonry }
+}

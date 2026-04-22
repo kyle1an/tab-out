@@ -847,7 +847,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
 }
 
-function buildDomainGroups(realTabs) {
+function buildDomainGroups(realTabs, previousOrder = new Map()) {
   // Group tabs by domain. Landing pages (Gmail inbox, X home, etc.) get
   // their own special group so they can be closed together without
   // affecting content tabs on the same domain.
@@ -957,31 +957,13 @@ function buildDomainGroups(realTabs) {
     return b.tabs.length - a.tabs.length
   })
 
-  // Snapshot current card order so the next render preserves it.
-  // Phase 2 retired prevColumns (Preact's keyed reconciliation preserves
-  // the .domain-block DOM node so layout.js's data-masonry-col survives).
-  // Phase 3/4 retired expand-state snapshots (<FlatSection> and
-  // <PathgroupSection> own their expand state via useState). Only the
-  // top-level block order still needs a hint here: it's what domainGroups
-  // is sorted against below.
-  const openTabsMissionsEl = document.getElementById('openTabsMissions')
-  const prevOrder = new Map()
-  if (openTabsMissionsEl) {
-    let idx = 0
-    for (const c of openTabsMissionsEl.querySelectorAll('.domain-block')) {
-      const id = c.dataset.domainId
-      if (!id) continue
-      prevOrder.set(id, idx++)
-    }
-  }
-
   // Stable re-sort: previously-seen cards keep their prior order; new
   // cards stay where the landing/priority/tab-count sort put them (at
   // the end, since `return 0` preserves Array.prototype.sort stability).
   const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
   groupedDomains.sort((a, b) => {
-    const aPrev = prevOrder.get(stableDomainId(a))
-    const bPrev = prevOrder.get(stableDomainId(b))
+    const aPrev = previousOrder.get(stableDomainId(a))
+    const bPrev = previousOrder.get(stableDomainId(b))
     if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev
     if (aPrev !== undefined) return -1
     if (bPrev !== undefined) return 1
@@ -995,9 +977,9 @@ function buildDomainGroups(realTabs) {
  * fetchDashboardData() — refresh chrome.tabs state and return the
  * current dashboard snapshot consumed by the Preact App root.
  */
-export async function fetchDashboardData() {
+export async function fetchDashboardData(previousOrder = new Map()) {
   await fetchOpenTabs()
   const realTabs = getRealTabs()
-  const domainGroups = buildDomainGroups(realTabs)
+  const domainGroups = buildDomainGroups(realTabs, previousOrder)
   return { realTabs, domainGroups }
 }

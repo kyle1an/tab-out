@@ -18,19 +18,18 @@
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { useState } from '../vendor/preact-hooks.mjs'
-import { packMissionsMasonry } from '../layout.js'
 import { PageChip } from './PageChip.js'
 
 const html = htm.bind(h)
 
-export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null }) {
+export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
     setExpanded(true)
     // Card heights change when hidden chips become visible; re-pack
     // masonry after the DOM settles so column bottoms realign.
-    requestAnimationFrame(() => packMissionsMasonry())
+    if (onLayoutChange) onLayoutChange()
   }
 
   return html`
