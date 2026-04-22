@@ -13,16 +13,16 @@
  *   Red    (#b35a5a) → 21+ tabs   (time to cull!)
  */
 
-const TAB_HISTORY_KEY = 'tabHistoryByWindow'
+const TAB_HISTORY_KEY = 'globalTabHistory'
 const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
 let suppressedActivation = null
 
-function normalizeWindowHistory(entry) {
+function normalizeGlobalHistory(entry) {
   if (!entry || !Array.isArray(entry.stack)) {
     return { stack: [], index: -1 }
   }
-  const stack = entry.stack.filter((id) => typeof id === 'number')
+  const stack = entry.stack.filter((item) => item && typeof item.tabId === 'number' && typeof item.windowId === 'number')
   const maxIndex = stack.length - 1
   const index = Number.isInteger(entry.index) ? Math.max(-1, Math.min(entry.index, maxIndex)) : maxIndex
   return { stack, index }
@@ -36,9 +36,9 @@ async function readTabHistory() {
   }
   try {
     const stored = await chrome.storage.session.get(TAB_HISTORY_KEY)
-    tabHistoryCache = stored[TAB_HISTORY_KEY] || {}
+    tabHistoryCache = normalizeGlobalHistory(stored[TAB_HISTORY_KEY])
   } catch {
-    tabHistoryCache = {}
+    tabHistoryCache = { stack: [], index: -1 }
   }
   return tabHistoryCache
 }
@@ -54,102 +54,97 @@ async function writeTabHistory(nextHistory) {
 }
 
 async function recordTabActivation(windowId, tabId) {
-  const history = { ...(await readTabHistory()) }
-  const key = String(windowId)
+  const history = normalizeGlobalHistory(await readTabHistory())
   if (suppressedActivation && suppressedActivation.windowId === windowId && suppressedActivation.tabId === tabId) {
     suppressedActivation = null
     return
   }
 
-  const current = normalizeWindowHistory(history[key])
-  if (current.stack[current.index] === tabId) return
+  if (history.stack[history.index]?.tabId === tabId) return
 
-  let nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push(tabId)
+  let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
+  nextStack.push({ windowId, tabId })
   if (nextStack.length > MAX_TAB_HISTORY) {
     nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
   }
 
-  history[key] = {
+  await writeTabHistory({
     stack: nextStack,
     index: nextStack.length - 1
-  }
-  await writeTabHistory(history)
+  })
 }
 
 async function removeTabFromHistory(tabId) {
-  const history = { ...(await readTabHistory()) }
-  let changed = false
-  for (const key of Object.keys(history)) {
-    const current = normalizeWindowHistory(history[key])
-    const removeIndex = current.stack.indexOf(tabId)
-    if (removeIndex !== -1) {
-      const nextStack = current.stack.filter((id) => id !== tabId)
-      let nextIndex = current.index
-      if (removeIndex < current.index) nextIndex -= 1
-      if (removeIndex === current.index) nextIndex = Math.min(nextIndex, nextStack.length - 1)
-      history[key] = {
-        stack: nextStack,
-        index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex)
-      }
-      changed = true
-    }
-  }
-  if (changed) await writeTabHistory(history)
+  const history = normalizeGlobalHistory(await readTabHistory())
+  const removeIndex = history.stack.findIndex((entry) => entry.tabId === tabId)
+  if (removeIndex === -1) return
+
+  const nextStack = history.stack.filter((entry) => entry.tabId !== tabId)
+  let nextIndex = history.index
+  if (removeIndex < history.index) nextIndex -= 1
+  if (removeIndex === history.index) nextIndex = Math.min(nextIndex, nextStack.length - 1)
+  await writeTabHistory({
+    stack: nextStack,
+    index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex)
+  })
 }
 
 async function switchTabHistory(direction) {
-  const currentWindow = await chrome.windows.getCurrent()
-  if (!currentWindow?.id) return
-
-  const tabs = await chrome.tabs.query({ windowId: currentWindow.id })
+  const tabs = await chrome.tabs.query({})
   const activeTab = tabs.find((tab) => tab.active)
   if (!activeTab?.id) return
 
-  const existingIds = new Set(tabs.map((tab) => tab.id))
-  const history = await readTabHistory()
-  const key = String(currentWindow.id)
-  const current = normalizeWindowHistory(history[key])
+  const history = normalizeGlobalHistory(await readTabHistory())
 
-  if (current.stack.length === 0) {
-    history[key] = { stack: [activeTab.id], index: 0 }
-    await writeTabHistory(history)
+  if (history.stack.length === 0) {
+    await writeTabHistory({
+      stack: [{ windowId: activeTab.windowId, tabId: activeTab.id }],
+      index: 0
+    })
     return
   }
 
-  let index = current.index
-  if (current.stack[index] !== activeTab.id) {
-    const latestActiveIndex = current.stack.lastIndexOf(activeTab.id)
+  let index = history.index
+  if (history.stack[index]?.tabId !== activeTab.id) {
+    const latestActiveIndex = history.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
     if (latestActiveIndex !== -1) {
       index = latestActiveIndex
     } else {
-      const nextStack = current.stack.concat(activeTab.id).slice(-MAX_TAB_HISTORY)
-      history[key] = { stack: nextStack, index: nextStack.length - 1 }
-      await writeTabHistory(history)
+      let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
+      nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
+      if (nextStack.length > MAX_TAB_HISTORY) {
+        nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
+      }
+      await writeTabHistory({
+        stack: nextStack,
+        index: nextStack.length - 1
+      })
       return
     }
   }
 
+  const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
   let nextIndex = index + direction
-  while (nextIndex >= 0 && nextIndex < current.stack.length && !existingIds.has(current.stack[nextIndex])) {
+  while (nextIndex >= 0 && nextIndex < history.stack.length && !existingTabs.has(history.stack[nextIndex].tabId)) {
     nextIndex += direction
   }
-  if (nextIndex < 0 || nextIndex >= current.stack.length) return
+  if (nextIndex < 0 || nextIndex >= history.stack.length) return
 
-  const targetId = current.stack[nextIndex]
-  history[key] = {
-    stack: current.stack,
+  const targetTab = existingTabs.get(history.stack[nextIndex].tabId)
+  if (!targetTab?.id) return
+
+  await writeTabHistory({
+    stack: history.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
     index: nextIndex
-  }
-  await writeTabHistory(history)
-  suppressedActivation = { windowId: currentWindow.id, tabId: targetId }
+  })
+  suppressedActivation = { windowId: targetTab.windowId, tabId: targetTab.id }
 
   try {
-    await chrome.tabs.update(targetId, { active: true })
-    await chrome.windows.update(currentWindow.id, { focused: true })
+    await chrome.tabs.update(targetTab.id, { active: true })
+    await chrome.windows.update(targetTab.windowId, { focused: true })
   } catch {
     suppressedActivation = null
-    await removeTabFromHistory(targetId)
+    await removeTabFromHistory(targetTab.id)
   }
 }
 
