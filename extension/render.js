@@ -22,7 +22,7 @@
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
-import { fetchOpenTabs, getRealTabs } from './tabs.js'
+import { fetchOpenTabs, getDashboardTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { unwrapSuspenderUrl } from './suspender.js'
@@ -399,9 +399,10 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const tabCount = tabs.length
   const isLanding = group.domain === '__landing-pages__'
   const isAppsGroup = group.domain === '__standalone-apps__'
+  const isTabOutGroup = group.domain === '__tab-out__'
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
-  const closableTabs = tabs.filter((t) => !isGroupedTab(t))
+  const closableTabs = tabs.filter((t) => !isGroupedTab(t) && !(isTabOutGroup && t.pinned))
   const closableCount = closableTabs.length
 
   // Count duplicates per URL, tracking grouped/ungrouped + which groups they're in.
@@ -425,6 +426,14 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   function closableForUrl(u) {
     const info = dupeInfo[u]
     if (!info) return 0
+    if (isTabOutGroup) {
+      const matchingTabs = tabs.filter((tab) => tab.url === u)
+      const pinnedCount = matchingTabs.filter((tab) => tab.pinned).length
+      const unpinnedCount = matchingTabs.length - pinnedCount
+      if (pinnedCount >= 1) return unpinnedCount
+      if (unpinnedCount >= 2) return unpinnedCount - 1
+      return 0
+    }
     const grouped = info.total - info.ungrouped
     if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped
     if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1
@@ -1002,6 +1011,7 @@ export function buildDomainGroups(
   const groupMap = {}
   const landingTabs = []
   const appTabs = []
+  const tabOutTabs = []
 
   function matchCustomGroup(url) {
     try {
@@ -1021,6 +1031,11 @@ export function buildDomainGroups(
 
   for (const tab of realTabs) {
     try {
+      if (tab.isTabOut) {
+        tabOutTabs.push(tab)
+        continue
+      }
+
       if (tab.isApp) {
         appTabs.push(tab)
         continue
@@ -1061,6 +1076,9 @@ export function buildDomainGroups(
   if (landingTabs.length > 0) {
     groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs }
   }
+  if (tabOutTabs.length > 0) {
+    groupMap['__tab-out__'] = { domain: '__tab-out__', label: 'New tabs', tabs: tabOutTabs }
+  }
   if (appTabs.length > 0) {
     groupMap['__standalone-apps__'] = { domain: '__standalone-apps__', label: 'Apps', tabs: appTabs }
   }
@@ -1076,6 +1094,10 @@ export function buildDomainGroups(
     const aIsLanding = a.domain === '__landing-pages__'
     const bIsLanding = b.domain === '__landing-pages__'
     if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1
+
+    const aIsTabOut = a.domain === '__tab-out__'
+    const bIsTabOut = b.domain === '__tab-out__'
+    if (aIsTabOut !== bIsTabOut) return aIsTabOut ? -1 : 1
 
     const aIsApps = a.domain === '__standalone-apps__'
     const bIsApps = b.domain === '__standalone-apps__'
@@ -1116,7 +1138,7 @@ export async function fetchDashboardData(previousOrder = new Map(), source = 'ta
   const realTabs =
     source === 'bookmarks'
       ? await fetchBookmarksSourceItems()
-      : (await fetchOpenTabs(), getRealTabs())
+      : (await fetchOpenTabs(), getDashboardTabs())
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, ...getDashboardGroupingConfig() })
   return { realTabs, domainGroups }
 }

@@ -4,14 +4,12 @@
    app.js now owns only lifecycle wiring:
      • Mount the Preact dashboard shell + toast root
      • Schedule data refreshes from chrome.tabs / chrome.tabGroups
-     • Auto-close duplicate Tab Out tabs on focus
      • Hide broken favicons with a capture-phase image-error listener
 
    The actual page UI (header, filter, missions grids, URL preview)
    lives under components/App.js.
    ================================================================ */
 
-import { closeTabOutDupes } from './tabs.js'
 import { mountToast } from './components/Toast.js'
 import { mountApp } from './components/App.js'
 import { requestDashboardRefresh } from './dashboard-controller.js'
@@ -63,7 +61,6 @@ if (chrome.bookmarks) {
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    closeTabOutDupes()
     requestDashboardRefresh()
   }
 })
@@ -82,7 +79,6 @@ async function initializeApp() {
   mountApp()
 
   if (document.visibilityState === 'visible') {
-    closeTabOutDupes()
     requestDashboardRefresh()
   }
 }
