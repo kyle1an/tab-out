@@ -360,6 +360,10 @@ header {
   box-shadow: 0 2px 6px var(--shadow);
 }
 
+.domain-block-apps:hover .mission-card {
+  box-shadow: none;
+}
+
 /* Wrapper around the divider + secondary missions grid. Block-level in
    document flow so the secondary grid naturally sits below the primary
    masonry. Hidden when the filter is empty or every tab matches. */
@@ -1602,8 +1606,7 @@ header {
 }
 
 /* ---- Animations ----
-   fadeUp is still used by .missions-empty-state and .nudge-banner
-   (conditional entrances, not page-load). The page-load cascade on
+   fadeUp is still used by .nudge-banner. The page-load cascade on
    header / section-header / cards / footer was removed — the dashboard
    now snaps into place on open without an intro. */
 @keyframes fadeUp {
@@ -1627,79 +1630,40 @@ header {
 
 /* ================================================================
    MISSIONS EMPTY STATE
-   Shown when all mission cards have been closed.
-   A calm, satisfying "you did it" moment.
+   Minimal neutral state for a truly empty dashboard or a no-results
+   filter pass. Kept intentionally quiet so it doesn't feel like a
+   feature moment.
    ================================================================ */
 
 .missions-empty-state {
-  /* Takes the full width — spans all columns */
   column-span: all;
-
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-
-  padding: 56px 24px;
+  gap: 6px;
+  padding: 40px 16px;
   text-align: center;
-
-  animation: fadeUp 0.5s ease both;
-}
-
-/* CSS-drawn checkmark in a glowing circle */
-.empty-checkmark {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: rgba(90, 122, 98, 0.1);
-  border: 1.5px solid rgba(90, 122, 98, 0.3);
-
-  /* Soft sage glow */
-  box-shadow:
-    0 0 0 8px rgba(90, 122, 98, 0.05),
-    0 0 0 16px rgba(90, 122, 98, 0.03);
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  /* Pop in with a gentle scale animation */
-  animation: checkPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both;
-}
-
-.empty-checkmark svg {
-  width: 26px;
-  height: 26px;
-  color: var(--accent-sage);
-  stroke-width: 2.5;
-}
-
-@keyframes checkPop {
-  from {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
 }
 
 .empty-title {
   font-family: sans-serif;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 400;
-  font-style: italic;
   color: var(--ink);
-  letter-spacing: -0.3px;
+  letter-spacing: -0.1px;
 }
 
 .empty-subtitle {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   font-weight: 400;
-  letter-spacing: 0.3px;
+  letter-spacing: 0;
+}
+
+.missions-empty-state-filter .empty-title {
+  font-size: 15px;
+  font-weight: 400;
 }
 
 /* ================================================================
