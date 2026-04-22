@@ -18,6 +18,32 @@ const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
 let suppressedActivation = null
 
+function extensionNewtabUrl() {
+  return `chrome-extension://${chrome.runtime.id}/index.html`
+}
+
+async function syncExistingNewTabOverrides() {
+  try {
+    const tabs = await chrome.tabs.query({})
+    const targetUrl = extensionNewtabUrl()
+    await Promise.all(
+      tabs
+        .filter((tab) => {
+          const url = tab.url || tab.pendingUrl || ''
+          return url === 'chrome://newtab/'
+        })
+        .map((tab) =>
+          chrome.tabs.update(tab.id, {
+            url: targetUrl
+          })
+        )
+    )
+  } catch {
+    // Best-effort repair only; if a tab closes or a URL becomes
+    // unreadable mid-pass, just leave it alone.
+  }
+}
+
 function normalizeGlobalHistory(entry) {
   if (!entry || !Array.isArray(entry.stack)) {
     return { stack: [], index: -1 }
@@ -193,11 +219,13 @@ async function updateBadge() {
 // Update badge when the extension is first installed
 chrome.runtime.onInstalled.addListener(() => {
   updateBadge()
+  syncExistingNewTabOverrides()
 })
 
 // Update badge when Chrome starts up
 chrome.runtime.onStartup.addListener(() => {
   updateBadge()
+  syncExistingNewTabOverrides()
 })
 
 // Update badge whenever a tab is opened
@@ -230,8 +258,7 @@ chrome.tabs.onUpdated.addListener(() => {
 chrome.windows.onCreated.addListener(async (window) => {
   if (window.type !== 'normal') return
   try {
-    const extensionId = chrome.runtime.id
-    const newtabUrl = `chrome-extension://${extensionId}/index.html`
+    const newtabUrl = extensionNewtabUrl()
     const tabs = await chrome.tabs.query({ windowId: window.id })
     const existing = tabs.find((t) => {
       const u = t.url || t.pendingUrl || ''
@@ -265,3 +292,4 @@ chrome.commands?.onCommand.addListener((command) => {
 
 // Run once immediately when the service worker first loads
 updateBadge()
+syncExistingNewTabOverrides()
