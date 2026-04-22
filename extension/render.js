@@ -7,6 +7,8 @@
    Exports:
    • fetchDashboardData — refreshes chrome.tabs state and returns the
                           current { realTabs, domainGroups } snapshot
+   • buildDomainGroups — group tabs into domain cards with injectable
+                         landing/custom rules for focused tests
    • buildDashboardViewModel — one-pass derivation for header stats,
                                global actions, and prebuilt card VMs
    • computeDomainCardViewModel — per-card VM, takes { filter, mode }
@@ -27,6 +29,15 @@ import { cleanTitle, stripTitleNoise } from './titles.js'
 import { registrableDomain, subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 
+/** @typedef {import('./types').DashboardTab} DashboardTab */
+/** @typedef {import('./types').DomainGroup} DomainGroup */
+/** @typedef {import('./types').DomainGroupBuildOptions} DomainGroupBuildOptions */
+/** @typedef {import('./types').DashboardCardVM} DashboardCardVM */
+/** @typedef {import('./types').DashboardViewModel} DashboardViewModel */
+/** @typedef {import('./types').DashboardStats} DashboardStats */
+/** @typedef {import('./types').LandingPagePattern} LandingPagePattern */
+/** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
+
 /**
  * pickFavicon(tab) — two-path favicon resolver:
  *   • If tab.favIconUrl is a `data:` URI, use it as-is. That covers
@@ -41,6 +52,9 @@ import { resolvePathGroup } from './path-groups.js'
  *
  * The capture-phase error listener in app.js hides any that still
  * fail to load. Requires the "favicon" permission in manifest.json.
+ *
+ * @param {Pick<DashboardTab, 'favIconUrl' | 'url'>} tab
+ * @returns {string}
  */
 export function pickFavicon(tab) {
   const fav = tab.favIconUrl || ''
@@ -63,6 +77,10 @@ export function pickFavicon(tab) {
  * inserted every 5 chars. Below that threshold, words pass through
  * untouched so natural-length English wraps at word boundaries and
  * short words never break mid-character.
+ */
+/**
+ * @param {string} str
+ * @returns {string}
  */
 function injectBreakPoints(str) {
   if (!str) return str
@@ -127,6 +145,11 @@ function stripPgLabel(label, pgLabel) {
   return { segments, stripped: true }
 }
 
+/**
+ * @param {Pick<DashboardTab, 'title' | 'url'>} tab
+ * @param {string} filter
+ * @returns {boolean}
+ */
 function tabMatchesFilter(tab, filter) {
   if (!filter) return true
   const q = filter.toLowerCase()
@@ -139,6 +162,11 @@ function tabMatchesFilter(tab, filter) {
  * getFilteredCloseableUrls(realTabs, filter) — URLs of tabs the global
  * "Close N filtered tabs" action should close: filter-matching,
  * ungrouped, non-chrome. Returns [] when no filter is active.
+ */
+/**
+ * @param {DashboardTab[]} [realTabs]
+ * @param {string} [filter]
+ * @returns {string[]}
  */
 export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') {
   if (!filter) return []
@@ -157,6 +185,10 @@ export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') 
  * and missions grids all consume the same matched / unmatched card VMs
  * instead of each caller re-running computeDomainCardViewModel() over the
  * same groups.
+ */
+/**
+ * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string }} [opts]
+ * @returns {DashboardViewModel}
  */
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '' } = {}) {
   const filtering = filter.length > 0
@@ -205,10 +237,20 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   }
 }
 
+/**
+ * @param {DomainGroup[]} [groups]
+ * @param {string} [filter]
+ * @returns {string[]}
+ */
 export function getGlobalDedupeUrls(groups = [], filter = '') {
   return buildDashboardViewModel({ domainGroups: groups, filter }).globalDedupeUrls
 }
 
+/**
+ * @param {DomainGroup[]} [groups]
+ * @param {string} [filter]
+ * @returns {boolean}
+ */
 export function hasUnmatchedTabs(groups = [], filter = '') {
   return buildDashboardViewModel({ domainGroups: groups, filter }).showOtherTabs
 }
@@ -216,6 +258,10 @@ export function hasUnmatchedTabs(groups = [], filter = '') {
 /**
  * getHeaderStats({ realTabs, domainGroups, filter }) — compatibility wrapper
  * for callers that only need the header row snapshot.
+ */
+/**
+ * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string }} [opts]
+ * @returns {DashboardStats}
  */
 export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '' } = {}) {
   return buildDashboardViewModel({ realTabs, domainGroups: groups, filter }).stats
@@ -237,6 +283,10 @@ export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups 
  *   ["/rewards?state=open",
  *    "/rewards?state=closed"]               → ["…?state=open", "…?state=closed"]
  *   ["/doc#intro", "/doc#conclusion"]       → ["…#intro", "…#conclusion"]
+ */
+/**
+ * @param {string[]} urls
+ * @returns {string[]}
  */
 function disambiguatingPaths(urls) {
   const tokens = urls.map((u) => {
@@ -310,6 +360,11 @@ function disambiguatingPaths(urls) {
                       bypass the "+N more" overflow split so every
                       matching chip is visible at once
 */
+/**
+ * @param {DomainGroup} group
+ * @param {{ filter?: string, mode?: 'matched' | 'unmatched' }} [opts]
+ * @returns {DashboardCardVM}
+ */
 export function computeDomainCardViewModel(group, { filter = '', mode = 'matched' } = {}) {
   const allTabs = group.tabs || []
   const filtering = filter !== ''
@@ -847,25 +902,42 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
 }
 
-function buildDomainGroups(realTabs, previousOrder = new Map()) {
+/** @type {LandingPagePattern[]} */
+const DEFAULT_LANDING_PAGE_PATTERNS = [
+  { hostname: 'mail.google.com', test: (_pathname, url) => !url.includes('#inbox/') && !url.includes('#sent/') && !url.includes('#search/') },
+  { hostname: 'x.com', pathExact: ['/home'] },
+  { hostname: 'www.linkedin.com', pathExact: ['/'] },
+  { hostname: 'github.com', pathExact: ['/'] },
+  { hostname: 'www.youtube.com', pathExact: ['/'] }
+]
+
+/**
+ * @returns {{ landingPagePatterns: LandingPagePattern[], customGroups: CustomGroupRule[] }}
+ */
+function getDashboardGroupingConfig() {
+  return {
+    landingPagePatterns: [...DEFAULT_LANDING_PAGE_PATTERNS, ...(window.LOCAL_LANDING_PAGE_PATTERNS || [])],
+    customGroups: window.LOCAL_CUSTOM_GROUPS || []
+  }
+}
+
+/**
+ * @param {DashboardTab[]} realTabs
+ * @param {DomainGroupBuildOptions} [opts]
+ * @returns {DomainGroup[]}
+ */
+export function buildDomainGroups(
+  realTabs,
+  { previousOrder = new Map(), landingPagePatterns = DEFAULT_LANDING_PAGE_PATTERNS, customGroups = [] } = {}
+) {
   // Group tabs by domain. Landing pages (Gmail inbox, X home, etc.) get
   // their own special group so they can be closed together without
   // affecting content tabs on the same domain.
-  const LANDING_PAGE_PATTERNS = [
-    { hostname: 'mail.google.com', test: (p, h) => !h.includes('#inbox/') && !h.includes('#sent/') && !h.includes('#search/') },
-    { hostname: 'x.com', pathExact: ['/home'] },
-    { hostname: 'www.linkedin.com', pathExact: ['/'] },
-    { hostname: 'github.com', pathExact: ['/'] },
-    { hostname: 'www.youtube.com', pathExact: ['/'] },
-    // Merge personal patterns from config.local.js (if it exists).
-    // config.local.js is a classic script; its globals are on window.
-    ...(window.LOCAL_LANDING_PAGE_PATTERNS || [])
-  ]
 
   function isLandingPage(url) {
     try {
       const parsed = new URL(url)
-      return LANDING_PAGE_PATTERNS.some((p) => {
+      return landingPagePatterns.some((p) => {
         const hostnameMatch = p.hostname ? parsed.hostname === p.hostname : p.hostnameEndsWith ? parsed.hostname.endsWith(p.hostnameEndsWith) : false
         if (!hostnameMatch) return false
         if (p.test) return p.test(parsed.pathname, url)
@@ -880,9 +952,6 @@ function buildDomainGroups(realTabs, previousOrder = new Map()) {
 
   const groupMap = {}
   const landingTabs = []
-
-  // Custom group rules from config.local.js (if any)
-  const customGroups = window.LOCAL_CUSTOM_GROUPS || []
 
   function matchCustomGroup(url) {
     try {
@@ -939,8 +1008,8 @@ function buildDomainGroups(realTabs, previousOrder = new Map()) {
   }
 
   // Sort: landing pages first, then domains from landing-page sites, then by tab count.
-  const landingHostnames = new Set(LANDING_PAGE_PATTERNS.map((p) => p.hostname).filter(Boolean))
-  const landingSuffixes = LANDING_PAGE_PATTERNS.map((p) => p.hostnameEndsWith).filter(Boolean)
+  const landingHostnames = new Set(landingPagePatterns.map((p) => p.hostname).filter(Boolean))
+  const landingSuffixes = landingPagePatterns.map((p) => p.hostnameEndsWith).filter(Boolean)
   function isLandingDomain(domain) {
     if (landingHostnames.has(domain)) return true
     return landingSuffixes.some((s) => domain.endsWith(s))
@@ -976,10 +1045,13 @@ function buildDomainGroups(realTabs, previousOrder = new Map()) {
 /**
  * fetchDashboardData() — refresh chrome.tabs state and return the
  * current dashboard snapshot consumed by the Preact App root.
+ *
+ * @param {Map<string, number>} [previousOrder]
+ * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[] }>}
  */
 export async function fetchDashboardData(previousOrder = new Map()) {
   await fetchOpenTabs()
   const realTabs = getRealTabs()
-  const domainGroups = buildDomainGroups(realTabs, previousOrder)
+  const domainGroups = buildDomainGroups(realTabs, { previousOrder, ...getDashboardGroupingConfig() })
   return { realTabs, domainGroups }
 }

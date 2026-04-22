@@ -23,7 +23,7 @@
 
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
-import { closeTabsByUrls, closeTabsExact, closeDuplicateTabs } from '../tabs.js'
+import { closeTabsExact, closeDuplicateTabs } from '../tabs.js'
 import { markClosure } from '../undo.js'
 import { shootConfetti } from '../confetti.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
@@ -83,9 +83,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       ? group.tabs.filter((t) => (t.title || '').toLowerCase().includes(filter) || (t.url || '').toLowerCase().includes(filter))
       : group.tabs
     const urls = scopedTabs.map((t) => t.url)
-    const useExact = !!filter || group.domain === '__landing-pages__' || !!group.label
-
-    const snapshot = useExact ? await closeTabsExact(urls, { preserveGroups: true }) : await closeTabsByUrls(urls, { preserveGroups: true })
+    const snapshot = await closeTabsExact(urls, { preserveGroups: true })
 
     if (block && !filter) {
       const rect = block.getBoundingClientRect()
