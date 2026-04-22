@@ -20,7 +20,7 @@
 
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
-import { focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../tabs.js'
+import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../tabs.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
 import { markClosure } from '../undo.js'
@@ -43,7 +43,8 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     const targetUrl = isFolded ? chip.envs[0].tabUrl : chip.tabUrl
     if (!targetUrl) return
     if (chip.sourceType === 'bookmark') {
-      await openTabUrl(targetUrl)
+      const focused = await focusExactTab(targetUrl)
+      if (!focused) await openTabUrl(targetUrl)
       return
     }
     await focusTab(targetUrl)
@@ -60,7 +61,8 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     e.stopPropagation()
     if (!env.tabUrl) return
     if (chip.sourceType === 'bookmark') {
-      await openTabUrl(env.tabUrl)
+      const focused = await focusExactTab(env.tabUrl)
+      if (!focused) await openTabUrl(env.tabUrl)
       return
     }
     await focusTab(env.tabUrl)
@@ -72,7 +74,8 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     e.stopPropagation()
     if (!env.tabUrl) return
     if (chip.sourceType === 'bookmark') {
-      await openTabUrl(env.tabUrl)
+      const focused = await focusExactTab(env.tabUrl)
+      if (!focused) await openTabUrl(env.tabUrl)
       return
     }
     await focusTab(env.tabUrl)
