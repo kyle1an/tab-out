@@ -113,7 +113,9 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       .filter(Boolean)
     if (urls.length === 0) return
 
-    const dupeSnapshot = await closeDuplicateTabs(urls, true)
+    const dupeSnapshot = await closeDuplicateTabs(urls, true, {
+      preservePinned: group.domain === '__tab-out__'
+    })
 
     btn.classList.add('closing')
     const block = btn.closest('.domain-block')

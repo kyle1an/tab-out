@@ -105,6 +105,21 @@ export function getRealTabs() {
 }
 
 /**
+ * getDashboardTabs() — tabs shown in the dashboard tab source:
+ * real web tabs plus Tab Out / Chrome new-tab pages, so the user can
+ * explicitly dedupe dashboard tabs from the page itself.
+ *
+ * @returns {DashboardTab[]}
+ */
+export function getDashboardTabs() {
+  return openTabs.filter((t) => {
+    if (t.isTabOut) return true
+    const url = t.url || ''
+    return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
+  })
+}
+
+/**
  * closeTabsByUrls(urls, opts) — closes tabs whose hostname matches any
  * of the given URLs. file:// URLs are matched exactly (no hostname).
  * Returns a snapshot of what was closed for undo.
@@ -315,9 +330,11 @@ export async function openTabUrl(url) {
  *
  * @param {string[]} urls
  * @param {boolean} [keepOne=true]
+ * @param {{ preservePinned?: boolean }} [opts]
  * @returns {Promise<TabSnapshot[]>}
  */
-export async function closeDuplicateTabs(urls, keepOne = true) {
+export async function closeDuplicateTabs(urls, keepOne = true, opts = {}) {
+  const { preservePinned = false } = opts
   const allTabs = await chrome.tabs.query({})
   let currentWindowId = -1
   try {
@@ -327,6 +344,14 @@ export async function closeDuplicateTabs(urls, keepOne = true) {
 
   for (const url of urls) {
     const matching = allTabs.filter((t) => unwrapSuspenderUrl(t.url) === url)
+    if (preservePinned) {
+      const pinned = matching.filter((t) => t.pinned)
+      const unpinned = matching.filter((t) => !t.pinned)
+      if (pinned.length >= 1) {
+        for (const t of unpinned) toCloseTabs.push(t)
+        continue
+      }
+    }
     if (!keepOne) {
       for (const tab of matching) toCloseTabs.push(tab)
       continue
@@ -358,29 +383,4 @@ export async function closeDuplicateTabs(urls, keepOne = true) {
   if (toCloseTabs.length > 0) await chrome.tabs.remove(toCloseTabs.map((t) => t.id))
   await fetchOpenTabs()
   return snapshot
-}
-
-/**
- * closeTabOutDupes() — closes extra Tab Out new-tab pages, keeping
- * the active one in the current window. Pinned Tab Out tabs are
- * excluded from the operation entirely — pinning signals "this is
- * my anchor for this window, don't clean it up" (background.js pins
- * a Tab Out on every new window creation for exactly this reason).
- *
- * @returns {Promise<void>}
- */
-export async function closeTabOutDupes() {
-  const extensionId = chrome.runtime.id
-  const newtabUrl = `chrome-extension://${extensionId}/index.html`
-
-  const allTabs = await chrome.tabs.query({})
-  const currentWindow = await chrome.windows.getCurrent()
-  const tabOutTabs = allTabs.filter((t) => (t.url === newtabUrl || t.url === 'chrome://newtab/') && !t.pinned)
-
-  if (tabOutTabs.length <= 1) return
-
-  const keep = tabOutTabs.find((t) => t.active && t.windowId === currentWindow.id) || tabOutTabs.find((t) => t.active) || tabOutTabs[0]
-  const toClose = tabOutTabs.filter((t) => t.id !== keep.id).map((t) => t.id)
-  if (toClose.length > 0) await chrome.tabs.remove(toClose)
-  await fetchOpenTabs()
 }

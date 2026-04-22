@@ -78,6 +78,57 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => chip.iconOnly), true)
 })
 
+test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', () => {
+  const groups = buildDomainGroups([
+    makeTab({ url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true }),
+    makeTab({ id: 2, url: 'chrome://newtab/', rawUrl: 'chrome://newtab/', title: 'New Tab', isTabOut: true }),
+    makeTab({ id: 3, url: 'https://openai.com/', title: 'OpenAI' })
+  ])
+
+  const newTabsGroup = groups.find((group) => group.domain === '__tab-out__')
+  assert.ok(newTabsGroup)
+  assert.equal(newTabsGroup.label, 'New tabs')
+  assert.deepEqual(
+    newTabsGroup.tabs.map((tab) => tab.rawUrl),
+    ['chrome-extension://tab-out/index.html', 'chrome://newtab/']
+  )
+})
+
+test('computeDomainCardViewModel keeps pinned new tabs out of close and dedupe counts', () => {
+  const group = {
+    domain: '__tab-out__',
+    label: 'New tabs',
+    tabs: [
+      makeTab({
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        isTabOut: true,
+        pinned: true
+      }),
+      makeTab({
+        id: 2,
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        isTabOut: true
+      }),
+      makeTab({
+        id: 3,
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        isTabOut: true
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  assert.equal(vm.displayName, 'New tabs')
+  assert.equal(vm.closableCount, 2)
+  assert.equal(vm.closableExtras, 2)
+})
+
 test('computeDomainCardViewModel disambiguates collisions by rendered title', () => {
   const group = {
     domain: 'example.com',
