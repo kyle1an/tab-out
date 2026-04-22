@@ -20,6 +20,7 @@ function stableGroupId(group) {
 export function App({ initialDashboard = null }) {
   const [dashboard, setDashboard] = useState(initialDashboard)
   const [source, setSource] = useState('tabs')
+  const [filterInput, setFilterInput] = useState('')
   const [filter, setFilter] = useState('')
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
@@ -43,6 +44,16 @@ export function App({ initialDashboard = null }) {
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
+
+  useEffect(() => {
+    if (filterInput === filter) return
+    if (filterInput === '') {
+      setFilter('')
+      return
+    }
+    const timer = setTimeout(() => setFilter(filterInput), 200)
+    return () => clearTimeout(timer)
+  }, [filterInput, filter])
 
   useEffect(() => {
     setHoveredUrl('')
@@ -125,8 +136,8 @@ export function App({ initialDashboard = null }) {
             hasCards=${stats.hasCards}
             filtering=${stats.filtering}
             ready=${isReady}
-            filter=${filter}
-            onFilterChange=${setFilter}
+            filter=${filterInput}
+            onFilterChange=${setFilterInput}
             onSourceChange=${setSource}
             onCloseFiltered=${onCloseFiltered}
             onDedupAll=${onDedupAll}
@@ -142,6 +153,7 @@ export function App({ initialDashboard = null }) {
               html`<${Missions}
                 cards=${matchedCards}
                 filter=${filter}
+                source=${source}
                 onHoverUrlChange=${setHoveredUrl}
                 onLayoutChange=${scheduleMissionsMasonry}
               />`}
@@ -159,6 +171,7 @@ export function App({ initialDashboard = null }) {
                   <${Missions}
                     cards=${unmatchedCards}
                     filter=${filter}
+                    source=${source}
                     showEmptyState=${false}
                     onHoverUrlChange=${setHoveredUrl}
                     onLayoutChange=${scheduleMissionsMasonry}

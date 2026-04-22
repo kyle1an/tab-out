@@ -64,6 +64,7 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null }) {
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
+  const isAppsCard = group.domain === '__standalone-apps__'
 
   // Close-domain handler: scopes to filter-matching tabs when the
   // filter is active, preserves Chrome tab groups, animates the whole
@@ -125,7 +126,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     await requestDashboardRefresh()
   }
 
-  const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}`
+  const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}${isAppsCard ? ' domain-block-apps' : ''}`
 
   return html`
     <div class=${classList} data-domain-id=${vm.stableId}>

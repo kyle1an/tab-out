@@ -26,30 +26,27 @@ function stableKey(group) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
 }
 
-// "Inbox zero" empty state — rendered when the card list is empty.
-// Previously this lived in ui.js:checkAndShowEmptyState, which
-// injected innerHTML into a Preact root (racy with the next
-// live-sync render, which would throw on the stale reconciler
-// state). Now it's just another branch of Missions — Preact
-// reconciles it correctly and swaps back to the card list as soon
-// as there's a domain to render.
-function EmptyState() {
+function EmptyState({ source = 'tabs' }) {
+  const noun = source === 'bookmarks' ? 'bookmarks' : 'tabs'
   return html`
     <div class="missions-empty-state">
-      <div class="empty-checkmark">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-        </svg>
-      </div>
-      <div class="empty-title">Inbox zero, but for tabs.</div>
-      <div class="empty-subtitle">You're free.</div>
+      <div class="empty-title">No ${noun}.</div>
     </div>
   `
 }
 
-export function Missions({ cards, filter = '', showEmptyState = true, onHoverUrlChange = null, onLayoutChange = null }) {
+function NoResultsState({ query = '' }) {
+  return html`
+    <div class="missions-empty-state missions-empty-state-filter">
+      <div class="empty-title">${query ? `No matches for “${query}”.` : 'No matches.'}</div>
+    </div>
+  `
+}
+
+export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, onLayoutChange = null }) {
   if (!cards || cards.length === 0) {
-    return showEmptyState ? html`<${EmptyState} />` : null
+    if (!showEmptyState) return null
+    return filter ? html`<${NoResultsState} query=${filter} />` : html`<${EmptyState} source=${source} />`
   }
   return html`
     <${Fragment}>
