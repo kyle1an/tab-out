@@ -13,6 +13,146 @@
  *   Red    (#b35a5a) → 21+ tabs   (time to cull!)
  */
 
+const TAB_HISTORY_KEY = 'tabHistoryByWindow'
+const MAX_TAB_HISTORY = 24
+let tabHistoryCache = null
+let suppressedActivation = null
+
+function normalizeWindowHistory(entry) {
+  if (!entry || !Array.isArray(entry.stack)) {
+    return { stack: [], index: -1 }
+  }
+  const stack = entry.stack.filter((id) => typeof id === 'number')
+  const maxIndex = stack.length - 1
+  const index = Number.isInteger(entry.index) ? Math.max(-1, Math.min(entry.index, maxIndex)) : maxIndex
+  return { stack, index }
+}
+
+async function readTabHistory() {
+  if (tabHistoryCache) return tabHistoryCache
+  if (!chrome.storage?.session) {
+    tabHistoryCache = {}
+    return tabHistoryCache
+  }
+  try {
+    const stored = await chrome.storage.session.get(TAB_HISTORY_KEY)
+    tabHistoryCache = stored[TAB_HISTORY_KEY] || {}
+  } catch {
+    tabHistoryCache = {}
+  }
+  return tabHistoryCache
+}
+
+async function writeTabHistory(nextHistory) {
+  tabHistoryCache = nextHistory
+  if (!chrome.storage?.session) return
+  try {
+    await chrome.storage.session.set({ [TAB_HISTORY_KEY]: nextHistory })
+  } catch {
+    // Best-effort only — the command can still work while the worker lives.
+  }
+}
+
+async function recordTabActivation(windowId, tabId) {
+  const history = { ...(await readTabHistory()) }
+  const key = String(windowId)
+  if (suppressedActivation && suppressedActivation.windowId === windowId && suppressedActivation.tabId === tabId) {
+    suppressedActivation = null
+    return
+  }
+
+  const current = normalizeWindowHistory(history[key])
+  if (current.stack[current.index] === tabId) return
+
+  let nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
+  nextStack.push(tabId)
+  if (nextStack.length > MAX_TAB_HISTORY) {
+    nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
+  }
+
+  history[key] = {
+    stack: nextStack,
+    index: nextStack.length - 1
+  }
+  await writeTabHistory(history)
+}
+
+async function removeTabFromHistory(tabId) {
+  const history = { ...(await readTabHistory()) }
+  let changed = false
+  for (const key of Object.keys(history)) {
+    const current = normalizeWindowHistory(history[key])
+    const removeIndex = current.stack.indexOf(tabId)
+    if (removeIndex !== -1) {
+      const nextStack = current.stack.filter((id) => id !== tabId)
+      let nextIndex = current.index
+      if (removeIndex < current.index) nextIndex -= 1
+      if (removeIndex === current.index) nextIndex = Math.min(nextIndex, nextStack.length - 1)
+      history[key] = {
+        stack: nextStack,
+        index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex)
+      }
+      changed = true
+    }
+  }
+  if (changed) await writeTabHistory(history)
+}
+
+async function switchTabHistory(direction) {
+  const currentWindow = await chrome.windows.getCurrent()
+  if (!currentWindow?.id) return
+
+  const tabs = await chrome.tabs.query({ windowId: currentWindow.id })
+  const activeTab = tabs.find((tab) => tab.active)
+  if (!activeTab?.id) return
+
+  const existingIds = new Set(tabs.map((tab) => tab.id))
+  const history = await readTabHistory()
+  const key = String(currentWindow.id)
+  const current = normalizeWindowHistory(history[key])
+
+  if (current.stack.length === 0) {
+    history[key] = { stack: [activeTab.id], index: 0 }
+    await writeTabHistory(history)
+    return
+  }
+
+  let index = current.index
+  if (current.stack[index] !== activeTab.id) {
+    const latestActiveIndex = current.stack.lastIndexOf(activeTab.id)
+    if (latestActiveIndex !== -1) {
+      index = latestActiveIndex
+    } else {
+      const nextStack = current.stack.concat(activeTab.id).slice(-MAX_TAB_HISTORY)
+      history[key] = { stack: nextStack, index: nextStack.length - 1 }
+      await writeTabHistory(history)
+      return
+    }
+  }
+
+  let nextIndex = index + direction
+  while (nextIndex >= 0 && nextIndex < current.stack.length && !existingIds.has(current.stack[nextIndex])) {
+    nextIndex += direction
+  }
+  if (nextIndex < 0 || nextIndex >= current.stack.length) return
+
+  const targetId = current.stack[nextIndex]
+  history[key] = {
+    stack: current.stack,
+    index: nextIndex
+  }
+  await writeTabHistory(history)
+  suppressedActivation = { windowId: currentWindow.id, tabId: targetId }
+
+  try {
+    await chrome.tabs.update(targetId, { active: true })
+    await chrome.windows.update(currentWindow.id, { focused: true })
+  } catch {
+    suppressedActivation = null
+    await removeTabFromHistory(targetId)
+  }
+}
+
 // ─── Badge updater ────────────────────────────────────────────────────────────
 
 /**
@@ -70,9 +210,15 @@ chrome.tabs.onCreated.addListener(() => {
   updateBadge()
 })
 
+// Track activation history per window so the command can jump back.
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  recordTabActivation(windowId, tabId)
+})
+
 // Update badge whenever a tab is closed
-chrome.tabs.onRemoved.addListener(() => {
+chrome.tabs.onRemoved.addListener((tabId) => {
   updateBadge()
+  removeTabFromHistory(tabId)
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
@@ -109,6 +255,14 @@ chrome.windows.onCreated.addListener(async (window) => {
     }
   } catch {
     // Window may have closed between onCreated and our query; silently drop.
+  }
+})
+
+chrome.commands?.onCommand.addListener((command) => {
+  if (command === 'switch-to-last-tab') {
+    switchTabHistory(-1)
+  } else if (command === 'switch-to-next-tab') {
+    switchTabHistory(1)
   }
 })
 

@@ -164,5 +164,7 @@ test('buildDashboardViewModel disables destructive actions for bookmarks source'
 
 test('manifest keeps only the permissions used by the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
-  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'favicon'])
+  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'storage', 'favicon'])
+  assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the last active tab in the current window')
+  assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in the current window history')
 })
