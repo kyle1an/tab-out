@@ -59,7 +59,7 @@ function removeTabEntriesFromHistory(history, tabId) {
     .map((entry, index) => (entry.tabId === tabId ? index : -1))
     .filter((index) => index !== -1)
 
-  if (removedIndexes.length === 0) return current
+  if (removedIndexes.length === 0) return history
 
   const nextStack = current.stack.filter((entry) => entry.tabId !== tabId)
   const removedBeforeIndex = removedIndexes.filter((index) => index < current.index).length
@@ -79,7 +79,7 @@ function removeTabEntriesFromHistory(history, tabId) {
 async function readTabHistory() {
   if (tabHistoryCache) return tabHistoryCache
   if (!chrome.storage?.session) {
-    tabHistoryCache = {}
+    tabHistoryCache = { stack: [], index: -1 }
     return tabHistoryCache
   }
   try {
@@ -132,7 +132,7 @@ async function recordFocusedWindowActiveTab(windowId) {
 async function removeTabFromHistory(tabId) {
   const history = normalizeGlobalHistory(await readTabHistory())
   const nextHistory = removeTabEntriesFromHistory(history, tabId)
-  if (nextHistory.stack === history.stack && nextHistory.index === history.index) return
+  if (nextHistory === history) return
   await writeTabHistory(nextHistory)
 }
 
@@ -312,7 +312,8 @@ chrome.tabs.onCreated.addListener(() => {
   updateBadge()
 })
 
-// Track activation history per window so the command can jump back.
+// Track tab activation history so commands and close-redirect can
+// follow the user's actual navigation path.
 chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
   recordTabActivation(windowId, tabId)
 })
