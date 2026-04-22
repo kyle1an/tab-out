@@ -2,7 +2,7 @@ import { h, Fragment, render as preactRender } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { useEffect, useLayoutEffect, useRef, useState } from '../vendor/preact-hooks.mjs'
 import { closeDuplicateTabs, closeTabsExact } from '../tabs.js'
-import { packMissionsMasonry } from '../layout.js'
+import { useMissionsMasonry } from '../layout.js'
 import { showToast } from './Toast.js'
 import { markClosure } from '../undo.js'
 import { registerDashboardRefresh } from '../dashboard-controller.js'
@@ -13,27 +13,51 @@ import { UrlPreview } from './UrlPreview.js'
 
 const html = htm.bind(h)
 
+function stableGroupId(group) {
+  return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
+}
+
 export function App({ initialDashboard = null }) {
   const [dashboard, setDashboard] = useState(initialDashboard)
   const [filter, setFilter] = useState('')
   const [hoveredUrl, setHoveredUrl] = useState('')
+  const [isScrolled, setIsScrolled] = useState(false)
   const refreshRef = useRef(async () => {})
+  const previousOrderRef = useRef(new Map())
+  const scrollRegionRef = useRef(null)
+  const primaryMissionsRef = useRef(null)
+  const unmatchedMissionsRef = useRef(null)
   const realTabs = dashboard?.realTabs || []
   const domainGroups = dashboard?.domainGroups || []
   const isReady = !!dashboard
+  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, unmatchedMissionsRef)
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
-    const next = await fetchDashboardData()
+    const next = await fetchDashboardData(previousOrderRef.current)
     setDashboard(next)
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
 
+  useEffect(() => {
+    const scrollEl = scrollRegionRef.current
+    if (!scrollEl) return
+
+    function onScroll() {
+      const next = scrollEl.scrollTop > 0
+      setIsScrolled((prev) => (prev === next ? prev : next))
+    }
+
+    onScroll()
+    scrollEl.addEventListener('scroll', onScroll, { passive: true })
+    return () => scrollEl.removeEventListener('scroll', onScroll)
+  }, [])
+
   useLayoutEffect(() => {
     if (!isReady) return
     setHoveredUrl('')
-    packMissionsMasonry({ unpin: true })
+    packMissionsMasonryNow({ unpin: true })
   }, [domainGroups, filter, isReady])
 
   const dashboardVm = buildDashboardViewModel({
@@ -70,9 +94,13 @@ export function App({ initialDashboard = null }) {
   const unmatchedCards = dashboardVm.unmatchedCards
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
 
+  useEffect(() => {
+    previousOrderRef.current = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+  }, [domainGroups, filter, isReady])
+
   return html`
     <${Fragment}>
-      <div class="pinned-top">
+      <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
         <div class="page-inner">
           <${HeaderBar}
             totalTabs=${stats.totalTabs}
@@ -94,11 +122,17 @@ export function App({ initialDashboard = null }) {
         </div>
       </div>
 
-      <div class="scroll-region">
+      <div class="scroll-region" ref=${scrollRegionRef}>
         <div class="page-inner">
           <div class="active-section" id="openTabsSection" style=${isReady ? '' : 'display:none'}>
-            <div class="missions" id="openTabsMissions">
-              ${isReady && html`<${Missions} cards=${matchedCards} filter=${filter} onHoverUrlChange=${setHoveredUrl} />`}
+            <div class="missions" id="openTabsMissions" ref=${primaryMissionsRef}>
+              ${isReady &&
+              html`<${Missions}
+                cards=${matchedCards}
+                filter=${filter}
+                onHoverUrlChange=${setHoveredUrl}
+                onLayoutChange=${scheduleMissionsMasonry}
+              />`}
             </div>
 
             ${showOtherTabs &&
@@ -109,8 +143,14 @@ export function App({ initialDashboard = null }) {
                   <span class="missions-divider-label">Other tabs</span>
                   <span class="missions-divider-rule"></span>
                 </div>
-                <div class="missions" id="openTabsMissionsUnmatched">
-                  <${Missions} cards=${unmatchedCards} filter=${filter} showEmptyState=${false} onHoverUrlChange=${setHoveredUrl} />
+                <div class="missions" id="openTabsMissionsUnmatched" ref=${unmatchedMissionsRef}>
+                  <${Missions}
+                    cards=${unmatchedCards}
+                    filter=${filter}
+                    showEmptyState=${false}
+                    onHoverUrlChange=${setHoveredUrl}
+                    onLayoutChange=${scheduleMissionsMasonry}
+                  />
                 </div>
               </div>
             `}

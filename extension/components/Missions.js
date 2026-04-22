@@ -47,13 +47,16 @@ function EmptyState() {
   `
 }
 
-export function Missions({ cards, filter = '', showEmptyState = true, onHoverUrlChange = null }) {
+export function Missions({ cards, filter = '', showEmptyState = true, onHoverUrlChange = null, onLayoutChange = null }) {
   if (!cards || cards.length === 0) {
     return showEmptyState ? html`<${EmptyState} />` : null
   }
   return html`
     <${Fragment}>
-      ${cards.map(({ group, vm }) => html` <${DomainCard} key=${stableKey(group)} group=${group} vm=${vm} filter=${filter} onHoverUrlChange=${onHoverUrlChange} /> `)}
+      ${cards.map(
+        ({ group, vm }) =>
+          html` <${DomainCard} key=${stableKey(group)} group=${group} vm=${vm} filter=${filter} onHoverUrlChange=${onHoverUrlChange} onLayoutChange=${onLayoutChange} /> `
+      )}
     </${Fragment}>
   `
 }

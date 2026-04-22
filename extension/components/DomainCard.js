@@ -61,7 +61,7 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
   `
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null }) {
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null }) {
   if (vm.isHidden) return null
 
   // Close-domain handler: scopes to filter-matching tabs when the
@@ -157,6 +157,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null }) 
                 flatHiddenCount=${s.flatHiddenCount}
                 clusters=${s.clusters}
                 onHoverUrlChange=${onHoverUrlChange}
+                onLayoutChange=${onLayoutChange}
               />
             `
           )}

@@ -21,7 +21,6 @@ import { useState } from '../vendor/preact-hooks.mjs'
 import { closeTabsExact } from '../tabs.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { markClosure } from '../undo.js'
-import { packMissionsMasonry } from '../layout.js'
 import { PageChip } from './PageChip.js'
 
 const html = htm.bind(h)
@@ -37,12 +36,12 @@ function PathgroupCloseButton({ count, onClick }) {
   `
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null }) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
     setExpanded(true)
-    requestAnimationFrame(() => packMissionsMasonry())
+    if (onLayoutChange) onLayoutChange()
   }
 
   // Close-cluster handler. Exact-URL matching + preserveGroups
