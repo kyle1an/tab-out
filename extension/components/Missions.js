@@ -47,16 +47,13 @@ function EmptyState() {
   `
 }
 
-export function Missions({ domains, filter = '', mode = 'matched', onHoverUrlChange = null }) {
-  if (!domains || domains.length === 0) {
-    // Empty state only shows in the primary ("matched") grid — the
-    // secondary grid is already hidden upstream when there's nothing
-    // to not-match.
-    return mode === 'unmatched' ? null : html`<${EmptyState} />`
+export function Missions({ cards, filter = '', showEmptyState = true, onHoverUrlChange = null }) {
+  if (!cards || cards.length === 0) {
+    return showEmptyState ? html`<${EmptyState} />` : null
   }
   return html`
     <${Fragment}>
-      ${domains.map((g) => html` <${DomainCard} key=${stableKey(g)} group=${g} filter=${filter} mode=${mode} onHoverUrlChange=${onHoverUrlChange} /> `)}
+      ${cards.map(({ group, vm }) => html` <${DomainCard} key=${stableKey(group)} group=${group} vm=${vm} filter=${filter} onHoverUrlChange=${onHoverUrlChange} /> `)}
     </${Fragment}>
   `
 }

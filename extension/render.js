@@ -7,6 +7,8 @@
    Exports:
    • fetchDashboardData — refreshes chrome.tabs state and returns the
                           current { realTabs, domainGroups } snapshot
+   • buildDashboardViewModel — one-pass derivation for header stats,
+                               global actions, and prebuilt card VMs
    • computeDomainCardViewModel — per-card VM, takes { filter, mode }
                                   and returns match-scoped fields
    • getFilteredCloseableUrls — exact URLs the global filtered-close
@@ -14,7 +16,6 @@
    • getHeaderStats — snapshot counts + action-state for the header
    • getGlobalDedupeUrls — dedupe targets aggregated across cards
    • hasUnmatchedTabs — whether the secondary "Other tabs" grid should show
-   • domainGroups — live array of current grouping
    • pickFavicon — tab.favIconUrl (preserves data: URIs) /
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
@@ -25,8 +26,6 @@ import { unwrapSuspenderUrl } from './suspender.js'
 import { cleanTitle, stripTitleNoise } from './titles.js'
 import { registrableDomain, subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
-
-export let domainGroups = []
 
 /**
  * pickFavicon(tab) — two-path favicon resolver:
@@ -150,52 +149,76 @@ export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') 
     .map((t) => t.url)
 }
 
-export function getGlobalDedupeUrls(groups = domainGroups, filter = '') {
-  const urls = []
-  for (const group of groups) {
-    const vm = computeDomainCardViewModel(group, { filter, mode: 'matched' })
-    if (vm.isHidden || !vm.closableDupeUrls) continue
-    vm.closableDupeUrls.forEach((url) => urls.push(url))
-  }
-  return urls
-}
-
-export function hasUnmatchedTabs(groups = domainGroups, filter = '') {
-  return !!filter && groups.some((g) => !computeDomainCardViewModel(g, { filter, mode: 'unmatched' }).isHidden)
-}
-
 /**
- * getHeaderStats({ realTabs, domainGroups, filter }) — snapshot counts and
- * aggregated action-state for the header row. Uses the same per-card VM as
- * the missions grid, so the header cannot drift from what the cards render.
+ * buildDashboardViewModel({ realTabs, domainGroups, filter }) — derives the
+ * header stats, global action targets, and prebuilt card VMs in one pass.
+ *
+ * This keeps the dashboard honest and lighter-weight: the App root, header,
+ * and missions grids all consume the same matched / unmatched card VMs
+ * instead of each caller re-running computeDomainCardViewModel() over the
+ * same groups.
  */
-export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = domainGroups, filter = '' } = {}) {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '' } = {}) {
   const filtering = filter.length > 0
   const visibleTabs = filtering ? realTabs.filter((t) => tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
 
-  let visibleDomains = 0
+  const matchedCards = []
+  const unmatchedCards = []
+  const globalDedupeUrls = []
   let dedupCount = 0
   for (const group of groups) {
-    const vm = computeDomainCardViewModel(group, { filter, mode: 'matched' })
-    if (vm.isHidden) continue
-    visibleDomains++
-    dedupCount += vm.closableExtras || 0
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched' })
+    if (!matchedVm.isHidden) {
+      matchedCards.push({ group, vm: matchedVm })
+      dedupCount += matchedVm.closableExtras || 0
+      if (matchedVm.closableDupeUrls?.length) globalDedupeUrls.push(...matchedVm.closableDupeUrls)
+    }
+
+    if (!filtering) continue
+
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched' })
+    if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 
+  const filteredCloseUrls = getFilteredCloseableUrls(realTabs, filter)
+
   return {
-    totalTabs: realTabs.length,
-    visibleTabs: visibleTabs.length,
-    totalWindows,
-    visibleWindows,
-    totalDomains: groups.length,
-    visibleDomains,
-    dedupCount,
-    filteredCloseCount: getFilteredCloseableUrls(realTabs, filter).length,
-    hasCards: groups.length > 0,
-    filtering
+    stats: {
+      totalTabs: realTabs.length,
+      visibleTabs: visibleTabs.length,
+      totalWindows,
+      visibleWindows,
+      totalDomains: groups.length,
+      visibleDomains: matchedCards.length,
+      dedupCount,
+      filteredCloseCount: filteredCloseUrls.length,
+      hasCards: groups.length > 0,
+      filtering
+    },
+    matchedCards,
+    unmatchedCards,
+    showOtherTabs: unmatchedCards.length > 0,
+    globalDedupeUrls,
+    filteredCloseUrls
   }
+}
+
+export function getGlobalDedupeUrls(groups = [], filter = '') {
+  return buildDashboardViewModel({ domainGroups: groups, filter }).globalDedupeUrls
+}
+
+export function hasUnmatchedTabs(groups = [], filter = '') {
+  return buildDashboardViewModel({ domainGroups: groups, filter }).showOtherTabs
+}
+
+/**
+ * getHeaderStats({ realTabs, domainGroups, filter }) — compatibility wrapper
+ * for callers that only need the header row snapshot.
+ */
+export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '' } = {}) {
+  return buildDashboardViewModel({ realTabs, domainGroups: groups, filter }).stats
 }
 
 
@@ -975,6 +998,6 @@ function buildDomainGroups(realTabs) {
 export async function fetchDashboardData() {
   await fetchOpenTabs()
   const realTabs = getRealTabs()
-  domainGroups = buildDomainGroups(realTabs)
+  const domainGroups = buildDomainGroups(realTabs)
   return { realTabs, domainGroups }
 }

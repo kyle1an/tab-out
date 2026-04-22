@@ -27,7 +27,6 @@ import { closeTabsByUrls, closeTabsExact, closeDuplicateTabs } from '../tabs.js'
 import { markClosure } from '../undo.js'
 import { shootConfetti } from '../confetti.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
-import { computeDomainCardViewModel } from '../render.js'
 import { SubdomainSection } from './SubdomainSection.js'
 
 const html = htm.bind(h)
@@ -62,9 +61,7 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
   `
 }
 
-export function DomainCard({ group, filter = '', mode = 'matched', onHoverUrlChange = null }) {
-  const vm = computeDomainCardViewModel(group, { filter, mode })
-
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null }) {
   if (vm.isHidden) return null
 
   // Close-domain handler: scopes to filter-matching tabs when the
