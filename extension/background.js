@@ -16,7 +16,6 @@
 const TAB_HISTORY_KEY = 'globalTabHistory'
 const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
-let suppressedActivation = null
 
 function extensionNewtabUrl() {
   return `chrome-extension://${chrome.runtime.id}/index.html`
@@ -104,11 +103,6 @@ async function writeTabHistory(nextHistory) {
 
 async function recordTabActivation(windowId, tabId) {
   const history = normalizeGlobalHistory(await readTabHistory())
-  if (suppressedActivation && suppressedActivation.windowId === windowId && suppressedActivation.tabId === tabId) {
-    suppressedActivation = null
-    return
-  }
-
   if (history.stack[history.index]?.tabId === tabId) return
 
   let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
@@ -123,11 +117,75 @@ async function recordTabActivation(windowId, tabId) {
   })
 }
 
+async function recordFocusedWindowActiveTab(windowId) {
+  if (windowId == null || windowId === chrome.windows.WINDOW_ID_NONE) return
+  try {
+    const tabs = await chrome.tabs.query({ windowId, active: true })
+    const activeTab = tabs[0]
+    if (!activeTab?.id) return
+    await recordTabActivation(windowId, activeTab.id)
+  } catch {
+    // Window may have closed or be unavailable; ignore.
+  }
+}
+
 async function removeTabFromHistory(tabId) {
   const history = normalizeGlobalHistory(await readTabHistory())
   const nextHistory = removeTabEntriesFromHistory(history, tabId)
   if (nextHistory.stack === history.stack && nextHistory.index === history.index) return
   await writeTabHistory(nextHistory)
+}
+
+async function restorePreviousTabAfterClose(tabId, removeInfo) {
+  if (!removeInfo || removeInfo.isWindowClosing) return
+
+  const history = normalizeGlobalHistory(await readTabHistory())
+  const currentEntry = history.stack[history.index]
+  if (!currentEntry || currentEntry.tabId !== tabId || currentEntry.windowId !== removeInfo.windowId) {
+    await removeTabFromHistory(tabId)
+    return
+  }
+
+  const tabsInWindow = await chrome.tabs.query({ windowId: removeInfo.windowId })
+  const existingIds = new Set(tabsInWindow.map((tab) => tab.id))
+
+  let targetOldIndex = -1
+  for (let i = history.index - 1; i >= 0; i--) {
+    const entry = history.stack[i]
+    if (entry.windowId !== removeInfo.windowId) continue
+    if (!existingIds.has(entry.tabId)) continue
+    targetOldIndex = i
+    break
+  }
+
+  const nextHistory = removeTabEntriesFromHistory(history, tabId)
+  if (targetOldIndex === -1) {
+    await writeTabHistory(nextHistory)
+    return
+  }
+
+  const targetId = history.stack[targetOldIndex].tabId
+  let targetNewIndex = -1
+  for (let i = Math.min(targetOldIndex, nextHistory.stack.length - 1); i >= 0; i--) {
+    if (nextHistory.stack[i].tabId === targetId && nextHistory.stack[i].windowId === removeInfo.windowId) {
+      targetNewIndex = i
+      break
+    }
+  }
+
+  const finalHistory = {
+    stack: nextHistory.stack,
+    index: targetNewIndex === -1 ? nextHistory.index : targetNewIndex
+  }
+  await writeTabHistory(finalHistory)
+
+  if (targetNewIndex === -1) return
+
+  try {
+    await chrome.tabs.update(targetId, { active: true })
+  } catch {
+    await removeTabFromHistory(targetId)
+  }
 }
 
 async function switchTabHistory(direction) {
@@ -157,17 +215,24 @@ async function switchTabHistory(direction) {
       if (nextStack.length > MAX_TAB_HISTORY) {
         nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
       }
-      await writeTabHistory({
+      const nextHistory = {
         stack: nextStack,
         index: nextStack.length - 1
-      })
-      return
+      }
+      await writeTabHistory(nextHistory)
+      history.stack = nextHistory.stack
+      history.index = nextHistory.index
+      index = nextHistory.index
     }
   }
 
   const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
   let nextIndex = index + direction
-  while (nextIndex >= 0 && nextIndex < history.stack.length && !existingTabs.has(history.stack[nextIndex].tabId)) {
+  while (
+    nextIndex >= 0 &&
+    nextIndex < history.stack.length &&
+    (!existingTabs.has(history.stack[nextIndex].tabId) || history.stack[nextIndex].tabId === activeTab.id)
+  ) {
     nextIndex += direction
   }
   if (nextIndex < 0 || nextIndex >= history.stack.length) return
@@ -179,13 +244,11 @@ async function switchTabHistory(direction) {
     stack: history.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
     index: nextIndex
   })
-  suppressedActivation = { windowId: targetTab.windowId, tabId: targetTab.id }
 
   try {
     await chrome.tabs.update(targetTab.id, { active: true })
     await chrome.windows.update(targetTab.windowId, { focused: true })
   } catch {
-    suppressedActivation = null
     await removeTabFromHistory(targetTab.id)
   }
 }
@@ -254,10 +317,14 @@ chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
   recordTabActivation(windowId, tabId)
 })
 
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  recordFocusedWindowActiveTab(windowId)
+})
+
 // Update badge whenever a tab is closed
-chrome.tabs.onRemoved.addListener((tabId) => {
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   updateBadge()
-  removeTabFromHistory(tabId)
+  restorePreviousTabAfterClose(tabId, removeInfo)
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
