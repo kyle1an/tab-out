@@ -3,9 +3,17 @@
   "name": "Tab Out",
   "version": "1.0.0",
   "description": "Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.",
-  "permissions": ["tabs", "tabGroups", "bookmarks", "favicon"],
+  "permissions": ["tabs", "tabGroups", "bookmarks", "storage", "favicon"],
   "chrome_url_overrides": { "newtab": "index.html" },
   "background": { "service_worker": "background.js" },
+  "commands": {
+    "switch-to-last-tab": {
+      "description": "Switch to the last active tab in the current window"
+    },
+    "switch-to-next-tab": {
+      "description": "Switch forward to the next tab in the current window history"
+    }
+  },
   "action": {
     "default_title": "Tab Out",
     "default_icon": {
