@@ -8,10 +8,10 @@
   "background": { "service_worker": "background.js" },
   "commands": {
     "switch-to-last-tab": {
-      "description": "Switch to the last active tab in the current window"
+      "description": "Switch to the previous tab in global activation history"
     },
     "switch-to-next-tab": {
-      "description": "Switch forward to the next tab in the current window history"
+      "description": "Switch forward to the next tab in global activation history"
     }
   },
   "action": {
