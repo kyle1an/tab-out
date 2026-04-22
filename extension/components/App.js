@@ -6,7 +6,7 @@ import { packMissionsMasonry } from '../layout.js'
 import { showToast } from './Toast.js'
 import { markClosure } from '../undo.js'
 import { registerDashboardRefresh } from '../dashboard-controller.js'
-import { fetchDashboardData, getFilteredCloseableUrls, getGlobalDedupeUrls, getHeaderStats, hasUnmatchedTabs } from '../render.js'
+import { buildDashboardViewModel, fetchDashboardData } from '../render.js'
 import { HeaderBar } from './HeaderBar.js'
 import { Missions } from './Missions.js'
 import { UrlPreview } from './UrlPreview.js'
@@ -25,10 +25,7 @@ export function App({ initialDashboard = null }) {
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
     const next = await fetchDashboardData()
-    setDashboard({
-      realTabs: next.realTabs,
-      domainGroups: [...next.domainGroups]
-    })
+    setDashboard(next)
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
@@ -39,8 +36,14 @@ export function App({ initialDashboard = null }) {
     packMissionsMasonry({ unpin: true })
   }, [domainGroups, filter, isReady])
 
+  const dashboardVm = buildDashboardViewModel({
+    realTabs,
+    domainGroups,
+    filter
+  })
+
   async function onCloseFiltered() {
-    const urls = getFilteredCloseableUrls(realTabs, filter)
+    const urls = dashboardVm.filteredCloseUrls
     if (urls.length === 0) {
       showToast('Nothing to close')
       return
@@ -55,19 +58,17 @@ export function App({ initialDashboard = null }) {
   }
 
   async function onDedupAll() {
-    const urls = getGlobalDedupeUrls(domainGroups, filter)
+    const urls = dashboardVm.globalDedupeUrls
     if (urls.length === 0) return
     const snapshot = await closeDuplicateTabs(urls, true)
     markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
     await refreshRef.current()
   }
 
-  const stats = getHeaderStats({
-    realTabs,
-    domainGroups,
-    filter
-  })
-  const showOtherTabs = isReady && hasUnmatchedTabs(domainGroups, filter)
+  const stats = dashboardVm.stats
+  const matchedCards = dashboardVm.matchedCards
+  const unmatchedCards = dashboardVm.unmatchedCards
+  const showOtherTabs = isReady && dashboardVm.showOtherTabs
 
   return html`
     <${Fragment}>
@@ -97,7 +98,7 @@ export function App({ initialDashboard = null }) {
         <div class="page-inner">
           <div class="active-section" id="openTabsSection" style=${isReady ? '' : 'display:none'}>
             <div class="missions" id="openTabsMissions">
-              ${isReady && html`<${Missions} domains=${domainGroups} filter=${filter} mode="matched" onHoverUrlChange=${setHoveredUrl} />`}
+              ${isReady && html`<${Missions} cards=${matchedCards} filter=${filter} onHoverUrlChange=${setHoveredUrl} />`}
             </div>
 
             ${showOtherTabs &&
@@ -109,7 +110,7 @@ export function App({ initialDashboard = null }) {
                   <span class="missions-divider-rule"></span>
                 </div>
                 <div class="missions" id="openTabsMissionsUnmatched">
-                  <${Missions} domains=${domainGroups} filter=${filter} mode="unmatched" onHoverUrlChange=${setHoveredUrl} />
+                  <${Missions} cards=${unmatchedCards} filter=${filter} showEmptyState=${false} onHoverUrlChange=${setHoveredUrl} />
                 </div>
               </div>
             `}
