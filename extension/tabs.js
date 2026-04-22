@@ -265,6 +265,19 @@ export async function focusTab(url) {
 }
 
 /**
+ * openTabUrl(url) — open a URL in a new active tab in the current window.
+ *
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
+export async function openTabUrl(url) {
+  if (!url) return
+  try {
+    await chrome.tabs.create({ url, active: true })
+  } catch {}
+}
+
+/**
  * closeDuplicateTabs(urls, keepOne) — closes duplicate tabs of each
  * URL according to the dedup policy (mirrors renderDomainCard's button
  * count math):

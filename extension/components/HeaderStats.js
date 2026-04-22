@@ -14,6 +14,7 @@ const html = htm.bind(h)
 
 export function HeaderStats({
   ready = true,
+  source = 'tabs',
   totalTabs,
   visibleTabs,
   totalWindows,
@@ -31,7 +32,8 @@ export function HeaderStats({
     return html`<div class="header-stats" aria-hidden="true"></div>`
   }
 
-  const tabsLabel = filtering ? `${visibleTabs} of ${totalTabs} Open tab${totalTabs !== 1 ? 's' : ''}` : `${totalTabs} Open tab${totalTabs !== 1 ? 's' : ''}`
+  const itemLabel = source === 'bookmarks' ? 'bookmark' : 'Open tab'
+  const tabsLabel = filtering ? `${visibleTabs} of ${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}` : `${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}`
 
   const windowsLabel =
     visibleWindows === totalWindows
@@ -45,15 +47,19 @@ export function HeaderStats({
 
   return html`
     <div class="header-stats">
-      ${dedupCount > 0 &&
+      ${source === 'tabs' &&
+      dedupCount > 0 &&
       html`
         <button class="action-btn" title=${dedupTitle} style="font-size:11px;padding:4px 12px;" onClick=${onDedupAll}>
           Dedupe ${dedupCount}
         </button>
       `}
       <span class="stat-primary" id="greeting">${tabsLabel}</span>
-      <span class="stat-sep">·</span>
-      <span class="date" id="dateDisplay">${windowsLabel}</span>
+      ${source === 'tabs' &&
+      html`
+        <span class="stat-sep">·</span>
+        <span class="date" id="dateDisplay">${windowsLabel}</span>
+      `}
       ${hasCards &&
       html`
         <span class="stat-extras" id="sectionHeaderWrap">
@@ -61,7 +67,8 @@ export function HeaderStats({
           <span class="section-count" id="openTabsSectionCount">${domainsLabel}</span>
         </span>
       `}
-      ${filteredCloseCount > 0 &&
+      ${source === 'tabs' &&
+      filteredCloseCount > 0 &&
       html`
         <button class="action-btn close-tabs" style="font-size:11px;padding:4px 12px;" onClick=${onCloseFiltered}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">

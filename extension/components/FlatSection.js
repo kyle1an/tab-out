@@ -24,6 +24,7 @@ const html = htm.bind(h)
 
 export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }) {
   const [expanded, setExpanded] = useState(false)
+  const iconOnly = visibleChips.length > 0 && visibleChips.every((chip) => chip.iconOnly)
 
   function onExpand() {
     setExpanded(true)
@@ -33,7 +34,7 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrl
   }
 
   return html`
-    <div class="flat-section" data-expanded=${expanded ? 'true' : null}>
+    <div class=${'flat-section' + (iconOnly ? ' flat-section-icons' : '')} data-expanded=${expanded ? 'true' : null}>
       ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}
       ${hiddenCount > 0 &&
       html` <div class="page-chips-overflow">${hiddenChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}</div> `}

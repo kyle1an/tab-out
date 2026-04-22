@@ -23,6 +23,7 @@
    ================================================================ */
 
 import { fetchOpenTabs, getRealTabs } from './tabs.js'
+import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { unwrapSuspenderUrl } from './suspender.js'
 import { cleanTitle, stripTitleNoise } from './titles.js'
@@ -37,6 +38,7 @@ import { resolvePathGroup } from './path-groups.js'
 /** @typedef {import('./types').DashboardStats} DashboardStats */
 /** @typedef {import('./types').LandingPagePattern} LandingPagePattern */
 /** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
+/** @typedef {'tabs' | 'bookmarks'} DashboardSource */
 
 /**
  * pickFavicon(tab) — two-path favicon resolver:
@@ -187,36 +189,40 @@ export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') 
  * same groups.
  */
 /**
- * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string }} [opts]
+ * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource }} [opts]
  * @returns {DashboardViewModel}
  */
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '' } = {}) {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' } = {}) {
   const filtering = filter.length > 0
   const visibleTabs = filtering ? realTabs.filter((t) => tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
+  const allowMutations = source === 'tabs'
 
   const matchedCards = []
   const unmatchedCards = []
   const globalDedupeUrls = []
   let dedupCount = 0
   for (const group of groups) {
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched' })
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
-      dedupCount += matchedVm.closableExtras || 0
-      if (matchedVm.closableDupeUrls?.length) globalDedupeUrls.push(...matchedVm.closableDupeUrls)
+      if (allowMutations) {
+        dedupCount += matchedVm.closableExtras || 0
+        if (matchedVm.closableDupeUrls?.length) globalDedupeUrls.push(...matchedVm.closableDupeUrls)
+      }
     }
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched' })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 
-  const filteredCloseUrls = getFilteredCloseableUrls(realTabs, filter)
+  const filteredCloseUrls = allowMutations ? getFilteredCloseableUrls(realTabs, filter) : []
 
   return {
+    source,
     stats: {
       totalTabs: realTabs.length,
       visibleTabs: visibleTabs.length,
@@ -243,7 +249,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
  * @returns {string[]}
  */
 export function getGlobalDedupeUrls(groups = [], filter = '') {
-  return buildDashboardViewModel({ domainGroups: groups, filter }).globalDedupeUrls
+  return buildDashboardViewModel({ domainGroups: groups, filter, source: 'tabs' }).globalDedupeUrls
 }
 
 /**
@@ -252,7 +258,7 @@ export function getGlobalDedupeUrls(groups = [], filter = '') {
  * @returns {boolean}
  */
 export function hasUnmatchedTabs(groups = [], filter = '') {
-  return buildDashboardViewModel({ domainGroups: groups, filter }).showOtherTabs
+  return buildDashboardViewModel({ domainGroups: groups, filter, source: 'tabs' }).showOtherTabs
 }
 
 /**
@@ -260,11 +266,11 @@ export function hasUnmatchedTabs(groups = [], filter = '') {
  * for callers that only need the header row snapshot.
  */
 /**
- * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string }} [opts]
+ * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource }} [opts]
  * @returns {DashboardStats}
  */
-export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '' } = {}) {
-  return buildDashboardViewModel({ realTabs, domainGroups: groups, filter }).stats
+export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' } = {}) {
+  return buildDashboardViewModel({ realTabs, domainGroups: groups, filter, source }).stats
 }
 
 
@@ -362,10 +368,10 @@ function disambiguatingPaths(urls) {
 */
 /**
  * @param {DomainGroup} group
- * @param {{ filter?: string, mode?: 'matched' | 'unmatched' }} [opts]
+ * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group, { filter = '', mode = 'matched' } = {}) {
+export function computeDomainCardViewModel(group, { filter = '', mode = 'matched', allowMutations = true } = {}) {
   const allTabs = group.tabs || []
   const filtering = filter !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -392,6 +398,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
 
   const tabCount = tabs.length
   const isLanding = group.domain === '__landing-pages__'
+  const isAppsGroup = group.domain === '__standalone-apps__'
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
   const closableTabs = tabs.filter((t) => !isGroupedTab(t))
@@ -426,6 +433,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
   const closableDupeUrls = dupeUrls.map(([u]) => u).filter((u) => closableForUrl(u) > 0)
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
+  const dupeUrlsEncoded = closableDupeUrls.map((url) => encodeURIComponent(url)).join(',')
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
   const seen = new Set()
@@ -541,7 +549,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // favicon URL, tooltip, prefix/path/pg/dupe annotations. Phase 5
   // replaced the old renderChip HTML-string emitter with this
   // data-shape so components can render declaratively.
-  function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel, stripLabel) {
+  function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel, stripLabel, { iconOnly = false } = {}) {
     let parsed = null
     try {
       parsed = new URL(tab.url)
@@ -574,6 +582,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     return {
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
+      sourceType: tab.sourceType || 'tab',
       leadPrefix,
       pathGroupLabel: pgLabel,
       displaySegments,
@@ -585,6 +594,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
       isApp: !!tab.isApp,
+      iconOnly,
       envs: null
     }
   }
@@ -609,6 +619,46 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       return { vis: tabs, hid: [] }
     }
     return { vis: tabs.slice(0, CHIPS_PER_SECTION), hid: tabs.slice(CHIPS_PER_SECTION) }
+  }
+
+  if (isAppsGroup) {
+    const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', '', { iconOnly: true }))
+    const vmClosableCount = displayMode === 'unmatched' || !allowMutations ? 0 : closableCount
+    const vmClosableExtras = displayMode === 'unmatched' || !allowMutations ? 0 : closableExtras
+    const vmClosableDupeUrls = displayMode === 'unmatched' || !allowMutations ? [] : closableDupeUrls
+    const vmDupeUrlsEncoded = displayMode === 'unmatched' || !allowMutations ? '' : dupeUrlsEncoded
+    return {
+      stableId,
+      isHidden: false,
+      displayMode,
+      filtering,
+      isLanding: false,
+      tabCount,
+      closableCount: vmClosableCount,
+      closableCountLabel:
+        closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`,
+      closableDupeUrls: vmClosableDupeUrls,
+      closableExtras: vmClosableExtras,
+      dupeUrlsEncoded: vmDupeUrlsEncoded,
+      singleSubdomainKey: '',
+      singleSubdomainIsPort: false,
+      displayName: group.label || 'Apps',
+      sections: [
+        {
+          key: '__apps__',
+          sectionCount: tabCount,
+          sectionClosableUrls: displayMode === 'unmatched' || !allowMutations ? [] : closableTabs.map((tab) => tab.url),
+          showHeader: false,
+          isShared: false,
+          isPort: false,
+          hasFlat: true,
+          flatVisibleChips: appChips,
+          flatHiddenChips: [],
+          flatHiddenCount: 0,
+          clusters: []
+        }
+      ]
+    }
   }
 
   // Folded (cross-env) chip data — one chip representing the same path
@@ -643,6 +693,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     return {
       tabUrl: primary.url,
       rawUrl: primary.rawUrl || primary.url,
+      sourceType: primary.sourceType || 'tab',
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,
@@ -670,7 +721,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     const sortedFolds = foldGroups.slice().sort((a, b) => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true }))
     const foldedChipData = sortedFolds.map((tabs) => buildFoldedChipData(tabs))
     const { vis, hid } = splitForOverflow(foldedChipData)
-    const sharedClosableUrls = sortedFolds.flatMap((tabs) => tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url))
+    const sharedClosableUrls = allowMutations ? sortedFolds.flatMap((tabs) => tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url)) : []
     const totalFoldedTabs = sortedFolds.reduce((sum, tabs) => sum + tabs.length, 0)
     sharedSectionData = {
       key: '__shared__',
@@ -807,7 +858,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
         return aCat - bCat
       })
       const { vis, hid } = splitForOverflow(orderedTabs)
-      const clusterClosable = orderedTabs.filter((t) => !isGroupedTab(t))
+      const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
       const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
       const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
       return {
@@ -832,7 +883,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // where the header itself is visible). Filters out tabs already
     // in a Chrome tab group — matches the preserveGroups semantics
     // used elsewhere. Union of every chip's URL in this section.
-    const sectionClosableUrls = sectionTabs.filter((t) => !isGroupedTab(t)).map((t) => t.url)
+    const sectionClosableUrls = allowMutations ? sectionTabs.filter((t) => !isGroupedTab(t)).map((t) => t.url) : []
 
     return {
       key,
@@ -860,8 +911,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const closableCountLabel =
     closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`
 
-  const dupeUrlsEncoded = closableDupeUrls.map((url) => encodeURIComponent(url)).join(',')
-
   const displayName = isLanding ? 'Homepages' : group.label || group.domain.replace(/^www\./, '')
 
   // In the secondary ("unmatched") grid, every bulk-close action is
@@ -871,10 +920,10 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // the buttons just don't render (components are already conditional
   // on closableCount > 0 / closableUrls.length > 0).
   const isUnmatched = displayMode === 'unmatched'
-  const vmClosableCount = isUnmatched ? 0 : closableCount
-  const vmClosableExtras = isUnmatched ? 0 : closableExtras
-  const vmClosableDupeUrls = isUnmatched ? [] : closableDupeUrls
-  const vmDupeUrlsEncoded = isUnmatched ? '' : dupeUrlsEncoded
+  const vmClosableCount = isUnmatched || !allowMutations ? 0 : closableCount
+  const vmClosableExtras = isUnmatched || !allowMutations ? 0 : closableExtras
+  const vmClosableDupeUrls = isUnmatched || !allowMutations ? [] : closableDupeUrls
+  const vmDupeUrlsEncoded = isUnmatched || !allowMutations ? '' : dupeUrlsEncoded
   const vmSections = isUnmatched
     ? sectionsData.map((s) => ({
         ...s,
@@ -952,6 +1001,7 @@ export function buildDomainGroups(
 
   const groupMap = {}
   const landingTabs = []
+  const appTabs = []
 
   function matchCustomGroup(url) {
     try {
@@ -971,6 +1021,11 @@ export function buildDomainGroups(
 
   for (const tab of realTabs) {
     try {
+      if (tab.isApp) {
+        appTabs.push(tab)
+        continue
+      }
+
       if (isLandingPage(tab.url)) {
         landingTabs.push(tab)
         continue
@@ -1006,6 +1061,9 @@ export function buildDomainGroups(
   if (landingTabs.length > 0) {
     groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs }
   }
+  if (appTabs.length > 0) {
+    groupMap['__standalone-apps__'] = { domain: '__standalone-apps__', label: 'Apps', tabs: appTabs }
+  }
 
   // Sort: landing pages first, then domains from landing-page sites, then by tab count.
   const landingHostnames = new Set(landingPagePatterns.map((p) => p.hostname).filter(Boolean))
@@ -1018,6 +1076,10 @@ export function buildDomainGroups(
     const aIsLanding = a.domain === '__landing-pages__'
     const bIsLanding = b.domain === '__landing-pages__'
     if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1
+
+    const aIsApps = a.domain === '__standalone-apps__'
+    const bIsApps = b.domain === '__standalone-apps__'
+    if (aIsApps !== bIsApps) return aIsApps ? -1 : 1
 
     const aIsPriority = isLandingDomain(a.domain)
     const bIsPriority = isLandingDomain(b.domain)
@@ -1047,11 +1109,14 @@ export function buildDomainGroups(
  * current dashboard snapshot consumed by the Preact App root.
  *
  * @param {Map<string, number>} [previousOrder]
+ * @param {DashboardSource} [source]
  * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[] }>}
  */
-export async function fetchDashboardData(previousOrder = new Map()) {
-  await fetchOpenTabs()
-  const realTabs = getRealTabs()
+export async function fetchDashboardData(previousOrder = new Map(), source = 'tabs') {
+  const realTabs =
+    source === 'bookmarks'
+      ? await fetchBookmarksSourceItems()
+      : (await fetchOpenTabs(), getRealTabs())
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, ...getDashboardGroupingConfig() })
   return { realTabs, domainGroups }
 }
