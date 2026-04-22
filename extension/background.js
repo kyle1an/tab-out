@@ -54,6 +54,29 @@ function normalizeGlobalHistory(entry) {
   return { stack, index }
 }
 
+function removeTabEntriesFromHistory(history, tabId) {
+  const current = normalizeGlobalHistory(history)
+  const removedIndexes = current.stack
+    .map((entry, index) => (entry.tabId === tabId ? index : -1))
+    .filter((index) => index !== -1)
+
+  if (removedIndexes.length === 0) return current
+
+  const nextStack = current.stack.filter((entry) => entry.tabId !== tabId)
+  const removedBeforeIndex = removedIndexes.filter((index) => index < current.index).length
+  const removedAtIndex = removedIndexes.includes(current.index)
+  let nextIndex = current.index - removedBeforeIndex
+
+  if (removedAtIndex) {
+    nextIndex = Math.min(nextIndex, nextStack.length - 1)
+  }
+
+  return {
+    stack: nextStack,
+    index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex)
+  }
+}
+
 async function readTabHistory() {
   if (tabHistoryCache) return tabHistoryCache
   if (!chrome.storage?.session) {
@@ -102,22 +125,15 @@ async function recordTabActivation(windowId, tabId) {
 
 async function removeTabFromHistory(tabId) {
   const history = normalizeGlobalHistory(await readTabHistory())
-  const removeIndex = history.stack.findIndex((entry) => entry.tabId === tabId)
-  if (removeIndex === -1) return
-
-  const nextStack = history.stack.filter((entry) => entry.tabId !== tabId)
-  let nextIndex = history.index
-  if (removeIndex < history.index) nextIndex -= 1
-  if (removeIndex === history.index) nextIndex = Math.min(nextIndex, nextStack.length - 1)
-  await writeTabHistory({
-    stack: nextStack,
-    index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex)
-  })
+  const nextHistory = removeTabEntriesFromHistory(history, tabId)
+  if (nextHistory.stack === history.stack && nextHistory.index === history.index) return
+  await writeTabHistory(nextHistory)
 }
 
 async function switchTabHistory(direction) {
   const tabs = await chrome.tabs.query({})
-  const activeTab = tabs.find((tab) => tab.active)
+  const focusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  const activeTab = focusedTabs[0] || tabs.find((tab) => tab.active)
   if (!activeTab?.id) return
 
   const history = normalizeGlobalHistory(await readTabHistory())
