@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { readFileSync } from 'node:fs'
+
+import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
+
+globalThis.chrome = {
+  runtime: {
+    getURL(path) {
+      return `chrome-extension://tab-out${path}`
+    }
+  }
+}
+
+globalThis.window = {
+  LOCAL_PATH_GROUPERS: [],
+  LOCAL_LANDING_PAGE_PATTERNS: [],
+  LOCAL_CUSTOM_GROUPS: []
+}
+
+/**
+ * @param {Partial<import('../extension/types').DashboardTab> & { url: string }} overrides
+ * @returns {import('../extension/types').DashboardTab}
+ */
+function makeTab(overrides) {
+  return {
+    id: 1,
+    url: overrides.url,
+    rawUrl: overrides.rawUrl || overrides.url,
+    suspended: false,
+    title: overrides.title || '',
+    favIconUrl: overrides.favIconUrl || '',
+    windowId: overrides.windowId || 1,
+    active: overrides.active || false,
+    pinned: overrides.pinned || false,
+    groupId: overrides.groupId ?? -1,
+    isTabOut: false,
+    isApp: overrides.isApp || false,
+    index: overrides.index,
+    ...overrides
+  }
+}
+
+test('buildDomainGroups separates landing pages from same-host content tabs', () => {
+  const tabs = [
+    makeTab({ url: 'https://github.com/', title: 'GitHub' }),
+    makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' })
+  ]
+
+  const groups = buildDomainGroups(tabs)
+
+  assert.equal(groups[0]?.domain, '__landing-pages__')
+  assert.deepEqual(groups[0]?.tabs.map((tab) => tab.url), ['https://github.com/'])
+
+  const githubGroup = groups.find((group) => group.domain === 'github.com')
+  assert.ok(githubGroup)
+  assert.deepEqual(githubGroup.tabs.map((tab) => tab.url), ['https://github.com/openai/openai'])
+})
+
+test('computeDomainCardViewModel disambiguates collisions by rendered title', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/team/dashboard', title: 'Dashboard - Example' }),
+      makeTab({ id: 2, url: 'https://example.com/me/dashboard', title: 'Dashboard' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  assert.equal(vm.isHidden, false)
+
+  const chips = vm.sections[0].flatVisibleChips
+  assert.equal(chips.length, 2)
+  assert.deepEqual(new Set(chips.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
+})
+
+test('buildDashboardViewModel derives matched and unmatched cards in one pass', () => {
+  const groups = buildDomainGroups([
+    makeTab({ url: 'https://alpha.example.com/overview', title: 'Overview' }),
+    makeTab({ id: 2, url: 'https://alpha.example.com/beta', title: 'Beta rollout' }),
+    makeTab({ id: 3, url: 'https://second.test.com/other', title: 'Other page' })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const vm = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: 'beta'
+  })
+
+  assert.equal(vm.stats.totalTabs, 3)
+  assert.equal(vm.stats.visibleTabs, 1)
+  assert.equal(vm.matchedCards.length, 1)
+  assert.equal(vm.unmatchedCards.length, 2)
+  assert.equal(vm.showOtherTabs, true)
+  assert.deepEqual(vm.filteredCloseUrls, ['https://alpha.example.com/beta'])
+})
+
+test('manifest keeps only the permissions used by the extension', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
+  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'favicon'])
+})

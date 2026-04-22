@@ -11,6 +11,10 @@
 import { unwrapSuspenderUrl, unwrapSuspenderTitle } from './suspender.js'
 import { isGroupedTab, fetchTabGroupColors, scoreForKeep } from './groups.js'
 
+/** @typedef {import('./types').DashboardTab} DashboardTab */
+/** @typedef {import('./types').TabSnapshot} TabSnapshot */
+
+/** @type {DashboardTab[]} */
 export let openTabs = []
 
 /**
@@ -18,6 +22,9 @@ export let openTabs = []
  * recreate it later via chrome.tabs.create() (used by undo). Skips
  * chrome:// and chrome-extension:// URLs since those aren't worth
  * recreating.
+ *
+ * @param {Array<{ url?: string, title?: string, pinned?: boolean, groupId?: number, windowId: number, index?: number }>} chromeTabs
+ * @returns {TabSnapshot[]}
  */
 export function snapshotChromeTabs(chromeTabs) {
   return chromeTabs
@@ -36,6 +43,8 @@ export function snapshotChromeTabs(chromeTabs) {
  * fetchOpenTabs() — refreshes `openTabs` from chrome.tabs.query(),
  * normalizing each tab into our internal shape. Suspended tabs get
  * `url` = unwrapped real URL, `rawUrl` = Chrome's actual URL.
+ *
+ * @returns {Promise<void>}
  */
 export async function fetchOpenTabs() {
   try {
@@ -85,6 +94,8 @@ export async function fetchOpenTabs() {
 /**
  * getRealTabs() — `openTabs` minus chrome://, extension pages, about:,
  * etc. The grid only ever shows real web pages.
+ *
+ * @returns {DashboardTab[]}
  */
 export function getRealTabs() {
   return openTabs.filter((t) => {
@@ -97,6 +108,10 @@ export function getRealTabs() {
  * closeTabsByUrls(urls, opts) — closes tabs whose hostname matches any
  * of the given URLs. file:// URLs are matched exactly (no hostname).
  * Returns a snapshot of what was closed for undo.
+ *
+ * @param {string[]} urls
+ * @param {{ preserveGroups?: boolean }} [opts]
+ * @returns {Promise<TabSnapshot[]>}
  */
 export async function closeTabsByUrls(urls, opts = {}) {
   if (!urls || urls.length === 0) return []
@@ -141,6 +156,10 @@ export async function closeTabsByUrls(urls, opts = {}) {
  * closeTabsExact(urls, opts) — closes tabs by exact URL match.
  * Used for landing pages and filter-narrowed bulk close so we don't
  * accidentally close unrelated tabs from the same hostname.
+ *
+ * @param {string[]} urls
+ * @param {{ preserveGroups?: boolean }} [opts]
+ * @returns {Promise<TabSnapshot[]>}
  */
 export async function closeTabsExact(urls, opts = {}) {
   if (!urls || urls.length === 0) return []
@@ -163,6 +182,9 @@ export async function closeTabsExact(urls, opts = {}) {
  * index before the match) so the user has a short path back to the
  * dashboard from the newly-visited tab. No duplicate is created if
  * that window already has a Tab Out tab open.
+ *
+ * @param {string} url
+ * @returns {Promise<void>}
  */
 export async function focusTab(url) {
   if (!url) return
@@ -251,6 +273,10 @@ export async function focusTab(url) {
  *   • All grouped, single group → keep one, close the rest within that group.
  *   • All grouped, multi groups → skip (would empty a slot in each group).
  * Returns a snapshot of what was closed for undo.
+ *
+ * @param {string[]} urls
+ * @param {boolean} [keepOne=true]
+ * @returns {Promise<TabSnapshot[]>}
  */
 export async function closeDuplicateTabs(urls, keepOne = true) {
   const allTabs = await chrome.tabs.query({})
@@ -301,6 +327,8 @@ export async function closeDuplicateTabs(urls, keepOne = true) {
  * excluded from the operation entirely — pinning signals "this is
  * my anchor for this window, don't clean it up" (background.js pins
  * a Tab Out on every new window creation for exactly this reason).
+ *
+ * @returns {Promise<void>}
  */
 export async function closeTabOutDupes() {
   const extensionId = chrome.runtime.id
