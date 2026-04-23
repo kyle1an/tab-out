@@ -28,7 +28,29 @@
 import { useEffect, useRef } from './vendor/preact-hooks.mjs'
 
 const MIN_COL_WIDTH = 260
+const IDEAL_COL_WIDTH = 304
 const GAP = 10
+
+export function chooseMasonryLayout(containerWidth, { minColWidth = MIN_COL_WIDTH, idealColWidth = IDEAL_COL_WIDTH, gap = GAP } = {}) {
+  if (!Number.isFinite(containerWidth) || containerWidth <= 0) {
+    return { colCount: 1, colWidth: 0 }
+  }
+
+  const maxColCount = Math.max(1, Math.floor((containerWidth + gap) / (minColWidth + gap)))
+  let best = null
+
+  for (let colCount = 1; colCount <= maxColCount; colCount++) {
+    const colWidth = (containerWidth - gap * (colCount - 1)) / colCount
+    if (colWidth < minColWidth && colCount > 1) continue
+
+    const score = Math.abs(colWidth - idealColWidth)
+    if (!best || score < best.score || (score === best.score && colCount > best.colCount)) {
+      best = { colCount, colWidth, score }
+    }
+  }
+
+  return best ? { colCount: best.colCount, colWidth: best.colWidth } : { colCount: 1, colWidth: containerWidth }
+}
 
 export function packMissionsMasonry(containers, { unpin = false, lastColCounts = null } = {}) {
   const targets = Array.isArray(containers) ? containers : [containers]
@@ -49,15 +71,11 @@ function packContainer(container, unpin, lastColCounts) {
     return
   }
 
-  // 260 (was 280) picks up one extra column at common viewport widths
-  // (1280, 1440, 1600) without making cards feel cramped — chip text
-  // already truncates with an ellipsis, so a slightly narrower card
-  // reads the same as a wider one but packs more per row.
-  // Inter-card gap tightened 12→10 — chips already have their own
-  // vertical rhythm, so 10px reads as deliberate card separation
-  // without the extra breathing room the larger gap added.
-  const colCount = Math.max(1, Math.floor((containerWidth + GAP) / (MIN_COL_WIDTH + GAP)))
-  const colWidth = (containerWidth - GAP * (colCount - 1)) / colCount
+  // Rather than adding a new column the instant it barely fits, pick
+  // the column count whose resulting card width lands closest to the
+  // comfort target. That keeps resize drag feeling less jumpy: cards
+  // don't collapse to the minimum width at every threshold.
+  const { colCount, colWidth } = chooseMasonryLayout(containerWidth)
 
   const prevColCount = lastColCounts?.get(container)
   if (unpin || prevColCount !== colCount) {
