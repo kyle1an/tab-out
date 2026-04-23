@@ -20,6 +20,7 @@
 
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
+import { useEffect, useLayoutEffect, useRef } from '../vendor/preact-hooks.mjs'
 import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../tabs.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
@@ -28,10 +29,58 @@ import { showToast } from './Toast.js'
 import { shootConfetti } from '../confetti.js'
 
 const html = htm.bind(h)
+let chipTextResizeObserver = null
+
+function isChipTextTruncated(textEl) {
+  if (!textEl) return false
+  return textEl.scrollHeight - textEl.clientHeight > 1
+}
+
+function syncChipTextFade(textEl) {
+  if (!textEl) return
+  textEl.classList.toggle('chip-text-truncated', isChipTextTruncated(textEl))
+}
+
+function getChipTextResizeObserver() {
+  if (typeof ResizeObserver !== 'function') return null
+  if (!chipTextResizeObserver) {
+    chipTextResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) syncChipTextFade(entry.target)
+    })
+  }
+  return chipTextResizeObserver
+}
 
 export function PageChip({ chip, onHoverUrlChange = null }) {
   const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
   const primaryPreviewUrl = isFolded ? chip.envs[0]?.tabUrl || '' : chip.tabUrl || ''
+  const chipTextRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const textEl = chipTextRef.current
+    if (!textEl) return
+
+    let frameId = requestAnimationFrame(() => syncChipTextFade(textEl))
+    return () => cancelAnimationFrame(frameId)
+  })
+
+  useEffect(() => {
+    const textEl = chipTextRef.current
+    if (!textEl) return
+
+    const observer = getChipTextResizeObserver()
+    observer?.observe(textEl)
+
+    const fontSet = document.fonts
+    const onFontsDone = () => syncChipTextFade(textEl)
+    fontSet?.addEventListener?.('loadingdone', onFontsDone)
+    fontSet?.ready?.then?.(() => syncChipTextFade(textEl))
+
+    return () => {
+      observer?.unobserve(textEl)
+      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+    }
+  }, [])
 
   function isKeyboardActivation(e) {
     return e.key === 'Enter' || e.key === ' '
@@ -223,7 +272,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       `}
       ${!chip.iconOnly &&
       html`
-        <span class="chip-text">
+        <span class="chip-text" ref=${chipTextRef}>
           ${isFolded &&
           html`
             <span class="chip-env-stack">
