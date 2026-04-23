@@ -14,32 +14,87 @@
  */
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
+const PINNED_DASHBOARD_TABS_KEY = 'pinnedDashboardTabs'
 const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
+let pinnedDashboardTabsCache = null
+const dashboardReplacementInFlight = new Set()
 
 function extensionNewtabUrl() {
   return `chrome-extension://${chrome.runtime.id}/index.html`
 }
 
-async function syncExistingNewTabOverrides() {
+function isTabOutUrl(url) {
+  return url === extensionNewtabUrl() || url === 'chrome://newtab/'
+}
+
+function normalizePinnedDashboardTabs(entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return {}
+
+  return Object.fromEntries(
+    Object.entries(entry).filter(([tabId, value]) => Number.isInteger(Number(tabId)) && value && typeof value.windowId === 'number')
+  )
+}
+
+async function readPinnedDashboardTabs() {
+  if (pinnedDashboardTabsCache) return pinnedDashboardTabsCache
+  if (!chrome.storage?.session) {
+    pinnedDashboardTabsCache = {}
+    return pinnedDashboardTabsCache
+  }
+  try {
+    const stored = await chrome.storage.session.get(PINNED_DASHBOARD_TABS_KEY)
+    pinnedDashboardTabsCache = normalizePinnedDashboardTabs(stored[PINNED_DASHBOARD_TABS_KEY])
+  } catch {
+    pinnedDashboardTabsCache = {}
+  }
+  return pinnedDashboardTabsCache
+}
+
+async function writePinnedDashboardTabs(nextTabs) {
+  pinnedDashboardTabsCache = nextTabs
+  if (!chrome.storage?.session) return
+  try {
+    await chrome.storage.session.set({ [PINNED_DASHBOARD_TABS_KEY]: nextTabs })
+  } catch {
+    // Best-effort only — losing this cache just disables the replacement
+    // behavior until the next tracking refresh.
+  }
+}
+
+async function updatePinnedDashboardTracking(tabId, tab) {
+  if (typeof tabId !== 'number') return
+  const trackedTabs = { ...(await readPinnedDashboardTabs()) }
+  const url = tab?.url || tab?.pendingUrl || ''
+
+  if (tab && tab.pinned && typeof tab.windowId === 'number' && isTabOutUrl(url)) {
+    trackedTabs[String(tabId)] = { windowId: tab.windowId }
+  } else {
+    delete trackedTabs[String(tabId)]
+  }
+
+  await writePinnedDashboardTabs(trackedTabs)
+}
+
+async function removePinnedDashboardTracking(tabId) {
+  if (typeof tabId !== 'number') return
+  const trackedTabs = { ...(await readPinnedDashboardTabs()) }
+  delete trackedTabs[String(tabId)]
+  await writePinnedDashboardTabs(trackedTabs)
+}
+
+async function syncPinnedDashboardTabsFromCurrentState() {
   try {
     const tabs = await chrome.tabs.query({})
-    const targetUrl = extensionNewtabUrl()
-    await Promise.all(
+    const trackedTabs = Object.fromEntries(
       tabs
-        .filter((tab) => {
-          const url = tab.url || tab.pendingUrl || ''
-          return url === 'chrome://newtab/'
-        })
-        .map((tab) =>
-          chrome.tabs.update(tab.id, {
-            url: targetUrl
-          })
-        )
+        .filter((tab) => typeof tab.id === 'number' && tab.pinned && isTabOutUrl(tab.url || tab.pendingUrl || ''))
+        .map((tab) => [String(tab.id), { windowId: tab.windowId }])
     )
+    await writePinnedDashboardTabs(trackedTabs)
   } catch {
-    // Best-effort repair only; if a tab closes or a URL becomes
-    // unreadable mid-pass, just leave it alone.
+    // Best-effort only. If the query fails, the per-tab update listeners
+    // will rebuild the cache as soon as relevant tab events arrive.
   }
 }
 
@@ -253,6 +308,98 @@ async function switchTabHistory(direction) {
   }
 }
 
+async function ensurePinnedDashboardTab(windowId, opts = {}) {
+  if (typeof windowId !== 'number') return null
+
+  const { excludeTabId = null, createIndex } = opts
+  const tabs = await chrome.tabs.query({ windowId })
+
+  const existingPinned = tabs.find((tab) => tab.id !== excludeTabId && tab.pinned && isTabOutUrl(tab.url || tab.pendingUrl || ''))
+  if (existingPinned) {
+    await updatePinnedDashboardTracking(existingPinned.id, existingPinned)
+    return existingPinned
+  }
+
+  const existingUnpinned = tabs.find((tab) => tab.id !== excludeTabId && !tab.pinned && isTabOutUrl(tab.url || tab.pendingUrl || ''))
+  if (existingUnpinned) {
+    const updated = await chrome.tabs.update(existingUnpinned.id, { pinned: true })
+    await updatePinnedDashboardTracking(existingUnpinned.id, updated || { ...existingUnpinned, pinned: true })
+    return updated || existingUnpinned
+  }
+
+  const createOptions = {
+    windowId,
+    pinned: true,
+    active: false
+  }
+  if (typeof createIndex === 'number') createOptions.index = createIndex
+
+  const created = await chrome.tabs.create(createOptions)
+  if (created?.id != null) {
+    await updatePinnedDashboardTracking(created.id, {
+      ...created,
+      url: created.url || created.pendingUrl || 'chrome://newtab/'
+    })
+  }
+  return created || null
+}
+
+async function moveTabToWindowEnd(tabId, windowId) {
+  const tabs = await chrome.tabs.query({ windowId })
+  const lastIndex = tabs.reduce((max, tab) => (typeof tab.index === 'number' ? Math.max(max, tab.index) : max), -1)
+  if (lastIndex >= 0) {
+    await chrome.tabs.move(tabId, { index: lastIndex })
+  }
+}
+
+async function replacePinnedDashboardAfterNavigation(tabId, trackedWindowId, tab) {
+  if (dashboardReplacementInFlight.has(tabId)) return
+
+  const windowId = typeof tab?.windowId === 'number' ? tab.windowId : trackedWindowId
+  if (typeof windowId !== 'number') return
+
+  dashboardReplacementInFlight.add(tabId)
+  try {
+    await ensurePinnedDashboardTab(windowId, {
+      excludeTabId: tabId,
+      createIndex: typeof tab?.index === 'number' ? tab.index : undefined
+    })
+    const updated = await chrome.tabs.update(tabId, { pinned: false })
+    await updatePinnedDashboardTracking(tabId, updated || { ...tab, pinned: false })
+    await moveTabToWindowEnd(tabId, windowId)
+  } catch {
+    // Best-effort only — if the tab closes or the window disappears mid-flight,
+    // leave Chrome's default state alone.
+  } finally {
+    dashboardReplacementInFlight.delete(tabId)
+  }
+}
+
+function getNavigationTarget(changeInfo, tab) {
+  const pendingUrl = tab?.pendingUrl || ''
+  if (pendingUrl && !isTabOutUrl(pendingUrl)) return pendingUrl
+
+  const changedUrl = changeInfo?.url || ''
+  if (changedUrl && !isTabOutUrl(changedUrl)) return changedUrl
+
+  return ''
+}
+
+async function handleTabUpdated(tabId, changeInfo, tab) {
+  await updateBadge()
+
+  const trackedTabs = await readPinnedDashboardTabs()
+  const tracked = trackedTabs[String(tabId)]
+  const navigationTarget = getNavigationTarget(changeInfo, tab)
+
+  if (tracked && navigationTarget) {
+    await replacePinnedDashboardAfterNavigation(tabId, tracked.windowId, { ...tab, pendingUrl: navigationTarget })
+    return
+  }
+
+  await updatePinnedDashboardTracking(tabId, tab)
+}
+
 // ─── Badge updater ────────────────────────────────────────────────────────────
 
 /**
@@ -298,18 +445,19 @@ async function updateBadge() {
 // Update badge when the extension is first installed
 chrome.runtime.onInstalled.addListener(() => {
   updateBadge()
-  syncExistingNewTabOverrides()
+  syncPinnedDashboardTabsFromCurrentState()
 })
 
 // Update badge when Chrome starts up
 chrome.runtime.onStartup.addListener(() => {
   updateBadge()
-  syncExistingNewTabOverrides()
+  syncPinnedDashboardTabsFromCurrentState()
 })
 
 // Update badge whenever a tab is opened
-chrome.tabs.onCreated.addListener(() => {
+chrome.tabs.onCreated.addListener((tab) => {
   updateBadge()
+  if (tab?.id != null) updatePinnedDashboardTracking(tab.id, tab)
 })
 
 // Track tab activation history so commands and close-redirect can
@@ -325,12 +473,13 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 // Update badge whenever a tab is closed
 chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   updateBadge()
+  removePinnedDashboardTracking(tabId)
   restorePreviousTabAfterClose(tabId, removeInfo)
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
-chrome.tabs.onUpdated.addListener(() => {
-  updateBadge()
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  await handleTabUpdated(tabId, changeInfo, tab)
 })
 
 // Pin a Tab Out tab in every newly-created window so the dashboard
@@ -342,23 +491,7 @@ chrome.tabs.onUpdated.addListener(() => {
 chrome.windows.onCreated.addListener(async (window) => {
   if (window.type !== 'normal') return
   try {
-    const newtabUrl = extensionNewtabUrl()
-    const tabs = await chrome.tabs.query({ windowId: window.id })
-    const existing = tabs.find((t) => {
-      const u = t.url || t.pendingUrl || ''
-      return u === newtabUrl || u === 'chrome://newtab/'
-    })
-    if (existing) {
-      if (!existing.pinned) await chrome.tabs.update(existing.id, { pinned: true })
-    } else {
-      await chrome.tabs.create({
-        windowId: window.id,
-        url: newtabUrl,
-        pinned: true,
-        active: false,
-        index: 0
-      })
-    }
+    await ensurePinnedDashboardTab(window.id, { createIndex: 0 })
   } catch {
     // Window may have closed between onCreated and our query; silently drop.
   }
@@ -376,4 +509,4 @@ chrome.commands?.onCommand.addListener((command) => {
 
 // Run once immediately when the service worker first loads
 updateBadge()
-syncExistingNewTabOverrides()
+syncPinnedDashboardTabsFromCurrentState()
