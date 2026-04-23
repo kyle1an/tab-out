@@ -169,8 +169,8 @@ export async function closeTabsByUrls(urls, opts = {}) {
 
 /**
  * closeTabsExact(urls, opts) — closes tabs by exact URL match.
- * Used for landing pages and filter-narrowed bulk close so we don't
- * accidentally close unrelated tabs from the same hostname.
+ * Used for filter-narrowed bulk close paths so we don't accidentally
+ * close unrelated tabs from the same hostname.
  *
  * @param {string[]} urls
  * @param {{ preserveGroups?: boolean }} [opts]
