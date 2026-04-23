@@ -2,7 +2,7 @@
 
 **Keep tabs on your tabs.**
 
-Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain, with homepages (Gmail, X, LinkedIn, etc.) pulled into their own group. Close tabs with a satisfying confetti burst.
+Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain so each site's homepages and content pages stay together. Close tabs with a satisfying confetti burst.
 
 No server. No account. No external API calls. Just a Chrome extension.
 
@@ -23,7 +23,7 @@ The agent will walk you through it. Takes about 1 minute.
 ## Features
 
 - **See all your tabs at a glance** on a clean grid, grouped by domain
-- **Homepages group** pulls Gmail inbox, X home, YouTube, LinkedIn, GitHub homepages into one card
+- **Homepages stay with their site** so Gmail, GitHub, YouTube, and similar start pages remain in their own domain cards
 - **Close tabs with style** with a confetti burst, undoable via toast
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
 - **Click any tab to jump to it** across windows; a pinned Tab Out is auto-planted in every window so the dashboard is always one click away
@@ -65,7 +65,7 @@ You'll see Tab Out.
 ```
 You open a new tab
   -> Tab Out shows your open tabs grouped by domain
-  -> Homepages (Gmail, X, etc.) get their own group at the top
+  -> Homepages stay inside their site's own domain card
   -> Click any tab title to jump to it
   -> Close groups you're done with (confetti burst)
 ```

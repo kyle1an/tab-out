@@ -15,7 +15,6 @@ globalThis.chrome = {
 
 globalThis.window = {
   LOCAL_PATH_GROUPERS: [],
-  LOCAL_LANDING_PAGE_PATTERNS: [],
   LOCAL_CUSTOM_GROUPS: []
 }
 
@@ -42,7 +41,7 @@ function makeTab(overrides) {
   }
 }
 
-test('buildDomainGroups separates landing pages from same-host content tabs', () => {
+test('buildDomainGroups keeps homepage routes inside their native domain cards', () => {
   const tabs = [
     makeTab({ url: 'https://github.com/', title: 'GitHub' }),
     makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' })
@@ -50,12 +49,23 @@ test('buildDomainGroups separates landing pages from same-host content tabs', ()
 
   const groups = buildDomainGroups(tabs)
 
-  assert.equal(groups[0]?.domain, '__landing-pages__')
-  assert.deepEqual(groups[0]?.tabs.map((tab) => tab.url), ['https://github.com/'])
-
   const githubGroup = groups.find((group) => group.domain === 'github.com')
   assert.ok(githubGroup)
-  assert.deepEqual(githubGroup.tabs.map((tab) => tab.url), ['https://github.com/openai/openai'])
+  assert.deepEqual(githubGroup.tabs.map((tab) => tab.url), ['https://github.com/', 'https://github.com/openai/openai'])
+})
+
+test('buildDomainGroups orders normal domain cards by tab count', () => {
+  const groups = buildDomainGroups([
+    makeTab({ url: 'https://github.com/', title: 'GitHub' }),
+    makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' }),
+    makeTab({ id: 3, url: 'https://openai.com/research', title: 'Research' }),
+    makeTab({ id: 4, url: 'https://openai.com/api', title: 'API' })
+  ])
+
+  assert.deepEqual(
+    groups.map((group) => group.domain),
+    ['github.com', 'openai.com']
+  )
 })
 
 test('buildDomainGroups collects standalone app tabs into a dedicated apps card', () => {

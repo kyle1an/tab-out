@@ -30,14 +30,6 @@ export interface DomainGroup {
   label?: string
 }
 
-export interface LandingPagePattern {
-  hostname?: string
-  hostnameEndsWith?: string
-  pathPrefix?: string
-  pathExact?: string[]
-  test?: (pathname: string, url: string) => boolean
-}
-
 export interface CustomGroupRule {
   hostname?: string
   hostnameEndsWith?: string
@@ -48,7 +40,6 @@ export interface CustomGroupRule {
 
 export interface DomainGroupBuildOptions {
   previousOrder?: Map<string, number>
-  landingPagePatterns?: LandingPagePattern[]
   customGroups?: CustomGroupRule[]
 }
 
@@ -109,7 +100,6 @@ export interface DashboardCardVM {
   isHidden: boolean
   displayMode: 'normal' | 'unmatched'
   filtering: boolean
-  isLanding?: boolean
   tabCount?: number
   closableCount?: number
   closableCountLabel?: string
@@ -152,7 +142,6 @@ export interface DashboardViewModel {
 
 declare global {
   interface Window {
-    LOCAL_LANDING_PAGE_PATTERNS?: LandingPagePattern[]
     LOCAL_CUSTOM_GROUPS?: CustomGroupRule[]
     LOCAL_PATH_GROUPERS?: any[]
   }

@@ -31,10 +31,9 @@
      ================================================================ -->
     <div id="toastRoot"></div>
 
-    <!-- Personal config (gitignored) — defines LOCAL_LANDING_PAGE_PATTERNS etc.
-     If the file doesn't exist, Chrome logs a harmless 404; app.js checks
-     for `typeof LOCAL_LANDING_PAGE_PATTERNS !== 'undefined'` and falls back
-     to sensible defaults. We can't silence the 404 with onerror="..." because
+    <!-- Personal config (gitignored) — defines LOCAL_CUSTOM_GROUPS etc.
+     If the file doesn't exist, Chrome logs a harmless 404; render.js falls back
+     to built-in defaults. We can't silence the 404 with onerror="..." because
      Manifest V3's CSP forbids inline event handlers. -->
     <script src="config.local.js"></script>
 
