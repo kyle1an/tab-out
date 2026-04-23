@@ -28,7 +28,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
 - **Click any tab to jump to it** across windows; a pinned Tab Out is auto-planted in every window so the dashboard is always one click away
 - **Live filter** with type-anywhere — start typing and keystrokes route into the filter input; Esc clears; paste works too. Non-matching tabs move to an "Other tabs" section so every tab stays accounted for
-- **Cross-subdomain fold** — a page that exists in multiple subdomains (e.g. `dev2`, `dev11`, `qa` envs) collapses into one chip with a row of clickable env pills; each pill jumps to that specific env's tab
+- **Shared-page fold** — if the same path is open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), it collapses into one chip with a row of clickable env pills; each pill jumps to that specific tab
 - **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill
 - **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally
 - **Localhost grouping** shows port numbers next to each tab so you can tell your dev projects apart

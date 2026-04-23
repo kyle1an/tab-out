@@ -48,17 +48,13 @@ export function SubdomainSection({
   onHoverUrlChange = null,
   onLayoutChange = null
 }) {
-  const hasClose = showHeader && !isShared && sectionClosableUrls && sectionClosableUrls.length > 0
-  // "Across subdomains" pseudo-section gets a descriptive label.
-  // Neutral phrasing (not "envs") since the fold logic is generic —
-  // it matches identical paths across any 2+ subdomains of a card,
-  // which may or may not represent environments (could equally be
-  // tenants, regions, user pods, staging variants, etc). Real
-  // subdomain sections render just the subdomain name here — the
+  const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
+  // Shared folded chips render without a section header now. When a
+  // header is present, it is always a literal subdomain label; the
   // trailing "." suffix (FQDN-style hostname cue) is added via CSS
   // `::after` so it can render muted/thinner than the name itself
   // (see style.css).
-  const headerLabel = isShared ? 'Across subdomains' : subdomainKey
+  const headerLabel = subdomainKey
 
   // Close-subdomain handler. Mirrors PathgroupSection's cluster close
   // — exact-URL match + preserveGroups so Chrome tab groups survive.
