@@ -733,7 +733,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       key: '__shared__',
       sectionCount: totalFoldedTabs,
       sectionClosableUrls: sharedClosableUrls,
-      showHeader: true,
+      showHeader: false,
       isShared: true,
       hasFlat: true,
       flatVisibleChips: vis,
