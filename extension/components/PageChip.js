@@ -215,7 +215,12 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       onFocus=${onChipFocus}
       onBlur=${onChipBlur}
     >
-      ${chip.faviconUrl && html` <img class=${'chip-favicon' + (chip.isApp ? ' is-app' : '')} src=${chip.faviconUrl} alt="" /> `}
+      ${chip.faviconUrl &&
+      html`
+        <span class=${'chip-favicon-frame' + (chip.isApp ? ' is-app' : '')}>
+          <img class="chip-favicon" src=${chip.faviconUrl} alt="" />
+        </span>
+      `}
       ${!chip.iconOnly &&
       html`
         <span class="chip-text">
