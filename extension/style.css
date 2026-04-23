@@ -365,6 +365,10 @@ header {
   box-shadow: none;
 }
 
+.domain-block-apps .mission-card {
+  padding: 7px;
+}
+
 /* Wrapper around the divider + secondary missions grid. Block-level in
    document flow so the secondary grid naturally sits below the primary
    masonry. Hidden when the filter is empty or every tab matches. */
@@ -818,10 +822,14 @@ header {
 .chip-favicon-frame.is-app {
   width: 24px;
   height: 24px;
-  padding: 3px;
+  /* Slightly larger inset for the stronger 12px squircle so the
+     favicon doesn't feel pinched into the corners. The resulting
+     radius step reads closer to a concentric nested shape instead of
+     a square icon pressed against a rounded frame. */
+  padding: 4px;
   box-sizing: border-box;
   border: 1px solid rgba(115, 115, 115, 0.32);
-  border-radius: 10px;
+  border-radius: 12px;
   corner-shape: squircle;
 }
 
