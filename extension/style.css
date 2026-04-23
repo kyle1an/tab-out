@@ -791,28 +791,36 @@ header {
    perfect single-line alignment. On a wrapped two-line chip the
    favicon still sits on the first line courtesy of the parent's
    flex-start (see .page-chip above). */
-.chip-favicon {
+.chip-favicon-frame {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.chip-favicon {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
   border-radius: 0px;
 }
 
 /* Standalone-app tab indicator — a soft squircle outline around the
    favicon signals "this tab runs in its own window (PWA / Chrome
-   app)." `outline` (not `border`) so it sits OUTSIDE the 16x16 box
-   without shrinking the image or reflowing the chip row. The outline
-   follows the element's `border-radius` + `corner-shape`, so adding
-   those to .is-app is what turns the straight rectangle into a
-   rounded squircle frame.
-
-   `outline-offset: 1px` gives a breathing gap between the favicon
-   and its frame, so the outline reads as an intentional decoration
-   rather than a tight wrap around the icon. */
-.chip-favicon.is-app {
-  outline: 2px solid rgba(115, 115, 115, 0.45);
-  outline-offset: 2px;
-  border-radius: 8px;
+   app)." The frame owns the shape and the stroke; the image inside
+   stays square with no radius, so the visible gap reads as a true
+   inset rather than clipped icon corners. Use border here instead of
+   outline so icon-only app chips do not crop the stroke inside their
+   overflow-hidden parent. */
+.chip-favicon-frame.is-app {
+  width: 24px;
+  height: 24px;
+  padding: 3px;
+  box-sizing: border-box;
+  border: 1px solid rgba(115, 115, 115, 0.32);
+  border-radius: 10px;
   corner-shape: squircle;
 }
 
@@ -833,17 +841,19 @@ header {
   outline-offset: 1px;
 }
 
-.page-chip-icon-only .chip-favicon {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  border-radius: inherit;
+.page-chip-icon-only:has(.chip-favicon-frame.is-app) {
+  outline: none;
+  overflow: visible;
 }
 
-.page-chip-icon-only .chip-favicon.is-app {
-  outline: none;
-  border-radius: inherit;
+.page-chip-icon-only .chip-favicon-frame {
+  width: 16px;
+  height: 16px;
+}
+
+.page-chip-icon-only .chip-favicon-frame.is-app {
+  width: 24px;
+  height: 24px;
 }
 
 .page-chip-icon-only::after {
