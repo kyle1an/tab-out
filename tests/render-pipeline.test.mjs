@@ -156,6 +156,27 @@ test('computeDomainCardViewModel disambiguates collisions by rendered title', ()
   assert.deepEqual(new Set(chips.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
 })
 
+test('computeDomainCardViewModel keeps the shared folded section headerless', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://dev.example.com/settings', title: 'Settings' }),
+      makeTab({ id: 2, url: 'https://qa.example.com/settings', title: 'Settings' }),
+      makeTab({ id: 3, url: 'https://dev.example.com/logs', title: 'Logs' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  assert.equal(vm.isHidden, false)
+  assert.equal(vm.sections[0].isShared, true)
+  assert.equal(vm.sections[0].showHeader, false)
+  assert.equal(vm.sections[0].flatVisibleChips.length, 1)
+  assert.deepEqual(
+    vm.sections[0].flatVisibleChips[0].envs.map((env) => env.prefix),
+    ['dev', 'qa']
+  )
+})
+
 test('buildDashboardViewModel derives matched and unmatched cards in one pass', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://alpha.example.com/overview', title: 'Overview' }),

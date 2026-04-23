@@ -1101,15 +1101,6 @@ header {
   display: none;
 }
 
-/* Shared-across-envs section header — visually distinguished from
-   regular subdomain section headers so users recognize it as a
-   TL;DR of their cross-env duplicates. Uses the same header layout
-   but with an emphasized label. */
-.subdomain-section[data-shared='true'] .subdomain-header-name {
-  font-style: italic;
-  color: var(--ink);
-}
-
 /* Path-group sub-section — nested inside a subdomain section when
    2+ chips share a path-level cluster (same repo, same Jira project,
    etc). One level deeper than .subdomain-section; the header reuses
@@ -1278,14 +1269,12 @@ header {
   font-weight: 500;
 }
 
-/* Trailing "." after a real subdomain name ("dev2us.") evokes the
+/* Trailing "." after a subdomain name ("dev2us.") evokes the
    FQDN-style absolute-name notation where the missing suffix is
    implied by context (card title / base domain). Thinner + dimmer
    than the name itself so it registers as quiet punctuation rather
-   than a sentence terminator. Scoped to non-shared sections (the
-   shared-envs section uses a sentence-y "Shared across envs" label
-   where a trailing dot would be wrong). */
-.subdomain-section:not([data-shared='true']) .subdomain-header-name::after {
+   than a sentence terminator. */
+.subdomain-header-name::after {
   content: '.';
   margin-left: 1px;
   font-weight: 400;
