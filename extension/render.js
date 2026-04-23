@@ -8,7 +8,7 @@
    • fetchDashboardData — refreshes chrome.tabs state and returns the
                           current { realTabs, domainGroups } snapshot
    • buildDomainGroups — group tabs into domain cards with injectable
-                         landing/custom rules for focused tests
+                         custom rules for focused tests
    • buildDashboardViewModel — one-pass derivation for header stats,
                                global actions, and prebuilt card VMs
    • computeDomainCardViewModel — per-card VM, takes { filter, mode }
@@ -36,7 +36,6 @@ import { resolvePathGroup } from './path-groups.js'
 /** @typedef {import('./types').DashboardCardVM} DashboardCardVM */
 /** @typedef {import('./types').DashboardViewModel} DashboardViewModel */
 /** @typedef {import('./types').DashboardStats} DashboardStats */
-/** @typedef {import('./types').LandingPagePattern} LandingPagePattern */
 /** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
 /** @typedef {'tabs' | 'bookmarks'} DashboardSource */
 
@@ -397,7 +396,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
 
   const tabCount = tabs.length
-  const isLanding = group.domain === '__landing-pages__'
   const isAppsGroup = group.domain === '__standalone-apps__'
   const isTabOutGroup = group.domain === '__tab-out__'
 
@@ -641,7 +639,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       isHidden: false,
       displayMode,
       filtering,
-      isLanding: false,
       tabCount,
       closableCount: vmClosableCount,
       closableCountLabel:
@@ -920,7 +917,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const closableCountLabel =
     closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`
 
-  const displayName = isLanding ? 'Homepages' : group.label || group.domain.replace(/^www\./, '')
+  const displayName = group.label || group.domain.replace(/^www\./, '')
 
   // In the secondary ("unmatched") grid, every bulk-close action is
   // suppressed — we don't want to offer a "Close 4 tabs" on a card
@@ -946,7 +943,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     isHidden: false,
     displayMode,
     filtering,
-    isLanding,
     tabCount,
     closableCount: vmClosableCount,
     closableCountLabel,
@@ -960,21 +956,11 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
 }
 
-/** @type {LandingPagePattern[]} */
-const DEFAULT_LANDING_PAGE_PATTERNS = [
-  { hostname: 'mail.google.com', test: (_pathname, url) => !url.includes('#inbox/') && !url.includes('#sent/') && !url.includes('#search/') },
-  { hostname: 'x.com', pathExact: ['/home'] },
-  { hostname: 'www.linkedin.com', pathExact: ['/'] },
-  { hostname: 'github.com', pathExact: ['/'] },
-  { hostname: 'www.youtube.com', pathExact: ['/'] }
-]
-
 /**
- * @returns {{ landingPagePatterns: LandingPagePattern[], customGroups: CustomGroupRule[] }}
+ * @returns {{ customGroups: CustomGroupRule[] }}
  */
 function getDashboardGroupingConfig() {
   return {
-    landingPagePatterns: [...DEFAULT_LANDING_PAGE_PATTERNS, ...(window.LOCAL_LANDING_PAGE_PATTERNS || [])],
     customGroups: window.LOCAL_CUSTOM_GROUPS || []
   }
 }
@@ -986,30 +972,11 @@ function getDashboardGroupingConfig() {
  */
 export function buildDomainGroups(
   realTabs,
-  { previousOrder = new Map(), landingPagePatterns = DEFAULT_LANDING_PAGE_PATTERNS, customGroups = [] } = {}
+  { previousOrder = new Map(), customGroups = [] } = {}
 ) {
-  // Group tabs by domain. Landing pages (Gmail inbox, X home, etc.) get
-  // their own special group so they can be closed together without
-  // affecting content tabs on the same domain.
-
-  function isLandingPage(url) {
-    try {
-      const parsed = new URL(url)
-      return landingPagePatterns.some((p) => {
-        const hostnameMatch = p.hostname ? parsed.hostname === p.hostname : p.hostnameEndsWith ? parsed.hostname.endsWith(p.hostnameEndsWith) : false
-        if (!hostnameMatch) return false
-        if (p.test) return p.test(parsed.pathname, url)
-        if (p.pathPrefix) return parsed.pathname.startsWith(p.pathPrefix)
-        if (p.pathExact) return p.pathExact.includes(parsed.pathname)
-        return parsed.pathname === '/'
-      })
-    } catch {
-      return false
-    }
-  }
-
+  // Group tabs by domain. Custom groups and utility cards (apps / new tabs)
+  // still split out, but homepage-like routes stay in their native domain cards.
   const groupMap = {}
-  const landingTabs = []
   const appTabs = []
   const tabOutTabs = []
 
@@ -1041,11 +1008,6 @@ export function buildDomainGroups(
         continue
       }
 
-      if (isLandingPage(tab.url)) {
-        landingTabs.push(tab)
-        continue
-      }
-
       const customRule = matchCustomGroup(tab.url)
       if (customRule) {
         const key = customRule.groupKey
@@ -1073,9 +1035,6 @@ export function buildDomainGroups(
     }
   }
 
-  if (landingTabs.length > 0) {
-    groupMap['__landing-pages__'] = { domain: '__landing-pages__', tabs: landingTabs }
-  }
   if (tabOutTabs.length > 0) {
     groupMap['__tab-out__'] = { domain: '__tab-out__', label: 'New tabs', tabs: tabOutTabs }
   }
@@ -1083,18 +1042,8 @@ export function buildDomainGroups(
     groupMap['__standalone-apps__'] = { domain: '__standalone-apps__', label: 'Apps', tabs: appTabs }
   }
 
-  // Sort: landing pages first, then domains from landing-page sites, then by tab count.
-  const landingHostnames = new Set(landingPagePatterns.map((p) => p.hostname).filter(Boolean))
-  const landingSuffixes = landingPagePatterns.map((p) => p.hostnameEndsWith).filter(Boolean)
-  function isLandingDomain(domain) {
-    if (landingHostnames.has(domain)) return true
-    return landingSuffixes.some((s) => domain.endsWith(s))
-  }
+  // Sort by special utility cards first, then by tab count.
   const groupedDomains = Object.values(groupMap).sort((a, b) => {
-    const aIsLanding = a.domain === '__landing-pages__'
-    const bIsLanding = b.domain === '__landing-pages__'
-    if (aIsLanding !== bIsLanding) return aIsLanding ? -1 : 1
-
     const aIsTabOut = a.domain === '__tab-out__'
     const bIsTabOut = b.domain === '__tab-out__'
     if (aIsTabOut !== bIsTabOut) return aIsTabOut ? -1 : 1
@@ -1103,16 +1052,12 @@ export function buildDomainGroups(
     const bIsApps = b.domain === '__standalone-apps__'
     if (aIsApps !== bIsApps) return aIsApps ? -1 : 1
 
-    const aIsPriority = isLandingDomain(a.domain)
-    const bIsPriority = isLandingDomain(b.domain)
-    if (aIsPriority !== bIsPriority) return aIsPriority ? -1 : 1
-
     return b.tabs.length - a.tabs.length
   })
 
   // Stable re-sort: previously-seen cards keep their prior order; new
-  // cards stay where the landing/priority/tab-count sort put them (at
-  // the end, since `return 0` preserves Array.prototype.sort stability).
+  // cards stay where the utility-card/tab-count sort put them (at the
+  // end, since `return 0` preserves Array.prototype.sort stability).
   const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
   groupedDomains.sort((a, b) => {
     const aPrev = previousOrder.get(stableDomainId(a))
