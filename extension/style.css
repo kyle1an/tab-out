@@ -298,7 +298,8 @@ header {
 .missions.is-packed .domain-block {
   transition:
     top 0.25s ease,
-    left 0.25s ease;
+    left 0.25s ease,
+    width 0.25s ease;
 }
 
 /* ---- Domain Block ----
