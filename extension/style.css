@@ -1133,6 +1133,13 @@ header {
      separator actually runs to the header's right edge. */
   position: relative;
 }
+/* If the very first content block in the card is a pathgroup section,
+   the card's own padding already supplies the top breathing room. Drop
+   the header's top padding in that one case so the cluster label sits
+   on the same visual start line as a normal first chip row. */
+.mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-header {
+  padding-top: 0;
+}
 .pathgroup-header .chip-pathgroup {
   margin-right: 0;
 }
@@ -1205,6 +1212,12 @@ header {
 }
 .pathgroup-section:hover .pathgroup-close-btn {
   opacity: 1;
+}
+/* The first-pathgroup header trims only its top padding, leaving a
+   slightly bottom-heavy box. Nudge just that close button up 1px so
+   it stays optically centered on the separator rule. */
+.mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-close-btn {
+  top: calc(50% - 1px);
 }
 /* Opaque hover background (NOT rgba) so the rule behind the button
    doesn't bleed through as a horizontal line crossing the X. */
@@ -1449,7 +1462,14 @@ header {
 .page-chip-overflow {
   font-size: 12px;
   color: var(--muted);
-  padding: 6px 4px;
+  /* Align the "+" with the favicon column on regular text chips so
+     the overflow row feels like part of the same list. Icon-only app
+     grids override this below and stay compact. */
+  padding: 6px 4px 6px 12px;
+}
+
+.flat-section.flat-section-icons > .page-chip-overflow {
+  padding-left: 4px;
 }
 
 .action-btn {
