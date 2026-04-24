@@ -39,7 +39,7 @@ function normalizeAllTabs(state) {
   }
 }
 
-function createChromeMock(initialTabs) {
+function createChromeMock(initialTabs, opts = {}) {
   const runtimeOnInstalled = createEventSlot()
   const runtimeOnStartup = createEventSlot()
   const tabsOnCreated = createEventSlot()
@@ -60,8 +60,10 @@ function createChromeMock(initialTabs) {
 
   const calls = {
     create: [],
+    remove: [],
     update: [],
     move: [],
+    runtimeMessage: [],
     badgeText: [],
     badgeColor: []
   }
@@ -70,7 +72,13 @@ function createChromeMock(initialTabs) {
     runtime: {
       id: 'tab-out',
       onInstalled: runtimeOnInstalled.api,
-      onStartup: runtimeOnStartup.api
+      onStartup: runtimeOnStartup.api,
+      async sendMessage(message) {
+        calls.runtimeMessage.push(clone(message))
+        if (opts.runtimeMessageError) throw new Error('runtime message failed')
+        if (opts.runtimeMessageResponses?.length) return clone(opts.runtimeMessageResponses.shift())
+        return clone(opts.runtimeMessageResponse ?? { focused: true })
+      }
     },
     action: {
       async setBadgeText(payload) {
@@ -158,6 +166,21 @@ function createChromeMock(initialTabs) {
         normalizeAllTabs(state)
         return clone(tab)
       },
+      async remove(tabIds) {
+        const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
+        calls.remove.push(...ids)
+        const removedTabs = []
+        for (const tabId of ids) {
+          if (state.tabsById[tabId]) removedTabs.push(clone(state.tabsById[tabId]))
+          delete state.tabsById[tabId]
+        }
+        normalizeAllTabs(state)
+        for (const tab of removedTabs) {
+          for (const listener of tabsOnRemoved.listeners) {
+            listener(tab.id, { windowId: tab.windowId, isWindowClosing: false })
+          }
+        }
+      },
       async move(tabId, moveProperties) {
         const tab = state.tabsById[tabId]
         if (!tab) throw new Error(`Missing tab ${tabId}`)
@@ -221,8 +244,8 @@ async function flushBackgroundWork() {
   await new Promise((resolve) => setImmediate(resolve))
 }
 
-async function loadBackground(initialTabs) {
-  const mock = createChromeMock(initialTabs)
+async function loadBackground(initialTabs, opts = {}) {
+  const mock = createChromeMock(initialTabs, opts)
   const context = vm.createContext({
     chrome: mock.chrome,
     console,
@@ -400,4 +423,164 @@ test('filter shortcut opens a new Tab Out tab with the focus marker', async () =
   assert.ok(createdTab)
   assert.equal(createdTab.active, true)
   assert.equal(createdTab.pinned, false)
+  assert.deepEqual(mock.calls.runtimeMessage, [])
+})
+
+test('filter shortcut focuses the active Tab Out page instead of opening a duplicate', async () => {
+  const mock = await loadBackground([
+    {
+      id: 41,
+      windowId: 1,
+      url: extensionUrl,
+      title: 'Tab Out',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 42,
+      windowId: 1,
+      url: 'https://openai.com/',
+      title: 'OpenAI',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    }
+  ])
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('open-filter-tab')
+  await flushBackgroundWork()
+
+  assert.equal(mock.calls.create.length, 0)
+  assert.equal(mock.calls.update.some((call) => call.updateProperties.url === `${extensionUrl}?focusFilter=1`), false)
+  assert.deepEqual(mock.calls.runtimeMessage, [
+    {
+      type: 'tab-out:focus-filter',
+      tabId: 41
+    }
+  ])
+})
+
+test('filter shortcut replaces the active Tab Out tab when Chrome keeps focus in the omnibox', async () => {
+  const mock = await loadBackground(
+    [
+      {
+        id: 51,
+        windowId: 1,
+        url: extensionUrl,
+        title: 'Tab Out',
+        active: true,
+        pinned: false,
+        groupId: -1,
+        index: 0
+      },
+      {
+        id: 52,
+        windowId: 1,
+        url: 'https://openai.com/',
+        title: 'OpenAI',
+        active: false,
+        pinned: false,
+        groupId: -1,
+        index: 1
+      }
+    ],
+    { runtimeMessageResponse: { focused: false } }
+  )
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('open-filter-tab')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.runtimeMessage, [
+    {
+      type: 'tab-out:focus-filter',
+      tabId: 51
+    }
+  ])
+  assert.deepEqual(mock.calls.create, [
+    {
+      windowId: 1,
+      url: `${extensionUrl}?focusFilter=1`,
+      active: true,
+      pinned: false,
+      index: 0
+    }
+  ])
+  assert.deepEqual(mock.calls.remove, [51])
+  assert.equal(mock.calls.update.some((call) => call.updateProperties.url === `${extensionUrl}?focusFilter=1`), false)
+  assert.equal(mock.state.tabsById[51], undefined)
+  assert.equal(mock.state.tabsById[53].url, `${extensionUrl}?focusFilter=1`)
+  assert.equal(mock.state.tabsById[53].active, true)
+  assert.equal(mock.state.tabsById[53].pinned, false)
+  assert.equal(mock.state.tabsById[53].index, 0)
+  assert.equal(mock.state.tabsById[52].active, false)
+})
+
+test('filter shortcut keeps a pinned dashboard pinned when replacing for filter focus', async () => {
+  const mock = await loadBackground(
+    [
+      {
+        id: 61,
+        windowId: 1,
+        url: extensionUrl,
+        title: 'Tab Out',
+        active: true,
+        pinned: true,
+        groupId: -1,
+        index: 0
+      },
+      {
+        id: 62,
+        windowId: 1,
+        url: 'https://openai.com/',
+        title: 'OpenAI',
+        active: false,
+        pinned: false,
+        groupId: -1,
+        index: 1
+      }
+    ],
+    { runtimeMessageResponse: { focused: false } }
+  )
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('open-filter-tab')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.create, [
+    {
+      windowId: 1,
+      url: `${extensionUrl}?focusFilter=1`,
+      active: true,
+      pinned: true,
+      index: 0
+    }
+  ])
+  assert.deepEqual(mock.calls.remove, [61])
+  assert.deepEqual(
+    mock.calls.runtimeMessage,
+    [
+      {
+        type: 'tab-out:focus-filter',
+        tabId: 61
+      }
+    ]
+  )
+  assert.equal(mock.state.tabsById[61], undefined)
+  assert.equal(mock.state.tabsById[63].url, `${extensionUrl}?focusFilter=1`)
+  assert.equal(mock.state.tabsById[63].active, true)
+  assert.equal(mock.state.tabsById[63].pinned, true)
+  assert.equal(mock.state.tabsById[63].index, 0)
+  assert.equal(mock.state.tabsById[62].active, false)
+  assert.deepEqual(mock.state.sessionStorage.pinnedDashboardTabs, { 63: { windowId: 1 } })
 })

@@ -16,11 +16,13 @@
 const TAB_HISTORY_KEY = 'globalTabHistory'
 const PINNED_DASHBOARD_TABS_KEY = 'pinnedDashboardTabs'
 const OPEN_FILTER_TAB_COMMAND = 'open-filter-tab'
+const FOCUS_FILTER_MESSAGE = 'tab-out:focus-filter'
 const FOCUS_FILTER_PARAM = 'focusFilter'
 const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
 let pinnedDashboardTabsCache = null
 const dashboardReplacementInFlight = new Set()
+const filterFocusReplacementTabIds = new Set()
 
 function extensionNewtabUrl() {
   return `chrome-extension://${chrome.runtime.id}/index.html`
@@ -316,7 +318,62 @@ async function switchTabHistory(direction) {
   }
 }
 
+async function requestFilterFocus(tabId) {
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: FOCUS_FILTER_MESSAGE,
+      tabId
+    })
+    return !!result?.focused
+  } catch {
+    return false
+  }
+}
+
+async function replaceActiveTabOutForFilterFocus(tab) {
+  if (tab?.id == null || typeof tab.windowId !== 'number') return
+
+  const createOptions = {
+    windowId: tab.windowId,
+    url: filterFocusUrl(),
+    active: true,
+    pinned: !!tab.pinned
+  }
+  if (typeof tab.index === 'number') createOptions.index = tab.index
+
+  const replacement = await chrome.tabs.create(createOptions)
+  if (replacement?.id != null) {
+    await updatePinnedDashboardTracking(replacement.id, {
+      ...replacement,
+      url: replacement.url || replacement.pendingUrl || filterFocusUrl()
+    })
+    await recordTabActivation(tab.windowId, replacement.id)
+  } else {
+    return
+  }
+
+  try {
+    await chrome.windows.update(tab.windowId, { focused: true })
+  } catch {}
+
+  filterFocusReplacementTabIds.add(tab.id)
+  try {
+    await chrome.tabs.remove(tab.id)
+  } catch {
+    filterFocusReplacementTabIds.delete(tab.id)
+  }
+}
+
 async function openFilterTab() {
+  const activeTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  const activeTab = activeTabs[0]
+  if (activeTab?.id != null && isTabOutUrl(activeTab.url || activeTab.pendingUrl || '')) {
+    if (await requestFilterFocus(activeTab.id)) return
+
+    await replaceActiveTabOutForFilterFocus(activeTab)
+    return
+  }
+
   await chrome.tabs.create({
     url: filterFocusUrl(),
     active: true
@@ -489,6 +546,11 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
   updateBadge()
   removePinnedDashboardTracking(tabId)
+  if (filterFocusReplacementTabIds.has(tabId)) {
+    filterFocusReplacementTabIds.delete(tabId)
+    removeTabFromHistory(tabId)
+    return
+  }
   restorePreviousTabAfterClose(tabId, removeInfo)
 })
 

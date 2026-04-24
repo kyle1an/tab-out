@@ -12,6 +12,7 @@ import { Missions } from './Missions.js'
 import { UrlPreview } from './UrlPreview.js'
 
 const html = htm.bind(h)
+const FOCUS_FILTER_MESSAGE = 'tab-out:focus-filter'
 const FOCUS_FILTER_PARAM = 'focusFilter'
 
 function shouldFocusFilterFromUrl() {
@@ -28,6 +29,14 @@ function clearFocusFilterParam() {
   window.history.replaceState(null, '', nextUrl)
 }
 
+function focusFilterInput() {
+  const input = document.querySelector('.tab-filter')
+  if (!input) return false
+
+  input.focus()
+  return document.hasFocus() && document.activeElement === input
+}
+
 function stableGroupId(group) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
 }
@@ -37,10 +46,11 @@ export function App({ initialDashboard = null }) {
   const [source, setSource] = useState('tabs')
   const [filterInput, setFilterInput] = useState('')
   const [filter, setFilter] = useState('')
-  const [autoFocusFilter] = useState(shouldFocusFilterFromUrl)
+  const [filterFocusRequest, setFilterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
   const refreshRef = useRef(async () => {})
+  const currentTabIdRef = useRef(null)
   const previousOrderRef = useRef({
     tabs: new Map(),
     bookmarks: new Map()
@@ -62,8 +72,34 @@ export function App({ initialDashboard = null }) {
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
 
   useEffect(() => {
-    if (autoFocusFilter) clearFocusFilterParam()
-  }, [autoFocusFilter])
+    clearFocusFilterParam()
+  }, [])
+
+  useEffect(() => {
+    const extensionApi = globalThis.chrome
+    if (!extensionApi?.runtime?.onMessage || !extensionApi?.tabs?.getCurrent) return
+
+    let disposed = false
+    extensionApi.tabs
+      .getCurrent()
+      .then((tab) => {
+        if (!disposed) currentTabIdRef.current = tab?.id ?? null
+      })
+      .catch(() => {})
+
+    function onMessage(message, _sender, sendResponse) {
+      if (message?.type !== FOCUS_FILTER_MESSAGE) return false
+      if (currentTabIdRef.current == null || message.tabId !== currentTabIdRef.current) return false
+      sendResponse({ focused: focusFilterInput() })
+      return false
+    }
+
+    extensionApi.runtime.onMessage.addListener(onMessage)
+    return () => {
+      disposed = true
+      extensionApi.runtime.onMessage.removeListener(onMessage)
+    }
+  }, [])
 
   useEffect(() => {
     if (filterInput === filter) return
@@ -157,7 +193,7 @@ export function App({ initialDashboard = null }) {
             filtering=${stats.filtering}
             ready=${isReady}
             filter=${filterInput}
-            autoFocusFilter=${autoFocusFilter}
+            filterFocusRequest=${filterFocusRequest}
             onFilterChange=${setFilterInput}
             onSourceChange=${setSource}
             onCloseFiltered=${onCloseFiltered}
