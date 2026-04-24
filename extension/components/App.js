@@ -14,6 +14,12 @@ import { UrlPreview } from './UrlPreview.js'
 const html = htm.bind(h)
 const FOCUS_FILTER_MESSAGE = 'tab-out:focus-filter'
 const FOCUS_FILTER_PARAM = 'focusFilter'
+const DEFAULT_PAGE_TITLE = '\u200e'
+
+export function titleForFilterInput(filterInput = '') {
+  const keyword = filterInput.trim()
+  return keyword ? `${keyword} - Tab Out` : DEFAULT_PAGE_TITLE
+}
 
 function shouldFocusFilterFromUrl() {
   return new URLSearchParams(window.location.search).get(FOCUS_FILTER_PARAM) === '1'
@@ -110,6 +116,10 @@ export function App({ initialDashboard = null }) {
     const timer = setTimeout(() => setFilter(filterInput), 200)
     return () => clearTimeout(timer)
   }, [filterInput, filter])
+
+  useEffect(() => {
+    document.title = titleForFilterInput(filterInput)
+  }, [filterInput])
 
   useEffect(() => {
     setHoveredUrl('')
