@@ -69,6 +69,63 @@ test('buildDomainGroups orders normal domain cards by tab count', () => {
   )
 })
 
+test('buildDomainGroups puts pinned domain cards above higher-count normal cards', () => {
+  const groups = buildDomainGroups(
+    [
+      makeTab({ url: 'https://github.com/', title: 'GitHub' }),
+      makeTab({ id: 2, url: 'https://github.com/openai/openai', title: 'openai/openai' }),
+      makeTab({ id: 3, url: 'https://openai.com/research', title: 'Research' })
+    ],
+    { pinnedDomains: ['openai.com'] }
+  )
+
+  assert.deepEqual(
+    groups.map((group) => group.domain),
+    ['openai.com', 'github.com']
+  )
+  assert.equal(groups[0].pinned, true)
+  assert.equal(groups[1].pinned, false)
+})
+
+test('buildDomainGroups keeps saved pin order ahead of previous card order', () => {
+  const groups = buildDomainGroups(
+    [
+      makeTab({ url: 'https://github.com/', title: 'GitHub' }),
+      makeTab({ id: 2, url: 'https://openai.com/research', title: 'Research' }),
+      makeTab({ id: 3, url: 'https://example.com/docs', title: 'Docs' })
+    ],
+    {
+      pinnedDomains: ['example.com', 'openai.com'],
+      previousOrder: new Map([
+        ['domain-github-com', 0],
+        ['domain-openai-com', 1],
+        ['domain-example-com', 2]
+      ])
+    }
+  )
+
+  assert.deepEqual(
+    groups.map((group) => group.domain),
+    ['example.com', 'openai.com', 'github.com']
+  )
+})
+
+test('buildDomainGroups keeps system cards ahead of pinned domain cards', () => {
+  const groups = buildDomainGroups(
+    [
+      makeTab({ url: 'https://openai.com/research', title: 'Research' }),
+      makeTab({ id: 2, url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),
+      makeTab({ id: 3, url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true })
+    ],
+    { pinnedDomains: ['openai.com'] }
+  )
+
+  assert.deepEqual(
+    groups.map((group) => group.domain),
+    ['__tab-out__', '__standalone-apps__', 'openai.com']
+  )
+})
+
 test('buildDomainGroups collects standalone app tabs into a dedicated apps card', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),

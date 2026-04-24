@@ -28,6 +28,7 @@ export interface DomainGroup {
   domain: string
   tabs: DashboardTab[]
   label?: string
+  pinned?: boolean
 }
 
 export interface CustomGroupRule {
@@ -41,6 +42,7 @@ export interface CustomGroupRule {
 export interface DomainGroupBuildOptions {
   previousOrder?: Map<string, number>
   customGroups?: CustomGroupRule[]
+  pinnedDomains?: string[]
 }
 
 export type DashboardSegment = string | { placeholder: true }
