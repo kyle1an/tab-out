@@ -7,9 +7,11 @@ import { showToast } from './Toast.js'
 import { markClosure } from '../undo.js'
 import { registerDashboardRefresh } from '../dashboard-controller.js'
 import { buildDashboardViewModel, fetchDashboardData } from '../render.js'
+import { fetchTabHistorySnapshot } from '../tab-history.js'
 import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../domain-pins.js'
 import { HeaderBar } from './HeaderBar.js'
 import { Missions } from './Missions.js'
+import { TabHistoryPanel } from './TabHistoryPanel.js'
 import { UrlPreview } from './UrlPreview.js'
 
 const html = htm.bind(h)
@@ -74,6 +76,7 @@ export function App({ initialDashboard = null }) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [pinnedDomains, setPinnedDomains] = useState([])
   const [pinsLoaded, setPinsLoaded] = useState(false)
+  const [tabHistory, setTabHistory] = useState(null)
   const refreshRef = useRef(async () => {})
   const previousOrderRef = useRef({
     tabs: new Map(),
@@ -90,8 +93,12 @@ export function App({ initialDashboard = null }) {
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
     if (!pinsLoaded) return
-    const next = await fetchDashboardData(previousOrderRef.current[source] || new Map(), source, { pinnedDomains })
+    const [next, nextTabHistory] = await Promise.all([
+      fetchDashboardData(previousOrderRef.current[source] || new Map(), source, { pinnedDomains }),
+      fetchTabHistorySnapshot()
+    ])
     setDashboard(next)
+    setTabHistory(nextTabHistory)
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
@@ -237,7 +244,14 @@ export function App({ initialDashboard = null }) {
 
       <div class="scroll-region" ref=${scrollRegionRef}>
         <div class="page-inner">
-          <div class="active-section" id="openTabsSection" style=${isReady ? '' : 'display:none'}>
+          <div class=${'active-section' + (source === 'tabs' ? ' has-history' : '')} id="openTabsSection" style=${isReady ? '' : 'display:none'}>
+            ${isReady &&
+            source === 'tabs' &&
+            html`<${TabHistoryPanel}
+              snapshot=${tabHistory}
+              onSnapshotChange=${setTabHistory}
+              onHoverUrlChange=${setHoveredUrl}
+            />`}
             <div class="missions" id="openTabsMissions" ref=${primaryMissionsRef}>
               ${isReady &&
               html`<${Missions}
