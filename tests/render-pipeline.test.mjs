@@ -6,6 +6,7 @@ import { flattenBookmarkNodes } from '../extension/bookmarks.js'
 import { filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/components/App.js'
 import { isFilterFocusShortcut } from '../extension/components/HeaderBar.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
+import { normalizeTabHistorySnapshot } from '../extension/tab-history.js'
 
 globalThis.chrome = {
   runtime: {
@@ -325,6 +326,35 @@ test('filtering ignores Tab Out keywords injected by the active filter title and
 
   assert.equal(vm.stats.visibleTabs, 0)
   assert.equal(vm.matchedCards.length, 0)
+})
+
+test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
+  const snapshot = normalizeTabHistorySnapshot({
+    stackSize: 3,
+    maxSize: 24,
+    cursorIndex: 2,
+    currentIndex: 1,
+    previousIndex: 0,
+    nextIndex: 2,
+    activeTabId: 12,
+    activeWindowId: 1,
+    entries: [
+      { index: 0, tabId: 11, windowId: 1, title: 'Alpha', displayUrl: 'alpha.example', exists: true, previousTarget: true },
+      { index: 1, tabId: 12, windowId: 1, title: 'Bravo', displayUrl: 'bravo.example', exists: true, active: true, current: true },
+      { index: 2, tabId: 13, windowId: 1, title: 'Charlie', displayUrl: 'charlie.example', exists: true, cursor: true, nextTarget: true }
+    ]
+  })
+
+  assert.equal(snapshot.stackSize, 3)
+  assert.equal(snapshot.currentIndex, 1)
+  assert.equal(snapshot.previousIndex, 0)
+  assert.equal(snapshot.nextIndex, 2)
+  assert.equal(snapshot.activeTabId, 12)
+  assert.equal(snapshot.entries[0].previousTarget, true)
+  assert.equal(snapshot.entries[1].current, true)
+  assert.equal(snapshot.entries[1].active, true)
+  assert.equal(snapshot.entries[2].cursor, true)
+  assert.equal(snapshot.entries[2].nextTarget, true)
 })
 
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {
