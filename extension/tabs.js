@@ -189,12 +189,6 @@ export async function closeTabsExact(urls, opts = {}) {
  * focusTab(url) — switch Chrome to the tab matching `url` (exact first,
  * hostname fallback) and focus its window.
  *
- * Cross-window bonus: when the match lives in a different window than
- * the dashboard, plant a Tab Out tab next to it (same window, one
- * index before the match) so the user has a short path back to the
- * dashboard from the newly-visited tab. No duplicate is created if
- * that window already has a Tab Out tab open.
- *
  * @param {string} url
  * @returns {Promise<boolean>}
  */
@@ -223,54 +217,6 @@ export async function focusTab(url) {
   if (matches.length === 0) return false
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
-
-  // Skip the pin-anchor guarantee when the match lives in an app or
-  // popup window (standalone PWA, DevTools, extension popup). Those
-  // windows don't accept new pinned tabs the way a normal browsing
-  // window does — `chrome.tabs.create({ windowId: appWindowId,
-  // pinned: true })` silently redirects the new tab into the current
-  // normal window, which already has its own pinned Tab Out. The
-  // result is a duplicate pinned dashboard in the browsing window
-  // every time the user focuses an app tab. Resolve the match's
-  // window type first and bail the anchor logic when it's not a
-  // standard browsing window.
-  let matchWindowType = 'normal'
-  try {
-    const w = await chrome.windows.get(match.windowId)
-    matchWindowType = w.type
-  } catch {}
-  const matchIsApp = matchWindowType === 'app' || matchWindowType === 'popup' || matchWindowType === 'devtools'
-
-  // Anchor-guarantee: wherever the match lives, make sure that window
-  // has a PINNED Tab Out tab. Same logic whether we're crossing
-  // windows or staying in the same one — the user's "easier reach"
-  // goal is just "a pinned dashboard is always in this window." No
-  // tab-strip repositioning needed; pinned tabs are anchored to the
-  // leftmost section by Chrome, which is as reachable as it gets.
-  //
-  // Resolution order:
-  //   1. pinned Tab Out already present → nothing to do
-  //   2. unpinned Tab Out present → pin it (no duplicate, no churn)
-  //   3. no Tab Out in that window → create a fresh pinned tab
-  //      (Chrome auto-places it in the pinned section; no index
-  //      param needed). `active: false` keeps the clicked tab as the
-  //      focus target.
-  const extensionId = chrome.runtime.id
-  const newtabUrl = `chrome-extension://${extensionId}/index.html`
-  const hasPinned = allTabs.some((t) => t.windowId === match.windowId && t.pinned && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
-  if (!matchIsApp && !hasPinned) {
-    const unpinned = allTabs.find((t) => t.windowId === match.windowId && !t.pinned && (t.url === newtabUrl || t.url === 'chrome://newtab/'))
-    if (unpinned) {
-      await chrome.tabs.update(unpinned.id, { pinned: true })
-    } else {
-      await chrome.tabs.create({
-        windowId: match.windowId,
-        url: newtabUrl,
-        pinned: true,
-        active: false
-      })
-    }
-  }
 
   await chrome.tabs.update(match.id, { active: true })
   await chrome.windows.update(match.windowId, { focused: true })
