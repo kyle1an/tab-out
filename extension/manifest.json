@@ -12,6 +12,9 @@
     },
     "switch-to-next-tab": {
       "description": "Switch forward to the next tab in global activation history"
+    },
+    "open-filter-tab": {
+      "description": "Open Tab Out with the filter focused"
     }
   },
   "action": {

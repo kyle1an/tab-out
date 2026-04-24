@@ -15,6 +15,8 @@
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
 const PINNED_DASHBOARD_TABS_KEY = 'pinnedDashboardTabs'
+const OPEN_FILTER_TAB_COMMAND = 'open-filter-tab'
+const FOCUS_FILTER_PARAM = 'focusFilter'
 const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
 let pinnedDashboardTabsCache = null
@@ -25,7 +27,13 @@ function extensionNewtabUrl() {
 }
 
 function isTabOutUrl(url) {
-  return url === extensionNewtabUrl() || url === 'chrome://newtab/'
+  if (url === 'chrome://newtab/') return true
+  const tabOutUrl = extensionNewtabUrl()
+  return url === tabOutUrl || url?.startsWith(`${tabOutUrl}?`) || url?.startsWith(`${tabOutUrl}#`)
+}
+
+function filterFocusUrl() {
+  return `${extensionNewtabUrl()}?${FOCUS_FILTER_PARAM}=1`
 }
 
 function normalizePinnedDashboardTabs(entry) {
@@ -308,6 +316,13 @@ async function switchTabHistory(direction) {
   }
 }
 
+async function openFilterTab() {
+  await chrome.tabs.create({
+    url: filterFocusUrl(),
+    active: true
+  })
+}
+
 async function ensurePinnedDashboardTab(windowId, opts = {}) {
   if (typeof windowId !== 'number') return null
 
@@ -502,6 +517,8 @@ chrome.commands?.onCommand.addListener((command) => {
     switchTabHistory(-1)
   } else if (command === 'switch-to-next-tab') {
     switchTabHistory(1)
+  } else if (command === OPEN_FILTER_TAB_COMMAND) {
+    openFilterTab()
   }
 })
 

@@ -48,9 +48,6 @@ export function snapshotChromeTabs(chromeTabs) {
  */
 export async function fetchOpenTabs() {
   try {
-    const extensionId = chrome.runtime.id
-    const newtabUrl = `chrome-extension://${extensionId}/index.html`
-
     // Fetch tabs, windows, and tab-group colors in parallel — all
     // network-free API calls. Window types tell us which tabs are
     // running in standalone app/PWA windows (type === 'app' | 'popup').
@@ -82,7 +79,7 @@ export async function fetchOpenTabs() {
         active: t.active,
         pinned: t.pinned,
         groupId: typeof t.groupId === 'number' ? t.groupId : -1,
-        isTabOut: rawUrl === newtabUrl || rawUrl === 'chrome://newtab/',
+        isTabOut: isTabOutUrl(rawUrl),
         isApp: windowType === 'app' || windowType === 'popup'
       }
     })
@@ -320,8 +317,10 @@ export async function openTabUrl(url) {
 
 function isTabOutUrl(url) {
   const extensionId = globalThis.chrome?.runtime?.id
-  const tabOutUrl = extensionId ? `chrome-extension://${extensionId}/index.html` : ''
-  return url === tabOutUrl || url === 'chrome://newtab/'
+  if (url === 'chrome://newtab/') return true
+  if (!extensionId) return false
+  const tabOutUrl = `chrome-extension://${extensionId}/index.html`
+  return url === tabOutUrl || url?.startsWith(`${tabOutUrl}?`) || url?.startsWith(`${tabOutUrl}#`)
 }
 
 /**

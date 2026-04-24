@@ -343,7 +343,7 @@ test('existing pinned Tab Out anchor is reused instead of creating a duplicate',
 })
 
 function isTabOutLikeUrl(url) {
-  return url === extensionUrl || url === 'chrome://newtab/'
+  return url === 'chrome://newtab/' || url === extensionUrl || url === `${extensionUrl}?focusFilter=1`
 }
 
 test('service worker lifecycle does not rewrite native new tabs into extension URLs', async () => {
@@ -369,4 +369,35 @@ test('service worker lifecycle does not rewrite native new tabs into extension U
   await mock.listeners.runtimeOnInstalled[0]({ reason: 'install' })
   await flushBackgroundWork()
   assert.equal(mock.calls.update.some((call) => call.updateProperties.url === extensionUrl), false)
+})
+
+test('filter shortcut opens a new Tab Out tab with the focus marker', async () => {
+  const mock = await loadBackground([
+    {
+      id: 31,
+      windowId: 1,
+      url: 'https://openai.com/',
+      title: 'OpenAI',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('open-filter-tab')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.create.at(-1), {
+    url: `${extensionUrl}?focusFilter=1`,
+    active: true
+  })
+
+  const createdTab = Object.values(mock.state.tabsById).find((tab) => tab.url === `${extensionUrl}?focusFilter=1`)
+  assert.ok(createdTab)
+  assert.equal(createdTab.active, true)
+  assert.equal(createdTab.pinned, false)
 })

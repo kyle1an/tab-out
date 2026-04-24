@@ -82,7 +82,8 @@ Once the extension is loaded:
 > 5. **Click "Close all N tabs"** on a group header to close the whole card.
 > 6. **Duplicate tabs** show an "(2x)" badge. Click the card's **"Dedupe N"** button (or the global **"Dedupe N"** in the top bar) to keep one copy per URL.
 > 7. **Live filter:** type in the filter input to narrow the dashboard. Matching tabs stay put; the rest slide into an "Other tabs" section below so everything stays accounted for. Press Esc or click the ✕ inside the input to clear.
-> 8. **Cross-subdomain fold:** if a page exists in multiple subdomains (dev/qa/prod, or tenant subdomains, etc.), it shows as one chip with a row of clickable env pills under an "Across subdomains" section.
+> 8. **Filter shortcut:** assign **"Open Tab Out with the filter focused"** in `chrome://extensions/shortcuts` to open a fresh Tab Out page with the filter ready for typing.
+> 9. **Cross-subdomain fold:** if a page exists in multiple subdomains (dev/qa/prod, or tenant subdomains, etc.), it shows as one chip with a row of clickable env pills under an "Across subdomains" section.
 >
 > That's it! No server to run, no config files. Everything works right away.
 
