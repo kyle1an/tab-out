@@ -39,6 +39,13 @@ function normalizeAllTabs(state) {
   }
 }
 
+function focusWindow(state, windowId) {
+  Object.values(state.windowsById).forEach((win) => {
+    win.focused = win.id === windowId
+  })
+  state.lastFocusedWindowId = windowId
+}
+
 function createChromeMock(initialTabs) {
   const runtimeOnInstalled = createEventSlot()
   const runtimeOnStartup = createEventSlot()
@@ -49,17 +56,31 @@ function createChromeMock(initialTabs) {
   const windowsOnFocusChanged = createEventSlot()
   const commandsOnCommand = createEventSlot()
 
+  const initialWindowIds = [...new Set(initialTabs.map((tab) => tab.windowId))]
+  const initialLastFocusedWindowId = initialTabs[0]?.windowId || 1
   const state = {
     tabsById: Object.fromEntries(initialTabs.map((tab) => [tab.id, { ...tab }])),
+    windowsById: Object.fromEntries(
+      initialWindowIds.map((windowId) => {
+        const firstTab = initialTabs.find((tab) => tab.windowId === windowId)
+        return [windowId, { id: windowId, type: firstTab?.windowType || 'normal', focused: windowId === initialLastFocusedWindowId }]
+      })
+    ),
     nextTabId: Math.max(...initialTabs.map((tab) => tab.id)) + 1,
-    lastFocusedWindowId: initialTabs[0]?.windowId || 1
+    nextWindowId: Math.max(1, ...initialWindowIds) + 1,
+    lastFocusedWindowId: initialLastFocusedWindowId
+  }
+  if (!state.windowsById[initialLastFocusedWindowId]) {
+    state.windowsById[initialLastFocusedWindowId] = { id: initialLastFocusedWindowId, type: 'normal', focused: true }
   }
   normalizeAllTabs(state)
 
   const calls = {
     create: [],
+    windowCreate: [],
     remove: [],
     update: [],
+    windowUpdate: [],
     badgeText: [],
     badgeColor: []
   }
@@ -116,6 +137,9 @@ function createChromeMock(initialTabs) {
       },
       async create(createProperties) {
         const windowId = createProperties.windowId ?? state.lastFocusedWindowId
+        if (!state.windowsById[windowId]) {
+          state.windowsById[windowId] = { id: windowId, type: 'normal', focused: false }
+        }
         const existingTabs = Object.values(state.tabsById).filter((tab) => tab.windowId === windowId)
         const nextIndex =
           typeof createProperties.index === 'number'
@@ -138,7 +162,7 @@ function createChromeMock(initialTabs) {
           existingTabs.forEach((candidate) => {
             candidate.active = false
           })
-          state.lastFocusedWindowId = windowId
+          focusWindow(state, windowId)
         }
 
         state.tabsById[tab.id] = tab
@@ -185,7 +209,32 @@ function createChromeMock(initialTabs) {
     windows: {
       WINDOW_ID_NONE: -1,
       onFocusChanged: windowsOnFocusChanged.api,
-      async update() {}
+      async getLastFocused(queryOptions = {}) {
+        let windows = Object.values(state.windowsById)
+        if (queryOptions.windowTypes) windows = windows.filter((win) => queryOptions.windowTypes.includes(win.type))
+        const focusedWindow = windows.find((win) => win.id === state.lastFocusedWindowId) || windows.find((win) => win.focused) || windows[0]
+        if (!focusedWindow) throw new Error('No matching focused window')
+        return clone(focusedWindow)
+      },
+      async getAll(queryOptions = {}) {
+        let windows = Object.values(state.windowsById)
+        if (queryOptions.windowTypes) windows = windows.filter((win) => queryOptions.windowTypes.includes(win.type))
+        return windows.map((win) => clone(win))
+      },
+      async update(windowId, updateInfo) {
+        const win = state.windowsById[windowId]
+        if (!win) throw new Error(`Missing window ${windowId}`)
+        calls.windowUpdate.push({ windowId, updateInfo: clone(updateInfo) })
+        if (updateInfo.focused) focusWindow(state, windowId)
+        return clone(win)
+      },
+      async create(createData = {}) {
+        const windowId = state.nextWindowId++
+        state.windowsById[windowId] = { id: windowId, type: createData.type || 'normal', focused: false }
+        if (createData.focused !== false) focusWindow(state, windowId)
+        calls.windowCreate.push(clone(createData))
+        return clone(state.windowsById[windowId])
+      }
     },
     commands: {
       onCommand: commandsOnCommand.api
@@ -324,6 +373,7 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from a normal page',
   await flushBackgroundWork()
 
   assert.deepEqual(mock.calls.create.at(-1), {
+    windowId: 1,
     url: `${extensionUrl}?focusFilter=1`,
     active: true
   })
@@ -366,6 +416,7 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from an existing Tab
 
   assert.deepEqual(mock.calls.create, [
     {
+      windowId: 1,
       url: `${extensionUrl}?focusFilter=1`,
       active: true
     }
@@ -413,6 +464,7 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
 
   assert.deepEqual(mock.calls.create, [
     {
+      windowId: 1,
       url: `${extensionUrl}?focusFilter=1`,
       active: true
     }
@@ -425,6 +477,54 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
   assert.equal(mock.state.tabsById[63].url, `${extensionUrl}?focusFilter=1`)
   assert.equal(mock.state.tabsById[63].active, true)
   assert.equal(mock.state.tabsById[63].pinned, false)
+})
+
+test('filter shortcut opens in a normal browser window when a standalone app window is focused', async () => {
+  const mock = await loadBackground([
+    {
+      id: 71,
+      windowId: 10,
+      windowType: 'popup',
+      url: 'https://mail.google.com/mail/u/0/',
+      title: 'Inbox',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 72,
+      windowId: 2,
+      windowType: 'normal',
+      url: 'https://openai.com/',
+      title: 'OpenAI',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('open-filter-tab')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.create, [
+    {
+      windowId: 2,
+      url: `${extensionUrl}?focusFilter=1`,
+      active: true
+    }
+  ])
+  assert.deepEqual(mock.calls.windowUpdate.at(-1), {
+    windowId: 2,
+    updateInfo: { focused: true }
+  })
+  assert.equal(mock.state.tabsById[73].windowId, 2)
+  assert.equal(mock.state.tabsById[73].url, `${extensionUrl}?focusFilter=1`)
+  assert.equal(mock.state.tabsById[73].active, true)
 })
 
 test('active tab is primed to close back to the previous same-window tab without fallback flash', async () => {
