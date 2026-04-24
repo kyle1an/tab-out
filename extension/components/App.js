@@ -7,6 +7,7 @@ import { showToast } from './Toast.js'
 import { markClosure } from '../undo.js'
 import { registerDashboardRefresh } from '../dashboard-controller.js'
 import { buildDashboardViewModel, fetchDashboardData } from '../render.js'
+import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../domain-pins.js'
 import { HeaderBar } from './HeaderBar.js'
 import { Missions } from './Missions.js'
 import { UrlPreview } from './UrlPreview.js'
@@ -71,6 +72,8 @@ export function App({ initialDashboard = null }) {
   const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
+  const [pinnedDomains, setPinnedDomains] = useState([])
+  const [pinsLoaded, setPinsLoaded] = useState(false)
   const refreshRef = useRef(async () => {})
   const previousOrderRef = useRef({
     tabs: new Map(),
@@ -86,11 +89,24 @@ export function App({ initialDashboard = null }) {
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
-    const next = await fetchDashboardData(previousOrderRef.current[source] || new Map(), source)
+    const next = await fetchDashboardData(previousOrderRef.current[source] || new Map(), source, { pinnedDomains })
     setDashboard(next)
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
+
+  useEffect(() => {
+    let cancelled = false
+    loadPinnedDomains().then((domains) => {
+      if (cancelled) return
+      previousOrderRef.current = { tabs: new Map(), bookmarks: new Map() }
+      setPinnedDomains(domains)
+      setPinsLoaded(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     clearFocusFilterParam()
@@ -118,6 +134,11 @@ export function App({ initialDashboard = null }) {
     setHoveredUrl('')
     requestAnimationFrame(() => refreshRef.current())
   }, [source])
+
+  useEffect(() => {
+    if (!pinsLoaded) return
+    requestAnimationFrame(() => refreshRef.current())
+  }, [pinsLoaded, pinnedDomains, source])
 
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
@@ -169,6 +190,18 @@ export function App({ initialDashboard = null }) {
     await refreshRef.current()
   }
 
+  async function onTogglePinnedDomain(domain) {
+    const nextPinnedDomains = togglePinnedDomainInList(pinnedDomains, domain)
+    previousOrderRef.current = { tabs: new Map(), bookmarks: new Map() }
+    setPinnedDomains(nextPinnedDomains)
+    try {
+      await savePinnedDomains(nextPinnedDomains)
+    } catch {
+      showToast('Could not save pinned domain')
+      setPinnedDomains(pinnedDomains)
+    }
+  }
+
   const stats = dashboardVm.stats
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
@@ -216,6 +249,7 @@ export function App({ initialDashboard = null }) {
                 source=${source}
                 onHoverUrlChange=${setHoveredUrl}
                 onLayoutChange=${scheduleMissionsMasonry}
+                onTogglePinnedDomain=${onTogglePinnedDomain}
               />`}
             </div>
 
@@ -235,6 +269,7 @@ export function App({ initialDashboard = null }) {
                     showEmptyState=${false}
                     onHoverUrlChange=${setHoveredUrl}
                     onLayoutChange=${scheduleMissionsMasonry}
+                    onTogglePinnedDomain=${onTogglePinnedDomain}
                   />
                 </div>
               </div>

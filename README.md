@@ -26,6 +26,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Homepages stay with their site** so Gmail, GitHub, YouTube, and similar start pages remain in their own domain cards
 - **Close tabs with style** with a confetti burst, undoable via toast
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
+- **Pin domain cards** to keep important sites at the top of the dashboard
 - **Click any tab to jump to it** across Chrome windows
 - **Live filter** — type in the filter input to narrow the dashboard; Esc clears. Non-matching tabs move to an "Other tabs" section so every tab stays accounted for
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
@@ -83,7 +84,7 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 | Rendering | Preact 10 + HTM (both vendored as ES modules, no build step) |
 | Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS confetti particles |
-| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; no server, no storage |
+| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` only stores pinned domain-card order |
 
 ---
 

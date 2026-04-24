@@ -29,6 +29,7 @@ import { unwrapSuspenderUrl } from './suspender.js'
 import { cleanTitle, stripTitleNoise } from './titles.js'
 import { registrableDomain, subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
+import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 
 /** @typedef {import('./types').DashboardTab} DashboardTab */
 /** @typedef {import('./types').DomainGroup} DomainGroup */
@@ -982,7 +983,7 @@ function getDashboardGroupingConfig() {
  */
 export function buildDomainGroups(
   realTabs,
-  { previousOrder = new Map(), customGroups = [] } = {}
+  { previousOrder = new Map(), customGroups = [], pinnedDomains = [] } = {}
 ) {
   // Group tabs by domain. Custom groups and utility cards (apps / new tabs)
   // still split out, but homepage-like routes stay in their native domain cards.
@@ -1052,16 +1053,26 @@ export function buildDomainGroups(
     groupMap['__standalone-apps__'] = { domain: '__standalone-apps__', label: 'Apps', tabs: appTabs }
   }
 
-  // Sort by special utility cards first, then by tab count.
-  const groupedDomains = Object.values(groupMap).sort((a, b) => {
-    const aIsTabOut = a.domain === '__tab-out__'
-    const bIsTabOut = b.domain === '__tab-out__'
-    if (aIsTabOut !== bIsTabOut) return aIsTabOut ? -1 : 1
+  const normalizedPinnedDomains = normalizePinnedDomains(pinnedDomains)
+  const pinnedOrder = new Map(normalizedPinnedDomains.map((domain, index) => [domain, index]))
 
-    const aIsApps = a.domain === '__standalone-apps__'
-    const bIsApps = b.domain === '__standalone-apps__'
-    if (aIsApps !== bIsApps) return aIsApps ? -1 : 1
+  function orderTier(group) {
+    if (group.domain === '__tab-out__') return 0
+    if (group.domain === '__standalone-apps__') return 1
+    if (group.pinned) return 2
+    return 3
+  }
 
+  const groupedDomains = Object.values(groupMap)
+  groupedDomains.forEach((group) => {
+    group.pinned = isPinnableDomain(group.domain) && pinnedOrder.has(group.domain)
+  })
+
+  // Sort by fixed system cards, then user-pinned domains, then tab count.
+  groupedDomains.sort((a, b) => {
+    const tierDelta = orderTier(a) - orderTier(b)
+    if (tierDelta !== 0) return tierDelta
+    if (a.pinned && b.pinned) return pinnedOrder.get(a.domain) - pinnedOrder.get(b.domain)
     return b.tabs.length - a.tabs.length
   })
 
@@ -1070,6 +1081,9 @@ export function buildDomainGroups(
   // end, since `return 0` preserves Array.prototype.sort stability).
   const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
   groupedDomains.sort((a, b) => {
+    const tierDelta = orderTier(a) - orderTier(b)
+    if (tierDelta !== 0) return tierDelta
+    if (a.pinned && b.pinned) return pinnedOrder.get(a.domain) - pinnedOrder.get(b.domain)
     const aPrev = previousOrder.get(stableDomainId(a))
     const bPrev = previousOrder.get(stableDomainId(b))
     if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev
@@ -1087,13 +1101,14 @@ export function buildDomainGroups(
  *
  * @param {Map<string, number>} [previousOrder]
  * @param {DashboardSource} [source]
+ * @param {{ pinnedDomains?: string[] }} [opts]
  * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[] }>}
  */
-export async function fetchDashboardData(previousOrder = new Map(), source = 'tabs') {
+export async function fetchDashboardData(previousOrder = new Map(), source = 'tabs', { pinnedDomains = [] } = {}) {
   const realTabs =
     source === 'bookmarks'
       ? await fetchBookmarksSourceItems()
       : (await fetchOpenTabs(), getDashboardTabs())
-  const domainGroups = buildDomainGroups(realTabs, { previousOrder, ...getDashboardGroupingConfig() })
+  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...getDashboardGroupingConfig() })
   return { realTabs, domainGroups }
 }
