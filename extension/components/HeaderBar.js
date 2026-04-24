@@ -28,19 +28,17 @@ function SourceSwitch({ source, onSourceChange }) {
   `
 }
 
-export function HeaderBar({ filter, autoFocusFilter = false, onFilterChange, onCloseFiltered, onDedupAll, onSourceChange, source = 'tabs', ready = true, ...stats }) {
+export function HeaderBar({ filter, filterFocusRequest = 0, onFilterChange, onCloseFiltered, onDedupAll, onSourceChange, source = 'tabs', ready = true, ...stats }) {
   const inputRef = useRef(null)
-  const didAutoFocusRef = useRef(false)
 
   function updateFilter(nextValue) {
     onFilterChange(nextValue)
   }
 
   useEffect(() => {
-    if (!autoFocusFilter || didAutoFocusRef.current) return
-    didAutoFocusRef.current = true
+    if (filterFocusRequest <= 0) return
     inputRef.current?.focus()
-  }, [autoFocusFilter])
+  }, [filterFocusRequest])
 
   const wrapClass = 'tab-filter-wrap' + (filter ? ' has-value' : '')
 
