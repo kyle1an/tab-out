@@ -94,3 +94,9 @@ Once the extension is loaded:
 - Tab Out is a pure Chrome extension. No server, no Node.js, no npm.
 - 100% local. No data is sent to any external service.
 - To update: `cd tab-out && git pull`, then reload the extension in `chrome://extensions`.
+
+## Visual Style Notes
+
+- Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.
+- Do not add squircle styling to true circles or pills such as `border-radius: 50%` or `999px`.
+- Squircle corners read less rounded than ordinary rounded corners. As a visual rule of thumb, a `4px` squircle looks similar to a `2px` non-squircle corner.

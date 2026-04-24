@@ -14,6 +14,8 @@
  */
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
+const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
+const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 const OPEN_FILTER_TAB_COMMAND = 'open-filter-tab'
 const FOCUS_FILTER_PARAM = 'focusFilter'
 const MAX_TAB_HISTORY = 24
@@ -100,6 +102,59 @@ async function recordTabActivation(windowId, tabId) {
     stack: nextStack,
     index: nextStack.length - 1
   })
+}
+
+function historyForNavigation(history, activeTab) {
+  const current = normalizeGlobalHistory(history)
+  if (!activeTab?.id) {
+    return { stack: current.stack, index: current.index, activeWasInserted: false }
+  }
+
+  if (current.stack[current.index]?.tabId === activeTab.id) {
+    return { stack: current.stack, index: current.index, activeWasInserted: false }
+  }
+
+  const latestActiveIndex = current.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
+  if (latestActiveIndex !== -1) {
+    return { stack: current.stack, index: latestActiveIndex, activeWasInserted: false }
+  }
+
+  let nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
+  nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
+  if (nextStack.length > MAX_TAB_HISTORY) {
+    nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
+  }
+
+  return { stack: nextStack, index: nextStack.length - 1, activeWasInserted: true }
+}
+
+function findHistoryTargetIndex(history, direction, existingTabs, activeTab) {
+  if (!activeTab?.id) return -1
+
+  let nextIndex = history.index + direction
+  while (
+    nextIndex >= 0 &&
+    nextIndex < history.stack.length &&
+    (!existingTabs.has(history.stack[nextIndex].tabId) || history.stack[nextIndex].tabId === activeTab.id)
+  ) {
+    nextIndex += direction
+  }
+  return nextIndex < 0 || nextIndex >= history.stack.length ? -1 : nextIndex
+}
+
+function pruneMissingHistoryEntries(history, existingTabs) {
+  const current = normalizeGlobalHistory(history)
+  let nextHistory = current
+
+  for (const entry of current.stack) {
+    if (existingTabs.has(entry.tabId)) continue
+    nextHistory = removeTabEntriesFromHistory(nextHistory, entry.tabId)
+  }
+
+  return {
+    ...nextHistory,
+    changed: nextHistory.stack.length !== current.stack.length || nextHistory.index !== current.index
+  }
 }
 
 async function findPreviousSurvivingTabInWindow(history, windowId, tabId) {
@@ -230,44 +285,20 @@ async function switchTabHistory(direction) {
     return
   }
 
-  let index = history.index
-  if (history.stack[index]?.tabId !== activeTab.id) {
-    const latestActiveIndex = history.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
-    if (latestActiveIndex !== -1) {
-      index = latestActiveIndex
-    } else {
-      let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
-      nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
-      if (nextStack.length > MAX_TAB_HISTORY) {
-        nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
-      }
-      const nextHistory = {
-        stack: nextStack,
-        index: nextStack.length - 1
-      }
-      await writeTabHistory(nextHistory)
-      history.stack = nextHistory.stack
-      history.index = nextHistory.index
-      index = nextHistory.index
-    }
+  const navigationHistory = historyForNavigation(history, activeTab)
+  if (navigationHistory.activeWasInserted) {
+    await writeTabHistory({ stack: navigationHistory.stack, index: navigationHistory.index })
   }
 
   const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
-  let nextIndex = index + direction
-  while (
-    nextIndex >= 0 &&
-    nextIndex < history.stack.length &&
-    (!existingTabs.has(history.stack[nextIndex].tabId) || history.stack[nextIndex].tabId === activeTab.id)
-  ) {
-    nextIndex += direction
-  }
-  if (nextIndex < 0 || nextIndex >= history.stack.length) return
+  const nextIndex = findHistoryTargetIndex(navigationHistory, direction, existingTabs, activeTab)
+  if (nextIndex === -1) return
 
-  const targetTab = existingTabs.get(history.stack[nextIndex].tabId)
+  const targetTab = existingTabs.get(navigationHistory.stack[nextIndex].tabId)
   if (!targetTab?.id) return
 
   await writeTabHistory({
-    stack: history.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
+    stack: navigationHistory.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
     index: nextIndex
   })
 
@@ -280,6 +311,69 @@ async function switchTabHistory(direction) {
     await chrome.windows.update(targetTab.windowId, { focused: true })
   } catch {
     await removeTabFromHistory(targetTab.id)
+  }
+}
+
+function displayUrlForHistory(url = '') {
+  if (!url) return ''
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'chrome-extension:' && parsed.pathname.endsWith('/index.html')) return 'Tab Out'
+    if (parsed.protocol === 'chrome:') return parsed.href
+    return parsed.hostname + parsed.pathname
+  } catch {
+    return url
+  }
+}
+
+async function getTabHistorySnapshot() {
+  const tabs = await chrome.tabs.query({})
+  const focusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  const activeTab = focusedTabs[0] || tabs.find((tab) => tab.active) || null
+  const storedHistory = normalizeGlobalHistory(await readTabHistory())
+  const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
+  const navigationHistory = historyForNavigation(storedHistory, activeTab)
+  const prunedHistory = pruneMissingHistoryEntries(navigationHistory, existingTabs)
+  const cleanHistory = { stack: prunedHistory.stack, index: prunedHistory.index }
+  if (navigationHistory.activeWasInserted || prunedHistory.changed) {
+    await writeTabHistory(cleanHistory)
+  }
+  const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
+  const nextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
+
+  return {
+    stackSize: cleanHistory.stack.length,
+    maxSize: MAX_TAB_HISTORY,
+    cursorIndex: cleanHistory.index,
+    currentIndex: cleanHistory.index,
+    previousIndex,
+    nextIndex,
+    activeTabId: activeTab?.id ?? null,
+    activeWindowId: activeTab?.windowId ?? null,
+    activeWasInserted: navigationHistory.activeWasInserted,
+    entries: cleanHistory.stack.map((entry, index) => {
+      const tab = existingTabs.get(entry.tabId)
+      const url = tab?.url || ''
+      const displayUrl = displayUrlForHistory(url)
+      const title = (tab?.title || '').replace(/\u200e/g, '').trim() ? tab.title : displayUrl
+      return {
+        index,
+        tabId: entry.tabId,
+        windowId: entry.windowId,
+        exists: !!tab,
+        active: tab?.id === activeTab?.id,
+        pinned: !!tab?.pinned,
+        discarded: !!tab?.discarded,
+        cursor: index === cleanHistory.index,
+        current: index === cleanHistory.index,
+        previousTarget: index === previousIndex,
+        nextTarget: index === nextIndex,
+        title: title || `Tab ${entry.tabId}`,
+        url,
+        displayUrl,
+        favIconUrl: tab?.favIconUrl || ''
+      }
+    })
   }
 }
 
@@ -406,6 +500,26 @@ chrome.commands?.onCommand.addListener((command) => {
   } else if (command === OPEN_FILTER_TAB_COMMAND) {
     openFilterTab()
   }
+})
+
+chrome.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
+  if (message?.type === TAB_HISTORY_GET_MESSAGE) {
+    getTabHistorySnapshot()
+      .then((snapshot) => sendResponse({ ok: true, snapshot }))
+      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    return true
+  }
+
+  if (message?.type === TAB_HISTORY_SWITCH_MESSAGE) {
+    const direction = message.direction === 1 ? 1 : -1
+    switchTabHistory(direction)
+      .then(() => getTabHistorySnapshot())
+      .then((snapshot) => sendResponse({ ok: true, snapshot }))
+      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    return true
+  }
+
+  return false
 })
 
 // ─── Initial run ─────────────────────────────────────────────────────────────

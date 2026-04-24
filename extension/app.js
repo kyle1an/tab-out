@@ -24,6 +24,7 @@ function scheduleDashboardRefresh() {
 
 if (chrome.tabs) {
   chrome.tabs.onCreated.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onActivated.addListener(scheduleDashboardRefresh)
   chrome.tabs.onRemoved.addListener(scheduleDashboardRefresh)
   chrome.tabs.onMoved.addListener(scheduleDashboardRefresh)
   chrome.tabs.onAttached.addListener(scheduleDashboardRefresh)
@@ -39,6 +40,10 @@ if (chrome.tabs) {
     )
       scheduleDashboardRefresh()
   })
+}
+
+if (chrome.windows) {
+  chrome.windows.onFocusChanged.addListener(scheduleDashboardRefresh)
 }
 
 if (chrome.tabGroups) {
