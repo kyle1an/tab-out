@@ -58,7 +58,7 @@ test('global dedupe does not preserve pinned non-Tab-Out tabs with the Tab Out-o
   assert.deepEqual(removedIds, [1])
 })
 
-test('fetchOpenTabs recognizes shortcut focus marker as a Tab Out page', async () => {
+test('fetchOpenTabs recognizes filter-focus dashboard URLs as Tab Out pages', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html?focusFilter=1'
   createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 }
