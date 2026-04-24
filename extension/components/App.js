@@ -14,11 +14,36 @@ import { UrlPreview } from './UrlPreview.js'
 const html = htm.bind(h)
 const FOCUS_FILTER_MESSAGE = 'tab-out:focus-filter'
 const FOCUS_FILTER_PARAM = 'focusFilter'
+const FILTER_PARAM = 'filter'
 const DEFAULT_PAGE_TITLE = '\u200e'
 
 export function titleForFilterInput(filterInput = '') {
   const keyword = filterInput.trim()
   return keyword ? `${keyword} - Tab Out` : DEFAULT_PAGE_TITLE
+}
+
+export function filterInputFromSearch(search = '') {
+  return new URLSearchParams(search).get(FILTER_PARAM) || ''
+}
+
+export function urlForFilterInput(filterInput = '', locationParts = {}) {
+  const { pathname = '', search = '', hash = '' } = locationParts
+  const params = new URLSearchParams(search)
+  if (filterInput === '') params.delete(FILTER_PARAM)
+  else params.set(FILTER_PARAM, filterInput)
+
+  const nextSearch = params.toString()
+  return `${pathname}${nextSearch ? `?${nextSearch}` : ''}${hash || ''}`
+}
+
+function filterInputFromCurrentUrl() {
+  return filterInputFromSearch(window.location.search)
+}
+
+function syncFilterInputToUrl(filterInput) {
+  const nextUrl = urlForFilterInput(filterInput, window.location)
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (nextUrl !== currentUrl) window.history.replaceState(null, '', nextUrl)
 }
 
 function shouldFocusFilterFromUrl() {
@@ -50,8 +75,8 @@ function stableGroupId(group) {
 export function App({ initialDashboard = null }) {
   const [dashboard, setDashboard] = useState(initialDashboard)
   const [source, setSource] = useState('tabs')
-  const [filterInput, setFilterInput] = useState('')
-  const [filter, setFilter] = useState('')
+  const [filterInput, setFilterInput] = useState(filterInputFromCurrentUrl)
+  const [filter, setFilter] = useState(filterInputFromCurrentUrl)
   const [filterFocusRequest, setFilterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
@@ -119,6 +144,10 @@ export function App({ initialDashboard = null }) {
 
   useEffect(() => {
     document.title = titleForFilterInput(filterInput)
+  }, [filterInput])
+
+  useEffect(() => {
+    syncFilterInputToUrl(filterInput)
   }, [filterInput])
 
   useEffect(() => {
