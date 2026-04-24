@@ -99,6 +99,9 @@ function createChromeMock(initialTabs) {
         if (updateProperties.pinned !== undefined) {
           tab.pinned = updateProperties.pinned
         }
+        if (updateProperties.openerTabId !== undefined) {
+          tab.openerTabId = updateProperties.openerTabId
+        }
         if (updateProperties.active) {
           Object.values(state.tabsById)
             .filter((candidate) => candidate.windowId === tab.windowId)
@@ -151,6 +154,22 @@ function createChromeMock(initialTabs) {
           if (state.tabsById[tabId]) removedTabs.push(clone(state.tabsById[tabId]))
           delete state.tabsById[tabId]
         }
+
+        for (const tab of removedTabs) {
+          if (!tab.active) continue
+          const remainingTabs = Object.values(state.tabsById)
+            .filter((candidate) => candidate.windowId === tab.windowId)
+            .sort((a, b) => a.index - b.index || a.id - b.id)
+          const opener = remainingTabs.find((candidate) => candidate.id === tab.openerTabId)
+          const neighbor = remainingTabs.find((candidate) => candidate.index > tab.index) || remainingTabs.at(-1)
+          const nextActive = opener || neighbor
+          if (!nextActive) continue
+          remainingTabs.forEach((candidate) => {
+            candidate.active = candidate.id === nextActive.id
+          })
+          state.lastFocusedWindowId = nextActive.windowId
+        }
+
         normalizeAllTabs(state)
         for (const tab of removedTabs) {
           for (const listener of tabsOnRemoved.listeners) {
@@ -406,4 +425,65 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
   assert.equal(mock.state.tabsById[63].url, `${extensionUrl}?focusFilter=1`)
   assert.equal(mock.state.tabsById[63].active, true)
   assert.equal(mock.state.tabsById[63].pinned, false)
+})
+
+test('active tab is primed to close back to the previous same-window tab without fallback flash', async () => {
+  const mock = await loadBackground([
+    {
+      id: 71,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 72,
+      windowId: 1,
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 73,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  onActivated({ tabId: 72, windowId: 1 })
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.update.at(-1), {
+    tabId: 72,
+    updateProperties: { openerTabId: 71 }
+  })
+  assert.equal(mock.state.tabsById[72].openerTabId, 71)
+
+  await mock.chrome.tabs.remove(72)
+  await flushBackgroundWork()
+
+  assert.equal(mock.state.tabsById[71].active, true)
+  assert.equal(mock.state.tabsById[73].active, false)
+  assert.equal(
+    mock.calls.update.some((call) => call.updateProperties.active === true && call.tabId === 71),
+    false
+  )
 })
