@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { closeDuplicateTabs } from '../extension/tabs.js'
+import { closeDuplicateTabs, fetchOpenTabs, openTabs } from '../extension/tabs.js'
 
 function createChromeMock(initialTabs) {
   let tabs = initialTabs.map((tab) => ({ ...tab }))
@@ -56,4 +56,17 @@ test('global dedupe does not preserve pinned non-Tab-Out tabs with the Tab Out-o
   await closeDuplicateTabs([url], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [1])
+})
+
+test('fetchOpenTabs recognizes shortcut focus marker as a Tab Out page', async () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html?focusFilter=1'
+  createChromeMock([
+    { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 }
+  ])
+
+  await fetchOpenTabs()
+
+  assert.equal(openTabs.length, 1)
+  assert.equal(openTabs[0].rawUrl, tabOutUrl)
+  assert.equal(openTabs[0].isTabOut, true)
 })

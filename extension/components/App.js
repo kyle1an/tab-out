@@ -12,6 +12,21 @@ import { Missions } from './Missions.js'
 import { UrlPreview } from './UrlPreview.js'
 
 const html = htm.bind(h)
+const FOCUS_FILTER_PARAM = 'focusFilter'
+
+function shouldFocusFilterFromUrl() {
+  return new URLSearchParams(window.location.search).get(FOCUS_FILTER_PARAM) === '1'
+}
+
+function clearFocusFilterParam() {
+  const params = new URLSearchParams(window.location.search)
+  if (!params.has(FOCUS_FILTER_PARAM)) return
+
+  params.delete(FOCUS_FILTER_PARAM)
+  const nextSearch = params.toString()
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
+  window.history.replaceState(null, '', nextUrl)
+}
 
 function stableGroupId(group) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
@@ -22,6 +37,7 @@ export function App({ initialDashboard = null }) {
   const [source, setSource] = useState('tabs')
   const [filterInput, setFilterInput] = useState('')
   const [filter, setFilter] = useState('')
+  const [autoFocusFilter] = useState(shouldFocusFilterFromUrl)
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
   const refreshRef = useRef(async () => {})
@@ -44,6 +60,10 @@ export function App({ initialDashboard = null }) {
   }
 
   useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
+
+  useEffect(() => {
+    if (autoFocusFilter) clearFocusFilterParam()
+  }, [autoFocusFilter])
 
   useEffect(() => {
     if (filterInput === filter) return
@@ -137,6 +157,7 @@ export function App({ initialDashboard = null }) {
             filtering=${stats.filtering}
             ready=${isReady}
             filter=${filterInput}
+            autoFocusFilter=${autoFocusFilter}
             onFilterChange=${setFilterInput}
             onSourceChange=${setSource}
             onCloseFiltered=${onCloseFiltered}

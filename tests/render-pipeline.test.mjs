@@ -92,7 +92,14 @@ test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', 
   const groups = buildDomainGroups([
     makeTab({ url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true }),
     makeTab({ id: 2, url: 'chrome://newtab/', rawUrl: 'chrome://newtab/', title: 'New Tab', isTabOut: true }),
-    makeTab({ id: 3, url: 'https://openai.com/', title: 'OpenAI' })
+    makeTab({
+      id: 3,
+      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      rawUrl: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      title: 'Tab Out',
+      isTabOut: true
+    }),
+    makeTab({ id: 4, url: 'https://openai.com/', title: 'OpenAI' })
   ])
 
   const newTabsGroup = groups.find((group) => group.domain === '__tab-out__')
@@ -100,7 +107,7 @@ test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', 
   assert.equal(newTabsGroup.label, 'New tabs')
   assert.deepEqual(
     newTabsGroup.tabs.map((tab) => tab.rawUrl),
-    ['chrome-extension://tab-out/index.html', 'chrome://newtab/']
+    ['chrome-extension://tab-out/index.html', 'chrome://newtab/', 'chrome-extension://tab-out/index.html?focusFilter=1']
   )
 })
 
@@ -249,4 +256,5 @@ test('manifest keeps only the permissions used by the extension', () => {
   assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'storage', 'favicon'])
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
   assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in global activation history')
+  assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')
 })

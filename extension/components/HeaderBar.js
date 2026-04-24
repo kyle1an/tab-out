@@ -1,6 +1,6 @@
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
-import { useRef } from '../vendor/preact-hooks.mjs'
+import { useEffect, useRef } from '../vendor/preact-hooks.mjs'
 import { HeaderStats } from './HeaderStats.js'
 
 const html = htm.bind(h)
@@ -28,12 +28,19 @@ function SourceSwitch({ source, onSourceChange }) {
   `
 }
 
-export function HeaderBar({ filter, onFilterChange, onCloseFiltered, onDedupAll, onSourceChange, source = 'tabs', ready = true, ...stats }) {
+export function HeaderBar({ filter, autoFocusFilter = false, onFilterChange, onCloseFiltered, onDedupAll, onSourceChange, source = 'tabs', ready = true, ...stats }) {
   const inputRef = useRef(null)
+  const didAutoFocusRef = useRef(false)
 
   function updateFilter(nextValue) {
     onFilterChange(nextValue)
   }
+
+  useEffect(() => {
+    if (!autoFocusFilter || didAutoFocusRef.current) return
+    didAutoFocusRef.current = true
+    inputRef.current?.focus()
+  }, [autoFocusFilter])
 
   const wrapClass = 'tab-filter-wrap' + (filter ? ' has-value' : '')
 
