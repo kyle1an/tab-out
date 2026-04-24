@@ -318,6 +318,12 @@ export async function openTabUrl(url) {
   } catch {}
 }
 
+function isTabOutUrl(url) {
+  const extensionId = globalThis.chrome?.runtime?.id
+  const tabOutUrl = extensionId ? `chrome-extension://${extensionId}/index.html` : ''
+  return url === tabOutUrl || url === 'chrome://newtab/'
+}
+
 /**
  * closeDuplicateTabs(urls, keepOne) — closes duplicate tabs of each
  * URL according to the dedup policy (mirrors renderDomainCard's button
@@ -330,11 +336,11 @@ export async function openTabUrl(url) {
  *
  * @param {string[]} urls
  * @param {boolean} [keepOne=true]
- * @param {{ preservePinned?: boolean }} [opts]
+ * @param {{ preservePinned?: boolean, preservePinnedTabOut?: boolean }} [opts]
  * @returns {Promise<TabSnapshot[]>}
  */
 export async function closeDuplicateTabs(urls, keepOne = true, opts = {}) {
-  const { preservePinned = false } = opts
+  const { preservePinned = false, preservePinnedTabOut = false } = opts
   const allTabs = await chrome.tabs.query({})
   let currentWindowId = -1
   try {
@@ -344,11 +350,13 @@ export async function closeDuplicateTabs(urls, keepOne = true, opts = {}) {
 
   for (const url of urls) {
     const matching = allTabs.filter((t) => unwrapSuspenderUrl(t.url) === url)
-    if (preservePinned) {
-      const pinned = matching.filter((t) => t.pinned)
-      const unpinned = matching.filter((t) => !t.pinned)
+    if (preservePinned || preservePinnedTabOut) {
+      const pinned = matching.filter((t) => t.pinned && (preservePinned || isTabOutUrl(t.url)))
       if (pinned.length >= 1) {
-        for (const t of unpinned) toCloseTabs.push(t)
+        const pinnedIds = new Set(pinned.map((t) => t.id))
+        for (const t of matching) {
+          if (!pinnedIds.has(t.id)) toCloseTabs.push(t)
+        }
         continue
       }
     }

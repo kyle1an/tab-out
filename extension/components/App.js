@@ -105,7 +105,7 @@ export function App({ initialDashboard = null }) {
   async function onDedupAll() {
     const urls = dashboardVm.globalDedupeUrls
     if (urls.length === 0) return
-    const snapshot = await closeDuplicateTabs(urls, true)
+    const snapshot = await closeDuplicateTabs(urls, true, { preservePinnedTabOut: true })
     markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
     await refreshRef.current()
   }
