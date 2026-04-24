@@ -29,6 +29,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Pin domain cards** to keep important sites at the top of the dashboard
 - **Click any tab to jump to it** across Chrome windows
 - **Live filter** — type in the filter input to narrow the dashboard; Esc clears. Non-matching tabs move to an "Other tabs" section so every tab stays accounted for
+- **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Shared-page fold** — if the same path is open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), it collapses into one chip with a row of clickable env pills; each pill jumps to that specific tab
 - **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill

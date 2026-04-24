@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 
 import { flattenBookmarkNodes } from '../extension/bookmarks.js'
 import { filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/components/App.js'
+import { isFilterFocusShortcut } from '../extension/components/HeaderBar.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
 
 globalThis.chrome = {
@@ -277,6 +278,16 @@ test('filter URL helpers preserve restorable filter state without history churn'
   assert.equal(urlForFilterInput('github', { pathname: '/index.html', search: '?focusFilter=1', hash: '#top' }), '/index.html?focusFilter=1&filter=github#top')
   assert.equal(urlForFilterInput('', { pathname: '/index.html', search: '?filter=github&focusFilter=1', hash: '' }), '/index.html?focusFilter=1')
   assert.equal(urlForFilterInput('qa env', { pathname: '/index.html', search: '', hash: '' }), '/index.html?filter=qa+env')
+})
+
+test('filter focus shortcut matches Cmd+K on macOS and Ctrl+K elsewhere', () => {
+  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true }, 'MacIntel'), true)
+  assert.equal(isFilterFocusShortcut({ key: 'K', ctrlKey: true }, 'Win32'), true)
+  assert.equal(isFilterFocusShortcut({ key: 'k', ctrlKey: true }, 'Linux x86_64'), true)
+  assert.equal(isFilterFocusShortcut({ key: 'k', ctrlKey: true }, 'MacIntel'), false)
+  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true }, 'Win32'), false)
+  assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true, shiftKey: true }, 'MacIntel'), false)
+  assert.equal(isFilterFocusShortcut({ key: 'j', metaKey: true }, 'MacIntel'), false)
 })
 
 test('filtering ignores Tab Out keywords injected by the active filter title and URL', () => {
