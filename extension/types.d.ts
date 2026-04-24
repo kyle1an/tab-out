@@ -103,6 +103,9 @@ export interface DashboardCardVM {
   displayMode: 'normal' | 'unmatched'
   filtering: boolean
   tabCount?: number
+  totalTabCount?: number
+  tabCountLabel?: string
+  tabCountTitle?: string
   closableCount?: number
   closableCountLabel?: string
   closableDupeUrls?: string[]

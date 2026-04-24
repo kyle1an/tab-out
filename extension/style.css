@@ -760,6 +760,21 @@ header {
   corner-shape: squircle;
 }
 
+.tab-count-badge-filtered {
+  gap: 0;
+}
+
+.tab-count-badge-current {
+  color: var(--accent-amber);
+  font-weight: 700;
+}
+
+.tab-count-badge-total {
+  color: var(--muted);
+  font-weight: 500;
+  opacity: 0.8;
+}
+
 .mission-summary {
   font-size: 13px;
   color: var(--muted);

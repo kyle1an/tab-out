@@ -407,6 +407,11 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
 
   const tabCount = tabs.length
+  const totalTabCount = allTabs.length
+  const tabCountLabel = filtering ? `${tabCount}/${totalTabCount}` : `${tabCount}`
+  const tabCountTitle = filtering
+    ? `${tabCount} of ${totalTabCount} open tab${totalTabCount !== 1 ? 's' : ''} shown while filtering`
+    : `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
   const isAppsGroup = group.domain === '__standalone-apps__'
   const isTabOutGroup = group.domain === '__tab-out__'
 
@@ -651,6 +656,9 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       displayMode,
       filtering,
       tabCount,
+      totalTabCount,
+      tabCountLabel,
+      tabCountTitle,
       closableCount: vmClosableCount,
       closableCountLabel:
         closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`,
@@ -955,6 +963,9 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     displayMode,
     filtering,
     tabCount,
+    totalTabCount,
+    tabCountLabel,
+    tabCountTitle,
     closableCount: vmClosableCount,
     closableCountLabel,
     closableDupeUrls: vmClosableDupeUrls,
