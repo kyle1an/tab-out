@@ -3,7 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 import { flattenBookmarkNodes } from '../extension/bookmarks.js'
-import { titleForFilterInput } from '../extension/components/App.js'
+import { filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/components/App.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
 
 globalThis.chrome = {
@@ -214,11 +214,19 @@ test('titleForFilterInput mirrors typed filter keywords', () => {
   assert.equal(titleForFilterInput('   '), '\u200e')
 })
 
-test('filtering ignores Tab Out title keywords injected by the active filter', () => {
+test('filter URL helpers preserve restorable filter state without history churn', () => {
+  assert.equal(filterInputFromSearch('?filter=github'), 'github')
+  assert.equal(filterInputFromSearch('?focusFilter=1&filter=qa+env'), 'qa env')
+  assert.equal(urlForFilterInput('github', { pathname: '/index.html', search: '?focusFilter=1', hash: '#top' }), '/index.html?focusFilter=1&filter=github#top')
+  assert.equal(urlForFilterInput('', { pathname: '/index.html', search: '?filter=github&focusFilter=1', hash: '' }), '/index.html?focusFilter=1')
+  assert.equal(urlForFilterInput('qa env', { pathname: '/index.html', search: '', hash: '' }), '/index.html?filter=qa+env')
+})
+
+test('filtering ignores Tab Out keywords injected by the active filter title and URL', () => {
   const groups = buildDomainGroups([
     makeTab({
-      url: 'chrome-extension://tab-out/index.html',
-      rawUrl: 'chrome-extension://tab-out/index.html',
+      url: 'chrome-extension://tab-out/index.html?filter=github',
+      rawUrl: 'chrome-extension://tab-out/index.html?filter=github',
       title: 'github - Tab Out',
       isTabOut: true
     }),
