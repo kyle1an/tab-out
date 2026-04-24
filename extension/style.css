@@ -345,6 +345,11 @@ header {
   box-shadow: 0 2px 6px var(--shadow);
 }
 
+.domain-block-pinned .mission-card,
+.domain-block-fixed .mission-card {
+  border-color: rgba(82, 82, 82, 0.32);
+}
+
 .domain-block-apps:hover .mission-card {
   box-shadow: none;
 }
@@ -617,6 +622,8 @@ header {
 .domain-header .mission-subdomain,
 .domain-header .tab-count-badge,
 .domain-header .action-btn,
+.domain-header .domain-pin-btn,
+.domain-header .domain-fixed-indicator,
 .card-close-btn {
   height: 22px;
   box-sizing: border-box;
@@ -628,6 +635,70 @@ header {
      the pill/button width still breathes around its label. */
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.domain-pin-btn {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  corner-shape: squircle;
+  cursor: pointer;
+  opacity: 0.35;
+  transition:
+    opacity 0.2s ease-out,
+    color 0.2s ease-out,
+    background 0.2s ease-out,
+    border-color 0.2s ease-out;
+}
+
+.domain-block:hover .domain-pin-btn,
+.domain-pin-btn:focus-visible,
+.domain-pin-btn.is-pinned {
+  opacity: 1;
+}
+
+.domain-pin-btn:hover {
+  color: var(--ink);
+  background: rgba(82, 82, 82, 0.06);
+  border-color: var(--warm-gray);
+}
+
+.domain-pin-btn.is-pinned {
+  color: var(--ink);
+  background: rgba(82, 82, 82, 0.08);
+  border-color: var(--warm-gray);
+}
+
+.domain-pin-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.domain-fixed-indicator {
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: rgba(82, 82, 82, 0.06);
+  border: 1px solid var(--warm-gray);
+  border-radius: 8px;
+  corner-shape: squircle;
+  opacity: 0.78;
+}
+
+.domain-fixed-indicator svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* Subdomain pill — rendered in the card header when the card rolls

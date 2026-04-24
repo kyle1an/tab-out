@@ -43,7 +43,7 @@ function NoResultsState({ query = '' }) {
   `
 }
 
-export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, onLayoutChange = null }) {
+export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }) {
   if (!cards || cards.length === 0) {
     if (!showEmptyState) return null
     return filter ? html`<${NoResultsState} query=${filter} />` : html`<${EmptyState} source=${source} />`
@@ -52,7 +52,15 @@ export function Missions({ cards, filter = '', source = 'tabs', showEmptyState =
     <${Fragment}>
       ${cards.map(
         ({ group, vm }) =>
-          html` <${DomainCard} key=${stableKey(group)} group=${group} vm=${vm} filter=${filter} onHoverUrlChange=${onHoverUrlChange} onLayoutChange=${onLayoutChange} /> `
+          html` <${DomainCard}
+            key=${stableKey(group)}
+            group=${group}
+            vm=${vm}
+            filter=${filter}
+            onHoverUrlChange=${onHoverUrlChange}
+            onLayoutChange=${onLayoutChange}
+            onTogglePinnedDomain=${onTogglePinnedDomain}
+          /> `
       )}
     </${Fragment}>
   `

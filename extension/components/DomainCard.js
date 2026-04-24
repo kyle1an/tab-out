@@ -28,6 +28,7 @@ import { markClosure } from '../undo.js'
 import { shootConfetti } from '../confetti.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { tabMatchesFilter } from '../render.js'
+import { isPinnableDomain } from '../domain-pins.js'
 import { SubdomainSection } from './SubdomainSection.js'
 
 const html = htm.bind(h)
@@ -62,10 +63,42 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
   `
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null }) {
+function PinButton({ domain, displayName, pinned, onClick }) {
+  const action = pinned ? 'Unpin' : 'Pin'
+  const title = `${action} ${displayName}`
+  return html`
+    <button
+      type="button"
+      class=${'domain-pin-btn' + (pinned ? ' is-pinned' : '')}
+      title=${title}
+      aria-label=${title}
+      aria-pressed=${pinned ? 'true' : 'false'}
+      data-domain=${domain}
+      onClick=${onClick}
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
+      </svg>
+    </button>
+  `
+}
+
+function FixedIndicator({ displayName }) {
+  return html`
+    <span class="domain-fixed-indicator" role="img" aria-label=${`${displayName} is fixed at the top`} title=${`${displayName} is fixed at the top`}>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
+      </svg>
+    </span>
+  `
+}
+
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }) {
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'
+  const isFixedCard = group.domain === '__tab-out__' || group.domain === '__standalone-apps__'
+  const canPin = isPinnableDomain(group.domain) && typeof onTogglePinnedDomain === 'function'
 
   // Close-domain handler: scopes to filter-matching tabs when the
   // filter is active, preserves Chrome tab groups, animates the whole
@@ -127,12 +160,19 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     await requestDashboardRefresh()
   }
 
-  const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}${isAppsCard ? ' domain-block-apps' : ''}`
+  async function onTogglePin(e) {
+    e.preventDefault()
+    await onTogglePinnedDomain?.(group.domain)
+  }
+
+  const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}${isAppsCard ? ' domain-block-apps' : ''}${isFixedCard ? ' domain-block-fixed' : ''}${group.pinned ? ' domain-block-pinned' : ''}`
 
   return html`
     <div class=${classList} data-domain-id=${vm.stableId}>
       <header class="domain-header">
         <span class="mission-name">${vm.displayName}</span>
+        ${isFixedCard && html` <${FixedIndicator} displayName=${vm.displayName} /> `}
+        ${canPin && html` <${PinButton} domain=${group.domain} displayName=${vm.displayName} pinned=${!!group.pinned} onClick=${onTogglePin} /> `}
         ${vm.singleSubdomainKey && html`
           <span class=${'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>${vm.singleSubdomainKey}</span>
         `}
