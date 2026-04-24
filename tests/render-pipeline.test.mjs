@@ -144,7 +144,13 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
 
   const appsVm = computeDomainCardViewModel(appsGroup)
   assert.equal(appsVm.displayName, 'Apps')
+  assert.equal(appsVm.tabCountLabel, '2')
+  assert.equal(appsVm.tabCountTitle, '2 open tabs')
   assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => chip.iconOnly), true)
+
+  const filteredAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
+  assert.equal(filteredAppsVm.tabCountLabel, '1/2')
+  assert.equal(filteredAppsVm.tabCountTitle, '1 of 2 open tabs shown while filtering')
 })
 
 test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', () => {
@@ -263,6 +269,15 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(vm.unmatchedCards.length, 2)
   assert.equal(vm.showOtherTabs, true)
   assert.deepEqual(vm.filteredCloseUrls, ['https://alpha.example.com/beta'])
+  assert.equal(vm.matchedCards[0].vm.tabCount, 1)
+  assert.equal(vm.matchedCards[0].vm.totalTabCount, 2)
+  assert.equal(vm.matchedCards[0].vm.tabCountLabel, '1/2')
+  assert.equal(vm.matchedCards[0].vm.tabCountTitle, '1 of 2 open tabs shown while filtering')
+
+  const unmatchedAlphaCard = vm.unmatchedCards.find(({ group }) => group.domain === 'example.com')
+  assert.equal(unmatchedAlphaCard.vm.tabCount, 1)
+  assert.equal(unmatchedAlphaCard.vm.totalTabCount, 2)
+  assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
 })
 
 test('titleForFilterInput mirrors typed filter keywords', () => {

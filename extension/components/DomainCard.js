@@ -43,9 +43,18 @@ function CardCloseButton({ label, onClick }) {
   `
 }
 
-function TabBadge({ tabCount }) {
-  const title = `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
-  return html` <span class="open-tabs-badge tab-count-badge" title=${title}>${tabCount}</span> `
+function TabBadge({ label, title }) {
+  const labelText = String(label ?? '')
+  const slashIndex = labelText.indexOf('/')
+  if (slashIndex > 0) {
+    return html`
+      <span class="open-tabs-badge tab-count-badge tab-count-badge-filtered" title=${title}>
+        <span class="tab-count-badge-current">${labelText.slice(0, slashIndex)}</span><span class="tab-count-badge-total">${labelText.slice(slashIndex)}</span>
+      </span>
+    `
+  }
+
+  return html` <span class="open-tabs-badge tab-count-badge" title=${title}>${labelText}</span> `
 }
 
 function DedupButton({ count, dupeUrlsEncoded, onClick }) {
@@ -173,7 +182,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
         ${vm.singleSubdomainKey && html`
           <span class=${'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>${vm.singleSubdomainKey}</span>
         `}
-        <${TabBadge} tabCount=${vm.tabCount} />
+        <${TabBadge} label=${vm.tabCountLabel} title=${vm.tabCountTitle} />
         ${vm.closableExtras > 0 && html` <${DedupButton} count=${vm.closableExtras} dupeUrlsEncoded=${vm.dupeUrlsEncoded} onClick=${onDedup} /> `}
         ${!hideCardClose && vm.closableCount > 0 && html` <${CardCloseButton} label=${vm.closableCountLabel} onClick=${onCloseDomain} /> `}
       </header>
