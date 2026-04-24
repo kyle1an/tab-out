@@ -182,8 +182,8 @@ header {
   border-color: var(--accent-amber);
   background: var(--card-bg);
 }
-/* Hide the native search "X" clear button on Webkit/Chromium so it doesn't
-   fight our focus styles; users can clear with ⌘A + Delete or Esc. */
+/* Keep Chrome's native search-field Esc clear behavior, but hide the
+   native search "X" so it doesn't compete with our explicit clear button. */
 .tab-filter::-webkit-search-cancel-button {
   -webkit-appearance: none;
 }
