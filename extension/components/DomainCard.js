@@ -27,6 +27,7 @@ import { closeTabsExact, closeDuplicateTabs } from '../tabs.js'
 import { markClosure } from '../undo.js'
 import { shootConfetti } from '../confetti.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
+import { tabMatchesFilter } from '../render.js'
 import { SubdomainSection } from './SubdomainSection.js'
 
 const html = htm.bind(h)
@@ -81,9 +82,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
 
     // `filter` prop already carries the normalized query, so we don't
     // have to reach into the DOM for it.
-    const scopedTabs = filter
-      ? group.tabs.filter((t) => (t.title || '').toLowerCase().includes(filter) || (t.url || '').toLowerCase().includes(filter))
-      : group.tabs
+    const scopedTabs = filter ? group.tabs.filter((t) => tabMatchesFilter(t, filter)) : group.tabs
     const urls = scopedTabs.map((t) => t.url)
     const snapshot = await closeTabsExact(urls, { preserveGroups: true })
 

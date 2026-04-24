@@ -151,13 +151,21 @@ function stripPgLabel(label, pgLabel) {
  * @param {string} filter
  * @returns {boolean}
  */
-function tabMatchesFilter(tab, filter) {
+export function tabMatchesFilter(tab, filter) {
   if (!filter) return true
   const q = filter.toLowerCase()
   const rawTitle = tab.title || ''
   const searchableTitle = tab.isTabOut ? rawTitle.replace(/^.+ - Tab Out$/i, 'Tab Out') : rawTitle
+  let searchableUrl = tab.url || ''
+  if (tab.isTabOut) {
+    try {
+      const parsed = new URL(searchableUrl)
+      parsed.search = ''
+      searchableUrl = parsed.toString()
+    } catch {}
+  }
   const title = searchableTitle.toLowerCase()
-  const url = (tab.url || '').toLowerCase()
+  const url = searchableUrl.toLowerCase()
   return title.includes(q) || url.includes(q)
 }
 
