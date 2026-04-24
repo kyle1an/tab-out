@@ -89,6 +89,7 @@ export function App({ initialDashboard = null }) {
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
+    if (!pinsLoaded) return
     const next = await fetchDashboardData(previousOrderRef.current[source] || new Map(), source, { pinnedDomains })
     setDashboard(next)
   }
@@ -131,14 +132,10 @@ export function App({ initialDashboard = null }) {
   }, [filterInput])
 
   useEffect(() => {
+    if (!pinsLoaded) return
     setHoveredUrl('')
     requestAnimationFrame(() => refreshRef.current())
-  }, [source])
-
-  useEffect(() => {
-    if (!pinsLoaded) return
-    requestAnimationFrame(() => refreshRef.current())
-  }, [pinsLoaded, pinnedDomains, source])
+  }, [source, pinnedDomains, pinsLoaded])
 
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
