@@ -9,8 +9,8 @@
 
    Event handlers:
      • Clicking the chip focuses the tab (focusTab by URL).
-     • Clicking the close button removes the tab, plays the confetti
-       + fade-out animation, re-packs masonry, and pushes a closure
+     • Clicking the close button removes the tab, plays the fade-out
+       animation, re-packs masonry, and pushes a closure
        onto the undo stack.
 
    data-action="focus-tab" and data-action="close-single-tab" are
@@ -26,7 +26,6 @@ import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
 import { markClosure } from '../undo.js'
 import { showToast } from './Toast.js'
-import { shootConfetti } from '../confetti.js'
 
 const html = htm.bind(h)
 let chipTextResizeObserver = null
@@ -222,8 +221,6 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       // refresh rebuild the VM. Preact drops the chip from the tree (and, if
       // the card ended up empty, the card too) without us having to
       // traverse the DOM looking for empty .mission-pages.
-      const rect = chipEl.getBoundingClientRect()
-      shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
       chipEl.classList.add('closing')
       await new Promise((r) => setTimeout(r, 200))
     }
