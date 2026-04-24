@@ -25,7 +25,6 @@ import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { closeTabsExact, closeDuplicateTabs } from '../tabs.js'
 import { markClosure } from '../undo.js'
-import { shootConfetti } from '../confetti.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { tabMatchesFilter } from '../render.js'
 import { isPinnableDomain } from '../domain-pins.js'
@@ -102,8 +101,8 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
 
   // Close-domain handler: scopes to filter-matching tabs when the
   // filter is active, preserves Chrome tab groups, animates the whole
-  // block out (confetti + `.closing` CSS class) when the full group is
-  // closed, then re-renders from scratch. Animating .domain-block
+  // block out with the shared `.closing` CSS class when the full group
+  // is closed, then re-renders from scratch. Animating .domain-block
   // instead of .mission-card means the header fades with the card as
   // one visual unit.
   //
@@ -120,8 +119,6 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     const snapshot = await closeTabsExact(urls, { preserveGroups: true })
 
     if (block && !filter) {
-      const rect = block.getBoundingClientRect()
-      shootConfetti(rect.left + rect.width / 2, rect.top + rect.height / 2)
       block.classList.add('closing')
       await new Promise((r) => setTimeout(r, 250))
     }
