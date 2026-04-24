@@ -178,22 +178,6 @@ header {
      drag-selects across the page or triple-clicks the input area. */
   user-select: none;
 }
-/* Pre-focus cue: page has focus, so type-anywhere will route here. Amber
-   border at low opacity signals "ready" without mimicking the full focus
-   state; the background stays subtle so actually focusing still feels
-   like a step up. */
-.tab-filter.capture-ready {
-  border-color: rgba(82, 82, 82, 0.4);
-  background: rgba(82, 82, 82, 0.03);
-}
-/* Dormant cue: window lacks focus, so keystrokes can't reach this
-   input at all. Flat opacity is a faster "disabled-ish" read than
-   text alone — the placeholder still says "Filter tabs…", but the
-   visual dim tells the user not to expect a response before they
-   read it. */
-.tab-filter.capture-dormant {
-  opacity: 0.5;
-}
 .tab-filter:focus {
   border-color: var(--accent-amber);
   background: var(--card-bg);
