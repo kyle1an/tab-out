@@ -83,7 +83,12 @@ async function writeTabHistory(nextHistory) {
 
 async function recordTabActivation(windowId, tabId) {
   const history = normalizeGlobalHistory(await readTabHistory())
-  if (history.stack[history.index]?.tabId === tabId) return
+  if (history.stack[history.index]?.tabId === tabId) {
+    await primeNativeCloseTarget(windowId, tabId, history)
+    return
+  }
+
+  await primeNativeCloseTarget(windowId, tabId, history)
 
   let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
   nextStack.push({ windowId, tabId })
@@ -95,6 +100,45 @@ async function recordTabActivation(windowId, tabId) {
     stack: nextStack,
     index: nextStack.length - 1
   })
+}
+
+async function findPreviousSurvivingTabInWindow(history, windowId, tabId) {
+  const current = normalizeGlobalHistory(history)
+  let tabsInWindow = []
+  try {
+    tabsInWindow = await chrome.tabs.query({ windowId })
+  } catch {
+    return null
+  }
+
+  const tabsById = new Map(tabsInWindow.map((tab) => [tab.id, tab]))
+  const currentTab = tabsById.get(tabId)
+  if (!currentTab) return null
+
+  for (let i = current.index; i >= 0; i--) {
+    const entry = current.stack[i]
+    if (entry.windowId !== windowId) continue
+    if (entry.tabId === tabId) continue
+    const targetTab = tabsById.get(entry.tabId)
+    if (targetTab) return { currentTab, targetTab }
+  }
+
+  return null
+}
+
+async function primeNativeCloseTarget(windowId, tabId, history) {
+  const match = await findPreviousSurvivingTabInWindow(history, windowId, tabId)
+  if (!match) return
+
+  const { currentTab, targetTab } = match
+  if (currentTab.openerTabId === targetTab.id) return
+
+  try {
+    await chrome.tabs.update(tabId, { openerTabId: targetTab.id })
+  } catch {
+    // Some browser-managed tabs reject opener changes; the onRemoved
+    // restore path below remains the fallback.
+  }
 }
 
 async function recordFocusedWindowActiveTab(windowId) {
@@ -160,6 +204,8 @@ async function restorePreviousTabAfterClose(tabId, removeInfo) {
   await writeTabHistory(finalHistory)
 
   if (targetNewIndex === -1) return
+  const activeTab = tabsInWindow.find((tab) => tab.active)
+  if (activeTab?.id === targetId) return
 
   try {
     await chrome.tabs.update(targetId, { active: true })
@@ -224,6 +270,10 @@ async function switchTabHistory(direction) {
     stack: history.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
     index: nextIndex
   })
+
+  try {
+    await chrome.tabs.update(targetTab.id, { openerTabId: activeTab.id })
+  } catch {}
 
   try {
     await chrome.tabs.update(targetTab.id, { active: true })
