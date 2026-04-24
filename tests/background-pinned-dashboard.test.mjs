@@ -47,13 +47,11 @@ function createChromeMock(initialTabs) {
   const tabsOnRemoved = createEventSlot()
   const tabsOnUpdated = createEventSlot()
   const windowsOnFocusChanged = createEventSlot()
-  const windowsOnCreated = createEventSlot()
   const commandsOnCommand = createEventSlot()
 
   const state = {
     tabsById: Object.fromEntries(initialTabs.map((tab) => [tab.id, { ...tab }])),
     nextTabId: Math.max(...initialTabs.map((tab) => tab.id)) + 1,
-    sessionStorage: {},
     lastFocusedWindowId: initialTabs[0]?.windowId || 1
   }
   normalizeAllTabs(state)
@@ -62,7 +60,6 @@ function createChromeMock(initialTabs) {
     create: [],
     remove: [],
     update: [],
-    move: [],
     badgeText: [],
     badgeColor: []
   }
@@ -79,19 +76,6 @@ function createChromeMock(initialTabs) {
       },
       async setBadgeBackgroundColor(payload) {
         calls.badgeColor.push(clone(payload))
-      }
-    },
-    storage: {
-      session: {
-        async get(key) {
-          if (Array.isArray(key)) {
-            return Object.fromEntries(key.map((entry) => [entry, clone(state.sessionStorage[entry])]))
-          }
-          return { [key]: clone(state.sessionStorage[key]) }
-        },
-        async set(values) {
-          Object.assign(state.sessionStorage, clone(values))
-        }
       }
     },
     tabs: {
@@ -174,24 +158,6 @@ function createChromeMock(initialTabs) {
           }
         }
       },
-      async move(tabId, moveProperties) {
-        const tab = state.tabsById[tabId]
-        if (!tab) throw new Error(`Missing tab ${tabId}`)
-
-        calls.move.push({ tabId, moveProperties: clone(moveProperties) })
-        const orderedTabs = Object.values(state.tabsById)
-          .filter((candidate) => candidate.windowId === tab.windowId)
-          .sort((a, b) => a.index - b.index || a.id - b.id)
-        const remainingTabs = orderedTabs.filter((candidate) => candidate.id !== tabId)
-        const targetIndex = Math.max(0, Math.min(moveProperties.index, remainingTabs.length))
-
-        remainingTabs.splice(targetIndex, 0, tab)
-        remainingTabs.forEach((candidate, index) => {
-          candidate.index = index
-        })
-
-        return clone(tab)
-      },
       onCreated: tabsOnCreated.api,
       onActivated: tabsOnActivated.api,
       onRemoved: tabsOnRemoved.api,
@@ -200,7 +166,6 @@ function createChromeMock(initialTabs) {
     windows: {
       WINDOW_ID_NONE: -1,
       onFocusChanged: windowsOnFocusChanged.api,
-      onCreated: windowsOnCreated.api,
       async update() {}
     },
     commands: {
@@ -220,7 +185,6 @@ function createChromeMock(initialTabs) {
       tabsOnRemoved: tabsOnRemoved.listeners,
       tabsOnUpdated: tabsOnUpdated.listeners,
       windowsOnFocusChanged: windowsOnFocusChanged.listeners,
-      windowsOnCreated: windowsOnCreated.listeners,
       commandsOnCommand: commandsOnCommand.listeners
     },
     getWindowTabs(windowId) {
@@ -251,7 +215,7 @@ async function loadBackground(initialTabs) {
   return mock
 }
 
-test('omnibox navigation from a pinned Tab Out tab swaps on pendingUrl and creates a native new tab anchor', async () => {
+test('pinned Tab Out navigation follows Chrome default without dashboard replacement', async () => {
   const mock = await loadBackground([
     {
       id: 11,
@@ -286,81 +250,14 @@ test('omnibox navigation from a pinned Tab Out tab swaps on pendingUrl and creat
   await flushBackgroundWork()
 
   const windowTabs = mock.getWindowTabs(1)
-  const pinnedDashboards = windowTabs.filter((tab) => tab.pinned && isTabOutLikeUrl(tab.url))
-  const movedTab = windowTabs.at(-1)
-
-  assert.equal(mock.calls.create.length, 1)
-  assert.equal('url' in mock.calls.create[0], false)
-  assert.equal(mock.calls.move.length, 1)
-  assert.equal(pinnedDashboards.length, 1)
-  assert.notEqual(pinnedDashboards[0].id, 11)
-  assert.equal(windowTabs[0].id, pinnedDashboards[0].id)
-  assert.equal(movedTab.id, 11)
-  assert.equal(movedTab.url, 'https://example.com/docs')
-  assert.equal(movedTab.pinned, false)
-  assert.equal(movedTab.active, true)
-  assert.deepEqual(mock.state.sessionStorage.pinnedDashboardTabs, { [String(pinnedDashboards[0].id)]: { windowId: 1 } })
-})
-
-test('existing pinned Tab Out anchor is reused instead of creating a duplicate', async () => {
-  const mock = await loadBackground([
-    {
-      id: 11,
-      windowId: 1,
-      url: extensionUrl,
-      title: 'Tab Out',
-      active: true,
-      pinned: true,
-      groupId: -1,
-      index: 0
-    },
-    {
-      id: 15,
-      windowId: 1,
-      url: extensionUrl,
-      title: 'Tab Out',
-      active: false,
-      pinned: true,
-      groupId: -1,
-      index: 1
-    },
-    {
-      id: 12,
-      windowId: 1,
-      url: 'https://openai.com/',
-      title: 'OpenAI',
-      active: false,
-      pinned: false,
-      groupId: -1,
-      index: 2
-    }
-  ])
-
-  const onUpdated = mock.listeners.tabsOnUpdated[0]
-  assert.equal(typeof onUpdated, 'function')
-
-  await onUpdated(11, { status: 'loading' }, { ...clone(mock.state.tabsById[11]), pendingUrl: 'https://example.com/docs' })
-  await flushBackgroundWork()
-  mock.state.tabsById[11].url = 'https://example.com/docs'
-  delete mock.state.tabsById[11].pendingUrl
-  await onUpdated(11, { url: 'https://example.com/docs', status: 'loading' }, clone(mock.state.tabsById[11]))
-  await flushBackgroundWork()
-
-  const windowTabs = mock.getWindowTabs(1)
-  const pinnedDashboards = windowTabs.filter((tab) => tab.pinned && isTabOutLikeUrl(tab.url))
 
   assert.equal(mock.calls.create.length, 0)
-  assert.deepEqual(
-    pinnedDashboards.map((tab) => tab.id),
-    [15]
-  )
-  assert.equal(windowTabs.at(-1).id, 11)
-  assert.equal(windowTabs.at(-1).pinned, false)
+  assert.equal(mock.calls.update.some((call) => call.updateProperties.pinned === false), false)
+  assert.equal(windowTabs[0].id, 11)
+  assert.equal(windowTabs[0].url, 'https://example.com/docs')
+  assert.equal(windowTabs[0].pinned, true)
+  assert.equal(windowTabs[0].active, true)
 })
-
-function isTabOutLikeUrl(url) {
-  return url === 'chrome://newtab/' || url === extensionUrl || url === `${extensionUrl}?focusFilter=1`
-}
 
 test('service worker lifecycle does not rewrite native new tabs into extension URLs', async () => {
   const mock = await loadBackground([
@@ -509,5 +406,4 @@ test('filter shortcut opens an unpinned fresh Tab Out tab from a pinned active d
   assert.equal(mock.state.tabsById[63].url, `${extensionUrl}?focusFilter=1`)
   assert.equal(mock.state.tabsById[63].active, true)
   assert.equal(mock.state.tabsById[63].pinned, false)
-  assert.deepEqual(mock.state.sessionStorage.pinnedDashboardTabs, { 61: { windowId: 1 } })
 })
