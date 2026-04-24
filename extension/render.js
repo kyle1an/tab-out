@@ -147,14 +147,16 @@ function stripPgLabel(label, pgLabel) {
 }
 
 /**
- * @param {Pick<DashboardTab, 'title' | 'url'>} tab
+ * @param {Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>} tab
  * @param {string} filter
  * @returns {boolean}
  */
 function tabMatchesFilter(tab, filter) {
   if (!filter) return true
   const q = filter.toLowerCase()
-  const title = (tab.title || '').toLowerCase()
+  const rawTitle = tab.title || ''
+  const searchableTitle = tab.isTabOut ? rawTitle.replace(/^.+ - Tab Out$/i, 'Tab Out') : rawTitle
+  const title = searchableTitle.toLowerCase()
   const url = (tab.url || '').toLowerCase()
   return title.includes(q) || url.includes(q)
 }

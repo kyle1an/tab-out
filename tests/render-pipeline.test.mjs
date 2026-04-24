@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 import { flattenBookmarkNodes } from '../extension/bookmarks.js'
+import { titleForFilterInput } from '../extension/components/App.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
 
 globalThis.chrome = {
@@ -204,6 +205,35 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(vm.unmatchedCards.length, 2)
   assert.equal(vm.showOtherTabs, true)
   assert.deepEqual(vm.filteredCloseUrls, ['https://alpha.example.com/beta'])
+})
+
+test('titleForFilterInput mirrors typed filter keywords', () => {
+  assert.equal(titleForFilterInput('github'), 'github - Tab Out')
+  assert.equal(titleForFilterInput('  qa env  '), 'qa env - Tab Out')
+  assert.equal(titleForFilterInput(''), '\u200e')
+  assert.equal(titleForFilterInput('   '), '\u200e')
+})
+
+test('filtering ignores Tab Out title keywords injected by the active filter', () => {
+  const groups = buildDomainGroups([
+    makeTab({
+      url: 'chrome-extension://tab-out/index.html',
+      rawUrl: 'chrome-extension://tab-out/index.html',
+      title: 'github - Tab Out',
+      isTabOut: true
+    }),
+    makeTab({ id: 2, url: 'https://openai.com/', title: 'OpenAI' })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const vm = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: 'github'
+  })
+
+  assert.equal(vm.stats.visibleTabs, 0)
+  assert.equal(vm.matchedCards.length, 0)
 })
 
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {
