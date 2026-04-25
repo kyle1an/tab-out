@@ -263,6 +263,11 @@ function createChromeMock(initialTabs) {
         .filter((tab) => tab.windowId === windowId)
         .sort((a, b) => a.index - b.index || a.id - b.id)
         .map((tab) => clone(tab))
+    },
+    blurAllWindows() {
+      Object.values(state.windowsById).forEach((win) => {
+        win.focused = false
+      })
     }
   }
 }
@@ -736,6 +741,82 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
     clone(secondResponse.snapshot.entries.map((entry) => entry.tabId)),
     [102, 103, 101]
   )
+})
+
+test('history shortcut focuses the current Chrome tab first when Chrome is not focused', async () => {
+  const mock = await loadBackground([
+    {
+      id: 111,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 112,
+      windowId: 1,
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 113,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+  assert.equal(typeof onCommand, 'function')
+
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(112, { active: true })
+  onActivated({ tabId: 112, windowId: 1 })
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(113, { active: true })
+  onActivated({ tabId: 113, windowId: 1 })
+  await flushBackgroundWork()
+
+  mock.blurAllWindows()
+  const updateCount = mock.calls.update.length
+  const windowUpdateCount = mock.calls.windowUpdate.length
+
+  onCommand('switch-to-last-tab')
+  await flushBackgroundWork()
+
+  const commandUpdates = mock.calls.update.slice(updateCount)
+  assert.equal(mock.state.tabsById[113].active, true)
+  assert.equal(mock.state.tabsById[112].active, false)
+  assert.deepEqual(
+    commandUpdates.filter((call) => call.updateProperties.active === true).map((call) => call.tabId),
+    [113]
+  )
+  assert.deepEqual(mock.calls.windowUpdate.slice(windowUpdateCount), [
+    {
+      windowId: 1,
+      updateInfo: { focused: true }
+    }
+  ])
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.equal(response.snapshot.currentIndex, 2)
+  assert.equal(response.snapshot.previousIndex, 1)
 })
 
 test('tab history snapshot prunes missing tabs before returning entries', async () => {

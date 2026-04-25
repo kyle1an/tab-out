@@ -199,6 +199,56 @@ function findHistoryTargetIndex(history, direction, existingTabs, activeTab) {
   return nextIndex < 0 || nextIndex >= history.stack.length ? -1 : nextIndex
 }
 
+function findTabForHistoryEntry(history, tabsById) {
+  const current = normalizeGlobalHistory(history)
+  const entry = current.stack[current.index]
+  return entry ? tabsById.get(entry.tabId) || null : null
+}
+
+async function findFocusedWindowId() {
+  try {
+    const windows = await chrome.windows.getAll()
+    const focusedWindow = windows.find((win) => win.focused && typeof win.id === 'number')
+    return { id: focusedWindow?.id ?? null, known: true }
+  } catch {
+    return { id: null, known: false }
+  }
+}
+
+async function findLastFocusedActiveTab() {
+  try {
+    const focusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+    return focusedTabs[0] || null
+  } catch {
+    return null
+  }
+}
+
+async function findActiveTabForHistory(tabs, history) {
+  const focusedWindow = await findFocusedWindowId()
+  if (focusedWindow.id != null) {
+    const focusedActiveTab = tabs.find((tab) => tab.windowId === focusedWindow.id && tab.active)
+    if (focusedActiveTab) return { tab: focusedActiveTab, chromeFocused: true }
+  }
+
+  const tabsById = new Map(tabs.map((tab) => [tab.id, tab]))
+  const fallbackTab = (await findLastFocusedActiveTab()) || findTabForHistoryEntry(history, tabsById) || tabs.find((tab) => tab.active) || null
+  return { tab: fallbackTab, chromeFocused: !focusedWindow.known || focusedWindow.id != null }
+}
+
+async function focusExistingTab(tab) {
+  if (!tab?.id) return false
+
+  try {
+    await chrome.tabs.update(tab.id, { active: true })
+    await chrome.windows.update(tab.windowId, { focused: true })
+    return true
+  } catch {
+    await removeTabFromHistory(tab.id)
+    return false
+  }
+}
+
 function pruneMissingHistoryEntries(history, existingTabs) {
   const current = normalizeGlobalHistory(history)
   let nextHistory = current
@@ -328,11 +378,14 @@ async function restorePreviousTabAfterClose(tabId, removeInfo) {
 
 async function switchTabHistory(direction) {
   const tabs = await chrome.tabs.query({})
-  const focusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
-  const activeTab = focusedTabs[0] || tabs.find((tab) => tab.active)
+  const history = normalizeGlobalHistory(await readTabHistory())
+  const { tab: activeTab, chromeFocused } = await findActiveTabForHistory(tabs, history)
   if (!activeTab?.id) return
 
-  const history = normalizeGlobalHistory(await readTabHistory())
+  if (!chromeFocused) {
+    await focusExistingTab(activeTab)
+    return
+  }
 
   if (history.stack.length === 0) {
     await writeTabHistory({
@@ -385,9 +438,8 @@ function displayUrlForHistory(url = '') {
 
 async function getTabHistorySnapshot() {
   const tabs = await chrome.tabs.query({})
-  const focusedTabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
-  const activeTab = focusedTabs[0] || tabs.find((tab) => tab.active) || null
   const storedHistory = normalizeGlobalHistory(await readTabHistory())
+  const { tab: activeTab } = await findActiveTabForHistory(tabs, storedHistory)
   const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
   const navigationHistory = historyForNavigation(storedHistory, activeTab)
   const prunedHistory = pruneMissingHistoryEntries(navigationHistory, existingTabs)
