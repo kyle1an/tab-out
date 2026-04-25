@@ -51,7 +51,11 @@ function entryBadges(entry, snapshot) {
 
 function historyEntryIndexLabel(entry, snapshot, fallback) {
   if (Number.isInteger(entry.index) && Number.isInteger(snapshot?.currentIndex) && snapshot.currentIndex >= 0) {
-    return String(entry.index - snapshot.currentIndex)
+    const relativeIndex = entry.index - snapshot.currentIndex
+    if (relativeIndex < 0) {
+      return html`<span>-</span><span>${Math.abs(relativeIndex)}</span>`
+    }
+    return String(relativeIndex)
   }
   return String(fallback)
 }
@@ -155,11 +159,13 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
             `}
           </span>
         </button>
-        <button class="history-entry-close" type="button" disabled=${!entry.exists} title="Close this tab" aria-label=${`Close ${entry.title}`} onClick=${onCloseEntry}>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div class="history-entry-actions">
+          <button class="history-entry-close" type="button" disabled=${!entry.exists} title="Close this tab" aria-label=${`Close ${entry.title}`} onClick=${onCloseEntry}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   `
