@@ -24,6 +24,7 @@
 
 import { fetchOpenTabs, getDashboardTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
+import { pickFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { unwrapSuspenderUrl } from './suspender.js'
 import { cleanTitle, stripTitleNoise } from './titles.js'
@@ -40,33 +41,7 @@ import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 /** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
 /** @typedef {'tabs' | 'bookmarks'} DashboardSource */
 
-/**
- * pickFavicon(tab) — two-path favicon resolver:
- *   • If tab.favIconUrl is a `data:` URI, use it as-is. That covers
- *     both pages that inline their favicons (fast already) AND other
- *     extensions that rewrite the favicon (e.g. The Marvellous
- *     Suspender dims it for suspended tabs — a signal we want to
- *     preserve). Going through _favicon/ here would silently drop
- *     the modification.
- *   • Otherwise fall through to Chrome's internal favicon cache
- *     (`_favicon/` scheme, Chrome 104+). Same cache the tab strip
- *     uses; eliminates network fetches for plain https: favicons.
- *
- * The capture-phase error listener in app.js hides any that still
- * fail to load. Requires the "favicon" permission in manifest.json.
- *
- * @param {Pick<DashboardTab, 'favIconUrl' | 'url'>} tab
- * @returns {string}
- */
-export function pickFavicon(tab) {
-  const fav = tab.favIconUrl || ''
-  if (fav.startsWith('data:')) return fav
-  if (!tab.url) return ''
-  const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'))
-  faviconUrl.searchParams.set('pageUrl', tab.url)
-  faviconUrl.searchParams.set('size', '32')
-  return faviconUrl.toString()
-}
+export { pickFavicon }
 
 /**
  * injectBreakPoints(str) — insert U+200B (zero-width space) into
