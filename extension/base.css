@@ -28,7 +28,10 @@
   --status-abandoned: #ef4444; /* red-500 — danger */
   --card-bg: #ffffff;
   --shadow: rgba(10, 10, 10, 0.06);
+  --dashboard-shell-max-width: 1600px;
+  --dashboard-shell-half-max-width: 800px;
   --dashboard-page-gutter: 24px;
+  --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
 }
 
@@ -83,7 +86,7 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  max-width: 1600px;
+  max-width: var(--dashboard-shell-max-width);
   margin: 0 auto;
   padding: 0 var(--dashboard-page-gutter);
   display: grid;
@@ -133,15 +136,15 @@ body {
 }
 
 .dashboard-main > .pinned-top {
-  margin-right: calc(var(--dashboard-page-gutter) * -1);
+  margin-right: calc(0px - var(--dashboard-edge-bleed));
   padding-top: 12px;
-  padding-right: calc(var(--dashboard-page-gutter) + var(--dashboard-scroll-gutter));
+  padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
   padding-bottom: 12px;
 }
 
 .dashboard-shell.is-bookmarks .dashboard-main > .pinned-top {
-  margin-left: calc(var(--dashboard-page-gutter) * -1);
-  padding-left: var(--dashboard-page-gutter);
+  margin-left: calc(0px - var(--dashboard-edge-bleed));
+  padding-left: var(--dashboard-edge-bleed);
 }
 
 .pinned-top.is-scrolled {
@@ -170,9 +173,9 @@ body {
 }
 
 .dashboard-main > .scroll-region {
-  margin-right: calc(var(--dashboard-page-gutter) * -1);
+  margin-right: calc(0px - var(--dashboard-edge-bleed));
   padding-top: 6px;
-  padding-right: calc(var(--dashboard-page-gutter) + var(--dashboard-scroll-gutter));
+  padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
   padding-bottom: 50px;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
