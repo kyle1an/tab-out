@@ -22,6 +22,29 @@ function createEventSlot() {
   }
 }
 
+function createStorageArea(values) {
+  return {
+    async get(keys = null) {
+      if (typeof keys === 'string') return { [keys]: clone(values[keys]) }
+      if (Array.isArray(keys)) {
+        return Object.fromEntries(keys.map((key) => [key, clone(values[key])]))
+      }
+      if (keys && typeof keys === 'object') {
+        return Object.fromEntries(
+          Object.entries(keys).map(([key, defaultValue]) => [
+            key,
+            values[key] === undefined ? clone(defaultValue) : clone(values[key])
+          ])
+        )
+      }
+      return clone(values)
+    },
+    async set(items) {
+      Object.assign(values, clone(items))
+    }
+  }
+}
+
 function normalizeWindowTabs(state, windowId) {
   const tabs = Object.values(state.tabsById).filter((tab) => tab.windowId === windowId)
   const pinned = tabs.filter((tab) => tab.pinned).sort((a, b) => a.index - b.index || a.id - b.id)
@@ -46,7 +69,7 @@ function focusWindow(state, windowId) {
   state.lastFocusedWindowId = windowId
 }
 
-function createChromeMock(initialTabs) {
+function createChromeMock(initialTabs, options = {}) {
   const runtimeOnInstalled = createEventSlot()
   const runtimeOnMessage = createEventSlot()
   const runtimeOnStartup = createEventSlot()
@@ -85,6 +108,10 @@ function createChromeMock(initialTabs) {
     badgeText: [],
     badgeColor: []
   }
+  const storageValues = {
+    local: clone(options.storageValues?.local || {}),
+    session: clone(options.storageValues?.session || {})
+  }
 
   const chrome = {
     runtime: {
@@ -92,6 +119,10 @@ function createChromeMock(initialTabs) {
       onMessage: runtimeOnMessage.api,
       onInstalled: runtimeOnInstalled.api,
       onStartup: runtimeOnStartup.api
+    },
+    storage: {
+      local: createStorageArea(storageValues.local),
+      session: createStorageArea(storageValues.session)
     },
     action: {
       async setBadgeText(payload) {
@@ -247,6 +278,7 @@ function createChromeMock(initialTabs) {
     chrome,
     calls,
     state,
+    storageValues,
     listeners: {
       runtimeOnInstalled: runtimeOnInstalled.listeners,
       runtimeOnMessage: runtimeOnMessage.listeners,
@@ -306,8 +338,8 @@ async function flushBackgroundWork() {
   await new Promise((resolve) => setImmediate(resolve))
 }
 
-async function loadBackground(initialTabs) {
-  const mock = createChromeMock(initialTabs)
+async function loadBackground(initialTabs, options = {}) {
+  const mock = createChromeMock(initialTabs, options)
   const context = vm.createContext({
     chrome: mock.chrome,
     console,
@@ -693,6 +725,73 @@ test('tab history snapshot exposes previous and next command targets', async () 
   assert.equal(switchedResponse.snapshot.entries[0].previousTarget, true)
   assert.equal(switchedResponse.snapshot.entries[1].current, true)
   assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
+})
+
+test('tab history survives extension reload through persistent storage', async () => {
+  const mock = await loadBackground([
+    {
+      id: 301,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 302,
+      windowId: 1,
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 303,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(302, { active: true })
+  onActivated({ tabId: 302, windowId: 1 })
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(303, { active: true })
+  onActivated({ tabId: 303, windowId: 1 })
+  await flushBackgroundWork()
+
+  assert.deepEqual(
+    clone(mock.storageValues.local.globalTabHistory.stack.map((entry) => entry.tabId)),
+    [301, 302, 303]
+  )
+
+  const reloadedTabs = Object.values(mock.state.tabsById).map((tab) => clone(tab))
+  const reloadedMock = await loadBackground(reloadedTabs, { storageValues: mock.storageValues })
+
+  const response = await sendRuntimeMessage(reloadedMock, { type: 'tab-out:get-tab-history' })
+  assert.equal(response.ok, true)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    [301, 302, 303]
+  )
+  assert.equal(response.snapshot.currentIndex, 2)
+  assert.equal(response.snapshot.previousIndex, 1)
+  assert.equal(response.snapshot.entries[2].active, true)
 })
 
 test('tab history keeps only the latest entry for a repeated tab id', async () => {
