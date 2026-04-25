@@ -90,6 +90,10 @@ function canonicalizeGlobalHistory(history) {
   }
 }
 
+function tabHistoryStorageArea() {
+  return chrome.storage?.local || chrome.storage?.session || null
+}
+
 function removeTabEntriesFromHistory(history, tabId) {
   const current = normalizeGlobalHistory(history)
   const removedIndexes = current.stack
@@ -115,17 +119,29 @@ function removeTabEntriesFromHistory(history, tabId) {
 
 async function readTabHistory() {
   if (tabHistoryCache) return tabHistoryCache
-  if (!chrome.storage?.session) {
+  const storage = tabHistoryStorageArea()
+  if (!storage) {
     tabHistoryCache = { stack: [], index: -1 }
     return tabHistoryCache
   }
+
+  let storedHistory = null
+  let migratedFromSession = false
   try {
-    const stored = await chrome.storage.session.get(TAB_HISTORY_KEY)
-    const canonical = canonicalizeGlobalHistory(stored[TAB_HISTORY_KEY])
+    const stored = await storage.get(TAB_HISTORY_KEY)
+    storedHistory = stored[TAB_HISTORY_KEY]
+
+    if (storedHistory == null && storage === chrome.storage?.local && chrome.storage?.session) {
+      const sessionStored = await chrome.storage.session.get(TAB_HISTORY_KEY)
+      storedHistory = sessionStored[TAB_HISTORY_KEY]
+      migratedFromSession = storedHistory != null
+    }
+
+    const canonical = canonicalizeGlobalHistory(storedHistory)
     tabHistoryCache = canonical.history
-    if (canonical.changed) {
+    if (canonical.changed || migratedFromSession) {
       try {
-        await chrome.storage.session.set({ [TAB_HISTORY_KEY]: tabHistoryCache })
+        await storage.set({ [TAB_HISTORY_KEY]: tabHistoryCache })
       } catch {}
     }
   } catch {
@@ -137,9 +153,10 @@ async function readTabHistory() {
 async function writeTabHistory(nextHistory) {
   const cleanHistory = canonicalizeGlobalHistory(nextHistory).history
   tabHistoryCache = cleanHistory
-  if (!chrome.storage?.session) return
+  const storage = tabHistoryStorageArea()
+  if (!storage) return
   try {
-    await chrome.storage.session.set({ [TAB_HISTORY_KEY]: cleanHistory })
+    await storage.set({ [TAB_HISTORY_KEY]: cleanHistory })
   } catch {
     // Best-effort only — the command can still work while the worker lives.
   }
