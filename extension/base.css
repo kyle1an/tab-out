@@ -61,9 +61,10 @@ body::before {
   z-index: 0;
 }
 
-/* Body is a flex column: pinned-top + scroll-region fill exactly 100vh.
-   Since `body { overflow: hidden }`, the window never scrolls — only
-   .scroll-region does, and only the card list within it rubber-bands. */
+/* Body is a flex column: the app shell fills exactly 100vh. Since
+   `body { overflow: hidden }`, the window never scrolls — only the
+   main .scroll-region does, and only the card list within it
+   rubber-bands. */
 body {
   display: flex;
   flex-direction: column;
@@ -76,6 +77,37 @@ body {
   flex-direction: column;
 }
 
+.dashboard-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-shell.has-history {
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 16px;
+}
+
+.dashboard-main {
+  grid-column: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-shell.has-history .dashboard-main {
+  grid-column: 2;
+}
+
 .pinned-top {
   flex: 0 0 auto;
   position: relative;
@@ -84,6 +116,11 @@ body {
      page. A contextual shadow (below) is the only separation cue,
      triggered when the scroll region has scrolled away from the top. */
   transition: box-shadow 0.2s ease;
+}
+
+.dashboard-main > .pinned-top {
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 .pinned-top.is-scrolled {
@@ -97,6 +134,11 @@ body {
   overscroll-behavior-y: contain;
   position: relative;
   z-index: 1;
+}
+
+.dashboard-main > .scroll-region {
+  padding-top: 6px;
+  padding-bottom: 50px;
 }
 
 /* Shared inner wrapper: max-width + horizontal padding match in both

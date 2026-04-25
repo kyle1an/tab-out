@@ -210,6 +210,7 @@ export function App({ initialDashboard = null }) {
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
+  const showTabHistory = isReady && source === 'tabs'
 
   useEffect(() => {
     previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
@@ -217,74 +218,74 @@ export function App({ initialDashboard = null }) {
 
   return html`
     <${Fragment}>
-      <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
-        <div class="page-inner">
-          <${HeaderBar}
-            source=${source}
-            totalTabs=${stats.totalTabs}
-            visibleTabs=${stats.visibleTabs}
-            totalWindows=${stats.totalWindows}
-            visibleWindows=${stats.visibleWindows}
-            totalDomains=${stats.totalDomains}
-            visibleDomains=${stats.visibleDomains}
-            dedupCount=${stats.dedupCount}
-            filteredCloseCount=${stats.filteredCloseCount}
-            hasCards=${stats.hasCards}
-            filtering=${stats.filtering}
-            ready=${isReady}
-            filter=${filterInput}
-            filterFocusRequest=${filterFocusRequest}
-            onFilterChange=${setFilterInput}
-            onSourceChange=${setSource}
-            onCloseFiltered=${onCloseFiltered}
-            onDedupAll=${onDedupAll}
-          />
-        </div>
-      </div>
+      <div class=${'dashboard-shell' + (showTabHistory ? ' has-history' : '')}>
+        ${showTabHistory &&
+        html`<${TabHistoryPanel}
+          snapshot=${tabHistory}
+          onSnapshotChange=${setTabHistory}
+          onHoverUrlChange=${setHoveredUrl}
+        />`}
 
-      <div class="scroll-region" ref=${scrollRegionRef}>
-        <div class="page-inner">
-          <div class=${'active-section' + (source === 'tabs' ? ' has-history' : '')} id="openTabsSection" style=${isReady ? '' : 'display:none'}>
-            ${isReady &&
-            source === 'tabs' &&
-            html`<${TabHistoryPanel}
-              snapshot=${tabHistory}
-              onSnapshotChange=${setTabHistory}
-              onHoverUrlChange=${setHoveredUrl}
-            />`}
-            <div class="missions" id="openTabsMissions" ref=${primaryMissionsRef}>
-              ${isReady &&
-              html`<${Missions}
-                cards=${matchedCards}
-                filter=${filter}
-                source=${source}
-                onHoverUrlChange=${setHoveredUrl}
-                onLayoutChange=${scheduleMissionsMasonry}
-                onTogglePinnedDomain=${onTogglePinnedDomain}
-              />`}
-            </div>
+        <div class="dashboard-main">
+          <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
+            <${HeaderBar}
+              source=${source}
+              totalTabs=${stats.totalTabs}
+              visibleTabs=${stats.visibleTabs}
+              totalWindows=${stats.totalWindows}
+              visibleWindows=${stats.visibleWindows}
+              totalDomains=${stats.totalDomains}
+              visibleDomains=${stats.visibleDomains}
+              dedupCount=${stats.dedupCount}
+              filteredCloseCount=${stats.filteredCloseCount}
+              hasCards=${stats.hasCards}
+              filtering=${stats.filtering}
+              ready=${isReady}
+              filter=${filterInput}
+              filterFocusRequest=${filterFocusRequest}
+              onFilterChange=${setFilterInput}
+              onSourceChange=${setSource}
+              onCloseFiltered=${onCloseFiltered}
+              onDedupAll=${onDedupAll}
+            />
+          </div>
 
-            ${showOtherTabs &&
-            html`
-              <div class="missions-other" id="openTabsMissionsOther">
-                <div class="missions-divider" role="separator">
-                  <span class="missions-divider-rule"></span>
-                  <span class="missions-divider-label">Other tabs</span>
-                  <span class="missions-divider-rule"></span>
-                </div>
-                <div class="missions" id="openTabsMissionsUnmatched" ref=${unmatchedMissionsRef}>
-                  <${Missions}
-                    cards=${unmatchedCards}
-                    filter=${filter}
-                    source=${source}
-                    showEmptyState=${false}
-                    onHoverUrlChange=${setHoveredUrl}
-                    onLayoutChange=${scheduleMissionsMasonry}
-                    onTogglePinnedDomain=${onTogglePinnedDomain}
-                  />
-                </div>
+          <div class="scroll-region" ref=${scrollRegionRef}>
+            <div class="active-section" id="openTabsSection" style=${isReady ? '' : 'display:none'}>
+              <div class="missions" id="openTabsMissions" ref=${primaryMissionsRef}>
+                ${isReady &&
+                html`<${Missions}
+                  cards=${matchedCards}
+                  filter=${filter}
+                  source=${source}
+                  onHoverUrlChange=${setHoveredUrl}
+                  onLayoutChange=${scheduleMissionsMasonry}
+                  onTogglePinnedDomain=${onTogglePinnedDomain}
+                />`}
               </div>
-            `}
+
+              ${showOtherTabs &&
+              html`
+                <div class="missions-other" id="openTabsMissionsOther">
+                  <div class="missions-divider" role="separator">
+                    <span class="missions-divider-rule"></span>
+                    <span class="missions-divider-label">Other tabs</span>
+                    <span class="missions-divider-rule"></span>
+                  </div>
+                  <div class="missions" id="openTabsMissionsUnmatched" ref=${unmatchedMissionsRef}>
+                    <${Missions}
+                      cards=${unmatchedCards}
+                      filter=${filter}
+                      source=${source}
+                      showEmptyState=${false}
+                      onHoverUrlChange=${setHoveredUrl}
+                      onLayoutChange=${scheduleMissionsMasonry}
+                      onTogglePinnedDomain=${onTogglePinnedDomain}
+                    />
+                  </div>
+                </div>
+              `}
+            </div>
           </div>
         </div>
       </div>
