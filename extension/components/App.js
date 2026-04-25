@@ -211,6 +211,7 @@ export function App({ initialDashboard = null }) {
   const unmatchedCards = dashboardVm.unmatchedCards
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
   const showTabHistory = isReady && source === 'tabs'
+  const dashboardShellClass = ['dashboard-shell', showTabHistory ? 'has-history' : '', source === 'bookmarks' ? 'is-bookmarks' : ''].filter(Boolean).join(' ')
 
   useEffect(() => {
     previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
@@ -218,7 +219,7 @@ export function App({ initialDashboard = null }) {
 
   return html`
     <${Fragment}>
-      <div class=${'dashboard-shell' + (showTabHistory ? ' has-history' : '')}>
+      <div class=${dashboardShellClass}>
         ${showTabHistory &&
         html`<${TabHistoryPanel}
           snapshot=${tabHistory}

@@ -1,4 +1,5 @@
 import { snapshotChromeTabs } from './tabs.js'
+import { pickFavicon } from './favicons.js'
 
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
@@ -21,6 +22,7 @@ function emptySnapshot() {
 function normalizeEntry(entry, index) {
   const tabId = Number.isInteger(entry?.tabId) ? entry.tabId : -1
   const windowId = Number.isInteger(entry?.windowId) ? entry.windowId : -1
+  const url = String(entry?.url || '')
   return {
     index: Number.isInteger(entry?.index) ? entry.index : index,
     tabId,
@@ -34,9 +36,9 @@ function normalizeEntry(entry, index) {
     previousTarget: !!entry?.previousTarget,
     nextTarget: !!entry?.nextTarget,
     title: String(entry?.title || (tabId === -1 ? 'Unknown tab' : `Tab ${tabId}`)),
-    url: String(entry?.url || ''),
-    displayUrl: String(entry?.displayUrl || entry?.url || (tabId === -1 ? '' : `tab ${tabId}`)),
-    favIconUrl: String(entry?.favIconUrl || '')
+    url,
+    displayUrl: String(entry?.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
+    favIconUrl: pickFavicon({ favIconUrl: String(entry?.favIconUrl || ''), url })
   }
 }
 
