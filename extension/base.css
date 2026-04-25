@@ -146,7 +146,27 @@ body {
 
 .dashboard-main > .scroll-region {
   padding-top: 6px;
+  padding-right: 12px;
   padding-bottom: 50px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.scroll-region::-webkit-scrollbar {
+  width: 2px;
+}
+
+.scroll-region::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scroll-region::-webkit-scrollbar-thumb {
+  background: rgba(115, 115, 115, 0.28);
+  border-radius: 999px;
+}
+
+.scroll-region::-webkit-scrollbar-thumb:hover {
+  background: rgba(115, 115, 115, 0.4);
 }
 
 /* Shared inner wrapper: max-width + horizontal padding match in both
