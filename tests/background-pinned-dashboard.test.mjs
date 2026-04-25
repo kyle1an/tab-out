@@ -670,6 +670,74 @@ test('tab history snapshot exposes previous and next command targets', async () 
   assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
 })
 
+test('tab history keeps only the latest entry for a repeated tab id', async () => {
+  const mock = await loadBackground([
+    {
+      id: 101,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 102,
+      windowId: 1,
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 103,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(102, { active: true })
+  onActivated({ tabId: 102, windowId: 1 })
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(103, { active: true })
+  onActivated({ tabId: 103, windowId: 1 })
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(101, { active: true })
+  onActivated({ tabId: 101, windowId: 1 })
+  await flushBackgroundWork()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.equal(response.ok, true)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    [102, 103, 101]
+  )
+  assert.equal(response.snapshot.stackSize, 3)
+  assert.equal(response.snapshot.currentIndex, 2)
+  assert.equal(response.snapshot.previousIndex, 1)
+
+  const secondResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.deepEqual(
+    clone(secondResponse.snapshot.entries.map((entry) => entry.tabId)),
+    [102, 103, 101]
+  )
+})
+
 test('tab history snapshot prunes missing tabs before returning entries', async () => {
   const mock = await loadBackground([
     {
