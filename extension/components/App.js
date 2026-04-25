@@ -224,6 +224,7 @@ export function App({ initialDashboard = null }) {
           snapshot=${tabHistory}
           onSnapshotChange=${setTabHistory}
           onHoverUrlChange=${setHoveredUrl}
+          onTabsChange=${() => refreshRef.current()}
         />`}
 
         <div class="dashboard-main">

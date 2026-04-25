@@ -1,3 +1,5 @@
+import { snapshotChromeTabs } from './tabs.js'
+
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
@@ -85,5 +87,21 @@ export async function focusHistoryEntry(entry) {
     return true
   } catch {
     return false
+  }
+}
+
+export async function closeHistoryEntry(entry) {
+  if (!entry?.exists || !Number.isInteger(entry.tabId)) return { closed: false, snapshot: [] }
+
+  try {
+    const allTabs = await chrome.tabs.query({})
+    const tab = allTabs.find((candidate) => candidate.id === entry.tabId)
+    if (!tab) return { closed: false, snapshot: [] }
+
+    const snapshot = snapshotChromeTabs([tab])
+    await chrome.tabs.remove(entry.tabId)
+    return { closed: true, snapshot }
+  } catch {
+    return { closed: false, snapshot: [] }
   }
 }

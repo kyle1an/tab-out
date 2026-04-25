@@ -1,6 +1,8 @@
 import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
-import { fetchTabHistorySnapshot, focusHistoryEntry } from '../tab-history.js'
+import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../tab-history.js'
+import { markClosure } from '../undo.js'
+import { showToast } from './Toast.js'
 
 const html = htm.bind(h)
 
@@ -27,11 +29,40 @@ function entryBadges(entry, snapshot) {
   return badges
 }
 
-function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange }) {
+function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
+  async function refreshAfterMutation() {
+    if (onTabsChange) {
+      await onTabsChange()
+      return
+    }
+    onSnapshotChange?.(await fetchTabHistorySnapshot())
+  }
+
   async function onFocusEntry() {
     const focused = await focusHistoryEntry(entry)
     if (!focused) return
     onSnapshotChange?.(await fetchTabHistorySnapshot())
+  }
+
+  async function onCloseEntry(e) {
+    e.stopPropagation()
+    const row = e.currentTarget.closest('.history-entry')
+    const result = await closeHistoryEntry(entry)
+    if (!result.closed) {
+      showToast('Nothing to close')
+      return
+    }
+
+    row?.classList.add('closing')
+    await new Promise((resolve) => setTimeout(resolve, 160))
+    onHoverUrlChange?.('')
+    await refreshAfterMutation()
+
+    if (result.snapshot.length > 0) {
+      markClosure(result.snapshot, 'Tab closed')
+    } else {
+      showToast('Tab closed')
+    }
   }
 
   function onMouseEnter() {
@@ -45,36 +76,40 @@ function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange }) {
   const badges = entryBadges(entry, snapshot)
 
   return html`
-    <button
-      type="button"
+    <div
       class=${entryClass(entry)}
-      disabled=${!entry.exists}
       title=${entry.url || entry.displayUrl}
-      onClick=${onFocusEntry}
       onMouseEnter=${onMouseEnter}
       onMouseLeave=${onMouseLeave}
       onFocus=${onMouseEnter}
       onBlur=${onMouseLeave}
     >
-      <span class="history-entry-index">${entry.index + 1}</span>
-      ${entry.favIconUrl &&
-      html`
-        <span class="history-favicon-frame">
-          <img class="history-favicon" src=${entry.favIconUrl} alt="" />
+      <button type="button" class="history-entry-main" disabled=${!entry.exists} onClick=${onFocusEntry}>
+        <span class="history-entry-index">${entry.index + 1}</span>
+        ${entry.favIconUrl &&
+        html`
+          <span class="history-favicon-frame">
+            <img class="history-favicon" src=${entry.favIconUrl} alt="" />
+          </span>
+        `}
+        <span class="history-entry-copy">
+          <span class="history-entry-title">${entry.title}</span>
+          <span class="history-entry-url">${entry.displayUrl}</span>
         </span>
-      `}
-      <span class="history-entry-copy">
-        <span class="history-entry-title">${entry.title}</span>
-        <span class="history-entry-url">${entry.displayUrl}</span>
-      </span>
-      <span class="history-entry-badges">
-        ${badges.map((badge) => html`<span class="history-badge">${badge}</span>`)}
-      </span>
-    </button>
+        <span class="history-entry-badges">
+          ${badges.map((badge) => html`<span class="history-badge">${badge}</span>`)}
+        </span>
+      </button>
+      <button class="history-entry-close" type="button" disabled=${!entry.exists} title="Close this tab" aria-label=${`Close ${entry.title}`} onClick=${onCloseEntry}>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
   `
 }
 
-export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange }) {
+export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
   const countLabel = snapshot?.maxSize ? `${snapshot.stackSize}/${snapshot.maxSize}` : '0'
@@ -96,6 +131,7 @@ export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange }
                     snapshot=${snapshot}
                     onSnapshotChange=${onSnapshotChange}
                     onHoverUrlChange=${onHoverUrlChange}
+                    onTabsChange=${onTabsChange}
                   />`
               )
             : html`<div class="history-empty">No activation history yet.</div>`}
