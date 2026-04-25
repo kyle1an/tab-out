@@ -1,8 +1,8 @@
 /* ================================================================
    <HeaderStats> — Preact component for the pinned-top stats row.
 
-   Renders the tab count ("182 Open tabs" + "Across 3 windows"), the
-   domain count ("17 domains"), the global Dedupe-N button, and the
+   Renders the tab count ("182 tabs" + "3 windows"), the domain count
+   ("17 domains"), the global Dedupe-N button, and the
    Close-N-filtered-tabs button. Props are derived by the App root
    from the same view-model inputs that drive the card grid.
    ================================================================ */
@@ -32,13 +32,13 @@ export function HeaderStats({
     return html`<div class="header-stats" aria-hidden="true"></div>`
   }
 
-  const itemLabel = source === 'bookmarks' ? 'bookmark' : 'Open tab'
+  const itemLabel = source === 'bookmarks' ? 'bookmark' : 'tab'
   const tabsLabel = filtering ? `${visibleTabs} of ${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}` : `${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}`
 
   const windowsLabel =
     visibleWindows === totalWindows
-      ? `Across ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
-      : `Across ${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
+      ? `${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
+      : `${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
 
   const domainsLabel =
     visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
