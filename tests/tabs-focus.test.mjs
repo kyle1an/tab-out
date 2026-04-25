@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { closeHistoryEntry } from '../extension/tab-history.js'
 import { focusTab } from '../extension/tabs.js'
 
 function createChromeMock(initialTabs, currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
   const calls = {
     create: [],
+    remove: [],
     tabsUpdate: [],
     windowsUpdate: []
   }
@@ -46,6 +48,14 @@ function createChromeMock(initialTabs, currentWindowId = 1) {
         }
         tabs.push(tab)
         return { ...tab }
+      },
+      async remove(tabIds) {
+        const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
+        calls.remove.push(...ids)
+        for (const id of ids) {
+          const index = tabs.findIndex((tab) => tab.id === id)
+          if (index !== -1) tabs.splice(index, 1)
+        }
       }
     },
     windows: {
@@ -92,4 +102,27 @@ test('focusTab does not create a pinned Tab Out tab when focusing a chip target 
   assert.deepEqual(calls.create, [])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+})
+
+test('closeHistoryEntry removes the exact history tab and returns an undo snapshot', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
+    { id: 2, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: true, groupId: 4, index: 3 }
+  ])
+
+  const result = await closeHistoryEntry({ exists: true, tabId: 2 })
+
+  assert.equal(result.closed, true)
+  assert.deepEqual(calls.remove, [2])
+  assert.equal(tabs.some((tab) => tab.id === 2), false)
+  assert.deepEqual(result.snapshot, [
+    {
+      url: 'https://example.com/docs',
+      title: 'Docs',
+      pinned: true,
+      groupId: 4,
+      windowId: 2,
+      index: 3
+    }
+  ])
 })
