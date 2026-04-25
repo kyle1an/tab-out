@@ -269,6 +269,25 @@ function createChromeMock(initialTabs) {
       Object.values(state.windowsById).forEach((win) => {
         win.focused = false
       })
+    },
+    activateTab(tabId) {
+      const tab = state.tabsById[tabId]
+      if (!tab) throw new Error(`Missing tab ${tabId}`)
+      Object.values(state.tabsById)
+        .filter((candidate) => candidate.windowId === tab.windowId)
+        .forEach((candidate) => {
+          candidate.active = candidate.id === tabId
+        })
+      focusWindow(state, tab.windowId)
+    },
+    closeTabForWindow(tabId) {
+      const tab = state.tabsById[tabId]
+      if (!tab) throw new Error(`Missing tab ${tabId}`)
+      delete state.tabsById[tabId]
+      normalizeAllTabs(state)
+      for (const listener of tabsOnRemoved.listeners) {
+        listener(tab.id, { windowId: tab.windowId, isWindowClosing: true })
+      }
     }
   }
 }
@@ -744,6 +763,60 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
   )
 })
 
+test('tab history serializes rapid activation events in order', async () => {
+  const mock = await loadBackground([
+    {
+      id: 131,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 132,
+      windowId: 1,
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 133,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  assert.equal(typeof onActivated, 'function')
+
+  mock.activateTab(131)
+  onActivated({ tabId: 131, windowId: 1 })
+  mock.activateTab(132)
+  onActivated({ tabId: 132, windowId: 1 })
+  mock.activateTab(133)
+  onActivated({ tabId: 133, windowId: 1 })
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.equal(response.ok, true)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    [131, 132, 133]
+  )
+  assert.equal(response.snapshot.currentIndex, 2)
+  assert.equal(response.snapshot.previousIndex, 1)
+})
+
 test('history shortcut focuses the current Chrome tab first when Chrome is not focused', async () => {
   const mock = await loadBackground([
     {
@@ -892,6 +965,44 @@ test('history shortcut prefers current history tab over stale last-focused windo
       updateInfo: { focused: true }
     }
   ])
+})
+
+test('window-closing tabs are removed before they consume history slots', async () => {
+  const tabs = Array.from({ length: 25 }, (_, index) => {
+    const id = 201 + index
+    return {
+      id,
+      windowId: 1,
+      url: `https://tab-${id}.example/`,
+      title: `Tab ${id}`,
+      active: index === 0,
+      pinned: false,
+      groupId: -1,
+      index
+    }
+  })
+  const mock = await loadBackground(tabs)
+
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  assert.equal(typeof onActivated, 'function')
+
+  for (const tab of tabs.slice(0, 24)) {
+    mock.activateTab(tab.id)
+    onActivated({ tabId: tab.id, windowId: tab.windowId })
+    await flushBackgroundWork()
+  }
+
+  mock.closeTabForWindow(212)
+  mock.activateTab(225)
+  onActivated({ tabId: 225, windowId: 1 })
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.equal(response.ok, true)
+  const historyIds = clone(response.snapshot.entries.map((entry) => entry.tabId))
+  assert.equal(response.snapshot.stackSize, 24)
+  assert.equal(historyIds.includes(201), true)
+  assert.equal(historyIds.includes(212), false)
+  assert.equal(historyIds.at(-1), 225)
 })
 
 test('tab history snapshot prunes missing tabs before returning entries', async () => {
