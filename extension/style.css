@@ -258,26 +258,13 @@ header {
 }
 
 /* ---- Activation history ---- */
-.active-section.has-history {
-  display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-  align-items: start;
-  gap: 16px;
-}
-
-.active-section.has-history > .missions,
-.active-section.has-history > .missions-other {
-  grid-column: 2;
-  min-width: 0;
-}
-
 .tab-history-panel {
   grid-column: 1;
   position: sticky;
-  top: 8px;
+  top: 12px;
   min-width: 0;
-  max-height: calc(100vh - 96px);
-  padding: 0;
+  max-height: calc(100vh - 24px);
+  padding: 12px 0 0;
   display: flex;
   flex-direction: column;
 }
@@ -477,8 +464,14 @@ header {
 }
 
 @media (max-width: 900px) {
-  .active-section.has-history {
-    display: block;
+  .dashboard-shell.has-history {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .dashboard-shell.has-history .dashboard-main,
+  .dashboard-shell.has-history .tab-history-panel {
+    grid-column: 1;
   }
 
   .tab-history-panel {
