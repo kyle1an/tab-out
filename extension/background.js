@@ -232,7 +232,11 @@ async function findActiveTabForHistory(tabs, history) {
   }
 
   const tabsById = new Map(tabs.map((tab) => [tab.id, tab]))
-  const fallbackTab = (await findLastFocusedActiveTab()) || findTabForHistoryEntry(history, tabsById) || tabs.find((tab) => tab.active) || null
+  const historyTab = findTabForHistoryEntry(history, tabsById)
+  const lastFocusedTab = await findLastFocusedActiveTab()
+  const fallbackTab = focusedWindow.known
+    ? historyTab || lastFocusedTab || tabs.find((tab) => tab.active) || null
+    : lastFocusedTab || historyTab || tabs.find((tab) => tab.active) || null
   return { tab: fallbackTab, chromeFocused: !focusedWindow.known || focusedWindow.id != null }
 }
 
