@@ -405,21 +405,20 @@ header {
 
 .history-entry-index {
   flex: 0 0 auto;
-  width: 16px;
+  width: 22px;
   height: 16px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 50%;
+  justify-content: flex-end;
   background: transparent;
   color: rgba(115, 115, 115, 0.72);
   font-size: 10px;
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .history-entry-row:hover .history-entry-index,
 .history-entry-row:focus-within .history-entry-index {
-  background: rgba(115, 115, 115, 0.08);
   color: var(--muted);
 }
 

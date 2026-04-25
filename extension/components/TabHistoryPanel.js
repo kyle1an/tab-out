@@ -49,7 +49,14 @@ function entryBadges(entry, snapshot) {
   return badges
 }
 
-function HistoryEntry({ entry, rank, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
+function historyEntryIndexLabel(entry, snapshot, fallback) {
+  if (Number.isInteger(entry.index) && Number.isInteger(snapshot?.currentIndex) && snapshot.currentIndex >= 0) {
+    return String(entry.index - snapshot.currentIndex)
+  }
+  return String(fallback)
+}
+
+function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
   const titleRef = useRef(null)
 
   useLayoutEffect(() => {
@@ -132,7 +139,7 @@ function HistoryEntry({ entry, rank, snapshot, onSnapshotChange, onHoverUrlChang
       onFocus=${onMouseEnter}
       onBlur=${onMouseLeave}
     >
-      <span class="history-entry-index">${rank}</span>
+      <span class="history-entry-index">${indexLabel}</span>
       <div class=${entryClass(entry)}>
         <button type="button" class="history-entry-main" disabled=${!entry.exists} onClick=${onFocusEntry}>
           <span class=${'history-favicon-frame' + (!entry.favIconUrl ? ' is-empty' : '')}>
@@ -172,7 +179,7 @@ export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, 
                   html`<${HistoryEntry}
                     key=${`${entry.windowId}:${entry.tabId}:${entry.index}`}
                     entry=${entry}
-                    rank=${index + 1}
+                    indexLabel=${historyEntryIndexLabel(entry, snapshot, index + 1)}
                     snapshot=${snapshot}
                     onSnapshotChange=${onSnapshotChange}
                     onHoverUrlChange=${onHoverUrlChange}
