@@ -27,7 +27,7 @@ function entryBadges(entry, snapshot) {
   return badges
 }
 
-function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
+function HistoryEntry({ entry, rank, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
   async function refreshAfterMutation() {
     if (onTabsChange) {
       await onTabsChange()
@@ -83,7 +83,7 @@ function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange, onT
       onBlur=${onMouseLeave}
     >
       <button type="button" class="history-entry-main" disabled=${!entry.exists} onClick=${onFocusEntry}>
-        <span class="history-entry-index">${entry.index + 1}</span>
+        <span class="history-entry-index">${rank}</span>
         ${entry.favIconUrl &&
         html`
           <span class="history-favicon-frame">
@@ -92,7 +92,6 @@ function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange, onT
         `}
         <span class="history-entry-copy">
           <span class="history-entry-title">${entry.title}</span>
-          <span class="history-entry-url">${entry.displayUrl}</span>
         </span>
         <span class="history-entry-badges">
           ${badges.map((badge) => html`<span class="history-badge">${badge}</span>`)}
@@ -110,22 +109,18 @@ function HistoryEntry({ entry, snapshot, onSnapshotChange, onHoverUrlChange, onT
 export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
-  const countLabel = snapshot?.maxSize ? `${snapshot.stackSize}/${snapshot.maxSize}` : '0'
 
   return html`
     <section class="tab-history-panel" aria-label="Activation history">
-      <div class="tab-history-header">
-        <div class="tab-history-title">Activation history</div>
-        <div class="tab-history-meta">${countLabel}</div>
-      </div>
       <div class="tab-history-strip">
         <div class="history-entry-list">
           ${displayEntries.length > 0
             ? displayEntries.map(
-                (entry) =>
+                (entry, index) =>
                   html`<${HistoryEntry}
                     key=${`${entry.windowId}:${entry.tabId}:${entry.index}`}
                     entry=${entry}
+                    rank=${index + 1}
                     snapshot=${snapshot}
                     onSnapshotChange=${onSnapshotChange}
                     onHoverUrlChange=${onHoverUrlChange}
