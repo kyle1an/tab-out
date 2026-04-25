@@ -19,7 +19,6 @@ function entryClass(entry) {
 function entryBadges(entry, snapshot) {
   const badges = []
   if (entry.previousTarget) badges.push('Prev')
-  if (entry.current) badges.push('Current')
   if (entry.nextTarget) badges.push('Next')
   if (entry.active && !entry.current) badges.push('Active')
   if (entry.cursor && !entry.current) badges.push('Cursor')
