@@ -117,17 +117,39 @@ body {
   /* No background at rest — pinned-top blends seamlessly with the
      page. A contextual shadow (below) is the only separation cue,
      triggered when the scroll region has scrolled away from the top. */
-  transition: box-shadow 0.2s ease;
+}
+
+.pinned-top::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+  height: 12px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
 }
 
 .dashboard-main > .pinned-top {
+  margin-right: calc(var(--dashboard-page-gutter) * -1);
   padding-top: 12px;
-  padding-right: var(--dashboard-scroll-gutter);
+  padding-right: calc(var(--dashboard-page-gutter) + var(--dashboard-scroll-gutter));
   padding-bottom: 12px;
 }
 
+.dashboard-shell.is-bookmarks .dashboard-main > .pinned-top {
+  margin-left: calc(var(--dashboard-page-gutter) * -1);
+  padding-left: var(--dashboard-page-gutter);
+}
+
 .pinned-top.is-scrolled {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  box-shadow: none;
+}
+
+.pinned-top.is-scrolled::after {
+  opacity: 1;
 }
 
 .dashboard-shell.has-history .dashboard-main > .pinned-top {
@@ -148,8 +170,9 @@ body {
 }
 
 .dashboard-main > .scroll-region {
+  margin-right: calc(var(--dashboard-page-gutter) * -1);
   padding-top: 6px;
-  padding-right: var(--dashboard-scroll-gutter);
+  padding-right: calc(var(--dashboard-page-gutter) + var(--dashboard-scroll-gutter));
   padding-bottom: 50px;
   scrollbar-gutter: stable;
   scrollbar-width: thin;

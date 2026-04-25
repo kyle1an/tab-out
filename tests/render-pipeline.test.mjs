@@ -357,6 +357,34 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
   assert.equal(snapshot.entries[2].nextTarget, true)
 })
 
+test('normalizeTabHistorySnapshot resolves history favicons from Chrome cache', () => {
+  const snapshot = normalizeTabHistorySnapshot({
+    entries: [
+      {
+        index: 0,
+        tabId: 11,
+        windowId: 1,
+        title: 'Alpha',
+        url: 'https://alpha.example/docs',
+        favIconUrl: '',
+        exists: true
+      },
+      {
+        index: 1,
+        tabId: 12,
+        windowId: 1,
+        title: 'Bravo',
+        url: 'https://bravo.example/docs',
+        favIconUrl: 'data:image/png;base64,abc',
+        exists: true
+      }
+    ]
+  })
+
+  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Falpha.example%2Fdocs&size=32')
+  assert.equal(snapshot.entries[1].favIconUrl, 'data:image/png;base64,abc')
+})
+
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {
   const bookmarks = flattenBookmarkNodes([
     {
