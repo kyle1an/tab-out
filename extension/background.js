@@ -35,6 +35,60 @@ function normalizeGlobalHistory(entry) {
   return { stack, index }
 }
 
+function historyChanged(a, b) {
+  const first = normalizeGlobalHistory(a)
+  const second = normalizeGlobalHistory(b)
+  if (first.index !== second.index || first.stack.length !== second.stack.length) return true
+  return first.stack.some((entry, index) => entry.tabId !== second.stack[index].tabId || entry.windowId !== second.stack[index].windowId)
+}
+
+function dedupeHistoryByLatestTab(history) {
+  const current = normalizeGlobalHistory(history)
+  const latestIndexByTabId = new Map()
+  current.stack.forEach((entry, index) => latestIndexByTabId.set(entry.tabId, index))
+
+  const nextStack = []
+  const oldIndexToNewIndex = new Map()
+  current.stack.forEach((entry, index) => {
+    if (latestIndexByTabId.get(entry.tabId) !== index) return
+    oldIndexToNewIndex.set(index, nextStack.length)
+    nextStack.push(entry)
+  })
+
+  let nextIndex = -1
+  const currentEntry = current.stack[current.index]
+  if (currentEntry) {
+    const keptOldIndex = latestIndexByTabId.get(currentEntry.tabId)
+    nextIndex = oldIndexToNewIndex.get(keptOldIndex) ?? -1
+  }
+
+  return {
+    stack: nextStack,
+    index: nextStack.length === 0 ? -1 : nextIndex
+  }
+}
+
+function trimHistoryToMax(history) {
+  const current = normalizeGlobalHistory(history)
+  if (current.stack.length <= MAX_TAB_HISTORY) return current
+
+  const dropCount = current.stack.length - MAX_TAB_HISTORY
+  return {
+    stack: current.stack.slice(dropCount),
+    index: current.index === -1 ? -1 : Math.max(0, current.index - dropCount)
+  }
+}
+
+function canonicalizeGlobalHistory(history) {
+  const current = normalizeGlobalHistory(history)
+  const deduped = dedupeHistoryByLatestTab(current)
+  const trimmed = trimHistoryToMax(deduped)
+  return {
+    history: trimmed,
+    changed: historyChanged(current, trimmed)
+  }
+}
+
 function removeTabEntriesFromHistory(history, tabId) {
   const current = normalizeGlobalHistory(history)
   const removedIndexes = current.stack
@@ -66,7 +120,13 @@ async function readTabHistory() {
   }
   try {
     const stored = await chrome.storage.session.get(TAB_HISTORY_KEY)
-    tabHistoryCache = normalizeGlobalHistory(stored[TAB_HISTORY_KEY])
+    const canonical = canonicalizeGlobalHistory(stored[TAB_HISTORY_KEY])
+    tabHistoryCache = canonical.history
+    if (canonical.changed) {
+      try {
+        await chrome.storage.session.set({ [TAB_HISTORY_KEY]: tabHistoryCache })
+      } catch {}
+    }
   } catch {
     tabHistoryCache = { stack: [], index: -1 }
   }
@@ -74,17 +134,18 @@ async function readTabHistory() {
 }
 
 async function writeTabHistory(nextHistory) {
-  tabHistoryCache = nextHistory
+  const cleanHistory = canonicalizeGlobalHistory(nextHistory).history
+  tabHistoryCache = cleanHistory
   if (!chrome.storage?.session) return
   try {
-    await chrome.storage.session.set({ [TAB_HISTORY_KEY]: nextHistory })
+    await chrome.storage.session.set({ [TAB_HISTORY_KEY]: cleanHistory })
   } catch {
     // Best-effort only — the command can still work while the worker lives.
   }
 }
 
 async function recordTabActivation(windowId, tabId) {
-  const history = normalizeGlobalHistory(await readTabHistory())
+  const history = canonicalizeGlobalHistory(await readTabHistory()).history
   if (history.stack[history.index]?.tabId === tabId) {
     await primeNativeCloseTarget(windowId, tabId, history)
     return
@@ -94,9 +155,6 @@ async function recordTabActivation(windowId, tabId) {
 
   let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
   nextStack.push({ windowId, tabId })
-  if (nextStack.length > MAX_TAB_HISTORY) {
-    nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
-  }
 
   await writeTabHistory({
     stack: nextStack,
@@ -105,27 +163,26 @@ async function recordTabActivation(windowId, tabId) {
 }
 
 function historyForNavigation(history, activeTab) {
-  const current = normalizeGlobalHistory(history)
+  const canonical = canonicalizeGlobalHistory(history)
+  const current = canonical.history
   if (!activeTab?.id) {
-    return { stack: current.stack, index: current.index, activeWasInserted: false }
+    return { stack: current.stack, index: current.index, activeWasInserted: false, changed: canonical.changed }
   }
 
   if (current.stack[current.index]?.tabId === activeTab.id) {
-    return { stack: current.stack, index: current.index, activeWasInserted: false }
+    return { stack: current.stack, index: current.index, activeWasInserted: false, changed: canonical.changed }
   }
 
   const latestActiveIndex = current.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
   if (latestActiveIndex !== -1) {
-    return { stack: current.stack, index: latestActiveIndex, activeWasInserted: false }
+    return { stack: current.stack, index: latestActiveIndex, activeWasInserted: false, changed: true }
   }
 
   let nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
   nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
-  if (nextStack.length > MAX_TAB_HISTORY) {
-    nextStack = nextStack.slice(nextStack.length - MAX_TAB_HISTORY)
-  }
+  const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: nextStack.length - 1 }).history
 
-  return { stack: nextStack, index: nextStack.length - 1, activeWasInserted: true }
+  return { stack: nextHistory.stack, index: nextHistory.index, activeWasInserted: true, changed: true }
 }
 
 function findHistoryTargetIndex(history, direction, existingTabs, activeTab) {
@@ -286,7 +343,7 @@ async function switchTabHistory(direction) {
   }
 
   const navigationHistory = historyForNavigation(history, activeTab)
-  if (navigationHistory.activeWasInserted) {
+  if (navigationHistory.activeWasInserted || navigationHistory.changed) {
     await writeTabHistory({ stack: navigationHistory.stack, index: navigationHistory.index })
   }
 
@@ -334,8 +391,9 @@ async function getTabHistorySnapshot() {
   const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
   const navigationHistory = historyForNavigation(storedHistory, activeTab)
   const prunedHistory = pruneMissingHistoryEntries(navigationHistory, existingTabs)
-  const cleanHistory = { stack: prunedHistory.stack, index: prunedHistory.index }
-  if (navigationHistory.activeWasInserted || prunedHistory.changed) {
+  const canonicalHistory = canonicalizeGlobalHistory(prunedHistory)
+  const cleanHistory = canonicalHistory.history
+  if (navigationHistory.activeWasInserted || navigationHistory.changed || prunedHistory.changed || canonicalHistory.changed) {
     await writeTabHistory(cleanHistory)
   }
   const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
