@@ -20,6 +20,7 @@ const OPEN_FILTER_TAB_COMMAND = 'open-filter-tab'
 const FOCUS_FILTER_PARAM = 'focusFilter'
 const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
+let tabHistoryQueue = Promise.resolve()
 
 function filterFocusUrl() {
   return `chrome-extension://${chrome.runtime.id}/index.html?${FOCUS_FILTER_PARAM}=1`
@@ -144,45 +145,85 @@ async function writeTabHistory(nextHistory) {
   }
 }
 
-async function recordTabActivation(windowId, tabId) {
-  const history = canonicalizeGlobalHistory(await readTabHistory()).history
-  if (history.stack[history.index]?.tabId === tabId) {
-    await primeNativeCloseTarget(windowId, tabId, history)
-    return
-  }
-
-  await primeNativeCloseTarget(windowId, tabId, history)
-
-  let nextStack = history.index < history.stack.length - 1 ? history.stack.slice(0, history.index + 1) : history.stack.slice()
-  nextStack.push({ windowId, tabId })
-
-  await writeTabHistory({
-    stack: nextStack,
-    index: nextStack.length - 1
+function enqueueTabHistoryMutation(mutator) {
+  const task = tabHistoryQueue.catch(() => {}).then(async () => {
+    const before = canonicalizeGlobalHistory(await readTabHistory()).history
+    const result = (await mutator(before)) || {}
+    const requestedHistory = result.history || before
+    const cleanHistory = canonicalizeGlobalHistory(requestedHistory).history
+    const changed = historyChanged(before, cleanHistory)
+    if (changed) await writeTabHistory(cleanHistory)
+    return {
+      history: cleanHistory,
+      changed,
+      value: result.value
+    }
   })
+
+  tabHistoryQueue = task.then(
+    () => {},
+    () => {}
+  )
+  return task
 }
 
-function historyForNavigation(history, activeTab) {
-  const canonical = canonicalizeGlobalHistory(history)
-  const current = canonical.history
+function historyForUserActivation(history, activeEntry) {
+  const current = canonicalizeGlobalHistory(history).history
+  if (!activeEntry || typeof activeEntry.tabId !== 'number' || typeof activeEntry.windowId !== 'number') {
+    return { history: current, changed: false }
+  }
+
+  if (current.stack[current.index]?.tabId === activeEntry.tabId) {
+    const nextStack = current.stack.slice()
+    nextStack[current.index] = { windowId: activeEntry.windowId, tabId: activeEntry.tabId }
+    const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: current.index }).history
+    return { history: nextHistory, changed: historyChanged(current, nextHistory) }
+  }
+
+  const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
+  nextStack.push({ windowId: activeEntry.windowId, tabId: activeEntry.tabId })
+  const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: nextStack.length - 1 }).history
+
+  return { history: nextHistory, changed: historyChanged(current, nextHistory) }
+}
+
+function repairHistoryCursorForActiveTab(history, activeTab) {
+  const current = canonicalizeGlobalHistory(history).history
   if (!activeTab?.id) {
-    return { stack: current.stack, index: current.index, activeWasInserted: false, changed: canonical.changed }
+    return { history: current, activeWasInserted: false, changed: historyChanged(history, current) }
   }
 
   if (current.stack[current.index]?.tabId === activeTab.id) {
-    return { stack: current.stack, index: current.index, activeWasInserted: false, changed: canonical.changed }
+    const nextStack = current.stack.slice()
+    nextStack[current.index] = { windowId: activeTab.windowId, tabId: activeTab.id }
+    const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: current.index }).history
+    return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
   }
 
   const latestActiveIndex = current.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
   if (latestActiveIndex !== -1) {
-    return { stack: current.stack, index: latestActiveIndex, activeWasInserted: false, changed: true }
+    const nextStack = current.stack.slice()
+    nextStack[latestActiveIndex] = { windowId: activeTab.windowId, tabId: activeTab.id }
+    const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: latestActiveIndex }).history
+    return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
   }
 
-  let nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
+  const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
   nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
   const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: nextStack.length - 1 }).history
 
-  return { stack: nextHistory.stack, index: nextHistory.index, activeWasInserted: true, changed: true }
+  return { history: nextHistory, activeWasInserted: true, changed: true }
+}
+
+async function recordTabActivation(windowId, tabId) {
+  if (typeof windowId !== 'number' || typeof tabId !== 'number') return
+
+  await enqueueTabHistoryMutation(async (history) => {
+    await primeNativeCloseTarget(windowId, tabId, history)
+    return {
+      history: historyForUserActivation(history, { windowId, tabId }).history
+    }
+  })
 }
 
 function findHistoryTargetIndex(history, direction, existingTabs, activeTab) {
@@ -320,112 +361,123 @@ async function recordFocusedWindowActiveTab(windowId) {
 }
 
 async function removeTabFromHistory(tabId) {
-  const history = normalizeGlobalHistory(await readTabHistory())
-  const nextHistory = removeTabEntriesFromHistory(history, tabId)
-  if (nextHistory === history) return
-  await writeTabHistory(nextHistory)
+  await enqueueTabHistoryMutation((history) => ({
+    history: removeTabEntriesFromHistory(history, tabId)
+  }))
 }
 
 async function restorePreviousTabAfterClose(tabId, removeInfo) {
-  if (!removeInfo || removeInfo.isWindowClosing) return
+  if (!removeInfo) return
 
-  const history = normalizeGlobalHistory(await readTabHistory())
-  const currentEntry = history.stack[history.index]
-  if (!currentEntry || currentEntry.tabId !== tabId || currentEntry.windowId !== removeInfo.windowId) {
-    await removeTabFromHistory(tabId)
-    return
-  }
+  const { value: restoreAction } = await enqueueTabHistoryMutation(async (history) => {
+    const nextHistory = removeTabEntriesFromHistory(history, tabId)
+    if (removeInfo.isWindowClosing) return { history: nextHistory }
 
-  const tabsInWindow = await chrome.tabs.query({ windowId: removeInfo.windowId })
-  const existingIds = new Set(tabsInWindow.map((tab) => tab.id))
+    const currentEntry = history.stack[history.index]
+    if (!currentEntry || currentEntry.tabId !== tabId || currentEntry.windowId !== removeInfo.windowId) {
+      return { history: nextHistory }
+    }
 
-  let targetOldIndex = -1
-  for (let i = history.index - 1; i >= 0; i--) {
-    const entry = history.stack[i]
-    if (entry.windowId !== removeInfo.windowId) continue
-    if (!existingIds.has(entry.tabId)) continue
-    targetOldIndex = i
-    break
-  }
+    let tabsInWindow = []
+    try {
+      tabsInWindow = await chrome.tabs.query({ windowId: removeInfo.windowId })
+    } catch {
+      return { history: nextHistory }
+    }
 
-  const nextHistory = removeTabEntriesFromHistory(history, tabId)
-  if (targetOldIndex === -1) {
-    await writeTabHistory(nextHistory)
-    return
-  }
-
-  const targetId = history.stack[targetOldIndex].tabId
-  let targetNewIndex = -1
-  for (let i = Math.min(targetOldIndex, nextHistory.stack.length - 1); i >= 0; i--) {
-    if (nextHistory.stack[i].tabId === targetId && nextHistory.stack[i].windowId === removeInfo.windowId) {
-      targetNewIndex = i
+    const existingIds = new Set(tabsInWindow.map((tab) => tab.id))
+    let targetOldIndex = -1
+    for (let i = history.index - 1; i >= 0; i--) {
+      const entry = history.stack[i]
+      if (entry.windowId !== removeInfo.windowId) continue
+      if (!existingIds.has(entry.tabId)) continue
+      targetOldIndex = i
       break
     }
-  }
 
-  const finalHistory = {
-    stack: nextHistory.stack,
-    index: targetNewIndex === -1 ? nextHistory.index : targetNewIndex
-  }
-  await writeTabHistory(finalHistory)
+    if (targetOldIndex === -1) return { history: nextHistory }
 
-  if (targetNewIndex === -1) return
-  const activeTab = tabsInWindow.find((tab) => tab.active)
-  if (activeTab?.id === targetId) return
+    const targetId = history.stack[targetOldIndex].tabId
+    let targetNewIndex = -1
+    for (let i = Math.min(targetOldIndex, nextHistory.stack.length - 1); i >= 0; i--) {
+      if (nextHistory.stack[i].tabId === targetId && nextHistory.stack[i].windowId === removeInfo.windowId) {
+        targetNewIndex = i
+        break
+      }
+    }
 
+    if (targetNewIndex === -1) return { history: nextHistory }
+
+    const finalHistory = {
+      stack: nextHistory.stack,
+      index: targetNewIndex
+    }
+    const activeTab = tabsInWindow.find((tab) => tab.active)
+    return {
+      history: finalHistory,
+      value: activeTab?.id === targetId ? null : { targetId }
+    }
+  })
+
+  if (!restoreAction?.targetId) return
   try {
-    await chrome.tabs.update(targetId, { active: true })
+    await chrome.tabs.update(restoreAction.targetId, { active: true })
   } catch {
-    await removeTabFromHistory(targetId)
+    await removeTabFromHistory(restoreAction.targetId)
   }
 }
 
 async function switchTabHistory(direction) {
-  const tabs = await chrome.tabs.query({})
-  const history = normalizeGlobalHistory(await readTabHistory())
-  const { tab: activeTab, chromeFocused } = await findActiveTabForHistory(tabs, history)
-  if (!activeTab?.id) return
+  const { value: focusAction } = await enqueueTabHistoryMutation(async (history) => {
+    const tabs = await chrome.tabs.query({})
+    const { tab: activeTab, chromeFocused } = await findActiveTabForHistory(tabs, history)
+    if (!activeTab?.id) return { history }
 
-  if (!chromeFocused) {
-    await focusExistingTab(activeTab)
-    return
-  }
+    if (!chromeFocused) {
+      return {
+        history,
+        value: { tab: activeTab }
+      }
+    }
 
-  if (history.stack.length === 0) {
-    await writeTabHistory({
-      stack: [{ windowId: activeTab.windowId, tabId: activeTab.id }],
-      index: 0
-    })
-    return
-  }
+    if (history.stack.length === 0) {
+      return {
+        history: {
+          stack: [{ windowId: activeTab.windowId, tabId: activeTab.id }],
+          index: 0
+        }
+      }
+    }
 
-  const navigationHistory = historyForNavigation(history, activeTab)
-  if (navigationHistory.activeWasInserted || navigationHistory.changed) {
-    await writeTabHistory({ stack: navigationHistory.stack, index: navigationHistory.index })
-  }
+    const repaired = repairHistoryCursorForActiveTab(history, activeTab)
+    const navigationHistory = repaired.history
+    const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
+    const nextIndex = findHistoryTargetIndex(navigationHistory, direction, existingTabs, activeTab)
+    if (nextIndex === -1) return { history: navigationHistory }
 
-  const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
-  const nextIndex = findHistoryTargetIndex(navigationHistory, direction, existingTabs, activeTab)
-  if (nextIndex === -1) return
+    const targetTab = existingTabs.get(navigationHistory.stack[nextIndex].tabId)
+    if (!targetTab?.id) return { history: navigationHistory }
 
-  const targetTab = existingTabs.get(navigationHistory.stack[nextIndex].tabId)
-  if (!targetTab?.id) return
-
-  await writeTabHistory({
-    stack: navigationHistory.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
-    index: nextIndex
+    return {
+      history: {
+        stack: navigationHistory.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
+        index: nextIndex
+      },
+      value: {
+        tab: targetTab,
+        openerTabId: activeTab.id
+      }
+    }
   })
 
-  try {
-    await chrome.tabs.update(targetTab.id, { openerTabId: activeTab.id })
-  } catch {}
-
-  try {
-    await chrome.tabs.update(targetTab.id, { active: true })
-    await chrome.windows.update(targetTab.windowId, { focused: true })
-  } catch {
-    await removeTabFromHistory(targetTab.id)
+  if (!focusAction?.tab) return
+  if (focusAction.openerTabId) {
+    try {
+      await chrome.tabs.update(focusAction.tab.id, { openerTabId: focusAction.openerTabId })
+    } catch {}
   }
+
+  await focusExistingTab(focusAction.tab)
 }
 
 function displayUrlForHistory(url = '') {
@@ -441,54 +493,56 @@ function displayUrlForHistory(url = '') {
 }
 
 async function getTabHistorySnapshot() {
-  const tabs = await chrome.tabs.query({})
-  const storedHistory = normalizeGlobalHistory(await readTabHistory())
-  const { tab: activeTab } = await findActiveTabForHistory(tabs, storedHistory)
-  const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
-  const navigationHistory = historyForNavigation(storedHistory, activeTab)
-  const prunedHistory = pruneMissingHistoryEntries(navigationHistory, existingTabs)
-  const canonicalHistory = canonicalizeGlobalHistory(prunedHistory)
-  const cleanHistory = canonicalHistory.history
-  if (navigationHistory.activeWasInserted || navigationHistory.changed || prunedHistory.changed || canonicalHistory.changed) {
-    await writeTabHistory(cleanHistory)
-  }
-  const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
-  const nextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
+  const { value: snapshot } = await enqueueTabHistoryMutation(async (storedHistory) => {
+    const tabs = await chrome.tabs.query({})
+    const { tab: activeTab } = await findActiveTabForHistory(tabs, storedHistory)
+    const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
+    const repairedHistory = repairHistoryCursorForActiveTab(storedHistory, activeTab)
+    const prunedHistory = pruneMissingHistoryEntries(repairedHistory.history, existingTabs)
+    const cleanHistory = canonicalizeGlobalHistory(prunedHistory).history
+    const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
+    const nextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
 
-  return {
-    stackSize: cleanHistory.stack.length,
-    maxSize: MAX_TAB_HISTORY,
-    cursorIndex: cleanHistory.index,
-    currentIndex: cleanHistory.index,
-    previousIndex,
-    nextIndex,
-    activeTabId: activeTab?.id ?? null,
-    activeWindowId: activeTab?.windowId ?? null,
-    activeWasInserted: navigationHistory.activeWasInserted,
-    entries: cleanHistory.stack.map((entry, index) => {
-      const tab = existingTabs.get(entry.tabId)
-      const url = tab?.url || ''
-      const displayUrl = displayUrlForHistory(url)
-      const title = (tab?.title || '').replace(/\u200e/g, '').trim() ? tab.title : displayUrl
-      return {
-        index,
-        tabId: entry.tabId,
-        windowId: entry.windowId,
-        exists: !!tab,
-        active: tab?.id === activeTab?.id,
-        pinned: !!tab?.pinned,
-        discarded: !!tab?.discarded,
-        cursor: index === cleanHistory.index,
-        current: index === cleanHistory.index,
-        previousTarget: index === previousIndex,
-        nextTarget: index === nextIndex,
-        title: title || `Tab ${entry.tabId}`,
-        url,
-        displayUrl,
-        favIconUrl: tab?.favIconUrl || ''
+    return {
+      history: cleanHistory,
+      value: {
+        stackSize: cleanHistory.stack.length,
+        maxSize: MAX_TAB_HISTORY,
+        cursorIndex: cleanHistory.index,
+        currentIndex: cleanHistory.index,
+        previousIndex,
+        nextIndex,
+        activeTabId: activeTab?.id ?? null,
+        activeWindowId: activeTab?.windowId ?? null,
+        activeWasInserted: repairedHistory.activeWasInserted,
+        entries: cleanHistory.stack.map((entry, index) => {
+          const tab = existingTabs.get(entry.tabId)
+          const url = tab?.url || ''
+          const displayUrl = displayUrlForHistory(url)
+          const title = (tab?.title || '').replace(/\u200e/g, '').trim() ? tab.title : displayUrl
+          return {
+            index,
+            tabId: entry.tabId,
+            windowId: entry.windowId,
+            exists: !!tab,
+            active: tab?.id === activeTab?.id,
+            pinned: !!tab?.pinned,
+            discarded: !!tab?.discarded,
+            cursor: index === cleanHistory.index,
+            current: index === cleanHistory.index,
+            previousTarget: index === previousIndex,
+            nextTarget: index === nextIndex,
+            title: title || `Tab ${entry.tabId}`,
+            url,
+            displayUrl,
+            favIconUrl: tab?.favIconUrl || ''
+          }
+        })
       }
-    })
-  }
+    }
+  })
+
+  return snapshot
 }
 
 async function findNormalBrowserWindow() {
