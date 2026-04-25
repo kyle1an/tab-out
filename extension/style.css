@@ -571,13 +571,25 @@ header {
     grid-column: 1;
   }
 
+  .dashboard-shell.has-history .dashboard-main > .pinned-top {
+    margin-left: calc(0px - var(--dashboard-edge-bleed));
+    padding-left: var(--dashboard-edge-bleed);
+  }
+
   .tab-history-panel {
     position: static;
     height: auto;
     max-height: 260px;
-    margin-bottom: 16px;
+    margin-left: calc(0px - var(--dashboard-edge-bleed));
+    margin-right: calc(0px - var(--dashboard-edge-bleed));
+    padding-left: var(--dashboard-edge-bleed);
+    padding-right: 0;
     padding-bottom: 0;
     border-bottom: 1px solid var(--warm-gray);
+  }
+
+  .tab-history-panel .history-entry-list {
+    padding-right: calc(var(--dashboard-edge-bleed) + 14px);
   }
 }
 
