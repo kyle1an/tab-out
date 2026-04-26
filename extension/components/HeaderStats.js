@@ -12,6 +12,10 @@ import htm from '../vendor/htm.mjs'
 
 const html = htm.bind(h)
 
+function pluralize(count, singular) {
+  return `${singular}${count === 1 ? '' : 's'}`
+}
+
 export function HeaderStats({
   ready = true,
   source = 'tabs',
@@ -32,21 +36,20 @@ export function HeaderStats({
     return html`<div class="header-stats" aria-hidden="true"></div>`
   }
 
-  const itemLabel = source === 'bookmarks' ? 'bookmark' : source === 'history' ? 'history result' : 'tab'
-  const tabsLabel = filtering ? `${visibleTabs} of ${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}` : `${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}`
-
+  const itemName = source === 'bookmarks' ? 'bookmark' : source === 'history' ? 'history result' : 'tab'
+  const itemLabel = pluralize(totalTabs, itemName)
+  const tabsLabel = filtering ? `${visibleTabs}/${totalTabs} ${itemLabel}` : `${totalTabs} ${itemLabel}`
   const windowsLabel =
-    visibleWindows === totalWindows
-      ? `${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
-      : `${visibleWindows} of ${totalWindows} window${totalWindows !== 1 ? 's' : ''}`
-
+    visibleWindows === totalWindows ? `${totalWindows} ${pluralize(totalWindows, 'window')}` : `${visibleWindows}/${totalWindows} ${pluralize(totalWindows, 'window')}`
   const domainsLabel =
-    visibleDomains === totalDomains ? `${totalDomains} domain${totalDomains !== 1 ? 's' : ''}` : `${visibleDomains} of ${totalDomains} domain${totalDomains !== 1 ? 's' : ''}`
+    visibleDomains === totalDomains ? `${totalDomains} ${pluralize(totalDomains, 'domain')}` : `${visibleDomains}/${totalDomains} ${pluralize(totalDomains, 'domain')}`
 
   const dedupTitle = `Close ${dedupCount} duplicate${dedupCount !== 1 ? 's' : ''}`
+  const closeFilteredTitle = `Close ${filteredCloseCount} filtered tab${filteredCloseCount !== 1 ? 's' : ''}`
 
   return html`
     <div class="header-stats">
+      <span class="stat-primary" id="greeting">${tabsLabel}</span>
       ${source === 'tabs' &&
       dedupCount > 0 &&
       html`
@@ -54,7 +57,6 @@ export function HeaderStats({
           Dedupe ${dedupCount}
         </button>
       `}
-      <span class="stat-primary" id="greeting">${tabsLabel}</span>
       ${source === 'tabs' &&
       html`
         <span class="stat-sep">·</span>
@@ -70,11 +72,11 @@ export function HeaderStats({
       ${source === 'tabs' &&
       filteredCloseCount > 0 &&
       html`
-        <button class="action-btn close-tabs" onClick=${onCloseFiltered}>
+        <button class="action-btn close-tabs" title=${closeFilteredTitle} onClick=${onCloseFiltered}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
-          Close ${filteredCloseCount} filtered tab${filteredCloseCount !== 1 ? 's' : ''}
+          Close ${filteredCloseCount}
         </button>
       `}
     </div>
