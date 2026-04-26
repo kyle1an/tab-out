@@ -19,6 +19,8 @@ const html = htm.bind(h)
 const FOCUS_FILTER_PARAM = 'focusFilter'
 const FILTER_PARAM = 'filter'
 const DEFAULT_PAGE_TITLE = '\u200e'
+const FILTER_UPDATE_DELAY_MS = 200
+const FILTER_URL_SYNC_DELAY_MS = 600
 const URL_PREVIEW_HIDE_DELAY_MS = 120
 
 export function titleForFilterInput(filterInput = '') {
@@ -179,7 +181,7 @@ export function App({ initialDashboard = null }) {
       setFilter('')
       return
     }
-    const timer = setTimeout(() => setFilter(filterInput), 200)
+    const timer = setTimeout(() => setFilter(filterInput), FILTER_UPDATE_DELAY_MS)
     return () => clearTimeout(timer)
   }, [filterInput, filter])
 
@@ -188,7 +190,13 @@ export function App({ initialDashboard = null }) {
   }, [filterInput])
 
   useEffect(() => {
-    syncFilterInputToUrl(filterInput)
+    if (filterInput === '') {
+      syncFilterInputToUrl('')
+      return
+    }
+
+    const timer = setTimeout(() => syncFilterInputToUrl(filterInput), FILTER_URL_SYNC_DELAY_MS)
+    return () => clearTimeout(timer)
   }, [filterInput])
 
   useEffect(() => {
