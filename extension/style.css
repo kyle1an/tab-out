@@ -26,11 +26,7 @@ header {
 
 .header-row {
   display: flex;
-  /* Stats on the left, filter on the right. `justify-content:
-     space-between` pushes the two end children apart — header-stats
-     at the far left, the filter input at the far right. Dropping
-     the old row-reverse indirection so DOM order matches visual
-     order; easier to reason about when reading the markup. */
+  /* Stats on the left, filter controls on the right. */
   justify-content: space-between;
   align-items: center;
   gap: 16px;
@@ -40,13 +36,14 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   font-size: 13px;
   color: var(--muted);
   font-weight: 400;
   /* Reserve a consistent row height so the bar doesn't reflow when the
      dedup / filtered-close buttons toggle on and off. Matches the old
      .section-header min-height. */
-  min-height: 32px;
+  min-height: var(--header-control-height);
 }
 
 .header-controls {
@@ -123,6 +120,17 @@ header {
   height: var(--header-control-height);
   box-sizing: border-box;
   padding: 0 12px;
+}
+
+.header-stats,
+.domain-header .action-btn,
+.open-tabs-badge,
+.chip-dupe-badge,
+.page-chip-overflow,
+.pathgroup-header-count,
+.subdomain-header-count,
+.card-close-btn-text {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Filter input (top of page, right side of header) ---- */
