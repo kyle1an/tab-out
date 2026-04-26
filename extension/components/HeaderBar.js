@@ -59,6 +59,7 @@ export function HeaderBar({ filter, filterFocusRequest = 0, onFilterChange, onCl
   }, [])
 
   const wrapClass = 'tab-filter-wrap' + (filter ? ' has-value' : '')
+  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : 'Filter tabs, bookmarks…'
 
   function onClear() {
     updateFilter('')
@@ -93,7 +94,7 @@ export function HeaderBar({ filter, filterFocusRequest = 0, onFilterChange, onCl
               class="tab-filter"
               autocomplete="off"
               spellcheck="false"
-              placeholder="Filter tabs…"
+              placeholder=${filterPlaceholder}
               value=${filter}
               onInput=${(e) => updateFilter(e.currentTarget.value)}
             />

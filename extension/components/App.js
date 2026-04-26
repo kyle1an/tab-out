@@ -84,17 +84,24 @@ export function App({ initialDashboard = null }) {
   })
   const scrollRegionRef = useRef(null)
   const primaryMissionsRef = useRef(null)
+  const bookmarkMissionsRef = useRef(null)
   const unmatchedMissionsRef = useRef(null)
   const realTabs = dashboard?.realTabs || []
   const domainGroups = dashboard?.domainGroups || []
+  const bookmarkTabs = dashboard?.bookmarkTabs || []
+  const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || []
   const isReady = !!dashboard
-  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, unmatchedMissionsRef)
+  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, unmatchedMissionsRef)
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
     if (!pinsLoaded) return
     const [next, nextTabHistory] = await Promise.all([
-      fetchDashboardData(previousOrderRef.current[source] || new Map(), source, { pinnedDomains }),
+      fetchDashboardData(previousOrderRef.current[source] || new Map(), source, {
+        pinnedDomains,
+        bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
+        includeBookmarkMatches: source === 'tabs' && filter !== ''
+      }),
       fetchTabHistorySnapshot()
     ])
     setDashboard(next)
@@ -119,6 +126,12 @@ export function App({ initialDashboard = null }) {
   useEffect(() => {
     clearFocusFilterParam()
   }, [])
+
+  useEffect(() => {
+    if (!isReady || !pinsLoaded || source !== 'tabs' || !filter || dashboard?.bookmarkSearchReady) return
+    const frame = requestAnimationFrame(() => refreshRef.current())
+    return () => cancelAnimationFrame(frame)
+  }, [filter, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady])
 
   useEffect(() => {
     if (filterInput === filter) return
@@ -162,7 +175,7 @@ export function App({ initialDashboard = null }) {
     if (!isReady) return
     setHoveredUrl('')
     packMissionsMasonryNow({ unpin: true })
-  }, [domainGroups, filter, isReady])
+  }, [domainGroups, bookmarkDomainGroups, filter, isReady])
 
   const dashboardVm = buildDashboardViewModel({
     realTabs,
@@ -170,6 +183,15 @@ export function App({ initialDashboard = null }) {
     filter,
     source
   })
+  const bookmarkSearchVm =
+    source === 'tabs' && filter && dashboard?.bookmarkSearchReady
+      ? buildDashboardViewModel({
+          realTabs: bookmarkTabs,
+          domainGroups: bookmarkDomainGroups,
+          filter,
+          source: 'bookmarks'
+        })
+      : null
 
   async function onCloseFiltered() {
     const urls = dashboardVm.filteredCloseUrls
@@ -209,13 +231,19 @@ export function App({ initialDashboard = null }) {
   const stats = dashboardVm.stats
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
+  const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || []
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
+  const showBookmarkMatches = isReady && source === 'tabs' && !!filter && bookmarkMatchedCards.length > 0
+  const showPrimaryEmptyState = !(showBookmarkMatches && matchedCards.length === 0)
   const showTabHistory = isReady && source === 'tabs'
   const dashboardShellClass = ['dashboard-shell', showTabHistory ? 'has-history' : '', source === 'bookmarks' ? 'is-bookmarks' : ''].filter(Boolean).join(' ')
 
   useEffect(() => {
     previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
-  }, [domainGroups, filter, isReady, source])
+    if (source === 'tabs' && bookmarkMatchedCards.length > 0) {
+      previousOrderRef.current.bookmarks = new Map(bookmarkMatchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+    }
+  }, [domainGroups, bookmarkDomainGroups, filter, isReady, source])
 
   return html`
     <${Fragment}>
@@ -260,11 +288,34 @@ export function App({ initialDashboard = null }) {
                   cards=${matchedCards}
                   filter=${filter}
                   source=${source}
+                  showEmptyState=${showPrimaryEmptyState}
                   onHoverUrlChange=${setHoveredUrl}
                   onLayoutChange=${scheduleMissionsMasonry}
                   onTogglePinnedDomain=${onTogglePinnedDomain}
                 />`}
               </div>
+
+              ${showBookmarkMatches &&
+              html`
+                <div class="missions-other missions-bookmarks" id="bookmarkMatchesSection">
+                  <div class="missions-divider" role="separator">
+                    <span class="missions-divider-rule"></span>
+                    <span class="missions-divider-label">Bookmarks</span>
+                    <span class="missions-divider-rule"></span>
+                  </div>
+                  <div class="missions" id="bookmarkMatchesMissions" ref=${bookmarkMissionsRef}>
+                    <${Missions}
+                      cards=${bookmarkMatchedCards}
+                      filter=${filter}
+                      source="bookmarks"
+                      showEmptyState=${false}
+                      onHoverUrlChange=${setHoveredUrl}
+                      onLayoutChange=${scheduleMissionsMasonry}
+                      onTogglePinnedDomain=${onTogglePinnedDomain}
+                    />
+                  </div>
+                </div>
+              `}
 
               ${showOtherTabs &&
               html`
