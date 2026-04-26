@@ -3,7 +3,15 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 import { flattenBookmarkNodes } from '../extension/bookmarks.js'
-import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, flattenHistoryItems } from '../extension/history-source.js'
+import {
+  DEFAULT_HISTORY_RANGE,
+  HISTORY_FILTER_OFF,
+  HISTORY_RANGE_OPTIONS,
+  deleteHistorySourceUrl,
+  fetchHistorySourceItems,
+  flattenHistoryItems,
+  isHistoryFilterEnabled
+} from '../extension/history-source.js'
 import { filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/components/App.js'
 import { isFilterFocusShortcut } from '../extension/components/HeaderBar.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
@@ -427,9 +435,50 @@ test('history range options default to the last day search window', () => {
   assert.equal(DEFAULT_HISTORY_RANGE, '1d')
   assert.deepEqual(
     HISTORY_RANGE_OPTIONS.map((option) => option.value),
-    ['1d', '7d', '30d', '90d']
+    [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d']
   )
   assert.equal(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE).days, 1)
+})
+
+test('history filter off skips Chrome history search', async () => {
+  assert.equal(isHistoryFilterEnabled(HISTORY_FILTER_OFF), false)
+
+  const originalHistory = globalThis.chrome.history
+  let searched = false
+  globalThis.chrome.history = {
+    async search() {
+      searched = true
+      return [{ id: '1', title: 'OpenAI Docs', url: 'https://openai.com/docs' }]
+    }
+  }
+
+  try {
+    const items = await fetchHistorySourceItems('openai', HISTORY_FILTER_OFF)
+    assert.deepEqual(items, [])
+    assert.equal(searched, false)
+  } finally {
+    if (originalHistory === undefined) delete globalThis.chrome.history
+    else globalThis.chrome.history = originalHistory
+  }
+})
+
+test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {
+  const originalHistory = globalThis.chrome.history
+  let deletedUrl = ''
+  globalThis.chrome.history = {
+    async deleteUrl(details) {
+      deletedUrl = details.url
+    }
+  }
+
+  try {
+    assert.equal(await deleteHistorySourceUrl('https://openai.com/docs'), true)
+    assert.equal(deletedUrl, 'https://openai.com/docs')
+    assert.equal(await deleteHistorySourceUrl(''), false)
+  } finally {
+    if (originalHistory === undefined) delete globalThis.chrome.history
+    else globalThis.chrome.history = originalHistory
+  }
 })
 
 test('buildDashboardViewModel disables destructive actions for bookmarks source', () => {
@@ -487,7 +536,7 @@ test('combined tab and bookmark search keeps bookmark matches read-only', () => 
   assert.equal(bookmarksVm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'bookmark')
 })
 
-test('history search matches are read-only dashboard results', () => {
+test('history search matches are not tab-closable dashboard results', () => {
   const historyGroups = buildDomainGroups([
     makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' }),
     makeTab({ id: 'h2', url: 'https://example.com/', title: 'Example', sourceType: 'history' })

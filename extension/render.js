@@ -1146,6 +1146,6 @@ export async function fetchDashboardData(
     historyTabs,
     historyDomainGroups,
     historySearchQuery: historyQuery,
-    historyRange: includeHistoryMatches ? historyRange : DEFAULT_HISTORY_RANGE
+    historyRange
   }
 }

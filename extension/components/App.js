@@ -13,7 +13,7 @@ import { HeaderBar } from './HeaderBar.js'
 import { Missions } from './Missions.js'
 import { TabHistoryPanel } from './TabHistoryPanel.js'
 import { UrlPreview } from './UrlPreview.js'
-import { DEFAULT_HISTORY_RANGE } from '../history-source.js'
+import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../history-source.js'
 
 const html = htm.bind(h)
 const FOCUS_FILTER_PARAM = 'focusFilter'
@@ -102,6 +102,7 @@ export function App({ initialDashboard = null }) {
   const historyTabs = dashboard?.historyTabs || []
   const historyDomainGroups = dashboard?.historyDomainGroups || []
   const isReady = !!dashboard
+  const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
 
   function clearUrlPreviewHideTimer() {
@@ -139,7 +140,7 @@ export function App({ initialDashboard = null }) {
         bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
         historyPreviousOrder: previousOrderRef.current.history || new Map(),
         includeBookmarkMatches: source === 'tabs' && filter !== '',
-        includeHistoryMatches: source === 'tabs' && filter !== '',
+        includeHistoryMatches: source === 'tabs' && filter !== '' && historyFilterEnabled,
         searchQuery: filter,
         historyRange
       }),
@@ -170,10 +171,11 @@ export function App({ initialDashboard = null }) {
 
   useEffect(() => {
     if (!isReady || !pinsLoaded || source !== 'tabs' || !filter) return
-    if (dashboard?.bookmarkSearchReady && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange) return
+    const historySearchReady = !historyFilterEnabled || (dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange)
+    if (dashboard?.bookmarkSearchReady && historySearchReady) return
     const frame = requestAnimationFrame(() => refreshRef.current())
     return () => cancelAnimationFrame(frame)
-  }, [filter, historyRange, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
+  }, [filter, historyRange, historyFilterEnabled, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
 
   useEffect(() => {
     if (filterInput === filter) return
@@ -243,7 +245,7 @@ export function App({ initialDashboard = null }) {
         })
       : null
   const historySearchVm =
-    source === 'tabs' && filter && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
+    source === 'tabs' && filter && historyFilterEnabled && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
       ? buildDashboardViewModel({
           realTabs: historyTabs,
           domainGroups: historyDomainGroups,
@@ -297,7 +299,7 @@ export function App({ initialDashboard = null }) {
         bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
         historyPreviousOrder: previousOrderRef.current.history || new Map(),
         includeBookmarkMatches: nextSource === 'tabs' && filter !== '',
-        includeHistoryMatches: nextSource === 'tabs' && filter !== '',
+        includeHistoryMatches: nextSource === 'tabs' && filter !== '' && historyFilterEnabled,
         searchQuery: filter,
         historyRange
       }),
