@@ -3,12 +3,18 @@
 const HISTORY_MAX_RESULTS = 30
 
 export const DEFAULT_HISTORY_RANGE = '1d'
+export const HISTORY_FILTER_OFF = 'off'
 export const HISTORY_RANGE_OPTIONS = [
+  { value: HISTORY_FILTER_OFF, label: 'History off', days: 0 },
   { value: '1d', label: 'Last day', days: 1 },
   { value: '7d', label: 'Last week', days: 7 },
   { value: '30d', label: 'Last month', days: 30 },
   { value: '90d', label: 'Last 3 months', days: 90 }
 ]
+
+export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE) {
+  return range !== HISTORY_FILTER_OFF
+}
 
 function historyRangeDays(range = DEFAULT_HISTORY_RANGE) {
   return HISTORY_RANGE_OPTIONS.find((option) => option.value === range)?.days || 90
@@ -50,7 +56,7 @@ export function flattenHistoryItems(items) {
  */
 export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTORY_RANGE) {
   const text = query.trim()
-  if (!text || !globalThis.chrome?.history?.search) return []
+  if (!text || !isHistoryFilterEnabled(range) || !globalThis.chrome?.history?.search) return []
 
   try {
     const startTime = Date.now() - historyRangeDays(range) * 24 * 60 * 60 * 1000
@@ -62,5 +68,23 @@ export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTOR
     return flattenHistoryItems(items)
   } catch {
     return []
+  }
+}
+
+/**
+ * Delete every visit for a URL from Chrome history.
+ *
+ * @param {string} url
+ * @returns {Promise<boolean>}
+ */
+export async function deleteHistorySourceUrl(url = '') {
+  const targetUrl = url.trim()
+  if (!targetUrl || !globalThis.chrome?.history?.deleteUrl) return false
+
+  try {
+    await chrome.history.deleteUrl({ url: targetUrl })
+    return true
+  } catch {
+    return false
   }
 }

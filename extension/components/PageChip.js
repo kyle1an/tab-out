@@ -24,6 +24,7 @@ import { useEffect, useLayoutEffect, useRef } from '../vendor/preact-hooks.mjs'
 import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../tabs.js'
 import { requestDashboardRefresh } from '../dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../suspender.js'
+import { deleteHistorySourceUrl } from '../history-source.js'
 import { markClosure } from '../undo.js'
 import { showToast } from './Toast.js'
 
@@ -52,7 +53,8 @@ function getChipTextResizeObserver() {
 
 export function PageChip({ chip, onHoverUrlChange = null }) {
   const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
-  const isReadOnlySource = chip.sourceType === 'bookmark' || chip.sourceType === 'history'
+  const isHistorySource = chip.sourceType === 'history'
+  const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
   const primaryPreviewUrl = isFolded ? chip.envs[0]?.tabUrl || '' : chip.tabUrl || ''
   const chipTextRef = useRef(null)
 
@@ -240,6 +242,26 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     }
   }
 
+  async function onDeleteHistory(e) {
+    e.stopPropagation()
+    const chipEl = e.currentTarget.closest('.page-chip')
+    const urls = Array.from(new Set(isFolded ? chip.envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
+    if (urls.length === 0) return
+
+    const results = await Promise.all(urls.map((url) => deleteHistorySourceUrl(url)))
+    const deletedCount = results.filter(Boolean).length
+    if (deletedCount === 0) {
+      showToast('Could not delete history')
+      return
+    }
+
+    chipEl?.classList.add('closing')
+    await new Promise((r) => setTimeout(r, 200))
+    setPreview('')
+    await requestDashboardRefresh()
+    showToast(deletedCount === 1 ? 'History deleted' : `Deleted ${deletedCount} history items`)
+  }
+
   const style = chip.isGrouped ? `--group-color:${chip.groupDotColor}` : null
   // data-tab-url is read by app.js's URL-preview hover handler. For a
   // folded chip we join all env URLs so the preview can fall back to
@@ -302,12 +324,18 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
         </span>
       `}
       ${!chip.iconOnly && chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
-      ${!isFolded &&
-      !chip.iconOnly &&
-      !isReadOnlySource &&
+      ${!chip.iconOnly &&
+      (!isReadOnlySource || isHistorySource) &&
       html`
         <div class="chip-actions">
-          <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url=${chip.tabUrl} title="Close this tab" onClick=${onClose}>
+          <button
+            class="chip-action chip-close"
+            data-action=${isHistorySource ? 'delete-history-url' : 'close-single-tab'}
+            data-tab-url=${chip.tabUrl}
+            title=${isHistorySource ? 'Delete from history' : 'Close this tab'}
+            aria-label=${isHistorySource ? 'Delete from history' : 'Close this tab'}
+            onClick=${isHistorySource ? onDeleteHistory : onClose}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>

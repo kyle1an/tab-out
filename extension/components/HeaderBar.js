@@ -2,7 +2,7 @@ import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { useEffect, useRef } from '../vendor/preact-hooks.mjs'
 import { HeaderStats } from './HeaderStats.js'
-import { HISTORY_RANGE_OPTIONS } from '../history-source.js'
+import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../history-source.js'
 
 const html = htm.bind(h)
 
@@ -73,7 +73,7 @@ export function HeaderBar({
   }, [])
 
   const wrapClass = 'tab-filter-wrap' + (filter ? ' has-value' : '')
-  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : 'Filter tabs, bookmarks, history…'
+  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
 
   function onClear() {
     updateFilter('')

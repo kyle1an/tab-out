@@ -215,14 +215,19 @@ header {
 }
 
 .history-range-select {
+  appearance: none;
   font-family: inherit;
   font-size: var(--header-control-font-size);
   line-height: var(--header-control-line-height);
   color: var(--ink);
   height: var(--header-control-height);
   box-sizing: border-box;
-  padding: 0 10px;
-  background: rgba(115, 115, 115, 0.06);
+  padding: 0 30px 0 10px;
+  background-color: rgba(115, 115, 115, 0.06);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23525252' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px 16px;
   border: 1px solid var(--warm-gray);
   border-radius: 12px;
   corner-shape: squircle;
@@ -232,7 +237,7 @@ header {
 
 .history-range-select:focus {
   border-color: var(--accent-amber);
-  background: var(--card-bg);
+  background-color: var(--card-bg);
 }
 
 /* Keep Chrome's native search-field Esc clear behavior, but hide the
