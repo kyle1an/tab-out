@@ -52,6 +52,7 @@ function getChipTextResizeObserver() {
 
 export function PageChip({ chip, onHoverUrlChange = null }) {
   const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
+  const isReadOnlySource = chip.sourceType === 'bookmark' || chip.sourceType === 'history'
   const primaryPreviewUrl = isFolded ? chip.envs[0]?.tabUrl || '' : chip.tabUrl || ''
   const chipTextRef = useRef(null)
 
@@ -90,7 +91,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     // env-pill clicks to pick a specific one.
     const targetUrl = isFolded ? chip.envs[0].tabUrl : chip.tabUrl
     if (!targetUrl) return
-    if (chip.sourceType === 'bookmark') {
+    if (isReadOnlySource) {
       const focused = await focusExactTab(targetUrl)
       if (!focused) await openTabUrl(targetUrl)
       return
@@ -108,7 +109,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
   async function onEnvClick(e, env) {
     e.stopPropagation()
     if (!env.tabUrl) return
-    if (chip.sourceType === 'bookmark') {
+    if (isReadOnlySource) {
       const focused = await focusExactTab(env.tabUrl)
       if (!focused) await openTabUrl(env.tabUrl)
       return
@@ -121,7 +122,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     e.preventDefault()
     e.stopPropagation()
     if (!env.tabUrl) return
-    if (chip.sourceType === 'bookmark') {
+    if (isReadOnlySource) {
       const focused = await focusExactTab(env.tabUrl)
       if (!focused) await openTabUrl(env.tabUrl)
       return
@@ -303,7 +304,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       ${!chip.iconOnly && chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
       ${!isFolded &&
       !chip.iconOnly &&
-      chip.sourceType !== 'bookmark' &&
+      !isReadOnlySource &&
       html`
         <div class="chip-actions">
           <button class="chip-action chip-close" data-action="close-single-tab" data-tab-url=${chip.tabUrl} title="Close this tab" onClick=${onClose}>

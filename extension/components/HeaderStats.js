@@ -32,7 +32,7 @@ export function HeaderStats({
     return html`<div class="header-stats" aria-hidden="true"></div>`
   }
 
-  const itemLabel = source === 'bookmarks' ? 'bookmark' : 'tab'
+  const itemLabel = source === 'bookmarks' ? 'bookmark' : source === 'history' ? 'history result' : 'tab'
   const tabsLabel = filtering ? `${visibleTabs} of ${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}` : `${totalTabs} ${itemLabel}${totalTabs !== 1 ? 's' : ''}`
 
   const windowsLabel =

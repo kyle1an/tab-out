@@ -64,6 +64,11 @@ if (chrome.bookmarks) {
   chrome.bookmarks.onImportEnded?.addListener(scheduleDashboardRefresh)
 }
 
+if (chrome.history) {
+  chrome.history.onVisited.addListener(scheduleDashboardRefresh)
+  chrome.history.onVisitRemoved.addListener(scheduleDashboardRefresh)
+}
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
     requestDashboardRefresh()

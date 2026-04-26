@@ -24,6 +24,7 @@
 
 import { fetchOpenTabs, getDashboardTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
+import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
 import { pickFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { unwrapSuspenderUrl } from './suspender.js'
@@ -39,7 +40,7 @@ import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 /** @typedef {import('./types').DashboardViewModel} DashboardViewModel */
 /** @typedef {import('./types').DashboardStats} DashboardStats */
 /** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
-/** @typedef {'tabs' | 'bookmarks'} DashboardSource */
+/** @typedef {'tabs' | 'bookmarks' | 'history'} DashboardSource */
 
 export { pickFavicon }
 
@@ -383,7 +384,12 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
 
   const tabCount = tabs.length
   const totalTabCount = allTabs.length
-  const itemLabel = allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'bookmark') ? 'bookmark' : 'open tab'
+  const itemLabel =
+    allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'bookmark')
+      ? 'bookmark'
+      : allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'history')
+        ? 'history result'
+        : 'open tab'
   const tabCountLabel = filtering ? `${tabCount}/${totalTabCount}` : `${tabCount}`
   const tabCountTitle = filtering
     ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`
@@ -1088,20 +1094,58 @@ export function buildDomainGroups(
  *
  * @param {Map<string, number>} [previousOrder]
  * @param {DashboardSource} [source]
- * @param {{ pinnedDomains?: string[], bookmarkPreviousOrder?: Map<string, number>, includeBookmarkMatches?: boolean }} [opts]
- * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[], bookmarkTabs: DashboardTab[], bookmarkDomainGroups: DomainGroup[], bookmarkSearchReady: boolean }>}
+ * @param {{ pinnedDomains?: string[], bookmarkPreviousOrder?: Map<string, number>, historyPreviousOrder?: Map<string, number>, includeBookmarkMatches?: boolean, includeHistoryMatches?: boolean, searchQuery?: string, historyRange?: string }} [opts]
+ * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[], bookmarkTabs: DashboardTab[], bookmarkDomainGroups: DomainGroup[], bookmarkSearchReady: boolean, historyTabs: DashboardTab[], historyDomainGroups: DomainGroup[], historySearchQuery: string, historyRange: string }>}
  */
-export async function fetchDashboardData(previousOrder = new Map(), source = 'tabs', { pinnedDomains = [], bookmarkPreviousOrder = new Map(), includeBookmarkMatches = false } = {}) {
+export async function fetchDashboardData(
+  previousOrder = new Map(),
+  source = 'tabs',
+  {
+    pinnedDomains = [],
+    bookmarkPreviousOrder = new Map(),
+    historyPreviousOrder = new Map(),
+    includeBookmarkMatches = false,
+    includeHistoryMatches = false,
+    searchQuery = '',
+    historyRange = DEFAULT_HISTORY_RANGE
+  } = {}
+) {
   const groupingConfig = getDashboardGroupingConfig()
   if (source === 'bookmarks') {
     const realTabs = await fetchBookmarksSourceItems()
     const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
-    return { realTabs, domainGroups, bookmarkTabs: [], bookmarkDomainGroups: [], bookmarkSearchReady: false }
+    return {
+      realTabs,
+      domainGroups,
+      bookmarkTabs: [],
+      bookmarkDomainGroups: [],
+      bookmarkSearchReady: false,
+      historyTabs: [],
+      historyDomainGroups: [],
+      historySearchQuery: '',
+      historyRange: DEFAULT_HISTORY_RANGE
+    }
   }
 
-  const [, bookmarkTabs] = await Promise.all([fetchOpenTabs(), includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([])])
+  const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
+  const [, bookmarkTabs, historyTabs] = await Promise.all([
+    fetchOpenTabs(),
+    includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([]),
+    includeHistoryMatches ? fetchHistorySourceItems(searchQuery, historyRange) : Promise.resolve([])
+  ])
   const realTabs = getDashboardTabs()
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
   const bookmarkDomainGroups = buildDomainGroups(bookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
-  return { realTabs, domainGroups, bookmarkTabs, bookmarkDomainGroups, bookmarkSearchReady: includeBookmarkMatches }
+  const historyDomainGroups = buildDomainGroups(historyTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
+  return {
+    realTabs,
+    domainGroups,
+    bookmarkTabs,
+    bookmarkDomainGroups,
+    bookmarkSearchReady: includeBookmarkMatches,
+    historyTabs,
+    historyDomainGroups,
+    historySearchQuery: historyQuery,
+    historyRange: includeHistoryMatches ? historyRange : DEFAULT_HISTORY_RANGE
+  }
 }

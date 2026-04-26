@@ -182,6 +182,26 @@ header {
   border-color: var(--accent-amber);
   background: var(--card-bg);
 }
+
+.history-range-select {
+  font-family: sans-serif;
+  font-size: 12px;
+  color: var(--ink);
+  height: 35px;
+  padding: 0 10px;
+  background: rgba(115, 115, 115, 0.06);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  corner-shape: squircle;
+  outline: none;
+  cursor: pointer;
+}
+
+.history-range-select:focus {
+  border-color: var(--accent-amber);
+  background: var(--card-bg);
+}
+
 /* Keep Chrome's native search-field Esc clear behavior, but hide the
    native search "X" so it doesn't compete with our explicit clear button. */
 .tab-filter::-webkit-search-cancel-button {
