@@ -17,6 +17,9 @@
    stacked h1 + sub-line + section-header layout collapsed into this
    ~32px bar to give the card grid ~75px more vertical real estate. */
 header {
+  --header-control-height: 34px;
+  --header-control-font-size: 13px;
+  --header-control-line-height: 16px;
   display: flex;
   flex-direction: column;
 }
@@ -56,6 +59,8 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 2px;
+  height: var(--header-control-height);
+  box-sizing: border-box;
   padding: 2px;
   background: rgba(115, 115, 115, 0.06);
   border: 1px solid var(--warm-gray);
@@ -64,15 +69,21 @@ header {
 }
 
 .source-switch-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--header-control-font-size);
+  line-height: var(--header-control-line-height);
   font-weight: 500;
+  height: calc(var(--header-control-height) - 6px);
+  box-sizing: border-box;
   color: var(--muted);
   background: transparent;
   border: none;
   border-radius: 9px;
   corner-shape: squircle;
-  padding: 6px 10px;
+  padding: 0 10px;
   cursor: pointer;
   transition:
     background 0.15s ease,
@@ -103,6 +114,15 @@ header {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.header-stats .action-btn {
+  font-family: inherit;
+  font-size: var(--header-control-font-size);
+  line-height: var(--header-control-line-height);
+  height: var(--header-control-height);
+  box-sizing: border-box;
+  padding: 0 12px;
 }
 
 /* ---- Filter input (top of page, right side of header) ---- */
@@ -157,10 +177,13 @@ header {
 }
 
 .tab-filter {
-  font-family: sans-serif;
-  font-size: 14px;
+  font-family: inherit;
+  font-size: var(--header-control-font-size);
+  line-height: var(--header-control-line-height);
   color: var(--ink);
-  padding: 8px 14px;
+  height: var(--header-control-height);
+  box-sizing: border-box;
+  padding: 0 14px;
   width: 280px;
   background: rgba(115, 115, 115, 0.06);
   border: 1px solid var(--warm-gray);
@@ -184,10 +207,12 @@ header {
 }
 
 .history-range-select {
-  font-family: sans-serif;
-  font-size: 12px;
+  font-family: inherit;
+  font-size: var(--header-control-font-size);
+  line-height: var(--header-control-line-height);
   color: var(--ink);
-  height: 35px;
+  height: var(--header-control-height);
+  box-sizing: border-box;
   padding: 0 10px;
   background: rgba(115, 115, 115, 0.06);
   border: 1px solid var(--warm-gray);
@@ -1986,11 +2011,16 @@ header {
      cut short earlier than needed — Chrome's native preview stretches
      nearly the whole width before truncating. */
   max-width: calc(100vw - 32px);
-  padding: 5px 8px;
+  height: 28px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
   background: var(--card-bg);
   color: var(--ink);
   font-family: sans-serif;
   font-size: 13px;
+  line-height: 16px;
   border: 1px solid var(--warm-gray);
   border-left: none;
   border-bottom: none;
@@ -2004,6 +2034,14 @@ header {
   pointer-events: none;
   transition: opacity 0.12s ease;
   z-index: 100;
+}
+
+.url-preview span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 16px;
 }
 
 .url-preview.visible {

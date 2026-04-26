@@ -50,7 +50,7 @@ export function HeaderStats({
       ${source === 'tabs' &&
       dedupCount > 0 &&
       html`
-        <button class="action-btn" title=${dedupTitle} style="font-size:11px;padding:4px 12px;" onClick=${onDedupAll}>
+        <button class="action-btn" title=${dedupTitle} onClick=${onDedupAll}>
           Dedupe ${dedupCount}
         </button>
       `}
@@ -70,7 +70,7 @@ export function HeaderStats({
       ${source === 'tabs' &&
       filteredCloseCount > 0 &&
       html`
-        <button class="action-btn close-tabs" style="font-size:11px;padding:4px 12px;" onClick=${onCloseFiltered}>
+        <button class="action-btn close-tabs" onClick=${onCloseFiltered}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>

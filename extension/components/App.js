@@ -19,6 +19,7 @@ const html = htm.bind(h)
 const FOCUS_FILTER_PARAM = 'focusFilter'
 const FILTER_PARAM = 'filter'
 const DEFAULT_PAGE_TITLE = '\u200e'
+const URL_PREVIEW_HIDE_DELAY_MS = 120
 
 export function titleForFilterInput(filterInput = '') {
   const keyword = filterInput.trim()
@@ -74,12 +75,13 @@ export function App({ initialDashboard = null }) {
   const [filter, setFilter] = useState(filterInputFromCurrentUrl)
   const [historyRange, setHistoryRange] = useState(DEFAULT_HISTORY_RANGE)
   const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
-  const [hoveredUrl, setHoveredUrl] = useState('')
+  const [urlPreview, setUrlPreviewState] = useState({ url: '', visible: false })
   const [isScrolled, setIsScrolled] = useState(false)
   const [pinnedDomains, setPinnedDomains] = useState([])
   const [pinsLoaded, setPinsLoaded] = useState(false)
   const [tabHistory, setTabHistory] = useState(null)
   const refreshRef = useRef(async () => {})
+  const urlPreviewHideTimerRef = useRef(null)
   const sourceSwitchSeqRef = useRef(0)
   const previousOrderRef = useRef({
     tabs: new Map(),
@@ -99,6 +101,32 @@ export function App({ initialDashboard = null }) {
   const historyDomainGroups = dashboard?.historyDomainGroups || []
   const isReady = !!dashboard
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
+
+  function clearUrlPreviewHideTimer() {
+    if (urlPreviewHideTimerRef.current === null) return
+    clearTimeout(urlPreviewHideTimerRef.current)
+    urlPreviewHideTimerRef.current = null
+  }
+
+  function setUrlPreview(url) {
+    const nextUrl = url || ''
+    if (nextUrl) {
+      clearUrlPreviewHideTimer()
+      setUrlPreviewState((prev) => (prev.url === nextUrl && prev.visible ? prev : { url: nextUrl, visible: true }))
+      return
+    }
+
+    clearUrlPreviewHideTimer()
+    urlPreviewHideTimerRef.current = setTimeout(() => {
+      urlPreviewHideTimerRef.current = null
+      setUrlPreviewState((prev) => (prev.visible ? { ...prev, visible: false } : prev))
+    }, URL_PREVIEW_HIDE_DELAY_MS)
+  }
+
+  function clearUrlPreviewNow() {
+    clearUrlPreviewHideTimer()
+    setUrlPreviewState((prev) => (prev.url || prev.visible ? { url: '', visible: false } : prev))
+  }
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
@@ -165,9 +193,11 @@ export function App({ initialDashboard = null }) {
 
   useEffect(() => {
     if (!pinsLoaded) return
-    setHoveredUrl('')
+    clearUrlPreviewNow()
     requestAnimationFrame(() => refreshRef.current())
   }, [source, pinnedDomains, pinsLoaded])
+
+  useEffect(() => () => clearUrlPreviewHideTimer(), [])
 
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
@@ -185,7 +215,7 @@ export function App({ initialDashboard = null }) {
 
   useLayoutEffect(() => {
     if (!isReady) return
-    setHoveredUrl('')
+    clearUrlPreviewNow()
     packMissionsMasonryNow({ unpin: true })
   }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, isReady])
 
@@ -252,7 +282,7 @@ export function App({ initialDashboard = null }) {
   async function onSourceChange(nextSource) {
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
-    setHoveredUrl('')
+    clearUrlPreviewNow()
     const [nextDashboard, nextTabHistory] = await Promise.all([
       fetchDashboardData(previousOrderRef.current[nextSource] || new Map(), nextSource, {
         pinnedDomains,
@@ -302,7 +332,7 @@ export function App({ initialDashboard = null }) {
         html`<${TabHistoryPanel}
           snapshot=${tabHistory}
           onSnapshotChange=${setTabHistory}
-          onHoverUrlChange=${setHoveredUrl}
+          onHoverUrlChange=${setUrlPreview}
           onTabsChange=${() => refreshRef.current()}
         />`}
         <div class="dashboard-main">
@@ -341,7 +371,7 @@ export function App({ initialDashboard = null }) {
                   filter=${filter}
                   source=${source}
                   showEmptyState=${showPrimaryEmptyState}
-                  onHoverUrlChange=${setHoveredUrl}
+                  onHoverUrlChange=${setUrlPreview}
                   onLayoutChange=${scheduleMissionsMasonry}
                   onTogglePinnedDomain=${onTogglePinnedDomain}
                 />`}
@@ -361,7 +391,7 @@ export function App({ initialDashboard = null }) {
                       filter=${filter}
                       source="bookmarks"
                       showEmptyState=${false}
-                      onHoverUrlChange=${setHoveredUrl}
+                      onHoverUrlChange=${setUrlPreview}
                       onLayoutChange=${scheduleMissionsMasonry}
                       onTogglePinnedDomain=${onTogglePinnedDomain}
                     />
@@ -383,7 +413,7 @@ export function App({ initialDashboard = null }) {
                       filter=${filter}
                       source="history"
                       showEmptyState=${false}
-                      onHoverUrlChange=${setHoveredUrl}
+                      onHoverUrlChange=${setUrlPreview}
                       onLayoutChange=${scheduleMissionsMasonry}
                       onTogglePinnedDomain=${onTogglePinnedDomain}
                     />
@@ -405,7 +435,7 @@ export function App({ initialDashboard = null }) {
                       filter=${filter}
                       source=${source}
                       showEmptyState=${false}
-                      onHoverUrlChange=${setHoveredUrl}
+                      onHoverUrlChange=${setUrlPreview}
                       onLayoutChange=${scheduleMissionsMasonry}
                       onTogglePinnedDomain=${onTogglePinnedDomain}
                     />
@@ -417,7 +447,7 @@ export function App({ initialDashboard = null }) {
         </div>
       </div>
 
-      <${UrlPreview} url=${hoveredUrl} />
+      <${UrlPreview} url=${urlPreview.url} visible=${urlPreview.visible} />
     </${Fragment}>
   `
 }
