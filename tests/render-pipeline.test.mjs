@@ -159,8 +159,20 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => chip.iconOnly), true)
 
   const filteredAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
-  assert.equal(filteredAppsVm.tabCountLabel, '1/2')
-  assert.equal(filteredAppsVm.tabCountTitle, '1 of 2 open tabs shown while filtering')
+  assert.equal(filteredAppsVm.isHidden, true)
+
+  const unmatchedAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox', mode: 'unmatched' })
+  assert.equal(unmatchedAppsVm.isHidden, true)
+
+  const filteredVm = buildDashboardViewModel({
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    filter: 'inbox'
+  })
+  assert.equal(filteredVm.stats.visibleTabs, 0)
+  assert.equal(filteredVm.matchedCards.some(({ group }) => group.domain === '__standalone-apps__'), false)
+  assert.equal(filteredVm.unmatchedCards.some(({ group }) => group.domain === '__standalone-apps__'), false)
+  assert.deepEqual(filteredVm.filteredCloseUrls, [])
 })
 
 test('buildDomainGroups collects Tab Out pages into a dedicated new tabs card', () => {
