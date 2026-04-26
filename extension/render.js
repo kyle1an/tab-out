@@ -383,10 +383,11 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
 
   const tabCount = tabs.length
   const totalTabCount = allTabs.length
+  const itemLabel = allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'bookmark') ? 'bookmark' : 'open tab'
   const tabCountLabel = filtering ? `${tabCount}/${totalTabCount}` : `${tabCount}`
   const tabCountTitle = filtering
-    ? `${tabCount} of ${totalTabCount} open tab${totalTabCount !== 1 ? 's' : ''} shown while filtering`
-    : `${tabCount} open tab${tabCount !== 1 ? 's' : ''}`
+    ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`
+    : `${tabCount} ${itemLabel}${tabCount !== 1 ? 's' : ''}`
   const isAppsGroup = group.domain === '__standalone-apps__'
   const isTabOutGroup = group.domain === '__tab-out__'
 
@@ -1087,14 +1088,20 @@ export function buildDomainGroups(
  *
  * @param {Map<string, number>} [previousOrder]
  * @param {DashboardSource} [source]
- * @param {{ pinnedDomains?: string[] }} [opts]
- * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[] }>}
+ * @param {{ pinnedDomains?: string[], bookmarkPreviousOrder?: Map<string, number>, includeBookmarkMatches?: boolean }} [opts]
+ * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[], bookmarkTabs: DashboardTab[], bookmarkDomainGroups: DomainGroup[], bookmarkSearchReady: boolean }>}
  */
-export async function fetchDashboardData(previousOrder = new Map(), source = 'tabs', { pinnedDomains = [] } = {}) {
-  const realTabs =
-    source === 'bookmarks'
-      ? await fetchBookmarksSourceItems()
-      : (await fetchOpenTabs(), getDashboardTabs())
-  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...getDashboardGroupingConfig() })
-  return { realTabs, domainGroups }
+export async function fetchDashboardData(previousOrder = new Map(), source = 'tabs', { pinnedDomains = [], bookmarkPreviousOrder = new Map(), includeBookmarkMatches = false } = {}) {
+  const groupingConfig = getDashboardGroupingConfig()
+  if (source === 'bookmarks') {
+    const realTabs = await fetchBookmarksSourceItems()
+    const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
+    return { realTabs, domainGroups, bookmarkTabs: [], bookmarkDomainGroups: [], bookmarkSearchReady: false }
+  }
+
+  const [, bookmarkTabs] = await Promise.all([fetchOpenTabs(), includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([])])
+  const realTabs = getDashboardTabs()
+  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
+  const bookmarkDomainGroups = buildDomainGroups(bookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
+  return { realTabs, domainGroups, bookmarkTabs, bookmarkDomainGroups, bookmarkSearchReady: includeBookmarkMatches }
 }

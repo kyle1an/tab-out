@@ -145,6 +145,14 @@ export interface DashboardViewModel {
   filteredCloseUrls: string[]
 }
 
+export interface DashboardData {
+  realTabs: DashboardTab[]
+  domainGroups: DomainGroup[]
+  bookmarkTabs?: DashboardTab[]
+  bookmarkDomainGroups?: DomainGroup[]
+  bookmarkSearchReady?: boolean
+}
+
 declare global {
   interface Window {
     LOCAL_CUSTOM_GROUPS?: CustomGroupRule[]

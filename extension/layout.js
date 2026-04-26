@@ -12,12 +12,9 @@
    and the rounded chip container is inside a sibling .mission-card.
    Masonry needs to measure both as one unit.
 
-   There are two parallel grids — `#openTabsMissions` (primary: cards
-   with matching chips) and `#openTabsMissionsUnmatched` (secondary:
-   same cards rendered again to surface their non-matching chips
-   under the "Other tabs" divider). Both are packed with the same
-   algorithm; the secondary grid is skipped when its wrapper is
-   display:none (filter inactive or nothing unmatched).
+   The primary grid can be followed by filter-only companion grids
+   such as bookmark matches and the secondary "Other tabs" grid. All
+   are packed with the same algorithm; hidden/empty grids are skipped.
 
    Layout state is stored on each block in `dataset.masonryCol`.
    Column count changes (window resize crossing a breakpoint) reset
@@ -110,16 +107,19 @@ function packContainer(container, unpin, lastColCounts) {
   requestAnimationFrame(() => container.classList.add('is-packed'))
 }
 
-export function useMissionsMasonry(primaryRef, secondaryRef) {
+export function useMissionsMasonry(...containerRefs) {
   const lastColCountsRef = useRef(new WeakMap())
   const rafIdRef = useRef(0)
   const observerRef = useRef(null)
 
   function packMissionsMasonryNow({ unpin = false } = {}) {
-    packMissionsMasonry([primaryRef.current, secondaryRef.current], {
-      unpin,
-      lastColCounts: lastColCountsRef.current
-    })
+    packMissionsMasonry(
+      containerRefs.map((ref) => ref.current),
+      {
+        unpin,
+        lastColCounts: lastColCountsRef.current
+      }
+    )
   }
 
   function scheduleMissionsMasonry({ unpin = false } = {}) {
@@ -135,11 +135,12 @@ export function useMissionsMasonry(primaryRef, secondaryRef) {
       observerRef.current = observer
     }
     observer.disconnect()
-    ;[primaryRef.current, secondaryRef.current].forEach((container) => {
+    containerRefs.forEach((ref) => {
+      const container = ref.current
       if (container) observer.observe(container)
     })
     return () => observer.disconnect()
-  }, [primaryRef.current, secondaryRef.current])
+  }, containerRefs.map((ref) => ref.current))
 
   useEffect(
     () => () => {

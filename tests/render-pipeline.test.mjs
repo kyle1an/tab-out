@@ -427,7 +427,42 @@ test('buildDashboardViewModel disables destructive actions for bookmarks source'
   assert.equal(vm.stats.dedupCount, 0)
   assert.deepEqual(vm.filteredCloseUrls, [])
   assert.equal(vm.matchedCards[0].vm.closableCount, 0)
+  assert.equal(vm.matchedCards[0].vm.tabCountTitle, '2 bookmarks')
   assert.equal(vm.matchedCards[0].vm.sections[0].flatVisibleChips.every((chip) => chip.sourceType === 'bookmark'), true)
+})
+
+test('combined tab and bookmark search keeps bookmark matches read-only', () => {
+  const tabGroups = buildDomainGroups([
+    makeTab({ url: 'https://openai.com/docs', title: 'OpenAI Docs' }),
+    makeTab({ id: 2, url: 'https://example.com/', title: 'Example' })
+  ])
+  const bookmarkGroups = buildDomainGroups([
+    makeTab({ id: 'b1', url: 'https://openai.com/research', title: 'OpenAI Research', sourceType: 'bookmark' }),
+    makeTab({ id: 'b2', url: 'https://github.com/', title: 'GitHub', sourceType: 'bookmark' })
+  ])
+
+  const tabsVm = buildDashboardViewModel({
+    realTabs: tabGroups.flatMap((group) => group.tabs),
+    domainGroups: tabGroups,
+    filter: 'openai',
+    source: 'tabs'
+  })
+  const bookmarksVm = buildDashboardViewModel({
+    realTabs: bookmarkGroups.flatMap((group) => group.tabs),
+    domainGroups: bookmarkGroups,
+    filter: 'openai',
+    source: 'bookmarks'
+  })
+
+  assert.deepEqual(tabsVm.filteredCloseUrls, ['https://openai.com/docs'])
+  assert.equal(tabsVm.matchedCards.length, 1)
+  assert.equal(tabsVm.unmatchedCards.length, 1)
+  assert.deepEqual(bookmarksVm.filteredCloseUrls, [])
+  assert.equal(bookmarksVm.matchedCards.length, 1)
+  assert.equal(bookmarksVm.unmatchedCards.length, 1)
+  assert.equal(bookmarksVm.matchedCards[0].vm.closableCount, 0)
+  assert.equal(bookmarksVm.matchedCards[0].vm.tabCountTitle, '1 of 1 bookmark shown while filtering')
+  assert.equal(bookmarksVm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'bookmark')
 })
 
 test('manifest keeps only the permissions used by the extension', () => {
