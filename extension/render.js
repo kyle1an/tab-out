@@ -159,6 +159,7 @@ export function tabMatchesFilter(tab, filter) {
 export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') {
   if (!filter) return []
   return realTabs
+    .filter((t) => !t.isApp)
     .filter((t) => !isGroupedTab(t))
     .filter((t) => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
     .filter((t) => tabMatchesFilter(t, filter))
@@ -180,7 +181,7 @@ export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') 
  */
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' } = {}) {
   const filtering = filter.length > 0
-  const visibleTabs = filtering ? realTabs.filter((t) => tabMatchesFilter(t, filter)) : realTabs
+  const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
   const allowMutations = source === 'tabs'
@@ -362,6 +363,11 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const filtering = filter !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
   const stableId = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
+  const isAppsGroup = group.domain === '__standalone-apps__'
+
+  if (filtering && isAppsGroup) {
+    return { stableId, isHidden: true, displayMode, filtering }
+  }
 
   // First thing: narrow the tab set to what this grid should show.
   // Unfiltered matched mode keeps everything; unmatched mode with an
@@ -394,7 +400,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const tabCountTitle = filtering
     ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`
     : `${tabCount} ${itemLabel}${tabCount !== 1 ? 's' : ''}`
-  const isAppsGroup = group.domain === '__standalone-apps__'
   const isTabOutGroup = group.domain === '__tab-out__'
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
