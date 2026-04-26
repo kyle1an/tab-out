@@ -11,7 +11,7 @@ export interface DashboardTab {
   groupId: number
   isTabOut: boolean
   isApp: boolean
-  sourceType?: 'tab' | 'bookmark'
+  sourceType?: 'tab' | 'bookmark' | 'history'
   index?: number
 }
 
@@ -56,7 +56,7 @@ export interface DashboardChipEnv {
 export interface DashboardChipData {
   tabUrl: string
   rawUrl: string
-  sourceType?: 'tab' | 'bookmark'
+  sourceType?: 'tab' | 'bookmark' | 'history'
   leadPrefix: string
   pathGroupLabel: string
   displaySegments: DashboardSegment[]
@@ -136,7 +136,7 @@ export interface DashboardStats {
 }
 
 export interface DashboardViewModel {
-  source: 'tabs' | 'bookmarks'
+  source: 'tabs' | 'bookmarks' | 'history'
   stats: DashboardStats
   matchedCards: DashboardCardEntry[]
   unmatchedCards: DashboardCardEntry[]
@@ -151,6 +151,10 @@ export interface DashboardData {
   bookmarkTabs?: DashboardTab[]
   bookmarkDomainGroups?: DomainGroup[]
   bookmarkSearchReady?: boolean
+  historyTabs?: DashboardTab[]
+  historyDomainGroups?: DomainGroup[]
+  historySearchQuery?: string
+  historyRange?: string
 }
 
 declare global {

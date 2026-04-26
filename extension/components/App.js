@@ -13,6 +13,7 @@ import { HeaderBar } from './HeaderBar.js'
 import { Missions } from './Missions.js'
 import { TabHistoryPanel } from './TabHistoryPanel.js'
 import { UrlPreview } from './UrlPreview.js'
+import { DEFAULT_HISTORY_RANGE } from '../history-source.js'
 
 const html = htm.bind(h)
 const FOCUS_FILTER_PARAM = 'focusFilter'
@@ -71,6 +72,7 @@ export function App({ initialDashboard = null }) {
   const [source, setSource] = useState('tabs')
   const [filterInput, setFilterInput] = useState(filterInputFromCurrentUrl)
   const [filter, setFilter] = useState(filterInputFromCurrentUrl)
+  const [historyRange, setHistoryRange] = useState(DEFAULT_HISTORY_RANGE)
   const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
   const [hoveredUrl, setHoveredUrl] = useState('')
   const [isScrolled, setIsScrolled] = useState(false)
@@ -81,18 +83,22 @@ export function App({ initialDashboard = null }) {
   const sourceSwitchSeqRef = useRef(0)
   const previousOrderRef = useRef({
     tabs: new Map(),
-    bookmarks: new Map()
+    bookmarks: new Map(),
+    history: new Map()
   })
   const scrollRegionRef = useRef(null)
   const primaryMissionsRef = useRef(null)
   const bookmarkMissionsRef = useRef(null)
+  const historyMissionsRef = useRef(null)
   const unmatchedMissionsRef = useRef(null)
   const realTabs = dashboard?.realTabs || []
   const domainGroups = dashboard?.domainGroups || []
   const bookmarkTabs = dashboard?.bookmarkTabs || []
   const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || []
+  const historyTabs = dashboard?.historyTabs || []
+  const historyDomainGroups = dashboard?.historyDomainGroups || []
   const isReady = !!dashboard
-  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, unmatchedMissionsRef)
+  const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
 
   refreshRef.current = async () => {
     if (document.visibilityState !== 'visible') return
@@ -101,7 +107,11 @@ export function App({ initialDashboard = null }) {
       fetchDashboardData(previousOrderRef.current[source] || new Map(), source, {
         pinnedDomains,
         bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
-        includeBookmarkMatches: source === 'tabs' && filter !== ''
+        historyPreviousOrder: previousOrderRef.current.history || new Map(),
+        includeBookmarkMatches: source === 'tabs' && filter !== '',
+        includeHistoryMatches: source === 'tabs' && filter !== '',
+        searchQuery: filter,
+        historyRange
       }),
       fetchTabHistorySnapshot()
     ])
@@ -115,7 +125,7 @@ export function App({ initialDashboard = null }) {
     let cancelled = false
     loadPinnedDomains().then((domains) => {
       if (cancelled) return
-      previousOrderRef.current = { tabs: new Map(), bookmarks: new Map() }
+      previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
       setPinnedDomains(domains)
       setPinsLoaded(true)
     })
@@ -129,10 +139,11 @@ export function App({ initialDashboard = null }) {
   }, [])
 
   useEffect(() => {
-    if (!isReady || !pinsLoaded || source !== 'tabs' || !filter || dashboard?.bookmarkSearchReady) return
+    if (!isReady || !pinsLoaded || source !== 'tabs' || !filter) return
+    if (dashboard?.bookmarkSearchReady && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange) return
     const frame = requestAnimationFrame(() => refreshRef.current())
     return () => cancelAnimationFrame(frame)
-  }, [filter, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady])
+  }, [filter, historyRange, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
 
   useEffect(() => {
     if (filterInput === filter) return
@@ -176,7 +187,7 @@ export function App({ initialDashboard = null }) {
     if (!isReady) return
     setHoveredUrl('')
     packMissionsMasonryNow({ unpin: true })
-  }, [domainGroups, bookmarkDomainGroups, filter, isReady])
+  }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, isReady])
 
   const dashboardVm = buildDashboardViewModel({
     realTabs,
@@ -191,6 +202,15 @@ export function App({ initialDashboard = null }) {
           domainGroups: bookmarkDomainGroups,
           filter,
           source: 'bookmarks'
+        })
+      : null
+  const historySearchVm =
+    source === 'tabs' && filter && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
+      ? buildDashboardViewModel({
+          realTabs: historyTabs,
+          domainGroups: historyDomainGroups,
+          filter,
+          source: 'history'
         })
       : null
 
@@ -219,7 +239,7 @@ export function App({ initialDashboard = null }) {
 
   async function onTogglePinnedDomain(domain) {
     const nextPinnedDomains = togglePinnedDomainInList(pinnedDomains, domain)
-    previousOrderRef.current = { tabs: new Map(), bookmarks: new Map() }
+    previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     setPinnedDomains(nextPinnedDomains)
     try {
       await savePinnedDomains(nextPinnedDomains)
@@ -237,7 +257,11 @@ export function App({ initialDashboard = null }) {
       fetchDashboardData(previousOrderRef.current[nextSource] || new Map(), nextSource, {
         pinnedDomains,
         bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
-        includeBookmarkMatches: nextSource === 'tabs' && filter !== ''
+        historyPreviousOrder: previousOrderRef.current.history || new Map(),
+        includeBookmarkMatches: nextSource === 'tabs' && filter !== '',
+        includeHistoryMatches: nextSource === 'tabs' && filter !== '',
+        searchQuery: filter,
+        historyRange
       }),
       fetchTabHistorySnapshot()
     ])
@@ -251,9 +275,12 @@ export function App({ initialDashboard = null }) {
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
   const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || []
+  const historyMatchedCards = historySearchVm?.matchedCards || []
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
   const showBookmarkMatches = isReady && source === 'tabs' && !!filter && bookmarkMatchedCards.length > 0
-  const showPrimaryEmptyState = !(showBookmarkMatches && matchedCards.length === 0)
+  const showHistoryMatches = isReady && source === 'tabs' && !!filter && historyMatchedCards.length > 0
+  const showHistoryRange = isReady && source === 'tabs' && !!filter
+  const showPrimaryEmptyState = !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0)
   const primaryMissionsClass = 'missions' + (matchedCards.length === 0 ? ' missions-empty' : '')
   const showTabHistory = isReady && source === 'tabs'
   const dashboardShellClass = ['dashboard-shell', showTabHistory ? 'has-history' : '', source === 'bookmarks' ? 'is-bookmarks' : ''].filter(Boolean).join(' ')
@@ -263,7 +290,10 @@ export function App({ initialDashboard = null }) {
     if (source === 'tabs' && bookmarkMatchedCards.length > 0) {
       previousOrderRef.current.bookmarks = new Map(bookmarkMatchedCards.map(({ group }, index) => [stableGroupId(group), index]))
     }
-  }, [domainGroups, bookmarkDomainGroups, filter, isReady, source])
+    if (source === 'tabs' && historyMatchedCards.length > 0) {
+      previousOrderRef.current.history = new Map(historyMatchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+    }
+  }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, isReady, source])
 
   return html`
     <${Fragment}>
@@ -292,7 +322,10 @@ export function App({ initialDashboard = null }) {
               ready=${isReady}
               filter=${filterInput}
               filterFocusRequest=${filterFocusRequest}
+              historyRange=${historyRange}
+              showHistoryRange=${showHistoryRange}
               onFilterChange=${setFilterInput}
+              onHistoryRangeChange=${setHistoryRange}
               onSourceChange=${onSourceChange}
               onCloseFiltered=${onCloseFiltered}
               onDedupAll=${onDedupAll}
@@ -327,6 +360,28 @@ export function App({ initialDashboard = null }) {
                       cards=${bookmarkMatchedCards}
                       filter=${filter}
                       source="bookmarks"
+                      showEmptyState=${false}
+                      onHoverUrlChange=${setHoveredUrl}
+                      onLayoutChange=${scheduleMissionsMasonry}
+                      onTogglePinnedDomain=${onTogglePinnedDomain}
+                    />
+                  </div>
+                </div>
+              `}
+
+              ${showHistoryMatches &&
+              html`
+                <div class="missions-other missions-history" id="historyMatchesSection">
+                  <div class="missions-divider" role="separator">
+                    <span class="missions-divider-rule"></span>
+                    <span class="missions-divider-label">History</span>
+                    <span class="missions-divider-rule"></span>
+                  </div>
+                  <div class="missions" id="historyMatchesMissions" ref=${historyMissionsRef}>
+                    <${Missions}
+                      cards=${historyMatchedCards}
+                      filter=${filter}
+                      source="history"
                       showEmptyState=${false}
                       onHoverUrlChange=${setHoveredUrl}
                       onLayoutChange=${scheduleMissionsMasonry}

@@ -2,6 +2,7 @@ import { h } from '../vendor/preact.mjs'
 import htm from '../vendor/htm.mjs'
 import { useEffect, useRef } from '../vendor/preact-hooks.mjs'
 import { HeaderStats } from './HeaderStats.js'
+import { HISTORY_RANGE_OPTIONS } from '../history-source.js'
 
 const html = htm.bind(h)
 
@@ -34,7 +35,20 @@ export function isFilterFocusShortcut(e, platform = '') {
   return isMac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey
 }
 
-export function HeaderBar({ filter, filterFocusRequest = 0, onFilterChange, onCloseFiltered, onDedupAll, onSourceChange, source = 'tabs', ready = true, ...stats }) {
+export function HeaderBar({
+  filter,
+  filterFocusRequest = 0,
+  historyRange,
+  showHistoryRange = false,
+  onFilterChange,
+  onHistoryRangeChange,
+  onCloseFiltered,
+  onDedupAll,
+  onSourceChange,
+  source = 'tabs',
+  ready = true,
+  ...stats
+}) {
   const inputRef = useRef(null)
 
   function updateFilter(nextValue) {
@@ -59,7 +73,7 @@ export function HeaderBar({ filter, filterFocusRequest = 0, onFilterChange, onCl
   }, [])
 
   const wrapClass = 'tab-filter-wrap' + (filter ? ' has-value' : '')
-  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : 'Filter tabs, bookmarks…'
+  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : 'Filter tabs, bookmarks, history…'
 
   function onClear() {
     updateFilter('')
@@ -87,6 +101,12 @@ export function HeaderBar({ filter, filterFocusRequest = 0, onFilterChange, onCl
         />
         <div class="header-controls">
           <${SourceSwitch} source=${source} onSourceChange=${onSourceChange} />
+          ${showHistoryRange &&
+          html`
+            <select class="history-range-select" aria-label="History search range" value=${historyRange} onChange=${(e) => onHistoryRangeChange?.(e.currentTarget.value)}>
+              ${HISTORY_RANGE_OPTIONS.map((option) => html`<option value=${option.value}>${option.label}</option>`)}
+            </select>
+          `}
           <div class=${wrapClass}>
             <input
               ref=${inputRef}

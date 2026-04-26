@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 import { flattenBookmarkNodes } from '../extension/bookmarks.js'
+import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, flattenHistoryItems } from '../extension/history-source.js'
 import { filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/components/App.js'
 import { isFilterFocusShortcut } from '../extension/components/HeaderBar.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
@@ -410,6 +411,27 @@ test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard it
   )
 })
 
+test('flattenHistoryItems turns Chrome history items into read-only dashboard items', () => {
+  const historyItems = flattenHistoryItems([
+    { id: '1', title: 'OpenAI Docs', url: 'https://openai.com/docs' },
+    { id: '2', title: 'Chrome internal', url: 'chrome://settings' }
+  ])
+
+  assert.deepEqual(
+    historyItems.map((item) => ({ url: item.url, sourceType: item.sourceType })),
+    [{ url: 'https://openai.com/docs', sourceType: 'history' }]
+  )
+})
+
+test('history range options default to the last day search window', () => {
+  assert.equal(DEFAULT_HISTORY_RANGE, '1d')
+  assert.deepEqual(
+    HISTORY_RANGE_OPTIONS.map((option) => option.value),
+    ['1d', '7d', '30d', '90d']
+  )
+  assert.equal(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE).days, 1)
+})
+
 test('buildDashboardViewModel disables destructive actions for bookmarks source', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://bookmarks.test/a', title: 'Bookmark A', sourceType: 'bookmark' }),
@@ -465,9 +487,31 @@ test('combined tab and bookmark search keeps bookmark matches read-only', () => 
   assert.equal(bookmarksVm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'bookmark')
 })
 
+test('history search matches are read-only dashboard results', () => {
+  const historyGroups = buildDomainGroups([
+    makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' }),
+    makeTab({ id: 'h2', url: 'https://example.com/', title: 'Example', sourceType: 'history' })
+  ])
+
+  const vm = buildDashboardViewModel({
+    realTabs: historyGroups.flatMap((group) => group.tabs),
+    domainGroups: historyGroups,
+    filter: 'openai',
+    source: 'history'
+  })
+
+  assert.equal(vm.stats.dedupCount, 0)
+  assert.deepEqual(vm.filteredCloseUrls, [])
+  assert.equal(vm.matchedCards.length, 1)
+  assert.equal(vm.unmatchedCards.length, 1)
+  assert.equal(vm.matchedCards[0].vm.closableCount, 0)
+  assert.equal(vm.matchedCards[0].vm.tabCountTitle, '1 of 1 history result shown while filtering')
+  assert.equal(vm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'history')
+})
+
 test('manifest keeps only the permissions used by the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
-  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'storage', 'favicon'])
+  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'history', 'storage', 'favicon'])
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
   assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in global activation history')
   assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')

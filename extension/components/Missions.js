@@ -27,7 +27,7 @@ function stableKey(group) {
 }
 
 function EmptyState({ source = 'tabs' }) {
-  const noun = source === 'bookmarks' ? 'bookmarks' : 'tabs'
+  const noun = source === 'bookmarks' ? 'bookmarks' : source === 'history' ? 'history results' : 'tabs'
   return html`
     <div class="missions-empty-state">
       <div class="empty-title">No ${noun}.</div>
