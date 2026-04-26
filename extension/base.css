@@ -99,6 +99,7 @@ body {
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   align-items: stretch;
   gap: 16px;
+  padding-left: 16px;
 }
 
 .dashboard-main {
@@ -144,7 +145,12 @@ body {
 
 .dashboard-shell.is-bookmarks .dashboard-main > .pinned-top {
   margin-left: calc(0px - var(--dashboard-edge-bleed));
-  padding-left: var(--dashboard-edge-bleed);
+  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
+}
+
+.dashboard-shell.is-bookmarks .dashboard-main > .scroll-region {
+  margin-left: calc(0px - var(--dashboard-edge-bleed));
+  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
 }
 
 .pinned-top.is-scrolled {

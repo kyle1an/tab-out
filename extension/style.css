@@ -701,6 +701,10 @@ header {
   margin-top: 24px;
 }
 
+.missions.missions-empty + .missions-other {
+  margin-top: 0;
+}
+
 /* "Other tabs" separator — static HTML now; lives between the two
    masonry containers. Flex row with thin rules flanking a centered
    label. */

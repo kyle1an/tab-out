@@ -78,6 +78,7 @@ export function App({ initialDashboard = null }) {
   const [pinsLoaded, setPinsLoaded] = useState(false)
   const [tabHistory, setTabHistory] = useState(null)
   const refreshRef = useRef(async () => {})
+  const sourceSwitchSeqRef = useRef(0)
   const previousOrderRef = useRef({
     tabs: new Map(),
     bookmarks: new Map()
@@ -228,6 +229,24 @@ export function App({ initialDashboard = null }) {
     }
   }
 
+  async function onSourceChange(nextSource) {
+    if (nextSource === source) return
+    const requestId = ++sourceSwitchSeqRef.current
+    setHoveredUrl('')
+    const [nextDashboard, nextTabHistory] = await Promise.all([
+      fetchDashboardData(previousOrderRef.current[nextSource] || new Map(), nextSource, {
+        pinnedDomains,
+        bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
+        includeBookmarkMatches: nextSource === 'tabs' && filter !== ''
+      }),
+      fetchTabHistorySnapshot()
+    ])
+    if (requestId !== sourceSwitchSeqRef.current) return
+    setDashboard(nextDashboard)
+    setTabHistory(nextTabHistory)
+    setSource(nextSource)
+  }
+
   const stats = dashboardVm.stats
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
@@ -235,6 +254,7 @@ export function App({ initialDashboard = null }) {
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
   const showBookmarkMatches = isReady && source === 'tabs' && !!filter && bookmarkMatchedCards.length > 0
   const showPrimaryEmptyState = !(showBookmarkMatches && matchedCards.length === 0)
+  const primaryMissionsClass = 'missions' + (matchedCards.length === 0 ? ' missions-empty' : '')
   const showTabHistory = isReady && source === 'tabs'
   const dashboardShellClass = ['dashboard-shell', showTabHistory ? 'has-history' : '', source === 'bookmarks' ? 'is-bookmarks' : ''].filter(Boolean).join(' ')
 
@@ -255,7 +275,6 @@ export function App({ initialDashboard = null }) {
           onHoverUrlChange=${setHoveredUrl}
           onTabsChange=${() => refreshRef.current()}
         />`}
-
         <div class="dashboard-main">
           <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
             <${HeaderBar}
@@ -274,7 +293,7 @@ export function App({ initialDashboard = null }) {
               filter=${filterInput}
               filterFocusRequest=${filterFocusRequest}
               onFilterChange=${setFilterInput}
-              onSourceChange=${setSource}
+              onSourceChange=${onSourceChange}
               onCloseFiltered=${onCloseFiltered}
               onDedupAll=${onDedupAll}
             />
@@ -282,7 +301,7 @@ export function App({ initialDashboard = null }) {
 
           <div class="scroll-region" ref=${scrollRegionRef}>
             <div class="active-section" id="openTabsSection" style=${isReady ? '' : 'display:none'}>
-              <div class="missions" id="openTabsMissions" ref=${primaryMissionsRef}>
+              <div class=${primaryMissionsClass} id="openTabsMissions" ref=${primaryMissionsRef}>
                 ${isReady &&
                 html`<${Missions}
                   cards=${matchedCards}
