@@ -115,6 +115,9 @@ body {
 }
 
 .pinned-top {
+  --header-shadow-padding-fade: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
+  --header-shadow-left-reserve: 56px;
+  --header-shadow-left-fade: 18px;
   flex: 0 0 auto;
   position: relative;
   z-index: 10;
@@ -131,14 +134,24 @@ body {
   bottom: -12px;
   height: 12px;
   background: linear-gradient(to bottom, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0));
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    rgba(0, 0, 0, 0.04) calc(var(--header-shadow-left-reserve) - var(--header-shadow-left-fade)),
+    #000 var(--header-shadow-left-reserve),
+    #000 calc(100% - var(--header-shadow-padding-fade)),
+    transparent 100%
+  );
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
 
 .dashboard-main > .pinned-top {
+  margin-left: calc(0px - var(--header-shadow-left-reserve));
   margin-right: calc(0px - var(--dashboard-edge-bleed));
   padding-top: 12px;
+  padding-left: var(--header-shadow-left-reserve);
   padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
   padding-bottom: 12px;
 }
@@ -146,6 +159,17 @@ body {
 .dashboard-shell.is-bookmarks .dashboard-main > .pinned-top {
   margin-left: calc(0px - var(--dashboard-edge-bleed));
   padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
+}
+
+.dashboard-shell.is-bookmarks .dashboard-main > .pinned-top::after {
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc(var(--header-shadow-padding-fade) - var(--header-shadow-left-fade)),
+    #000 var(--header-shadow-padding-fade),
+    #000 calc(100% - var(--header-shadow-padding-fade)),
+    transparent 100%
+  );
 }
 
 .dashboard-shell.is-bookmarks .dashboard-main > .scroll-region {
@@ -162,11 +186,11 @@ body {
 }
 
 .dashboard-shell.has-history .dashboard-main > .pinned-top {
-  clip-path: inset(0 0 -16px 0);
+  clip-path: inset(0 0 -16px calc(0px - var(--header-shadow-left-reserve)));
 }
 
 .dashboard-shell.has-history .dashboard-main > .pinned-top:focus-within {
-  clip-path: inset(-4px -4px -16px -4px);
+  clip-path: inset(-4px -4px -16px calc(0px - var(--header-shadow-left-reserve) - 4px));
 }
 
 .scroll-region {
