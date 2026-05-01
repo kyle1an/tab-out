@@ -1871,7 +1871,7 @@ header {
   pointer-events: auto;
 }
 
-/* Right-edge overlay that reveals on chip hover. GPU-cheap opacity
+/* Right-edge overlay that reveals on chip hover when an action button is present. GPU-cheap opacity
    transition gives a smooth fade-in; the endpoint color matches the
    chip's COMPOSITE hover background (card-bg plus the faint
    rgba(82,82,82,0.04) hover tint from .page-chip.clickable:hover)
@@ -1900,7 +1900,7 @@ header {
   border-bottom-right-radius: inherit;
   corner-shape: squircle;
 }
-.page-chip:hover::after {
+.page-chip:has(.chip-actions):hover::after {
   opacity: 1;
 }
 
