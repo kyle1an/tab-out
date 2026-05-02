@@ -1731,6 +1731,11 @@ header {
      last chip doesn't press its hover background into the line. */
   margin-top: 6px;
 }
+.subdomain-section + .subdomain-section > .flat-section:first-child {
+  /* Headerless sections need the same post-separator air that a
+     visible .subdomain-header would provide with its top padding. */
+  margin-top: 6px;
+}
 
 /* Small header above each subdomain section. Muted + lowercase so the
    chip titles stay the primary read; the count nudges the user toward

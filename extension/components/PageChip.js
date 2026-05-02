@@ -33,7 +33,10 @@ let chipTextResizeObserver = null
 
 function isChipTextTruncated(textEl) {
   if (!textEl) return false
-  return textEl.scrollHeight - textEl.clientHeight > 1
+  return (
+    textEl.scrollHeight - textEl.clientHeight > 1 ||
+    textEl.scrollWidth - textEl.clientWidth > 1
+  )
 }
 
 function syncChipTextFade(textEl) {
@@ -325,6 +328,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       `}
       ${!chip.iconOnly && chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
       ${!chip.iconOnly &&
+      !isFolded &&
       (!isReadOnlySource || isHistorySource) &&
       html`
         <div class="chip-actions">
