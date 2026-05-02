@@ -33,7 +33,10 @@ let chipTextResizeObserver = null
 
 function isChipTextTruncated(textEl) {
   if (!textEl) return false
-  return textEl.scrollHeight - textEl.clientHeight > 1
+  return (
+    textEl.scrollHeight - textEl.clientHeight > 1 ||
+    textEl.scrollWidth - textEl.clientWidth > 1
+  )
 }
 
 function syncChipTextFade(textEl) {
