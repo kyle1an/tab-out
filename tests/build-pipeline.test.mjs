@@ -20,6 +20,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(pkg.devDependencies?.vite)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
+  assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
 
   const indexHtml = readFileSync('extension/index.html', 'utf8')
   assert.match(indexHtml, /src="dist\/app\.js"/)

@@ -92,6 +92,10 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const isAppsCard = group.domain === '__standalone-apps__'
   const isFixedCard = group.domain === '__tab-out__' || group.domain === '__standalone-apps__'
   const canPin = isPinnableDomain(group.domain) && typeof onTogglePinnedDomain === 'function'
+  const displayName = vm.displayName || group.label || group.domain
+  const closableExtras = vm.closableExtras ?? 0
+  const closableCount = vm.closableCount ?? 0
+  const sections = vm.sections ?? []
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
@@ -105,7 +109,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
 
-    markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${vm.displayName}`)
+    markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${displayName}`)
     await requestDashboardRefresh({ animateCards: true })
   }
 
@@ -142,17 +146,17 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   return (
     <div className={classList} data-domain-id={vm.stableId}>
       <header className="domain-header">
-        <span className="mission-name">{vm.displayName}</span>
-        {isFixedCard && <FixedIndicator displayName={vm.displayName} />}
-        {canPin && <PinButton domain={group.domain} displayName={vm.displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
+        <span className="mission-name">{displayName}</span>
+        {isFixedCard && <FixedIndicator displayName={displayName} />}
+        {canPin && <PinButton domain={group.domain} displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
         {vm.singleSubdomainKey && <span className={'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>{vm.singleSubdomainKey}</span>}
         <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
-        {vm.closableExtras > 0 && <DedupButton count={vm.closableExtras} dupeUrlsEncoded={vm.dupeUrlsEncoded} onClick={onDedup} />}
-        {!hideCardClose && vm.closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
+        {closableExtras > 0 && <DedupButton count={closableExtras} dupeUrlsEncoded={vm.dupeUrlsEncoded} onClick={onDedup} />}
+        {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
       </header>
       <div className="mission-card">
         <div className="mission-pages">
-          {vm.sections.map((section) => (
+          {sections.map((section) => (
             <SubdomainSection
               key={section.key || '__root__'}
               subdomainKey={section.key}

@@ -62,13 +62,13 @@ function entryBadges(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null
   const badges = []
   if (entry.active && !entry.current) badges.push('Active')
   if (entry.cursor && !entry.current) badges.push('Cursor')
-  if (snapshot.activeWasInserted && entry.current) badges.push('Pending')
+  if (snapshot?.activeWasInserted && entry.current) badges.push('Pending')
   if (entry.pinned) badges.push('Pinned')
   return badges
 }
 
 function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null, fallback: number): ReactNode {
-  if (Number.isInteger(entry.index) && Number.isInteger(snapshot?.currentIndex) && snapshot.currentIndex >= 0) {
+  if (Number.isInteger(entry.index) && snapshot && Number.isInteger(snapshot.currentIndex) && snapshot.currentIndex >= 0) {
     const relativeIndex = entry.index - snapshot.currentIndex
     if (relativeIndex < 0) {
       return (

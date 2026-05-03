@@ -80,8 +80,12 @@ function snapshotDomainCardRects(containers: MissionContainer[]): CardPositionMa
       const id = block.dataset.domainId
       if (!id) return
       const rect = block.getBoundingClientRect()
-      if (!rects.has(id)) rects.set(id, [])
-      rects.get(id).push({
+      let positions = rects.get(id)
+      if (!positions) {
+        positions = []
+        rects.set(id, positions)
+      }
+      positions.push({
         left: rect.left,
         top: rect.top
       })
@@ -134,7 +138,8 @@ function takeClosestPreviousRect(previousRects: CardPositionMap, id: string | un
   })
 
   const [closest] = candidates.splice(closestIndex, 1)
-  if (candidates.length === 0) previousRects.delete(id)
+  if (!closest) return null
+  if (candidates.length === 0 && id) previousRects.delete(id)
   return closest
 }
 
@@ -353,15 +358,16 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
     if (!scrollEl) return
+    const scrollTarget = scrollEl
 
     function onScroll() {
-      const next = scrollEl.scrollTop > 0
+      const next = scrollTarget.scrollTop > 0
       setIsScrolled((prev) => (prev === next ? prev : next))
     }
 
     onScroll()
-    scrollEl.addEventListener('scroll', onScroll, { passive: true })
-    return () => scrollEl.removeEventListener('scroll', onScroll)
+    scrollTarget.addEventListener('scroll', onScroll, { passive: true })
+    return () => scrollTarget.removeEventListener('scroll', onScroll)
   }, [])
 
   useLayoutEffect(() => {

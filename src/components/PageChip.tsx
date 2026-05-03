@@ -42,10 +42,11 @@ function getChipTextResizeObserver() {
 }
 
 export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
-  const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
+  const envs = Array.isArray(chip.envs) ? chip.envs : []
+  const isFolded = envs.length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
-  const primaryPreviewUrl = isFolded ? chip.envs[0]?.tabUrl || '' : chip.tabUrl || ''
+  const primaryPreviewUrl = isFolded ? envs[0]?.tabUrl || '' : chip.tabUrl || ''
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
 
   useLayoutEffect(() => {
@@ -79,7 +80,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   }
 
   async function onFocus() {
-    const targetUrl = isFolded ? chip.envs[0].tabUrl : chip.tabUrl
+    const targetUrl = isFolded ? envs[0]?.tabUrl : chip.tabUrl
     if (!targetUrl) return
     if (isReadOnlySource) {
       const focused = await focusExactTab(targetUrl)
@@ -176,18 +177,25 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     let toCloseList: chrome.tabs.Tab[] = []
     let matchCount = 0
     if (isFolded) {
-      const targetEffectives = new Set(chip.envs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
-      const targetUrls = new Set(chip.envs.map((env) => env.tabUrl))
-      toCloseList = allTabs.filter((tab) => targetUrls.has(tab.url) || targetEffectives.has(unwrapSuspenderUrl(tab.url)))
+      const targetEffectives = new Set(envs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
+      const targetUrls = new Set(envs.map((env) => env.tabUrl))
+      toCloseList = allTabs.filter((tab) => {
+        const tabUrl = tab.url || ''
+        return targetUrls.has(tabUrl) || targetEffectives.has(unwrapSuspenderUrl(tabUrl))
+      })
       matchCount = toCloseList.length
     } else {
       const targetEffective = unwrapSuspenderUrl(chip.tabUrl)
-      const matches = allTabs.filter((tab) => tab.url === chip.tabUrl || unwrapSuspenderUrl(tab.url) === targetEffective)
+      const matches = allTabs.filter((tab) => {
+        const tabUrl = tab.url || ''
+        return tabUrl === chip.tabUrl || unwrapSuspenderUrl(tabUrl) === targetEffective
+      })
       toCloseList = matches.slice(0, 1)
       matchCount = matches.length
     }
     const snapshot = toCloseList.length > 0 ? snapshotChromeTabs(toCloseList) : []
     for (const tab of toCloseList) {
+      if (typeof tab.id !== 'number') continue
       try {
         await chrome.tabs.remove(tab.id)
       } catch {}
@@ -215,7 +223,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   async function onDeleteHistory(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
-    const urls: string[] = Array.from(new Set(isFolded ? chip.envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
+    const urls: string[] = Array.from(new Set(isFolded ? envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
     if (urls.length === 0) return
 
     const results = await Promise.all(urls.map((url) => deleteHistorySourceUrl(url)))
@@ -233,7 +241,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   }
 
   const style = chip.isGrouped ? ({ '--group-color': chip.groupDotColor } as CSSProperties) : undefined
-  const dataTabUrl = isFolded ? chip.envs.map((env) => env.tabUrl).join(' ') : chip.tabUrl
+  const dataTabUrl = isFolded ? envs.map((env) => env.tabUrl).join(' ') : chip.tabUrl
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const chipLabel = [chip.tooltip, duplicateLabel].filter(Boolean).join(' · ')
@@ -269,7 +277,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
         <span className="chip-text" ref={chipTextRef}>
           {isFolded && (
             <span className="chip-env-stack">
-              {chip.envs.map((env) => (
+              {envs.map((env) => (
                 <span
                   key={env.rawUrl || env.tabUrl}
                   className="chip-env clickable"
