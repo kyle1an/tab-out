@@ -104,6 +104,8 @@ Before committing:
 npm run verify
 ```
 
+`npm run verify` rebuilds `extension/dist/app.js` and fails if the committed bundle is out of sync with the source.
+
 Use `npm run build:debug` when you need a local sourcemap.
 
 ---
