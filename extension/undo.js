@@ -14,7 +14,7 @@
    place, so we use it exclusively.
    ================================================================ */
 
-import { showToast } from '../src/components/Toast'
+import { showToast } from './toast.js'
 import { requestDashboardRefresh } from './dashboard-controller.js'
 
 let lastClosure = null

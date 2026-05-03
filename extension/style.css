@@ -136,7 +136,7 @@ header {
 /* ---- Filter input (top of page, right side of header) ---- */
 /* Wrapper around the input + custom clear button. The ✕ button is
    absolutely positioned inside the wrapper's right edge and only
-   rendered when the wrapper has `.has-value`, which the Preact
+   rendered when the wrapper has `.has-value`, which the React
    header bar derives directly from the current filter value. */
 .tab-filter-wrap {
   position: relative;
@@ -2064,7 +2064,7 @@ header {
    browser's own status bar appears when hovering a link. Rounded
    only on the top-right corner (the edge that faces into the page),
    matching the native look. Hidden with opacity 0 + pointer-events
-   off so it can't block clicks while fading out. Wiring in app.js. */
+   off so it can't block clicks while fading out. Wiring in src/app.tsx. */
 .url-preview {
   position: fixed;
   bottom: 0;

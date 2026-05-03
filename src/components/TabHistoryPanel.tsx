@@ -1,11 +1,8 @@
-import { h } from '../../extension/vendor/preact.mjs'
-import htm from '../../extension/vendor/htm.mjs'
-import { useEffect, useLayoutEffect, useRef } from '../../extension/vendor/preact-hooks.mjs'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../../extension/tab-history.js'
 import { markClosure } from '../../extension/undo.js'
-import { showToast } from './Toast'
+import { showToast } from '../../extension/toast.js'
 
-const html = htm.bind(h)
 let historyTitleResizeObserver = null
 
 function isHistoryTitleTruncated(titleEl) {
@@ -53,7 +50,12 @@ function historyEntryIndexLabel(entry, snapshot, fallback) {
   if (Number.isInteger(entry.index) && Number.isInteger(snapshot?.currentIndex) && snapshot.currentIndex >= 0) {
     const relativeIndex = entry.index - snapshot.currentIndex
     if (relativeIndex < 0) {
-      return html`<span>-</span><span>${Math.abs(relativeIndex)}</span>`
+      return (
+        <>
+          <span>-</span>
+          <span>{Math.abs(relativeIndex)}</span>
+        </>
+      )
     }
     return String(relativeIndex)
   }
@@ -61,7 +63,7 @@ function historyEntryIndexLabel(entry, snapshot, fallback) {
 }
 
 function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
-  const titleRef = useRef(null)
+  const titleRef = useRef<HTMLSpanElement | null>(null)
 
   useLayoutEffect(() => {
     const titleEl = titleRef.current
@@ -134,65 +136,71 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
 
   const badges = entryBadges(entry, snapshot)
 
-  return html`
+  return (
     <div
-      class="history-entry-row"
-      title=${entry.title || entry.displayUrl || entry.url}
-      onMouseEnter=${onMouseEnter}
-      onMouseLeave=${onMouseLeave}
-      onFocus=${onMouseEnter}
-      onBlur=${onMouseLeave}
+      className="history-entry-row"
+      title={entry.title || entry.displayUrl || entry.url}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onMouseEnter}
+      onBlur={onMouseLeave}
     >
-      <span class="history-entry-index">${indexLabel}</span>
-      <div class=${entryClass(entry)}>
-        <button type="button" class="history-entry-main" disabled=${!entry.exists} onClick=${onFocusEntry}>
-          <span class=${'history-favicon-frame' + (!entry.favIconUrl ? ' is-empty' : '')}>
-            ${entry.favIconUrl && html`<img class="history-favicon" src=${entry.favIconUrl} alt="" />`}
+      <span className="history-entry-index">{indexLabel}</span>
+      <div className={entryClass(entry)}>
+        <button type="button" className="history-entry-main" disabled={!entry.exists} onClick={onFocusEntry}>
+          <span className={'history-favicon-frame' + (!entry.favIconUrl ? ' is-empty' : '')}>
+            {entry.favIconUrl && <img className="history-favicon" src={entry.favIconUrl} alt="" />}
           </span>
-          <span class="history-entry-copy">
-            <span class="history-entry-title" ref=${titleRef}>${entry.title}</span>
-            ${badges.length > 0 &&
-            html`
-              <span class="history-entry-badges">
-                ${badges.map((badge) => html`<span class="history-badge">${badge}</span>`)}
+          <span className="history-entry-copy">
+            <span className="history-entry-title" ref={titleRef}>
+              {entry.title}
+            </span>
+            {badges.length > 0 && (
+              <span className="history-entry-badges">
+                {badges.map((badge) => (
+                  <span key={badge} className="history-badge">
+                    {badge}
+                  </span>
+                ))}
               </span>
-            `}
+            )}
           </span>
         </button>
-        <div class="history-entry-actions">
-          <button class="history-entry-close" type="button" disabled=${!entry.exists} title="Close this tab" aria-label=${`Close ${entry.title}`} onClick=${onCloseEntry}>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        <div className="history-entry-actions">
+          <button className="history-entry-close" type="button" disabled={!entry.exists} title="Close this tab" aria-label={`Close ${entry.title}`} onClick={onCloseEntry}>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
       </div>
     </div>
-  `
+  )
 }
 
 export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
 
-  return html`
-    <section class="tab-history-panel" aria-label="Activation history">
-      <div class="history-entry-list">
-        ${displayEntries.length > 0
-          ? displayEntries.map(
-              (entry, index) =>
-                html`<${HistoryEntry}
-                  key=${`${entry.windowId}:${entry.tabId}:${entry.index}`}
-                  entry=${entry}
-                  indexLabel=${historyEntryIndexLabel(entry, snapshot, index + 1)}
-                  snapshot=${snapshot}
-                  onSnapshotChange=${onSnapshotChange}
-                  onHoverUrlChange=${onHoverUrlChange}
-                  onTabsChange=${onTabsChange}
-                />`
-            )
-          : html`<div class="history-empty">No activation history yet.</div>`}
+  return (
+    <section className="tab-history-panel" aria-label="Activation history">
+      <div className="history-entry-list">
+        {displayEntries.length > 0 ? (
+          displayEntries.map((entry, index) => (
+            <HistoryEntry
+              key={`${entry.windowId}:${entry.tabId}:${entry.index}`}
+              entry={entry}
+              indexLabel={historyEntryIndexLabel(entry, snapshot, index + 1)}
+              snapshot={snapshot}
+              onSnapshotChange={onSnapshotChange}
+              onHoverUrlChange={onHoverUrlChange}
+              onTabsChange={onTabsChange}
+            />
+          ))
+        ) : (
+          <div className="history-empty">No activation history yet.</div>
+        )}
       </div>
     </section>
-  `
+  )
 }

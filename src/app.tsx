@@ -1,29 +1,19 @@
-/* ================================================================
-   Tab Out — entry point
-
-   app.js now owns only lifecycle wiring:
-     • Mount the Preact dashboard shell + toast root
-     • Schedule data refreshes from chrome.tabs / chrome.tabGroups
-     • Hide broken favicons with a capture-phase image-error listener
-
-   The actual page UI (header, filter, missions grids, URL preview)
-   lives under components/App.js.
-   ================================================================ */
-
 import { mountToast } from './components/Toast'
 import { mountApp } from './components/App'
 import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
 import { groupColorChanged } from '../extension/groups.js'
 
-let refreshTimer = null
-let refreshTimerOptions = {}
+type RefreshOptions = { animateCards?: boolean }
 
-function scheduleDashboardRefresh(options = {}) {
+let refreshTimer: number | null = null
+let refreshTimerOptions: RefreshOptions = {}
+
+function scheduleDashboardRefresh(options: RefreshOptions = {}) {
   refreshTimerOptions = {
     animateCards: !!(refreshTimerOptions.animateCards || options.animateCards)
   }
-  clearTimeout(refreshTimer)
-  refreshTimer = setTimeout(() => {
+  if (refreshTimer !== null) clearTimeout(refreshTimer)
+  refreshTimer = window.setTimeout(() => {
     const options = refreshTimerOptions
     refreshTimerOptions = {}
     requestDashboardRefresh(options)
@@ -96,7 +86,7 @@ document.addEventListener('visibilitychange', () => {
 document.addEventListener(
   'error',
   (e) => {
-    const el = e.target
+    const el = e.target as HTMLElement | null
     if (el && el.tagName === 'IMG') el.style.display = 'none'
   },
   true

@@ -91,9 +91,9 @@ Once the extension is loaded:
 
 ## Key Facts
 
-- Tab Out is a pure Chrome extension. No server, no Node.js, no npm.
+- Tab Out is a pure Chrome extension at runtime. No server is required; UI development uses React + TSX bundled by Vite into `extension/dist/app.js`.
 - 100% local. No data is sent to any external service.
-- To update: `cd tab-out && git pull`, then reload the extension in `chrome://extensions`.
+- To update: `cd tab-out && git pull`, run `npm install && npm run build` only if source files changed without built assets, then reload the extension in `chrome://extensions`.
 
 ## Visual Style Notes
 

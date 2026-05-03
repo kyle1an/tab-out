@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { existsSync, readFileSync } from 'node:fs'
+
+test('extension HTML loads the Vite-built React entry', () => {
+  assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
+  assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
+
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  assert.equal(pkg.scripts?.build, 'vite build')
+  assert.ok(pkg.dependencies?.react)
+  assert.ok(pkg.dependencies?.['react-dom'])
+  assert.ok(pkg.devDependencies?.vite)
+
+  const indexHtml = readFileSync('extension/index.html', 'utf8')
+  assert.match(indexHtml, /src="dist\/app\.js"/)
+  assert.doesNotMatch(indexHtml, /src="app\.js"/)
+
+  const appSource = readFileSync('src/app.tsx', 'utf8')
+  const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')
+  const toastSource = readFileSync('src/components/Toast.tsx', 'utf8')
+  assert.match(`${appComponentSource}\n${toastSource}`, /react-dom\/client/)
+  assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
+})
+
+test('built extension bundle is packaged locally', () => {
+  assert.ok(existsSync('extension/dist/app.js'), 'extension/dist/app.js should be committed build output for unpacked extension loading')
+
+  const bundle = readFileSync('extension/dist/app.js', 'utf8')
+  assert.doesNotMatch(bundle, /from\s+['"]https?:\/\//)
+  assert.doesNotMatch(bundle, /vendor\/preact|vendor\/htm/)
+})

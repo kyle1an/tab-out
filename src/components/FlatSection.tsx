@@ -1,26 +1,5 @@
-/* ================================================================
-   <FlatSection> — Phase 3–5 of the Preact + HTM migration.
-
-   Renders the "flat" block inside a subdomain section: the singletons
-   (tabs whose path-group label was below the ≥2 cluster threshold).
-   Visible chips are always in the DOM; hidden chips sit inside a
-   `.page-chips-overflow` wrapper that's `display: none` by default and
-   `display: contents` when expanded (CSS rules in base.css).
-   Filtering now happens in the App/root VM before the chips arrive
-   here, but we still keep the .page-chips-overflow wrapper so local
-   expand state can reveal the hidden set in place.
-
-   Phase 5 replaced the dangerouslySetInnerHTML chip blocks with
-   <PageChip> components. The chip-data arrays (visibleChips /
-   hiddenChips) come pre-computed from buildChipData() in render.js.
-   ================================================================ */
-
-import { h } from '../../extension/vendor/preact.mjs'
-import htm from '../../extension/vendor/htm.mjs'
-import { useState } from '../../extension/vendor/preact-hooks.mjs'
+import { useState } from 'react'
 import { PageChip } from './PageChip'
-
-const html = htm.bind(h)
 
 export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }) {
   const [expanded, setExpanded] = useState(false)
@@ -28,23 +7,26 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrl
 
   function onExpand() {
     setExpanded(true)
-    // Card heights change when hidden chips become visible; re-pack
-    // masonry after the DOM settles so column bottoms realign.
     if (onLayoutChange) onLayoutChange()
   }
 
-  return html`
-    <div class=${'flat-section' + (iconOnly ? ' flat-section-icons' : '')} data-expanded=${expanded ? 'true' : null}>
-      ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}
-      ${hiddenCount > 0 &&
-      html` <div class="page-chips-overflow">${hiddenChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}</div> `}
-      ${!expanded &&
-      hiddenCount > 0 &&
-      html`
-        <div class="page-chip page-chip-overflow clickable" onClick=${onExpand}>
-          <span class="chip-text">+${hiddenCount} more</span>
+  return (
+    <div className={'flat-section' + (iconOnly ? ' flat-section-icons' : '')} data-expanded={expanded ? 'true' : undefined}>
+      {visibleChips.map((chip) => (
+        <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
+      ))}
+      {hiddenCount > 0 && (
+        <div className="page-chips-overflow">
+          {hiddenChips.map((chip) => (
+            <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
+          ))}
         </div>
-      `}
+      )}
+      {!expanded && hiddenCount > 0 && (
+        <div className="page-chip page-chip-overflow clickable" onClick={onExpand}>
+          <span className="chip-text">+{hiddenCount} more</span>
+        </div>
+      )}
     </div>
-  `
+  )
 }

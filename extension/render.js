@@ -1,7 +1,7 @@
 /* ================================================================
    Render — data pipeline + derived dashboard selectors.
 
-   This module is now Preact-agnostic: it owns the tab-fetching and
+   This module is renderer-agnostic: it owns the tab-fetching and
    view-model derivation, while the component tree mounts elsewhere.
 
    Exports:
@@ -917,7 +917,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // same across your envs, you probably want to see them grouped."
   if (sharedSectionData) sectionsData.unshift(sharedSectionData)
 
-  // Labels derived for the Preact component to consume directly.
+  // Labels derived for the React component to consume directly.
   // closableCountLabel mirrors the original "Close all N tabs" vs
   // "Close N ungrouped tabs" split so the button text matches.
   const closableCountLabel =
@@ -1095,7 +1095,7 @@ export function buildDomainGroups(
 
 /**
  * fetchDashboardData() — refresh chrome.tabs state and return the
- * current dashboard snapshot consumed by the Preact App root.
+ * current dashboard snapshot consumed by the React App root.
  *
  * @param {Map<string, number>} [previousOrder]
  * @param {DashboardSource} [source]

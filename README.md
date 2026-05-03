@@ -38,7 +38,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Path-group clusters** — GitHub repos, Jira projects, Confluence spaces, Contentful envs, Figma files, and subreddits each cluster under a labeled sub-section within their domain card
 - **Expandable sections** show the first 5 chips with a clickable "+N more" (skipped when N would be 1)
 - **100% local** your data never leaves your machine
-- **Pure Chrome extension** no server, no Node.js, no npm, no build step — Preact + HTM are vendored as ES modules so edits reload instantly
+- **Pure Chrome extension runtime** no server, no account, no external API calls; the dashboard UI is built from React + TSX with Vite and packaged locally
 
 ---
 
@@ -82,10 +82,20 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 | What | How |
 |------|-----|
 | Extension | Chrome Manifest V3 (service worker + new-tab override) |
-| Rendering | Preact 10 + HTM (both vendored as ES modules, no build step) |
+| Rendering | React + TSX, bundled by Vite into `extension/dist/app.js` |
 | Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS confetti particles |
 | State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` only stores pinned domain-card order |
+
+## Development
+
+```bash
+npm install
+npm run build
+npm test
+```
+
+Load the `extension/` folder in Chrome. After changing files under `src/`, rerun `npm run build` and reload the extension in `chrome://extensions`.
 
 ---
 

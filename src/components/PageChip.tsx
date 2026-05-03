@@ -1,34 +1,12 @@
-/* ================================================================
-   <PageChip> — Phase 5 of the Preact + HTM migration.
-
-   Renders one tab chip. Props take a pre-computed `chip` data
-   object (see buildChipData in render.js) so the component itself
-   stays view-only: favicon img, chip-text with optional subdomain /
-   path-group / path suffix spans, optional duplicate-count badge, and
-   an X close button.
-
-   Event handlers:
-     • Clicking the chip focuses the tab (focusTab by URL).
-     • Clicking the close button removes the tab, plays the fade-out
-       animation, re-packs masonry, and pushes a closure
-       onto the undo stack.
-
-   data-action="focus-tab" and data-action="close-single-tab" are
-   kept on the rendered elements as stable selector anchors, but all
-   focus / close / preview behavior is component-local.
-   ================================================================ */
-
-import { h } from '../../extension/vendor/preact.mjs'
-import htm from '../../extension/vendor/htm.mjs'
-import { useEffect, useLayoutEffect, useRef } from '../../extension/vendor/preact-hooks.mjs'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../../extension/tabs.js'
 import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../../extension/suspender.js'
 import { deleteHistorySourceUrl } from '../../extension/history-source.js'
 import { markClosure } from '../../extension/undo.js'
-import { showToast } from './Toast'
+import { showToast } from '../../extension/toast.js'
 
-const html = htm.bind(h)
 let chipTextResizeObserver = null
 
 function isChipTextTruncated(textEl) {
@@ -59,13 +37,13 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
   const isHistorySource = chip.sourceType === 'history'
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
   const primaryPreviewUrl = isFolded ? chip.envs[0]?.tabUrl || '' : chip.tabUrl || ''
-  const chipTextRef = useRef(null)
+  const chipTextRef = useRef<HTMLSpanElement | null>(null)
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl) return
 
-    let frameId = requestAnimationFrame(() => syncChipTextFade(textEl))
+    const frameId = requestAnimationFrame(() => syncChipTextFade(textEl))
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -92,8 +70,6 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
   }
 
   async function onFocus() {
-    // Folded chip: clicking the chip body focuses the first env. Use
-    // env-pill clicks to pick a specific one.
     const targetUrl = isFolded ? chip.envs[0].tabUrl : chip.tabUrl
     if (!targetUrl) return
     if (isReadOnlySource) {
@@ -183,57 +159,39 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     setPreview('')
   }
 
-  // Capture chipEl before any await — e.currentTarget is only
-  // valid during synchronous event dispatch.
   async function onClose(e) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
 
-    // Folded chip: close every env copy at once. Regular chip: match
-    // on both raw and effective URL (handles (un)suspended tabs) and
-    // close only the first match — siblings with the same URL survive
-    // and the (Nx) badge decrements on re-render.
     const allTabs = await chrome.tabs.query({})
     let toCloseList = []
     let matchCount = 0
     if (isFolded) {
-      const targetEffectives = new Set(chip.envs.map((e) => unwrapSuspenderUrl(e.tabUrl)))
-      const targetUrls = new Set(chip.envs.map((e) => e.tabUrl))
-      toCloseList = allTabs.filter((t) => targetUrls.has(t.url) || targetEffectives.has(unwrapSuspenderUrl(t.url)))
+      const targetEffectives = new Set(chip.envs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
+      const targetUrls = new Set(chip.envs.map((env) => env.tabUrl))
+      toCloseList = allTabs.filter((tab) => targetUrls.has(tab.url) || targetEffectives.has(unwrapSuspenderUrl(tab.url)))
       matchCount = toCloseList.length
     } else {
       const targetEffective = unwrapSuspenderUrl(chip.tabUrl)
-      const matches = allTabs.filter((t) => t.url === chip.tabUrl || unwrapSuspenderUrl(t.url) === targetEffective)
+      const matches = allTabs.filter((tab) => tab.url === chip.tabUrl || unwrapSuspenderUrl(tab.url) === targetEffective)
       toCloseList = matches.slice(0, 1)
       matchCount = matches.length
     }
     const snapshot = toCloseList.length > 0 ? snapshotChromeTabs(toCloseList) : []
-    for (const t of toCloseList) {
+    for (const tab of toCloseList) {
       try {
-        await chrome.tabs.remove(t.id)
+        await chrome.tabs.remove(tab.id)
       } catch {}
     }
     await fetchOpenTabs()
 
-    // Folded chip: we closed every env in one go, so the chip is
-    // done either way. Regular chip: only "last tab for this URL"
-    // when there was just one match — otherwise siblings survive
-    // and the (Nx) badge needs to decrement via a fresh re-render.
     const isLastTabForUrl = isFolded || matchCount <= 1
 
     if (isLastTabForUrl && chipEl) {
-      // Only tab for this URL is gone — animate the chip out via
-      // the shared `.closing` CSS class, then let the next dashboard
-      // refresh rebuild the VM. Preact drops the chip from the tree (and, if
-      // the card ended up empty, the card too) without us having to
-      // traverse the DOM looking for empty .mission-pages.
       chipEl.classList.add('closing')
-      await new Promise((r) => setTimeout(r, 200))
+      await new Promise((resolve) => setTimeout(resolve, 200))
     }
 
-    // Full re-render handles both branches: last tab → chip gone
-    // from VM, card may collapse too; duplicate set → (Nx) badge
-    // decrements via the fresh VM.
     setPreview('')
     await requestDashboardRefresh({ animateCards: true })
 
@@ -248,7 +206,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
   async function onDeleteHistory(e) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
-    const urls = Array.from(new Set(isFolded ? chip.envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
+    const urls: string[] = Array.from(new Set(isFolded ? chip.envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
     if (urls.length === 0) return
 
     const results = await Promise.all(urls.map((url) => deleteHistorySourceUrl(url)))
@@ -259,97 +217,91 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     }
 
     chipEl?.classList.add('closing')
-    await new Promise((r) => setTimeout(r, 200))
+    await new Promise((resolve) => setTimeout(resolve, 200))
     setPreview('')
     await requestDashboardRefresh({ animateCards: true })
     showToast(deletedCount === 1 ? 'History deleted' : `Deleted ${deletedCount} history items`)
   }
 
-  const style = chip.isGrouped ? `--group-color:${chip.groupDotColor}` : null
-  // data-tab-url is read by app.js's URL-preview hover handler. For a
-  // folded chip we join all env URLs so the preview can fall back to
-  // the first one while any env pill shows its own specific URL.
-  const dataTabUrl = isFolded ? chip.envs.map((e) => e.tabUrl).join(' ') : chip.tabUrl
+  const style = chip.isGrouped ? ({ '--group-color': chip.groupDotColor } as CSSProperties) : undefined
+  const dataTabUrl = isFolded ? chip.envs.map((env) => env.tabUrl).join(' ') : chip.tabUrl
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const chipLabel = [chip.tooltip, duplicateLabel].filter(Boolean).join(' · ')
   const dupeBadgeClass = 'chip-dupe-badge' + (dupeCount > 9 ? ' chip-dupe-badge-wide' : '')
 
-  return html`
+  return (
     <div
-      class=${'page-chip clickable' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
+      className={'page-chip clickable' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
       data-action="focus-tab"
-      data-tab-url=${dataTabUrl}
-      title=${chipLabel}
-      aria-label=${chipLabel}
-      style=${style}
-      tabIndex="0"
-      onClick=${onFocus}
-      onKeyDown=${onChipKeyDown}
-      onMouseEnter=${onChipMouseEnter}
-      onMouseLeave=${onChipMouseLeave}
-      onFocus=${onChipFocus}
-      onBlur=${onChipBlur}
+      data-tab-url={dataTabUrl}
+      title={chipLabel}
+      aria-label={chipLabel}
+      style={style}
+      tabIndex={0}
+      onClick={onFocus}
+      onKeyDown={onChipKeyDown}
+      onMouseEnter={onChipMouseEnter}
+      onMouseLeave={onChipMouseLeave}
+      onFocus={onChipFocus}
+      onBlur={onChipBlur}
     >
-      ${chip.faviconUrl &&
-      html`
-        <span class=${'chip-favicon-frame' + (chip.isApp ? ' is-app' : '')}>
-          <img class="chip-favicon" src=${chip.faviconUrl} alt="" />
-          ${!chip.iconOnly && dupeCount > 1 && html`<span class=${dupeBadgeClass} aria-hidden="true">${dupeCount}</span>`}
-        </span>
-      `}
-      ${!chip.iconOnly &&
-      html`
-        <span class="chip-text" ref=${chipTextRef}>
-          ${isFolded &&
-          html`
-            <span class="chip-env-stack">
-              ${chip.envs.map(
-                (env) => html`
-                  <span
-                    class="chip-env clickable"
-                    data-action="focus-env"
-                    data-tab-url=${env.tabUrl}
-                    title=${`Focus ${env.prefix} tab`}
-                    tabIndex="0"
-                    onClick=${(e) => onEnvClick(e, env)}
-                    onKeyDown=${(e) => onEnvKeyDown(e, env)}
-                    onMouseEnter=${() => onEnvMouseEnter(env)}
-                    onMouseLeave=${onEnvMouseLeave}
-                    onFocus=${() => onEnvFocus(env)}
-                    onBlur=${onEnvBlur}
-                  >
-                    ${env.prefix}
-                  </span>
-                `
-              )}
+      {chip.faviconUrl && (
+        <span className={'chip-favicon-frame' + (chip.isApp ? ' is-app' : '')}>
+          <img className="chip-favicon" src={chip.faviconUrl} alt="" />
+          {!chip.iconOnly && dupeCount > 1 && (
+            <span className={dupeBadgeClass} aria-hidden="true">
+              {dupeCount}
             </span>
-          `}
-          ${!isFolded && chip.leadPrefix && html` <span class="chip-subdomain">${chip.leadPrefix}</span> `}
-          ${chip.pathGroupLabel && html` <span class="chip-pathgroup">${chip.pathGroupLabel}</span> `}
-          ${chip.displaySegments.map((seg) => (typeof seg === 'string' ? seg : html`<span class="chip-strip-indicator" aria-hidden="true">~</span>`))}
-          ${chip.pathSuffix && html` <span class="chip-path">${chip.pathSuffix}</span> `}
+          )}
         </span>
-      `}
-      ${!chip.iconOnly &&
-      !isFolded &&
-      (!isReadOnlySource || isHistorySource) &&
-      html`
-        <div class="chip-actions">
+      )}
+      {!chip.iconOnly && (
+        <span className="chip-text" ref={chipTextRef}>
+          {isFolded && (
+            <span className="chip-env-stack">
+              {chip.envs.map((env) => (
+                <span
+                  key={env.rawUrl || env.tabUrl}
+                  className="chip-env clickable"
+                  data-action="focus-env"
+                  data-tab-url={env.tabUrl}
+                  title={`Focus ${env.prefix} tab`}
+                  tabIndex={0}
+                  onClick={(e) => onEnvClick(e, env)}
+                  onKeyDown={(e) => onEnvKeyDown(e, env)}
+                  onMouseEnter={() => onEnvMouseEnter(env)}
+                  onMouseLeave={onEnvMouseLeave}
+                  onFocus={() => onEnvFocus(env)}
+                  onBlur={onEnvBlur}
+                >
+                  {env.prefix}
+                </span>
+              ))}
+            </span>
+          )}
+          {!isFolded && chip.leadPrefix && <span className="chip-subdomain">{chip.leadPrefix}</span>}
+          {chip.pathGroupLabel && <span className="chip-pathgroup">{chip.pathGroupLabel}</span>}
+          {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? seg : <span key={index} className="chip-strip-indicator" aria-hidden="true">~</span>))}
+          {chip.pathSuffix && <span className="chip-path">{chip.pathSuffix}</span>}
+        </span>
+      )}
+      {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
+        <div className="chip-actions">
           <button
-            class="chip-action chip-close"
-            data-action=${isHistorySource ? 'delete-history-url' : 'close-single-tab'}
-            data-tab-url=${chip.tabUrl}
-            title=${isHistorySource ? 'Delete from history' : 'Close this tab'}
-            aria-label=${isHistorySource ? 'Delete from history' : 'Close this tab'}
-            onClick=${isHistorySource ? onDeleteHistory : onClose}
+            className="chip-action chip-close"
+            data-action={isHistorySource ? 'delete-history-url' : 'close-single-tab'}
+            data-tab-url={chip.tabUrl}
+            title={isHistorySource ? 'Delete from history' : 'Close this tab'}
+            aria-label={isHistorySource ? 'Delete from history' : 'Close this tab'}
+            onClick={isHistorySource ? onDeleteHistory : onClose}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-      `}
+      )}
     </div>
-  `
+  )
 }

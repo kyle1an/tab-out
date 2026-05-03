@@ -12,8 +12,7 @@ import {
   flattenHistoryItems,
   isHistoryFilterEnabled
 } from '../extension/history-source.js'
-import { filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/components/App.js'
-import { isFilterFocusShortcut } from '../extension/components/HeaderBar.js'
+import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../extension/app-url.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
 import { normalizeTabHistorySnapshot } from '../extension/tab-history.js'
 

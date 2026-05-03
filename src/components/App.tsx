@@ -1,48 +1,33 @@
-import { h, Fragment, render as preactRender } from '../../extension/vendor/preact.mjs'
-import htm from '../../extension/vendor/htm.mjs'
-import { useEffect, useLayoutEffect, useRef, useState } from '../../extension/vendor/preact-hooks.mjs'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createRoot } from 'react-dom/client'
 import { closeDuplicateTabs, closeTabsExact } from '../../extension/tabs.js'
 import { useMissionsMasonry } from '../../extension/layout.js'
-import { showToast } from './Toast'
+import { showToast } from '../../extension/toast.js'
 import { markClosure } from '../../extension/undo.js'
 import { registerDashboardRefresh } from '../../extension/dashboard-controller.js'
 import { buildDashboardViewModel, fetchDashboardData } from '../../extension/render.js'
 import { fetchTabHistorySnapshot } from '../../extension/tab-history.js'
 import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../../extension/domain-pins.js'
+import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../../extension/history-source.js'
+import {
+  FOCUS_FILTER_PARAM,
+  filterInputFromSearch,
+  titleForFilterInput,
+  urlForFilterInput
+} from '../../extension/app-url.js'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { UrlPreview } from './UrlPreview'
-import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../../extension/history-source.js'
 
-const html = htm.bind(h)
-const FOCUS_FILTER_PARAM = 'focusFilter'
-const FILTER_PARAM = 'filter'
-const DEFAULT_PAGE_TITLE = '\u200e'
+type DashboardSource = 'tabs' | 'bookmarks' | 'history'
+type RefreshOptions = { animateCards?: boolean }
+
 const FILTER_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
 const URL_PREVIEW_HIDE_DELAY_MS = 120
 const CARD_MOVE_MS = 280
 const activeCardMoveAnimations = new WeakMap()
-
-export function titleForFilterInput(filterInput = '') {
-  const keyword = filterInput.trim()
-  return keyword ? `${keyword} - Tab Out` : DEFAULT_PAGE_TITLE
-}
-
-export function filterInputFromSearch(search = '') {
-  return new URLSearchParams(search).get(FILTER_PARAM) || ''
-}
-
-export function urlForFilterInput(filterInput = '', locationParts = {}) {
-  const { pathname = '', search = '', hash = '' } = locationParts
-  const params = new URLSearchParams(search)
-  if (filterInput === '') params.delete(FILTER_PARAM)
-  else params.set(FILTER_PARAM, filterInput)
-
-  const nextSearch = params.toString()
-  return `${pathname}${nextSearch ? `?${nextSearch}` : ''}${hash || ''}`
-}
 
 function filterInputFromCurrentUrl() {
   return filterInputFromSearch(window.location.search)
@@ -195,25 +180,25 @@ function animateDomainCardMoves(containers, previousRects) {
       block.classList.add('layout-moving-active')
       block.style.transform = 'translate(0, 0)'
     })
-    active.timeoutId = setTimeout(cleanup, CARD_MOVE_MS + 80)
+    active.timeoutId = window.setTimeout(cleanup, CARD_MOVE_MS + 80)
     activeCardMoveAnimations.set(block, active)
   })
 }
 
 export function App({ initialDashboard = null }) {
   const [dashboard, setDashboard] = useState(initialDashboard)
-  const [source, setSource] = useState('tabs')
+  const [source, setSource] = useState<DashboardSource>('tabs')
   const [filterInput, setFilterInput] = useState(filterInputFromCurrentUrl)
   const [filter, setFilter] = useState(filterInputFromCurrentUrl)
   const [historyRange, setHistoryRange] = useState(DEFAULT_HISTORY_RANGE)
   const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
   const [urlPreview, setUrlPreviewState] = useState({ url: '', visible: false })
   const [isScrolled, setIsScrolled] = useState(false)
-  const [pinnedDomains, setPinnedDomains] = useState([])
+  const [pinnedDomains, setPinnedDomains] = useState<string[]>([])
   const [pinsLoaded, setPinsLoaded] = useState(false)
   const [tabHistory, setTabHistory] = useState(null)
-  const refreshRef = useRef(async () => {})
-  const urlPreviewHideTimerRef = useRef(null)
+  const refreshRef = useRef<(options?: RefreshOptions) => Promise<void>>(async () => {})
+  const urlPreviewHideTimerRef = useRef<number | null>(null)
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef(null)
   const previousOrderRef = useRef({
@@ -221,11 +206,11 @@ export function App({ initialDashboard = null }) {
     bookmarks: new Map(),
     history: new Map()
   })
-  const scrollRegionRef = useRef(null)
-  const primaryMissionsRef = useRef(null)
-  const bookmarkMissionsRef = useRef(null)
-  const historyMissionsRef = useRef(null)
-  const unmatchedMissionsRef = useRef(null)
+  const scrollRegionRef = useRef<HTMLDivElement | null>(null)
+  const primaryMissionsRef = useRef<HTMLDivElement | null>(null)
+  const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
+  const historyMissionsRef = useRef<HTMLDivElement | null>(null)
+  const unmatchedMissionsRef = useRef<HTMLDivElement | null>(null)
   const realTabs = dashboard?.realTabs || []
   const domainGroups = dashboard?.domainGroups || []
   const bookmarkTabs = dashboard?.bookmarkTabs || []
@@ -262,7 +247,7 @@ export function App({ initialDashboard = null }) {
     }
 
     clearUrlPreviewHideTimer()
-    urlPreviewHideTimerRef.current = setTimeout(() => {
+    urlPreviewHideTimerRef.current = window.setTimeout(() => {
       urlPreviewHideTimerRef.current = null
       setUrlPreviewState((prev) => (prev.visible ? { ...prev, visible: false } : prev))
     }, URL_PREVIEW_HIDE_DELAY_MS)
@@ -273,7 +258,7 @@ export function App({ initialDashboard = null }) {
     setUrlPreviewState((prev) => (prev.url || prev.visible ? { url: '', visible: false } : prev))
   }
 
-  refreshRef.current = async ({ animateCards = false } = {}) => {
+  refreshRef.current = async ({ animateCards = false }: RefreshOptions = {}) => {
     if (document.visibilityState !== 'visible') return
     if (!pinsLoaded) return
     if (animateCards) primeCardMoveAnimation()
@@ -327,7 +312,7 @@ export function App({ initialDashboard = null }) {
       setFilter('')
       return
     }
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       primeCardMoveAnimation()
       setFilter(filterInput)
     }, FILTER_UPDATE_DELAY_MS)
@@ -344,7 +329,7 @@ export function App({ initialDashboard = null }) {
       return
     }
 
-    const timer = setTimeout(() => syncFilterInputToUrl(filterInput), FILTER_URL_SYNC_DELAY_MS)
+    const timer = window.setTimeout(() => syncFilterInputToUrl(filterInput), FILTER_URL_SYNC_DELAY_MS)
     return () => clearTimeout(timer)
   }, [filterInput])
 
@@ -352,9 +337,6 @@ export function App({ initialDashboard = null }) {
     if (!pinsLoaded) return
     clearUrlPreviewNow()
     requestAnimationFrame(() => refreshRef.current())
-    // Source changes are fetched by onSourceChange() with a primed
-    // card-move snapshot. A second plain refresh here would cancel
-    // the source-switch FLIP animation before it finishes.
   }, [pinnedDomains, pinsLoaded])
 
   useEffect(() => () => clearUrlPreviewHideTimer(), [])
@@ -444,7 +426,7 @@ export function App({ initialDashboard = null }) {
     }
   }
 
-  async function onSourceChange(nextSource) {
+  async function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(missionContainers())
@@ -492,135 +474,134 @@ export function App({ initialDashboard = null }) {
     }
   }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, isReady, source])
 
-  return html`
-    <${Fragment}>
-      <div class=${dashboardShellClass}>
-        ${showTabHistory &&
-        html`<${TabHistoryPanel}
-          snapshot=${tabHistory}
-          onSnapshotChange=${setTabHistory}
-          onHoverUrlChange=${setUrlPreview}
-          onTabsChange=${() => refreshRef.current({ animateCards: true })}
-        />`}
-        <div class="dashboard-main">
-          <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
-            <${HeaderBar}
-              source=${source}
-              totalTabs=${stats.totalTabs}
-              visibleTabs=${stats.visibleTabs}
-              totalWindows=${stats.totalWindows}
-              visibleWindows=${stats.visibleWindows}
-              totalDomains=${stats.totalDomains}
-              visibleDomains=${stats.visibleDomains}
-              dedupCount=${stats.dedupCount}
-              filteredCloseCount=${stats.filteredCloseCount}
-              hasCards=${stats.hasCards}
-              filtering=${stats.filtering}
-              ready=${isReady}
-              filter=${filterInput}
-              filterFocusRequest=${filterFocusRequest}
-              historyRange=${historyRange}
-              showHistoryRange=${showHistoryRange}
-              onFilterChange=${setFilterInput}
-              onHistoryRangeChange=${setHistoryRange}
-              onSourceChange=${onSourceChange}
-              onCloseFiltered=${onCloseFiltered}
-              onDedupAll=${onDedupAll}
+  return (
+    <>
+      <div className={dashboardShellClass}>
+        {showTabHistory && (
+          <TabHistoryPanel
+            snapshot={tabHistory}
+            onSnapshotChange={setTabHistory}
+            onHoverUrlChange={setUrlPreview}
+            onTabsChange={() => refreshRef.current({ animateCards: true })}
+          />
+        )}
+        <div className="dashboard-main">
+          <div className={'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
+            <HeaderBar
+              source={source}
+              totalTabs={stats.totalTabs}
+              visibleTabs={stats.visibleTabs}
+              totalWindows={stats.totalWindows}
+              visibleWindows={stats.visibleWindows}
+              totalDomains={stats.totalDomains}
+              visibleDomains={stats.visibleDomains}
+              dedupCount={stats.dedupCount}
+              filteredCloseCount={stats.filteredCloseCount}
+              hasCards={stats.hasCards}
+              filtering={stats.filtering}
+              ready={isReady}
+              filter={filterInput}
+              filterFocusRequest={filterFocusRequest}
+              historyRange={historyRange}
+              showHistoryRange={showHistoryRange}
+              onFilterChange={setFilterInput}
+              onHistoryRangeChange={setHistoryRange}
+              onSourceChange={onSourceChange}
+              onCloseFiltered={onCloseFiltered}
+              onDedupAll={onDedupAll}
             />
           </div>
 
-          <div class="scroll-region" ref=${scrollRegionRef}>
-            ${isReady &&
-            html`
-              <div class=${primaryMissionsClass} id="openTabsMissions" ref=${primaryMissionsRef}>
-                <${Missions}
-                  cards=${matchedCards}
-                  filter=${filter}
-                  source=${source}
-                  showEmptyState=${showPrimaryEmptyState}
-                  onHoverUrlChange=${setUrlPreview}
-                  onLayoutChange=${scheduleMissionsMasonry}
-                  onTogglePinnedDomain=${onTogglePinnedDomain}
-                />
-              </div>
-
-              ${showBookmarkMatches &&
-              html`
-                <div class="missions-other missions-bookmarks" id="bookmarkMatchesSection">
-                  <div class="missions-divider" role="separator">
-                    <span class="missions-divider-rule"></span>
-                    <span class="missions-divider-label">Bookmarks</span>
-                    <span class="missions-divider-rule"></span>
-                  </div>
-                  <div class="missions" id="bookmarkMatchesMissions" ref=${bookmarkMissionsRef}>
-                    <${Missions}
-                      cards=${bookmarkMatchedCards}
-                      filter=${filter}
-                      source="bookmarks"
-                      showEmptyState=${false}
-                      onHoverUrlChange=${setUrlPreview}
-                      onLayoutChange=${scheduleMissionsMasonry}
-                      onTogglePinnedDomain=${onTogglePinnedDomain}
-                    />
-                  </div>
+          <div className="scroll-region" ref={scrollRegionRef}>
+            {isReady && (
+              <>
+                <div className={primaryMissionsClass} id="openTabsMissions" ref={primaryMissionsRef}>
+                  <Missions
+                    cards={matchedCards}
+                    filter={filter}
+                    source={source}
+                    showEmptyState={showPrimaryEmptyState}
+                    onHoverUrlChange={setUrlPreview}
+                    onLayoutChange={scheduleMissionsMasonry}
+                    onTogglePinnedDomain={onTogglePinnedDomain}
+                  />
                 </div>
-              `}
 
-              ${showHistoryMatches &&
-              html`
-                <div class="missions-other missions-history" id="historyMatchesSection">
-                  <div class="missions-divider" role="separator">
-                    <span class="missions-divider-rule"></span>
-                    <span class="missions-divider-label">History</span>
-                    <span class="missions-divider-rule"></span>
+                {showBookmarkMatches && (
+                  <div className="missions-other missions-bookmarks" id="bookmarkMatchesSection">
+                    <div className="missions-divider" role="separator">
+                      <span className="missions-divider-rule" />
+                      <span className="missions-divider-label">Bookmarks</span>
+                      <span className="missions-divider-rule" />
+                    </div>
+                    <div className="missions" id="bookmarkMatchesMissions" ref={bookmarkMissionsRef}>
+                      <Missions
+                        cards={bookmarkMatchedCards}
+                        filter={filter}
+                        source="bookmarks"
+                        showEmptyState={false}
+                        onHoverUrlChange={setUrlPreview}
+                        onLayoutChange={scheduleMissionsMasonry}
+                        onTogglePinnedDomain={onTogglePinnedDomain}
+                      />
+                    </div>
                   </div>
-                  <div class="missions" id="historyMatchesMissions" ref=${historyMissionsRef}>
-                    <${Missions}
-                      cards=${historyMatchedCards}
-                      filter=${filter}
-                      source="history"
-                      showEmptyState=${false}
-                      onHoverUrlChange=${setUrlPreview}
-                      onLayoutChange=${scheduleMissionsMasonry}
-                      onTogglePinnedDomain=${onTogglePinnedDomain}
-                    />
-                  </div>
-                </div>
-              `}
+                )}
 
-              ${showOtherTabs &&
-              html`
-                <div class="missions-other" id="openTabsMissionsOther">
-                  <div class="missions-divider" role="separator">
-                    <span class="missions-divider-rule"></span>
-                    <span class="missions-divider-label">Other tabs</span>
-                    <span class="missions-divider-rule"></span>
+                {showHistoryMatches && (
+                  <div className="missions-other missions-history" id="historyMatchesSection">
+                    <div className="missions-divider" role="separator">
+                      <span className="missions-divider-rule" />
+                      <span className="missions-divider-label">History</span>
+                      <span className="missions-divider-rule" />
+                    </div>
+                    <div className="missions" id="historyMatchesMissions" ref={historyMissionsRef}>
+                      <Missions
+                        cards={historyMatchedCards}
+                        filter={filter}
+                        source="history"
+                        showEmptyState={false}
+                        onHoverUrlChange={setUrlPreview}
+                        onLayoutChange={scheduleMissionsMasonry}
+                        onTogglePinnedDomain={onTogglePinnedDomain}
+                      />
+                    </div>
                   </div>
-                  <div class="missions" id="openTabsMissionsUnmatched" ref=${unmatchedMissionsRef}>
-                    <${Missions}
-                      cards=${unmatchedCards}
-                      filter=${filter}
-                      source=${source}
-                      showEmptyState=${false}
-                      onHoverUrlChange=${setUrlPreview}
-                      onLayoutChange=${scheduleMissionsMasonry}
-                      onTogglePinnedDomain=${onTogglePinnedDomain}
-                    />
+                )}
+
+                {showOtherTabs && (
+                  <div className="missions-other" id="openTabsMissionsOther">
+                    <div className="missions-divider" role="separator">
+                      <span className="missions-divider-rule" />
+                      <span className="missions-divider-label">Other tabs</span>
+                      <span className="missions-divider-rule" />
+                    </div>
+                    <div className="missions" id="openTabsMissionsUnmatched" ref={unmatchedMissionsRef}>
+                      <Missions
+                        cards={unmatchedCards}
+                        filter={filter}
+                        source={source}
+                        showEmptyState={false}
+                        onHoverUrlChange={setUrlPreview}
+                        onLayoutChange={scheduleMissionsMasonry}
+                        onTogglePinnedDomain={onTogglePinnedDomain}
+                      />
+                    </div>
                   </div>
-                </div>
-              `}
-            `}
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <${UrlPreview} url=${urlPreview.url} visible=${urlPreview.visible} />
-    </${Fragment}>
-  `
+      <UrlPreview url={urlPreview.url} visible={urlPreview.visible} />
+    </>
+  )
 }
 
 export function mountApp(initialDashboard = null) {
   const el = document.getElementById('appRoot')
   if (!el) return
-  preactRender(html`<${App} initialDashboard=${initialDashboard} />`, el)
+  createRoot(el).render(<App initialDashboard={initialDashboard} />)
 }

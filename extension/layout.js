@@ -22,7 +22,7 @@
    when the visible block set changes.
    ================================================================ */
 
-import { useEffect, useRef } from './vendor/preact-hooks.mjs'
+import { useEffect, useRef } from 'react'
 
 const MIN_COL_WIDTH = 260
 const IDEAL_COL_WIDTH = 304
