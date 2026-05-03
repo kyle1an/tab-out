@@ -17,6 +17,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(pkg.dependencies?.react)
   assert.ok(pkg.dependencies?.['react-dom'])
   assert.ok(pkg.devDependencies?.['@types/chrome'])
+  assert.ok(pkg.devDependencies?.['@rolldown/plugin-babel'])
+  assert.ok(pkg.devDependencies?.['babel-plugin-react-compiler'])
   assert.ok(pkg.devDependencies?.vite)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
@@ -25,6 +27,10 @@ test('extension HTML loads the Vite-built React entry', () => {
   const indexHtml = readFileSync('extension/index.html', 'utf8')
   assert.match(indexHtml, /src="dist\/app\.js"/)
   assert.doesNotMatch(indexHtml, /src="app\.js"/)
+
+  const viteConfig = readFileSync('vite.config.ts', 'utf8')
+  assert.match(viteConfig, /reactCompilerPreset/)
+  assert.match(viteConfig, /@rolldown\/plugin-babel/)
 
   const appSource = readFileSync('src/app.tsx', 'utf8')
   const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')
