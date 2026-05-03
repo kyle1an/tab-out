@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { chooseMasonryLayout } from '../extension/layout.js'
+import { chooseMasonryLayout, shouldAnimateMasonryResize } from '../extension/layout.js'
 
 test('chooseMasonryLayout delays a new column until the width is near the comfort target', () => {
   const beforeThreshold = chooseMasonryLayout(1340)
@@ -44,6 +44,12 @@ test('chooseMasonryLayout keeps a single narrow column when the container is too
     colCount: 1,
     colWidth: 220
   })
+})
+
+test('shouldAnimateMasonryResize only changes when the column count changes', () => {
+  assert.equal(shouldAnimateMasonryResize(1360, 4), false)
+  assert.equal(shouldAnimateMasonryResize(1390, 4), true)
+  assert.equal(shouldAnimateMasonryResize(1390, undefined), false)
 })
 
 test('masonry card motion uses transform instead of layout-property transitions', () => {

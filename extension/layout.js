@@ -67,6 +67,11 @@ export function chooseMasonryLayout(containerWidth, { minColWidth = MIN_COL_WIDT
   return best ? { colCount: best.colCount, colWidth: best.colWidth } : { colCount: 1, colWidth: containerWidth }
 }
 
+export function shouldAnimateMasonryResize(containerWidth, previousColCount, options = {}) {
+  if (!Number.isInteger(previousColCount)) return false
+  return chooseMasonryLayout(containerWidth, options).colCount !== previousColCount
+}
+
 export function packMissionsMasonry(containers, { unpin = false, lastColCounts = null } = {}) {
   const targets = Array.isArray(containers) ? containers : [containers]
   for (const container of targets) {
@@ -151,6 +156,14 @@ export function useMissionsMasonry(...args) {
     if (animate && onAfterPack) onAfterPack(containers, animationState)
   }
 
+  function shouldAnimateCurrentResize(containers) {
+    return containers.some((container) => {
+      if (!container || container.clientWidth === 0) return false
+      const previousColCount = lastColCountsRef.current.get(container)
+      return shouldAnimateMasonryResize(container.clientWidth, previousColCount, masonryOptionsFor(container))
+    })
+  }
+
   function scheduleMissionsMasonry({ unpin = false, animate = true } = {}) {
     cancelAnimationFrame(rafIdRef.current)
     rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin, animate }))
@@ -160,7 +173,10 @@ export function useMissionsMasonry(...args) {
     if (typeof ResizeObserver !== 'function') return
     let observer = observerRef.current
     if (!observer) {
-      observer = new ResizeObserver(() => scheduleMissionsMasonry({ animate: true }))
+      observer = new ResizeObserver(() => {
+        const containers = currentContainers()
+        scheduleMissionsMasonry({ animate: shouldAnimateCurrentResize(containers) })
+      })
       observerRef.current = observer
     }
     observer.disconnect()
