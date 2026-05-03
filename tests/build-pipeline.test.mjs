@@ -7,7 +7,9 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  assert.equal(pkg.scripts?.dev, 'vite build --watch')
   assert.equal(pkg.scripts?.build, 'vite build')
+  assert.equal(pkg.scripts?.['build:debug'], 'vite build --sourcemap')
   assert.ok(pkg.dependencies?.react)
   assert.ok(pkg.dependencies?.['react-dom'])
   assert.ok(pkg.devDependencies?.vite)

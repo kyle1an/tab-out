@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite build --watch",
     "build": "vite build",
     "build:debug": "vite build --sourcemap",
     "typecheck": "tsc --noEmit",

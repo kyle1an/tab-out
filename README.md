@@ -91,10 +91,20 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 
 ```bash
 npm install
+npm run dev
+```
+
+Load the `extension/` folder in Chrome. Keep `npm run dev` running while editing React/TSX files under `src/`; Vite rebuilds the packaged `extension/dist/app.js` bundle after each source change.
+
+Refresh the Tab Out page to see rebuilt UI changes. Reload the extension in `chrome://extensions` when changing `manifest.json`, `background.js`, permissions, or service-worker behavior. Changes to plain extension files such as `extension/style.css`, `extension/render.js`, or `extension/index.html` do not need a Vite rebuild, but Chrome still needs a page or extension reload to pick them up.
+
+Before committing:
+
+```bash
 npm run verify
 ```
 
-Load the `extension/` folder in Chrome. After changing files under `src/`, rerun `npm run build` and reload the extension in `chrome://extensions`. Use `npm run build:debug` when you need a local sourcemap.
+Use `npm run build:debug` when you need a local sourcemap.
 
 ---
 
