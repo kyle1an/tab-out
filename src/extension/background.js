@@ -13,108 +13,30 @@
  *   Red    (#b35a5a) → 21+ tabs   (time to cull!)
  */
 
+import { updateBadge } from './background/badge.js'
+import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
+import {
+  MAX_TAB_HISTORY,
+  canonicalizeGlobalHistory,
+  displayUrlForHistory,
+  findHistoryTargetIndex,
+  findTabForHistoryEntry,
+  historyChanged,
+  historyForUserActivation,
+  normalizeGlobalHistory,
+  pruneMissingHistoryEntries,
+  removeTabEntriesFromHistory,
+  repairHistoryCursorForActiveTab
+} from './background/tab-history-state.js'
+
 const TAB_HISTORY_KEY = 'globalTabHistory'
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
-const OPEN_FILTER_TAB_COMMAND = 'open-filter-tab'
-const FOCUS_FILTER_PARAM = 'focusFilter'
-const MAX_TAB_HISTORY = 24
 let tabHistoryCache = null
 let tabHistoryQueue = Promise.resolve()
 
-function filterFocusUrl() {
-  return `chrome-extension://${chrome.runtime.id}/index.html?${FOCUS_FILTER_PARAM}=1`
-}
-
-function normalizeGlobalHistory(entry) {
-  if (!entry || !Array.isArray(entry.stack)) {
-    return { stack: [], index: -1 }
-  }
-  const stack = entry.stack.filter((item) => item && typeof item.tabId === 'number' && typeof item.windowId === 'number')
-  const maxIndex = stack.length - 1
-  const index = Number.isInteger(entry.index) ? Math.max(-1, Math.min(entry.index, maxIndex)) : maxIndex
-  return { stack, index }
-}
-
-function historyChanged(a, b) {
-  const first = normalizeGlobalHistory(a)
-  const second = normalizeGlobalHistory(b)
-  if (first.index !== second.index || first.stack.length !== second.stack.length) return true
-  return first.stack.some((entry, index) => entry.tabId !== second.stack[index].tabId || entry.windowId !== second.stack[index].windowId)
-}
-
-function dedupeHistoryByLatestTab(history) {
-  const current = normalizeGlobalHistory(history)
-  const latestIndexByTabId = new Map()
-  current.stack.forEach((entry, index) => latestIndexByTabId.set(entry.tabId, index))
-
-  const nextStack = []
-  const oldIndexToNewIndex = new Map()
-  current.stack.forEach((entry, index) => {
-    if (latestIndexByTabId.get(entry.tabId) !== index) return
-    oldIndexToNewIndex.set(index, nextStack.length)
-    nextStack.push(entry)
-  })
-
-  let nextIndex = -1
-  const currentEntry = current.stack[current.index]
-  if (currentEntry) {
-    const keptOldIndex = latestIndexByTabId.get(currentEntry.tabId)
-    nextIndex = oldIndexToNewIndex.get(keptOldIndex) ?? -1
-  }
-
-  return {
-    stack: nextStack,
-    index: nextStack.length === 0 ? -1 : nextIndex
-  }
-}
-
-function trimHistoryToMax(history) {
-  const current = normalizeGlobalHistory(history)
-  if (current.stack.length <= MAX_TAB_HISTORY) return current
-
-  const dropCount = current.stack.length - MAX_TAB_HISTORY
-  return {
-    stack: current.stack.slice(dropCount),
-    index: current.index === -1 ? -1 : Math.max(0, current.index - dropCount)
-  }
-}
-
-function canonicalizeGlobalHistory(history) {
-  const current = normalizeGlobalHistory(history)
-  const deduped = dedupeHistoryByLatestTab(current)
-  const trimmed = trimHistoryToMax(deduped)
-  return {
-    history: trimmed,
-    changed: historyChanged(current, trimmed)
-  }
-}
-
 function tabHistoryStorageArea() {
   return chrome.storage?.local || chrome.storage?.session || null
-}
-
-function removeTabEntriesFromHistory(history, tabId) {
-  const current = normalizeGlobalHistory(history)
-  const removedIndexes = current.stack
-    .map((entry, index) => (entry.tabId === tabId ? index : -1))
-    .filter((index) => index !== -1)
-
-  if (removedIndexes.length === 0) return history
-
-  const nextStack = current.stack.filter((entry) => entry.tabId !== tabId)
-  const removedBeforeIndex = removedIndexes.filter((index) => index < current.index).length
-  const removedAtIndex = removedIndexes.includes(current.index)
-  let nextIndex = current.index - removedBeforeIndex
-
-  if (removedAtIndex) {
-    nextIndex = Math.min(nextIndex, nextStack.length - 1)
-  }
-
-  return {
-    stack: nextStack,
-    index: nextStack.length === 0 ? -1 : Math.max(0, nextIndex)
-  }
 }
 
 async function readTabHistory() {
@@ -184,54 +106,6 @@ function enqueueTabHistoryMutation(mutator) {
   return task
 }
 
-function historyForUserActivation(history, activeEntry) {
-  const current = canonicalizeGlobalHistory(history).history
-  if (!activeEntry || typeof activeEntry.tabId !== 'number' || typeof activeEntry.windowId !== 'number') {
-    return { history: current, changed: false }
-  }
-
-  if (current.stack[current.index]?.tabId === activeEntry.tabId) {
-    const nextStack = current.stack.slice()
-    nextStack[current.index] = { windowId: activeEntry.windowId, tabId: activeEntry.tabId }
-    const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: current.index }).history
-    return { history: nextHistory, changed: historyChanged(current, nextHistory) }
-  }
-
-  const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push({ windowId: activeEntry.windowId, tabId: activeEntry.tabId })
-  const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: nextStack.length - 1 }).history
-
-  return { history: nextHistory, changed: historyChanged(current, nextHistory) }
-}
-
-function repairHistoryCursorForActiveTab(history, activeTab) {
-  const current = canonicalizeGlobalHistory(history).history
-  if (!activeTab?.id) {
-    return { history: current, activeWasInserted: false, changed: historyChanged(history, current) }
-  }
-
-  if (current.stack[current.index]?.tabId === activeTab.id) {
-    const nextStack = current.stack.slice()
-    nextStack[current.index] = { windowId: activeTab.windowId, tabId: activeTab.id }
-    const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: current.index }).history
-    return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
-  }
-
-  const latestActiveIndex = current.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
-  if (latestActiveIndex !== -1) {
-    const nextStack = current.stack.slice()
-    nextStack[latestActiveIndex] = { windowId: activeTab.windowId, tabId: activeTab.id }
-    const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: latestActiveIndex }).history
-    return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
-  }
-
-  const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
-  const nextHistory = canonicalizeGlobalHistory({ stack: nextStack, index: nextStack.length - 1 }).history
-
-  return { history: nextHistory, activeWasInserted: true, changed: true }
-}
-
 async function recordTabActivation(windowId, tabId) {
   if (typeof windowId !== 'number' || typeof tabId !== 'number') return
 
@@ -241,26 +115,6 @@ async function recordTabActivation(windowId, tabId) {
       history: historyForUserActivation(history, { windowId, tabId }).history
     }
   })
-}
-
-function findHistoryTargetIndex(history, direction, existingTabs, activeTab) {
-  if (!activeTab?.id) return -1
-
-  let nextIndex = history.index + direction
-  while (
-    nextIndex >= 0 &&
-    nextIndex < history.stack.length &&
-    (!existingTabs.has(history.stack[nextIndex].tabId) || history.stack[nextIndex].tabId === activeTab.id)
-  ) {
-    nextIndex += direction
-  }
-  return nextIndex < 0 || nextIndex >= history.stack.length ? -1 : nextIndex
-}
-
-function findTabForHistoryEntry(history, tabsById) {
-  const current = normalizeGlobalHistory(history)
-  const entry = current.stack[current.index]
-  return entry ? tabsById.get(entry.tabId) || null : null
 }
 
 async function findFocusedWindowId() {
@@ -308,21 +162,6 @@ async function focusExistingTab(tab) {
   } catch {
     await removeTabFromHistory(tab.id)
     return false
-  }
-}
-
-function pruneMissingHistoryEntries(history, existingTabs) {
-  const current = normalizeGlobalHistory(history)
-  let nextHistory = current
-
-  for (const entry of current.stack) {
-    if (existingTabs.has(entry.tabId)) continue
-    nextHistory = removeTabEntriesFromHistory(nextHistory, entry.tabId)
-  }
-
-  return {
-    ...nextHistory,
-    changed: nextHistory.stack.length !== current.stack.length || nextHistory.index !== current.index
   }
 }
 
@@ -497,18 +336,6 @@ async function switchTabHistory(direction) {
   await focusExistingTab(focusAction.tab)
 }
 
-function displayUrlForHistory(url = '') {
-  if (!url) return ''
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol === 'chrome-extension:' && parsed.pathname.endsWith('/index.html')) return 'Tab Out'
-    if (parsed.protocol === 'chrome:') return parsed.href
-    return parsed.hostname + parsed.pathname
-  } catch {
-    return url
-  }
-}
-
 async function getTabHistorySnapshot() {
   const { value: snapshot } = await enqueueTabHistoryMutation(async (storedHistory) => {
     const tabs = await chrome.tabs.query({})
@@ -560,83 +387,6 @@ async function getTabHistorySnapshot() {
   })
 
   return snapshot
-}
-
-async function findNormalBrowserWindow() {
-  try {
-    const lastFocusedNormal = await chrome.windows.getLastFocused({ windowTypes: ['normal'] })
-    if (typeof lastFocusedNormal?.id === 'number') return lastFocusedNormal
-  } catch {}
-
-  try {
-    const normalWindows = await chrome.windows.getAll({ windowTypes: ['normal'] })
-    return normalWindows.find((win) => win.focused) || normalWindows[0] || null
-  } catch {
-    return null
-  }
-}
-
-async function openFilterTab() {
-  const url = filterFocusUrl()
-  const normalWindow = await findNormalBrowserWindow()
-
-  if (typeof normalWindow?.id === 'number') {
-    await chrome.tabs.create({
-      windowId: normalWindow.id,
-      url,
-      active: true
-    })
-    try {
-      await chrome.windows.update(normalWindow.id, { focused: true })
-    } catch {}
-    return
-  }
-
-  try {
-    await chrome.windows.create({ type: 'normal', url, focused: true })
-  } catch {
-    await chrome.tabs.create({ url, active: true })
-  }
-}
-
-// ─── Badge updater ────────────────────────────────────────────────────────────
-
-/**
- * updateBadge()
- *
- * Counts open real-web tabs and updates the extension's toolbar badge.
- * "Real" tabs = not chrome://, not extension pages, not about:blank.
- */
-async function updateBadge() {
-  try {
-    const tabs = await chrome.tabs.query({})
-
-    // Only count actual web pages — skip browser internals and extension pages
-    const count = tabs.filter((t) => {
-      const url = t.url || ''
-      return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
-    }).length
-
-    // Don't show "0" — an empty badge is cleaner
-    await chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' })
-
-    if (count === 0) return
-
-    // Pick badge color based on workload level
-    let color
-    if (count <= 10) {
-      color = '#3d7a4a' // Green — you're in control
-    } else if (count <= 20) {
-      color = '#b8892e' // Amber — things are piling up
-    } else {
-      color = '#b35a5a' // Red — time to focus and close some tabs
-    }
-
-    await chrome.action.setBadgeBackgroundColor({ color })
-  } catch {
-    // If something goes wrong, clear the badge rather than show stale data
-    chrome.action.setBadgeText({ text: '' })
-  }
 }
 
 // ─── Event listeners ──────────────────────────────────────────────────────────

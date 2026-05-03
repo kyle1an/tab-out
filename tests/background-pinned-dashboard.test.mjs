@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import vm from 'node:vm'
-import { readFileSync } from 'node:fs'
 
-const backgroundSource = readFileSync(new URL('../src/extension/background.js', import.meta.url), 'utf8')
+const backgroundUrl = new URL('../src/extension/background.js', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
+let backgroundImportId = 0
 
 function clone(value) {
   return value == null ? value : JSON.parse(JSON.stringify(value))
@@ -340,14 +339,8 @@ async function flushBackgroundWork() {
 
 async function loadBackground(initialTabs, options = {}) {
   const mock = createChromeMock(initialTabs, options)
-  const context = vm.createContext({
-    chrome: mock.chrome,
-    console,
-    setTimeout,
-    clearTimeout
-  })
-
-  new vm.Script(backgroundSource, { filename: 'background.js' }).runInContext(context)
+  globalThis.chrome = mock.chrome
+  await import(`${backgroundUrl.href}?test=${backgroundImportId++}`)
   await flushBackgroundWork()
   return mock
 }

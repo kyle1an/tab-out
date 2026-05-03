@@ -1,0 +1,31 @@
+/**
+ * Counts open real-web tabs and updates the extension toolbar badge.
+ * "Real" tabs = not browser internals, extension pages, or about:blank.
+ */
+export async function updateBadge() {
+  try {
+    const tabs = await chrome.tabs.query({})
+
+    const count = tabs.filter((t) => {
+      const url = t.url || ''
+      return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
+    }).length
+
+    await chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' })
+
+    if (count === 0) return
+
+    let color
+    if (count <= 10) {
+      color = '#3d7a4a'
+    } else if (count <= 20) {
+      color = '#b8892e'
+    } else {
+      color = '#b35a5a'
+    }
+
+    await chrome.action.setBadgeBackgroundColor({ color })
+  } catch {
+    chrome.action.setBadgeText({ text: '' })
+  }
+}
