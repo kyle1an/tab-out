@@ -302,6 +302,23 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
 })
 
+test('computeDomainCardViewModel uses the simple count when every chip matches the filter', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://alpha.example.com/overview', title: 'Alpha overview' }),
+      makeTab({ id: 2, url: 'https://alpha.example.com/details', title: 'Alpha details' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { filter: 'alpha' })
+
+  assert.equal(vm.tabCount, 2)
+  assert.equal(vm.totalTabCount, 2)
+  assert.equal(vm.tabCountLabel, '2')
+  assert.equal(vm.tabCountTitle, '2 of 2 open tabs shown while filtering')
+})
+
 test('titleForFilterInput mirrors typed filter keywords', () => {
   assert.equal(titleForFilterInput('github'), 'github - Tab Out')
   assert.equal(titleForFilterInput('  qa env  '), 'qa env - Tab Out')

@@ -396,7 +396,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       : allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'history')
         ? 'history result'
         : 'open tab'
-  const tabCountLabel = filtering ? `${tabCount}/${totalTabCount}` : `${tabCount}`
+  const tabCountLabel = filtering && tabCount !== totalTabCount ? `${tabCount}/${totalTabCount}` : `${tabCount}`
   const tabCountTitle = filtering
     ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`
     : `${tabCount} ${itemLabel}${tabCount !== 1 ? 's' : ''}`
