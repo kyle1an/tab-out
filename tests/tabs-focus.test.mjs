@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { closeHistoryEntry } from '../extension/tab-history.js'
 import { focusTab } from '../extension/tabs.js'
+import { markClosure, undoLastClose } from '../extension/undo.js'
 
 function createChromeMock(initialTabs, currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
@@ -125,4 +127,38 @@ test('closeHistoryEntry removes the exact history tab and returns an undo snapsh
       index: 3
     }
   ])
+})
+
+test('undoLastClose restores tabs and requests animated dashboard refresh', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+  let refreshOptions = null
+  const unregister = registerDashboardRefresh((options) => {
+    refreshOptions = options
+  })
+
+  markClosure([
+    {
+      url: 'https://example.com/docs',
+      title: 'Docs',
+      pinned: true,
+      groupId: -1,
+      windowId: 1,
+      index: 1
+    }
+  ])
+  await undoLastClose()
+  unregister()
+
+  assert.deepEqual(calls.create, [
+    {
+      url: 'https://example.com/docs',
+      windowId: 1,
+      pinned: true,
+      active: false
+    }
+  ])
+  assert.equal(tabs.some((tab) => tab.url === 'https://example.com/docs'), true)
+  assert.deepEqual(refreshOptions, { animateCards: true })
 })

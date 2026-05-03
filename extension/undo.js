@@ -15,6 +15,7 @@
    ================================================================ */
 
 import { showToast } from './components/Toast.js'
+import { requestDashboardRefresh } from './dashboard-controller.js'
 
 let lastClosure = null
 
@@ -54,6 +55,8 @@ export async function undoLastClose() {
       /* tab create failed (e.g., bad URL) — skip */
     }
   }
+
+  await requestDashboardRefresh({ animateCards: true })
 
   const n = closure.tabs.length
   const firstId = restoredTabIds[0]

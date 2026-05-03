@@ -273,9 +273,10 @@ export function App({ initialDashboard = null }) {
     setUrlPreviewState((prev) => (prev.url || prev.visible ? { url: '', visible: false } : prev))
   }
 
-  refreshRef.current = async () => {
+  refreshRef.current = async ({ animateCards = false } = {}) => {
     if (document.visibilityState !== 'visible') return
     if (!pinsLoaded) return
+    if (animateCards) primeCardMoveAnimation()
     const [next, nextTabHistory] = await Promise.all([
       fetchDashboardData(previousOrderRef.current[source] || new Map(), source, {
         pinnedDomains,
@@ -292,7 +293,7 @@ export function App({ initialDashboard = null }) {
     setTabHistory(nextTabHistory)
   }
 
-  useEffect(() => registerDashboardRefresh(() => refreshRef.current()), [])
+  useEffect(() => registerDashboardRefresh((options) => refreshRef.current(options)), [])
 
   useEffect(() => {
     let cancelled = false
@@ -417,7 +418,7 @@ export function App({ initialDashboard = null }) {
     } else {
       showToast('Nothing to close')
     }
-    await refreshRef.current()
+    await refreshRef.current({ animateCards: true })
   }
 
   async function onDedupAll() {
@@ -425,7 +426,7 @@ export function App({ initialDashboard = null }) {
     if (urls.length === 0) return
     const snapshot = await closeDuplicateTabs(urls, true, { preservePinnedTabOut: true })
     markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
-    await refreshRef.current()
+    await refreshRef.current({ animateCards: true })
   }
 
   async function onTogglePinnedDomain(domain) {
@@ -496,7 +497,7 @@ export function App({ initialDashboard = null }) {
           snapshot=${tabHistory}
           onSnapshotChange=${setTabHistory}
           onHoverUrlChange=${setUrlPreview}
-          onTabsChange=${() => refreshRef.current()}
+          onTabsChange=${() => refreshRef.current({ animateCards: true })}
         />`}
         <div class="dashboard-main">
           <div class=${'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>

@@ -133,10 +133,10 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     }
 
     markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${vm.displayName}`)
-    await requestDashboardRefresh()
+    await requestDashboardRefresh({ animateCards: true })
   }
 
-  // Dedup handler: fade the clicked button + every (Nx) badge via the
+  // Dedup handler: fade the clicked button + every duplicate-count badge via the
   // shared `.closing` CSS class, then a dashboard refresh rebuilds
   // the VM — Preact removes the button + badges from the DOM, counts
   // refresh from the fresh VM, masonry re-packs. The previous code
@@ -163,7 +163,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     await new Promise((r) => setTimeout(r, 200))
 
     markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`)
-    await requestDashboardRefresh()
+    await requestDashboardRefresh({ animateCards: true })
   }
 
   async function onTogglePin(e) {

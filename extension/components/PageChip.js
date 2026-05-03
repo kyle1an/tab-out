@@ -4,7 +4,7 @@
    Renders one tab chip. Props take a pre-computed `chip` data
    object (see buildChipData in render.js) so the component itself
    stays view-only: favicon img, chip-text with optional subdomain /
-   path-group / path suffix spans, optional "(Nx)" dupe badge, and
+   path-group / path suffix spans, optional duplicate-count badge, and
    an X close button.
 
    Event handlers:
@@ -235,7 +235,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     // from VM, card may collapse too; duplicate set → (Nx) badge
     // decrements via the fresh VM.
     setPreview('')
-    await requestDashboardRefresh()
+    await requestDashboardRefresh({ animateCards: true })
 
     if (snapshot.length > 0) {
       const label = isFolded ? `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} across subdomains` : 'Tab closed'
@@ -261,7 +261,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     chipEl?.classList.add('closing')
     await new Promise((r) => setTimeout(r, 200))
     setPreview('')
-    await requestDashboardRefresh()
+    await requestDashboardRefresh({ animateCards: true })
     showToast(deletedCount === 1 ? 'History deleted' : `Deleted ${deletedCount} history items`)
   }
 
@@ -270,14 +270,18 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
   // folded chip we join all env URLs so the preview can fall back to
   // the first one while any env pill shows its own specific URL.
   const dataTabUrl = isFolded ? chip.envs.map((e) => e.tabUrl).join(' ') : chip.tabUrl
+  const dupeCount = chip.dupeCount || 1
+  const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
+  const chipLabel = [chip.tooltip, duplicateLabel].filter(Boolean).join(' · ')
+  const dupeBadgeClass = 'chip-dupe-badge' + (dupeCount > 9 ? ' chip-dupe-badge-wide' : '')
 
   return html`
     <div
       class=${'page-chip clickable' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
       data-action="focus-tab"
       data-tab-url=${dataTabUrl}
-      title=${chip.tooltip}
-      aria-label=${chip.tooltip}
+      title=${chipLabel}
+      aria-label=${chipLabel}
       style=${style}
       tabIndex="0"
       onClick=${onFocus}
@@ -291,6 +295,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
       html`
         <span class=${'chip-favicon-frame' + (chip.isApp ? ' is-app' : '')}>
           <img class="chip-favicon" src=${chip.faviconUrl} alt="" />
+          ${!chip.iconOnly && dupeCount > 1 && html`<span class=${dupeBadgeClass} aria-hidden="true">${dupeCount}</span>`}
         </span>
       `}
       ${!chip.iconOnly &&
@@ -326,7 +331,6 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
           ${chip.pathSuffix && html` <span class="chip-path">${chip.pathSuffix}</span> `}
         </span>
       `}
-      ${!chip.iconOnly && chip.dupeCount > 1 && html` <span class="chip-dupe-badge">(${chip.dupeCount}x)</span> `}
       ${!chip.iconOnly &&
       !isFolded &&
       (!isReadOnlySource || isHistorySource) &&

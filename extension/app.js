@@ -16,19 +16,31 @@ import { requestDashboardRefresh } from './dashboard-controller.js'
 import { groupColorChanged } from './groups.js'
 
 let refreshTimer = null
+let refreshTimerOptions = {}
 
-function scheduleDashboardRefresh() {
+function scheduleDashboardRefresh(options = {}) {
+  refreshTimerOptions = {
+    animateCards: !!(refreshTimerOptions.animateCards || options.animateCards)
+  }
   clearTimeout(refreshTimer)
-  refreshTimer = setTimeout(() => requestDashboardRefresh(), 250)
+  refreshTimer = setTimeout(() => {
+    const options = refreshTimerOptions
+    refreshTimerOptions = {}
+    requestDashboardRefresh(options)
+  }, 250)
+}
+
+function scheduleAnimatedDashboardRefresh() {
+  scheduleDashboardRefresh({ animateCards: true })
 }
 
 if (chrome.tabs) {
-  chrome.tabs.onCreated.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onCreated.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onActivated.addListener(scheduleDashboardRefresh)
-  chrome.tabs.onRemoved.addListener(scheduleDashboardRefresh)
-  chrome.tabs.onMoved.addListener(scheduleDashboardRefresh)
-  chrome.tabs.onAttached.addListener(scheduleDashboardRefresh)
-  chrome.tabs.onDetached.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onRemoved.addListener(scheduleAnimatedDashboardRefresh)
+  chrome.tabs.onMoved.addListener(scheduleAnimatedDashboardRefresh)
+  chrome.tabs.onAttached.addListener(scheduleAnimatedDashboardRefresh)
+  chrome.tabs.onDetached.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
     if (
       changeInfo.title !== undefined ||
@@ -38,7 +50,13 @@ if (chrome.tabs) {
       changeInfo.pinned !== undefined ||
       changeInfo.discarded !== undefined
     )
-      scheduleDashboardRefresh()
+      scheduleDashboardRefresh({
+        animateCards:
+          changeInfo.url !== undefined ||
+          changeInfo.groupId !== undefined ||
+          changeInfo.pinned !== undefined ||
+          changeInfo.discarded !== undefined
+      })
   })
 }
 

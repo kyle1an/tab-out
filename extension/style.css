@@ -1310,6 +1310,7 @@ header {
   flex-shrink: 0;
   display: grid;
   place-items: center;
+  position: relative;
 }
 
 .chip-favicon {
@@ -1446,10 +1447,38 @@ header {
   max-height: calc(3lh);
 }
 
-/* Duplicate badge */
+/* Duplicate badge — notification-bubble treatment on the favicon.
+   The count shows total open copies for this URL; the parent chip's
+   title/aria-label carries the full "open copies" wording. */
 .chip-dupe-badge {
-  color: var(--accent-amber);
-  font-weight: 600;
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  z-index: 1;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 2px solid var(--card-bg);
+  border-radius: 999px;
+  background: var(--accent-amber);
+  color: var(--card-bg);
+  box-shadow: 0 1px 2px rgba(10, 10, 10, 0.18);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.chip-dupe-badge-wide {
+  width: auto;
+  padding: 0 4px;
+  border-radius: 8px;
+  corner-shape: squircle;
 }
 
 /* Path suffix — rendered only when two tabs in the same section

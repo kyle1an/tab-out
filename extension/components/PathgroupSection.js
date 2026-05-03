@@ -53,7 +53,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
     if (snapshot.length > 0) {
       markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
     }
-    await requestDashboardRefresh()
+    await requestDashboardRefresh({ animateCards: true })
   }
 
   return html`
