@@ -1,16 +1,35 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import type { MouseEvent, ReactNode } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../../extension/tab-history.js'
 import { markClosure } from '../../extension/undo.js'
 import { showToast } from '../../extension/toast.js'
+import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
+import type { TabHistoryEntry } from '../../extension/types'
 
-let historyTitleResizeObserver = null
+let historyTitleResizeObserver: ResizeObserver | null = null
 
-function isHistoryTitleTruncated(titleEl) {
+interface HistoryEntryProps {
+  entry: TabHistoryEntry
+  indexLabel: ReactNode
+  snapshot: TabHistorySnapshot | null
+  onSnapshotChange?: SnapshotChangeHandler
+  onHoverUrlChange?: HoverUrlChangeHandler
+  onTabsChange?: TabsChangeHandler
+}
+
+interface TabHistoryPanelProps {
+  snapshot: TabHistorySnapshot | null
+  onSnapshotChange?: SnapshotChangeHandler
+  onHoverUrlChange?: HoverUrlChangeHandler
+  onTabsChange?: TabsChangeHandler
+}
+
+function isHistoryTitleTruncated(titleEl: HTMLElement | null) {
   if (!titleEl) return false
   return titleEl.scrollWidth - titleEl.clientWidth > 1
 }
 
-function syncHistoryTitleFade(titleEl) {
+function syncHistoryTitleFade(titleEl: HTMLElement | null) {
   if (!titleEl) return
   titleEl.classList.toggle('history-entry-title-truncated', isHistoryTitleTruncated(titleEl))
 }
@@ -19,13 +38,15 @@ function getHistoryTitleResizeObserver() {
   if (typeof ResizeObserver !== 'function') return null
   if (!historyTitleResizeObserver) {
     historyTitleResizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) syncHistoryTitleFade(entry.target)
+      for (const entry of entries) {
+        if (entry.target instanceof HTMLElement) syncHistoryTitleFade(entry.target)
+      }
     })
   }
   return historyTitleResizeObserver
 }
 
-function entryClass(entry) {
+function entryClass(entry: TabHistoryEntry) {
   return [
     'history-entry',
     entry.current ? 'is-current' : '',
@@ -37,7 +58,7 @@ function entryClass(entry) {
     .join(' ')
 }
 
-function entryBadges(entry, snapshot) {
+function entryBadges(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null) {
   const badges = []
   if (entry.active && !entry.current) badges.push('Active')
   if (entry.cursor && !entry.current) badges.push('Cursor')
@@ -46,7 +67,7 @@ function entryBadges(entry, snapshot) {
   return badges
 }
 
-function historyEntryIndexLabel(entry, snapshot, fallback) {
+function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null, fallback: number): ReactNode {
   if (Number.isInteger(entry.index) && Number.isInteger(snapshot?.currentIndex) && snapshot.currentIndex >= 0) {
     const relativeIndex = entry.index - snapshot.currentIndex
     if (relativeIndex < 0) {
@@ -62,7 +83,7 @@ function historyEntryIndexLabel(entry, snapshot, fallback) {
   return String(fallback)
 }
 
-function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
+function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null)
 
   useLayoutEffect(() => {
@@ -105,7 +126,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
     onSnapshotChange?.(await fetchTabHistorySnapshot())
   }
 
-  async function onCloseEntry(e) {
+  async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const row = e.currentTarget.closest('.history-entry-row')
     const result = await closeHistoryEntry(entry)
@@ -178,7 +199,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   )
 }
 
-export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }) {
+export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }: TabHistoryPanelProps) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
 

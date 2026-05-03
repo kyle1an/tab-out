@@ -8,6 +8,7 @@
     "allowJs": true,
     "checkJs": false,
     "strict": false,
+    "noImplicitAny": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",

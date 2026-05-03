@@ -3,8 +3,26 @@ import { closeTabsExact } from '../../extension/tabs.js'
 import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
 import { markClosure } from '../../extension/undo.js'
 import { PageChip } from './PageChip'
+import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
-function PathgroupCloseButton({ count, onClick }) {
+interface PathgroupCloseButtonProps {
+  count: number
+  onClick: () => void | Promise<void>
+}
+
+interface PathgroupSectionProps {
+  label: string
+  isPR: boolean
+  count: number
+  closableUrls: string[]
+  visibleChips: DashboardChipData[]
+  hiddenChips: DashboardChipData[]
+  hiddenCount: number
+  onHoverUrlChange?: HoverUrlChangeHandler | null
+  onLayoutChange?: LayoutChangeHandler | null
+}
+
+function PathgroupCloseButton({ count, onClick }: PathgroupCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
     <button className="pathgroup-close-btn" title={title} onClick={onClick}>
@@ -15,7 +33,7 @@ function PathgroupCloseButton({ count, onClick }) {
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {

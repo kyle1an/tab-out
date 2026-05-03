@@ -4,8 +4,19 @@ import { requestDashboardRefresh } from '../../extension/dashboard-controller.js
 import { tabMatchesFilter } from '../../extension/render.js'
 import { isPinnableDomain } from '../../extension/domain-pins.js'
 import { SubdomainSection } from './SubdomainSection'
+import type { MouseEvent } from 'react'
+import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
-function CardCloseButton({ label, onClick }) {
+interface DomainCardProps {
+  group: DomainGroup
+  vm: DashboardCardVM
+  filter?: string
+  onHoverUrlChange?: HoverUrlChangeHandler | null
+  onLayoutChange?: LayoutChangeHandler | null
+  onTogglePinnedDomain?: TogglePinnedDomainHandler | null
+}
+
+function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   return (
     <button className="card-close-btn" data-action="close-domain-tabs" onClick={onClick}>
       <span className="card-close-btn-text">{label}</span>
@@ -16,7 +27,7 @@ function CardCloseButton({ label, onClick }) {
   )
 }
 
-function TabBadge({ label, title }) {
+function TabBadge({ label, title }: { label?: string | number; title?: string }) {
   const labelText = String(label ?? '')
   const slashIndex = labelText.indexOf('/')
   if (slashIndex > 0) {
@@ -35,7 +46,7 @@ function TabBadge({ label, title }) {
   )
 }
 
-function DedupButton({ count, dupeUrlsEncoded, onClick }) {
+function DedupButton({ count, dupeUrlsEncoded, onClick }: { count: number; dupeUrlsEncoded?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
@@ -45,7 +56,7 @@ function DedupButton({ count, dupeUrlsEncoded, onClick }) {
   )
 }
 
-function PinButton({ domain, displayName, pinned, onClick }) {
+function PinButton({ domain, displayName, pinned, onClick }: { domain: string; displayName?: string; pinned: boolean; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   const action = pinned ? 'Unpin' : 'Pin'
   const title = `${action} ${displayName}`
   return (
@@ -65,7 +76,7 @@ function PinButton({ domain, displayName, pinned, onClick }) {
   )
 }
 
-function FixedIndicator({ displayName }) {
+function FixedIndicator({ displayName }: { displayName?: string }) {
   return (
     <span className="domain-fixed-indicator" role="img" aria-label={`${displayName} is fixed at the top`} title={`${displayName} is fixed at the top`}>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -75,14 +86,14 @@ function FixedIndicator({ displayName }) {
   )
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }) {
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'
   const isFixedCard = group.domain === '__tab-out__' || group.domain === '__standalone-apps__'
   const canPin = isPinnableDomain(group.domain) && typeof onTogglePinnedDomain === 'function'
 
-  async function onCloseDomain(e) {
+  async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
 
     const scopedTabs = filter ? group.tabs.filter((tab) => tabMatchesFilter(tab, filter)) : group.tabs
@@ -98,7 +109,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     await requestDashboardRefresh({ animateCards: true })
   }
 
-  async function onDedup(e) {
+  async function onDedup(e: MouseEvent<HTMLButtonElement>) {
     const btn = e.currentTarget
     const urls = (btn.dataset.dupeUrls || '')
       .split(',')
@@ -121,7 +132,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     await requestDashboardRefresh({ animateCards: true })
   }
 
-  async function onTogglePin(e) {
+  async function onTogglePin(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
     await onTogglePinnedDomain?.(group.domain)
   }

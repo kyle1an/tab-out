@@ -19,21 +19,30 @@ import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { UrlPreview } from './UrlPreview'
+import type { DashboardData, DashboardSource, DomainGroup, TabHistorySnapshot } from './types'
 
-type DashboardSource = 'tabs' | 'bookmarks' | 'history'
 type RefreshOptions = { animateCards?: boolean }
+type MissionContainer = HTMLDivElement | null
+type CardPosition = { left: number; top: number }
+type CardPositionMap = Map<string, CardPosition[]>
+type MissionOrderMap = Record<DashboardSource, Map<string, number>>
+type CardMoveAnimation = {
+  frameId: number
+  timeoutId: number
+  onTransitionEnd: (e: TransitionEvent) => void
+}
 
 const FILTER_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
 const URL_PREVIEW_HIDE_DELAY_MS = 120
 const CARD_MOVE_MS = 280
-const activeCardMoveAnimations = new WeakMap()
+const activeCardMoveAnimations = new WeakMap<HTMLElement, CardMoveAnimation>()
 
 function filterInputFromCurrentUrl() {
   return filterInputFromSearch(window.location.search)
 }
 
-function syncFilterInputToUrl(filterInput) {
+function syncFilterInputToUrl(filterInput: string) {
   const nextUrl = urlForFilterInput(filterInput, window.location)
   const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
   if (nextUrl !== currentUrl) window.history.replaceState(null, '', nextUrl)
@@ -53,7 +62,7 @@ function clearFocusFilterParam() {
   window.history.replaceState(null, '', nextUrl)
 }
 
-function stableGroupId(group) {
+function stableGroupId(group: DomainGroup) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
 }
 
@@ -61,13 +70,13 @@ function shouldReduceMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
-function snapshotDomainCardRects(containers) {
-  const rects = new Map()
+function snapshotDomainCardRects(containers: MissionContainer[]): CardPositionMap {
+  const rects: CardPositionMap = new Map()
   if (shouldReduceMotion()) return rects
 
   containers.forEach((container) => {
     if (!container) return
-    container.querySelectorAll('.domain-block:not(.closing)').forEach((block) => {
+    container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)').forEach((block) => {
       const id = block.dataset.domainId
       if (!id) return
       const rect = block.getBoundingClientRect()
@@ -82,7 +91,7 @@ function snapshotDomainCardRects(containers) {
   return rects
 }
 
-function cancelDomainCardMove(block) {
+function cancelDomainCardMove(block: HTMLElement) {
   const active = activeCardMoveAnimations.get(block)
   if (active) {
     cancelAnimationFrame(active.frameId)
@@ -95,20 +104,20 @@ function cancelDomainCardMove(block) {
   block.style.transform = ''
 }
 
-function cancelDomainCardMoves(containers) {
+function cancelDomainCardMoves(containers: MissionContainer[]) {
   containers.forEach((container) => {
     if (!container) return
-    container.querySelectorAll('.domain-block.layout-moving').forEach(cancelDomainCardMove)
+    container.querySelectorAll<HTMLElement>('.domain-block.layout-moving').forEach(cancelDomainCardMove)
   })
 }
 
-function prepareDomainCardMoveAnimation(containers) {
+function prepareDomainCardMoveAnimation(containers: MissionContainer[]): CardPositionMap {
   const previousRects = snapshotDomainCardRects(containers)
   cancelDomainCardMoves(containers)
   return previousRects
 }
 
-function takeClosestPreviousRect(previousRects, id, nextRect) {
+function takeClosestPreviousRect(previousRects: CardPositionMap, id: string | undefined, nextRect: DOMRect): CardPosition | null {
   const candidates = id ? previousRects.get(id) : null
   if (!candidates || candidates.length === 0) return null
 
@@ -129,13 +138,13 @@ function takeClosestPreviousRect(previousRects, id, nextRect) {
   return closest
 }
 
-function animateDomainCardMoves(containers, previousRects) {
+function animateDomainCardMoves(containers: MissionContainer[], previousRects: CardPositionMap | null) {
   if (!previousRects || previousRects.size === 0 || shouldReduceMotion()) return
 
-  const moving = []
+  const moving: HTMLElement[] = []
   containers.forEach((container) => {
     if (!container) return
-    container.querySelectorAll('.domain-block:not(.closing)').forEach((block) => {
+    container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)').forEach((block) => {
       const id = block.dataset.domainId
 
       cancelDomainCardMove(block)
@@ -165,7 +174,7 @@ function animateDomainCardMoves(containers, previousRects) {
       block.classList.remove('layout-moving', 'layout-moving-active')
       block.style.transform = ''
     }
-    function onTransitionEnd(e) {
+    function onTransitionEnd(e: TransitionEvent) {
       if (e.target === block && e.propertyName === 'transform') cleanup()
     }
     const active = {
@@ -185,8 +194,8 @@ function animateDomainCardMoves(containers, previousRects) {
   })
 }
 
-export function App({ initialDashboard = null }) {
-  const [dashboard, setDashboard] = useState(initialDashboard)
+export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
   const [source, setSource] = useState<DashboardSource>('tabs')
   const [filterInput, setFilterInput] = useState(filterInputFromCurrentUrl)
   const [filter, setFilter] = useState(filterInputFromCurrentUrl)
@@ -196,12 +205,12 @@ export function App({ initialDashboard = null }) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [pinnedDomains, setPinnedDomains] = useState<string[]>([])
   const [pinsLoaded, setPinsLoaded] = useState(false)
-  const [tabHistory, setTabHistory] = useState(null)
+  const [tabHistory, setTabHistory] = useState<TabHistorySnapshot | null>(null)
   const refreshRef = useRef<(options?: RefreshOptions) => Promise<void>>(async () => {})
   const urlPreviewHideTimerRef = useRef<number | null>(null)
   const sourceSwitchSeqRef = useRef(0)
-  const layoutMoveRectsRef = useRef(null)
-  const previousOrderRef = useRef({
+  const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
+  const previousOrderRef = useRef<MissionOrderMap>({
     tabs: new Map(),
     bookmarks: new Map(),
     history: new Map()
@@ -224,7 +233,7 @@ export function App({ initialDashboard = null }) {
     onAfterPack: animateDomainCardMoves
   })
 
-  function missionContainers() {
+  function missionContainers(): MissionContainer[] {
     return [primaryMissionsRef.current, bookmarkMissionsRef.current, historyMissionsRef.current, unmatchedMissionsRef.current]
   }
 
@@ -238,7 +247,7 @@ export function App({ initialDashboard = null }) {
     urlPreviewHideTimerRef.current = null
   }
 
-  function setUrlPreview(url) {
+  function setUrlPreview(url: string) {
     const nextUrl = url || ''
     if (nextUrl) {
       clearUrlPreviewHideTimer()
@@ -278,7 +287,7 @@ export function App({ initialDashboard = null }) {
     setTabHistory(nextTabHistory)
   }
 
-  useEffect(() => registerDashboardRefresh((options) => refreshRef.current(options)), [])
+  useEffect(() => registerDashboardRefresh((options: RefreshOptions) => refreshRef.current(options)), [])
 
   useEffect(() => {
     let cancelled = false
@@ -414,7 +423,7 @@ export function App({ initialDashboard = null }) {
     await refreshRef.current({ animateCards: true })
   }
 
-  async function onTogglePinnedDomain(domain) {
+  async function onTogglePinnedDomain(domain: string) {
     const nextPinnedDomains = togglePinnedDomainInList(pinnedDomains, domain)
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     setPinnedDomains(nextPinnedDomains)
@@ -600,7 +609,7 @@ export function App({ initialDashboard = null }) {
   )
 }
 
-export function mountApp(initialDashboard = null) {
+export function mountApp(initialDashboard: DashboardData | null = null) {
   const el = document.getElementById('appRoot')
   if (!el) return
   createRoot(el).render(<App initialDashboard={initialDashboard} />)

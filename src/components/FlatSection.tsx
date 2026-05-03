@@ -1,7 +1,16 @@
 import { useState } from 'react'
 import { PageChip } from './PageChip'
+import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
-export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }) {
+interface FlatSectionProps {
+  visibleChips: DashboardChipData[]
+  hiddenChips: DashboardChipData[]
+  hiddenCount: number
+  onHoverUrlChange?: HoverUrlChangeHandler | null
+  onLayoutChange?: LayoutChangeHandler | null
+}
+
+export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const iconOnly = visibleChips.length > 0 && visibleChips.every((chip) => chip.iconOnly)
 

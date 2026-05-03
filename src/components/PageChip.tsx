@@ -1,15 +1,22 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react'
 import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../../extension/tabs.js'
 import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
 import { unwrapSuspenderUrl } from '../../extension/suspender.js'
 import { deleteHistorySourceUrl } from '../../extension/history-source.js'
 import { markClosure } from '../../extension/undo.js'
 import { showToast } from '../../extension/toast.js'
+import type { DashboardChipData, HoverUrlChangeHandler } from './types'
+import type { DashboardChipEnv } from '../../extension/types'
 
-let chipTextResizeObserver = null
+let chipTextResizeObserver: ResizeObserver | null = null
 
-function isChipTextTruncated(textEl) {
+interface PageChipProps {
+  chip: DashboardChipData
+  onHoverUrlChange?: HoverUrlChangeHandler | null
+}
+
+function isChipTextTruncated(textEl: HTMLElement | null) {
   if (!textEl) return false
   return (
     textEl.scrollHeight - textEl.clientHeight > 1 ||
@@ -17,7 +24,7 @@ function isChipTextTruncated(textEl) {
   )
 }
 
-function syncChipTextFade(textEl) {
+function syncChipTextFade(textEl: HTMLElement | null) {
   if (!textEl) return
   textEl.classList.toggle('chip-text-truncated', isChipTextTruncated(textEl))
 }
@@ -26,13 +33,15 @@ function getChipTextResizeObserver() {
   if (typeof ResizeObserver !== 'function') return null
   if (!chipTextResizeObserver) {
     chipTextResizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) syncChipTextFade(entry.target)
+      for (const entry of entries) {
+        if (entry.target instanceof HTMLElement) syncChipTextFade(entry.target)
+      }
     })
   }
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, onHoverUrlChange = null }) {
+export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   const isFolded = Array.isArray(chip.envs) && chip.envs.length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
@@ -65,7 +74,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     }
   }, [])
 
-  function isKeyboardActivation(e) {
+  function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
   }
 
@@ -80,14 +89,14 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     await focusTab(targetUrl)
   }
 
-  async function onChipKeyDown(e) {
+  async function onChipKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     await onFocus()
   }
 
-  async function onEnvClick(e, env) {
+  async function onEnvClick(e: MouseEvent<HTMLSpanElement>, env: DashboardChipEnv) {
     e.stopPropagation()
     if (!env.tabUrl) return
     if (isReadOnlySource) {
@@ -98,7 +107,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     await focusTab(env.tabUrl)
   }
 
-  async function onEnvKeyDown(e, env) {
+  async function onEnvKeyDown(e: KeyboardEvent<HTMLSpanElement>, env: DashboardChipEnv) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
@@ -111,7 +120,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     await focusTab(env.tabUrl)
   }
 
-  function setPreview(url) {
+  function setPreview(url: string) {
     if (onHoverUrlChange) onHoverUrlChange(url || '')
   }
 
@@ -119,8 +128,8 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     setPreview(primaryPreviewUrl)
   }
 
-  function onChipMouseLeave(e) {
-    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return
+  function onChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     setPreview('')
   }
 
@@ -128,43 +137,43 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     setPreview(primaryPreviewUrl)
   }
 
-  function onChipBlur(e) {
-    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return
+  function onChipBlur(e: FocusEvent<HTMLDivElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     setPreview('')
   }
 
-  function onEnvMouseEnter(env) {
+  function onEnvMouseEnter(env: DashboardChipEnv) {
     setPreview(env.tabUrl)
   }
 
-  function onEnvMouseLeave(e) {
+  function onEnvMouseLeave(e: MouseEvent<HTMLSpanElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
-    if (chipEl && e.relatedTarget && chipEl.contains(e.relatedTarget)) {
+    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
       return
     }
     setPreview('')
   }
 
-  function onEnvFocus(env) {
+  function onEnvFocus(env: DashboardChipEnv) {
     setPreview(env.tabUrl)
   }
 
-  function onEnvBlur(e) {
+  function onEnvBlur(e: FocusEvent<HTMLSpanElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
-    if (chipEl && e.relatedTarget && chipEl.contains(e.relatedTarget)) {
+    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
       return
     }
     setPreview('')
   }
 
-  async function onClose(e) {
+  async function onClose(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
 
     const allTabs = await chrome.tabs.query({})
-    let toCloseList = []
+    let toCloseList: chrome.tabs.Tab[] = []
     let matchCount = 0
     if (isFolded) {
       const targetEffectives = new Set(chip.envs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
@@ -203,7 +212,7 @@ export function PageChip({ chip, onHoverUrlChange = null }) {
     }
   }
 
-  async function onDeleteHistory(e) {
+  async function onDeleteHistory(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
     const urls: string[] = Array.from(new Set(isFolded ? chip.envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))

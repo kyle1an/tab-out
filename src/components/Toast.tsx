@@ -5,16 +5,31 @@ import { registerToastDispatch } from '../../extension/toast.js'
 const DURATION_WITHOUT_ACTION = 2500
 const DURATION_WITH_ACTION = 6000
 
-function durationFor(action) {
+interface ToastAction {
+  label: string
+  onClick?: () => void
+}
+
+interface ToastIncoming {
+  message: string
+  action: ToastAction | null
+}
+
+interface ToastState extends ToastIncoming {
+  visible: boolean
+  nonce: number
+}
+
+function durationFor(action: ToastAction | null) {
   return action ? DURATION_WITH_ACTION : DURATION_WITHOUT_ACTION
 }
 
 export function Toast() {
-  const [state, setState] = useState({ visible: false, message: '', action: null, nonce: 0 })
+  const [state, setState] = useState<ToastState>({ visible: false, message: '', action: null, nonce: 0 })
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
-    return registerToastDispatch((incoming) => {
+    return registerToastDispatch((incoming: ToastIncoming) => {
       setState((prev) => ({
         visible: true,
         message: incoming.message,

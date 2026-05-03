@@ -2,8 +2,28 @@ import { useEffect, useRef } from 'react'
 import { HeaderStats } from './HeaderStats'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../../extension/history-source.js'
 import { isFilterFocusShortcut } from '../../extension/app-url.js'
+import type { DashboardSource, DashboardStats } from './types'
 
-function SourceSwitch({ source, onSourceChange }) {
+interface SourceSwitchProps {
+  source: DashboardSource
+  onSourceChange: (source: DashboardSource) => void | Promise<void>
+}
+
+interface HeaderBarProps extends DashboardStats {
+  filter: string
+  filterFocusRequest?: number
+  historyRange: string
+  showHistoryRange?: boolean
+  onFilterChange: (filter: string) => void
+  onHistoryRangeChange?: (historyRange: string) => void
+  onCloseFiltered: () => void | Promise<void>
+  onDedupAll: () => void | Promise<void>
+  onSourceChange: (source: DashboardSource) => void | Promise<void>
+  source?: DashboardSource
+  ready?: boolean
+}
+
+function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
   return (
     <div className="source-switch" role="tablist" aria-label="Dashboard source">
       <button
@@ -39,10 +59,10 @@ export function HeaderBar({
   source = 'tabs',
   ready = true,
   ...stats
-}) {
+}: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
-  function updateFilter(nextValue) {
+  function updateFilter(nextValue: string) {
     onFilterChange(nextValue)
   }
 
@@ -52,7 +72,7 @@ export function HeaderBar({
   }, [filterFocusRequest])
 
   useEffect(() => {
-    function onWindowKeyDown(e) {
+    function onWindowKeyDown(e: KeyboardEvent) {
       if (!isFilterFocusShortcut(e, navigator.platform)) return
       e.preventDefault()
       inputRef.current?.focus()

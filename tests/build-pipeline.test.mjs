@@ -19,6 +19,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(pkg.devDependencies?.['@types/chrome'])
   assert.ok(pkg.devDependencies?.vite)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
+  assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
 
   const indexHtml = readFileSync('extension/index.html', 'utf8')
   assert.match(indexHtml, /src="dist\/app\.js"/)
@@ -31,6 +32,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(`${appComponentSource}\n${toastSource}`, /react-dom\/client/)
   assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
   assert.doesNotMatch(sharedTypesSource, /const chrome:\s*any/)
+  assert.doesNotMatch(sharedTypesSource, /LOCAL_PATH_GROUPERS\?:\s*any\[\]/)
 })
 
 test('repo pre-commit hook runs the verification pipeline', () => {

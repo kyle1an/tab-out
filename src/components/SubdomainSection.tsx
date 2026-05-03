@@ -3,8 +3,30 @@ import { requestDashboardRefresh } from '../../extension/dashboard-controller.js
 import { markClosure } from '../../extension/undo.js'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
+import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
-function SubdomainCloseButton({ count, onClick }) {
+interface SubdomainCloseButtonProps {
+  count: number
+  onClick: () => void | Promise<void>
+}
+
+interface SubdomainSectionProps {
+  subdomainKey: string
+  isShared: boolean
+  isPort?: boolean
+  sectionCount: number
+  sectionClosableUrls: string[]
+  showHeader: boolean
+  hasFlat: boolean
+  flatVisibleChips: DashboardChipData[]
+  flatHiddenChips: DashboardChipData[]
+  flatHiddenCount: number
+  clusters: DashboardClusterVM[]
+  onHoverUrlChange?: HoverUrlChangeHandler | null
+  onLayoutChange?: LayoutChangeHandler | null
+}
+
+function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
     <button className="subdomain-close-btn" title={title} onClick={onClick}>
@@ -29,7 +51,7 @@ export function SubdomainSection({
   clusters,
   onHoverUrlChange = null,
   onLayoutChange = null
-}) {
+}: SubdomainSectionProps) {
   const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
   const headerLabel = subdomainKey
 

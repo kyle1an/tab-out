@@ -1,4 +1,9 @@
-export function UrlPreview({ url, visible = !!url }) {
+interface UrlPreviewProps {
+  url: string
+  visible?: boolean
+}
+
+export function UrlPreview({ url, visible = !!url }: UrlPreviewProps) {
   const isVisible = visible && !!url
   const className = 'url-preview' + (isVisible ? ' visible' : '')
 

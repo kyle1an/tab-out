@@ -39,6 +39,19 @@ export interface CustomGroupRule {
   groupLabel: string
 }
 
+export interface PathGroupResult {
+  key: string
+  label: string
+  category?: 'pull' | 'issue' | 'commit' | 'code' | 'other'
+  alwaysCluster?: boolean
+}
+
+export interface PathGroupRule {
+  hostname?: string
+  hostnameEndsWith?: string
+  extract(url: URL): PathGroupResult | null
+}
+
 export interface DomainGroupBuildOptions {
   previousOrder?: Map<string, number>
   customGroups?: CustomGroupRule[]
@@ -157,10 +170,48 @@ export interface DashboardData {
   historyRange?: string
 }
 
+export interface BookmarkTreeNode {
+  id?: string
+  title?: string
+  url?: string
+  children?: BookmarkTreeNode[]
+}
+
+export interface TabHistoryEntry {
+  index: number
+  tabId: number
+  windowId: number
+  exists: boolean
+  active: boolean
+  pinned: boolean
+  discarded: boolean
+  cursor: boolean
+  current: boolean
+  previousTarget: boolean
+  nextTarget: boolean
+  title: string
+  url: string
+  displayUrl: string
+  favIconUrl: string
+}
+
+export interface TabHistorySnapshot {
+  stackSize: number
+  maxSize: number
+  cursorIndex: number
+  currentIndex: number
+  previousIndex: number
+  nextIndex: number
+  activeTabId: number | null
+  activeWindowId: number | null
+  activeWasInserted: boolean
+  entries: TabHistoryEntry[]
+}
+
 declare global {
   interface Window {
     LOCAL_CUSTOM_GROUPS?: CustomGroupRule[]
-    LOCAL_PATH_GROUPERS?: any[]
+    LOCAL_PATH_GROUPERS?: PathGroupRule[]
   }
 }
 

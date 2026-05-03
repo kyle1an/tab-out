@@ -1,11 +1,12 @@
 /** @typedef {import('./types').DashboardTab} DashboardTab */
+/** @typedef {import('./types').BookmarkTreeNode} BookmarkTreeNode */
 
 /**
  * Flatten a Chrome bookmarks tree into DashboardTab-shaped entries so the
  * existing grouping/render pipeline can treat bookmarks as a read-only
  * source.
  *
- * @param {Array<{ id?: string, title?: string, url?: string, children?: any[] }>} nodes
+ * @param {BookmarkTreeNode[]} nodes
  * @returns {DashboardTab[]}
  */
 export function flattenBookmarkNodes(nodes) {

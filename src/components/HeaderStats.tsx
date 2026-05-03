@@ -1,4 +1,13 @@
-function pluralize(count, singular) {
+import type { DashboardSource, DashboardStats } from './types'
+
+interface HeaderStatsProps extends DashboardStats {
+  ready?: boolean
+  source?: DashboardSource
+  onDedupAll: () => void
+  onCloseFiltered: () => void
+}
+
+function pluralize(count: number, singular: string) {
   return `${singular}${count === 1 ? '' : 's'}`
 }
 
@@ -17,7 +26,7 @@ export function HeaderStats({
   filtering,
   onDedupAll,
   onCloseFiltered
-}) {
+}: HeaderStatsProps) {
   if (!ready) {
     return <div className="header-stats" aria-hidden="true" />
   }
