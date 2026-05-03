@@ -5,7 +5,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
-  assert.ok(existsSync('src/extension/background.js'), 'src/extension/background.js should be the service worker source')
+  assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
@@ -27,6 +27,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(pkg.devDependencies?.['babel-plugin-react-compiler'])
   assert.ok(pkg.devDependencies?.vite)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
+  assert.equal(tsconfig.compilerOptions?.allowJs, false)
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
   assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
 
@@ -40,7 +41,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   assert.match(viteConfig, /reactCompilerPreset/)
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
-  assert.match(viteConfig, /src\/extension\/background\.js/)
+  assert.match(viteConfig, /src\/extension\/background\.ts/)
 
   const appSource = readFileSync('src/app.tsx', 'utf8')
   const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')

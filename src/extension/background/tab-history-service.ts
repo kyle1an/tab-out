@@ -9,24 +9,56 @@ import {
   normalizeGlobalHistory,
   pruneMissingHistoryEntries,
   removeTabEntriesFromHistory,
-  repairHistoryCursorForActiveTab
+  repairHistoryCursorForActiveTab,
+  type GlobalTabHistory,
+  type GlobalTabHistoryInput
 } from './tab-history-state.js'
-import { createChromeApi } from './chrome-api.js'
+import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import type { TabHistorySnapshot } from '../types'
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
 
 export const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 export const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
-export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
-  let tabHistoryCache = null
-  let tabHistoryQueue = Promise.resolve()
+type FocusedWindowLookup = {
+  id: number | null
+  known: boolean
+}
+type ActiveTabLookup = {
+  tab: chrome.tabs.Tab | null
+  chromeFocused: boolean
+}
+type MutationResult<T> = {
+  history?: GlobalTabHistoryInput
+  value?: T
+}
+type FocusAction = {
+  tab: chrome.tabs.Tab
+  openerTabId?: number
+}
+export type TabHistoryService = {
+  getTabHistorySnapshot: () => Promise<TabHistorySnapshot>
+  recordFocusedWindowActiveTab: (windowId: number) => Promise<void>
+  recordTabActivation: (windowId: number, tabId: number) => Promise<void>
+  removeTabFromHistory: (tabId: number) => Promise<void>
+  restorePreviousTabAfterClose: (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) => Promise<void>
+  switchTabHistory: (direction: number) => Promise<void>
+}
 
-  function tabHistoryStorageArea() {
+function mapTabsById(tabs: chrome.tabs.Tab[]): Map<number, chrome.tabs.Tab> {
+  return new Map(tabs.filter((tab) => typeof tab.id === 'number').map((tab) => [tab.id as number, tab]))
+}
+
+export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(chrome)): TabHistoryService {
+  let tabHistoryCache: GlobalTabHistory | null = null
+  let tabHistoryQueue: Promise<void> = Promise.resolve()
+
+  function tabHistoryStorageArea(): chrome.storage.StorageArea | null {
     return chromeApi.storage?.local || chromeApi.storage?.session || null
   }
 
-  async function readTabHistory() {
+  async function readTabHistory(): Promise<GlobalTabHistory> {
     if (tabHistoryCache) return tabHistoryCache
     const storage = tabHistoryStorageArea()
     if (!storage) {
@@ -34,15 +66,15 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
       return tabHistoryCache
     }
 
-    let storedHistory = null
+    let storedHistory: GlobalTabHistoryInput = null
     let migratedFromSession = false
     try {
       const stored = await storage.get(TAB_HISTORY_KEY)
-      storedHistory = stored[TAB_HISTORY_KEY]
+      storedHistory = stored[TAB_HISTORY_KEY] as GlobalTabHistoryInput
 
       if (storedHistory == null && storage === chromeApi.storage?.local && chromeApi.storage?.session) {
         const sessionStored = await chromeApi.storage.session.get(TAB_HISTORY_KEY)
-        storedHistory = sessionStored[TAB_HISTORY_KEY]
+        storedHistory = sessionStored[TAB_HISTORY_KEY] as GlobalTabHistoryInput
         migratedFromSession = storedHistory != null
       }
 
@@ -59,7 +91,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     return tabHistoryCache
   }
 
-  async function writeTabHistory(nextHistory) {
+  async function writeTabHistory(nextHistory: GlobalTabHistoryInput): Promise<void> {
     const cleanHistory = canonicalizeGlobalHistory(nextHistory).history
     tabHistoryCache = cleanHistory
     const storage = tabHistoryStorageArea()
@@ -71,7 +103,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  function enqueueTabHistoryMutation(mutator) {
+  function enqueueTabHistoryMutation<T>(mutator: (history: GlobalTabHistory) => MutationResult<T> | void | Promise<MutationResult<T> | void>) {
     const task = tabHistoryQueue.catch(() => {}).then(async () => {
       const before = canonicalizeGlobalHistory(await readTabHistory()).history
       const result = (await mutator(before)) || {}
@@ -93,7 +125,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     return task
   }
 
-  async function recordTabActivation(windowId, tabId) {
+  async function recordTabActivation(windowId: number, tabId: number): Promise<void> {
     if (typeof windowId !== 'number' || typeof tabId !== 'number') return
 
     await enqueueTabHistoryMutation(async (history) => {
@@ -104,7 +136,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     })
   }
 
-  async function findFocusedWindowId() {
+  async function findFocusedWindowId(): Promise<FocusedWindowLookup> {
     try {
       const windows = await chromeApi.windows.getAll()
       const focusedWindow = windows.find((win) => win.focused && typeof win.id === 'number')
@@ -114,7 +146,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  async function findLastFocusedActiveTab() {
+  async function findLastFocusedActiveTab(): Promise<chrome.tabs.Tab | null> {
     try {
       const focusedTabs = await chromeApi.tabs.query({ active: true, lastFocusedWindow: true })
       return focusedTabs[0] || null
@@ -123,14 +155,14 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  async function findActiveTabForHistory(tabs, history) {
+  async function findActiveTabForHistory(tabs: chrome.tabs.Tab[], history: GlobalTabHistoryInput): Promise<ActiveTabLookup> {
     const focusedWindow = await findFocusedWindowId()
     if (focusedWindow.id != null) {
       const focusedActiveTab = tabs.find((tab) => tab.windowId === focusedWindow.id && tab.active)
       if (focusedActiveTab) return { tab: focusedActiveTab, chromeFocused: true }
     }
 
-    const tabsById = new Map(tabs.map((tab) => [tab.id, tab]))
+    const tabsById = mapTabsById(tabs)
     const historyTab = findTabForHistoryEntry(history, tabsById)
     const lastFocusedTab = await findLastFocusedActiveTab()
     const fallbackTab = focusedWindow.known
@@ -139,8 +171,8 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     return { tab: fallbackTab, chromeFocused: !focusedWindow.known || focusedWindow.id != null }
   }
 
-  async function focusExistingTab(tab) {
-    if (!tab?.id) return false
+  async function focusExistingTab(tab: chrome.tabs.Tab | null): Promise<boolean> {
+    if (typeof tab?.id !== 'number') return false
 
     try {
       await chromeApi.tabs.update(tab.id, { active: true })
@@ -152,16 +184,20 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  async function findPreviousSurvivingTabInWindow(history, windowId, tabId) {
+  async function findPreviousSurvivingTabInWindow(
+    history: GlobalTabHistoryInput,
+    windowId: number,
+    tabId: number
+  ): Promise<{ currentTab: chrome.tabs.Tab; targetTab: chrome.tabs.Tab } | null> {
     const current = normalizeGlobalHistory(history)
-    let tabsInWindow = []
+    let tabsInWindow: chrome.tabs.Tab[] = []
     try {
       tabsInWindow = await chromeApi.tabs.query({ windowId })
     } catch {
       return null
     }
 
-    const tabsById = new Map(tabsInWindow.map((tab) => [tab.id, tab]))
+    const tabsById = mapTabsById(tabsInWindow)
     const currentTab = tabsById.get(tabId)
     if (!currentTab) return null
 
@@ -176,7 +212,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     return null
   }
 
-  async function primeNativeCloseTarget(windowId, tabId, history) {
+  async function primeNativeCloseTarget(windowId: number, tabId: number, history: GlobalTabHistoryInput): Promise<void> {
     const match = await findPreviousSurvivingTabInWindow(history, windowId, tabId)
     if (!match) return
 
@@ -191,7 +227,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  async function recordFocusedWindowActiveTab(windowId) {
+  async function recordFocusedWindowActiveTab(windowId: number): Promise<void> {
     if (windowId == null || windowId === chromeApi.windows.WINDOW_ID_NONE) return
     try {
       const tabs = await chromeApi.tabs.query({ windowId, active: true })
@@ -203,16 +239,16 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  async function removeTabFromHistory(tabId) {
+  async function removeTabFromHistory(tabId: number): Promise<void> {
     await enqueueTabHistoryMutation((history) => ({
       history: removeTabEntriesFromHistory(history, tabId)
     }))
   }
 
-  async function restorePreviousTabAfterClose(tabId, removeInfo) {
+  async function restorePreviousTabAfterClose(tabId: number, removeInfo: chrome.tabs.OnRemovedInfo): Promise<void> {
     if (!removeInfo) return
 
-    const { value: restoreAction } = await enqueueTabHistoryMutation(async (history) => {
+    const { value: restoreAction } = await enqueueTabHistoryMutation<{ targetId: number } | null>(async (history) => {
       const nextHistory = removeTabEntriesFromHistory(history, tabId)
       if (removeInfo.isWindowClosing) return { history: nextHistory }
 
@@ -221,14 +257,14 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
         return { history: nextHistory }
       }
 
-      let tabsInWindow = []
+      let tabsInWindow: chrome.tabs.Tab[] = []
       try {
         tabsInWindow = await chromeApi.tabs.query({ windowId: removeInfo.windowId })
       } catch {
         return { history: nextHistory }
       }
 
-      const existingIds = new Set(tabsInWindow.map((tab) => tab.id))
+      const existingIds = new Set(tabsInWindow.map((tab) => tab.id).filter((id): id is number => typeof id === 'number'))
       let targetOldIndex = -1
       for (let i = history.index - 1; i >= 0; i--) {
         const entry = history.stack[i]
@@ -270,11 +306,11 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     }
   }
 
-  async function switchTabHistory(direction) {
-    const { value: focusAction } = await enqueueTabHistoryMutation(async (history) => {
+  async function switchTabHistory(direction: number): Promise<void> {
+    const { value: focusAction } = await enqueueTabHistoryMutation<FocusAction>(async (history) => {
       const tabs = await chromeApi.tabs.query({})
       const { tab: activeTab, chromeFocused } = await findActiveTabForHistory(tabs, history)
-      if (!activeTab?.id) return { history }
+      if (typeof activeTab?.id !== 'number') return { history }
 
       if (!chromeFocused) {
         return {
@@ -294,16 +330,19 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
 
       const repaired = repairHistoryCursorForActiveTab(history, activeTab)
       const navigationHistory = repaired.history
-      const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
+      const existingTabs = mapTabsById(tabs)
       const nextIndex = findHistoryTargetIndex(navigationHistory, direction, existingTabs, activeTab)
       if (nextIndex === -1) return { history: navigationHistory }
 
-      const targetTab = existingTabs.get(navigationHistory.stack[nextIndex].tabId)
-      if (!targetTab?.id) return { history: navigationHistory }
+      const targetEntry = navigationHistory.stack[nextIndex]
+      if (!targetEntry) return { history: navigationHistory }
+      const targetTab = existingTabs.get(targetEntry.tabId)
+      if (typeof targetTab?.id !== 'number') return { history: navigationHistory }
+      const targetTabId = targetTab.id
 
       return {
         history: {
-          stack: navigationHistory.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTab.id } : entry)),
+          stack: navigationHistory.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTabId } : entry)),
           index: nextIndex
         },
         value: {
@@ -314,7 +353,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     })
 
     if (!focusAction?.tab) return
-    if (focusAction.openerTabId) {
+    if (focusAction.openerTabId && typeof focusAction.tab.id === 'number') {
       try {
         await chromeApi.tabs.update(focusAction.tab.id, { openerTabId: focusAction.openerTabId })
       } catch {}
@@ -323,11 +362,11 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
     await focusExistingTab(focusAction.tab)
   }
 
-  async function getTabHistorySnapshot() {
+  async function getTabHistorySnapshot(): Promise<TabHistorySnapshot> {
     const { value: snapshot } = await enqueueTabHistoryMutation(async (storedHistory) => {
       const tabs = await chromeApi.tabs.query({})
       const { tab: activeTab } = await findActiveTabForHistory(tabs, storedHistory)
-      const existingTabs = new Map(tabs.map((tab) => [tab.id, tab]))
+      const existingTabs = mapTabsById(tabs)
       const repairedHistory = repairHistoryCursorForActiveTab(storedHistory, activeTab)
       const prunedHistory = pruneMissingHistoryEntries(repairedHistory.history, existingTabs)
       const cleanHistory = canonicalizeGlobalHistory(prunedHistory).history
@@ -350,7 +389,8 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
             const tab = existingTabs.get(entry.tabId)
             const url = tab?.url || ''
             const displayUrl = displayUrlForHistory(url)
-            const title = (tab?.title || '').replace(/\u200e/g, '').trim() ? tab.title : displayUrl
+            const cleanTitle = (tab?.title || '').replace(/\u200e/g, '').trim()
+            const title = cleanTitle ? cleanTitle : displayUrl
             return {
               index,
               tabId: entry.tabId,
@@ -373,7 +413,7 @@ export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
       }
     })
 
-    return snapshot
+    return snapshot as TabHistorySnapshot
   }
 
   return {

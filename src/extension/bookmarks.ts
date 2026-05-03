@@ -1,5 +1,4 @@
-/** @typedef {import('./types').DashboardTab} DashboardTab */
-/** @typedef {import('./types').BookmarkTreeNode} BookmarkTreeNode */
+import type { BookmarkTreeNode, DashboardTab } from './types'
 
 /**
  * Flatten a Chrome bookmarks tree into DashboardTab-shaped entries so the
@@ -9,10 +8,10 @@
  * @param {BookmarkTreeNode[]} nodes
  * @returns {DashboardTab[]}
  */
-export function flattenBookmarkNodes(nodes) {
-  const flattened = []
+export function flattenBookmarkNodes(nodes: BookmarkTreeNode[]): DashboardTab[] {
+  const flattened: DashboardTab[] = []
 
-  function visit(node) {
+  function visit(node?: BookmarkTreeNode) {
     if (!node) return
     if (node.url) {
       flattened.push({
@@ -45,7 +44,7 @@ export function flattenBookmarkNodes(nodes) {
  *
  * @returns {Promise<DashboardTab[]>}
  */
-export async function fetchBookmarksSourceItems() {
+export async function fetchBookmarksSourceItems(): Promise<DashboardTab[]> {
   if (!chrome.bookmarks?.getTree) return []
   try {
     const tree = await chrome.bookmarks.getTree()

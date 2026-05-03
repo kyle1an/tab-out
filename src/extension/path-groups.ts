@@ -24,13 +24,15 @@
    share the atlassian.net host: whichever path pattern hits first.
    ================================================================ */
 
-const BUILT_IN_PATH_GROUPERS = [
+import type { PathGroupResult, PathGroupRule } from './types'
+
+const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
   // GitHub: /{owner}/{repo}/... → group by "owner/repo".
   // RESERVED owners are GitHub's top-level routes (not user/org names)
   // so they can't produce spurious groups like "settings/billing".
   {
     hostname: 'github.com',
-    extract: (u) => {
+    extract: (u: URL) => {
       // Capture up to the fourth path segment. The third segment
       // classifies the page area (pull / issues / commits / code);
       // the fourth distinguishes a specific item (a PR number, an
@@ -74,7 +76,7 @@ const BUILT_IN_PATH_GROUPERS = [
       // counts as a PR. Same rationale could apply to /issues/<N>
       // vs /issues?q=… but we leave issues unsplit for now since
       // they don't get their own sub-cluster anyway.
-      let category = 'other'
+      let category: PathGroupResult['category'] = 'other'
       if (sub === 'pull' && item) category = 'pull'
       else if (sub === 'issues') category = 'issue'
       else if (sub === 'commits' || sub === 'commit') category = 'commit'
@@ -98,7 +100,7 @@ const BUILT_IN_PATH_GROUPERS = [
   // cluster persists at its current spot regardless of member count.
   {
     hostnameEndsWith: '.atlassian.net',
-    extract: (u) => {
+    extract: (u: URL) => {
       const m = u.pathname.match(/^\/browse\/([A-Z][A-Z0-9]+)-\d+/)
       if (!m) return null
       return { key: `jira:${m[1]}`, label: m[1], alwaysCluster: true }
@@ -108,7 +110,7 @@ const BUILT_IN_PATH_GROUPERS = [
   // Atlassian Confluence: /wiki/spaces/<SPACE>/... → group by space.
   {
     hostnameEndsWith: '.atlassian.net',
-    extract: (u) => {
+    extract: (u: URL) => {
       const m = u.pathname.match(/^\/wiki\/spaces\/([^/]+)/)
       if (!m) return null
       return { key: `wiki:${m[1]}`, label: m[1] }
@@ -120,7 +122,7 @@ const BUILT_IN_PATH_GROUPERS = [
   // master, prod); the space is usually constant for a given user.
   {
     hostname: 'app.contentful.com',
-    extract: (u) => {
+    extract: (u: URL) => {
       const m = u.pathname.match(/^\/spaces\/([^/]+)\/environments\/([^/]+)/)
       if (!m) return null
       return { key: `${m[1]}/${m[2]}`, label: m[2] }
@@ -132,7 +134,7 @@ const BUILT_IN_PATH_GROUPERS = [
   // carry the file name, just URL-encoded with hyphens/underscores.
   {
     hostname: 'www.figma.com',
-    extract: (u) => {
+    extract: (u: URL) => {
       const m = u.pathname.match(/^\/(?:design|file)\/([^/]+)\/([^/?]+)/)
       if (!m) return null
       let label
@@ -148,7 +150,7 @@ const BUILT_IN_PATH_GROUPERS = [
   // Reddit: /r/<subreddit>/... → group by subreddit.
   {
     hostname: 'www.reddit.com',
-    extract: (u) => {
+    extract: (u: URL) => {
       const m = u.pathname.match(/^\/r\/([^/]+)/)
       if (!m) return null
       return { key: `r/${m[1]}`, label: `r/${m[1]}` }
@@ -164,14 +166,14 @@ const BUILT_IN_PATH_GROUPERS = [
   // (/mail redirect, /maps redirect, etc.) stay ungrouped.
   {
     hostname: 'www.google.com',
-    extract: (u) => {
+    extract: (u: URL) => {
       if (u.pathname !== '/search') return null
       return { key: 'google:search', label: 'Google Search' }
     }
   }
 ]
 
-export function resolvePathGroup(url) {
+export function resolvePathGroup(url: string): PathGroupResult | null {
   if (!url) return null
   let parsed
   try {

@@ -11,8 +11,8 @@
    inner `&`.
    ================================================================ */
 
-export function unwrapSuspenderUrl(url) {
-  if (!url || !url.startsWith('chrome-extension://')) return url
+export function unwrapSuspenderUrl(url?: string): string {
+  if (!url || !url.startsWith('chrome-extension://')) return url || ''
   try {
     const parsed = new URL(url)
     if (!parsed.pathname.endsWith('/suspended.html')) return url
@@ -43,7 +43,7 @@ export function unwrapSuspenderUrl(url) {
  * any literal `&` in the title shows up as `%26` — safe to split at
  * the next raw `&`.
  */
-export function unwrapSuspenderTitle(url) {
+export function unwrapSuspenderTitle(url?: string): string {
   if (!url || !url.startsWith('chrome-extension://')) return ''
   try {
     const parsed = new URL(url)
@@ -51,7 +51,7 @@ export function unwrapSuspenderTitle(url) {
     const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
     const match = frag.match(/(?:^|&)ttl=([^&]*)/)
     if (!match) return ''
-    return decodeURIComponent(match[1]) || ''
+    return decodeURIComponent(match[1] || '') || ''
   } catch {
     return ''
   }

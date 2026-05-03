@@ -1,10 +1,11 @@
 import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon } from './favicons.js'
+import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot } from './types'
 
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
-function emptySnapshot() {
+function emptySnapshot(): TabHistorySnapshot {
   return {
     stackSize: 0,
     maxSize: 0,
@@ -19,12 +20,20 @@ function emptySnapshot() {
   }
 }
 
-function normalizeEntry(entry, index) {
-  const tabId = Number.isInteger(entry?.tabId) ? entry.tabId : -1
-  const windowId = Number.isInteger(entry?.windowId) ? entry.windowId : -1
+function integerOr(value: unknown, fallback: number): number {
+  return Number.isInteger(value) ? Number(value) : fallback
+}
+
+function integerOrNull(value: unknown): number | null {
+  return Number.isInteger(value) ? Number(value) : null
+}
+
+function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, index: number): TabHistoryEntry {
+  const tabId = integerOr(entry?.tabId, -1)
+  const windowId = integerOr(entry?.windowId, -1)
   const url = String(entry?.url || '')
   return {
-    index: Number.isInteger(entry?.index) ? entry.index : index,
+    index: integerOr(entry?.index, index),
     tabId,
     windowId,
     exists: !!entry?.exists,
@@ -42,24 +51,24 @@ function normalizeEntry(entry, index) {
   }
 }
 
-export function normalizeTabHistorySnapshot(snapshot) {
+export function normalizeTabHistorySnapshot(snapshot: Partial<TabHistorySnapshot> | null | undefined): TabHistorySnapshot {
   if (!snapshot || !Array.isArray(snapshot.entries)) return emptySnapshot()
   const entries = snapshot.entries.map(normalizeEntry)
   return {
-    stackSize: Number.isInteger(snapshot.stackSize) ? snapshot.stackSize : entries.length,
-    maxSize: Number.isInteger(snapshot.maxSize) ? snapshot.maxSize : 0,
-    cursorIndex: Number.isInteger(snapshot.cursorIndex) ? snapshot.cursorIndex : -1,
-    currentIndex: Number.isInteger(snapshot.currentIndex) ? snapshot.currentIndex : -1,
-    previousIndex: Number.isInteger(snapshot.previousIndex) ? snapshot.previousIndex : -1,
-    nextIndex: Number.isInteger(snapshot.nextIndex) ? snapshot.nextIndex : -1,
-    activeTabId: Number.isInteger(snapshot.activeTabId) ? snapshot.activeTabId : null,
-    activeWindowId: Number.isInteger(snapshot.activeWindowId) ? snapshot.activeWindowId : null,
+    stackSize: integerOr(snapshot.stackSize, entries.length),
+    maxSize: integerOr(snapshot.maxSize, 0),
+    cursorIndex: integerOr(snapshot.cursorIndex, -1),
+    currentIndex: integerOr(snapshot.currentIndex, -1),
+    previousIndex: integerOr(snapshot.previousIndex, -1),
+    nextIndex: integerOr(snapshot.nextIndex, -1),
+    activeTabId: integerOrNull(snapshot.activeTabId),
+    activeWindowId: integerOrNull(snapshot.activeWindowId),
     activeWasInserted: !!snapshot.activeWasInserted,
     entries
   }
 }
 
-async function sendHistoryMessage(message) {
+async function sendHistoryMessage(message: Record<string, unknown>): Promise<TabHistorySnapshot> {
   if (!globalThis.chrome?.runtime?.sendMessage) return emptySnapshot()
   try {
     const response = await chrome.runtime.sendMessage(message)
@@ -70,18 +79,18 @@ async function sendHistoryMessage(message) {
   }
 }
 
-export function fetchTabHistorySnapshot() {
+export function fetchTabHistorySnapshot(): Promise<TabHistorySnapshot> {
   return sendHistoryMessage({ type: TAB_HISTORY_GET_MESSAGE })
 }
 
-export function switchTabHistoryFromDashboard(direction) {
+export function switchTabHistoryFromDashboard(direction: number): Promise<TabHistorySnapshot> {
   return sendHistoryMessage({
     type: TAB_HISTORY_SWITCH_MESSAGE,
     direction: direction === 1 ? 1 : -1
   })
 }
 
-export async function focusHistoryEntry(entry) {
+export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean> {
   if (!entry?.exists || !Number.isInteger(entry.tabId)) return false
   try {
     await chrome.tabs.update(entry.tabId, { active: true })
@@ -92,7 +101,7 @@ export async function focusHistoryEntry(entry) {
   }
 }
 
-export async function closeHistoryEntry(entry) {
+export async function closeHistoryEntry(entry: TabHistoryEntry): Promise<{ closed: boolean; snapshot: TabSnapshot[] }> {
   if (!entry?.exists || !Number.isInteger(entry.tabId)) return { closed: false, snapshot: [] }
 
   try {

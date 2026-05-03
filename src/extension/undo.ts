@@ -16,8 +16,14 @@
 
 import { showToast } from './toast.js'
 import { requestDashboardRefresh } from './dashboard-controller.js'
+import type { TabSnapshot } from './types'
 
-let lastClosure = null
+type ClosureSnapshot = {
+  tabs: TabSnapshot[]
+  at: number
+}
+
+let lastClosure: ClosureSnapshot | null = null
 
 /**
  * undoLastClose() — restore the most recently closed tabs via
@@ -29,12 +35,12 @@ let lastClosure = null
  * After restoring, the toast offers a "Switch" button for single-tab
  * undo so the user can jump to the restored tab if they want.
  */
-export async function undoLastClose() {
+export async function undoLastClose(): Promise<void> {
   const closure = lastClosure
   if (!closure || !closure.tabs || closure.tabs.length === 0) return
   lastClosure = null
 
-  const restoredTabIds = []
+  const restoredTabIds: number[] = []
   for (const t of closure.tabs) {
     try {
       const created = await chrome.tabs.create({
@@ -44,7 +50,7 @@ export async function undoLastClose() {
         active: false
       })
       if (created && created.id != null) restoredTabIds.push(created.id)
-      if (t.groupId !== undefined && t.groupId !== -1 && chrome.tabs.group) {
+      if (created.id != null && t.groupId !== undefined && t.groupId !== -1 && chrome.tabs.group) {
         try {
           await chrome.tabs.group({ tabIds: [created.id], groupId: t.groupId })
         } catch {
@@ -82,7 +88,7 @@ export async function undoLastClose() {
  * the toast with an "Undo" button. Snapshot is the array returned by the
  * close functions; label is the toast text (defaults to "Closed N tabs").
  */
-export function markClosure(snapshot, label) {
+export function markClosure(snapshot: TabSnapshot[], label?: string): void {
   if (!snapshot || snapshot.length === 0) return
   lastClosure = { tabs: snapshot, at: Date.now() }
   const n = snapshot.length

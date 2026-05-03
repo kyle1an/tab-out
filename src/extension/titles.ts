@@ -16,7 +16,7 @@
    diverged and chip order looked random.
    ================================================================ */
 
-const FRIENDLY_DOMAINS = {
+const FRIENDLY_DOMAINS: Record<string, string> = {
   'github.com': 'GitHub',
   'www.github.com': 'GitHub',
   'gist.github.com': 'GitHub Gist',
@@ -85,12 +85,12 @@ const FRIENDLY_DOMAINS = {
   'local-files': 'Local Files'
 }
 
-function capitalize(str) {
+function capitalize(str: string): string {
   if (!str) return ''
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export function friendlyDomain(hostname) {
+export function friendlyDomain(hostname: string): string {
   if (!hostname) return ''
   if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname]
 
@@ -101,15 +101,15 @@ export function friendlyDomain(hostname) {
     return capitalize(hostname.replace('.github.io', '')) + ' (GitHub Pages)'
   }
 
-  let clean = hostname.replace(/^www\./, '').replace(/\.(com|org|net|io|co|ai|dev|app|so|me|xyz|info|us|uk|co\.uk|co\.jp)$/, '')
+  const clean = hostname.replace(/^www\./, '').replace(/\.(com|org|net|io|co|ai|dev|app|so|me|xyz|info|us|uk|co\.uk|co\.jp)$/, '')
 
   return clean
     .split('.')
-    .map((part) => capitalize(part))
+    .map((part: string) => capitalize(part))
     .join(' ')
 }
 
-export function stripTitleNoise(title) {
+export function stripTitleNoise(title: string): string {
   if (!title) return ''
   // Strip leading notification count: "(2) Title"
   title = title.replace(/^\(\d+\+?\)\s*/, '')
@@ -124,7 +124,7 @@ export function stripTitleNoise(title) {
   return title.trim()
 }
 
-export function cleanTitle(title, hostname) {
+export function cleanTitle(title: string, hostname: string): string {
   if (!title || !hostname) return title || ''
 
   const friendly = friendlyDomain(hostname)

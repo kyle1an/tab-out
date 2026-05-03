@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-const backgroundUrl = new URL('../src/extension/background.js', import.meta.url)
+const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
 

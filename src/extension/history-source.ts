@@ -1,4 +1,6 @@
-/** @typedef {import('./types').DashboardTab} DashboardTab */
+import type { DashboardTab } from './types'
+
+type HistoryItemLike = Pick<chrome.history.HistoryItem, 'id' | 'title' | 'url'>
 
 const HISTORY_MAX_RESULTS = 30
 
@@ -12,11 +14,11 @@ export const HISTORY_RANGE_OPTIONS = [
   { value: '90d', label: 'Last 3 months', days: 90 }
 ]
 
-export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE) {
+export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE): boolean {
   return range !== HISTORY_FILTER_OFF
 }
 
-function historyRangeDays(range = DEFAULT_HISTORY_RANGE) {
+function historyRangeDays(range = DEFAULT_HISTORY_RANGE): number {
   return HISTORY_RANGE_OPTIONS.find((option) => option.value === range)?.days || 90
 }
 
@@ -27,9 +29,9 @@ function historyRangeDays(range = DEFAULT_HISTORY_RANGE) {
  * @param {Array<{ id?: string, title?: string, url?: string }>} items
  * @returns {DashboardTab[]}
  */
-export function flattenHistoryItems(items) {
+export function flattenHistoryItems(items: HistoryItemLike[]): DashboardTab[] {
   return (items || [])
-    .filter((item) => item?.url && !item.url.startsWith('chrome://') && !item.url.startsWith('chrome-extension://'))
+    .filter((item): item is HistoryItemLike & { url: string } => !!item?.url && !item.url.startsWith('chrome://') && !item.url.startsWith('chrome-extension://'))
     .map((item, index) => ({
       id: item.id || `history-${index}`,
       url: item.url,
@@ -54,7 +56,7 @@ export function flattenHistoryItems(items) {
  * @param {string} [range]
  * @returns {Promise<DashboardTab[]>}
  */
-export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTORY_RANGE) {
+export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTORY_RANGE): Promise<DashboardTab[]> {
   const text = query.trim()
   if (!text || !isHistoryFilterEnabled(range) || !globalThis.chrome?.history?.search) return []
 
@@ -77,7 +79,7 @@ export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTOR
  * @param {string} url
  * @returns {Promise<boolean>}
  */
-export async function deleteHistorySourceUrl(url = '') {
+export async function deleteHistorySourceUrl(url = ''): Promise<boolean> {
   const targetUrl = url.trim()
   if (!targetUrl || !globalThis.chrome?.history?.deleteUrl) return false
 

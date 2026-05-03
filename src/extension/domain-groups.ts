@@ -1,9 +1,6 @@
 import { registrableDomain } from './domains.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
-
-/** @typedef {import('./types').DashboardTab} DashboardTab */
-/** @typedef {import('./types').DomainGroup} DomainGroup */
-/** @typedef {import('./types').DomainGroupBuildOptions} DomainGroupBuildOptions */
+import type { CustomGroupRule, DashboardTab, DomainGroup, DomainGroupBuildOptions } from './types'
 
 /**
  * @param {DashboardTab[]} realTabs
@@ -11,16 +8,16 @@ import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
  * @returns {DomainGroup[]}
  */
 export function buildDomainGroups(
-  realTabs,
-  { previousOrder = new Map(), customGroups = [], pinnedDomains = [] } = {}
-) {
+  realTabs: DashboardTab[],
+  { previousOrder = new Map(), customGroups = [], pinnedDomains = [] }: DomainGroupBuildOptions = {}
+): DomainGroup[] {
   // Group tabs by domain. Custom groups and utility cards (apps / new tabs)
   // still split out, but homepage-like routes stay in their native domain cards.
-  const groupMap = {}
-  const appTabs = []
-  const tabOutTabs = []
+  const groupMap: Record<string, DomainGroup> = {}
+  const appTabs: DashboardTab[] = []
+  const tabOutTabs: DashboardTab[] = []
 
-  function matchCustomGroup(url) {
+  function matchCustomGroup(url: string): CustomGroupRule | null {
     try {
       const parsed = new URL(url)
       return (
@@ -85,7 +82,7 @@ export function buildDomainGroups(
   const normalizedPinnedDomains = normalizePinnedDomains(pinnedDomains)
   const pinnedOrder = new Map(normalizedPinnedDomains.map((domain, index) => [domain, index]))
 
-  function orderTier(group) {
+  function orderTier(group: DomainGroup): number {
     if (group.domain === '__tab-out__') return 0
     if (group.domain === '__standalone-apps__') return 1
     if (group.pinned) return 2
@@ -101,18 +98,18 @@ export function buildDomainGroups(
   groupedDomains.sort((a, b) => {
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta
-    if (a.pinned && b.pinned) return pinnedOrder.get(a.domain) - pinnedOrder.get(b.domain)
+    if (a.pinned && b.pinned) return (pinnedOrder.get(a.domain) ?? 0) - (pinnedOrder.get(b.domain) ?? 0)
     return b.tabs.length - a.tabs.length
   })
 
   // Stable re-sort: previously-seen cards keep their prior order; new
   // cards stay where the utility-card/tab-count sort put them (at the
   // end, since `return 0` preserves Array.prototype.sort stability).
-  const stableDomainId = (g) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
+  const stableDomainId = (g: DomainGroup) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
   groupedDomains.sort((a, b) => {
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta
-    if (a.pinned && b.pinned) return pinnedOrder.get(a.domain) - pinnedOrder.get(b.domain)
+    if (a.pinned && b.pinned) return (pinnedOrder.get(a.domain) ?? 0) - (pinnedOrder.get(b.domain) ?? 0)
     const aPrev = previousOrder.get(stableDomainId(a))
     const bPrev = previousOrder.get(stableDomainId(b))
     if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev

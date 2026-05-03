@@ -5,11 +5,9 @@
    preserving data: favicons that carry extension-specific styling.
    ================================================================ */
 
-/**
- * @param {Pick<import('./types').DashboardTab, 'favIconUrl' | 'url'>} tab
- * @returns {string}
- */
-export function pickFavicon(tab) {
+import type { DashboardTab } from './types'
+
+export function pickFavicon(tab?: Pick<DashboardTab, 'favIconUrl' | 'url'> | null): string {
   const fav = tab?.favIconUrl || ''
   if (fav.startsWith('data:')) return fav
 

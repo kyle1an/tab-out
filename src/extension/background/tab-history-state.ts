@@ -10,7 +10,7 @@ export type GlobalTabHistory = {
   index: number
 }
 
-type GlobalTabHistoryInput = Partial<GlobalTabHistory> | null | undefined
+export type GlobalTabHistoryInput = Partial<GlobalTabHistory> | null | undefined
 
 type ActiveTabLike = {
   id?: number

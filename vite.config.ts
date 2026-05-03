@@ -14,7 +14,7 @@ export default defineConfig({
     rolldownOptions: {
       input: {
         app: resolve(__dirname, 'src/app.tsx'),
-        background: resolve(__dirname, 'src/extension/background.js')
+        background: resolve(__dirname, 'src/extension/background.ts')
       },
       output: {
         entryFileNames: '[name].js',

@@ -4,10 +4,20 @@ import { cleanTitle, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { tabMatchesFilter } from './filter-match.js'
+import type { DashboardCardVM, DashboardChipData, DashboardSectionVM, DashboardSegment, DashboardTab, DomainGroup, PathGroupResult } from './types'
 
-/** @typedef {import('./types').DashboardTab} DashboardTab */
-/** @typedef {import('./types').DomainGroup} DomainGroup */
-/** @typedef {import('./types').DashboardCardVM} DashboardCardVM */
+type CardMode = 'matched' | 'unmatched'
+type ComputeCardOptions = {
+  filter?: string
+  mode?: CardMode
+  allowMutations?: boolean
+}
+type DuplicateInfo = {
+  total: number
+  ungrouped: number
+  groupIds: Set<number>
+}
+type PathCategory = NonNullable<PathGroupResult['category']>
 
 /**
  * injectBreakPoints(str) — insert U+200B (zero-width space) into
@@ -25,7 +35,7 @@ import { tabMatchesFilter } from './filter-match.js'
  * @param {string} str
  * @returns {string}
  */
-function injectBreakPoints(str) {
+function injectBreakPoints(str: string): string {
   if (!str) return str
   return str.replace(/[A-Za-z0-9_]{15,}/g, (token) => token.replace(/(.{5})(?=.)/g, '$1\u200B'))
 }
@@ -51,25 +61,25 @@ function injectBreakPoints(str) {
  * the label, or label-sep-label with nothing else), the original
  * label is returned as a single-segment array.
  */
-function stripPgLabel(label, pgLabel) {
+function stripPgLabel(label: string, pgLabel: string): DashboardSegment[] {
   if (!pgLabel || !label || label === pgLabel) {
     return [label]
   }
   const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
-  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const EL = esc(pgLabel)
   const SEP = '(?:' + seps.map(esc).join('|') + ')'
   const re = new RegExp(`(^|${SEP})(${EL})`, 'g')
 
-  const hits = []
-  let m
+  const hits: Array<{ index: number; length: number; prefixSep: string }> = []
+  let m: RegExpExecArray | null
   while ((m = re.exec(label)) !== null) {
     hits.push({ index: m.index, length: m[0].length, prefixSep: m[1] })
     if (m.index === re.lastIndex) re.lastIndex++
   }
   if (hits.length === 0) return [label]
 
-  const segments = []
+  const segments: DashboardSegment[] = []
   let cursor = 0
   for (const hit of hits) {
     const textBefore = label.slice(cursor, hit.index)
@@ -107,7 +117,7 @@ function stripPgLabel(label, pgLabel) {
  * @param {string[]} urls
  * @returns {string[]}
  */
-function disambiguatingPaths(urls) {
+function disambiguatingPaths(urls: string[]): string[] {
   const tokens = urls.map((u) => {
     try {
       const parsed = new URL(u)
@@ -146,7 +156,8 @@ function disambiguatingPaths(urls) {
       if (seg.startsWith('?') || seg.startsWith('#')) joined += seg
       else joined += (joined ? '/' : '') + seg
     }
-    const firstIsPath = !show[0].startsWith('?') && !show[0].startsWith('#')
+    const first = show[0] || ''
+    const firstIsPath = !first.startsWith('?') && !first.startsWith('#')
     const lead = commonLead > 0 ? '…' : ''
     return lead + (firstIsPath ? '/' : '') + joined
   })
@@ -184,7 +195,7 @@ function disambiguatingPaths(urls) {
  * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group, { filter = '', mode = 'matched', allowMutations = true } = {}) {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
   const filtering = filter !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -233,8 +244,8 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const closableCount = closableTabs.length
 
   // Count duplicates per URL, tracking grouped/ungrouped + which groups they're in.
-  const dupeInfo = {} // { url: { total, ungrouped, groupIds: Set } }
-  const urlCounts = {}
+  const dupeInfo: Record<string, DuplicateInfo> = {} // { url: { total, ungrouped, groupIds: Set } }
+  const urlCounts: Record<string, number> = {}
   for (const tab of tabs) {
     urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1
     if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() }
@@ -250,7 +261,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   //   • All ungrouped (≥2)        → keep one ungrouped, close the rest.
   //   • All grouped, single group → keep one, close the rest within that group.
   //   • All grouped, multi groups → skip (would empty a slot in each group).
-  function closableForUrl(u) {
+  function closableForUrl(u: string): number {
     const info = dupeInfo[u]
     if (!info) return 0
     if (isTabOutGroup) {
@@ -271,8 +282,8 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
-  const seen = new Set()
-  const uniqueTabs = []
+  const seen = new Set<string>()
+  const uniqueTabs: DashboardTab[] = []
   for (const tab of tabs) {
     if (!seen.has(tab.url)) {
       seen.add(tab.url)
@@ -283,7 +294,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // Build the exact title string the chip displays BEFORE path crumbs
   // and path-group placeholders. Shared by sort order and collision
   // detection so both reason over the same visible label.
-  function displayTitle(tab) {
+  function displayTitle(tab: DashboardTab): string {
     let hostname = group.domain
     try {
       hostname = new URL(tab.url).hostname
@@ -295,7 +306,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // order never diverges from the sort order. `numeric: true` gives
   // natural number ordering (Dashboard 2 before Dashboard 11, PR #4488
   // before PR #4706).
-  function sortLabel(tab) {
+  function sortLabel(tab: DashboardTab): string {
     return displayTitle(tab).toLowerCase()
   }
   uniqueTabs.sort((a, b) => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }))
@@ -306,10 +317,10 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // subdomains gets folded into a single chip that carries an env-pill
   // stack; those tabs are then excluded from the per-subdomain sections
   // below so they don't appear twice.
-  const foldedTabUrls = new Set()
-  const foldGroups = [] // each entry is an array of tabs sharing the same path
+  const foldedTabUrls = new Set<string>()
+  const foldGroups: DashboardTab[][] = [] // each entry is an array of tabs sharing the same path
   {
-    const pathMap = new Map()
+    const pathMap = new Map<string, DashboardTab[]>()
     for (const tab of uniqueTabs) {
       try {
         const parsed = new URL(tab.url)
@@ -317,13 +328,13 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
         if (!sub) continue // root-level tabs have no env to compare
         const pathKey = parsed.pathname + parsed.search + parsed.hash
         if (!pathMap.has(pathKey)) pathMap.set(pathKey, [])
-        pathMap.get(pathKey).push(tab)
+        pathMap.get(pathKey)?.push(tab)
       } catch {
         // unparseable URL — skip
       }
     }
     for (const tabs of pathMap.values()) {
-      const subs = new Set()
+      const subs = new Set<string>()
       for (const t of tabs) {
         try {
           subs.add(subdomainPrefix(new URL(t.url).hostname, group.domain))
@@ -338,7 +349,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // Group tabs by subdomain/port within the card, EXCLUDING any tabs
   // that got folded into the shared section above. Root tabs (no
   // subdomain or lone "www") sit under an empty-string key.
-  const bySubdomain = new Map()
+  const bySubdomain = new Map<string, DashboardTab[]>()
   for (const tab of uniqueTabs) {
     if (foldedTabUrls.has(tab.url)) continue
     let key = ''
@@ -351,7 +362,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       }
     } catch {}
     if (!bySubdomain.has(key)) bySubdomain.set(key, [])
-    bySubdomain.get(key).push(tab)
+    bySubdomain.get(key)?.push(tab)
   }
 
   // Sort policy: root tabs (empty key) first, then the rest
@@ -384,8 +395,15 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // favicon URL, tooltip, prefix/path/pg/dupe annotations. Phase 5
   // replaced the old renderChip HTML-string emitter with this
   // data-shape so components can render declaratively.
-  function buildChipData(tab, showPrefix, pathSuffix, pathGroupLabel, stripLabel, { iconOnly = false } = {}) {
-    let parsed = null
+  function buildChipData(
+    tab: DashboardTab,
+    showPrefix: boolean,
+    pathSuffix: string,
+    pathGroupLabel: string,
+    stripLabel = '',
+    { iconOnly = false }: { iconOnly?: boolean } = {}
+  ): DashboardChipData {
+    let parsed: URL | null = null
     try {
       parsed = new URL(tab.url)
     } catch {}
@@ -448,7 +466,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // is trying to see. Collapsing any of them behind "+N more" would
   // defeat the filter. (Previously filter.js forced all .page-chips-
   // overflow elements to display:contents; the VM handles it now.)
-  function splitForOverflow(tabs) {
+  function splitForOverflow<T>(tabs: T[]): { vis: T[]; hid: T[] } {
     if (filtering || tabs.length <= CHIPS_PER_SECTION + 1) {
       return { vis: tabs, hid: [] }
     }
@@ -499,9 +517,10 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // present in 2+ subdomains. The env-pill stack replaces the usual
   // subdomain prefix; clicking a pill focuses that env's tab and the
   // chip's close button (handled in PageChip) closes every env copy.
-  function buildFoldedChipData(tabs) {
+  function buildFoldedChipData(tabs: DashboardTab[]): DashboardChipData {
     const primary = tabs[0]
-    let parsed = null
+    if (!primary) throw new Error('Folded chip requires at least one tab')
+    let parsed: URL | null = null
     try {
       parsed = new URL(primary.url)
     } catch {}
@@ -549,7 +568,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   // fold groups exist). It's a virtual subdomain: one flat list of
   // folded chips, no cluster sub-sections. Close-section closes every
   // tab across every env in every fold group.
-  let sharedSectionData = null
+  let sharedSectionData: DashboardSectionVM | null = null
   if (foldGroups.length > 0) {
     const sortedFolds = foldGroups.slice().sort((a, b) => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true }))
     const foldedChipData = sortedFolds.map((tabs) => buildFoldedChipData(tabs))
@@ -570,7 +589,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     }
   }
 
-  const sectionsData = sections.map(([key, sectionTabs]) => {
+  const sectionsData: DashboardSectionVM[] = sections.map(([key, sectionTabs]) => {
     // Header appears only when a card has 2+ subdomain sections AND
     // the section isn't the empty-key "root" (card title already says
     // the root). When shown, the header replaces the per-chip prefix —
@@ -585,17 +604,17 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // render with the same visible title, append the smallest path
     // crumb that tells them apart. Noiseless for the common case
     // (no collision → empty string → <PageChip> skips the crumb span).
-    const pathByUrl = new Map()
-    const sameTitle = new Map()
+    const pathByUrl = new Map<string, string>()
+    const sameTitle = new Map<string, DashboardTab[]>()
     for (const t of sectionTabs) {
       const titleKey = displayTitle(t).toLowerCase()
       if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
-      sameTitle.get(titleKey).push(t)
+      sameTitle.get(titleKey)?.push(t)
     }
     for (const collided of sameTitle.values()) {
       if (collided.length < 2) continue
       const suffixes = disambiguatingPaths(collided.map((t) => t.url))
-      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i]))
+      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i] ?? ''))
     }
 
     // Path-group pills: resolve each tab's path group (github repo,
@@ -615,17 +634,17 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // Extra guardrail: drop labels that equal the subdomain or the
     // card domain (redundant information already carried by the
     // section header or card title).
-    const pgByUrl = new Map()
-    const pgKeyCount = new Map()
+    const pgByUrl = new Map<string, PathGroupResult>()
+    const pgKeyCount = new Map<string, number>()
     for (const t of sectionTabs) {
       const pg = resolvePathGroup(t.url)
       if (!pg) continue
       pgByUrl.set(t.url, pg)
       pgKeyCount.set(pg.key, (pgKeyCount.get(pg.key) || 0) + 1)
     }
-    const pgLabelByUrl = new Map()
+    const pgLabelByUrl = new Map<string, string>()
     for (const [url, pg] of pgByUrl) {
-      if (!pg.alwaysCluster && pgKeyCount.get(pg.key) < 2) continue
+      if (!pg.alwaysCluster && (pgKeyCount.get(pg.key) ?? 0) < 2) continue
       if (pg.label === key || pg.label === group.domain) continue
       pgLabelByUrl.set(url, pg.label)
     }
@@ -637,8 +656,8 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // its OWN visible/hidden split and its OWN "+N more" expander —
     // when a cluster overflows, expansion happens inside the cluster
     // so hidden members never leave their header's visual context.
-    const clusterByLabel = new Map()
-    const singletonTabs = []
+    const clusterByLabel = new Map<string, DashboardTab[]>()
+    const singletonTabs: DashboardTab[] = []
     for (const t of sectionTabs) {
       const lbl = pgLabelByUrl.get(t.url)
       if (!lbl) {
@@ -646,7 +665,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
         continue
       }
       if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, [])
-      clusterByLabel.get(lbl).push(t)
+      clusterByLabel.get(lbl)?.push(t)
     }
     const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
 
@@ -654,7 +673,8 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // provided one), then by their display-label order (preserved via
     // stable sort, since sectionTabs was already sorted by display
     // label above). Unknown categories fall to 'other'.
-    const CATEGORY_ORDER = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
+    const CATEGORY_ORDER: Record<PathCategory, number> = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
+    const categoryRank = (category?: PathGroupResult['category']) => CATEGORY_ORDER[category ?? 'other']
 
     // Pull requests deserve their own section under a repo: they're
     // action items ("review me"), not browsing state ("I'm reading
@@ -667,7 +687,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // non-PR side has ≥1. A single PR stays folded into the main
     // cluster; a repo with only PRs stays as one section (and
     // cosmetically still gets the PR label via `isPR`).
-    const rawClusters = []
+    const rawClusters: Array<{ label: string; tabs: DashboardTab[]; key: string; isPR: boolean }> = []
     for (const [lbl, tabs] of sortedClusters) {
       const prTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category === 'pull')
       const nonPrTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category !== 'pull')
@@ -686,8 +706,8 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     // chip-data objects directly (Phase 5).
     const clusters = rawClusters.map(({ label, tabs, key, isPR }) => {
       const orderedTabs = tabs.slice().sort((a, b) => {
-        const aCat = CATEGORY_ORDER[pgByUrl.get(a.url)?.category] ?? CATEGORY_ORDER.other
-        const bCat = CATEGORY_ORDER[pgByUrl.get(b.url)?.category] ?? CATEGORY_ORDER.other
+        const aCat = categoryRank(pgByUrl.get(a.url)?.category)
+        const bCat = categoryRank(pgByUrl.get(b.url)?.category)
         return aCat - bCat
       })
       const { vis, hid } = splitForOverflow(orderedTabs)

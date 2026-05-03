@@ -25,14 +25,7 @@ import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { getFilteredCloseableUrls, tabMatchesFilter } from './filter-match.js'
-
-/** @typedef {import('./types').DashboardTab} DashboardTab */
-/** @typedef {import('./types').DomainGroup} DomainGroup */
-/** @typedef {import('./types').DomainGroupBuildOptions} DomainGroupBuildOptions */
-/** @typedef {import('./types').DashboardCardVM} DashboardCardVM */
-/** @typedef {import('./types').DashboardViewModel} DashboardViewModel */
-/** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
-/** @typedef {'tabs' | 'bookmarks' | 'history'} DashboardSource */
+import type { CustomGroupRule, DashboardCardEntry, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 
 export { pickFavicon } from './favicons.js'
 export { buildDomainGroups } from './domain-groups.js'
@@ -52,16 +45,23 @@ export { getFilteredCloseableUrls, tabMatchesFilter } from './filter-match.js'
  * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource }} [opts]
  * @returns {DashboardViewModel}
  */
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' } = {}) {
+type DashboardViewModelOptions = {
+  realTabs?: DashboardTab[]
+  domainGroups?: DomainGroup[]
+  filter?: string
+  source?: DashboardSource
+}
+
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.length > 0
   const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
   const allowMutations = source === 'tabs'
 
-  const matchedCards = []
-  const unmatchedCards = []
-  const globalDedupeUrls = []
+  const matchedCards: DashboardCardEntry[] = []
+  const unmatchedCards: DashboardCardEntry[] = []
+  const globalDedupeUrls: string[] = []
   let dedupCount = 0
   for (const group of groups) {
     const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations })
@@ -106,7 +106,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 /**
  * @returns {{ customGroups: CustomGroupRule[] }}
  */
-function getDashboardGroupingConfig() {
+function getDashboardGroupingConfig(): { customGroups: CustomGroupRule[] } {
   return {
     customGroups: window.LOCAL_CUSTOM_GROUPS || []
   }
@@ -122,8 +122,8 @@ function getDashboardGroupingConfig() {
  * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[], bookmarkTabs: DashboardTab[], bookmarkDomainGroups: DomainGroup[], bookmarkSearchReady: boolean, historyTabs: DashboardTab[], historyDomainGroups: DomainGroup[], historySearchQuery: string, historyRange: string }>}
  */
 export async function fetchDashboardData(
-  previousOrder = new Map(),
-  source = 'tabs',
+  previousOrder: Map<string, number> = new Map(),
+  source: DashboardSource = 'tabs',
   {
     pinnedDomains = [],
     bookmarkPreviousOrder = new Map(),
@@ -132,8 +132,16 @@ export async function fetchDashboardData(
     includeHistoryMatches = false,
     searchQuery = '',
     historyRange = DEFAULT_HISTORY_RANGE
+  }: {
+    pinnedDomains?: string[]
+    bookmarkPreviousOrder?: Map<string, number>
+    historyPreviousOrder?: Map<string, number>
+    includeBookmarkMatches?: boolean
+    includeHistoryMatches?: boolean
+    searchQuery?: string
+    historyRange?: string
   } = {}
-) {
+): Promise<Required<DashboardData>> {
   const groupingConfig = getDashboardGroupingConfig()
   if (source === 'bookmarks') {
     const realTabs = await fetchBookmarksSourceItems()

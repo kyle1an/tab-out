@@ -65,7 +65,7 @@ const PUBLIC_SUFFIXES = new Set([
  *   "192.168.1.1"               → "192.168.1.1"      (IPs never roll up)
  *   ""                          → ""
  */
-export function registrableDomain(hostname) {
+export function registrableDomain(hostname: string): string {
   if (!hostname) return ''
   if (IPV4_RE.test(hostname)) return hostname
   const parts = hostname.split('.')
@@ -88,7 +88,7 @@ export function registrableDomain(hostname) {
  *   ("www.example.com",     "example.com")  → ""
  *   ("example.com",         "example.com")  → ""
  */
-export function subdomainPrefix(hostname, registrable) {
+export function subdomainPrefix(hostname: string, registrable: string): string {
   if (!hostname || !registrable || hostname === registrable) return ''
   const suffix = '.' + registrable
   if (!hostname.endsWith(suffix)) return ''

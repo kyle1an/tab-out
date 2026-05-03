@@ -12,12 +12,16 @@
 
 import { unwrapSuspenderUrl } from './suspender.js'
 
+type GroupedTabLike = {
+  groupId?: number
+}
+
 /**
  * isGroupedTab(tab) — true if the tab belongs to a Chrome tab group.
  * chrome.tabs exposes groupId in MV3 without needing the "tabGroups"
  * permission (that permission is only required to read group title/color).
  */
-export function isGroupedTab(tab) {
+export function isGroupedTab(tab?: GroupedTabLike | null): boolean {
   return !!tab && tab.groupId != null && tab.groupId !== -1
 }
 
@@ -43,23 +47,23 @@ const CHROME_GROUP_COLOR_HEX = {
  */
 const GROUP_DOT_COLORS = ['#5a9cff', '#ff9f43', '#2ecc71', '#d35400', '#9b59b6', '#16a085', '#e74c3c', '#34495e', '#f39c12']
 
-let groupColorCache = {} // { groupId: '#hex' } from chrome.tabGroups.query
+let groupColorCache: Record<number, string> = {} // { groupId: '#hex' } from chrome.tabGroups.query
 
 /**
  * fetchTabGroupColors() — populates the cache from the tabGroups API.
  * No-ops if the permission isn't granted (cache stays empty; dots fall
  * back to the deterministic palette).
  */
-export async function fetchTabGroupColors() {
+export async function fetchTabGroupColors(): Promise<void> {
   if (!chrome.tabGroups) {
     groupColorCache = {}
     return
   }
   try {
     const groups = await chrome.tabGroups.query({})
-    const next = {}
+    const next: Record<number, string> = {}
     for (const g of groups) {
-      next[g.id] = CHROME_GROUP_COLOR_HEX[g.color] || '#999'
+      next[g.id] = CHROME_GROUP_COLOR_HEX[g.color as keyof typeof CHROME_GROUP_COLOR_HEX] || '#999'
     }
     groupColorCache = next
   } catch {
@@ -73,9 +77,9 @@ export async function fetchTabGroupColors() {
  * so subsequent calls reflect the new state. Used to gate tabGroups.onUpdated
  * so collapse/expand/title edits don't trigger a full dashboard re-render.
  */
-export function groupColorChanged(group) {
+export function groupColorChanged(group?: chrome.tabGroups.TabGroup | null): boolean {
   if (!group || group.id == null) return false
-  const next = CHROME_GROUP_COLOR_HEX[group.color] || '#999'
+  const next = CHROME_GROUP_COLOR_HEX[group.color as keyof typeof CHROME_GROUP_COLOR_HEX] || '#999'
   const prev = groupColorCache[group.id]
   if (prev === next) return false
   groupColorCache[group.id] = next
@@ -86,7 +90,7 @@ export function groupColorChanged(group) {
  * groupDotColor(groupId) — Chrome's actual group color when available;
  * otherwise a deterministic palette color from the id.
  */
-export function groupDotColor(groupId) {
+export function groupDotColor(groupId?: number): string {
   if (groupId == null || groupId === -1) return 'transparent'
   if (groupColorCache[groupId]) return groupColorCache[groupId]
   return GROUP_DOT_COLORS[Math.abs(groupId) % GROUP_DOT_COLORS.length]
@@ -100,7 +104,7 @@ export function groupDotColor(groupId) {
  *   active in current window > active in any window > grouped > pinned >
  *   non-suspended > in current window > lowest tab index
  */
-export function scoreForKeep(tab, currentWindowId) {
+export function scoreForKeep(tab: chrome.tabs.Tab, currentWindowId: number): number {
   const rawUrl = tab.url || ''
   const isSuspended = unwrapSuspenderUrl(rawUrl) !== rawUrl
   const grouped = isGroupedTab(tab)
