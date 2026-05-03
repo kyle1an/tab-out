@@ -93,6 +93,7 @@ Once the extension is loaded:
 
 - Tab Out is a pure Chrome extension at runtime. No server is required; UI development uses React + TSX bundled by Vite into `extension/dist/app.js`.
 - 100% local. No data is sent to any external service.
+- Run `npm run setup:hooks` once per clone to enable the committed `.githooks/pre-commit` hook; it runs `npm run verify` before commits.
 - During UI development, run `npm run dev` to watch `src/` changes and rebuild `extension/dist/app.js`; refresh the Tab Out page after each rebuild. Reload the extension for manifest, service-worker, or permission changes.
 - To update: `cd tab-out && git pull`, run `npm install && npm run build` only if source files changed without built assets, then reload the extension in `chrome://extensions`.
 

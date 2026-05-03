@@ -7,6 +7,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
   assert.equal(pkg.scripts?.dev, 'vite build --watch')
   assert.equal(pkg.scripts?.build, 'vite build')
   assert.equal(pkg.scripts?.['build:debug'], 'vite build --sourcemap')
@@ -25,6 +26,14 @@ test('extension HTML loads the Vite-built React entry', () => {
   const toastSource = readFileSync('src/components/Toast.tsx', 'utf8')
   assert.match(`${appComponentSource}\n${toastSource}`, /react-dom\/client/)
   assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
+})
+
+test('repo pre-commit hook runs the verification pipeline', () => {
+  assert.ok(existsSync('.githooks/pre-commit'), 'pre-commit hook should be committed for local setup')
+
+  const hook = readFileSync('.githooks/pre-commit', 'utf8')
+  assert.match(hook, /^#!\/bin\/sh/)
+  assert.match(hook, /npm run verify/)
 })
 
 test('built extension bundle is packaged locally', () => {

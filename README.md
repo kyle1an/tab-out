@@ -91,6 +91,7 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 
 ```bash
 npm install
+npm run setup:hooks
 npm run dev
 ```
 
@@ -105,6 +106,8 @@ npm run verify
 ```
 
 `npm run verify` rebuilds `extension/dist/app.js` and fails if the committed bundle is out of sync with the source.
+
+`npm run setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `npm run verify` before each commit, so stale bundled output is caught before it lands.
 
 Use `npm run build:debug` when you need a local sourcemap.
 
