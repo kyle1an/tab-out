@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type RefObject } from 'react'
+import { useEffect, type RefObject } from 'react'
 import { buildDashboardViewModel } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardData, DashboardSource, DomainGroup } from '../extension/types'
 import type { MissionOrderMap } from './useDashboardRefresh'
@@ -28,42 +28,32 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const historyTabs = dashboard?.historyTabs || EMPTY_TABS
   const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
 
-  const dashboardVm = useMemo(
-    () =>
-      buildDashboardViewModel({
-        realTabs,
-        domainGroups,
-        filter,
-        source
-      }),
-    [domainGroups, filter, realTabs, source]
-  )
+  const dashboardVm = buildDashboardViewModel({
+    realTabs,
+    domainGroups,
+    filter,
+    source
+  })
 
-  const bookmarkSearchVm = useMemo(
-    () =>
-      source === 'tabs' && filter && dashboard?.bookmarkSearchReady
-        ? buildDashboardViewModel({
-            realTabs: bookmarkTabs,
-            domainGroups: bookmarkDomainGroups,
-            filter,
-            source: 'bookmarks'
-          })
-        : null,
-    [bookmarkDomainGroups, bookmarkTabs, dashboard?.bookmarkSearchReady, filter, source]
-  )
+  const bookmarkSearchVm =
+    source === 'tabs' && filter && dashboard?.bookmarkSearchReady
+      ? buildDashboardViewModel({
+          realTabs: bookmarkTabs,
+          domainGroups: bookmarkDomainGroups,
+          filter,
+          source: 'bookmarks'
+        })
+      : null
 
-  const historySearchVm = useMemo(
-    () =>
-      source === 'tabs' && filter && historyFilterEnabled && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
-        ? buildDashboardViewModel({
-            realTabs: historyTabs,
-            domainGroups: historyDomainGroups,
-            filter,
-            source: 'history'
-          })
-        : null,
-    [filter, historyDomainGroups, historyFilterEnabled, historyRange, historyTabs, dashboard?.historyRange, dashboard?.historySearchQuery, source]
-  )
+  const historySearchVm =
+    source === 'tabs' && filter && historyFilterEnabled && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
+      ? buildDashboardViewModel({
+          realTabs: historyTabs,
+          domainGroups: historyDomainGroups,
+          filter,
+          source: 'history'
+        })
+      : null
 
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards

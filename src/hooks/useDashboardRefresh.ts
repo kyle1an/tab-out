@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { fetchDashboardData } from '../extension/render.js'
@@ -96,5 +96,5 @@ export function useDashboardRefresh({
     requestAnimationFrame(() => refreshRef.current())
   }, [pinnedDomains, pinsLoaded])
 
-  return useCallback((options?: RefreshOptions) => refreshRef.current(options), [])
+  return (options?: RefreshOptions) => refreshRef.current(options)
 }

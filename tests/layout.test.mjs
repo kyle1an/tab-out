@@ -65,7 +65,7 @@ test('masonry card motion uses transform instead of layout-property transitions'
 test('source switch keeps one primed card-move refresh', () => {
   const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /const previousRects = prepareDomainCardMoveAnimation\(missionContainers\(\)\)/)
+  assert.match(source, /const previousRects = prepareDomainCardMoveAnimation\(currentMissionContainers\(\)\)/)
   assert.match(source, /layoutMoveRectsRef\.current = previousRects/)
   assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
 })

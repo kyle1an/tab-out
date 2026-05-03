@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { closeDuplicateTabs, closeTabsExact } from '../extension/tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
@@ -18,6 +18,14 @@ import { UrlPreview } from './UrlPreview'
 import type { DashboardData, DashboardSource, TabHistorySnapshot } from './types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
+
+type MissionContainerRef = {
+  current: HTMLDivElement | null
+}
+
+function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer[] {
+  return refs.map((ref) => ref.current)
+}
 
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
@@ -45,18 +53,18 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     onAfterPack: animateDomainCardMoves
   })
 
-  const missionContainers = useCallback(function missionContainers(): MissionContainer[] {
-    return [primaryMissionsRef.current, bookmarkMissionsRef.current, historyMissionsRef.current, unmatchedMissionsRef.current]
-  }, [])
+  function currentMissionContainers() {
+    return readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
+  }
 
-  const primeCardMoveAnimation = useCallback(function primeCardMoveAnimation() {
-    layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(missionContainers())
-  }, [missionContainers])
+  function primeCardMoveAnimation() {
+    layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
+  }
 
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
-  const resetMissionOrder = useCallback(function resetMissionOrder() {
+  function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
-  }, [])
+  }
   const { pinnedDomains, pinsLoaded, togglePinnedDomain } = usePinnedDomains({
     onBeforeApplyPinnedDomains: resetMissionOrder,
     onSaveError: () => showToast('Could not save pinned domain')
@@ -94,13 +102,13 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   useLayoutEffect(() => {
     if (!isReady) return
     clearUrlPreviewNow()
-    const containers = missionContainers()
+    const containers = readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
     const previousRects = layoutMoveRectsRef.current
     layoutMoveRectsRef.current = null
     if (!previousRects) cancelDomainCardMoves(containers)
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
-  }, [dashboard, filter, source, isReady, clearUrlPreviewNow, missionContainers, packMissionsMasonryNow])
+  }, [dashboard, filter, source, isReady, clearUrlPreviewNow, packMissionsMasonryNow])
 
   const {
     dashboardVm,
@@ -150,7 +158,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   async function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
-    const previousRects = prepareDomainCardMoveAnimation(missionContainers())
+    const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     clearUrlPreviewNow()
     const { dashboard: nextDashboard, tabHistory: nextTabHistory } = await fetchDashboardSnapshot({
       source: nextSource,
