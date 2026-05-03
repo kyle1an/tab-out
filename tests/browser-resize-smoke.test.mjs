@@ -15,6 +15,7 @@ const CHROME_CANDIDATES = [
   '/usr/bin/chromium',
   '/usr/bin/chromium-browser'
 ].filter(Boolean)
+const RUN_BROWSER_SMOKE = process.env.RUN_BROWSER_SMOKE === '1' || !!process.env.CI
 
 function findChrome() {
   for (const candidate of CHROME_CANDIDATES) {
@@ -62,16 +63,41 @@ function freePort() {
   })
 }
 
-function stopChrome(chrome) {
-  if (chrome.exitCode !== null || chrome.signalCode !== null) return Promise.resolve()
+function waitForChromeExit(chrome, timeoutMs) {
+  if (chrome.exitCode !== null || chrome.signalCode !== null) return Promise.resolve(true)
   return new Promise((resolveStop) => {
-    const timeout = setTimeout(resolveStop, 1000)
-    chrome.once('exit', () => {
+    const timeout = setTimeout(() => {
+      chrome.off('exit', onExit)
+      resolveStop(false)
+    }, timeoutMs)
+    function onExit() {
       clearTimeout(timeout)
-      resolveStop()
-    })
-    chrome.kill()
+      resolveStop(true)
+    }
+    chrome.once('exit', onExit)
   })
+}
+
+async function stopChrome(chrome, session = null) {
+  if (chrome.exitCode !== null || chrome.signalCode !== null) return
+
+  if (session) {
+    try {
+      await session.send('Browser.close')
+    } catch {}
+    if (await waitForChromeExit(chrome, 5000)) return
+  }
+
+  if (chrome.exitCode !== null || chrome.signalCode !== null) return
+  chrome.kill('SIGTERM')
+  await waitForChromeExit(chrome, 3000)
+}
+
+function rejectPending(pending, error) {
+  for (const { reject } of pending.values()) {
+    reject(error)
+  }
+  pending.clear()
 }
 
 function wait(delay) {
@@ -119,6 +145,9 @@ class CdpSession {
       this.socket = new WebSocket(this.url)
       this.socket.addEventListener('open', () => resolveConnect())
       this.socket.addEventListener('error', rejectConnect)
+      this.socket.addEventListener('close', () => {
+        rejectPending(this.pending, new Error('Chrome DevTools socket closed'))
+      })
       this.socket.addEventListener('message', (event) => {
         const message = JSON.parse(event.data)
         if (!message.id) return
@@ -140,6 +169,7 @@ class CdpSession {
   }
 
   close() {
+    rejectPending(this.pending, new Error('Chrome DevTools session closed'))
     this.socket?.close()
   }
 }
@@ -200,6 +230,11 @@ async function measureDashboard(session, width) {
 }
 
 test('dashboard cards repack when the viewport resizes', async (t) => {
+  if (!RUN_BROWSER_SMOKE) {
+    t.skip('set RUN_BROWSER_SMOKE=1 to launch Chrome for the resize smoke test')
+    return
+  }
+
   if (typeof WebSocket !== 'function') {
     t.skip('global WebSocket is unavailable for Chrome DevTools Protocol')
     return
@@ -220,6 +255,8 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     '--remote-debugging-address=127.0.0.1',
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
+    '--disable-breakpad',
+    '--disable-crash-reporter',
     '--no-first-run',
     '--no-default-browser-check',
     '--no-sandbox',
@@ -227,8 +264,9 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     pageUrl
   ])
 
+  let session = null
   t.after(async () => {
-    await stopChrome(chrome)
+    await stopChrome(chrome, session)
     server.close()
     rmSync(userDataDir, { recursive: true, force: true })
   })
@@ -238,9 +276,8 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     return
   }
   const wsUrl = await waitForPage(port, pageUrl)
-  const session = new CdpSession(wsUrl)
+  session = new CdpSession(wsUrl)
   await session.connect()
-  t.after(() => session.close())
 
   const wide = await measureDashboard(session, 1420)
   const narrow = await measureDashboard(session, 760)
