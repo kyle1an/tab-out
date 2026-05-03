@@ -49,7 +49,7 @@ export function HeaderStats({
 
   return html`
     <div class="header-stats">
-      <span class="stat-primary" id="greeting">${tabsLabel}</span>
+      <span class="stat-primary">${tabsLabel}</span>
       ${source === 'tabs' &&
       dedupCount > 0 &&
       html`
@@ -60,13 +60,13 @@ export function HeaderStats({
       ${source === 'tabs' &&
       html`
         <span class="stat-sep">·</span>
-        <span class="date" id="dateDisplay">${windowsLabel}</span>
+        <span>${windowsLabel}</span>
       `}
       ${hasCards &&
       html`
-        <span class="stat-extras" id="sectionHeaderWrap">
+        <span class="stat-extras">
           <span class="stat-sep">·</span>
-          <span class="section-count" id="openTabsSectionCount">${domainsLabel}</span>
+          <span class="section-count">${domainsLabel}</span>
         </span>
       `}
       ${source === 'tabs' &&

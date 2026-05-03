@@ -328,14 +328,6 @@ header {
   flex-direction: column;
 }
 
-.tab-history-strip {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
 .history-entry-list {
   flex: 1 1 auto;
   min-width: 0;
@@ -387,7 +379,7 @@ header {
   border: 1px solid var(--warm-gray);
   background: rgba(115, 115, 115, 0.04);
   color: var(--ink);
-  border-radius: 10px;
+  border-radius: 16px;
   corner-shape: squircle;
   transition:
     background 0.15s ease,
@@ -685,9 +677,9 @@ header {
      keeping the vertical rhythm uniform with the header's own 12px
      flex gap. */
   margin-top: 0;
-  /* No margin-bottom — .scroll-region's .page-inner padding-bottom
-     handles the bottom buffer. Keeping it here as 0 avoids stacking
-     two sources of bottom whitespace. */
+  /* No margin-bottom — .scroll-region padding-bottom handles the
+     bottom buffer. Keeping it here as 0 avoids stacking two sources of
+     bottom whitespace. */
   margin-bottom: 0;
 }
 

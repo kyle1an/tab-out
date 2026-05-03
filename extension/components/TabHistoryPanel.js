@@ -177,23 +177,21 @@ export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, 
 
   return html`
     <section class="tab-history-panel" aria-label="Activation history">
-      <div class="tab-history-strip">
-        <div class="history-entry-list">
-          ${displayEntries.length > 0
-            ? displayEntries.map(
-                (entry, index) =>
-                  html`<${HistoryEntry}
-                    key=${`${entry.windowId}:${entry.tabId}:${entry.index}`}
-                    entry=${entry}
-                    indexLabel=${historyEntryIndexLabel(entry, snapshot, index + 1)}
-                    snapshot=${snapshot}
-                    onSnapshotChange=${onSnapshotChange}
-                    onHoverUrlChange=${onHoverUrlChange}
-                    onTabsChange=${onTabsChange}
-                  />`
-              )
-            : html`<div class="history-empty">No activation history yet.</div>`}
-        </div>
+      <div class="history-entry-list">
+        ${displayEntries.length > 0
+          ? displayEntries.map(
+              (entry, index) =>
+                html`<${HistoryEntry}
+                  key=${`${entry.windowId}:${entry.tabId}:${entry.index}`}
+                  entry=${entry}
+                  indexLabel=${historyEntryIndexLabel(entry, snapshot, index + 1)}
+                  snapshot=${snapshot}
+                  onSnapshotChange=${onSnapshotChange}
+                  onHoverUrlChange=${onHoverUrlChange}
+                  onTabsChange=${onTabsChange}
+                />`
+            )
+          : html`<div class="history-empty">No activation history yet.</div>`}
       </div>
     </section>
   `

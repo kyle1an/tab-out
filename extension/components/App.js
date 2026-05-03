@@ -526,10 +526,10 @@ export function App({ initialDashboard = null }) {
           </div>
 
           <div class="scroll-region" ref=${scrollRegionRef}>
-            <div class="active-section" id="openTabsSection" style=${isReady ? '' : 'display:none'}>
+            ${isReady &&
+            html`
               <div class=${primaryMissionsClass} id="openTabsMissions" ref=${primaryMissionsRef}>
-                ${isReady &&
-                html`<${Missions}
+                <${Missions}
                   cards=${matchedCards}
                   filter=${filter}
                   source=${source}
@@ -537,7 +537,7 @@ export function App({ initialDashboard = null }) {
                   onHoverUrlChange=${setUrlPreview}
                   onLayoutChange=${scheduleMissionsMasonry}
                   onTogglePinnedDomain=${onTogglePinnedDomain}
-                />`}
+                />
               </div>
 
               ${showBookmarkMatches &&
@@ -605,7 +605,7 @@ export function App({ initialDashboard = null }) {
                   </div>
                 </div>
               `}
-            </div>
+            `}
           </div>
         </div>
       </div>
