@@ -1,0 +1,251 @@
+import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
+import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { createServer as createTcpServer } from 'node:net'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import test from 'node:test'
+
+const CHROME_CANDIDATES = [
+  process.env.CHROME_BIN,
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/usr/bin/google-chrome',
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser'
+].filter(Boolean)
+
+function findChrome() {
+  for (const candidate of CHROME_CANDIDATES) {
+    if (candidate && existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+function serveRepo() {
+  const root = resolve('.')
+  const server = createServer((req, res) => {
+    const url = new URL(req.url || '/', 'http://127.0.0.1')
+    const pathname = decodeURIComponent(url.pathname)
+    const target = resolve(root, `.${pathname}`)
+    if (!target.startsWith(root)) {
+      res.writeHead(403).end()
+      return
+    }
+
+    if (!existsSync(target) || !statSync(target).isFile()) {
+      res.writeHead(404).end()
+      return
+    }
+    const contentType = target.endsWith('.js') ? 'text/javascript' : target.endsWith('.css') ? 'text/css' : target.endsWith('.html') ? 'text/html' : 'application/octet-stream'
+    res.writeHead(200, { 'Content-Type': contentType })
+    createReadStream(target).pipe(res)
+  })
+
+  return new Promise((resolveServer) => {
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      resolveServer({ server, origin: `http://127.0.0.1:${address.port}` })
+    })
+  })
+}
+
+function freePort() {
+  return new Promise((resolvePort, rejectPort) => {
+    const server = createTcpServer()
+    server.on('error', rejectPort)
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address()
+      server.close(() => resolvePort(address.port))
+    })
+  })
+}
+
+function stopChrome(chrome) {
+  if (chrome.exitCode !== null || chrome.signalCode !== null) return Promise.resolve()
+  return new Promise((resolveStop) => {
+    const timeout = setTimeout(resolveStop, 1000)
+    chrome.once('exit', () => {
+      clearTimeout(timeout)
+      resolveStop()
+    })
+    chrome.kill()
+  })
+}
+
+function wait(delay) {
+  return new Promise((resolveWait) => setTimeout(resolveWait, delay))
+}
+
+async function waitForDevtools(port, chrome) {
+  const deadline = Date.now() + 10000
+  let exited = false
+  chrome.once('exit', () => {
+    exited = true
+  })
+  while (Date.now() < deadline) {
+    if (exited) return false
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`)
+      if (response.ok) return true
+    } catch {}
+    await wait(100)
+  }
+  return false
+}
+
+async function waitForPage(port, pageUrl) {
+  const deadline = Date.now() + 10000
+  while (Date.now() < deadline) {
+    const response = await fetch(`http://127.0.0.1:${port}/json/list`)
+    const pages = await response.json()
+    const page = pages.find((candidate) => candidate.url === pageUrl)
+    if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl
+    await wait(100)
+  }
+  throw new Error('Timed out waiting for dashboard smoke page')
+}
+
+class CdpSession {
+  constructor(url) {
+    this.url = url
+    this.id = 0
+    this.pending = new Map()
+  }
+
+  connect() {
+    return new Promise((resolveConnect, rejectConnect) => {
+      this.socket = new WebSocket(this.url)
+      this.socket.addEventListener('open', () => resolveConnect())
+      this.socket.addEventListener('error', rejectConnect)
+      this.socket.addEventListener('message', (event) => {
+        const message = JSON.parse(event.data)
+        if (!message.id) return
+        const pending = this.pending.get(message.id)
+        if (!pending) return
+        this.pending.delete(message.id)
+        if (message.error) pending.reject(new Error(message.error.message))
+        else pending.resolve(message.result)
+      })
+    })
+  }
+
+  send(method, params = {}) {
+    const id = ++this.id
+    return new Promise((resolveSend, rejectSend) => {
+      this.pending.set(id, { resolve: resolveSend, reject: rejectSend })
+      this.socket.send(JSON.stringify({ id, method, params }))
+    })
+  }
+
+  close() {
+    this.socket?.close()
+  }
+}
+
+async function evaluateWithNavigationRetry(session, params) {
+  const deadline = Date.now() + 10000
+  let lastError
+  while (Date.now() < deadline) {
+    try {
+      return await session.send('Runtime.evaluate', params)
+    } catch (error) {
+      lastError = error
+      if (!/Execution context was destroyed|Cannot find context|Inspected target navigated/.test(error.message)) {
+        throw error
+      }
+      await wait(100)
+    }
+  }
+  throw lastError
+}
+
+async function measureDashboard(session, width) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const done = () => {
+        const cards = Array.from(document.querySelectorAll('.domain-block'))
+        const rects = cards.map((card) => card.getBoundingClientRect()).filter((rect) => rect.width > 0)
+        const lefts = Array.from(new Set(rects.map((rect) => Math.round(rect.left))))
+        resolve({
+          cardCount: rects.length,
+          columns: lefts.length,
+          firstWidth: Math.round(rects[0]?.width || 0),
+          rootHtmlLength: document.getElementById('appRoot')?.innerHTML.length || 0,
+          errors: window.__tabOutSmokeErrors || []
+        })
+      }
+      const start = Date.now()
+      const wait = () => {
+        if (document.querySelectorAll('.domain-block').length >= 12) {
+          requestAnimationFrame(() => setTimeout(done, 700))
+        } else if (Date.now() - start > 5000) {
+          done()
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result) => result.result.value)
+}
+
+test('dashboard cards repack when the viewport resizes', async (t) => {
+  if (typeof WebSocket !== 'function') {
+    t.skip('global WebSocket is unavailable for Chrome DevTools Protocol')
+    return
+  }
+
+  const chromePath = findChrome()
+  if (!chromePath) {
+    t.skip('Chrome is unavailable for browser resize smoke test')
+    return
+  }
+
+  const { server, origin } = await serveRepo()
+  const userDataDir = mkdtempSync(join(tmpdir(), 'tab-out-chrome-'))
+  const pageUrl = `${origin}/tests/fixtures/dashboard-resize.html`
+  const port = await freePort()
+  const chrome = spawn(chromePath, [
+    '--headless=new',
+    '--remote-debugging-address=127.0.0.1',
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${userDataDir}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--no-sandbox',
+    '--disable-gpu',
+    pageUrl
+  ])
+
+  t.after(async () => {
+    await stopChrome(chrome)
+    server.close()
+    rmSync(userDataDir, { recursive: true, force: true })
+  })
+
+  if (!(await waitForDevtools(port, chrome))) {
+    t.skip('Chrome did not start with a reachable DevTools endpoint')
+    return
+  }
+  const wsUrl = await waitForPage(port, pageUrl)
+  const session = new CdpSession(wsUrl)
+  await session.connect()
+  t.after(() => session.close())
+
+  const wide = await measureDashboard(session, 1420)
+  const narrow = await measureDashboard(session, 760)
+
+  assert.ok(wide.cardCount >= 12, `dashboard should render enough cards for a column smoke test: ${JSON.stringify(wide)}`)
+  assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
+  assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
+})

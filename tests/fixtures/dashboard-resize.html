@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tab Out Resize Smoke</title>
+    <link rel="stylesheet" href="/extension/base.css" />
+    <link rel="stylesheet" href="/extension/style.css" />
+  </head>
+  <body>
+    <div id="appRoot"></div>
+    <div id="toastRoot"></div>
+
+    <script>
+      window.__tabOutSmokeErrors = []
+      window.addEventListener('error', (event) => {
+        window.__tabOutSmokeErrors.push(event.message)
+      })
+      window.addEventListener('unhandledrejection', (event) => {
+        window.__tabOutSmokeErrors.push(String(event.reason?.message || event.reason))
+      })
+
+      const listeners = {
+        addListener() {},
+        removeListener() {}
+      }
+      const tabs = Array.from({ length: 24 }, (_, index) => {
+        const domain = `tab-out-smoke-${String(index + 1).padStart(2, '0')}.com`
+        return {
+          id: index + 1,
+          url: `https://${domain}/docs/${index + 1}`,
+          title: `Example ${index + 1}`,
+          favIconUrl: '',
+          windowId: 1,
+          active: index === 0,
+          pinned: false,
+          groupId: -1,
+          index
+        }
+      })
+
+      window.chrome = {
+        bookmarks: {
+          getTree: async () => [],
+          onCreated: listeners,
+          onRemoved: listeners,
+          onChanged: listeners,
+          onMoved: listeners,
+          onChildrenReordered: listeners,
+          onImportEnded: listeners
+        },
+        history: {
+          search: async () => [],
+          deleteUrl: async () => {},
+          onVisited: listeners,
+          onVisitRemoved: listeners
+        },
+        runtime: {
+          getURL: (path) => `${window.location.origin}${path}`,
+          sendMessage: async () => ({ ok: false })
+        },
+        storage: {
+          local: {
+            get: async () => ({}),
+            set: async () => {}
+          }
+        },
+        tabGroups: {
+          query: async () => [],
+          onCreated: listeners,
+          onUpdated: listeners,
+          onRemoved: listeners,
+          onMoved: listeners
+        },
+        tabs: {
+          query: async () => tabs,
+          remove: async () => {},
+          update: async () => {},
+          onCreated: listeners,
+          onActivated: listeners,
+          onRemoved: listeners,
+          onMoved: listeners,
+          onAttached: listeners,
+          onDetached: listeners,
+          onUpdated: listeners
+        },
+        windows: {
+          getAll: async () => [{ id: 1, type: 'normal', focused: true }],
+          getCurrent: async () => ({ id: 1, type: 'normal', focused: true }),
+          update: async () => {},
+          onFocusChanged: listeners
+        }
+      }
+    </script>
+    <script type="module" src="/extension/dist/app.js"></script>
+  </body>
+</html>
