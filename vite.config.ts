@@ -5,16 +5,17 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
+    target: 'esnext',
     outDir: 'extension/dist',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false,
     modulePreload: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: resolve(__dirname, 'src/app.tsx'),
       output: {
         entryFileNames: 'app.js',
-        chunkFileNames: 'chunks/[name].js',
-        assetFileNames: 'assets/[name][extname]'
+        assetFileNames: 'assets/[name][extname]',
+        codeSplitting: false
       }
     }
   }

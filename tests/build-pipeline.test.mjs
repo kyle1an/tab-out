@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 
 test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
@@ -25,6 +25,11 @@ test('extension HTML loads the Vite-built React entry', () => {
 
 test('built extension bundle is packaged locally', () => {
   assert.ok(existsSync('extension/dist/app.js'), 'extension/dist/app.js should be committed build output for unpacked extension loading')
+  assert.equal(existsSync('extension/dist/app.js.map'), false, 'production build should not ship a sourcemap')
+  assert.equal(existsSync('extension/dist/chunks'), false, 'dashboard UI should be bundled into one JS entry')
+
+  const distFiles = readdirSync('extension/dist')
+  assert.deepEqual(distFiles, ['app.js'])
 
   const bundle = readFileSync('extension/dist/app.js', 'utf8')
   assert.doesNotMatch(bundle, /from\s+['"]https?:\/\//)

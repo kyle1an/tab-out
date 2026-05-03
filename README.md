@@ -91,11 +91,10 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 
 ```bash
 npm install
-npm run build
-npm test
+npm run verify
 ```
 
-Load the `extension/` folder in Chrome. After changing files under `src/`, rerun `npm run build` and reload the extension in `chrome://extensions`.
+Load the `extension/` folder in Chrome. After changing files under `src/`, rerun `npm run build` and reload the extension in `chrome://extensions`. Use `npm run build:debug` when you need a local sourcemap.
 
 ---
 
