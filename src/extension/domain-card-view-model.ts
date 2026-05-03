@@ -4,6 +4,7 @@ import { cleanTitle, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { tabMatchesFilter } from './filter-match.js'
+import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import type { DashboardCardVM, DashboardChipData, DashboardSectionVM, DashboardSegment, DashboardTab, DomainGroup, PathGroupResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
@@ -11,11 +12,6 @@ type ComputeCardOptions = {
   filter?: string
   mode?: CardMode
   allowMutations?: boolean
-}
-type DuplicateInfo = {
-  total: number
-  ungrouped: number
-  groupIds: Set<number>
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
 
@@ -243,42 +239,20 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const closableTabs = tabs.filter((t) => !isGroupedTab(t) && !(isTabOutGroup && t.pinned))
   const closableCount = closableTabs.length
 
-  // Count duplicates per URL, tracking grouped/ungrouped + which groups they're in.
-  const dupeInfo: Record<string, DuplicateInfo> = {} // { url: { total, ungrouped, groupIds: Set } }
+  // Count duplicates per URL and delegate the closeability rules to the
+  // shared dedupe policy so dashboard counts mirror tab mutation behavior.
   const urlCounts: Record<string, number> = {}
+  const tabsByUrl = new Map<string, DashboardTab[]>()
   for (const tab of tabs) {
     urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1
-    if (!dupeInfo[tab.url]) dupeInfo[tab.url] = { total: 0, ungrouped: 0, groupIds: new Set() }
-    const info = dupeInfo[tab.url]
-    info.total++
-    if (isGroupedTab(tab)) info.groupIds.add(tab.groupId)
-    else info.ungrouped++
+    if (!tabsByUrl.has(tab.url)) tabsByUrl.set(tab.url, [])
+    tabsByUrl.get(tab.url)?.push(tab)
   }
-  const dupeUrls = Object.entries(urlCounts).filter(([, c]) => c > 1)
 
-  // Dedup policy (mirrors closeDuplicateTabs):
-  //   • Mixed grouped + ungrouped → close every ungrouped (grouped is the keep).
-  //   • All ungrouped (≥2)        → keep one ungrouped, close the rest.
-  //   • All grouped, single group → keep one, close the rest within that group.
-  //   • All grouped, multi groups → skip (would empty a slot in each group).
   function closableForUrl(u: string): number {
-    const info = dupeInfo[u]
-    if (!info) return 0
-    if (isTabOutGroup) {
-      const matchingTabs = tabs.filter((tab) => tab.url === u)
-      const pinnedCount = matchingTabs.filter((tab) => tab.pinned).length
-      const unpinnedCount = matchingTabs.length - pinnedCount
-      if (pinnedCount >= 1) return unpinnedCount
-      if (unpinnedCount >= 2) return unpinnedCount - 1
-      return 0
-    }
-    const grouped = info.total - info.ungrouped
-    if (grouped >= 1 && info.ungrouped >= 1) return info.ungrouped
-    if (grouped === 0 && info.ungrouped >= 2) return info.ungrouped - 1
-    if (grouped >= 2 && info.groupIds.size === 1) return info.total - 1
-    return 0
+    return countClosableDuplicateExtras(tabsByUrl.get(u) || [], { isTabOutGroup })
   }
-  const closableDupeUrls = dupeUrls.map(([u]) => u).filter((u) => closableForUrl(u) > 0)
+  const closableDupeUrls = [...tabsByUrl.keys()].filter((u) => closableForUrl(u) > 0)
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped

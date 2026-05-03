@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { countClosableDuplicateExtras, pickDuplicateTabsToClose } from '../src/extension/tab-dedupe-policy.js'
 import { closeDuplicateTabs, fetchOpenTabs, openTabs } from '../src/extension/tabs.js'
 
 function createChromeMock(initialTabs) {
@@ -33,6 +34,41 @@ function createChromeMock(initialTabs) {
 
   return { removedIds }
 }
+
+test('dedupe policy counts only safe close extras for grouped duplicate tabs', () => {
+  const sameGroup = [
+    { id: 1, url: 'https://example.com/a', windowId: 1, groupId: 7 },
+    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: 7 }
+  ]
+  const multiGroup = [
+    { id: 1, url: 'https://example.com/a', windowId: 1, groupId: 7 },
+    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: 8 }
+  ]
+  const mixed = [
+    { id: 1, url: 'https://example.com/a', windowId: 1, groupId: 7 },
+    { id: 2, url: 'https://example.com/a', windowId: 1, groupId: -1 }
+  ]
+
+  assert.equal(countClosableDuplicateExtras(sameGroup), 1)
+  assert.equal(countClosableDuplicateExtras(multiGroup), 0)
+  assert.equal(countClosableDuplicateExtras(mixed), 1)
+})
+
+test('dedupe policy preserves pinned Tab Out copies before score-based selection', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const matching = [
+    { id: 1, url: tabOutUrl, windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
+    { id: 2, url: tabOutUrl, windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching, {
+      preservePinnedTabOut: true,
+      isTabOutUrl: (url) => url === tabOutUrl
+    }).map((tab) => tab.id),
+    [2]
+  )
+})
 
 test('global dedupe preserves pinned Tab Out tabs while closing unpinned duplicates', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'

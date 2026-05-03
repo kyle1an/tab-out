@@ -9,7 +9,8 @@
    ================================================================ */
 
 import { unwrapSuspenderUrl, unwrapSuspenderTitle } from './suspender.js'
-import { isGroupedTab, fetchTabGroupColors, scoreForKeep } from './groups.js'
+import { isGroupedTab, fetchTabGroupColors } from './groups.js'
+import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import type { DashboardTab, TabSnapshot } from './types'
 
 type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'title' | 'pinned' | 'groupId' | 'windowId' | 'index'>
@@ -307,43 +308,15 @@ export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: D
 
   for (const url of urls) {
     const matching = allTabs.filter((t) => unwrapSuspenderUrl(t.url) === url)
-    if (preservePinned || preservePinnedTabOut) {
-      const pinned = matching.filter((t) => t.pinned && (preservePinned || isTabOutUrl(t.url)))
-      if (pinned.length >= 1) {
-        const pinnedIds = new Set(pinned.map((t) => t.id))
-        for (const t of matching) {
-          if (!pinnedIds.has(t.id)) toCloseTabs.push(t)
-        }
-        continue
-      }
-    }
-    if (!keepOne) {
-      for (const tab of matching) toCloseTabs.push(tab)
-      continue
-    }
-
-    const grouped = matching.filter((t) => isGroupedTab(t))
-    const ungrouped = matching.filter((t) => !isGroupedTab(t))
-    const sortByScore = (arr: chrome.tabs.Tab[]) => arr.slice().sort((a, b) => scoreForKeep(b, currentWindowId) - scoreForKeep(a, currentWindowId))
-
-    if (grouped.length >= 1 && ungrouped.length >= 1) {
-      for (const t of ungrouped) toCloseTabs.push(t)
-    } else if (ungrouped.length >= 2) {
-      const keep = sortByScore(ungrouped)[0]
-      if (!keep) continue
-      for (const t of ungrouped) {
-        if (t.id !== keep.id) toCloseTabs.push(t)
-      }
-    } else if (grouped.length >= 2) {
-      const distinctGroups = new Set(grouped.map((t) => t.groupId))
-      if (distinctGroups.size === 1) {
-        const keep = sortByScore(grouped)[0]
-        if (!keep) continue
-        for (const t of grouped) {
-          if (t.id !== keep.id) toCloseTabs.push(t)
-        }
-      }
-    }
+    toCloseTabs.push(
+      ...pickDuplicateTabsToClose(matching, {
+        keepOne,
+        currentWindowId,
+        preservePinned,
+        preservePinnedTabOut,
+        isTabOutUrl
+      })
+    )
   }
 
   const snapshot = snapshotChromeTabs(toCloseTabs)

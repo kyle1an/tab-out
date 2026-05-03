@@ -15,6 +15,13 @@ import { unwrapSuspenderUrl } from './suspender.js'
 type GroupedTabLike = {
   groupId?: number
 }
+type ScoredTabLike = GroupedTabLike & {
+  url?: string
+  active?: boolean
+  pinned?: boolean
+  windowId: number
+  index?: number
+}
 
 /**
  * isGroupedTab(tab) — true if the tab belongs to a Chrome tab group.
@@ -104,7 +111,7 @@ export function groupDotColor(groupId?: number): string {
  *   active in current window > active in any window > grouped > pinned >
  *   non-suspended > in current window > lowest tab index
  */
-export function scoreForKeep(tab: chrome.tabs.Tab, currentWindowId: number): number {
+export function scoreForKeep(tab: ScoredTabLike, currentWindowId: number): number {
   const rawUrl = tab.url || ''
   const isSuspended = unwrapSuspenderUrl(rawUrl) !== rawUrl
   const grouped = isGroupedTab(tab)
