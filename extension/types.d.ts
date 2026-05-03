@@ -162,8 +162,6 @@ declare global {
     LOCAL_CUSTOM_GROUPS?: CustomGroupRule[]
     LOCAL_PATH_GROUPERS?: any[]
   }
-
-  const chrome: any
 }
 
 export {}

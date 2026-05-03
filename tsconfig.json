@@ -13,7 +13,7 @@
     "moduleDetection": "force",
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["node", "react", "react-dom"],
+    "types": ["chrome", "node", "react", "react-dom"],
     "maxNodeModuleJsDepth": 0
   },
   "include": ["src", "extension/**/*.js", "extension/**/*.d.ts", "vite.config.ts"],

@@ -7,6 +7,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
   assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
   assert.equal(pkg.scripts?.dev, 'vite build --watch')
   assert.equal(pkg.scripts?.build, 'vite build')
@@ -15,7 +16,9 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pkg.scripts?.verify, /npm run verify:bundle/)
   assert.ok(pkg.dependencies?.react)
   assert.ok(pkg.dependencies?.['react-dom'])
+  assert.ok(pkg.devDependencies?.['@types/chrome'])
   assert.ok(pkg.devDependencies?.vite)
+  assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
 
   const indexHtml = readFileSync('extension/index.html', 'utf8')
   assert.match(indexHtml, /src="dist\/app\.js"/)
@@ -24,8 +27,10 @@ test('extension HTML loads the Vite-built React entry', () => {
   const appSource = readFileSync('src/app.tsx', 'utf8')
   const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')
   const toastSource = readFileSync('src/components/Toast.tsx', 'utf8')
+  const sharedTypesSource = readFileSync('extension/types.d.ts', 'utf8')
   assert.match(`${appComponentSource}\n${toastSource}`, /react-dom\/client/)
   assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
+  assert.doesNotMatch(sharedTypesSource, /const chrome:\s*any/)
 })
 
 test('repo pre-commit hook runs the verification pipeline', () => {

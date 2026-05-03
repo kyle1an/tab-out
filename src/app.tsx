@@ -24,9 +24,13 @@ function scheduleAnimatedDashboardRefresh() {
   scheduleDashboardRefresh({ animateCards: true })
 }
 
+function schedulePassiveDashboardRefresh() {
+  scheduleDashboardRefresh()
+}
+
 if (chrome.tabs) {
   chrome.tabs.onCreated.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onActivated.addListener(scheduleDashboardRefresh)
+  chrome.tabs.onActivated.addListener(schedulePassiveDashboardRefresh)
   chrome.tabs.onRemoved.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onMoved.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onAttached.addListener(scheduleAnimatedDashboardRefresh)
@@ -51,30 +55,30 @@ if (chrome.tabs) {
 }
 
 if (chrome.windows) {
-  chrome.windows.onFocusChanged.addListener(scheduleDashboardRefresh)
+  chrome.windows.onFocusChanged.addListener(schedulePassiveDashboardRefresh)
 }
 
 if (chrome.tabGroups) {
-  chrome.tabGroups.onCreated.addListener(scheduleDashboardRefresh)
+  chrome.tabGroups.onCreated.addListener(schedulePassiveDashboardRefresh)
   chrome.tabGroups.onUpdated.addListener((group) => {
     if (groupColorChanged(group)) scheduleDashboardRefresh()
   })
-  chrome.tabGroups.onRemoved.addListener(scheduleDashboardRefresh)
-  chrome.tabGroups.onMoved.addListener(scheduleDashboardRefresh)
+  chrome.tabGroups.onRemoved.addListener(schedulePassiveDashboardRefresh)
+  chrome.tabGroups.onMoved.addListener(schedulePassiveDashboardRefresh)
 }
 
 if (chrome.bookmarks) {
-  chrome.bookmarks.onCreated.addListener(scheduleDashboardRefresh)
-  chrome.bookmarks.onRemoved.addListener(scheduleDashboardRefresh)
-  chrome.bookmarks.onChanged.addListener(scheduleDashboardRefresh)
-  chrome.bookmarks.onMoved.addListener(scheduleDashboardRefresh)
-  chrome.bookmarks.onChildrenReordered.addListener(scheduleDashboardRefresh)
-  chrome.bookmarks.onImportEnded?.addListener(scheduleDashboardRefresh)
+  chrome.bookmarks.onCreated.addListener(schedulePassiveDashboardRefresh)
+  chrome.bookmarks.onRemoved.addListener(schedulePassiveDashboardRefresh)
+  chrome.bookmarks.onChanged.addListener(schedulePassiveDashboardRefresh)
+  chrome.bookmarks.onMoved.addListener(schedulePassiveDashboardRefresh)
+  chrome.bookmarks.onChildrenReordered.addListener(schedulePassiveDashboardRefresh)
+  chrome.bookmarks.onImportEnded?.addListener(schedulePassiveDashboardRefresh)
 }
 
 if (chrome.history) {
-  chrome.history.onVisited.addListener(scheduleDashboardRefresh)
-  chrome.history.onVisitRemoved.addListener(scheduleDashboardRefresh)
+  chrome.history.onVisited.addListener(schedulePassiveDashboardRefresh)
+  chrome.history.onVisitRemoved.addListener(schedulePassiveDashboardRefresh)
 }
 
 document.addEventListener('visibilitychange', () => {
