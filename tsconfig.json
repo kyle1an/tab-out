@@ -18,6 +18,6 @@
     "types": ["chrome", "node", "react", "react-dom"],
     "maxNodeModuleJsDepth": 0
   },
-  "include": ["src", "extension/**/*.js", "extension/**/*.d.ts", "vite.config.ts"],
+  "include": ["src", "vite.config.ts"],
   "exclude": ["extension/dist/**", "extension/vendor/**", "tests/**"]
 }

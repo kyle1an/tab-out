@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
-import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../../extension/tab-history.js'
-import { markClosure } from '../../extension/undo.js'
-import { showToast } from '../../extension/toast.js'
+import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
+import { markClosure } from '../extension/undo.js'
+import { showToast } from '../extension/toast.js'
 import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
-import type { TabHistoryEntry } from '../../extension/types'
+import type { TabHistoryEntry } from '../extension/types'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
 

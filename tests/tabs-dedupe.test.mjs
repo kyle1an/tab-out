@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { closeDuplicateTabs, fetchOpenTabs, openTabs } from '../extension/tabs.js'
+import { closeDuplicateTabs, fetchOpenTabs, openTabs } from '../src/extension/tabs.js'
 
 function createChromeMock(initialTabs) {
   let tabs = initialTabs.map((tab) => ({ ...tab }))

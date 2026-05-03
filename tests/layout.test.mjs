@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-import { chooseMasonryLayout, shouldAnimateMasonryResize } from '../extension/layout.js'
+import { chooseMasonryLayout, shouldAnimateMasonryResize } from '../src/extension/layout.js'
 
 test('chooseMasonryLayout delays a new column until the width is near the comfort target', () => {
   const beforeThreshold = chooseMasonryLayout(1340)

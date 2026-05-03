@@ -1,6 +1,6 @@
-import { closeTabsExact } from '../../extension/tabs.js'
-import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
-import { markClosure } from '../../extension/undo.js'
+import { closeTabsExact } from '../extension/tabs.js'
+import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
+import { markClosure } from '../extension/undo.js'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
@@ -12,7 +12,6 @@ interface SubdomainCloseButtonProps {
 
 interface SubdomainSectionProps {
   subdomainKey: string
-  isShared: boolean
   isPort?: boolean
   sectionCount: number
   sectionClosableUrls: string[]
@@ -39,7 +38,6 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
 
 export function SubdomainSection({
   subdomainKey,
-  isShared,
   isPort,
   sectionCount,
   sectionClosableUrls,
@@ -65,7 +63,7 @@ export function SubdomainSection({
   }
 
   return (
-    <div className="subdomain-section" data-shared={isShared ? 'true' : undefined} data-kind={isPort ? 'port' : undefined}>
+    <div className="subdomain-section" data-kind={isPort ? 'port' : undefined}>
       {showHeader && (
         <div className="subdomain-header">
           <span className="subdomain-header-name">{headerLabel}</span>

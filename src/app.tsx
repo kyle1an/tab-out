@@ -1,7 +1,7 @@
 import { mountToast } from './components/Toast'
 import { mountApp } from './components/App'
-import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
-import { groupColorChanged } from '../extension/groups.js'
+import { requestDashboardRefresh } from './extension/dashboard-controller.js'
+import { groupColorChanged } from './extension/groups.js'
 
 type RefreshOptions = { animateCards?: boolean }
 

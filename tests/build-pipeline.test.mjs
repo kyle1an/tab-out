@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
+  assert.ok(existsSync('src/extension/background.js'), 'src/extension/background.js should be the service worker source')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
@@ -29,14 +30,18 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(indexHtml, /src="dist\/app\.js"/)
   assert.doesNotMatch(indexHtml, /src="app\.js"/)
 
+  const manifest = JSON.parse(readFileSync('extension/manifest.json', 'utf8'))
+  assert.equal(manifest.background?.service_worker, 'dist/background.js')
+
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   assert.match(viteConfig, /reactCompilerPreset/)
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
+  assert.match(viteConfig, /src\/extension\/background\.js/)
 
   const appSource = readFileSync('src/app.tsx', 'utf8')
   const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')
   const toastSource = readFileSync('src/components/Toast.tsx', 'utf8')
-  const sharedTypesSource = readFileSync('extension/types.d.ts', 'utf8')
+  const sharedTypesSource = readFileSync('src/extension/types.d.ts', 'utf8')
   assert.match(`${appComponentSource}\n${toastSource}`, /react-dom\/client/)
   assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
   assert.doesNotMatch(sharedTypesSource, /const chrome:\s*any/)
@@ -53,13 +58,18 @@ test('repo pre-commit hook runs the verification pipeline', () => {
 
 test('built extension bundle is packaged locally', () => {
   assert.ok(existsSync('extension/dist/app.js'), 'extension/dist/app.js should be committed build output for unpacked extension loading')
+  assert.ok(existsSync('extension/dist/background.js'), 'extension/dist/background.js should be committed service worker output')
   assert.equal(existsSync('extension/dist/app.js.map'), false, 'production build should not ship a sourcemap')
+  assert.equal(existsSync('extension/dist/background.js.map'), false, 'production build should not ship a service-worker sourcemap')
   assert.equal(existsSync('extension/dist/chunks'), false, 'dashboard UI should be bundled into one JS entry')
 
-  const distFiles = readdirSync('extension/dist')
-  assert.deepEqual(distFiles, ['app.js'])
+  const distFiles = readdirSync('extension/dist').sort()
+  assert.deepEqual(distFiles, ['app.js', 'background.js'])
+  assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), ['config.local.js'])
 
   const bundle = readFileSync('extension/dist/app.js', 'utf8')
+  const backgroundBundle = readFileSync('extension/dist/background.js', 'utf8')
   assert.doesNotMatch(bundle, /from\s+['"]https?:\/\//)
+  assert.doesNotMatch(backgroundBundle, /from\s+['"]https?:\/\//)
   assert.doesNotMatch(bundle, /vendor\/preact|vendor\/htm/)
 })

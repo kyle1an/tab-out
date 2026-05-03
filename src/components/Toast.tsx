@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { registerToastDispatch } from '../../extension/toast.js'
+import { registerToastDispatch } from '../extension/toast.js'
 
 const DURATION_WITHOUT_ACTION = 2500
 const DURATION_WITH_ACTION = 6000

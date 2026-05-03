@@ -15,9 +15,6 @@
                                   and returns match-scoped fields
    • getFilteredCloseableUrls — exact URLs the global filtered-close
                                 action should remove
-   • getHeaderStats — snapshot counts + action-state for the header
-   • getGlobalDedupeUrls — dedupe targets aggregated across cards
-   • hasUnmatchedTabs — whether the secondary "Other tabs" grid should show
    • pickFavicon — tab.favIconUrl (preserves data: URIs) /
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
@@ -38,7 +35,6 @@ import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 /** @typedef {import('./types').DomainGroupBuildOptions} DomainGroupBuildOptions */
 /** @typedef {import('./types').DashboardCardVM} DashboardCardVM */
 /** @typedef {import('./types').DashboardViewModel} DashboardViewModel */
-/** @typedef {import('./types').DashboardStats} DashboardStats */
 /** @typedef {import('./types').CustomGroupRule} CustomGroupRule */
 /** @typedef {'tabs' | 'bookmarks' | 'history'} DashboardSource */
 
@@ -81,15 +77,14 @@ function injectBreakPoints(str) {
  *   ref tail: "Size preview · owner/repo@296a5f1"     → ["Size preview", " · ", PH, "@296a5f1"]
  *   multi:    "owner/repo · log · owner/repo · PR"    → [PH, " · log", " · ", PH, " · PR"]
  *
- * Returns { segments, stripped }. When no boundary-preceded
- * occurrence is found, or when stripping would leave only
- * separators + placeholders (e.g. the title is just the label, or
- * label-sep-label with nothing else), the original label is
- * returned as a single-segment array and `stripped` is false.
+ * When no boundary-preceded occurrence is found, or when stripping
+ * would leave only separators + placeholders (e.g. the title is just
+ * the label, or label-sep-label with nothing else), the original
+ * label is returned as a single-segment array.
  */
 function stripPgLabel(label, pgLabel) {
   if (!pgLabel || !label || label === pgLabel) {
-    return { segments: [label], stripped: false }
+    return [label]
   }
   const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
   const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -103,7 +98,7 @@ function stripPgLabel(label, pgLabel) {
     hits.push({ index: m.index, length: m[0].length, prefixSep: m[1] })
     if (m.index === re.lastIndex) re.lastIndex++
   }
-  if (hits.length === 0) return { segments: [label], stripped: false }
+  if (hits.length === 0) return [label]
 
   const segments = []
   let cursor = 0
@@ -118,9 +113,9 @@ function stripPgLabel(label, pgLabel) {
   if (textAfter) segments.push(textAfter)
 
   const hasText = segments.some((s) => typeof s === 'string' && s.trim())
-  if (!hasText) return { segments: [label], stripped: false }
+  if (!hasText) return [label]
 
-  return { segments, stripped: true }
+  return segments
 }
 
 /**
@@ -229,37 +224,6 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
     filteredCloseUrls
   }
 }
-
-/**
- * @param {DomainGroup[]} [groups]
- * @param {string} [filter]
- * @returns {string[]}
- */
-export function getGlobalDedupeUrls(groups = [], filter = '') {
-  return buildDashboardViewModel({ domainGroups: groups, filter, source: 'tabs' }).globalDedupeUrls
-}
-
-/**
- * @param {DomainGroup[]} [groups]
- * @param {string} [filter]
- * @returns {boolean}
- */
-export function hasUnmatchedTabs(groups = [], filter = '') {
-  return buildDashboardViewModel({ domainGroups: groups, filter, source: 'tabs' }).showOtherTabs
-}
-
-/**
- * getHeaderStats({ realTabs, domainGroups, filter }) — compatibility wrapper
- * for callers that only need the header row snapshot.
- */
-/**
- * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource }} [opts]
- * @returns {DashboardStats}
- */
-export function getHeaderStats({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' } = {}) {
-  return buildDashboardViewModel({ realTabs, domainGroups: groups, filter, source }).stats
-}
-
 
 /**
  * disambiguatingPaths(urls) — given a list of URLs that share a
@@ -443,7 +407,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   }
   const closableDupeUrls = dupeUrls.map(([u]) => u).filter((u) => closableForUrl(u) > 0)
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
-  const dupeUrlsEncoded = closableDupeUrls.map((url) => encodeURIComponent(url)).join(',')
 
   // Deduplicate for display: show each URL once, with (Nx) badge if duped
   const seen = new Set()
@@ -574,7 +537,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     }
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
-    const { segments: rawSegments, stripped: titleStripped } = stripPgLabel(label, stripLabel || pgLabel)
+    const rawSegments = stripPgLabel(label, stripLabel || pgLabel)
     // Inject zero-width spaces into long unbreakable tokens so the
     // browser can break them if layout needs to — without us setting
     // global `word-break: break-all` (which would also break SHORT
@@ -596,7 +559,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       leadPrefix,
       pathGroupLabel: pgLabel,
       displaySegments,
-      titleStripped,
       pathSuffix: pathSuffix || '',
       tooltip,
       dupeCount: urlCounts[tab.url] || 1,
@@ -636,7 +598,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     const vmClosableCount = displayMode === 'unmatched' || !allowMutations ? 0 : closableCount
     const vmClosableExtras = displayMode === 'unmatched' || !allowMutations ? 0 : closableExtras
     const vmClosableDupeUrls = displayMode === 'unmatched' || !allowMutations ? [] : closableDupeUrls
-    const vmDupeUrlsEncoded = displayMode === 'unmatched' || !allowMutations ? '' : dupeUrlsEncoded
     return {
       stableId,
       isHidden: false,
@@ -651,7 +612,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
         closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`,
       closableDupeUrls: vmClosableDupeUrls,
       closableExtras: vmClosableExtras,
-      dupeUrlsEncoded: vmDupeUrlsEncoded,
       singleSubdomainKey: '',
       singleSubdomainIsPort: false,
       displayName: group.label || 'Apps',
@@ -685,7 +645,7 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     } catch {}
     const hostname = parsed ? parsed.hostname : group.domain
     const label = cleanTitle(stripTitleNoise(primary.title || ''), hostname)
-    const { segments: rawSegments, stripped: titleStripped } = stripPgLabel(label, '')
+    const rawSegments = stripPgLabel(label, '')
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     // Sort envs by prefix with numeric-aware compare so dev2us lands
     // before dev11us (plain lexicographic would give dev11us, dev2us,
@@ -709,7 +669,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,
-      titleStripped,
       pathSuffix: '',
       tooltip,
       dupeCount: 1,
@@ -935,7 +894,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
   const vmClosableCount = isUnmatched || !allowMutations ? 0 : closableCount
   const vmClosableExtras = isUnmatched || !allowMutations ? 0 : closableExtras
   const vmClosableDupeUrls = isUnmatched || !allowMutations ? [] : closableDupeUrls
-  const vmDupeUrlsEncoded = isUnmatched || !allowMutations ? '' : dupeUrlsEncoded
   const vmSections = isUnmatched
     ? sectionsData.map((s) => ({
         ...s,
@@ -957,7 +915,6 @@ export function computeDomainCardViewModel(group, { filter = '', mode = 'matched
     closableCountLabel,
     closableDupeUrls: vmClosableDupeUrls,
     closableExtras: vmClosableExtras,
-    dupeUrlsEncoded: vmDupeUrlsEncoded,
     singleSubdomainKey,
     singleSubdomainIsPort,
     displayName,

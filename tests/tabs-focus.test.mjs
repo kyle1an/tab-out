@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
-import { closeHistoryEntry } from '../extension/tab-history.js'
-import { focusTab } from '../extension/tabs.js'
-import { markClosure, undoLastClose } from '../extension/undo.js'
+import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { closeHistoryEntry } from '../src/extension/tab-history.js'
+import { focusTab } from '../src/extension/tabs.js'
+import { markClosure, undoLastClose } from '../src/extension/undo.js'
 
 function createChromeMock(initialTabs, currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))

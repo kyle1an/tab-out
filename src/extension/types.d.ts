@@ -73,7 +73,6 @@ export interface DashboardChipData {
   leadPrefix: string
   pathGroupLabel: string
   displaySegments: DashboardSegment[]
-  titleStripped: boolean
   pathSuffix: string
   tooltip: string
   dupeCount: number
@@ -123,7 +122,6 @@ export interface DashboardCardVM {
   closableCountLabel?: string
   closableDupeUrls?: string[]
   closableExtras?: number
-  dupeUrlsEncoded?: string
   singleSubdomainKey?: string
   singleSubdomainIsPort?: boolean
   displayName?: string

@@ -1,20 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { closeDuplicateTabs, closeTabsExact } from '../../extension/tabs.js'
-import { useMissionsMasonry } from '../../extension/layout.js'
-import { showToast } from '../../extension/toast.js'
-import { markClosure } from '../../extension/undo.js'
-import { registerDashboardRefresh } from '../../extension/dashboard-controller.js'
-import { buildDashboardViewModel, fetchDashboardData } from '../../extension/render.js'
-import { fetchTabHistorySnapshot } from '../../extension/tab-history.js'
-import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../../extension/domain-pins.js'
-import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../../extension/history-source.js'
+import { closeDuplicateTabs, closeTabsExact } from '../extension/tabs.js'
+import { useMissionsMasonry } from '../extension/layout.js'
+import { showToast } from '../extension/toast.js'
+import { markClosure } from '../extension/undo.js'
+import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
+import { buildDashboardViewModel, fetchDashboardData } from '../extension/render.js'
+import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
+import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../extension/domain-pins.js'
+import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
 import {
   FOCUS_FILTER_PARAM,
   filterInputFromSearch,
   titleForFilterInput,
   urlForFilterInput
-} from '../../extension/app-url.js'
+} from '../extension/app-url.js'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { closeTabsExact } from '../../extension/tabs.js'
-import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
-import { markClosure } from '../../extension/undo.js'
+import { closeTabsExact } from '../extension/tabs.js'
+import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
+import { markClosure } from '../extension/undo.js'
 import { PageChip } from './PageChip'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 

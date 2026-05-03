@@ -12,11 +12,13 @@ export default defineConfig({
     sourcemap: false,
     modulePreload: false,
     rolldownOptions: {
-      input: resolve(__dirname, 'src/app.tsx'),
+      input: {
+        app: resolve(__dirname, 'src/app.tsx'),
+        background: resolve(__dirname, 'src/extension/background.js')
+      },
       output: {
-        entryFileNames: 'app.js',
-        assetFileNames: 'assets/[name][extname]',
-        codeSplitting: false
+        entryFileNames: '[name].js',
+        assetFileNames: 'assets/[name][extname]'
       }
     }
   }

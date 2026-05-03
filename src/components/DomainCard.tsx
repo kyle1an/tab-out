@@ -1,8 +1,8 @@
-import { closeTabsExact, closeDuplicateTabs } from '../../extension/tabs.js'
-import { markClosure } from '../../extension/undo.js'
-import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
-import { tabMatchesFilter } from '../../extension/render.js'
-import { isPinnableDomain } from '../../extension/domain-pins.js'
+import { closeTabsExact, closeDuplicateTabs } from '../extension/tabs.js'
+import { markClosure } from '../extension/undo.js'
+import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
+import { tabMatchesFilter } from '../extension/render.js'
+import { isPinnableDomain } from '../extension/domain-pins.js'
 import { SubdomainSection } from './SubdomainSection'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
@@ -18,7 +18,7 @@ interface DomainCardProps {
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   return (
-    <button className="card-close-btn" data-action="close-domain-tabs" onClick={onClick}>
+    <button className="card-close-btn" onClick={onClick}>
       <span className="card-close-btn-text">{label}</span>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -46,17 +46,17 @@ function TabBadge({ label, title }: { label?: string | number; title?: string })
   )
 }
 
-function DedupButton({ count, dupeUrlsEncoded, onClick }: { count: number; dupeUrlsEncoded?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
+function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
-    <button className="action-btn" data-action="dedup-keep-one" data-dupe-urls={dupeUrlsEncoded} title={title} onClick={onClick}>
+    <button className="action-btn" title={title} onClick={onClick}>
       {label}
     </button>
   )
 }
 
-function PinButton({ domain, displayName, pinned, onClick }: { domain: string; displayName?: string; pinned: boolean; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
+function PinButton({ displayName, pinned, onClick }: { displayName?: string; pinned: boolean; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   const action = pinned ? 'Unpin' : 'Pin'
   const title = `${action} ${displayName}`
   return (
@@ -66,7 +66,6 @@ function PinButton({ domain, displayName, pinned, onClick }: { domain: string; d
       title={title}
       aria-label={title}
       aria-pressed={pinned ? 'true' : 'false'}
-      data-domain={domain}
       onClick={onClick}
     >
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
@@ -115,10 +114,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
 
   async function onDedup(e: MouseEvent<HTMLButtonElement>) {
     const btn = e.currentTarget
-    const urls = (btn.dataset.dupeUrls || '')
-      .split(',')
-      .map((url) => decodeURIComponent(url))
-      .filter(Boolean)
+    const urls = vm.closableDupeUrls || []
     if (urls.length === 0) return
 
     const dupeSnapshot = await closeDuplicateTabs(urls, true, {
@@ -148,10 +144,10 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       <header className="domain-header">
         <span className="mission-name">{displayName}</span>
         {isFixedCard && <FixedIndicator displayName={displayName} />}
-        {canPin && <PinButton domain={group.domain} displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
+        {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
         {vm.singleSubdomainKey && <span className={'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>{vm.singleSubdomainKey}</span>}
         <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
-        {closableExtras > 0 && <DedupButton count={closableExtras} dupeUrlsEncoded={vm.dupeUrlsEncoded} onClick={onDedup} />}
+        {closableExtras > 0 && <DedupButton count={closableExtras} onClick={onDedup} />}
         {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
       </header>
       <div className="mission-card">
@@ -160,7 +156,6 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
             <SubdomainSection
               key={section.key || '__root__'}
               subdomainKey={section.key}
-              isShared={section.isShared}
               isPort={section.isPort}
               sectionCount={section.sectionCount}
               sectionClosableUrls={section.sectionClosableUrls}

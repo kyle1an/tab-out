@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
-import { flattenBookmarkNodes } from '../extension/bookmarks.js'
+import { flattenBookmarkNodes } from '../src/extension/bookmarks.js'
 import {
   DEFAULT_HISTORY_RANGE,
   HISTORY_FILTER_OFF,
@@ -11,10 +11,10 @@ import {
   fetchHistorySourceItems,
   flattenHistoryItems,
   isHistoryFilterEnabled
-} from '../extension/history-source.js'
-import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../extension/app-url.js'
-import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../extension/render.js'
-import { normalizeTabHistorySnapshot } from '../extension/tab-history.js'
+} from '../src/extension/history-source.js'
+import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
+import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../src/extension/render.js'
+import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 
 globalThis.chrome = {
   runtime: {
@@ -30,8 +30,8 @@ globalThis.window = {
 }
 
 /**
- * @param {Partial<import('../extension/types').DashboardTab> & { url: string }} overrides
- * @returns {import('../extension/types').DashboardTab}
+ * @param {Partial<import('../src/extension/types').DashboardTab> & { url: string }} overrides
+ * @returns {import('../src/extension/types').DashboardTab}
  */
 function makeTab(overrides) {
   return {

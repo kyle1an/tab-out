@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { HeaderStats } from './HeaderStats'
-import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../../extension/history-source.js'
-import { isFilterFocusShortcut } from '../../extension/app-url.js'
+import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-source.js'
+import { isFilterFocusShortcut } from '../extension/app-url.js'
 import type { DashboardSource, DashboardStats } from './types'
 
 interface SourceSwitchProps {

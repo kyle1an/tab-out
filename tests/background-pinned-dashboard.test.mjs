@@ -3,7 +3,7 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 
-const backgroundSource = readFileSync(new URL('../extension/background.js', import.meta.url), 'utf8')
+const backgroundSource = readFileSync(new URL('../src/extension/background.js', import.meta.url), 'utf8')
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 
 function clone(value) {

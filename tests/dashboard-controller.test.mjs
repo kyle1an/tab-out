@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerDashboardRefresh, requestDashboardRefresh } from '../extension/dashboard-controller.js'
+import { registerDashboardRefresh, requestDashboardRefresh } from '../src/extension/dashboard-controller.js'
 
 test('requestDashboardRefresh forwards refresh options to the active handler', async () => {
   let receivedOptions = null

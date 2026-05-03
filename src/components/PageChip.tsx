@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react'
-import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../../extension/tabs.js'
-import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
-import { unwrapSuspenderUrl } from '../../extension/suspender.js'
-import { deleteHistorySourceUrl } from '../../extension/history-source.js'
-import { markClosure } from '../../extension/undo.js'
-import { showToast } from '../../extension/toast.js'
+import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../extension/tabs.js'
+import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
+import { unwrapSuspenderUrl } from '../extension/suspender.js'
+import { deleteHistorySourceUrl } from '../extension/history-source.js'
+import { markClosure } from '../extension/undo.js'
+import { showToast } from '../extension/toast.js'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
-import type { DashboardChipEnv } from '../../extension/types'
+import type { DashboardChipEnv } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
 
@@ -241,7 +241,6 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   }
 
   const style = chip.isGrouped ? ({ '--group-color': chip.groupDotColor } as CSSProperties) : undefined
-  const dataTabUrl = isFolded ? envs.map((env) => env.tabUrl).join(' ') : chip.tabUrl
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const chipLabel = [chip.tooltip, duplicateLabel].filter(Boolean).join(' · ')
@@ -250,8 +249,6 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   return (
     <div
       className={'page-chip clickable' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
-      data-action="focus-tab"
-      data-tab-url={dataTabUrl}
       title={chipLabel}
       aria-label={chipLabel}
       style={style}
@@ -281,8 +278,6 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
                 <span
                   key={env.rawUrl || env.tabUrl}
                   className="chip-env clickable"
-                  data-action="focus-env"
-                  data-tab-url={env.tabUrl}
                   title={`Focus ${env.prefix} tab`}
                   tabIndex={0}
                   onClick={(e) => onEnvClick(e, env)}
@@ -307,8 +302,6 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
         <div className="chip-actions">
           <button
             className="chip-action chip-close"
-            data-action={isHistorySource ? 'delete-history-url' : 'close-single-tab'}
-            data-tab-url={chip.tabUrl}
             title={isHistorySource ? 'Delete from history' : 'Close this tab'}
             aria-label={isHistorySource ? 'Delete from history' : 'Close this tab'}
             onClick={isHistorySource ? onDeleteHistory : onClose}

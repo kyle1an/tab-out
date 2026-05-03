@@ -8,7 +8,7 @@ import type {
   DashboardStats,
   DomainGroup,
   TabHistorySnapshot
-} from '../../extension/types'
+} from '../extension/types'
 
 export type DashboardSource = 'tabs' | 'bookmarks' | 'history'
 export type HoverUrlChangeHandler = (url: string) => void
