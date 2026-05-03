@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const URL_PREVIEW_HIDE_DELAY_MS = 120
 
@@ -11,13 +11,13 @@ export function useUrlPreview() {
   const [urlPreview, setUrlPreviewState] = useState<UrlPreviewState>({ url: '', visible: false })
   const hideTimerRef = useRef<number | null>(null)
 
-  function clearHideTimer() {
+  const clearHideTimer = useCallback(function clearHideTimer() {
     if (hideTimerRef.current === null) return
     clearTimeout(hideTimerRef.current)
     hideTimerRef.current = null
-  }
+  }, [])
 
-  function setUrlPreview(url: string) {
+  const setUrlPreview = useCallback(function setUrlPreview(url: string) {
     const nextUrl = url || ''
     if (nextUrl) {
       clearHideTimer()
@@ -30,14 +30,14 @@ export function useUrlPreview() {
       hideTimerRef.current = null
       setUrlPreviewState((prev) => (prev.visible ? { ...prev, visible: false } : prev))
     }, URL_PREVIEW_HIDE_DELAY_MS)
-  }
+  }, [clearHideTimer])
 
-  function clearUrlPreviewNow() {
+  const clearUrlPreviewNow = useCallback(function clearUrlPreviewNow() {
     clearHideTimer()
     setUrlPreviewState((prev) => (prev.url || prev.visible ? { url: '', visible: false } : prev))
-  }
+  }, [clearHideTimer])
 
-  useEffect(() => () => clearHideTimer(), [])
+  useEffect(() => () => clearHideTimer(), [clearHideTimer])
 
   return { urlPreview, setUrlPreview, clearUrlPreviewNow }
 }

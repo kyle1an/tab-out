@@ -22,7 +22,7 @@
    when the visible block set changes.
    ================================================================ */
 
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 const MIN_COL_WIDTH = 260
 const IDEAL_COL_WIDTH = 304
@@ -138,13 +138,18 @@ export function useMissionsMasonry(...args) {
   const lastColCountsRef = useRef(new WeakMap())
   const rafIdRef = useRef(0)
   const observerRef = useRef(null)
+  const containerRefsRef = useRef(containerRefs)
+  const optionsRef = useRef({ onBeforePack, onAfterPack })
+  containerRefsRef.current = containerRefs
+  optionsRef.current = { onBeforePack, onAfterPack }
 
-  function currentContainers() {
-    return containerRefs.map((ref) => ref.current)
-  }
+  const currentContainers = useCallback(function currentContainers() {
+    return containerRefsRef.current.map((ref) => ref.current)
+  }, [])
 
-  function packMissionsMasonryNow({ unpin = false, animate = false } = {}) {
+  const packMissionsMasonryNow = useCallback(function packMissionsMasonryNow({ unpin = false, animate = false } = {}) {
     const containers = currentContainers()
+    const { onBeforePack, onAfterPack } = optionsRef.current
     const animationState = animate && onBeforePack ? onBeforePack(containers) : null
     packMissionsMasonry(
       containers,
@@ -154,20 +159,20 @@ export function useMissionsMasonry(...args) {
       }
     )
     if (animate && onAfterPack) onAfterPack(containers, animationState)
-  }
+  }, [currentContainers])
 
-  function shouldAnimateCurrentResize(containers) {
+  const shouldAnimateCurrentResize = useCallback(function shouldAnimateCurrentResize(containers) {
     return containers.some((container) => {
       if (!container || container.clientWidth === 0) return false
       const previousColCount = lastColCountsRef.current.get(container)
       return shouldAnimateMasonryResize(container.clientWidth, previousColCount, masonryOptionsFor(container))
     })
-  }
+  }, [])
 
-  function scheduleMissionsMasonry({ unpin = false, animate = true } = {}) {
+  const scheduleMissionsMasonry = useCallback(function scheduleMissionsMasonry({ unpin = false, animate = true } = {}) {
     cancelAnimationFrame(rafIdRef.current)
     rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin, animate }))
-  }
+  }, [packMissionsMasonryNow])
 
   useLayoutEffect(() => {
     if (typeof ResizeObserver !== 'function') return

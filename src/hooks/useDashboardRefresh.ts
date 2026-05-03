@@ -88,7 +88,7 @@ export function useDashboardRefresh({
     if (dashboard.bookmarkSearchReady && historySearchReady) return
     const frame = requestAnimationFrame(() => refreshRef.current())
     return () => cancelAnimationFrame(frame)
-  }, [filter, historyRange, historyFilterEnabled, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
+  }, [dashboard, filter, historyRange, historyFilterEnabled, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
 
   useEffect(() => {
     if (!pinsLoaded) return

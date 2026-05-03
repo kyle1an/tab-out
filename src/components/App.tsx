@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { closeDuplicateTabs, closeTabsExact } from '../extension/tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
@@ -15,13 +15,17 @@ import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { UrlPreview } from './UrlPreview'
-import type { DashboardData, DashboardSource, DomainGroup, TabHistorySnapshot } from './types'
+import type { DashboardCardEntry, DashboardData, DashboardSource, DomainGroup, TabHistorySnapshot } from './types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 
 function stableGroupId(group: DomainGroup) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
 }
+
+const EMPTY_TABS: DashboardData['realTabs'] = []
+const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []
+const EMPTY_CARD_ENTRIES: DashboardCardEntry[] = []
 
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
@@ -42,12 +46,12 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
   const historyMissionsRef = useRef<HTMLDivElement | null>(null)
   const unmatchedMissionsRef = useRef<HTMLDivElement | null>(null)
-  const realTabs = dashboard?.realTabs || []
-  const domainGroups = dashboard?.domainGroups || []
-  const bookmarkTabs = dashboard?.bookmarkTabs || []
-  const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || []
-  const historyTabs = dashboard?.historyTabs || []
-  const historyDomainGroups = dashboard?.historyDomainGroups || []
+  const realTabs = dashboard?.realTabs || EMPTY_TABS
+  const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
+  const bookmarkTabs = dashboard?.bookmarkTabs || EMPTY_TABS
+  const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || EMPTY_DOMAIN_GROUPS
+  const historyTabs = dashboard?.historyTabs || EMPTY_TABS
+  const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
   const isReady = !!dashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
@@ -55,15 +59,18 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     onAfterPack: animateDomainCardMoves
   })
 
-  function missionContainers(): MissionContainer[] {
+  const missionContainers = useCallback(function missionContainers(): MissionContainer[] {
     return [primaryMissionsRef.current, bookmarkMissionsRef.current, historyMissionsRef.current, unmatchedMissionsRef.current]
-  }
+  }, [])
 
-  function primeCardMoveAnimation() {
+  const primeCardMoveAnimation = useCallback(function primeCardMoveAnimation() {
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(missionContainers())
-  }
+  }, [missionContainers])
 
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
+  const resetMissionOrder = useCallback(function resetMissionOrder() {
+    previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+  }, [])
   const { pinnedDomains, pinsLoaded, togglePinnedDomain } = usePinnedDomains({
     onBeforeApplyPinnedDomains: resetMissionOrder,
     onSaveError: () => showToast('Could not save pinned domain')
@@ -107,32 +114,42 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     if (!previousRects) cancelDomainCardMoves(containers)
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
-  }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, source, isReady])
+  }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, source, isReady, clearUrlPreviewNow, missionContainers, packMissionsMasonryNow])
 
-  const dashboardVm = buildDashboardViewModel({
-    realTabs,
-    domainGroups,
-    filter,
-    source
-  })
-  const bookmarkSearchVm =
-    source === 'tabs' && filter && dashboard?.bookmarkSearchReady
-      ? buildDashboardViewModel({
-          realTabs: bookmarkTabs,
-          domainGroups: bookmarkDomainGroups,
-          filter,
-          source: 'bookmarks'
-        })
-      : null
-  const historySearchVm =
-    source === 'tabs' && filter && historyFilterEnabled && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
-      ? buildDashboardViewModel({
-          realTabs: historyTabs,
-          domainGroups: historyDomainGroups,
-          filter,
-          source: 'history'
-        })
-      : null
+  const dashboardVm = useMemo(
+    () =>
+      buildDashboardViewModel({
+        realTabs,
+        domainGroups,
+        filter,
+        source
+      }),
+    [domainGroups, filter, realTabs, source]
+  )
+  const bookmarkSearchVm = useMemo(
+    () =>
+      source === 'tabs' && filter && dashboard?.bookmarkSearchReady
+        ? buildDashboardViewModel({
+            realTabs: bookmarkTabs,
+            domainGroups: bookmarkDomainGroups,
+            filter,
+            source: 'bookmarks'
+          })
+        : null,
+    [bookmarkDomainGroups, bookmarkTabs, dashboard?.bookmarkSearchReady, filter, source]
+  )
+  const historySearchVm = useMemo(
+    () =>
+      source === 'tabs' && filter && historyFilterEnabled && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
+        ? buildDashboardViewModel({
+            realTabs: historyTabs,
+            domainGroups: historyDomainGroups,
+            filter,
+            source: 'history'
+          })
+        : null,
+    [filter, historyDomainGroups, historyFilterEnabled, historyRange, historyTabs, dashboard?.historyRange, dashboard?.historySearchQuery, source]
+  )
 
   async function onCloseFiltered() {
     const urls = dashboardVm.filteredCloseUrls
@@ -155,10 +172,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     const snapshot = await closeDuplicateTabs(urls, true, { preservePinnedTabOut: true })
     markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
     await refreshDashboard({ animateCards: true })
-  }
-
-  function resetMissionOrder() {
-    previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   }
 
   async function onSourceChange(nextSource: DashboardSource) {
@@ -184,8 +197,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const stats = dashboardVm.stats
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
-  const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || []
-  const historyMatchedCards = historySearchVm?.matchedCards || []
+  const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || EMPTY_CARD_ENTRIES
+  const historyMatchedCards = historySearchVm?.matchedCards || EMPTY_CARD_ENTRIES
   const showOtherTabs = isReady && dashboardVm.showOtherTabs
   const showBookmarkMatches = isReady && source === 'tabs' && !!filter && bookmarkMatchedCards.length > 0
   const showHistoryMatches = isReady && source === 'tabs' && !!filter && historyMatchedCards.length > 0
@@ -203,7 +216,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     if (source === 'tabs' && historyMatchedCards.length > 0) {
       previousOrderRef.current.history = new Map(historyMatchedCards.map(({ group }, index) => [stableGroupId(group), index]))
     }
-  }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, isReady, source])
+  }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, isReady, source, matchedCards, bookmarkMatchedCards, historyMatchedCards])
 
   return (
     <>

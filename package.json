@@ -10,7 +10,7 @@
     "build": "vite build",
     "build:debug": "vite build --sourcemap",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "test": "node --import tsx --test tests/*.test.mjs",
     "verify:bundle": "git diff --exit-code -- extension/dist",
     "verify": "pnpm typecheck && pnpm lint && pnpm build && pnpm verify:bundle && pnpm test"

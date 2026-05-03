@@ -44,7 +44,7 @@ export function Toast() {
     const timer = window.setTimeout(() => setState((s) => ({ ...s, visible: false })), durationFor(state.action))
     timerRef.current = timer
     return () => clearTimeout(timer)
-  }, [state.nonce])
+  }, [state.action, state.nonce, state.visible])
 
   const onMouseEnter = () => {
     if (timerRef.current !== null) {
