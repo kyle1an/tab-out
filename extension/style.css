@@ -699,13 +699,13 @@ header {
     width 0.25s ease;
 }
 
-.missions.is-packed .domain-block.source-moving {
+.missions.is-packed .domain-block.layout-moving {
   z-index: 3;
   transition: none;
   will-change: transform;
 }
 
-.missions.is-packed .domain-block.source-moving.source-moving-active {
+.missions.is-packed .domain-block.layout-moving.layout-moving-active {
   transition:
     transform 0.28s cubic-bezier(0.2, 0, 0, 1),
     top 0.25s ease,
@@ -714,8 +714,8 @@ header {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .missions.is-packed .domain-block.source-moving,
-  .missions.is-packed .domain-block.source-moving.source-moving-active {
+  .missions.is-packed .domain-block.layout-moving,
+  .missions.is-packed .domain-block.layout-moving.layout-moving-active {
     transition: none;
     transform: none;
   }

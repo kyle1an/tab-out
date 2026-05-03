@@ -22,7 +22,7 @@ const DEFAULT_PAGE_TITLE = '\u200e'
 const FILTER_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
 const URL_PREVIEW_HIDE_DELAY_MS = 120
-const SOURCE_CARD_MOVE_MS = 280
+const CARD_MOVE_MS = 280
 
 export function titleForFilterInput(filterInput = '') {
   const keyword = filterInput.trim()
@@ -75,48 +75,77 @@ function shouldReduceMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 }
 
-function snapshotDomainCardRects(container) {
+function snapshotDomainCardRects(containers) {
   const rects = new Map()
-  if (!container || shouldReduceMotion()) return rects
+  if (shouldReduceMotion()) return rects
 
-  container.querySelectorAll('.domain-block:not(.closing)').forEach((block) => {
-    const id = block.dataset.domainId
-    if (!id) return
-    const rect = block.getBoundingClientRect()
-    rects.set(id, {
-      left: rect.left,
-      top: rect.top
+  containers.forEach((container) => {
+    if (!container) return
+    container.querySelectorAll('.domain-block:not(.closing)').forEach((block) => {
+      const id = block.dataset.domainId
+      if (!id) return
+      const rect = block.getBoundingClientRect()
+      if (!rects.has(id)) rects.set(id, [])
+      rects.get(id).push({
+        left: rect.left,
+        top: rect.top
+      })
     })
   })
 
   return rects
 }
 
-function animateDomainCardMoves(container, previousRects) {
-  if (!container || !previousRects || previousRects.size === 0 || shouldReduceMotion()) return
+function takeClosestPreviousRect(previousRects, id, nextRect) {
+  const candidates = id ? previousRects.get(id) : null
+  if (!candidates || candidates.length === 0) return null
+
+  let closestIndex = 0
+  let closestDistance = Infinity
+  candidates.forEach((candidate, index) => {
+    const dx = candidate.left - nextRect.left
+    const dy = candidate.top - nextRect.top
+    const distance = dx * dx + dy * dy
+    if (distance < closestDistance) {
+      closestDistance = distance
+      closestIndex = index
+    }
+  })
+
+  const [closest] = candidates.splice(closestIndex, 1)
+  if (candidates.length === 0) previousRects.delete(id)
+  return closest
+}
+
+function animateDomainCardMoves(containers, previousRects) {
+  if (!previousRects || previousRects.size === 0 || shouldReduceMotion()) return
 
   const moving = []
-  container.querySelectorAll('.domain-block:not(.closing)').forEach((block) => {
-    const id = block.dataset.domainId
-    const previous = id ? previousRects.get(id) : null
-    if (!previous) return
+  containers.forEach((container) => {
+    if (!container) return
+    container.querySelectorAll('.domain-block:not(.closing)').forEach((block) => {
+      const id = block.dataset.domainId
 
-    const next = block.getBoundingClientRect()
-    const dx = previous.left - next.left
-    const dy = previous.top - next.top
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+      const next = block.getBoundingClientRect()
+      const previous = takeClosestPreviousRect(previousRects, id, next)
+      if (!previous) return
 
-    block.classList.add('source-moving')
-    block.style.transform = `translate(${dx}px, ${dy}px)`
-    moving.push(block)
+      const dx = previous.left - next.left
+      const dy = previous.top - next.top
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+
+      block.classList.add('layout-moving')
+      block.style.transform = `translate(${dx}px, ${dy}px)`
+      moving.push(block)
+    })
   })
 
   if (moving.length === 0) return
 
-  container.getBoundingClientRect()
+  document.body.getBoundingClientRect()
   requestAnimationFrame(() => {
     moving.forEach((block) => {
-      block.classList.add('source-moving-active')
+      block.classList.add('layout-moving-active')
       block.style.transform = 'translate(0, 0)'
     })
   })
@@ -127,7 +156,7 @@ function animateDomainCardMoves(container, previousRects) {
       if (done) return
       done = true
       block.removeEventListener('transitionend', onTransitionEnd)
-      block.classList.remove('source-moving', 'source-moving-active')
+      block.classList.remove('layout-moving', 'layout-moving-active')
       block.style.transform = ''
     }
     function onTransitionEnd(e) {
@@ -135,7 +164,7 @@ function animateDomainCardMoves(container, previousRects) {
     }
 
     block.addEventListener('transitionend', onTransitionEnd)
-    setTimeout(cleanup, SOURCE_CARD_MOVE_MS + 80)
+    setTimeout(cleanup, CARD_MOVE_MS + 80)
   })
 }
 
@@ -154,7 +183,7 @@ export function App({ initialDashboard = null }) {
   const refreshRef = useRef(async () => {})
   const urlPreviewHideTimerRef = useRef(null)
   const sourceSwitchSeqRef = useRef(0)
-  const sourceSwitchRectsRef = useRef(null)
+  const layoutMoveRectsRef = useRef(null)
   const previousOrderRef = useRef({
     tabs: new Map(),
     bookmarks: new Map(),
@@ -174,6 +203,14 @@ export function App({ initialDashboard = null }) {
   const isReady = !!dashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
+
+  function missionContainers() {
+    return [primaryMissionsRef.current, bookmarkMissionsRef.current, historyMissionsRef.current, unmatchedMissionsRef.current]
+  }
+
+  function primeCardMoveAnimation() {
+    layoutMoveRectsRef.current = snapshotDomainCardRects(missionContainers())
+  }
 
   function clearUrlPreviewHideTimer() {
     if (urlPreviewHideTimerRef.current === null) return
@@ -250,10 +287,14 @@ export function App({ initialDashboard = null }) {
   useEffect(() => {
     if (filterInput === filter) return
     if (filterInput === '') {
+      primeCardMoveAnimation()
       setFilter('')
       return
     }
-    const timer = setTimeout(() => setFilter(filterInput), FILTER_UPDATE_DELAY_MS)
+    const timer = setTimeout(() => {
+      primeCardMoveAnimation()
+      setFilter(filterInput)
+    }, FILTER_UPDATE_DELAY_MS)
     return () => clearTimeout(timer)
   }, [filterInput, filter])
 
@@ -297,9 +338,9 @@ export function App({ initialDashboard = null }) {
     if (!isReady) return
     clearUrlPreviewNow()
     packMissionsMasonryNow({ unpin: true })
-    const previousRects = sourceSwitchRectsRef.current
-    sourceSwitchRectsRef.current = null
-    if (previousRects) animateDomainCardMoves(primaryMissionsRef.current, previousRects)
+    const previousRects = layoutMoveRectsRef.current
+    layoutMoveRectsRef.current = null
+    if (previousRects) animateDomainCardMoves(missionContainers(), previousRects)
   }, [domainGroups, bookmarkDomainGroups, historyDomainGroups, filter, source, isReady])
 
   const dashboardVm = buildDashboardViewModel({
@@ -365,7 +406,7 @@ export function App({ initialDashboard = null }) {
   async function onSourceChange(nextSource) {
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
-    const previousRects = snapshotDomainCardRects(primaryMissionsRef.current)
+    const previousRects = snapshotDomainCardRects(missionContainers())
     clearUrlPreviewNow()
     const [nextDashboard, nextTabHistory] = await Promise.all([
       fetchDashboardData(previousOrderRef.current[nextSource] || new Map(), nextSource, {
@@ -380,7 +421,7 @@ export function App({ initialDashboard = null }) {
       fetchTabHistorySnapshot()
     ])
     if (requestId !== sourceSwitchSeqRef.current) return
-    sourceSwitchRectsRef.current = previousRects
+    layoutMoveRectsRef.current = previousRects
     setDashboard(nextDashboard)
     setTabHistory(nextTabHistory)
     setSource(nextSource)
