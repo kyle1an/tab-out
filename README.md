@@ -90,26 +90,26 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 ## Development
 
 ```bash
-npm install
-npm run setup:hooks
-npm run dev
+pnpm install
+pnpm setup:hooks
+pnpm dev
 ```
 
-Load the `extension/` folder in Chrome. Keep `npm run dev` running while editing React/TSX files under `src/`; Vite rebuilds the packaged `extension/dist/app.js` bundle after each source change.
+Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing React/TSX files under `src/`; Vite rebuilds the packaged `extension/dist/app.js` bundle after each source change.
 
 Refresh the Tab Out page to see rebuilt UI changes. Reload the extension in `chrome://extensions` when changing `manifest.json`, `background.js`, permissions, or service-worker behavior. Changes to plain extension files such as `extension/style.css`, `extension/render.js`, or `extension/index.html` do not need a Vite rebuild, but Chrome still needs a page or extension reload to pick them up.
 
 Before committing:
 
 ```bash
-npm run verify
+pnpm verify
 ```
 
-`npm run verify` rebuilds `extension/dist/app.js` and fails if the committed bundle is out of sync with the source.
+`pnpm verify` rebuilds `extension/dist/app.js` and fails if the committed bundle is out of sync with the source.
 
-`npm run setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `npm run verify` before each commit, so stale bundled output is caught before it lands.
+`pnpm setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `pnpm verify` before each commit, so stale bundled output is caught before it lands.
 
-Use `npm run build:debug` when you need a local sourcemap.
+Use `pnpm build:debug` when you need a local sourcemap.
 
 ---
 

@@ -8,12 +8,13 @@ test('extension HTML loads the Vite-built React entry', () => {
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
+  assert.match(pkg.packageManager, /^pnpm@/)
   assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
   assert.equal(pkg.scripts?.dev, 'vite build --watch')
   assert.equal(pkg.scripts?.build, 'vite build')
   assert.equal(pkg.scripts?.['build:debug'], 'vite build --sourcemap')
   assert.equal(pkg.scripts?.['verify:bundle'], 'git diff --exit-code -- extension/dist')
-  assert.match(pkg.scripts?.verify, /npm run verify:bundle/)
+  assert.match(pkg.scripts?.verify, /pnpm verify:bundle/)
   assert.ok(pkg.dependencies?.react)
   assert.ok(pkg.dependencies?.['react-dom'])
   assert.ok(pkg.devDependencies?.['@types/chrome'])
@@ -47,7 +48,7 @@ test('repo pre-commit hook runs the verification pipeline', () => {
 
   const hook = readFileSync('.githooks/pre-commit', 'utf8')
   assert.match(hook, /^#!\/bin\/sh/)
-  assert.match(hook, /npm run verify/)
+  assert.match(hook, /pnpm verify/)
 })
 
 test('built extension bundle is packaged locally', () => {
