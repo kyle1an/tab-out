@@ -1636,11 +1636,10 @@ header {
      visible because this padding dominated the gap between the
      preceding chip and the cluster label. Bottom kept at 2 so the
      label still has a hair of air above the first chip. */
-  padding: 3px 0 2px 0;
-  /* Anchor for the absolutely-positioned close button. Taking the
-     button out of flex flow lets .pathgroup-header-rule claim the
-     full remaining width when the button is hidden — the ruled
-     separator actually runs to the header's right edge. */
+  padding: 3px 24px 2px 0;
+  /* Anchor for the absolutely-positioned close button. The right
+     padding reserves the button's hover target so long path labels
+     truncate before they can sit under the close icon. */
   position: relative;
 }
 /* If the very first content block in the card is a pathgroup section,
@@ -1654,11 +1653,11 @@ header {
   margin-right: 0;
 }
 
-/* Truncate overlong repo labels so the separator rule always has
-   room. Targets only the label pill — the "PRs" sibling is fixed-
-   width and shouldn't shrink. `min-width: 0` lets the pill shrink
-   below its intrinsic content width in flex flow; ellipsis reveals
-   the clipped edge. Full label stays accessible via the `title`
+/* Truncate overlong repo labels so the close button always has room.
+   Targets only the label pill — the "PRs" sibling is fixed-width
+   and shouldn't shrink. `min-width: 0` lets the pill shrink below
+   its intrinsic content width in flex flow; ellipsis reveals the
+   clipped edge. Full label stays accessible via the `title`
    attribute (hover tooltip) on the pill. */
 .pathgroup-header .chip-pathgroup:not(.chip-pathgroup-pr) {
   min-width: 0;
@@ -1672,29 +1671,12 @@ header {
   opacity: 0.7;
 }
 
-/* Label-ruled separator: stretches through the empty middle of the
-   header, pulling the pill + count on the left and running to the
-   header's right edge. The close button is absolute-positioned on
-   top of this rule at `right: 0` with width 20px; so the rule's
-   min-width needs to exceed the close button's width or the rule
-   vanishes behind the button on hover (opacity:1 + opaque bg
-   occludes everything beneath). 30px keeps ≥20px of rule visible
-   even when the label is long enough to push the rule to its min. */
-.pathgroup-header-rule {
-  flex: 1;
-  height: 1px;
-  background: rgba(115, 115, 115, 0.18);
-  min-width: 30px;
-}
-
 /* Cluster-level close — round, hidden by default, fades in on
    section hover. Absolute positioning keeps it out of the flex
-   flow so the rule above can stretch the full header width.
-   `background: var(--card-bg)` makes the button fully occlude the
-   rule beneath it when visible, so the X doesn't get crossed out
-   by a running line. Mirrors the card-close policy: clicking only
-   closes ungrouped tabs in the cluster (grouped tabs are preserved
-   upstream in closeTabsExact). */
+   flow so the label/count row stays stable as the action appears.
+   Mirrors the card-close policy: clicking only closes ungrouped
+   tabs in the cluster (grouped tabs are preserved upstream in
+   closeTabsExact). */
 .pathgroup-close-btn {
   position: absolute;
   right: 0;
@@ -1725,12 +1707,10 @@ header {
 }
 /* The first-pathgroup header trims only its top padding, leaving a
    slightly bottom-heavy box. Nudge just that close button up 1px so
-   it stays optically centered on the separator rule. */
+   it stays optically centered on the label row. */
 .mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-close-btn {
   top: calc(50% - 1px);
 }
-/* Opaque hover background (NOT rgba) so the rule behind the button
-   doesn't bleed through as a horizontal line crossing the X. */
 .pathgroup-close-btn:hover {
   background: #ededed;
 }
@@ -1740,18 +1720,12 @@ header {
   display: block;
 }
 
-/* Breathing room between adjacent sub-sections. The visual boundary
-   itself lives INSIDE each cluster's header (.pathgroup-header-rule),
-   so no border is drawn between sections — just a small gap so the
-   preceding chip's bottom edge doesn't press against the next
-   header's rule. */
+/* Breathing room between adjacent path groups. These groups no
+   longer draw their own separator line; the gap lets each small
+   label row read as a lightweight cluster inside the subdomain. */
 .pathgroup-section + .pathgroup-section,
 .flat-section + .pathgroup-section,
 .pathgroup-section + .flat-section {
-  /* Trimmed 4 → 2 — the pathgroup header's own rule + padding
-     already reads as a section boundary, so a thicker gap on top
-     was decorative. 2px keeps the preceding chip's bottom edge
-     from pressing against the next header. */
   margin-top: 2px;
 }
 

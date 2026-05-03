@@ -62,7 +62,6 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         <span class="chip-pathgroup" title=${label}>${label}</span>
         ${isPR && html`<span class="chip-pathgroup chip-pathgroup-pr">PRs</span>`}
         <span class="pathgroup-header-count">${count}</span>
-        <span class="pathgroup-header-rule"></span>
         ${closableUrls && closableUrls.length > 0 && html` <${PathgroupCloseButton} count=${closableUrls.length} onClick=${onCloseCluster} /> `}
       </div>
       ${visibleChips.map((chip) => html` <${PageChip} key=${chip.rawUrl} chip=${chip} onHoverUrlChange=${onHoverUrlChange} /> `)}
