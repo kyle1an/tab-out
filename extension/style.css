@@ -1813,14 +1813,16 @@ header {
 .subdomain-close-btn {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   background: transparent;
   border: none;
   border-radius: 50%;
   color: var(--muted);
   cursor: pointer;
+  line-height: 0;
   opacity: 0;
   transition:
     opacity 0.15s,
@@ -1833,9 +1835,10 @@ header {
   background: #ededed;
 }
 .subdomain-close-btn svg {
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   display: block;
+  flex: none;
 }
 /* First section's header doesn't need the top padding — its edge is
    already the card's own padding. */
