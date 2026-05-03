@@ -653,11 +653,15 @@ header {
 
 /* ---- Mission Cards ---- */
 .missions {
+  --masonry-min-col-width: 260px;
+  --masonry-ideal-col-width: 304px;
+  --masonry-gap: 10px;
   /* JS-driven masonry — packMissionsMasonry() in layout.js absolutely
      positions each .domain-block (the unit wrapping .domain-header +
      .mission-card) in the shortest column and pins it there for future
-     re-packs. Expanding one block grows it within its own column without
-     reshuffling any other block's column assignment. */
+     re-packs. Width comfort targets live in CSS variables above so
+     media queries can tune column behavior without duplicating the
+     packing algorithm. */
   position: relative;
   /* No top margin — the pinned-top's 12px bottom padding already
      supplies the gap between the section-header and the first card,
@@ -669,6 +673,21 @@ header {
      two sources of bottom whitespace. */
   margin-bottom: 0;
 }
+
+@media (max-width: 560px) {
+  .missions {
+    --masonry-min-col-width: 240px;
+    --masonry-ideal-col-width: 280px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .missions {
+    --masonry-min-col-width: 280px;
+    --masonry-ideal-col-width: 340px;
+  }
+}
+
 /* Transitions on top/left are enabled only AFTER the first pack so blocks
    don't visibly slide from 0,0 into position on initial render. The
    masonry unit is .domain-block (which wraps .domain-header +

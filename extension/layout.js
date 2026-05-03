@@ -28,6 +28,20 @@ const MIN_COL_WIDTH = 260
 const IDEAL_COL_WIDTH = 304
 const GAP = 10
 
+function readCssPx(style, name, fallback) {
+  const value = parseFloat(style.getPropertyValue(name))
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function masonryOptionsFor(container) {
+  const style = getComputedStyle(container)
+  return {
+    minColWidth: readCssPx(style, '--masonry-min-col-width', MIN_COL_WIDTH),
+    idealColWidth: readCssPx(style, '--masonry-ideal-col-width', IDEAL_COL_WIDTH),
+    gap: readCssPx(style, '--masonry-gap', GAP)
+  }
+}
+
 export function chooseMasonryLayout(containerWidth, { minColWidth = MIN_COL_WIDTH, idealColWidth = IDEAL_COL_WIDTH, gap = GAP } = {}) {
   if (!Number.isFinite(containerWidth) || containerWidth <= 0) {
     return { colCount: 1, colWidth: 0 }
@@ -72,7 +86,8 @@ function packContainer(container, unpin, lastColCounts) {
   // the column count whose resulting card width lands closest to the
   // comfort target. That keeps resize drag feeling less jumpy: cards
   // don't collapse to the minimum width at every threshold.
-  const { colCount, colWidth } = chooseMasonryLayout(containerWidth)
+  const options = masonryOptionsFor(container)
+  const { colCount, colWidth } = chooseMasonryLayout(containerWidth, options)
 
   const prevColCount = lastColCounts?.get(container)
   if (unpin || prevColCount !== colCount) {
@@ -98,12 +113,12 @@ function packContainer(container, unpin, lastColCounts) {
       }
       card.dataset.masonryCol = String(col)
     }
-    card.style.left = `${col * (colWidth + GAP)}px`
+    card.style.left = `${col * (colWidth + options.gap)}px`
     card.style.top = `${colHeights[col]}px`
-    colHeights[col] += card.getBoundingClientRect().height + GAP
+    colHeights[col] += card.getBoundingClientRect().height + options.gap
   })
 
-  container.style.height = `${Math.max(...colHeights) - GAP}px`
+  container.style.height = `${Math.max(...colHeights) - options.gap}px`
   requestAnimationFrame(() => container.classList.add('is-packed'))
 }
 

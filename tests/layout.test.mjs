@@ -13,6 +13,22 @@ test('chooseMasonryLayout delays a new column until the width is near the comfor
   assert.equal(afterThreshold.colWidth, 270)
 })
 
+test('chooseMasonryLayout supports wider desktop comfort targets', () => {
+  const beforeThreshold = chooseMasonryLayout(1390, {
+    minColWidth: 280,
+    idealColWidth: 340
+  })
+  const afterThreshold = chooseMasonryLayout(1550, {
+    minColWidth: 280,
+    idealColWidth: 340
+  })
+
+  assert.equal(beforeThreshold.colCount, 4)
+  assert.equal(afterThreshold.colCount, 5)
+  assert.equal(beforeThreshold.colWidth, 340)
+  assert.equal(afterThreshold.colWidth, 302)
+})
+
 test('chooseMasonryLayout never chooses a column count narrower than the minimum width', () => {
   const layout = chooseMasonryLayout(1060)
 
