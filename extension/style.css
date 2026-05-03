@@ -699,6 +699,28 @@ header {
     width 0.25s ease;
 }
 
+.missions.is-packed .domain-block.source-moving {
+  z-index: 3;
+  transition: none;
+  will-change: transform;
+}
+
+.missions.is-packed .domain-block.source-moving.source-moving-active {
+  transition:
+    transform 0.28s cubic-bezier(0.2, 0, 0, 1),
+    top 0.25s ease,
+    left 0.25s ease,
+    width 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .missions.is-packed .domain-block.source-moving,
+  .missions.is-packed .domain-block.source-moving.source-moving-active {
+    transition: none;
+    transform: none;
+  }
+}
+
 /* ---- Domain Block ----
    Wraps the .domain-header and the .mission-card as a single masonry
    unit. Carries the .is-app / .card-unmatched / .closing state so the
