@@ -18,15 +18,15 @@
    focus / close / preview behavior is component-local.
    ================================================================ */
 
-import { h } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { useEffect, useLayoutEffect, useRef } from '../vendor/preact-hooks.mjs'
-import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../tabs.js'
-import { requestDashboardRefresh } from '../dashboard-controller.js'
-import { unwrapSuspenderUrl } from '../suspender.js'
-import { deleteHistorySourceUrl } from '../history-source.js'
-import { markClosure } from '../undo.js'
-import { showToast } from './Toast.js'
+import { h } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { useEffect, useLayoutEffect, useRef } from '../../extension/vendor/preact-hooks.mjs'
+import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../../extension/tabs.js'
+import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
+import { unwrapSuspenderUrl } from '../../extension/suspender.js'
+import { deleteHistorySourceUrl } from '../../extension/history-source.js'
+import { markClosure } from '../../extension/undo.js'
+import { showToast } from './Toast'
 
 const html = htm.bind(h)
 let chipTextResizeObserver = null

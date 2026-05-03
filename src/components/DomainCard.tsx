@@ -21,14 +21,14 @@
    document-level click router.
    ================================================================ */
 
-import { h } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { closeTabsExact, closeDuplicateTabs } from '../tabs.js'
-import { markClosure } from '../undo.js'
-import { requestDashboardRefresh } from '../dashboard-controller.js'
-import { tabMatchesFilter } from '../render.js'
-import { isPinnableDomain } from '../domain-pins.js'
-import { SubdomainSection } from './SubdomainSection.js'
+import { h } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { closeTabsExact, closeDuplicateTabs } from '../../extension/tabs.js'
+import { markClosure } from '../../extension/undo.js'
+import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
+import { tabMatchesFilter } from '../../extension/render.js'
+import { isPinnableDomain } from '../../extension/domain-pins.js'
+import { SubdomainSection } from './SubdomainSection'
 
 const html = htm.bind(h)
 

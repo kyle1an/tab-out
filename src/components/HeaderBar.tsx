@@ -1,8 +1,8 @@
-import { h } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { useEffect, useRef } from '../vendor/preact-hooks.mjs'
-import { HeaderStats } from './HeaderStats.js'
-import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../history-source.js'
+import { h } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { useEffect, useRef } from '../../extension/vendor/preact-hooks.mjs'
+import { HeaderStats } from './HeaderStats'
+import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../../extension/history-source.js'
 
 const html = htm.bind(h)
 

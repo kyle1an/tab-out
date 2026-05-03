@@ -17,9 +17,9 @@
    a timer ref that mouseenter clears and mouseleave restarts.
    ================================================================ */
 
-import { h, render as preactRender } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { useEffect, useRef, useState } from '../vendor/preact-hooks.mjs'
+import { h, render as preactRender } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { useEffect, useRef, useState } from '../../extension/vendor/preact-hooks.mjs'
 
 const html = htm.bind(h)
 

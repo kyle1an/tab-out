@@ -10,10 +10,10 @@
    lives under components/App.js.
    ================================================================ */
 
-import { mountToast } from './components/Toast.js'
-import { mountApp } from './components/App.js'
-import { requestDashboardRefresh } from './dashboard-controller.js'
-import { groupColorChanged } from './groups.js'
+import { mountToast } from './components/Toast'
+import { mountApp } from './components/App'
+import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
+import { groupColorChanged } from '../extension/groups.js'
 
 let refreshTimer = null
 let refreshTimerOptions = {}

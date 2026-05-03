@@ -15,13 +15,13 @@
    snapshots or restores expansion state.
    ================================================================ */
 
-import { h } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { useState } from '../vendor/preact-hooks.mjs'
-import { closeTabsExact } from '../tabs.js'
-import { requestDashboardRefresh } from '../dashboard-controller.js'
-import { markClosure } from '../undo.js'
-import { PageChip } from './PageChip.js'
+import { h } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { useState } from '../../extension/vendor/preact-hooks.mjs'
+import { closeTabsExact } from '../../extension/tabs.js'
+import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
+import { markClosure } from '../../extension/undo.js'
+import { PageChip } from './PageChip'
 
 const html = htm.bind(h)
 

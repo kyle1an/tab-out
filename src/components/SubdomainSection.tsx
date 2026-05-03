@@ -12,13 +12,13 @@
    (FlatSection's expand, PathgroupSection's expand) survive with it.
    ================================================================ */
 
-import { h } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { closeTabsExact } from '../tabs.js'
-import { requestDashboardRefresh } from '../dashboard-controller.js'
-import { markClosure } from '../undo.js'
-import { FlatSection } from './FlatSection.js'
-import { PathgroupSection } from './PathgroupSection.js'
+import { h } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { closeTabsExact } from '../../extension/tabs.js'
+import { requestDashboardRefresh } from '../../extension/dashboard-controller.js'
+import { markClosure } from '../../extension/undo.js'
+import { FlatSection } from './FlatSection'
+import { PathgroupSection } from './PathgroupSection'
 
 const html = htm.bind(h)
 

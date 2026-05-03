@@ -1,9 +1,9 @@
-import { h } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { useEffect, useLayoutEffect, useRef } from '../vendor/preact-hooks.mjs'
-import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../tab-history.js'
-import { markClosure } from '../undo.js'
-import { showToast } from './Toast.js'
+import { h } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { useEffect, useLayoutEffect, useRef } from '../../extension/vendor/preact-hooks.mjs'
+import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../../extension/tab-history.js'
+import { markClosure } from '../../extension/undo.js'
+import { showToast } from './Toast'
 
 const html = htm.bind(h)
 let historyTitleResizeObserver = null

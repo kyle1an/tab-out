@@ -16,9 +16,9 @@
    the previous prevExpanded DOM snapshot/restore.
    ================================================================ */
 
-import { h, Fragment } from '../vendor/preact.mjs'
-import htm from '../vendor/htm.mjs'
-import { DomainCard } from './DomainCard.js'
+import { h, Fragment } from '../../extension/vendor/preact.mjs'
+import htm from '../../extension/vendor/htm.mjs'
+import { DomainCard } from './DomainCard'
 
 const html = htm.bind(h)
 

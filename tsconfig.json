@@ -4,11 +4,15 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "lib": ["DOM", "ES2022"],
+    "jsx": "react-jsx",
     "allowJs": true,
     "checkJs": false,
+    "strict": false,
     "noEmit": true,
     "skipLibCheck": true,
+    "types": ["node", "react", "react-dom"],
     "maxNodeModuleJsDepth": 0
   },
-  "exclude": ["extension/vendor/**", "tests/**"]
+  "include": ["src", "extension/**/*.js", "extension/**/*.d.ts", "vite.config.ts"],
+  "exclude": ["extension/dist/**", "extension/vendor/**", "tests/**"]
 }
