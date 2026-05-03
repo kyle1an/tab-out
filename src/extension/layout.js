@@ -22,7 +22,7 @@
    when the visible block set changes.
    ================================================================ */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 
 const MIN_COL_WIDTH = 260
 const IDEAL_COL_WIDTH = 304
@@ -169,7 +169,7 @@ export function useMissionsMasonry(...args) {
     rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin, animate }))
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof ResizeObserver !== 'function') return
     let observer = observerRef.current
     if (!observer) {
@@ -185,7 +185,7 @@ export function useMissionsMasonry(...args) {
       if (container) observer.observe(container)
     })
     return () => observer.disconnect()
-  }, containerRefs.map((ref) => ref.current))
+  })
 
   useEffect(
     () => () => {

@@ -70,6 +70,14 @@ test('source switch keeps one primed card-move refresh', () => {
   assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
 })
 
+test('masonry resize observer rebinds after conditional mission grids mount', () => {
+  const source = readFileSync(new URL('../src/extension/layout.js', import.meta.url), 'utf8')
+
+  assert.match(source, /useLayoutEffect\(\(\) => \{/)
+  assert.match(source, /observer\.observe\(container\)/)
+  assert.doesNotMatch(source, /\},\s*containerRefs\.map\(\(ref\) => ref\.current\)\s*\)/)
+})
+
 test('dashboard edge gutters are owned by panes instead of the shell', () => {
   const css = [
     readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8'),
