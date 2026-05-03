@@ -688,17 +688,6 @@ header {
   }
 }
 
-/* Transitions on top/left are enabled only AFTER the first pack so blocks
-   don't visibly slide from 0,0 into position on initial render. The
-   masonry unit is .domain-block (which wraps .domain-header +
-   .mission-card), so top/left transitions live on the block. */
-.missions.is-packed .domain-block {
-  transition:
-    top 0.25s ease,
-    left 0.25s ease,
-    width 0.25s ease;
-}
-
 .missions.is-packed .domain-block.layout-moving {
   z-index: 3;
   transition: none;
@@ -706,11 +695,7 @@ header {
 }
 
 .missions.is-packed .domain-block.layout-moving.layout-moving-active {
-  transition:
-    transform 0.28s cubic-bezier(0.2, 0, 0, 1),
-    top 0.25s ease,
-    left 0.25s ease,
-    width 0.25s ease;
+  transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

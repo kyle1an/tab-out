@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { chooseMasonryLayout } from '../extension/layout.js'
@@ -43,4 +44,14 @@ test('chooseMasonryLayout keeps a single narrow column when the container is too
     colCount: 1,
     colWidth: 220
   })
+})
+
+test('masonry card motion uses transform instead of layout-property transitions', () => {
+  const css = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  const activeMoveRule = css.match(/\.missions\.is-packed \.domain-block\.layout-moving\.layout-moving-active\s*\{([^}]*)\}/)
+
+  assert.ok(activeMoveRule)
+  assert.match(activeMoveRule[1], /transform 0\.28s/)
+  assert.doesNotMatch(activeMoveRule[1], /\b(top|left|width)\s+0\.\d+s/)
+  assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })

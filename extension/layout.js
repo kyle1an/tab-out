@@ -28,6 +28,10 @@ const MIN_COL_WIDTH = 260
 const IDEAL_COL_WIDTH = 304
 const GAP = 10
 
+function isMasonryHookOptions(value) {
+  return !!value && (typeof value.onBeforePack === 'function' || typeof value.onAfterPack === 'function')
+}
+
 function readCssPx(style, name, fallback) {
   const value = parseFloat(style.getPropertyValue(name))
   return Number.isFinite(value) && value > 0 ? value : fallback
@@ -122,31 +126,41 @@ function packContainer(container, unpin, lastColCounts) {
   requestAnimationFrame(() => container.classList.add('is-packed'))
 }
 
-export function useMissionsMasonry(...containerRefs) {
+export function useMissionsMasonry(...args) {
+  const options = isMasonryHookOptions(args[args.length - 1]) ? args.pop() : {}
+  const containerRefs = args
+  const { onBeforePack = null, onAfterPack = null } = options
   const lastColCountsRef = useRef(new WeakMap())
   const rafIdRef = useRef(0)
   const observerRef = useRef(null)
 
-  function packMissionsMasonryNow({ unpin = false } = {}) {
+  function currentContainers() {
+    return containerRefs.map((ref) => ref.current)
+  }
+
+  function packMissionsMasonryNow({ unpin = false, animate = false } = {}) {
+    const containers = currentContainers()
+    const animationState = animate && onBeforePack ? onBeforePack(containers) : null
     packMissionsMasonry(
-      containerRefs.map((ref) => ref.current),
+      containers,
       {
         unpin,
         lastColCounts: lastColCountsRef.current
       }
     )
+    if (animate && onAfterPack) onAfterPack(containers, animationState)
   }
 
-  function scheduleMissionsMasonry({ unpin = false } = {}) {
+  function scheduleMissionsMasonry({ unpin = false, animate = true } = {}) {
     cancelAnimationFrame(rafIdRef.current)
-    rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin }))
+    rafIdRef.current = requestAnimationFrame(() => packMissionsMasonryNow({ unpin, animate }))
   }
 
   useEffect(() => {
     if (typeof ResizeObserver !== 'function') return
     let observer = observerRef.current
     if (!observer) {
-      observer = new ResizeObserver(() => scheduleMissionsMasonry())
+      observer = new ResizeObserver(() => scheduleMissionsMasonry({ animate: true }))
       observerRef.current = observer
     }
     observer.disconnect()
