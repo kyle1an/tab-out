@@ -62,6 +62,14 @@ test('masonry card motion uses transform instead of layout-property transitions'
   assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })
 
+test('source switch keeps one primed card-move refresh', () => {
+  const source = readFileSync(new URL('../extension/components/App.js', import.meta.url), 'utf8')
+
+  assert.match(source, /const previousRects = prepareDomainCardMoveAnimation\(missionContainers\(\)\)/)
+  assert.match(source, /layoutMoveRectsRef\.current = previousRects/)
+  assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
+})
+
 test('dashboard edge gutters are owned by panes instead of the shell', () => {
   const css = [
     readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8'),

@@ -352,7 +352,10 @@ export function App({ initialDashboard = null }) {
     if (!pinsLoaded) return
     clearUrlPreviewNow()
     requestAnimationFrame(() => refreshRef.current())
-  }, [source, pinnedDomains, pinsLoaded])
+    // Source changes are fetched by onSourceChange() with a primed
+    // card-move snapshot. A second plain refresh here would cancel
+    // the source-switch FLIP animation before it finishes.
+  }, [pinnedDomains, pinsLoaded])
 
   useEffect(() => () => clearUrlPreviewHideTimer(), [])
 
