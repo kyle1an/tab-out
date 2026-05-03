@@ -1,11 +1,11 @@
 export const OPEN_FILTER_TAB_COMMAND = 'open-filter-tab'
 export const FOCUS_FILTER_PARAM = 'focusFilter'
 
-function filterFocusUrl() {
+function filterFocusUrl(): string {
   return `chrome-extension://${chrome.runtime.id}/index.html?${FOCUS_FILTER_PARAM}=1`
 }
 
-async function findNormalBrowserWindow() {
+async function findNormalBrowserWindow(): Promise<chrome.windows.Window | null> {
   try {
     const lastFocusedNormal = await chrome.windows.getLastFocused({ windowTypes: ['normal'] })
     if (typeof lastFocusedNormal?.id === 'number') return lastFocusedNormal
@@ -19,7 +19,7 @@ async function findNormalBrowserWindow() {
   }
 }
 
-export async function openFilterTab() {
+export async function openFilterTab(): Promise<void> {
   const url = filterFocusUrl()
   const normalWindow = await findNormalBrowserWindow()
 

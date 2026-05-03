@@ -1,14 +1,9 @@
 import { getRealTabs } from './tabs.js'
 import { isGroupedTab } from './groups.js'
 
-/** @typedef {import('./types').DashboardTab} DashboardTab */
+import type { DashboardTab } from './types'
 
-/**
- * @param {Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>} tab
- * @param {string} filter
- * @returns {boolean}
- */
-export function tabMatchesFilter(tab, filter) {
+export function tabMatchesFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>, filter: string): boolean {
   if (!filter) return true
   const q = filter.toLowerCase()
   const rawTitle = tab.title || ''
@@ -31,12 +26,7 @@ export function tabMatchesFilter(tab, filter) {
  * "Close N filtered tabs" action should close: filter-matching,
  * ungrouped, non-chrome. Returns [] when no filter is active.
  */
-/**
- * @param {DashboardTab[]} [realTabs]
- * @param {string} [filter]
- * @returns {string[]}
- */
-export function getFilteredCloseableUrls(realTabs = getRealTabs(), filter = '') {
+export function getFilteredCloseableUrls(realTabs: DashboardTab[] = getRealTabs(), filter = ''): string[] {
   if (!filter) return []
   return realTabs
     .filter((t) => !t.isApp)

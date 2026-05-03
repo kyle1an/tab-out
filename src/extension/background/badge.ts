@@ -2,7 +2,7 @@
  * Counts open real-web tabs and updates the extension toolbar badge.
  * "Real" tabs = not browser internals, extension pages, or about:blank.
  */
-export async function updateBadge() {
+export async function updateBadge(): Promise<void> {
   try {
     const tabs = await chrome.tabs.query({})
 
@@ -15,7 +15,7 @@ export async function updateBadge() {
 
     if (count === 0) return
 
-    let color
+    let color: string
     if (count <= 10) {
       color = '#3d7a4a'
     } else if (count <= 20) {

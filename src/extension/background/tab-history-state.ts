@@ -1,29 +1,60 @@
 export const MAX_TAB_HISTORY = 24
 
-export function normalizeGlobalHistory(entry) {
+export type GlobalTabHistoryEntry = {
+  windowId: number
+  tabId: number
+}
+
+export type GlobalTabHistory = {
+  stack: GlobalTabHistoryEntry[]
+  index: number
+}
+
+type GlobalTabHistoryInput = Partial<GlobalTabHistory> | null | undefined
+
+type ActiveTabLike = {
+  id?: number
+  windowId: number
+} | null | undefined
+
+type HistoryChangeResult = {
+  history: GlobalTabHistory
+  changed: boolean
+}
+
+type RepairedHistoryResult = HistoryChangeResult & {
+  activeWasInserted: boolean
+}
+
+type PrunedHistoryResult = GlobalTabHistory & {
+  changed: boolean
+}
+
+export function normalizeGlobalHistory(entry: GlobalTabHistoryInput): GlobalTabHistory {
   if (!entry || !Array.isArray(entry.stack)) {
     return { stack: [], index: -1 }
   }
   const stack = entry.stack.filter((item) => item && typeof item.tabId === 'number' && typeof item.windowId === 'number')
   const maxIndex = stack.length - 1
-  const index = Number.isInteger(entry.index) ? Math.max(-1, Math.min(entry.index, maxIndex)) : maxIndex
-  return { stack, index }
+  const rawIndex = entry.index
+  const index = typeof rawIndex === 'number' && Number.isInteger(rawIndex) ? Math.max(-1, Math.min(rawIndex, maxIndex)) : maxIndex
+  return { stack: stack as GlobalTabHistoryEntry[], index }
 }
 
-export function historyChanged(a, b) {
+export function historyChanged(a: GlobalTabHistoryInput, b: GlobalTabHistoryInput): boolean {
   const first = normalizeGlobalHistory(a)
   const second = normalizeGlobalHistory(b)
   if (first.index !== second.index || first.stack.length !== second.stack.length) return true
   return first.stack.some((entry, index) => entry.tabId !== second.stack[index].tabId || entry.windowId !== second.stack[index].windowId)
 }
 
-function dedupeHistoryByLatestTab(history) {
+function dedupeHistoryByLatestTab(history: GlobalTabHistoryInput): GlobalTabHistory {
   const current = normalizeGlobalHistory(history)
-  const latestIndexByTabId = new Map()
+  const latestIndexByTabId = new Map<number, number>()
   current.stack.forEach((entry, index) => latestIndexByTabId.set(entry.tabId, index))
 
-  const nextStack = []
-  const oldIndexToNewIndex = new Map()
+  const nextStack: GlobalTabHistoryEntry[] = []
+  const oldIndexToNewIndex = new Map<number, number>()
   current.stack.forEach((entry, index) => {
     if (latestIndexByTabId.get(entry.tabId) !== index) return
     oldIndexToNewIndex.set(index, nextStack.length)
@@ -34,7 +65,7 @@ function dedupeHistoryByLatestTab(history) {
   const currentEntry = current.stack[current.index]
   if (currentEntry) {
     const keptOldIndex = latestIndexByTabId.get(currentEntry.tabId)
-    nextIndex = oldIndexToNewIndex.get(keptOldIndex) ?? -1
+    nextIndex = keptOldIndex === undefined ? -1 : (oldIndexToNewIndex.get(keptOldIndex) ?? -1)
   }
 
   return {
@@ -43,7 +74,7 @@ function dedupeHistoryByLatestTab(history) {
   }
 }
 
-function trimHistoryToMax(history) {
+function trimHistoryToMax(history: GlobalTabHistoryInput): GlobalTabHistory {
   const current = normalizeGlobalHistory(history)
   if (current.stack.length <= MAX_TAB_HISTORY) return current
 
@@ -54,7 +85,7 @@ function trimHistoryToMax(history) {
   }
 }
 
-export function canonicalizeGlobalHistory(history) {
+export function canonicalizeGlobalHistory(history: GlobalTabHistoryInput): HistoryChangeResult {
   const current = normalizeGlobalHistory(history)
   const deduped = dedupeHistoryByLatestTab(current)
   const trimmed = trimHistoryToMax(deduped)
@@ -64,13 +95,13 @@ export function canonicalizeGlobalHistory(history) {
   }
 }
 
-export function removeTabEntriesFromHistory(history, tabId) {
+export function removeTabEntriesFromHistory(history: GlobalTabHistoryInput, tabId: number): GlobalTabHistory {
   const current = normalizeGlobalHistory(history)
   const removedIndexes = current.stack
     .map((entry, index) => (entry.tabId === tabId ? index : -1))
     .filter((index) => index !== -1)
 
-  if (removedIndexes.length === 0) return history
+  if (removedIndexes.length === 0) return current
 
   const nextStack = current.stack.filter((entry) => entry.tabId !== tabId)
   const removedBeforeIndex = removedIndexes.filter((index) => index < current.index).length
@@ -87,7 +118,7 @@ export function removeTabEntriesFromHistory(history, tabId) {
   }
 }
 
-export function historyForUserActivation(history, activeEntry) {
+export function historyForUserActivation(history: GlobalTabHistoryInput, activeEntry: GlobalTabHistoryEntry | null | undefined): HistoryChangeResult {
   const current = canonicalizeGlobalHistory(history).history
   if (!activeEntry || typeof activeEntry.tabId !== 'number' || typeof activeEntry.windowId !== 'number') {
     return { history: current, changed: false }
@@ -107,7 +138,7 @@ export function historyForUserActivation(history, activeEntry) {
   return { history: nextHistory, changed: historyChanged(current, nextHistory) }
 }
 
-export function repairHistoryCursorForActiveTab(history, activeTab) {
+export function repairHistoryCursorForActiveTab(history: GlobalTabHistoryInput, activeTab: ActiveTabLike): RepairedHistoryResult {
   const current = canonicalizeGlobalHistory(history).history
   if (!activeTab?.id) {
     return { history: current, activeWasInserted: false, changed: historyChanged(history, current) }
@@ -135,7 +166,7 @@ export function repairHistoryCursorForActiveTab(history, activeTab) {
   return { history: nextHistory, activeWasInserted: true, changed: true }
 }
 
-export function findHistoryTargetIndex(history, direction, existingTabs, activeTab) {
+export function findHistoryTargetIndex(history: GlobalTabHistory, direction: number, existingTabs: Map<number, unknown>, activeTab: ActiveTabLike): number {
   if (!activeTab?.id) return -1
 
   let nextIndex = history.index + direction
@@ -149,13 +180,13 @@ export function findHistoryTargetIndex(history, direction, existingTabs, activeT
   return nextIndex < 0 || nextIndex >= history.stack.length ? -1 : nextIndex
 }
 
-export function findTabForHistoryEntry(history, tabsById) {
+export function findTabForHistoryEntry<Tab>(history: GlobalTabHistoryInput, tabsById: Map<number, Tab>): Tab | null {
   const current = normalizeGlobalHistory(history)
   const entry = current.stack[current.index]
   return entry ? tabsById.get(entry.tabId) || null : null
 }
 
-export function pruneMissingHistoryEntries(history, existingTabs) {
+export function pruneMissingHistoryEntries(history: GlobalTabHistoryInput, existingTabs: Map<number, unknown>): PrunedHistoryResult {
   const current = normalizeGlobalHistory(history)
   let nextHistory = current
 
@@ -170,7 +201,7 @@ export function pruneMissingHistoryEntries(history, existingTabs) {
   }
 }
 
-export function displayUrlForHistory(url = '') {
+export function displayUrlForHistory(url = ''): string {
   if (!url) return ''
   try {
     const parsed = new URL(url)
