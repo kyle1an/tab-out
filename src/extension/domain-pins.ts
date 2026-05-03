@@ -7,14 +7,14 @@
 
 export const DOMAIN_PIN_STORAGE_KEY = 'tabOutPinnedDomainsV1'
 
-export function isPinnableDomain(domain) {
+export function isPinnableDomain(domain: unknown): domain is string {
   return !!domain && typeof domain === 'string' && !domain.startsWith('__')
 }
 
-export function normalizePinnedDomains(domains = []) {
-  const seen = new Set()
-  const normalized = []
-  for (const domain of domains) {
+export function normalizePinnedDomains(domains: unknown = []): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const domain of Array.isArray(domains) ? domains : []) {
     if (!isPinnableDomain(domain) || seen.has(domain)) continue
     seen.add(domain)
     normalized.push(domain)
@@ -22,13 +22,13 @@ export function normalizePinnedDomains(domains = []) {
   return normalized
 }
 
-export function togglePinnedDomainInList(domains = [], domain) {
+export function togglePinnedDomainInList(domains: unknown = [], domain: unknown): string[] {
   const normalized = normalizePinnedDomains(domains)
   if (!isPinnableDomain(domain)) return normalized
   return normalized.includes(domain) ? normalized.filter((d) => d !== domain) : [...normalized, domain]
 }
 
-export async function loadPinnedDomains() {
+export async function loadPinnedDomains(): Promise<string[]> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) return []
   try {
     const stored = await chrome.storage.local.get(DOMAIN_PIN_STORAGE_KEY)
@@ -38,7 +38,7 @@ export async function loadPinnedDomains() {
   }
 }
 
-export async function savePinnedDomains(domains = []) {
+export async function savePinnedDomains(domains: unknown = []): Promise<void> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) return
   await chrome.storage.local.set({
     [DOMAIN_PIN_STORAGE_KEY]: normalizePinnedDomains(domains)
