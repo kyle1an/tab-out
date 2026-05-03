@@ -6,6 +6,7 @@ import { showToast } from '../extension/toast.js'
 import { markClosure } from '../extension/undo.js'
 import { buildDashboardViewModel } from '../extension/render.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
+import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
@@ -15,155 +16,11 @@ import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { UrlPreview } from './UrlPreview'
 import type { DashboardData, DashboardSource, DomainGroup, TabHistorySnapshot } from './types'
+import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
-
-type MissionContainer = HTMLDivElement | null
-type CardPosition = { left: number; top: number }
-type CardPositionMap = Map<string, CardPosition[]>
-type CardMoveAnimation = {
-  frameId: number
-  timeoutId: number
-  onTransitionEnd: (e: TransitionEvent) => void
-}
-
-const CARD_MOVE_MS = 280
-const activeCardMoveAnimations = new WeakMap<HTMLElement, CardMoveAnimation>()
 
 function stableGroupId(group: DomainGroup) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
-}
-
-function shouldReduceMotion() {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
-
-function snapshotDomainCardRects(containers: MissionContainer[]): CardPositionMap {
-  const rects: CardPositionMap = new Map()
-  if (shouldReduceMotion()) return rects
-
-  containers.forEach((container) => {
-    if (!container) return
-    container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)').forEach((block) => {
-      const id = block.dataset.domainId
-      if (!id) return
-      const rect = block.getBoundingClientRect()
-      let positions = rects.get(id)
-      if (!positions) {
-        positions = []
-        rects.set(id, positions)
-      }
-      positions.push({
-        left: rect.left,
-        top: rect.top
-      })
-    })
-  })
-
-  return rects
-}
-
-function cancelDomainCardMove(block: HTMLElement) {
-  const active = activeCardMoveAnimations.get(block)
-  if (active) {
-    cancelAnimationFrame(active.frameId)
-    clearTimeout(active.timeoutId)
-    block.removeEventListener('transitionend', active.onTransitionEnd)
-    activeCardMoveAnimations.delete(block)
-  }
-
-  block.classList.remove('layout-moving', 'layout-moving-active')
-  block.style.transform = ''
-}
-
-function cancelDomainCardMoves(containers: MissionContainer[]) {
-  containers.forEach((container) => {
-    if (!container) return
-    container.querySelectorAll<HTMLElement>('.domain-block.layout-moving').forEach(cancelDomainCardMove)
-  })
-}
-
-function prepareDomainCardMoveAnimation(containers: MissionContainer[]): CardPositionMap {
-  const previousRects = snapshotDomainCardRects(containers)
-  cancelDomainCardMoves(containers)
-  return previousRects
-}
-
-function takeClosestPreviousRect(previousRects: CardPositionMap, id: string | undefined, nextRect: DOMRect): CardPosition | null {
-  const candidates = id ? previousRects.get(id) : null
-  if (!candidates || candidates.length === 0) return null
-
-  let closestIndex = 0
-  let closestDistance = Infinity
-  candidates.forEach((candidate, index) => {
-    const dx = candidate.left - nextRect.left
-    const dy = candidate.top - nextRect.top
-    const distance = dx * dx + dy * dy
-    if (distance < closestDistance) {
-      closestDistance = distance
-      closestIndex = index
-    }
-  })
-
-  const [closest] = candidates.splice(closestIndex, 1)
-  if (!closest) return null
-  if (candidates.length === 0 && id) previousRects.delete(id)
-  return closest
-}
-
-function animateDomainCardMoves(containers: MissionContainer[], previousRects: CardPositionMap | null) {
-  if (!previousRects || previousRects.size === 0 || shouldReduceMotion()) return
-
-  const moving: HTMLElement[] = []
-  containers.forEach((container) => {
-    if (!container) return
-    container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)').forEach((block) => {
-      const id = block.dataset.domainId
-
-      cancelDomainCardMove(block)
-      const next = block.getBoundingClientRect()
-      const previous = takeClosestPreviousRect(previousRects, id, next)
-      if (!previous) return
-
-      const dx = previous.left - next.left
-      const dy = previous.top - next.top
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
-
-      block.classList.add('layout-moving')
-      block.style.transform = `translate(${dx}px, ${dy}px)`
-      moving.push(block)
-    })
-  })
-
-  if (moving.length === 0) return
-
-  document.body.getBoundingClientRect()
-
-  moving.forEach((block) => {
-    function cleanup() {
-      if (activeCardMoveAnimations.get(block) !== active) return
-      activeCardMoveAnimations.delete(block)
-      block.removeEventListener('transitionend', onTransitionEnd)
-      block.classList.remove('layout-moving', 'layout-moving-active')
-      block.style.transform = ''
-    }
-    function onTransitionEnd(e: TransitionEvent) {
-      if (e.target === block && e.propertyName === 'transform') cleanup()
-    }
-    const active = {
-      frameId: 0,
-      timeoutId: 0,
-      onTransitionEnd
-    }
-
-    block.addEventListener('transitionend', onTransitionEnd)
-    active.frameId = requestAnimationFrame(() => {
-      if (activeCardMoveAnimations.get(block) !== active) return
-      block.classList.add('layout-moving-active')
-      block.style.transform = 'translate(0, 0)'
-    })
-    active.timeoutId = window.setTimeout(cleanup, CARD_MOVE_MS + 80)
-    activeCardMoveAnimations.set(block, active)
-  })
 }
 
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
