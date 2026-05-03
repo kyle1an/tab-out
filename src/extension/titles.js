@@ -116,8 +116,8 @@ export function stripTitleNoise(title) {
   // Strip inline counts like "Inbox (16,359)"
   title = title.replace(/\s*\([\d,]+\+?\)\s*/g, ' ')
   // Strip email addresses (privacy + cleaner display)
-  title = title.replace(/\s*[\-\u2010-\u2015]\s*[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '')
-  title = title.replace(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, '')
+  title = title.replace(/\s*[-\u2010-\u2015]\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '')
+  title = title.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '')
   // Clean X/Twitter format
   title = title.replace(/\s+on X:\s*/, ': ')
   title = title.replace(/\s*\/\s*X\s*$/, '')
@@ -149,4 +149,3 @@ export function cleanTitle(title, hostname) {
   }
   return title
 }
-

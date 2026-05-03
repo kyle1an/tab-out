@@ -10,15 +10,17 @@
     "build": "vite build",
     "build:debug": "vite build --sourcemap",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "test": "node --import tsx --test tests/*.test.mjs",
     "verify:bundle": "git diff --exit-code -- extension/dist",
-    "verify": "pnpm typecheck && pnpm build && pnpm verify:bundle && pnpm test"
+    "verify": "pnpm typecheck && pnpm lint && pnpm build && pnpm verify:bundle && pnpm test"
   },
   "dependencies": {
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@rolldown/plugin-babel": "^0.2.3",
     "@types/chrome": "^0.1.40",
     "@types/node": "^25.6.0",
@@ -26,8 +28,12 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.1",
     "vite": "^8.0.10"
   }
 }
