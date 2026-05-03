@@ -7,14 +7,10 @@ import { markClosure } from '../extension/undo.js'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildDashboardViewModel, fetchDashboardData } from '../extension/render.js'
 import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
-import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../extension/domain-pins.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
-import {
-  FOCUS_FILTER_PARAM,
-  filterInputFromSearch,
-  titleForFilterInput,
-  urlForFilterInput
-} from '../extension/app-url.js'
+import { useFilterRouting } from '../hooks/useFilterRouting'
+import { usePinnedDomains } from '../hooks/usePinnedDomains'
+import { useUrlPreview } from '../hooks/useUrlPreview'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
@@ -32,35 +28,8 @@ type CardMoveAnimation = {
   onTransitionEnd: (e: TransitionEvent) => void
 }
 
-const FILTER_UPDATE_DELAY_MS = 200
-const FILTER_URL_SYNC_DELAY_MS = 600
-const URL_PREVIEW_HIDE_DELAY_MS = 120
 const CARD_MOVE_MS = 280
 const activeCardMoveAnimations = new WeakMap<HTMLElement, CardMoveAnimation>()
-
-function filterInputFromCurrentUrl() {
-  return filterInputFromSearch(window.location.search)
-}
-
-function syncFilterInputToUrl(filterInput: string) {
-  const nextUrl = urlForFilterInput(filterInput, window.location)
-  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  if (nextUrl !== currentUrl) window.history.replaceState(null, '', nextUrl)
-}
-
-function shouldFocusFilterFromUrl() {
-  return new URLSearchParams(window.location.search).get(FOCUS_FILTER_PARAM) === '1'
-}
-
-function clearFocusFilterParam() {
-  const params = new URLSearchParams(window.location.search)
-  if (!params.has(FOCUS_FILTER_PARAM)) return
-
-  params.delete(FOCUS_FILTER_PARAM)
-  const nextSearch = params.toString()
-  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`
-  window.history.replaceState(null, '', nextUrl)
-}
 
 function stableGroupId(group: DomainGroup) {
   return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
@@ -202,17 +171,11 @@ function animateDomainCardMoves(containers: MissionContainer[], previousRects: C
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
   const [source, setSource] = useState<DashboardSource>('tabs')
-  const [filterInput, setFilterInput] = useState(filterInputFromCurrentUrl)
-  const [filter, setFilter] = useState(filterInputFromCurrentUrl)
   const [historyRange, setHistoryRange] = useState(DEFAULT_HISTORY_RANGE)
-  const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
-  const [urlPreview, setUrlPreviewState] = useState({ url: '', visible: false })
+  const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
   const [isScrolled, setIsScrolled] = useState(false)
-  const [pinnedDomains, setPinnedDomains] = useState<string[]>([])
-  const [pinsLoaded, setPinsLoaded] = useState(false)
   const [tabHistory, setTabHistory] = useState<TabHistorySnapshot | null>(null)
   const refreshRef = useRef<(options?: RefreshOptions) => Promise<void>>(async () => {})
-  const urlPreviewHideTimerRef = useRef<number | null>(null)
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
@@ -246,31 +209,11 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(missionContainers())
   }
 
-  function clearUrlPreviewHideTimer() {
-    if (urlPreviewHideTimerRef.current === null) return
-    clearTimeout(urlPreviewHideTimerRef.current)
-    urlPreviewHideTimerRef.current = null
-  }
-
-  function setUrlPreview(url: string) {
-    const nextUrl = url || ''
-    if (nextUrl) {
-      clearUrlPreviewHideTimer()
-      setUrlPreviewState((prev) => (prev.url === nextUrl && prev.visible ? prev : { url: nextUrl, visible: true }))
-      return
-    }
-
-    clearUrlPreviewHideTimer()
-    urlPreviewHideTimerRef.current = window.setTimeout(() => {
-      urlPreviewHideTimerRef.current = null
-      setUrlPreviewState((prev) => (prev.visible ? { ...prev, visible: false } : prev))
-    }, URL_PREVIEW_HIDE_DELAY_MS)
-  }
-
-  function clearUrlPreviewNow() {
-    clearUrlPreviewHideTimer()
-    setUrlPreviewState((prev) => (prev.url || prev.visible ? { url: '', visible: false } : prev))
-  }
+  const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
+  const { pinnedDomains, pinsLoaded, togglePinnedDomain } = usePinnedDomains({
+    onBeforeApplyPinnedDomains: resetMissionOrder,
+    onSaveError: () => showToast('Could not save pinned domain')
+  })
 
   refreshRef.current = async ({ animateCards = false }: RefreshOptions = {}) => {
     if (document.visibilityState !== 'visible') return
@@ -295,23 +238,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   useEffect(() => registerDashboardRefresh((options: RefreshOptions) => refreshRef.current(options)), [])
 
   useEffect(() => {
-    let cancelled = false
-    loadPinnedDomains().then((domains) => {
-      if (cancelled) return
-      previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
-      setPinnedDomains(domains)
-      setPinsLoaded(true)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    clearFocusFilterParam()
-  }, [])
-
-  useEffect(() => {
     if (!isReady || !pinsLoaded || source !== 'tabs' || !filter) return
     const historySearchReady = !historyFilterEnabled || (dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange)
     if (dashboard?.bookmarkSearchReady && historySearchReady) return
@@ -320,40 +246,10 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   }, [filter, historyRange, historyFilterEnabled, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
 
   useEffect(() => {
-    if (filterInput === filter) return
-    if (filterInput === '') {
-      primeCardMoveAnimation()
-      setFilter('')
-      return
-    }
-    const timer = window.setTimeout(() => {
-      primeCardMoveAnimation()
-      setFilter(filterInput)
-    }, FILTER_UPDATE_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [filterInput, filter])
-
-  useEffect(() => {
-    document.title = titleForFilterInput(filterInput)
-  }, [filterInput])
-
-  useEffect(() => {
-    if (filterInput === '') {
-      syncFilterInputToUrl('')
-      return
-    }
-
-    const timer = window.setTimeout(() => syncFilterInputToUrl(filterInput), FILTER_URL_SYNC_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [filterInput])
-
-  useEffect(() => {
     if (!pinsLoaded) return
     clearUrlPreviewNow()
     requestAnimationFrame(() => refreshRef.current())
   }, [pinnedDomains, pinsLoaded])
-
-  useEffect(() => () => clearUrlPreviewHideTimer(), [])
 
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
@@ -429,16 +325,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     await refreshRef.current({ animateCards: true })
   }
 
-  async function onTogglePinnedDomain(domain: string) {
-    const nextPinnedDomains = togglePinnedDomainInList(pinnedDomains, domain)
+  function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
-    setPinnedDomains(nextPinnedDomains)
-    try {
-      await savePinnedDomains(nextPinnedDomains)
-    } catch {
-      showToast('Could not save pinned domain')
-      setPinnedDomains(pinnedDomains)
-    }
   }
 
   async function onSourceChange(nextSource: DashboardSource) {
@@ -538,7 +426,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                     showEmptyState={showPrimaryEmptyState}
                     onHoverUrlChange={setUrlPreview}
                     onLayoutChange={scheduleMissionsMasonry}
-                    onTogglePinnedDomain={onTogglePinnedDomain}
+                    onTogglePinnedDomain={togglePinnedDomain}
                   />
                 </div>
 
@@ -557,7 +445,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         showEmptyState={false}
                         onHoverUrlChange={setUrlPreview}
                         onLayoutChange={scheduleMissionsMasonry}
-                        onTogglePinnedDomain={onTogglePinnedDomain}
+                        onTogglePinnedDomain={togglePinnedDomain}
                       />
                     </div>
                   </div>
@@ -578,7 +466,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         showEmptyState={false}
                         onHoverUrlChange={setUrlPreview}
                         onLayoutChange={scheduleMissionsMasonry}
-                        onTogglePinnedDomain={onTogglePinnedDomain}
+                        onTogglePinnedDomain={togglePinnedDomain}
                       />
                     </div>
                   </div>
@@ -599,7 +487,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         showEmptyState={false}
                         onHoverUrlChange={setUrlPreview}
                         onLayoutChange={scheduleMissionsMasonry}
-                        onTogglePinnedDomain={onTogglePinnedDomain}
+                        onTogglePinnedDomain={togglePinnedDomain}
                       />
                     </div>
                   </div>
