@@ -4,10 +4,9 @@ import { closeDuplicateTabs, closeTabsExact } from '../extension/tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
 import { markClosure } from '../extension/undo.js'
-import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
-import { buildDashboardViewModel, fetchDashboardData } from '../extension/render.js'
-import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
+import { buildDashboardViewModel } from '../extension/render.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
+import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
 import { useUrlPreview } from '../hooks/useUrlPreview'
@@ -16,12 +15,11 @@ import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { UrlPreview } from './UrlPreview'
 import type { DashboardData, DashboardSource, DomainGroup, TabHistorySnapshot } from './types'
+import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 
-type RefreshOptions = { animateCards?: boolean }
 type MissionContainer = HTMLDivElement | null
 type CardPosition = { left: number; top: number }
 type CardPositionMap = Map<string, CardPosition[]>
-type MissionOrderMap = Record<DashboardSource, Map<string, number>>
 type CardMoveAnimation = {
   frameId: number
   timeoutId: number
@@ -175,7 +173,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
   const [isScrolled, setIsScrolled] = useState(false)
   const [tabHistory, setTabHistory] = useState<TabHistorySnapshot | null>(null)
-  const refreshRef = useRef<(options?: RefreshOptions) => Promise<void>>(async () => {})
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
@@ -214,42 +211,20 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     onBeforeApplyPinnedDomains: resetMissionOrder,
     onSaveError: () => showToast('Could not save pinned domain')
   })
-
-  refreshRef.current = async ({ animateCards = false }: RefreshOptions = {}) => {
-    if (document.visibilityState !== 'visible') return
-    if (!pinsLoaded) return
-    if (animateCards) primeCardMoveAnimation()
-    const [next, nextTabHistory] = await Promise.all([
-      fetchDashboardData(previousOrderRef.current[source] || new Map(), source, {
-        pinnedDomains,
-        bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
-        historyPreviousOrder: previousOrderRef.current.history || new Map(),
-        includeBookmarkMatches: source === 'tabs' && filter !== '',
-        includeHistoryMatches: source === 'tabs' && filter !== '' && historyFilterEnabled,
-        searchQuery: filter,
-        historyRange
-      }),
-      fetchTabHistorySnapshot()
-    ])
-    setDashboard(next)
-    setTabHistory(nextTabHistory)
-  }
-
-  useEffect(() => registerDashboardRefresh((options: RefreshOptions) => refreshRef.current(options)), [])
-
-  useEffect(() => {
-    if (!isReady || !pinsLoaded || source !== 'tabs' || !filter) return
-    const historySearchReady = !historyFilterEnabled || (dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange)
-    if (dashboard?.bookmarkSearchReady && historySearchReady) return
-    const frame = requestAnimationFrame(() => refreshRef.current())
-    return () => cancelAnimationFrame(frame)
-  }, [filter, historyRange, historyFilterEnabled, isReady, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
-
-  useEffect(() => {
-    if (!pinsLoaded) return
-    clearUrlPreviewNow()
-    requestAnimationFrame(() => refreshRef.current())
-  }, [pinnedDomains, pinsLoaded])
+  const refreshDashboard = useDashboardRefresh({
+    dashboard,
+    source,
+    filter,
+    historyRange,
+    historyFilterEnabled,
+    pinnedDomains,
+    pinsLoaded,
+    previousOrder: previousOrderRef.current,
+    setDashboard,
+    setTabHistory,
+    onBeforeAnimatedRefresh: primeCardMoveAnimation,
+    onBeforePinnedRefresh: clearUrlPreviewNow
+  })
 
   useEffect(() => {
     const scrollEl = scrollRegionRef.current
@@ -314,7 +289,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     } else {
       showToast('Nothing to close')
     }
-    await refreshRef.current({ animateCards: true })
+    await refreshDashboard({ animateCards: true })
   }
 
   async function onDedupAll() {
@@ -322,7 +297,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     if (urls.length === 0) return
     const snapshot = await closeDuplicateTabs(urls, true, { preservePinnedTabOut: true })
     markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
-    await refreshRef.current({ animateCards: true })
+    await refreshDashboard({ animateCards: true })
   }
 
   function resetMissionOrder() {
@@ -334,18 +309,14 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(missionContainers())
     clearUrlPreviewNow()
-    const [nextDashboard, nextTabHistory] = await Promise.all([
-      fetchDashboardData(previousOrderRef.current[nextSource] || new Map(), nextSource, {
-        pinnedDomains,
-        bookmarkPreviousOrder: previousOrderRef.current.bookmarks || new Map(),
-        historyPreviousOrder: previousOrderRef.current.history || new Map(),
-        includeBookmarkMatches: nextSource === 'tabs' && filter !== '',
-        includeHistoryMatches: nextSource === 'tabs' && filter !== '' && historyFilterEnabled,
-        searchQuery: filter,
-        historyRange
-      }),
-      fetchTabHistorySnapshot()
-    ])
+    const { dashboard: nextDashboard, tabHistory: nextTabHistory } = await fetchDashboardSnapshot({
+      source: nextSource,
+      filter,
+      historyRange,
+      historyFilterEnabled,
+      pinnedDomains,
+      previousOrder: previousOrderRef.current
+    })
     if (requestId !== sourceSwitchSeqRef.current) return
     layoutMoveRectsRef.current = previousRects
     setDashboard(nextDashboard)
@@ -385,7 +356,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
             snapshot={tabHistory}
             onSnapshotChange={setTabHistory}
             onHoverUrlChange={setUrlPreview}
-            onTabsChange={() => refreshRef.current({ animateCards: true })}
+            onTabsChange={() => refreshDashboard({ animateCards: true })}
           />
         )}
         <div className="dashboard-main">

@@ -31,6 +31,8 @@ export interface DomainGroup {
   pinned?: boolean
 }
 
+export type DashboardSource = 'tabs' | 'bookmarks' | 'history'
+
 export interface CustomGroupRule {
   hostname?: string
   hostnameEndsWith?: string
@@ -147,7 +149,7 @@ export interface DashboardStats {
 }
 
 export interface DashboardViewModel {
-  source: 'tabs' | 'bookmarks' | 'history'
+  source: DashboardSource
   stats: DashboardStats
   matchedCards: DashboardCardEntry[]
   unmatchedCards: DashboardCardEntry[]

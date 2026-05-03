@@ -4,13 +4,13 @@ import type {
   DashboardChipData,
   DashboardClusterVM,
   DashboardData,
+  DashboardSource,
   DashboardSectionVM,
   DashboardStats,
   DomainGroup,
   TabHistorySnapshot
 } from '../extension/types'
 
-export type DashboardSource = 'tabs' | 'bookmarks' | 'history'
 export type HoverUrlChangeHandler = (url: string) => void
 export type LayoutChangeHandler = (options?: { unpin?: boolean; animate?: boolean }) => void
 export type TogglePinnedDomainHandler = (domain: string) => void | Promise<void>
@@ -23,6 +23,7 @@ export type {
   DashboardChipData,
   DashboardClusterVM,
   DashboardData,
+  DashboardSource,
   DashboardSectionVM,
   DashboardStats,
   DomainGroup,
