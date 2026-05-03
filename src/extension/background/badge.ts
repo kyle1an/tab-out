@@ -1,17 +1,19 @@
+import { createChromeApi, type ChromeApi } from './chrome-api.js'
+
 /**
  * Counts open real-web tabs and updates the extension toolbar badge.
  * "Real" tabs = not browser internals, extension pages, or about:blank.
  */
-export async function updateBadge(): Promise<void> {
+export async function updateBadge(chromeApi: ChromeApi = createChromeApi()): Promise<void> {
   try {
-    const tabs = await chrome.tabs.query({})
+    const tabs = await chromeApi.tabs.query({})
 
     const count = tabs.filter((t) => {
       const url = t.url || ''
       return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
     }).length
 
-    await chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' })
+    await chromeApi.action.setBadgeText({ text: count > 0 ? String(count) : '' })
 
     if (count === 0) return
 
@@ -24,8 +26,8 @@ export async function updateBadge(): Promise<void> {
       color = '#b35a5a'
     }
 
-    await chrome.action.setBadgeBackgroundColor({ color })
+    await chromeApi.action.setBadgeBackgroundColor({ color })
   } catch {
-    chrome.action.setBadgeText({ text: '' })
+    chromeApi.action.setBadgeText({ text: '' })
   }
 }

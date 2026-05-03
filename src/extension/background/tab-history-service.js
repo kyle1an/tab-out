@@ -11,13 +11,14 @@ import {
   removeTabEntriesFromHistory,
   repairHistoryCursorForActiveTab
 } from './tab-history-state.js'
+import { createChromeApi } from './chrome-api.js'
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
 
 export const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 export const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
-export function createTabHistoryService(chromeApi = chrome) {
+export function createTabHistoryService(chromeApi = createChromeApi(chrome)) {
   let tabHistoryCache = null
   let tabHistoryQueue = Promise.resolve()
 

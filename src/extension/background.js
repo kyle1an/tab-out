@@ -14,6 +14,7 @@
  */
 
 import { updateBadge } from './background/badge.js'
+import { createChromeApi } from './background/chrome-api.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
 import {
   TAB_HISTORY_GET_MESSAGE,
@@ -21,57 +22,62 @@ import {
   createTabHistoryService
 } from './background/tab-history-service.js'
 
-const tabHistoryService = createTabHistoryService(chrome)
+const chromeApi = createChromeApi(chrome)
+const tabHistoryService = createTabHistoryService(chromeApi)
+
+function refreshBadge() {
+  updateBadge(chromeApi)
+}
 
 // ─── Event listeners ──────────────────────────────────────────────────────────
 
 // Update badge when the extension is first installed
-chrome.runtime.onInstalled.addListener(() => {
-  updateBadge()
+chromeApi.runtime.onInstalled.addListener(() => {
+  refreshBadge()
 })
 
 // Update badge when Chrome starts up
-chrome.runtime.onStartup.addListener(() => {
-  updateBadge()
+chromeApi.runtime.onStartup.addListener(() => {
+  refreshBadge()
 })
 
 // Update badge whenever a tab is opened
-chrome.tabs.onCreated.addListener(() => {
-  updateBadge()
+chromeApi.tabs.onCreated.addListener(() => {
+  refreshBadge()
 })
 
 // Track tab activation history so commands and close-redirect can
 // follow the user's actual navigation path.
-chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
   tabHistoryService.recordTabActivation(windowId, tabId)
 })
 
-chrome.windows.onFocusChanged.addListener((windowId) => {
+chromeApi.windows.onFocusChanged.addListener((windowId) => {
   tabHistoryService.recordFocusedWindowActiveTab(windowId)
 })
 
 // Update badge whenever a tab is closed
-chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
-  updateBadge()
+chromeApi.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  refreshBadge()
   tabHistoryService.restorePreviousTabAfterClose(tabId, removeInfo)
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
-chrome.tabs.onUpdated.addListener(() => {
-  updateBadge()
+chromeApi.tabs.onUpdated.addListener(() => {
+  refreshBadge()
 })
 
-chrome.commands?.onCommand.addListener((command) => {
+chromeApi.commands?.onCommand.addListener((command) => {
   if (command === 'switch-to-last-tab') {
     tabHistoryService.switchTabHistory(-1)
   } else if (command === 'switch-to-next-tab') {
     tabHistoryService.switchTabHistory(1)
   } else if (command === OPEN_FILTER_TAB_COMMAND) {
-    openFilterTab()
+    openFilterTab(chromeApi)
   }
 })
 
-chrome.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
+chromeApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
   if (message?.type === TAB_HISTORY_GET_MESSAGE) {
     tabHistoryService.getTabHistorySnapshot()
       .then((snapshot) => sendResponse({ ok: true, snapshot }))
@@ -94,4 +100,4 @@ chrome.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
 // ─── Initial run ─────────────────────────────────────────────────────────────
 
 // Run once immediately when the service worker first loads
-updateBadge()
+refreshBadge()
