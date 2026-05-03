@@ -620,8 +620,12 @@ header {
 
 @media (max-width: 900px) {
   .dashboard-shell.has-history {
+    --dashboard-page-gutter: 20px;
+    --dashboard-scrollbar-inset: 6px;
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
+    padding-left: var(--dashboard-page-gutter);
+    padding-right: var(--dashboard-page-gutter);
   }
 
   .dashboard-shell.has-history .dashboard-main,
@@ -630,8 +634,16 @@ header {
   }
 
   .dashboard-shell.has-history .dashboard-main > .pinned-top {
+    --header-shadow-padding-fade: var(--dashboard-edge-bleed);
+    --header-shadow-left-reserve: var(--dashboard-edge-bleed);
     margin-left: calc(0px - var(--dashboard-edge-bleed));
     padding-left: var(--dashboard-edge-bleed);
+    padding-right: var(--dashboard-edge-bleed);
+  }
+
+  .dashboard-main > .scroll-region {
+    margin-right: calc(var(--dashboard-scrollbar-inset) - var(--dashboard-edge-bleed));
+    padding-right: calc(var(--dashboard-edge-bleed) - var(--dashboard-scrollbar-inset));
   }
 
   .tab-history-panel {
@@ -639,7 +651,7 @@ header {
     height: auto;
     max-height: 260px;
     margin-left: calc(0px - var(--dashboard-edge-bleed));
-    margin-right: calc(0px - var(--dashboard-edge-bleed));
+    margin-right: calc(var(--dashboard-scrollbar-inset) - var(--dashboard-edge-bleed));
     padding-left: var(--dashboard-edge-bleed);
     padding-right: 0;
     padding-bottom: 0;
@@ -647,7 +659,12 @@ header {
   }
 
   .tab-history-panel .history-entry-list {
-    padding-right: calc(var(--dashboard-edge-bleed) + 14px);
+    padding-right: calc(var(--dashboard-edge-bleed) - var(--dashboard-scrollbar-inset));
+  }
+
+  .dashboard-main > .scroll-region::-webkit-scrollbar,
+  .tab-history-panel .history-entry-list::-webkit-scrollbar {
+    width: 4px;
   }
 }
 
