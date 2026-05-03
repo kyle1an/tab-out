@@ -31,6 +31,7 @@
   --dashboard-shell-max-width: 1600px;
   --dashboard-shell-half-max-width: 800px;
   --dashboard-page-gutter: 24px;
+  --dashboard-history-edge-gutter: 12px;
   --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
 }
@@ -88,7 +89,6 @@ body {
   width: 100%;
   max-width: var(--dashboard-shell-max-width);
   margin: 0 auto;
-  padding: 0 var(--dashboard-page-gutter);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   position: relative;
@@ -96,22 +96,30 @@ body {
 }
 
 .dashboard-shell.has-history {
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  grid-template-columns:
+    minmax(
+      calc(220px + var(--dashboard-history-edge-gutter)),
+      calc(260px + var(--dashboard-history-edge-gutter))
+    )
+    minmax(0, 1fr);
   align-items: stretch;
   gap: 16px;
-  padding-left: 20px;
 }
 
 .dashboard-main {
   grid-column: 1;
   min-width: 0;
   min-height: 0;
+  padding-left: var(--dashboard-page-gutter);
+  padding-right: var(--dashboard-page-gutter);
   display: flex;
   flex-direction: column;
 }
 
 .dashboard-shell.has-history .dashboard-main {
   grid-column: 2;
+  padding-left: 0;
+  padding-right: var(--dashboard-page-gutter);
 }
 
 .pinned-top {

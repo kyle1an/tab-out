@@ -61,3 +61,34 @@ test('masonry card motion uses transform instead of layout-property transitions'
   assert.doesNotMatch(activeMoveRule[1], /\b(top|left|width)\s+0\.\d+s/)
   assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })
+
+test('dashboard edge gutters are owned by panes instead of the shell', () => {
+  const css = [
+    readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8'),
+    readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  ].join('\n')
+  const shellRule = css.match(/\.dashboard-shell\s*\{([^}]*)\}/)
+  const mainRule = css.match(/\.dashboard-main\s*\{([^}]*)\}/)
+  const historyShellRule = css.match(/\.dashboard-shell\.has-history\s*\{([^}]*)\}/)
+  const historyMainRule = css.match(/\.dashboard-shell\.has-history \.dashboard-main\s*\{([^}]*)\}/)
+  const historyPanelRule = css.match(/\.tab-history-panel\s*\{([^}]*)\}/)
+
+  assert.ok(shellRule)
+  assert.ok(mainRule)
+  assert.ok(historyShellRule)
+  assert.ok(historyMainRule)
+  assert.ok(historyPanelRule)
+
+  assert.match(css, /--dashboard-history-edge-gutter:\s*12px;/)
+  assert.doesNotMatch(css, /\.tab-history-panel\s*\{[^}]*padding-left:\s*var\(--dashboard-page-gutter\)/s)
+  assert.doesNotMatch(shellRule[1], /\bpadding(?:-(?:left|right))?\s*:/)
+  assert.match(mainRule[1], /padding-left:\s*var\(--dashboard-page-gutter\)/)
+  assert.match(mainRule[1], /padding-right:\s*var\(--dashboard-page-gutter\)/)
+  assert.match(
+    historyShellRule[1],
+    /minmax\(\s*calc\(220px \+ var\(--dashboard-history-edge-gutter\)\),\s*calc\(260px \+ var\(--dashboard-history-edge-gutter\)\)\s*\)\s*minmax\(0, 1fr\)/
+  )
+  assert.match(historyMainRule[1], /padding-left:\s*0/)
+  assert.match(historyMainRule[1], /padding-right:\s*var\(--dashboard-page-gutter\)/)
+  assert.match(historyPanelRule[1], /padding-left:\s*var\(--dashboard-history-edge-gutter\)/)
+})

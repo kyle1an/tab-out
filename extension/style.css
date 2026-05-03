@@ -323,7 +323,7 @@ header {
   min-width: 0;
   height: 100vh;
   max-height: 100vh;
-  padding: 0;
+  padding-left: var(--dashboard-history-edge-gutter);
   display: flex;
   flex-direction: column;
 }
@@ -379,7 +379,7 @@ header {
   border: 1px solid var(--warm-gray);
   background: rgba(115, 115, 115, 0.04);
   color: var(--ink);
-  border-radius: 16px;
+  border-radius: 18px;
   corner-shape: squircle;
   transition:
     background 0.15s ease,
@@ -613,16 +613,20 @@ header {
 @media (max-width: 900px) {
   .dashboard-shell.has-history {
     --dashboard-page-gutter: 20px;
+    --dashboard-history-edge-gutter: 12px;
     --dashboard-scrollbar-inset: 6px;
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
-    padding-left: var(--dashboard-page-gutter);
-    padding-right: var(--dashboard-page-gutter);
   }
 
   .dashboard-shell.has-history .dashboard-main,
   .dashboard-shell.has-history .tab-history-panel {
     grid-column: 1;
+  }
+
+  .dashboard-shell.has-history .dashboard-main {
+    padding-left: var(--dashboard-page-gutter);
+    padding-right: var(--dashboard-page-gutter);
   }
 
   .dashboard-shell.has-history .dashboard-main > .pinned-top {
@@ -642,9 +646,9 @@ header {
     position: static;
     height: auto;
     max-height: 260px;
-    margin-left: calc(0px - var(--dashboard-edge-bleed));
-    margin-right: calc(var(--dashboard-scrollbar-inset) - var(--dashboard-edge-bleed));
-    padding-left: var(--dashboard-edge-bleed);
+    margin-left: 0;
+    margin-right: var(--dashboard-scrollbar-inset);
+    padding-left: var(--dashboard-history-edge-gutter);
     padding-right: 0;
     padding-bottom: 0;
     border-bottom: 1px solid var(--warm-gray);
