@@ -14,6 +14,7 @@ import {
   type GlobalTabHistoryInput
 } from './tab-history-state.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
 import type { TabHistorySnapshot } from '../types'
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
@@ -69,12 +70,10 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     let storedHistory: GlobalTabHistoryInput = null
     let migratedFromSession = false
     try {
-      const stored = await storage.get(TAB_HISTORY_KEY)
-      storedHistory = stored[TAB_HISTORY_KEY] as GlobalTabHistoryInput
+      storedHistory = await runChromeEffect(readChromeStorageValue(storage, TAB_HISTORY_KEY)) as GlobalTabHistoryInput
 
       if (storedHistory == null && storage === chromeApi.storage?.local && chromeApi.storage?.session) {
-        const sessionStored = await chromeApi.storage.session.get(TAB_HISTORY_KEY)
-        storedHistory = sessionStored[TAB_HISTORY_KEY] as GlobalTabHistoryInput
+        storedHistory = await runChromeEffect(readChromeStorageValue(chromeApi.storage.session, TAB_HISTORY_KEY)) as GlobalTabHistoryInput
         migratedFromSession = storedHistory != null
       }
 
@@ -82,7 +81,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       tabHistoryCache = canonical.history
       if (canonical.changed || migratedFromSession) {
         try {
-          await storage.set({ [TAB_HISTORY_KEY]: tabHistoryCache })
+          await runChromeEffectBestEffort(writeChromeStorageValue(storage, TAB_HISTORY_KEY, tabHistoryCache))
         } catch {}
       }
     } catch {
@@ -97,7 +96,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     const storage = tabHistoryStorageArea()
     if (!storage) return
     try {
-      await storage.set({ [TAB_HISTORY_KEY]: cleanHistory })
+      await runChromeEffectBestEffort(writeChromeStorageValue(storage, TAB_HISTORY_KEY, cleanHistory))
     } catch {
       // Best-effort only - the command can still work while the worker lives.
     }
