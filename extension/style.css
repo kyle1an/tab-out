@@ -32,20 +32,6 @@ header {
   gap: 16px;
 }
 
-.header-stats {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 400;
-  /* Reserve a consistent row height so the bar doesn't reflow when the
-     dedup / filtered-close buttons toggle on and off. Matches the old
-     .section-header min-height. */
-  min-height: var(--header-control-height);
-}
-
 .header-controls {
   display: inline-flex;
   align-items: center;
@@ -139,32 +125,6 @@ header {
     transform 0.2s ease-in-out;
 }
 
-.stat-primary {
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.stat-sep {
-  color: var(--muted);
-  opacity: 0.5;
-}
-
-.stat-extras {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.header-stats .action-btn {
-  font-family: inherit;
-  font-size: var(--header-control-font-size);
-  line-height: var(--header-control-line-height);
-  height: var(--header-control-height);
-  box-sizing: border-box;
-  padding: 0 12px;
-}
-
-.header-stats,
 .domain-header .action-btn,
 .open-tabs-badge,
 .chip-dupe-badge,
@@ -380,35 +340,6 @@ header {
   font-weight: 600;
 }
 
-/* ---- Inline section stats (domain count + actions) ----
-   Lives inside .header-stats now — no longer its own row. The action
-   buttons (dedup, close-filtered) render inline at 11px, matching the
-   stats font size so they don't balloon the bar height. */
-.section-actions:empty {
-  display: none;
-}
-
-.section-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-count {
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 400;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.section-count-sep {
-  color: var(--muted);
-  opacity: 0.5;
-}
-
 /* ---- Activation history ---- */
 .tab-history-panel {
   grid-column: 1;
@@ -584,10 +515,6 @@ header {
   object-fit: contain;
 }
 
-.history-favicon-frame.is-empty {
-  visibility: hidden;
-}
-
 .history-entry-copy {
   flex: 1 1 auto;
   min-width: 0;
@@ -685,14 +612,6 @@ header {
   width: 14px;
   height: 14px;
   display: block;
-}
-
-.history-empty {
-  min-height: 54px;
-  display: flex;
-  align-items: center;
-  color: var(--muted);
-  font-size: 12px;
 }
 
 .history-entry-row.closing {

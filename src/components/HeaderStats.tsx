@@ -29,7 +29,7 @@ export function HeaderStats({
   onCloseFiltered
 }: HeaderStatsProps) {
   if (!ready) {
-    return <div className="header-stats" aria-hidden="true" />
+    return <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-tab-muted" aria-hidden="true" />
   }
 
   const itemName = source === 'bookmarks' ? 'bookmark' : source === 'history' ? 'history result' : 'tab'
@@ -44,27 +44,35 @@ export function HeaderStats({
   const closeFilteredTitle = `Close ${filteredCloseCount} filtered tab${filteredCloseCount !== 1 ? 's' : ''}`
 
   return (
-    <div className="header-stats">
-      <span className="stat-primary">{tabsLabel}</span>
+    <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-tab-muted">
+      <span className="font-medium text-tab-ink">{tabsLabel}</span>
       {source === 'tabs' && dedupCount > 0 && (
-        <Button className="action-btn" title={dedupTitle} onClick={onDedupAll}>
+        <Button
+          className="action-btn h-(--header-control-height) box-border px-3 [font-family:inherit] [font-size:var(--header-control-font-size)] [line-height:var(--header-control-line-height)]"
+          title={dedupTitle}
+          onClick={onDedupAll}
+        >
           Dedupe {dedupCount}
         </Button>
       )}
       {source === 'tabs' && (
         <>
-          <span className="stat-sep">·</span>
+          <span className="text-tab-muted opacity-50">·</span>
           <span>{windowsLabel}</span>
         </>
       )}
       {hasCards && (
-        <span className="stat-extras">
-          <span className="stat-sep">·</span>
-          <span className="section-count">{domainsLabel}</span>
+        <span className="inline-flex items-center gap-2">
+          <span className="text-tab-muted opacity-50">·</span>
+          <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13px] font-normal tabular-nums text-tab-muted">{domainsLabel}</span>
         </span>
       )}
       {source === 'tabs' && filteredCloseCount > 0 && (
-        <Button className="action-btn close-tabs" title={closeFilteredTitle} onClick={onCloseFiltered}>
+        <Button
+          className="action-btn close-tabs h-(--header-control-height) box-border px-3 [font-family:inherit] [font-size:var(--header-control-font-size)] [line-height:var(--header-control-line-height)]"
+          title={closeFilteredTitle}
+          onClick={onCloseFiltered}
+        >
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>

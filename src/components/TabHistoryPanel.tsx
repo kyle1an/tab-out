@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { cn } from '../lib/cn'
 import { Button } from './ui/Button'
 import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry } from '../extension/types'
@@ -170,7 +171,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
       <span className="history-entry-index">{indexLabel}</span>
       <div className={entryClass(entry)}>
         <Button className="history-entry-main" disabled={!entry.exists} onClick={onFocusEntry}>
-          <span className={'history-favicon-frame' + (!entry.favIconUrl ? ' is-empty' : '')}>
+          <span className={cn('history-favicon-frame', !entry.favIconUrl && 'invisible')}>
             {entry.favIconUrl && <img className="history-favicon" src={entry.favIconUrl} alt="" />}
           </span>
           <span className="history-entry-copy">
@@ -220,7 +221,7 @@ export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, 
             />
           ))
         ) : (
-          <div className="history-empty">No activation history yet.</div>
+          <div className="flex min-h-13.5 items-center text-[12px] text-tab-muted">No activation history yet.</div>
         )}
       </div>
     </section>
