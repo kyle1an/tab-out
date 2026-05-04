@@ -34,5 +34,7 @@ export function runChromeEffect<A, E>(effect: Effect.Effect<A, E>): Promise<A> {
 }
 
 export function runChromeEffectBestEffort<E>(effect: Effect.Effect<unknown, E>): Promise<void> {
-  return Effect.runPromise(Effect.catchAll(effect, () => Effect.void)).then(() => undefined)
+  return Effect.runPromise(effect).catch((error) => {
+    console.warn('Tab Out background best-effort effect failed', error)
+  }).then(() => undefined)
 }

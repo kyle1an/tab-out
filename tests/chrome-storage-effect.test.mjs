@@ -28,11 +28,26 @@ test('chrome storage Effect adapter reads and writes through the storage seam', 
 })
 
 test('chrome storage Effect adapter keeps best-effort writes non-throwing', async () => {
+  const warnings = []
+  const originalWarn = console.warn
+  console.warn = (...args) => {
+    warnings.push(args)
+  }
+
   const storage = {
     async set() {
       throw new Error('quota')
     }
   }
 
-  await runChromeEffectBestEffort(writeChromeStorageValue(storage, 'globalTabHistory', { stack: [], index: -1 }))
+  try {
+    await runChromeEffectBestEffort(writeChromeStorageValue(storage, 'globalTabHistory', { stack: [], index: -1 }))
+  } finally {
+    console.warn = originalWarn
+  }
+
+  assert.equal(warnings.length, 1)
+  assert.equal(warnings[0][0], 'Tab Out background best-effort effect failed')
+  assert.equal(warnings[0][1]._tag, 'ChromeStorageWriteError')
+  assert.equal(warnings[0][1].key, 'globalTabHistory')
 })
