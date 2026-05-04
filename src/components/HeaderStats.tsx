@@ -1,3 +1,4 @@
+import { Button } from './ui/Button'
 import type { DashboardSource, DashboardStats } from './types'
 
 interface HeaderStatsProps extends DashboardStats {
@@ -46,9 +47,9 @@ export function HeaderStats({
     <div className="header-stats">
       <span className="stat-primary">{tabsLabel}</span>
       {source === 'tabs' && dedupCount > 0 && (
-        <button className="action-btn" title={dedupTitle} onClick={onDedupAll}>
+        <Button className="action-btn" title={dedupTitle} onClick={onDedupAll}>
           Dedupe {dedupCount}
-        </button>
+        </Button>
       )}
       {source === 'tabs' && (
         <>
@@ -63,12 +64,12 @@ export function HeaderStats({
         </span>
       )}
       {source === 'tabs' && filteredCloseCount > 0 && (
-        <button className="action-btn close-tabs" title={closeFilteredTitle} onClick={onCloseFiltered}>
+        <Button className="action-btn close-tabs" title={closeFilteredTitle} onClick={onCloseFiltered}>
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
           </svg>
           Close {filteredCloseCount}
-        </button>
+        </Button>
       )}
     </div>
   )

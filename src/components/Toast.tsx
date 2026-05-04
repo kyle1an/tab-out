@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerToastDispatch } from '../extension/toast.js'
+import { Button } from './ui/Button'
 
 const DURATION_WITHOUT_ACTION = 2500
 const DURATION_WITH_ACTION = 6000
@@ -72,9 +73,9 @@ export function Toast() {
       </svg>
       <span>{state.message}</span>
       {state.action && (
-        <button className="toast-action" onClick={onActionClick}>
+        <Button className="toast-action" onClick={onActionClick}>
           {state.action.label}
-        </button>
+        </Button>
       )}
     </div>
   )

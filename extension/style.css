@@ -220,6 +220,9 @@ header {
 
 .history-range-select {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
   font-family: inherit;
   font-size: var(--header-control-font-size);
   line-height: var(--header-control-line-height);
@@ -242,6 +245,55 @@ header {
 .history-range-select:focus {
   border-color: var(--accent-amber);
   background-color: var(--card-bg);
+}
+
+.history-range-positioner {
+  z-index: 120;
+}
+
+.history-range-popup {
+  min-width: var(--anchor-width);
+  max-height: min(260px, var(--available-height));
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 4px;
+  background: var(--card-bg);
+  border: 1px solid var(--warm-gray);
+  border-radius: 12px;
+  corner-shape: squircle;
+  box-shadow: 0 14px 36px rgba(10, 10, 10, 0.14);
+  outline: none;
+}
+
+.history-range-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-range-item {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: 8px;
+  corner-shape: squircle;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+
+.history-range-item[data-highlighted] {
+  background: rgba(82, 82, 82, 0.08);
+  color: var(--ink);
+}
+
+.history-range-item[data-selected] {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 /* Keep Chrome's native search-field Esc clear behavior, but hide the
@@ -1231,7 +1283,9 @@ header {
 
 /* ---- Tab row — each tab is a full-width row with favicon, title, and actions ---- */
 .page-chip {
+  font-family: inherit;
   font-size: 13px;
+  text-align: left;
   color: var(--ink);
   background: transparent;
   /* padding-left = 12px reserves room for the group indicator stripe
@@ -1598,8 +1652,10 @@ header {
 }
 
 .chip-env {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 0 6px;
+  border: 0;
   border-radius: 8px;
   corner-shape: squircle;
   /* Lighter than .chip-pathgroup (0.1) so the subdomain/env pill
@@ -1608,8 +1664,10 @@ header {
      the affordance is obvious. */
   background: rgba(115, 115, 115, 0.05);
   color: var(--muted);
+  font-family: inherit;
   font-size: 12px;
   font-weight: 500;
+  line-height: inherit;
   cursor: pointer;
   transition:
     background 0.15s ease,

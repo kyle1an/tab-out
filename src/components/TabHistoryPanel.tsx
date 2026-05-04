@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { Button } from './ui/Button'
 import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry } from '../extension/types'
 
@@ -168,7 +169,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
     >
       <span className="history-entry-index">{indexLabel}</span>
       <div className={entryClass(entry)}>
-        <button type="button" className="history-entry-main" disabled={!entry.exists} onClick={onFocusEntry}>
+        <Button className="history-entry-main" disabled={!entry.exists} onClick={onFocusEntry}>
           <span className={'history-favicon-frame' + (!entry.favIconUrl ? ' is-empty' : '')}>
             {entry.favIconUrl && <img className="history-favicon" src={entry.favIconUrl} alt="" />}
           </span>
@@ -186,13 +187,13 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
               </span>
             )}
           </span>
-        </button>
+        </Button>
         <div className="history-entry-actions">
-          <button className="history-entry-close" type="button" disabled={!entry.exists} title="Close this tab" aria-label={`Close ${entry.title}`} onClick={onCloseEntry}>
+          <Button className="history-entry-close" disabled={!entry.exists} title="Close this tab" aria-label={`Close ${entry.title}`} onClick={onCloseEntry}>
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
-          </button>
+          </Button>
         </div>
       </div>
     </div>

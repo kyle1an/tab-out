@@ -6,6 +6,7 @@ import { unwrapSuspenderUrl } from '../extension/suspender.js'
 import { deleteHistorySourceUrl } from '../extension/history-source.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { Button } from './ui/Button'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
 
@@ -97,7 +98,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     await onFocus()
   }
 
-  async function onEnvClick(e: MouseEvent<HTMLSpanElement>, env: DashboardChipEnv) {
+  async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     e.stopPropagation()
     if (!env.tabUrl) return
     if (isReadOnlySource) {
@@ -108,7 +109,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     await focusTab(env.tabUrl)
   }
 
-  async function onEnvKeyDown(e: KeyboardEvent<HTMLSpanElement>, env: DashboardChipEnv) {
+  async function onEnvKeyDown(e: KeyboardEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
@@ -147,7 +148,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     setPreview(env.tabUrl)
   }
 
-  function onEnvMouseLeave(e: MouseEvent<HTMLSpanElement>) {
+  function onEnvMouseLeave(e: MouseEvent<HTMLButtonElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
@@ -160,7 +161,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     setPreview(env.tabUrl)
   }
 
-  function onEnvBlur(e: FocusEvent<HTMLSpanElement>) {
+  function onEnvBlur(e: FocusEvent<HTMLButtonElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
@@ -275,11 +276,10 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
           {isFolded && (
             <span className="chip-env-stack">
               {envs.map((env) => (
-                <span
+                <Button
                   key={env.rawUrl || env.tabUrl}
                   className="chip-env clickable"
                   title={`Focus ${env.prefix} tab`}
-                  tabIndex={0}
                   onClick={(e) => onEnvClick(e, env)}
                   onKeyDown={(e) => onEnvKeyDown(e, env)}
                   onMouseEnter={() => onEnvMouseEnter(env)}
@@ -288,7 +288,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
                   onBlur={onEnvBlur}
                 >
                   {env.prefix}
-                </span>
+                </Button>
               ))}
             </span>
           )}
@@ -300,7 +300,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
       )}
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
         <div className="chip-actions">
-          <button
+          <Button
             className="chip-action chip-close"
             title={isHistorySource ? 'Delete from history' : 'Close this tab'}
             aria-label={isHistorySource ? 'Delete from history' : 'Close this tab'}
@@ -309,7 +309,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
 import { tabMatchesFilter } from '../extension/render.js'
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { SubdomainSection } from './SubdomainSection'
+import { Button } from './ui/Button'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
@@ -18,12 +19,12 @@ interface DomainCardProps {
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   return (
-    <button className="card-close-btn" onClick={onClick}>
+    <Button className="card-close-btn" onClick={onClick}>
       <span className="card-close-btn-text">{label}</span>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
@@ -50,9 +51,9 @@ function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEven
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
-    <button className="action-btn" title={title} onClick={onClick}>
+    <Button className="action-btn" title={title} onClick={onClick}>
       {label}
-    </button>
+    </Button>
   )
 }
 
@@ -60,8 +61,7 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
   const action = pinned ? 'Unpin' : 'Pin'
   const title = `${action} ${displayName}`
   return (
-    <button
-      type="button"
+    <Button
       className={'domain-pin-btn' + (pinned ? ' is-pinned' : '')}
       title={title}
       aria-label={title}
@@ -71,7 +71,7 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
       </svg>
-    </button>
+    </Button>
   )
 }
 

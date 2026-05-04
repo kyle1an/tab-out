@@ -3,6 +3,7 @@ import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
 import { markClosure } from '../extension/undo.js'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
+import { Button } from './ui/Button'
 import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface SubdomainCloseButtonProps {
@@ -28,11 +29,11 @@ interface SubdomainSectionProps {
 function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
-    <button className="subdomain-close-btn" title={title} onClick={onClick}>
+    <Button className="subdomain-close-btn" title={title} onClick={onClick}>
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
-    </button>
+    </Button>
   )
 }
 

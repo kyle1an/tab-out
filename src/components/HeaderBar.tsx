@@ -1,6 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { HeaderStats } from './HeaderStats'
+import { Button } from './ui/Button'
+import { SelectControl } from './ui/SelectControl'
 import { SegmentedTabs } from './ui/SegmentedTabs'
+import { TextInput } from './ui/TextInput'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
 import type { DashboardSource, DashboardStats } from './types'
@@ -110,16 +113,20 @@ export function HeaderBar({
         <div className="header-controls">
           <SourceSwitch source={source} onSourceChange={onSourceChange} />
           {showHistoryRange && (
-            <select className="history-range-select" aria-label="History search range" value={historyRange} onChange={(e) => onHistoryRangeChange?.(e.currentTarget.value)}>
-              {HISTORY_RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <SelectControl
+              triggerClassName="history-range-select"
+              positionerClassName="history-range-positioner"
+              popupClassName="history-range-popup"
+              listClassName="history-range-list"
+              itemClassName="history-range-item"
+              value={historyRange}
+              options={HISTORY_RANGE_OPTIONS}
+              ariaLabel="History search range"
+              onValueChange={(nextRange) => onHistoryRangeChange?.(nextRange)}
+            />
           )}
           <div className={wrapClass}>
-            <input
+            <TextInput
               ref={inputRef}
               type="search"
               className="tab-filter"
@@ -127,13 +134,13 @@ export function HeaderBar({
               spellCheck="false"
               placeholder={filterPlaceholder}
               value={filter}
-              onInput={(e) => updateFilter(e.currentTarget.value)}
+              onValueChange={updateFilter}
             />
-            <button className="tab-filter-clear" type="button" title="Clear filter" aria-label="Clear filter" onClick={onClear}>
+            <Button className="tab-filter-clear" title="Clear filter" aria-label="Clear filter" onClick={onClear}>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
-            </button>
+            </Button>
           </div>
         </div>
       </div>
