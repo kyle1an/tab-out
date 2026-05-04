@@ -1,4 +1,5 @@
 import { DomainCard } from './DomainCard'
+import { cn } from '../lib/cn'
 import type { DashboardCardEntry, DashboardSource, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface MissionsProps {
@@ -18,16 +19,16 @@ function stableKey(group: DomainGroup) {
 function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
   const noun = source === 'bookmarks' ? 'bookmarks' : source === 'history' ? 'history results' : 'tabs'
   return (
-    <div className="missions-empty-state">
-      <div className="empty-title">No {noun}.</div>
+    <div className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center">
+      <div className="text-base font-normal text-tab-ink">No {noun}.</div>
     </div>
   )
 }
 
 function NoResultsState({ query = '' }: { query?: string }) {
   return (
-    <div className="missions-empty-state missions-empty-state-filter">
-      <div className="empty-title">{query ? `No matches for “${query}”.` : 'No matches.'}</div>
+    <div className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center">
+      <div className={cn('text-base font-normal text-tab-ink', 'text-[15px]')}>{query ? `No matches for “${query}”.` : 'No matches.'}</div>
     </div>
   )
 }

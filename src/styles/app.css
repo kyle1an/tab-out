@@ -1,4 +1,4 @@
-@layer theme, utilities;
+@layer theme;
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "../../extension/base.css";
@@ -6,9 +6,7 @@
 
 @source "../";
 
-@layer utilities {
-  @tailwind utilities source(none);
-}
+@tailwind utilities source(none);
 
 @theme {
   --font-sans: sans-serif;
