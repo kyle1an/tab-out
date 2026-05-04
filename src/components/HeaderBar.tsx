@@ -38,6 +38,7 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
       rootClassName="source-switch-root"
       listClassName="source-switch"
       tabClassName="source-switch-option"
+      indicatorClassName="source-switch-indicator"
       value={source}
       options={SOURCE_SWITCH_OPTIONS}
       ariaLabel="Dashboard source"

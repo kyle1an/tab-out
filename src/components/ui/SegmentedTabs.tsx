@@ -12,6 +12,7 @@ interface SegmentedTabsProps<TValue extends string> {
   rootClassName?: string
   listClassName?: string
   tabClassName?: string
+  indicatorClassName?: string
   onValueChange: (value: TValue) => void | Promise<void>
 }
 
@@ -29,6 +30,7 @@ export function SegmentedTabs<TValue extends string>({
   rootClassName,
   listClassName,
   tabClassName,
+  indicatorClassName,
   onValueChange
 }: SegmentedTabsProps<TValue>) {
   function handleValueChange(nextValue: unknown) {
@@ -45,6 +47,7 @@ export function SegmentedTabs<TValue extends string>({
             {option.label}
           </Tabs.Tab>
         ))}
+        {indicatorClassName && <Tabs.Indicator className={indicatorClassName} />}
       </Tabs.List>
     </Tabs.Root>
   )

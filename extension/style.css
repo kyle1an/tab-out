@@ -53,52 +53,90 @@ header {
 }
 
 .source-switch-root {
-  display: contents;
-}
-
-.source-switch {
   display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: var(--header-control-height);
   box-sizing: border-box;
-  padding: 2px;
-  background: rgba(115, 115, 115, 0.06);
+  height: var(--header-control-height);
   border: 1px solid var(--warm-gray);
-  border-radius: 12px;
+  border-radius: 16px;
   corner-shape: squircle;
 }
 
+.source-switch {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 4px;
+}
+
 .source-switch-option {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: inherit;
   font-size: var(--header-control-font-size);
   line-height: var(--header-control-line-height);
-  font-weight: 500;
-  height: calc(var(--header-control-height) - 6px);
+  font-weight: 400;
+  height: 32px;
   box-sizing: border-box;
   color: var(--muted);
   background: transparent;
   border: none;
-  border-radius: 9px;
-  corner-shape: squircle;
-  padding: 0 10px;
+  outline: none;
+  padding: 0 8px;
   cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
   transition:
-    background 0.15s ease,
     color 0.15s ease;
+}
+
+.source-switch-option::before {
+  content: "";
+  position: absolute;
+  inset: 4px 0;
+  border-radius: 8px;
+  corner-shape: squircle;
+  outline: 2px solid transparent;
+  outline-offset: -1px;
+  pointer-events: none;
 }
 
 .source-switch-option:hover {
   color: var(--ink);
 }
 
+.source-switch-option:focus-visible {
+  outline: none;
+}
+
 .source-switch-option[data-active] {
-  background: var(--card-bg);
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(10, 10, 10, 0.05);
+}
+
+.source-switch-option:focus-visible::before {
+  outline-color: var(--accent-amber);
+}
+
+.source-switch-indicator {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  z-index: 0;
+  width: var(--active-tab-width);
+  height: 24px;
+  transform: translateX(var(--active-tab-left)) translateY(-50%);
+  border-radius: 8px;
+  corner-shape: squircle;
+  background: rgba(115, 115, 115, 0.12);
+  transition:
+    width 0.2s ease-in-out,
+    transform 0.2s ease-in-out;
 }
 
 .stat-primary {
