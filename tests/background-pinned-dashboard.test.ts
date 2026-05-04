@@ -5,25 +5,25 @@ const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
 
-function clone(value) {
+function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
 }
 
 function createEventSlot() {
-  const listeners = []
+  const listeners: any[] = []
   return {
     listeners,
     api: {
-      addListener(fn) {
+      addListener(fn: any) {
         listeners.push(fn)
       }
     }
   }
 }
 
-function createStorageArea(values) {
+function createStorageArea(values: Record<string, any>) {
   return {
-    async get(keys = null) {
+    async get(keys: string | string[] | Record<string, any> | null = null) {
       if (typeof keys === 'string') return { [keys]: clone(values[keys]) }
       if (Array.isArray(keys)) {
         return Object.fromEntries(keys.map((key) => [key, clone(values[key])]))
@@ -38,14 +38,14 @@ function createStorageArea(values) {
       }
       return clone(values)
     },
-    async set(items) {
+    async set(items: Record<string, any>) {
       Object.assign(values, clone(items))
     }
   }
 }
 
-function normalizeWindowTabs(state, windowId) {
-  const tabs = Object.values(state.tabsById).filter((tab) => tab.windowId === windowId)
+function normalizeWindowTabs(state: any, windowId: number) {
+  const tabs = Object.values(state.tabsById as Record<string, any>).filter((tab) => tab.windowId === windowId)
   const pinned = tabs.filter((tab) => tab.pinned).sort((a, b) => a.index - b.index || a.id - b.id)
   const unpinned = tabs.filter((tab) => !tab.pinned).sort((a, b) => a.index - b.index || a.id - b.id)
 
@@ -54,21 +54,21 @@ function normalizeWindowTabs(state, windowId) {
   })
 }
 
-function normalizeAllTabs(state) {
-  const windowIds = new Set(Object.values(state.tabsById).map((tab) => tab.windowId))
+function normalizeAllTabs(state: any) {
+  const windowIds = new Set(Object.values(state.tabsById as Record<string, any>).map((tab) => tab.windowId))
   for (const windowId of windowIds) {
     normalizeWindowTabs(state, windowId)
   }
 }
 
-function focusWindow(state, windowId) {
-  Object.values(state.windowsById).forEach((win) => {
+function focusWindow(state: any, windowId: number) {
+  Object.values(state.windowsById as Record<string, any>).forEach((win) => {
     win.focused = win.id === windowId
   })
   state.lastFocusedWindowId = windowId
 }
 
-function createChromeMock(initialTabs, options = {}) {
+function createChromeMock(initialTabs: any[], options: any = {}) {
   const runtimeOnInstalled = createEventSlot()
   const runtimeOnMessage = createEventSlot()
   const runtimeOnStartup = createEventSlot()
@@ -81,7 +81,7 @@ function createChromeMock(initialTabs, options = {}) {
 
   const initialWindowIds = [...new Set(initialTabs.map((tab) => tab.windowId))]
   const initialLastFocusedWindowId = initialTabs[0]?.windowId || 1
-  const state = {
+  const state: any = {
     tabsById: Object.fromEntries(initialTabs.map((tab) => [tab.id, { ...tab }])),
     windowsById: Object.fromEntries(
       initialWindowIds.map((windowId) => {
@@ -98,7 +98,7 @@ function createChromeMock(initialTabs, options = {}) {
   }
   normalizeAllTabs(state)
 
-  const calls = {
+  const calls: any = {
     create: [],
     windowCreate: [],
     remove: [],
@@ -112,7 +112,7 @@ function createChromeMock(initialTabs, options = {}) {
     session: clone(options.storageValues?.session || {})
   }
 
-  const chrome = {
+  const chrome: any = {
     runtime: {
       id: 'tab-out',
       onMessage: runtimeOnMessage.api,
@@ -132,8 +132,8 @@ function createChromeMock(initialTabs, options = {}) {
       }
     },
     tabs: {
-      async query(queryInfo = {}) {
-        let tabs = Object.values(state.tabsById)
+      async query(queryInfo: any = {}) {
+        let tabs = Object.values(state.tabsById as Record<string, any>)
         if (queryInfo.windowId != null) tabs = tabs.filter((tab) => tab.windowId === queryInfo.windowId)
         if (queryInfo.active != null) tabs = tabs.filter((tab) => tab.active === queryInfo.active)
         if (queryInfo.lastFocusedWindow) tabs = tabs.filter((tab) => tab.windowId === state.lastFocusedWindowId)
@@ -156,7 +156,7 @@ function createChromeMock(initialTabs, options = {}) {
           tab.openerTabId = updateProperties.openerTabId
         }
         if (updateProperties.active) {
-          Object.values(state.tabsById)
+          Object.values(state.tabsById as Record<string, any>)
             .filter((candidate) => candidate.windowId === tab.windowId)
             .forEach((candidate) => {
               candidate.active = candidate.id === tabId
@@ -172,7 +172,7 @@ function createChromeMock(initialTabs, options = {}) {
         if (!state.windowsById[windowId]) {
           state.windowsById[windowId] = { id: windowId, type: 'normal', focused: false }
         }
-        const existingTabs = Object.values(state.tabsById).filter((tab) => tab.windowId === windowId)
+        const existingTabs = Object.values(state.tabsById as Record<string, any>).filter((tab) => tab.windowId === windowId)
         const nextIndex =
           typeof createProperties.index === 'number'
             ? createProperties.index
@@ -213,7 +213,7 @@ function createChromeMock(initialTabs, options = {}) {
 
         for (const tab of removedTabs) {
           if (!tab.active) continue
-          const remainingTabs = Object.values(state.tabsById)
+          const remainingTabs = Object.values(state.tabsById as Record<string, any>)
             .filter((candidate) => candidate.windowId === tab.windowId)
             .sort((a, b) => a.index - b.index || a.id - b.id)
           const opener = remainingTabs.find((candidate) => candidate.id === tab.openerTabId)
@@ -241,15 +241,15 @@ function createChromeMock(initialTabs, options = {}) {
     windows: {
       WINDOW_ID_NONE: -1,
       onFocusChanged: windowsOnFocusChanged.api,
-      async getLastFocused(queryOptions = {}) {
-        let windows = Object.values(state.windowsById)
+      async getLastFocused(queryOptions: any = {}) {
+        let windows = Object.values(state.windowsById as Record<string, any>)
         if (queryOptions.windowTypes) windows = windows.filter((win) => queryOptions.windowTypes.includes(win.type))
         const focusedWindow = windows.find((win) => win.id === state.lastFocusedWindowId) || windows.find((win) => win.focused) || windows[0]
         if (!focusedWindow) throw new Error('No matching focused window')
         return clone(focusedWindow)
       },
-      async getAll(queryOptions = {}) {
-        let windows = Object.values(state.windowsById)
+      async getAll(queryOptions: any = {}) {
+        let windows = Object.values(state.windowsById as Record<string, any>)
         if (queryOptions.windowTypes) windows = windows.filter((win) => queryOptions.windowTypes.includes(win.type))
         return windows.map((win) => clone(win))
       },
@@ -260,7 +260,7 @@ function createChromeMock(initialTabs, options = {}) {
         if (updateInfo.focused) focusWindow(state, windowId)
         return clone(win)
       },
-      async create(createData = {}) {
+      async create(createData: any = {}) {
         const windowId = state.nextWindowId++
         state.windowsById[windowId] = { id: windowId, type: createData.type || 'normal', focused: false }
         if (createData.focused !== false) focusWindow(state, windowId)
@@ -290,21 +290,21 @@ function createChromeMock(initialTabs, options = {}) {
       commandsOnCommand: commandsOnCommand.listeners
     },
     getWindowTabs(windowId) {
-      return Object.values(state.tabsById)
+      return Object.values(state.tabsById as Record<string, any>)
         .filter((tab) => tab.windowId === windowId)
         .sort((a, b) => a.index - b.index || a.id - b.id)
         .map((tab) => clone(tab))
     },
     blurAllWindows(lastFocusedWindowId = state.lastFocusedWindowId) {
       state.lastFocusedWindowId = lastFocusedWindowId
-      Object.values(state.windowsById).forEach((win) => {
+      Object.values(state.windowsById as Record<string, any>).forEach((win) => {
         win.focused = false
       })
     },
     activateTab(tabId) {
       const tab = state.tabsById[tabId]
       if (!tab) throw new Error(`Missing tab ${tabId}`)
-      Object.values(state.tabsById)
+      Object.values(state.tabsById as Record<string, any>)
         .filter((candidate) => candidate.windowId === tab.windowId)
         .forEach((candidate) => {
           candidate.active = candidate.id === tabId
@@ -323,7 +323,7 @@ function createChromeMock(initialTabs, options = {}) {
   }
 }
 
-function sendRuntimeMessage(mock, message) {
+function sendRuntimeMessage(mock: any, message: any): Promise<any> {
   const onMessage = mock.listeners.runtimeOnMessage[0]
   assert.equal(typeof onMessage, 'function')
   return new Promise((resolve) => {
@@ -337,9 +337,9 @@ async function flushBackgroundWork() {
   await new Promise((resolve) => setImmediate(resolve))
 }
 
-async function loadBackground(initialTabs, options = {}) {
+async function loadBackground(initialTabs: any[], options: any = {}) {
   const mock = createChromeMock(initialTabs, options)
-  globalThis.chrome = mock.chrome
+  ;(globalThis as any).chrome = mock.chrome
   await import(`${backgroundUrl.href}?test=${backgroundImportId++}`)
   await flushBackgroundWork()
   return mock
@@ -440,7 +440,7 @@ test('filter shortcut opens a fresh focus-ready Tab Out tab from a normal page',
     active: true
   })
 
-  const createdTab = Object.values(mock.state.tabsById).find((tab) => tab.url === `${extensionUrl}?focusFilter=1`)
+  const createdTab = Object.values(mock.state.tabsById as Record<string, any>).find((tab) => tab.url === `${extensionUrl}?focusFilter=1`)
   assert.ok(createdTab)
   assert.equal(createdTab.active, true)
   assert.equal(createdTab.pinned, false)

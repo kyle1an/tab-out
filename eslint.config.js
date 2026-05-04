@@ -62,5 +62,11 @@ export default tseslint.config(
       'react-hooks': reactHooks
     },
     rules: reactHooksRules
+  },
+  {
+    files: ['tests/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off'
+    }
   }
 )

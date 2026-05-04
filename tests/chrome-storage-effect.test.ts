@@ -9,15 +9,15 @@ import {
 } from '../src/extension/background/chrome-storage-effect.js'
 
 test('chrome storage Effect adapter reads and writes through the storage seam', async () => {
-  const values = {}
+  const values: Record<string, any> = {}
   const storage = {
-    async get(key) {
+    async get(key: string) {
       return { [key]: values[key] }
     },
-    async set(items) {
+    async set(items: Record<string, any>) {
       Object.assign(values, items)
     }
-  }
+  } as unknown as chrome.storage.StorageArea
 
   await runChromeEffect(writeChromeStorageValue(storage, 'globalTabHistory', { stack: [], index: -1 }))
 
@@ -28,7 +28,7 @@ test('chrome storage Effect adapter reads and writes through the storage seam', 
 })
 
 test('chrome storage Effect adapter keeps best-effort writes non-throwing', async () => {
-  const warnings = []
+  const warnings: any[][] = []
   const originalWarn = console.warn
   console.warn = (...args) => {
     warnings.push(args)
@@ -38,7 +38,7 @@ test('chrome storage Effect adapter keeps best-effort writes non-throwing', asyn
     async set() {
       throw new Error('quota')
     }
-  }
+  } as unknown as chrome.storage.StorageArea
 
   try {
     await runChromeEffectBestEffort(writeChromeStorageValue(storage, 'globalTabHistory', { stack: [], index: -1 }))

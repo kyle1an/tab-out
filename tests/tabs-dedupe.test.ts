@@ -4,11 +4,11 @@ import test from 'node:test'
 import { countClosableDuplicateExtras, pickDuplicateTabsToClose } from '../src/extension/tab-dedupe-policy.js'
 import { closeDuplicateTabs, fetchOpenTabs, openTabs } from '../src/extension/tabs.js'
 
-function createChromeMock(initialTabs) {
+function createChromeMock(initialTabs: any[]) {
   let tabs = initialTabs.map((tab) => ({ ...tab }))
-  const removedIds = []
+  const removedIds: number[] = []
 
-  globalThis.chrome = {
+  ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out'
     },

@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
+import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
 import { createServer } from 'node:http'
+import type { Server } from 'node:http'
 import { createServer as createTcpServer } from 'node:net'
+import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -24,7 +27,7 @@ function findChrome() {
   return null
 }
 
-function serveRepo() {
+function serveRepo(): Promise<{ server: Server; origin: string }> {
   const root = resolve('.')
   const server = createServer((req, res) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1')
@@ -46,24 +49,24 @@ function serveRepo() {
 
   return new Promise((resolveServer) => {
     server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
+      const address = server.address() as AddressInfo
       resolveServer({ server, origin: `http://127.0.0.1:${address.port}` })
     })
   })
 }
 
-function freePort() {
+function freePort(): Promise<number> {
   return new Promise((resolvePort, rejectPort) => {
     const server = createTcpServer()
     server.on('error', rejectPort)
     server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
+      const address = server.address() as AddressInfo
       server.close(() => resolvePort(address.port))
     })
   })
 }
 
-function waitForChromeExit(chrome, timeoutMs) {
+function waitForChromeExit(chrome: ChildProcessWithoutNullStreams, timeoutMs: number) {
   if (chrome.exitCode !== null || chrome.signalCode !== null) return Promise.resolve(true)
   return new Promise((resolveStop) => {
     const timeout = setTimeout(() => {
@@ -78,7 +81,7 @@ function waitForChromeExit(chrome, timeoutMs) {
   })
 }
 
-async function stopChrome(chrome, session = null) {
+async function stopChrome(chrome: ChildProcessWithoutNullStreams, session: CdpSession | null = null) {
   if (chrome.exitCode !== null || chrome.signalCode !== null) return
 
   if (session) {
@@ -93,18 +96,18 @@ async function stopChrome(chrome, session = null) {
   await waitForChromeExit(chrome, 3000)
 }
 
-function rejectPending(pending, error) {
+function rejectPending(pending: Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>, error: Error) {
   for (const { reject } of pending.values()) {
     reject(error)
   }
   pending.clear()
 }
 
-function wait(delay) {
+function wait(delay: number) {
   return new Promise((resolveWait) => setTimeout(resolveWait, delay))
 }
 
-async function waitForDevtools(port, chrome) {
+async function waitForDevtools(port: number, chrome: ChildProcessWithoutNullStreams) {
   const deadline = Date.now() + 10000
   let exited = false
   chrome.once('exit', () => {
@@ -121,11 +124,11 @@ async function waitForDevtools(port, chrome) {
   return false
 }
 
-async function waitForPage(port, pageUrl) {
+async function waitForPage(port: number, pageUrl: string) {
   const deadline = Date.now() + 10000
   while (Date.now() < deadline) {
     const response = await fetch(`http://127.0.0.1:${port}/json/list`)
-    const pages = await response.json()
+    const pages: any[] = await response.json()
     const page = pages.find((candidate) => candidate.url === pageUrl)
     if (page?.webSocketDebuggerUrl) return page.webSocketDebuggerUrl
     await wait(100)
@@ -134,14 +137,17 @@ async function waitForPage(port, pageUrl) {
 }
 
 class CdpSession {
-  constructor(url) {
+  url: string
+  id = 0
+  pending = new Map<number, { resolve: (value: any) => void; reject: (error: Error) => void }>()
+  socket: WebSocket | null = null
+
+  constructor(url: string) {
     this.url = url
-    this.id = 0
-    this.pending = new Map()
   }
 
   connect() {
-    return new Promise((resolveConnect, rejectConnect) => {
+    return new Promise<void>((resolveConnect, rejectConnect) => {
       this.socket = new WebSocket(this.url)
       this.socket.addEventListener('open', () => resolveConnect())
       this.socket.addEventListener('error', rejectConnect)
@@ -160,11 +166,11 @@ class CdpSession {
     })
   }
 
-  send(method, params = {}) {
+  send(method: string, params: Record<string, any> = {}) {
     const id = ++this.id
     return new Promise((resolveSend, rejectSend) => {
       this.pending.set(id, { resolve: resolveSend, reject: rejectSend })
-      this.socket.send(JSON.stringify({ id, method, params }))
+      this.socket?.send(JSON.stringify({ id, method, params }))
     })
   }
 
@@ -174,13 +180,13 @@ class CdpSession {
   }
 }
 
-async function evaluateWithNavigationRetry(session, params) {
+async function evaluateWithNavigationRetry(session: CdpSession, params: Record<string, any>) {
   const deadline = Date.now() + 10000
   let lastError
   while (Date.now() < deadline) {
     try {
       return await session.send('Runtime.evaluate', params)
-    } catch (error) {
+    } catch (error: any) {
       lastError = error
       if (!/Execution context was destroyed|Cannot find context|Inspected target navigated/.test(error.message)) {
         throw error
@@ -191,7 +197,7 @@ async function evaluateWithNavigationRetry(session, params) {
   throw lastError
 }
 
-async function measureDashboard(session, width) {
+async function measureDashboard(session: CdpSession, width: number) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width,
     height: 900,
@@ -226,7 +232,7 @@ async function measureDashboard(session, width) {
       }
       wait()
     })`
-  }).then((result) => result.result.value)
+  }).then((result: any) => result.result.value)
 }
 
 test('dashboard cards repack when the viewport resizes', async (t) => {
@@ -264,7 +270,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     pageUrl
   ])
 
-  let session = null
+  let session: CdpSession | null = null
   t.after(async () => {
     await stopChrome(chrome, session)
     server.close()

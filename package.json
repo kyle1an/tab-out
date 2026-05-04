@@ -9,10 +9,10 @@
     "dev": "vite build --watch",
     "build": "vite build",
     "build:debug": "vite build --sourcemap",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint . --max-warnings=0",
-    "test": "node --import tsx --test tests/*.test.mjs",
-    "test:browser": "RUN_BROWSER_SMOKE=1 node --import tsx --test tests/browser-resize-smoke.test.mjs",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:browser": "RUN_BROWSER_SMOKE=1 node --import tsx --test tests/browser-resize-smoke.test.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
     "verify": "pnpm typecheck && pnpm lint && pnpm build && pnpm verify:bundle && pnpm test",
     "verify:browser": "pnpm verify && pnpm test:browser"

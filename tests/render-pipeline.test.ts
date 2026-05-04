@@ -15,25 +15,22 @@ import {
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
+import type { DashboardTab } from '../src/extension/types'
 
-globalThis.chrome = {
+(globalThis as any).chrome = {
   runtime: {
     getURL(path) {
       return `chrome-extension://tab-out${path}`
     }
   }
-}
+};
 
-globalThis.window = {
+(globalThis as any).window = {
   LOCAL_PATH_GROUPERS: [],
   LOCAL_CUSTOM_GROUPS: []
-}
+};
 
-/**
- * @param {Partial<import('../src/extension/types').DashboardTab> & { url: string }} overrides
- * @returns {import('../src/extension/types').DashboardTab}
- */
-function makeTab(overrides) {
+function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardTab {
   return {
     id: 1,
     url: overrides.url,
@@ -379,7 +376,7 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
       { index: 0, tabId: 11, windowId: 1, title: 'Alpha', displayUrl: 'alpha.example', exists: true, previousTarget: true },
       { index: 1, tabId: 12, windowId: 1, title: 'Bravo', displayUrl: 'bravo.example', exists: true, active: true, current: true },
       { index: 2, tabId: 13, windowId: 1, title: 'Charlie', displayUrl: 'charlie.example', exists: true, cursor: true, nextTarget: true }
-    ]
+    ] as any
   })
 
   assert.equal(snapshot.stackSize, 3)
@@ -415,7 +412,7 @@ test('normalizeTabHistorySnapshot resolves history favicons from Chrome cache', 
         favIconUrl: 'data:image/png;base64,abc',
         exists: true
       }
-    ]
+    ] as any
   })
 
   assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Falpha.example%2Fdocs&size=32')
@@ -471,9 +468,9 @@ test('history range options default to the last day search window', () => {
 test('history filter off skips Chrome history search', async () => {
   assert.equal(isHistoryFilterEnabled(HISTORY_FILTER_OFF), false)
 
-  const originalHistory = globalThis.chrome.history
+  const originalHistory = (globalThis.chrome as any).history
   let searched = false
-  globalThis.chrome.history = {
+  ;(globalThis.chrome as any).history = {
     async search() {
       searched = true
       return [{ id: '1', title: 'OpenAI Docs', url: 'https://openai.com/docs' }]
@@ -485,16 +482,16 @@ test('history filter off skips Chrome history search', async () => {
     assert.deepEqual(items, [])
     assert.equal(searched, false)
   } finally {
-    if (originalHistory === undefined) delete globalThis.chrome.history
-    else globalThis.chrome.history = originalHistory
+    if (originalHistory === undefined) delete (globalThis.chrome as any).history
+    else (globalThis.chrome as any).history = originalHistory
   }
 })
 
 test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {
-  const originalHistory = globalThis.chrome.history
+  const originalHistory = (globalThis.chrome as any).history
   let deletedUrl = ''
-  globalThis.chrome.history = {
-    async deleteUrl(details) {
+  ;(globalThis.chrome as any).history = {
+    async deleteUrl(details: any) {
       deletedUrl = details.url
     }
   }
@@ -504,8 +501,8 @@ test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {
     assert.equal(deletedUrl, 'https://openai.com/docs')
     assert.equal(await deleteHistorySourceUrl(''), false)
   } finally {
-    if (originalHistory === undefined) delete globalThis.chrome.history
-    else globalThis.chrome.history = originalHistory
+    if (originalHistory === undefined) delete (globalThis.chrome as any).history
+    else (globalThis.chrome as any).history = originalHistory
   }
 })
 

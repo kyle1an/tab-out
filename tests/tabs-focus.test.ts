@@ -6,16 +6,16 @@ import { closeHistoryEntry } from '../src/extension/tab-history.js'
 import { focusTab } from '../src/extension/tabs.js'
 import { markClosure, undoLastClose } from '../src/extension/undo.js'
 
-function createChromeMock(initialTabs, currentWindowId = 1) {
+function createChromeMock(initialTabs: any[], currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
-  const calls = {
+  const calls: any = {
     create: [],
     remove: [],
     tabsUpdate: [],
     windowsUpdate: []
   }
 
-  globalThis.chrome = {
+  ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out'
     },
@@ -112,7 +112,7 @@ test('closeHistoryEntry removes the exact history tab and returns an undo snapsh
     { id: 2, windowId: 2, url: 'https://example.com/docs', title: 'Docs', active: false, pinned: true, groupId: 4, index: 3 }
   ])
 
-  const result = await closeHistoryEntry({ exists: true, tabId: 2 })
+  const result = await closeHistoryEntry({ exists: true, tabId: 2 } as any)
 
   assert.equal(result.closed, true)
   assert.deepEqual(calls.remove, [2])
