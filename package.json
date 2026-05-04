@@ -18,6 +18,7 @@
     "verify:browser": "pnpm verify && pnpm test:browser"
   },
   "dependencies": {
+    "@base-ui/react": "^1.4.1",
     "effect": "4.0.0-beta.59",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"

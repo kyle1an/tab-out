@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { HeaderStats } from './HeaderStats'
+import { SegmentedTabs } from './ui/SegmentedTabs'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
 import type { DashboardSource, DashboardStats } from './types'
@@ -8,6 +9,11 @@ interface SourceSwitchProps {
   source: DashboardSource
   onSourceChange: (source: DashboardSource) => void | Promise<void>
 }
+
+const SOURCE_SWITCH_OPTIONS = [
+  { value: 'tabs', label: 'Tabs' },
+  { value: 'bookmarks', label: 'Bookmarks' }
+] as const
 
 interface HeaderBarProps extends DashboardStats {
   filter: string
@@ -25,24 +31,15 @@ interface HeaderBarProps extends DashboardStats {
 
 function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
   return (
-    <div className="source-switch" role="tablist" aria-label="Dashboard source">
-      <button
-        type="button"
-        className={'source-switch-option' + (source === 'tabs' ? ' is-active' : '')}
-        aria-selected={source === 'tabs' ? 'true' : 'false'}
-        onClick={() => onSourceChange('tabs')}
-      >
-        Tabs
-      </button>
-      <button
-        type="button"
-        className={'source-switch-option' + (source === 'bookmarks' ? ' is-active' : '')}
-        aria-selected={source === 'bookmarks' ? 'true' : 'false'}
-        onClick={() => onSourceChange('bookmarks')}
-      >
-        Bookmarks
-      </button>
-    </div>
+    <SegmentedTabs
+      rootClassName="source-switch-root"
+      listClassName="source-switch"
+      tabClassName="source-switch-option"
+      value={source}
+      options={SOURCE_SWITCH_OPTIONS}
+      ariaLabel="Dashboard source"
+      onValueChange={onSourceChange}
+    />
   )
 }
 
