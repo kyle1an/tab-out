@@ -1,88 +1,69 @@
-import { useEffect, useRef, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { Toast as BaseToast } from '@base-ui/react/toast'
 import { createRoot } from 'react-dom/client'
-import { registerToastDispatch } from '../extension/toast.js'
-import { Button } from './ui/Button'
-
-const DURATION_WITHOUT_ACTION = 2500
-const DURATION_WITH_ACTION = 6000
-
-interface ToastAction {
-  label: string
-  onClick?: () => void
-}
-
-interface ToastIncoming {
-  message: string
-  action: ToastAction | null
-}
-
-interface ToastState extends ToastIncoming {
-  visible: boolean
-  nonce: number
-}
-
-function durationFor(action: ToastAction | null) {
-  return action ? DURATION_WITH_ACTION : DURATION_WITHOUT_ACTION
-}
+import { cn } from '../lib/cn'
+import { toastManager } from '../extension/toast.js'
 
 export function Toast() {
-  const [state, setState] = useState<ToastState>({ visible: false, message: '', action: null, nonce: 0 })
-  const timerRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    return registerToastDispatch((incoming: ToastIncoming) => {
-      setState((prev) => ({
-        visible: true,
-        message: incoming.message,
-        action: incoming.action,
-        nonce: prev.nonce + 1
-      }))
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!state.visible) return
-    const timer = window.setTimeout(() => setState((s) => ({ ...s, visible: false })), durationFor(state.action))
-    timerRef.current = timer
-    return () => clearTimeout(timer)
-  }, [state.action, state.nonce, state.visible])
-
-  const onMouseEnter = () => {
-    if (timerRef.current !== null) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }
-
-  const onMouseLeave = () => {
-    if (!state.visible || timerRef.current !== null) return
-    timerRef.current = window.setTimeout(() => setState((s) => ({ ...s, visible: false })), durationFor(state.action))
-  }
-
-  const onActionClick = () => {
-    if (state.action?.onClick) state.action.onClick()
-    setState((s) => ({ ...s, visible: false }))
-  }
-
-  const className = 'toast' + (state.visible ? ' visible' : '')
-
   return (
-    <div className={className} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-      </svg>
-      <span>{state.message}</span>
-      {state.action && (
-        <Button className="toast-action" onClick={onActionClick}>
-          {state.action.label}
-        </Button>
-      )}
-    </div>
+    <BaseToast.Provider toastManager={toastManager}>
+      <BaseToast.Portal>
+        <BaseToast.Viewport className="fixed right-4 bottom-4 left-auto top-auto z-1 mx-auto w-62.5 min-[500px]:right-8 min-[500px]:bottom-8 min-[500px]:w-75">
+          <ToastList />
+        </BaseToast.Viewport>
+      </BaseToast.Portal>
+    </BaseToast.Provider>
   )
+}
+
+function ToastList() {
+  const { toasts } = BaseToast.useToastManager()
+
+  return toasts.map((toast) => (
+    <BaseToast.Root
+      key={toast.id}
+      toast={toast}
+      className={cn(
+        "absolute right-0 bottom-0 left-auto mx-auto mr-0 box-border w-full cursor-default select-none rounded-lg border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] antialiased [-moz-osx-font-smoothing:grayscale] [-webkit-user-select:none] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] font-features-['ss02'_1,'zero'_1] [font-synthesis:none] origin-[bottom_center]",
+        '[--gap:0.75rem] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))] [--height:var(--toast-frontmost-height,var(--toast-height))]',
+        '[--offset-y:calc(var(--toast-offset-y)*-1+(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] z-[calc(1000-var(--toast-index))] h-(--height)',
+        'transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))]',
+        '[transition:transform_0.5s_cubic-bezier(0.22,1,0.36,1),opacity_0.5s,height_0.15s]',
+        'after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-[""]',
+        'data-expanded:h-(--toast-height) data-expanded:transform-[translateX(var(--toast-swipe-movement-x))_translateY(var(--offset-y))]',
+        'data-starting-style:transform-[translateY(150%)] data-ending-style:opacity-0 data-ending-style:transform-[translateY(150%)] data-limited:opacity-0',
+        '[&[data-ending-style][data-swipe-direction=down]]:transform-[translateY(calc(var(--toast-swipe-movement-y)+150%))]',
+        '[&[data-ending-style][data-swipe-direction=up]]:transform-[translateY(calc(var(--toast-swipe-movement-y)-150%))]',
+        '[&[data-ending-style][data-swipe-direction=left]]:transform-[translateX(calc(var(--toast-swipe-movement-x)-150%))_translateY(var(--offset-y))]',
+        '[&[data-ending-style][data-swipe-direction=right]]:transform-[translateX(calc(var(--toast-swipe-movement-x)+150%))_translateY(var(--offset-y))]'
+      )}
+    >
+      <BaseToast.Content className="overflow-hidden [transition:opacity_0.25s] data-behind:opacity-0 data-expanded:opacity-100">
+        <BaseToast.Title className="m-0 text-[0.975rem] leading-5 font-bold" />
+        <BaseToast.Description className="m-0 text-[0.925rem] leading-5" />
+        <BaseToast.Action className="mt-2! inline-flex h-8 items-center justify-center rounded-sm border-0 bg-[oklch(12%_0.02_264deg/90%)] px-3! text-[0.875rem] leading-5 font-normal text-[oklch(98%_0.001_264deg)] focus-visible:outline-2! focus-visible:-outline-offset-1! focus-visible:outline-[oklch(45%_0.2_264deg)]!" />
+        <BaseToast.Close
+          className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-[oklch(12%_0.02_264deg/90%)] hover:bg-[oklch(12%_0.038_264deg/5%)]"
+          aria-label="Close"
+        >
+          <XIcon className="h-4 w-4" />
+        </BaseToast.Close>
+      </BaseToast.Content>
+    </BaseToast.Root>
+  ))
 }
 
 export function mountToast() {
   const el = document.getElementById('toastRoot')
   if (!el) return
   createRoot(el).render(<Toast />)
+}
+
+function XIcon(props: ComponentProps<'svg'>) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
 }

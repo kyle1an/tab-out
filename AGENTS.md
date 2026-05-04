@@ -97,6 +97,12 @@ Once the extension is loaded:
 - During development, run `pnpm dev` to watch `src/` changes and rebuild the packaged bundles; refresh the Tab Out page for dashboard changes and reload the extension for manifest, service-worker, or permission changes.
 - To update: `cd tab-out && git pull`, run `pnpm install && pnpm build` only if source files changed without built assets, then reload the extension in `chrome://extensions`.
 
+## Live QA & Inspection
+
+- For live Tab Out behavior, inspect the real Chrome extension page, not the Codex in-app browser.
+- The in-app browser or a localhost/file harness can render the shell, but it does not prove real `chrome.*` behavior, real tab/window data, service-worker behavior, extension shortcuts, new-tab overrides, or extension-page focus.
+- Prefer `@Computer` for visible real-Chrome checks of the Tab Out new-tab page. Prefer a working Chrome DevTools/CDP endpoint only when DOM, console, service-worker, or network-level evidence is needed.
+
 ## Visual Style Notes
 
 - Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.

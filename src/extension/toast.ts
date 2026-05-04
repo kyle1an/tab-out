@@ -1,33 +1,26 @@
+import { Toast } from '@base-ui/react/toast'
+
 export type ToastAction = {
   label: string
+  description?: string
   onClick: () => void | Promise<void>
 }
-export type ToastPayload = {
-  message: string
-  action: ToastAction | null
-}
-type ToastDispatch = (toast: ToastPayload) => void
 
-let activeDispatch: ToastDispatch | null = null
-let pendingToast: ToastPayload | null = null
+export const toastManager = Toast.createToastManager()
 
-export function showToast(message: string, action: ToastAction | null = null): void {
-  const incoming = { message, action }
-  if (activeDispatch) {
-    activeDispatch(incoming)
-  } else {
-    pendingToast = incoming
-  }
-}
-
-export function registerToastDispatch(dispatch: ToastDispatch): () => void {
-  activeDispatch = dispatch
-  if (pendingToast) {
-    activeDispatch(pendingToast)
-    pendingToast = null
-  }
-
-  return () => {
-    if (activeDispatch === dispatch) activeDispatch = null
-  }
+export function showToast(title: string, action: ToastAction | null = null): void {
+  const toastId = toastManager.add({
+    title,
+    description: action?.description,
+    type: 'success',
+    actionProps: action
+      ? {
+          children: action.label,
+          onClick: () => {
+            toastManager.close(toastId)
+            void action.onClick()
+          }
+        }
+      : undefined
+  })
 }

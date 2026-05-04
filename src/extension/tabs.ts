@@ -14,6 +14,9 @@ import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import type { DashboardTab, TabSnapshot } from './types'
 
 type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'title' | 'pinned' | 'groupId' | 'windowId' | 'index'>
+type SnapshotOptions = {
+  includeTabOutUrls?: boolean
+}
 type CloseOptions = {
   preserveGroups?: boolean
 }
@@ -31,13 +34,16 @@ function tabIds(tabs: chrome.tabs.Tab[]): number[] {
 /**
  * snapshotChromeTabs(chromeTabs) — captures enough info per tab to
  * recreate it later via chrome.tabs.create() (used by undo). Skips
- * chrome:// and chrome-extension:// URLs since those aren't worth
- * recreating.
+ * chrome:// and chrome-extension:// URLs by default since those aren't
+ * worth recreating, except for Tab Out's new-tab URLs when the caller
+ * explicitly opts in.
  *
  * @param {Array<{ url?: string, title?: string, pinned?: boolean, groupId?: number, windowId: number, index?: number }>} chromeTabs
+ * @param {{ includeTabOutUrls?: boolean }} [opts]
  * @returns {TabSnapshot[]}
  */
-export function snapshotChromeTabs(chromeTabs: SnapshotTab[]): TabSnapshot[] {
+export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOptions = {}): TabSnapshot[] {
+  const { includeTabOutUrls = false } = opts
   return chromeTabs
     .map((t) => ({
       url: unwrapSuspenderUrl(t.url || ''),
@@ -47,7 +53,12 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[]): TabSnapshot[] {
       windowId: t.windowId,
       index: typeof t.index === 'number' ? t.index : undefined
     }))
-    .filter((s) => s.url && !s.url.startsWith('chrome://') && !s.url.startsWith('chrome-extension://'))
+    .filter((s) => {
+      if (!s.url) return false
+      if (s.url.startsWith('chrome://')) return includeTabOutUrls && s.url === 'chrome://newtab/'
+      if (!s.url.startsWith('chrome-extension://')) return true
+      return includeTabOutUrls && isTabOutUrl(s.url)
+    })
 }
 
 /**
@@ -319,7 +330,7 @@ export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: D
     )
   }
 
-  const snapshot = snapshotChromeTabs(toCloseTabs)
+  const snapshot = snapshotChromeTabs(toCloseTabs, { includeTabOutUrls: preservePinnedTabOut })
   if (toCloseTabs.length > 0) await chrome.tabs.remove(tabIds(toCloseTabs))
   await fetchOpenTabs()
   return snapshot

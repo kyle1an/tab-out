@@ -20,9 +20,11 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "clsx": "^2.1.1",
     "effect": "4.0.0-beta.59",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

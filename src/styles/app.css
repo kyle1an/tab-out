@@ -1,7 +1,5 @@
 @layer theme, utilities;
 
-/* Tailwind is prefixed so utility classes never collide with the app's
-   semantic component classes such as dashboard-main and mission-card. */
 @import "tailwindcss/theme.css" layer(theme);
 @import "../../extension/base.css";
 @import "../../extension/style.css";
@@ -12,7 +10,7 @@
   @tailwind utilities source(none);
 }
 
-@theme prefix(tw) {
+@theme {
   --font-sans: sans-serif;
   --default-font-family: sans-serif;
   --color-tab-ink: var(--ink);

@@ -3,7 +3,7 @@
 
    Each close action calls markClosure(snapshot, label) which:
      • stores the snapshot for one undo opportunity
-     • shows the toast with an inline Undo button
+     • shows the toast with a Base UI Undo action
    Clicking Undo runs undoLastClose() which recreates each closed tab
    via chrome.tabs.create({ active: false }) so the user stays on the
    dashboard. chrome.sessions.restore() would preserve scroll/history
@@ -70,6 +70,7 @@ export async function undoLastClose(): Promise<void> {
   if (n === 1 && firstId != null) {
     showToast(msg, {
       label: 'Switch',
+      description: 'Switch to the restored tab.',
       onClick: async () => {
         try {
           const tab = await chrome.tabs.get(firstId)
@@ -85,7 +86,7 @@ export async function undoLastClose(): Promise<void> {
 
 /**
  * markClosure(snapshot, label?) — record a close action for undo + show
- * the toast with an "Undo" button. Snapshot is the array returned by the
+ * the toast with an "Undo" action. Snapshot is the array returned by the
  * close functions; label is the toast text (defaults to "Closed N tabs").
  */
 export function markClosure(snapshot: TabSnapshot[], label?: string): void {
@@ -94,6 +95,7 @@ export function markClosure(snapshot: TabSnapshot[], label?: string): void {
   const n = snapshot.length
   showToast(label || `Closed ${n} tab${n !== 1 ? 's' : ''}`, {
     label: 'Undo',
+    description: 'You can undo this action.',
     onClick: undoLastClose
   })
 }
