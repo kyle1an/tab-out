@@ -15,6 +15,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(pkg.scripts?.build, 'vite build')
   assert.equal(pkg.scripts?.['build:debug'], 'vite build --sourcemap')
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
+  assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
   assert.match(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE=1/)
   assert.equal(pkg.scripts?.['verify:bundle'], 'git diff --exit-code -- extension/dist')
   assert.match(pkg.scripts?.verify, /pnpm lint/)
