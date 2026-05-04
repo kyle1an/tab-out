@@ -2,9 +2,9 @@
    Tab Out — Base layer
 
    Variables, reset, body, paper texture, and the pinned-top /
-   scroll-region skeleton. Loaded BEFORE style.css so every other
-   stylesheet can rely on `:root` custom properties and the layout
-   containers defined here.
+   scroll-region skeleton. Imported before style.css by src/styles/app.css
+   so every other stylesheet can rely on `:root` custom properties and the
+   layout containers defined here.
 
    Everything in this file is foundational — changing a rule here
    cascades to every card/chip/section. Feature-specific CSS lives

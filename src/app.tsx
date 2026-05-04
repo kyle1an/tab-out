@@ -1,3 +1,4 @@
+import './styles/app.css'
 import { mountToast } from './components/Toast'
 import { mountApp } from './components/App'
 import { requestDashboardRefresh } from './extension/dashboard-controller.js'

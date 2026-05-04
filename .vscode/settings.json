@@ -1,4 +1,8 @@
 {
+  "css.customData": [".vscode/tailwind-v4.css-data.json"],
+  "files.associations": {
+    "src/styles/app.css": "tailwindcss"
+  },
   "lit-plugin.rules.no-nullable-attribute-binding": "off",
   "lit-plugin.rules.no-incompatible-type-binding": "off"
 }

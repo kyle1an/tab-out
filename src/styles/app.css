@@ -1,0 +1,24 @@
+@layer theme, utilities;
+
+/* Tailwind is prefixed so utility classes never collide with the app's
+   semantic component classes such as dashboard-main and mission-card. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "../../extension/base.css";
+@import "../../extension/style.css";
+
+@source "../";
+
+@layer utilities {
+  @tailwind utilities source(none);
+}
+
+@theme prefix(tw) {
+  --font-sans: sans-serif;
+  --default-font-family: sans-serif;
+  --color-tab-ink: var(--ink);
+  --color-tab-paper: var(--paper);
+  --color-tab-muted: var(--muted);
+  --color-tab-card: var(--card-bg);
+  --color-tab-border: var(--warm-gray);
+  --color-tab-danger: var(--status-abandoned);
+}

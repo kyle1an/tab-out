@@ -83,6 +83,7 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 |------|-----|
 | Extension | Chrome Manifest V3 (service worker + new-tab override) |
 | Rendering | React + TSX source under `src/`, bundled by Vite into `extension/dist/app.js` |
+| Styling | Semantic CSS classes plus prefixed Tailwind v4 utilities, bundled by Vite into `extension/dist/assets/app.css` |
 | Service worker | Source under `src/extension/background.js`, bundled by Vite into `extension/dist/background.js` |
 | Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS confetti particles |
@@ -96,9 +97,9 @@ pnpm setup:hooks
 pnpm dev
 ```
 
-Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/`; Vite rebuilds the packaged `extension/dist/app.js` dashboard bundle and `extension/dist/background.js` service-worker bundle after each source change.
+Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/` or the extension stylesheets; the repo watcher runs Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
 
-Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `extension/manifest.json`, permissions, or service-worker behavior. Changes to `extension/style.css`, `extension/base.css`, or `extension/index.html` do not need a Vite rebuild, but Chrome still needs a page or extension reload to pick them up.
+Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `extension/manifest.json`, permissions, or service-worker behavior. Changes to `extension/style.css` and `extension/base.css` now flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Changes to `extension/index.html` still need a page or extension reload to be picked up.
 
 The `extension/` folder is the unpacked Chrome package surface. Runtime source lives under `src/`; generated bundles live under `extension/dist/`.
 
@@ -108,7 +109,7 @@ Before committing:
 pnpm verify
 ```
 
-`pnpm verify` rebuilds `extension/dist/app.js` and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
+`pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
 
 `pnpm setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `pnpm verify` before each commit, so stale bundled output is caught before it lands.
 

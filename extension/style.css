@@ -7,9 +7,9 @@
    model) are still Chrome-only APIs with no unprefixed equivalent.
 
    The base layer (CSS variables, reset, body, paper texture, pinned-
-   top / scroll-region skeleton) lives in base.css and is loaded
-   first. This file is being split incrementally into focused files
-   — base.css is the first extraction.
+   top / scroll-region skeleton) lives in base.css and is imported
+   first by src/styles/app.css. This file is being split incrementally
+   into focused files — base.css is the first extraction.
    ============================================================ */
 
 /* ---- Header ---- */
@@ -521,7 +521,7 @@ header {
   gap: 1px;
   background: transparent;
   color: rgba(115, 115, 115, 0.72);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
