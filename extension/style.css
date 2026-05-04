@@ -1518,9 +1518,9 @@ header {
   height: 16px;
   box-sizing: border-box;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 0;
+  padding: 1px 0 0;
   border: 2px solid var(--card-bg);
   border-radius: 999px;
   background: var(--accent-amber);
@@ -1534,7 +1534,7 @@ header {
 
 .chip-dupe-badge-wide {
   width: auto;
-  padding: 0 4px;
+  padding: 1px 4px 0;
   border-radius: 8px;
   corner-shape: squircle;
 }

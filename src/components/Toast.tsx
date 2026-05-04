@@ -24,7 +24,7 @@ function ToastList() {
       key={toast.id}
       toast={toast}
       className={cn(
-        "absolute right-0 bottom-0 left-auto mx-auto mr-0 box-border w-full cursor-default select-none rounded-lg border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] antialiased [-moz-osx-font-smoothing:grayscale] [-webkit-user-select:none] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] font-features-['ss02'_1,'zero'_1] [font-synthesis:none] origin-[bottom_center]",
+        "absolute right-0 bottom-0 left-auto mx-auto mr-0 box-border w-full cursor-default select-none rounded-3xl [corner-shape:squircle] border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] antialiased [-moz-osx-font-smoothing:grayscale] [-webkit-user-select:none] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] [font-synthesis:none] origin-[bottom_center]",
         '[--gap:0.75rem] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))] [--height:var(--toast-frontmost-height,var(--toast-height))]',
         '[--offset-y:calc(var(--toast-offset-y)*-1+(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] z-[calc(1000-var(--toast-index))] h-(--height)',
         'transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))]',
@@ -41,12 +41,12 @@ function ToastList() {
       <BaseToast.Content className="overflow-hidden [transition:opacity_0.25s] data-behind:opacity-0 data-expanded:opacity-100">
         <BaseToast.Title className="m-0 text-[0.975rem] leading-5 font-bold" />
         <BaseToast.Description className="m-0 text-[0.925rem] leading-5" />
-        <BaseToast.Action className="mt-2! inline-flex h-8 items-center justify-center rounded-sm border-0 bg-[oklch(12%_0.02_264deg/90%)] px-3! text-[0.875rem] leading-5 font-normal text-[oklch(98%_0.001_264deg)] focus-visible:outline-2! focus-visible:-outline-offset-1! focus-visible:outline-[oklch(45%_0.2_264deg)]!" />
+        <BaseToast.Action className="mt-2! inline-flex h-8 items-center justify-center rounded-xl [corner-shape:squircle] border-0 bg-[oklch(12%_0.02_264deg/90%)] px-3! text-[0.875rem] leading-5 font-normal text-[oklch(98%_0.001_264deg)] focus-visible:outline-2! focus-visible:-outline-offset-1! focus-visible:outline-[oklch(45%_0.2_264deg)]!" />
         <BaseToast.Close
-          className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-sm border-0 bg-transparent p-0 text-[oklch(12%_0.02_264deg/90%)] hover:bg-[oklch(12%_0.038_264deg/5%)]"
+          className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-transparent p-0 text-[oklch(12%_0.02_264deg/90%)] hover:bg-[oklch(12%_0.038_264deg/5%)]"
           aria-label="Close"
         >
-          <XIcon className="h-4 w-4" />
+          <XIcon className="h-3 w-3" />
         </BaseToast.Close>
       </BaseToast.Content>
     </BaseToast.Root>

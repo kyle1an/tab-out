@@ -57,6 +57,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 /* Subtle paper texture */
 body::before {
   content: '';
