@@ -250,7 +250,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   return (
     <div
       className={cn(
-        'page-chip clickable group/page-chip cursor-pointer transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]',
+        'page-chip clickable group/page-chip cursor-pointer transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]',
         isFolded && 'page-chip-folded after:hidden',
         chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
         chip.iconOnly && chip.isApp && 'overflow-visible outline-none'

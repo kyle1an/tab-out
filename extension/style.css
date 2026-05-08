@@ -431,16 +431,3 @@ header {
 .page-chip:has(.chip-actions):hover::after {
   opacity: 1;
 }
-
-/* ---- Keyboard focus ring ----
-   Scoped to :focus-visible so mouse clicks don't leave a lingering
-   outline — only keyboard Tab-nav reveals the ring. Covers native
-   controls plus the chip / env-pill focus targets, which opt in with
-   tabindex in PageChip.js. */
-button:focus-visible,
-.tab-filter:focus-visible,
-.page-chip:focus-visible,
-.chip-env:focus-visible {
-  outline: 2px solid var(--accent-amber);
-  outline-offset: 2px;
-}
