@@ -7,6 +7,7 @@ import { deleteHistorySourceUrl } from '../extension/history-source.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { Button } from './ui/Button'
+import { cn } from '../lib/cn'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
 
@@ -245,7 +246,6 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const chipLabel = [chip.tooltip, duplicateLabel].filter(Boolean).join(' · ')
-  const dupeBadgeClass = 'chip-dupe-badge' + (dupeCount > 9 ? ' chip-dupe-badge-wide' : '')
 
   return (
     <div
@@ -262,10 +262,21 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
       onBlur={onChipBlur}
     >
       {chip.faviconUrl && (
-        <span className={'chip-favicon-frame' + (chip.isApp ? ' is-app' : '')}>
-          <img className="chip-favicon" src={chip.faviconUrl} alt="" />
+        <span
+          className={cn(
+            'chip-favicon-frame relative grid h-4 w-4 shrink-0 place-items-center',
+            chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
+          )}
+        >
+          <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
           {!chip.iconOnly && dupeCount > 1 && (
-            <span className={dupeBadgeClass} aria-hidden="true">
+            <span
+              className={cn(
+                'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)]',
+                dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
+              )}
+              aria-hidden="true"
+            >
               {dupeCount}
             </span>
           )}

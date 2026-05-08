@@ -127,7 +127,6 @@ header {
 
 .domain-header .action-btn,
 .open-tabs-badge,
-.chip-dupe-badge,
 .page-chip-overflow,
 .pathgroup-header-count,
 .subdomain-header-count {
@@ -679,51 +678,6 @@ header {
    was reserved for the always-visible × is no longer needed. Text
    fades into the button area on hover via a mask (below). */
 
-/* Favicon — same display size as Chrome's tab favicon (16×16 CSS px).
-   With line-height 1.25 the line box is 13 × 1.25 ≈ 16.25px, so the
-   text's optical center sits at ~8.1px from the line-box top and a
-   16px favicon with no margin-top centers at 8px — essentially
-   perfect single-line alignment. On a wrapped two-line chip the
-   favicon still sits on the first line courtesy of the parent's
-   flex-start (see .page-chip above). */
-.chip-favicon-frame {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  position: relative;
-}
-
-.chip-favicon {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  border-radius: 0px;
-}
-
-/* Standalone-app tab indicator — a soft squircle outline around the
-   favicon signals "this tab runs in its own window (PWA / Chrome
-   app)." The frame owns the shape and the stroke; the image inside
-   stays square with no radius, so the visible gap reads as a true
-   inset rather than clipped icon corners. Use border here instead of
-   outline so icon-only app chips do not crop the stroke inside their
-   overflow-hidden parent. */
-.chip-favicon-frame.is-app {
-  width: 24px;
-  height: 24px;
-  /* Slightly larger inset for the stronger 12px squircle so the
-     favicon doesn't feel pinched into the corners. The resulting
-     radius step reads closer to a concentric nested shape instead of
-     a square icon pressed against a rounded frame. */
-  padding: 4px;
-  box-sizing: border-box;
-  border: 1px solid rgba(115, 115, 115, 0.32);
-  border-radius: 12px;
-  corner-shape: squircle;
-}
-
 .page-chip-icon-only {
   width: 24px;
   min-width: 24px;
@@ -744,16 +698,6 @@ header {
 .page-chip-icon-only:has(.chip-favicon-frame.is-app) {
   outline: none;
   overflow: visible;
-}
-
-.page-chip-icon-only .chip-favicon-frame {
-  width: 16px;
-  height: 16px;
-}
-
-.page-chip-icon-only .chip-favicon-frame.is-app {
-  width: 24px;
-  height: 24px;
 }
 
 .page-chip-icon-only::after {
@@ -827,40 +771,6 @@ header {
    a path — non-colliding chips stay at the compact 2-line height. */
 .page-chip:has(.chip-path) .chip-text {
   max-height: calc(3lh);
-}
-
-/* Duplicate badge — notification-bubble treatment on the favicon.
-   The count shows total open copies for this URL; the parent chip's
-   title/aria-label carries the full "open copies" wording. */
-.chip-dupe-badge {
-  position: absolute;
-  top: -7px;
-  right: -7px;
-  z-index: 1;
-  width: 16px;
-  min-width: 16px;
-  height: 16px;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 1px 0 0;
-  border: 2px solid var(--card-bg);
-  border-radius: 999px;
-  background: var(--accent-amber);
-  color: var(--card-bg);
-  box-shadow: 0 1px 2px rgba(10, 10, 10, 0.18);
-  font-size: 9px;
-  font-weight: 700;
-  line-height: 1;
-  pointer-events: none;
-}
-
-.chip-dupe-badge-wide {
-  width: auto;
-  padding: 1px 4px 0;
-  border-radius: 8px;
-  corner-shape: squircle;
 }
 
 /* Path suffix — rendered only when two tabs in the same section
