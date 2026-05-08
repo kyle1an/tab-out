@@ -6,6 +6,7 @@ import { SegmentedTabs } from './ui/SegmentedTabs'
 import { TextInput } from './ui/TextInput'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
+import { cn } from '../lib/cn'
 import type { DashboardSource, DashboardStats } from './types'
 
 interface SourceSwitchProps {
@@ -84,7 +85,6 @@ export function HeaderBar({
     return () => window.removeEventListener('keydown', onWindowKeyDown)
   }, [])
 
-  const wrapClass = 'tab-filter-wrap' + (filter ? ' has-value' : '')
   const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
 
   function onClear() {
@@ -116,28 +116,33 @@ export function HeaderBar({
           {showHistoryRange && (
             <SelectControl
               triggerClassName="history-range-select"
-              positionerClassName="history-range-positioner"
-              popupClassName="history-range-popup"
-              listClassName="history-range-list"
-              itemClassName="history-range-item"
+              positionerClassName="history-range-positioner z-[120]"
+              popupClassName="history-range-popup box-border max-h-[min(260px,var(--available-height))] min-w-[var(--anchor-width)] overflow-auto rounded-[12px] border border-[var(--warm-gray)] bg-tab-card p-1 shadow-[0_14px_36px_rgba(10,10,10,0.14)] outline-none [corner-shape:squircle]"
+              listClassName="history-range-list flex flex-col gap-0.5"
+              itemClassName="history-range-item box-border flex min-h-7 cursor-pointer items-center rounded-lg px-2.5 py-0 text-xs text-tab-muted outline-none [font-family:inherit] [corner-shape:squircle] data-[highlighted]:bg-[rgba(82,82,82,0.08)] data-[highlighted]:text-tab-ink data-[selected]:font-semibold data-[selected]:text-tab-ink"
               value={historyRange}
               options={HISTORY_RANGE_OPTIONS}
               ariaLabel="History search range"
               onValueChange={(nextRange) => onHistoryRangeChange?.(nextRange)}
             />
           )}
-          <div className={wrapClass}>
+          <div className={cn('tab-filter-wrap relative inline-flex items-center', filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex')}>
             <TextInput
               ref={inputRef}
               type="search"
-              className="tab-filter"
+              className="tab-filter box-border h-[var(--header-control-height)] w-[280px] rounded-[12px] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] text-[var(--ink)] outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-[var(--muted)] focus:border-[var(--accent-amber)] focus:bg-tab-card [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
               autoComplete="off"
               spellCheck="false"
               placeholder={filterPlaceholder}
               value={filter}
               onValueChange={updateFilter}
             />
-            <Button className="tab-filter-clear" title="Clear filter" aria-label="Clear filter" onClick={onClear}>
+            <Button
+              className="tab-filter-clear absolute top-1/2 right-1.5 hidden h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-tab-ink [&_svg]:h-3 [&_svg]:w-3"
+              title="Clear filter"
+              aria-label="Clear filter"
+              onClick={onClear}
+            >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
