@@ -190,10 +190,11 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       </header>
       <div className="mission-card">
         <div className="mission-pages flex flex-col gap-0">
-          {sections.map((section) => (
+          {sections.map((section, index) => (
             <SubdomainSection
               key={section.key || '__root__'}
               subdomainKey={section.key}
+              isFirst={index === 0}
               isPort={section.isPort}
               sectionCount={section.sectionCount}
               sectionClosableUrls={section.sectionClosableUrls}

@@ -682,31 +682,6 @@ header {
   top: calc(50% - 1px);
 }
 
-/* Subdomain section — groups chips that share a subdomain inside a
-   card. Only rendered as a visible sub-group when the card has 2+
-   subdomains (otherwise there's just one section, flat-rendered).
-   Non-first sections draw a hairline top border: since sections span
-   the full chip-column width and have no border-radius of their own,
-   a plain border-top lands clean without the rounded-edge problem
-   that pushed chip dividers toward pseudo-elements. */
-.subdomain-section + .subdomain-section {
-  border-top: 1px solid rgba(115, 115, 115, 0.12);
-  /* Breathing room above the separator so the previous section's
-     last chip doesn't press its hover background into the line. */
-  margin-top: 6px;
-}
-.subdomain-section + .subdomain-section > .flat-section:first-child {
-  /* Headerless sections need the same post-separator air that a
-     visible .subdomain-header would provide with its top padding. */
-  margin-top: 6px;
-}
-
-/* First section's header doesn't need the top padding — its edge is
-   already the card's own padding. */
-.subdomain-section:first-child .subdomain-header {
-  padding-top: 2px;
-}
-
 /* Right-edge overlay that reveals on chip hover when an action button is present. GPU-cheap opacity
    transition gives a smooth fade-in; the endpoint color matches the
    chip's COMPOSITE hover background (card-bg plus the faint

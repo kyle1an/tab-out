@@ -8,11 +8,12 @@ interface FlatSectionProps {
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
+  afterSeparator?: boolean
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
 
-export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
+export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const iconOnly = visibleChips.length > 0 && visibleChips.every((chip) => chip.iconOnly)
 
@@ -22,7 +23,14 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrl
   }
 
   return (
-    <div className={cn('flat-section flex flex-col', iconOnly && 'flat-section-icons flex-row flex-wrap gap-2.5')} data-expanded={expanded ? 'true' : undefined}>
+    <div
+      className={cn(
+        'flat-section flex flex-col',
+        afterSeparator && 'mt-1.5',
+        iconOnly && 'flat-section-icons flex-row flex-wrap gap-2.5'
+      )}
+      data-expanded={expanded ? 'true' : undefined}
+    >
       {visibleChips.map((chip) => (
         <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
       ))}

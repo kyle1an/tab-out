@@ -14,6 +14,7 @@ interface SubdomainCloseButtonProps {
 
 interface SubdomainSectionProps {
   subdomainKey: string
+  isFirst?: boolean
   isPort?: boolean
   sectionCount: number
   sectionClosableUrls: string[]
@@ -44,6 +45,7 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
 
 export function SubdomainSection({
   subdomainKey,
+  isFirst = false,
   isPort,
   sectionCount,
   sectionClosableUrls,
@@ -69,9 +71,20 @@ export function SubdomainSection({
   }
 
   return (
-    <div className="subdomain-section group/subdomain-section flex flex-col" data-kind={isPort ? 'port' : undefined}>
+    <div
+      className={cn(
+        'subdomain-section group/subdomain-section flex flex-col',
+        !isFirst && 'mt-1.5 border-t border-[rgba(115,115,115,0.12)]'
+      )}
+      data-kind={isPort ? 'port' : undefined}
+    >
       {showHeader && (
-        <div className="subdomain-header flex items-center gap-1.5 px-3 pt-1.5 pb-0.5 text-xs font-semibold tracking-[0.2px] text-tab-muted">
+        <div
+          className={cn(
+            'subdomain-header flex items-center gap-1.5 px-3 pb-0.5 text-xs font-semibold tracking-[0.2px] text-tab-muted',
+            isFirst ? 'pt-0.5' : 'pt-1.5'
+          )}
+        >
           <span
             className={cn(
               'subdomain-header-name',
@@ -91,6 +104,7 @@ export function SubdomainSection({
           visibleChips={flatVisibleChips}
           hiddenChips={flatHiddenChips}
           hiddenCount={flatHiddenCount}
+          afterSeparator={!isFirst && !showHeader}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
