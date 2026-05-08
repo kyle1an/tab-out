@@ -22,12 +22,12 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrl
   }
 
   return (
-    <div className={'flat-section' + (iconOnly ? ' flat-section-icons' : '')} data-expanded={expanded ? 'true' : undefined}>
+    <div className={cn('flat-section flex flex-col', iconOnly && 'flat-section-icons flex-row flex-wrap gap-2.5')} data-expanded={expanded ? 'true' : undefined}>
       {visibleChips.map((chip) => (
         <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
       ))}
       {hiddenCount > 0 && (
-        <div className="page-chips-overflow">
+        <div className={cn('page-chips-overflow', iconOnly && 'w-full', iconOnly && expanded && 'flex flex-wrap gap-2.5')}>
           {hiddenChips.map((chip) => (
             <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
           ))}

@@ -637,22 +637,6 @@ header {
   line-height: 1.25;
 }
 
-.flat-section.flat-section-icons {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.flat-section.flat-section-icons > .page-chips-overflow {
-  width: 100%;
-}
-
-.flat-section.flat-section-icons[data-expanded='true'] > .page-chips-overflow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
 /* Tab-group indicator — inset 2px vertical stripe, positioned inside
    the rounded chip so the chip's border-radius and the indicator can
    each have their own clean shape. Color comes from the `--group-color`
@@ -785,11 +769,6 @@ header {
    2+ chips share a path-level cluster (same repo, same Jira project,
    etc). One level deeper than .subdomain-section; the header reuses
    the pill style as its label, followed by a muted member count. */
-.pathgroup-section,
-.flat-section {
-  display: flex;
-  flex-direction: column;
-}
 .pathgroup-header {
   display: flex;
   align-items: center;

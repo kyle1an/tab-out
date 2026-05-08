@@ -52,7 +52,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
   }
 
   return (
-    <div className="pathgroup-section" data-expanded={expanded ? 'true' : undefined}>
+    <div className="pathgroup-section flex flex-col" data-expanded={expanded ? 'true' : undefined}>
       <div className="pathgroup-header">
         <span
           className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
