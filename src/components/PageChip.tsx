@@ -249,7 +249,11 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
 
   return (
     <div
-      className={'page-chip clickable group/page-chip' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
+      className={cn(
+        'page-chip clickable group/page-chip cursor-pointer transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)]',
+        isFolded && 'page-chip-folded after:hidden',
+        chip.iconOnly && 'page-chip-icon-only'
+      )}
       title={chipLabel}
       aria-label={chipLabel}
       style={style}

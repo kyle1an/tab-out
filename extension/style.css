@@ -736,23 +736,6 @@ header {
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
     linear-gradient(to right, black 0, black calc(100% - 60px), rgba(0, 0, 0, 0.35) calc(100% - 20px), transparent);
 }
-/* Folded chip's parent row reads as slightly heavier since it
-   stands for multiple tabs. No visual weight change right now —
-   the env-pill row already signals the fold — but keep a hook in
-   case we want to tune later. */
-.page-chip-folded {
-  /* placeholder for future tweaks */
-}
-
-/* No close button on folded chips (see PageChip.js), so the ::after
-   hover overlay — which only existed to cushion the × against the
-   text behind it — is pure noise here. The .chip-text's last-line
-   right-edge fade stays: that's the general truncation treatment
-   and is useful regardless of whether there's a close button. */
-.page-chip-folded::after {
-  display: none;
-}
-
 /* Path-group sub-section — nested inside a subdomain section when
    2+ chips share a path-level cluster (same repo, same Jira project,
    etc). One level deeper than .subdomain-section; the header reuses
@@ -836,15 +819,6 @@ header {
 }
 .page-chip:has(.chip-actions):hover::after {
   opacity: 1;
-}
-
-.page-chip.clickable {
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.page-chip.clickable:hover {
-  background: rgba(82, 82, 82, 0.04);
 }
 
 .action-btn {
