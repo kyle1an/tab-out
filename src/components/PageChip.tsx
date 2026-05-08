@@ -287,7 +287,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
         </span>
       )}
       {!chip.iconOnly && (
-        <span className={cn('chip-text', chip.pathSuffix && 'max-h-[calc(3lh)]')} ref={chipTextRef}>
+        <span className={cn("chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:'']", chip.pathSuffix && 'max-h-[calc(3lh)]')} ref={chipTextRef}>
           {isFolded && (
             <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
               {envs.map((env) => (

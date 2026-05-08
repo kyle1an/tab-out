@@ -41,7 +41,7 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrl
           )}
           onClick={onExpand}
         >
-          <span className="chip-text">+{hiddenCount} more</span>
+          <span className="chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:'']">+{hiddenCount} more</span>
         </Button>
       )}
     </div>

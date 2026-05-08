@@ -689,48 +689,6 @@ header {
   display: none;
 }
 
-/* Title text — wraps up to 2 lines, then the last line fades out on the
-   right in the style of Chrome's tab strip. We use max-height + overflow
-   (NOT -webkit-line-clamp) because line-clamp hard-codes a "…" ellipsis
-   that even a transparent mask only hides partially.
-   Two mask layers (composited with 'add' by default for a comma list):
-     • Top layer: opaque everywhere except the last 1lh, transparent.
-       Keeps non-last lines fully visible.
-     • Bottom layer: horizontal soft fade. On its own would fade every
-       line; unioned with the top layer only the last line fades.
-   Hover darkening of text behind the × button is handled by the
-   .page-chip::after overlay (below), not by swapping this mask —
-   animating gradient stops in a mask-image is either jumpy or
-   visually wobbly; transitioning a pseudo-element's opacity is
-   GPU-cheap and clean. */
-.chip-text {
-  flex: 1;
-  min-width: 0;
-  display: block;
-  max-height: calc(2lh);
-  overflow: hidden;
-  /* Default word-boundary breaking — short words never split
-     mid-character ("code" stays whole, no "c / ode"). For long
-     tokens the browser has two sources of additional break points:
-       • Dictionary hyphenation (hyphens: auto + <html lang="en">)
-         — natural syllable boundaries for real English words like
-         "internationalization" → "international / ization" instead
-         of arbitrary 5-char chunks.
-       • ZWSP injection (render.js:injectBreakPoints) — fallback
-         break points every 5 chars inside 15+ char tokens that
-         the dictionary doesn't know (GitHub usernames, hashes,
-         compound identifiers like "alicebobacme").
-     hyphenate-character: '' suppresses the visible "-" glyph that
-     hyphens: auto would normally render at break points, so both
-     dictionary and ZWSP breaks read as a clipped edge with no
-     hyphen marker — the right-edge mask fade covers the transition
-     on the last line, and upper-line breaks in long tokens just
-     end the line cleanly. */
-  word-break: normal;
-  hyphens: auto;
-  hyphenate-character: '';
-}
-
 .chip-text.chip-text-truncated {
   mask-image:
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
