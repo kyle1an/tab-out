@@ -30,8 +30,12 @@ interface SubdomainSectionProps {
 function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
-    <Button className="subdomain-close-btn" title={title} onClick={onClick}>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <Button
+      className="subdomain-close-btn grid h-[18px] w-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed]"
+      title={title}
+      onClick={onClick}
+    >
+      <svg className="block h-3 w-3 flex-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
     </Button>
@@ -65,9 +69,9 @@ export function SubdomainSection({
   }
 
   return (
-    <div className="subdomain-section flex flex-col" data-kind={isPort ? 'port' : undefined}>
+    <div className="subdomain-section group/subdomain-section flex flex-col" data-kind={isPort ? 'port' : undefined}>
       {showHeader && (
-        <div className="subdomain-header">
+        <div className="subdomain-header flex items-center gap-1.5 px-3 pt-1.5 pb-0.5 text-xs font-semibold tracking-[0.2px] text-tab-muted">
           <span
             className={cn(
               'subdomain-header-name',
