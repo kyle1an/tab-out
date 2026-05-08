@@ -181,7 +181,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
             {entry.favIconUrl && <img className="block h-full w-full object-contain" src={entry.favIconUrl} alt="" />}
           </span>
           <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
-            <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit]" ref={titleRef}>
+            <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
               {entry.title}
             </span>
             {badges.length > 0 && (

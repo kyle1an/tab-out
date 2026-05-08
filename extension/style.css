@@ -337,11 +337,6 @@ header {
   border-color: rgba(37, 99, 235, 0.42);
 }
 
-.history-entry-title.history-entry-title-truncated {
-  text-overflow: clip;
-  mask-image: linear-gradient(to right, black 0, black calc(100% - 14px), transparent);
-}
-
 @media (max-width: 900px) {
   .dashboard-shell.has-history {
     --dashboard-page-gutter: 20px;
