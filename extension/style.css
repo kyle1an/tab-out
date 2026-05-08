@@ -511,31 +511,6 @@ header {
   }
 }
 
-/* ---- Domain Block ----
-   Wraps the .domain-header and the .mission-card as a single masonry
-   unit. Carries the .is-app / .card-unmatched / .closing state so the
-   header dims / fades with the card as one visual unit. */
-.domain-block {
-  display: flex;
-  flex-direction: column;
-  /* Small gap between the header and the card. The header is visually
-     "attached" to its chip list — tight spacing keeps that connection
-     obvious; too much air would break the group. */
-  gap: 4px;
-  position: relative;
-}
-
-/* Block in the "Other tabs" grid — dimmed so the match set (primary
-   grid) stays the visual anchor; lifts on hover for inspection. */
-.domain-block.card-unmatched {
-  opacity: 0.45;
-  transition: opacity 0.2s ease;
-}
-
-.domain-block.card-unmatched:hover {
-  opacity: 1;
-}
-
 .mission-card {
   background: var(--card-bg);
   border: 1px solid var(--warm-gray);
@@ -761,57 +736,6 @@ header {
   pointer-events: none;
 }
 
-/* ---- Domain header ----
-   Title + subdomain pill + tab badge + Dedupe-N in one flowing row,
-   with `flex-wrap: wrap` so siblings spill onto a second row only
-   when they don't fit next to the title. Flush-left with the card
-   edge (padding:0). Close× is absolute-positioned (see .card-close-btn)
-   so it never participates in this flow.
-
-   With natural flex-basis (no 100% override), a short card like
-   github.com renders in one row — "github.com · 23 · Dedupe 2" all
-   inline — and a card with extra metadata like atlassian.net
-   ("atlassian.net · examplecorp. · 34 · Dedupe 1") wraps whichever
-   item doesn't fit to row 2. The header height auto-adjusts from ~22 px
-   (one row) to ~52 px (two rows) per card.
-
-   column-gap / row-gap split so the wrap gap (4 px) is tighter than
-   the horizontal gap (10 px) — siblings that wrapped still read as
-   one header unit with the title above. */
-.domain-header {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-  column-gap: 10px;
-  row-gap: 4px;
-  padding: 0;
-  min-width: 0;
-}
-
-/* Title is the section header for its chip list — typographically
-   promoted from the in-card 14 px to 15 px so it carries the weight
-   of a header rather than a co-equal badge. Tracking eased slightly
-   (0.2 → 0.1) because glyph crowding eases at the larger size.
-
-   `flex: 0 1 auto` = natural-content-width, shrinks if forced. With
-   `min-width: 0` + overflow/ellipsis/nowrap the title truncates
-   cleanly when even after wrapping there still isn't room for it —
-   rare, but possible on really tight column widths. */
-.mission-name {
-  flex: 0 1 auto;
-  min-width: 0;
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--ink);
-  letter-spacing: 0.1px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  line-height: 22px;
-}
-
 /* All header items — subdomain pill, tab badge, app badge, Dedupe-N
    button, and the absolute-positioned close × — share a fixed 22 px
    height. Without this, the Dedupe button (`padding: 5px 12px` + 1 px
@@ -839,90 +763,6 @@ header {
   padding-bottom: 0;
 }
 
-.domain-pin-btn {
-  width: 22px;
-  min-width: 22px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  corner-shape: squircle;
-  cursor: pointer;
-  opacity: 0.35;
-  transition:
-    opacity 0.2s ease-out,
-    color 0.2s ease-out,
-    background 0.2s ease-out,
-    border-color 0.2s ease-out;
-}
-
-.domain-block:hover .domain-pin-btn,
-.domain-pin-btn:focus-visible,
-.domain-pin-btn.is-pinned {
-  opacity: 1;
-}
-
-.domain-pin-btn:hover {
-  color: var(--ink);
-  background: rgba(82, 82, 82, 0.06);
-  border-color: var(--warm-gray);
-}
-
-.domain-pin-btn.is-pinned {
-  color: var(--ink);
-  background: rgba(82, 82, 82, 0.08);
-  border-color: var(--warm-gray);
-}
-
-.domain-pin-btn svg {
-  width: 13px;
-  height: 13px;
-}
-
-.domain-fixed-indicator {
-  width: 22px;
-  min-width: 22px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-  background: rgba(82, 82, 82, 0.06);
-  border: 1px solid var(--warm-gray);
-  border-radius: 8px;
-  corner-shape: squircle;
-  opacity: 0.78;
-}
-
-.domain-fixed-indicator svg {
-  width: 13px;
-  height: 13px;
-}
-
-/* Subdomain pill — rendered in the card header when the card rolls
-   up to a single non-empty subdomain (e.g. card title "example.com",
-   pill "dev2ca"). Replaces the repeated per-chip prefix, which reads
-   as noise on a single-section card. Styling mirrors .open-tabs-badge
-   so the two pills form a consistent trailing-metadata row. */
-.mission-subdomain {
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-  /* Lighter than .chip-pathgroup (0.1) so subdomain pills read as a
-     distinct family from cluster-label pills — subdomains are
-     hostname-context, pathgroups are content-clusters. */
-  background: rgba(82, 82, 82, 0.04);
-  padding: 2px 8px;
-  border-radius: 6px;
-  corner-shape: squircle;
-}
-
 /* Hostname-suffix cue — same treatment as .subdomain-header-name and
    .chip-env: a thinner, dimmer trailing "." so the pill reads as
    "dev2us.<domain>" rather than a bare subdomain fragment. Visually
@@ -946,48 +786,6 @@ header {
 
 .mission-subdomain.is-port::after {
   content: none;
-}
-
-/* Tab indicator badge — shows how many Chrome tabs are still open for this mission */
-.open-tabs-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--accent-amber);
-  background: rgba(82, 82, 82, 0.08);
-  padding: 2px 8px;
-  border-radius: 6px;
-  corner-shape: squircle;
-}
-
-.tab-count-badge-filtered {
-  gap: 0;
-}
-
-.tab-count-badge-current {
-  color: var(--accent-amber);
-  font-weight: 700;
-}
-
-.tab-count-badge-total {
-  color: var(--muted);
-  font-weight: 500;
-  opacity: 0.8;
-}
-
-.mission-summary {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
-  margin-bottom: 8px;
-}
-
-.mission-pages {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
 }
 
 /* ---- Tab row — each tab is a full-width row with favicon, title, and actions ---- */

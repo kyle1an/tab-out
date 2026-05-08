@@ -5,6 +5,7 @@ import { tabMatchesFilter } from '../extension/render.js'
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { SubdomainSection } from './SubdomainSection'
 import { Button } from './ui/Button'
+import { cn } from '../lib/cn'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
@@ -33,15 +34,21 @@ function TabBadge({ label, title }: { label?: string | number; title?: string })
   const slashIndex = labelText.indexOf('/')
   if (slashIndex > 0) {
     return (
-      <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered" title={title}>
-        <span className="tab-count-badge-current">{labelText.slice(0, slashIndex)}</span>
-        <span className="tab-count-badge-total">{labelText.slice(slashIndex)}</span>
+      <span
+        className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0.5 text-[12px] font-medium text-[var(--accent-amber)] [corner-shape:squircle]"
+        title={title}
+      >
+        <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
+        <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
       </span>
     )
   }
 
   return (
-    <span className="open-tabs-badge tab-count-badge" title={title}>
+    <span
+      className="open-tabs-badge tab-count-badge inline-flex items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0.5 text-[12px] font-medium text-[var(--accent-amber)] [corner-shape:squircle]"
+      title={title}
+    >
       {labelText}
     </span>
   )
@@ -62,13 +69,16 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
   const title = `${action} ${displayName}`
   return (
     <Button
-      className={'domain-pin-btn' + (pinned ? ' is-pinned' : '')}
+      className={cn(
+        'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.35] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:opacity-100 hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink focus-visible:opacity-100',
+        pinned && 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100'
+      )}
       title={title}
       aria-label={title}
       aria-pressed={pinned ? 'true' : 'false'}
       onClick={onClick}
     >
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+      <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
       </svg>
     </Button>
@@ -77,8 +87,13 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
 
 function FixedIndicator({ displayName }: { displayName?: string }) {
   return (
-    <span className="domain-fixed-indicator" role="img" aria-label={`${displayName} is fixed at the top`} title={`${displayName} is fixed at the top`}>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <span
+      className="domain-fixed-indicator inline-flex h-[22px] w-[22px] min-w-[22px] items-center justify-center rounded-lg border border-[var(--warm-gray)] bg-[rgba(82,82,82,0.06)] p-0 text-tab-muted opacity-[0.78] [corner-shape:squircle]"
+      role="img"
+      aria-label={`${displayName} is fixed at the top`}
+      title={`${displayName} is fixed at the top`}
+    >
+      <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
       </svg>
     </span>
@@ -137,21 +152,39 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     await onTogglePinnedDomain?.(group.domain)
   }
 
-  const classList = `domain-block${vm.displayMode === 'unmatched' ? ' card-unmatched' : ''}${isAppsCard ? ' domain-block-apps' : ''}${isFixedCard ? ' domain-block-fixed' : ''}${group.pinned ? ' domain-block-pinned' : ''}`
-
   return (
-    <div className={classList} data-domain-id={vm.stableId}>
-      <header className="domain-header">
-        <span className="mission-name">{displayName}</span>
+    <div
+      className={cn(
+        'domain-block group/domain-block relative flex flex-col gap-1',
+        vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
+        isAppsCard && 'domain-block-apps',
+        isFixedCard && 'domain-block-fixed',
+        group.pinned && 'domain-block-pinned'
+      )}
+      data-domain-id={vm.stableId}
+    >
+      <header className="domain-header flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1 p-0">
+        <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-semibold tracking-[0.1px] text-tab-ink">
+          {displayName}
+        </span>
         {isFixedCard && <FixedIndicator displayName={displayName} />}
         {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
-        {vm.singleSubdomainKey && <span className={'mission-subdomain' + (vm.singleSubdomainIsPort ? ' is-port' : '')}>{vm.singleSubdomainKey}</span>}
+        {vm.singleSubdomainKey && (
+          <span
+            className={cn(
+              'mission-subdomain inline-flex items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0.5 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
+              vm.singleSubdomainIsPort && 'is-port'
+            )}
+          >
+            {vm.singleSubdomainKey}
+          </span>
+        )}
         <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
         {closableExtras > 0 && <DedupButton count={closableExtras} onClick={onDedup} />}
         {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
       </header>
       <div className="mission-card">
-        <div className="mission-pages">
+        <div className="mission-pages flex flex-col gap-0">
           {sections.map((section) => (
             <SubdomainSection
               key={section.key || '__root__'}
