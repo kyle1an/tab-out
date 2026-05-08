@@ -120,6 +120,7 @@ export function SubdomainSection({
           hiddenChips={cluster.hiddenChips}
           hiddenCount={cluster.hiddenCount}
           className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
+          isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />

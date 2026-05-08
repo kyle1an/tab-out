@@ -664,24 +664,6 @@ header {
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
     linear-gradient(to right, black 0, black calc(100% - 60px), rgba(0, 0, 0, 0.35) calc(100% - 20px), transparent);
 }
-/* Path-group sub-section — nested inside a subdomain section when
-   2+ chips share a path-level cluster (same repo, same Jira project,
-   etc). One level deeper than .subdomain-section; the header reuses
-   the pill style as its label, followed by a muted member count. */
-/* If the very first content block in the card is a pathgroup section,
-   the card's own padding already supplies the top breathing room. Drop
-   the header's top padding in that one case so the cluster label sits
-   on the same visual start line as a normal first chip row. */
-.mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-header {
-  padding-top: 0;
-}
-/* The first-pathgroup header trims only its top padding, leaving a
-   slightly bottom-heavy box. Nudge just that close button up 1px so
-   it stays optically centered on the label row. */
-.mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-close-btn {
-  top: calc(50% - 1px);
-}
-
 /* Right-edge overlay that reveals on chip hover when an action button is present. GPU-cheap opacity
    transition gives a smooth fade-in; the endpoint color matches the
    chip's COMPOSITE hover background (card-bg plus the faint

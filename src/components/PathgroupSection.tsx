@@ -9,6 +9,7 @@ import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } fr
 
 interface PathgroupCloseButtonProps {
   count: number
+  isFirstContent?: boolean
   onClick: () => void | Promise<void>
 }
 
@@ -21,15 +22,19 @@ interface PathgroupSectionProps {
   hiddenChips: DashboardChipData[]
   hiddenCount: number
   className?: string
+  isFirstContent?: boolean
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
 
-function PathgroupCloseButton({ count, onClick }: PathgroupCloseButtonProps) {
+function PathgroupCloseButton({ count, isFirstContent = false, onClick }: PathgroupCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
     <Button
-      className="pathgroup-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]"
+      className={cn(
+        'pathgroup-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
+        isFirstContent && 'top-[calc(50%_-_1px)]'
+      )}
       title={title}
       onClick={onClick}
     >
@@ -40,7 +45,7 @@ function PathgroupCloseButton({ count, onClick }: PathgroupCloseButtonProps) {
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
@@ -59,7 +64,12 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
 
   return (
     <div className={cn('pathgroup-section group/pathgroup-section flex flex-col', className)} data-expanded={expanded ? 'true' : undefined}>
-      <div className="pathgroup-header relative flex items-center gap-1.5 pt-[3px] pr-6 pb-0.5 pl-0">
+      <div
+        className={cn(
+          'pathgroup-header relative flex items-center gap-1.5 pr-6 pb-0.5 pl-0',
+          isFirstContent ? 'pt-0' : 'pt-[3px]'
+        )}
+      >
         <span
           className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
           title={label}
@@ -72,7 +82,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
           </span>
         )}
         <span className="pathgroup-header-count text-xs tabular-nums text-tab-muted opacity-70">{count}</span>
-        {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} onClick={onCloseCluster} />}
+        {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} isFirstContent={isFirstContent} onClick={onCloseCluster} />}
       </div>
       {visibleChips.map((chip) => (
         <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
