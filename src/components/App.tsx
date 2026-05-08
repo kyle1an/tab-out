@@ -200,7 +200,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   }
 
   const showTabHistory = isReady && source === 'tabs'
-  const dashboardShellClass = ['dashboard-shell', showTabHistory ? 'has-history' : '', source === 'bookmarks' ? 'is-bookmarks' : ''].filter(Boolean).join(' ')
   const primaryMissionsEmpty = matchedCards.length === 0
   const bookmarkMatchesFlush = primaryMissionsEmpty
   const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
@@ -216,7 +215,13 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
   return (
     <>
-      <div className={dashboardShellClass}>
+      <div
+        className={cn(
+          'dashboard-shell',
+          showTabHistory && 'has-history max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:6px] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0',
+          source === 'bookmarks' && 'is-bookmarks'
+        )}
+      >
         {showTabHistory && (
           <TabHistoryPanel
             snapshot={tabHistory}
@@ -225,8 +230,14 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
             onTabsChange={() => refreshDashboard({ animateCards: true })}
           />
         )}
-        <div className="dashboard-main">
-          <div className={'pinned-top' + (isScrolled ? ' is-scrolled' : '')}>
+        <div className={cn('dashboard-main', showTabHistory && 'max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1] max-[900px]:[.dashboard-shell.has-history_&]:px-[var(--dashboard-page-gutter)]')}>
+          <div
+            className={cn(
+              'pinned-top',
+              isScrolled && 'is-scrolled',
+              showTabHistory && 'max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:px-[var(--dashboard-edge-bleed)]'
+            )}
+          >
             <HeaderBar
               source={source}
               totalTabs={stats.totalTabs}
@@ -252,7 +263,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
             />
           </div>
 
-          <div className="scroll-region" ref={scrollRegionRef}>
+          <div className="scroll-region max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1" ref={scrollRegionRef}>
             {isReady && (
               <>
                 <MissionsGrid empty={primaryMissionsEmpty} id="openTabsMissions" ref={primaryMissionsRef}>

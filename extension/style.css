@@ -100,43 +100,6 @@
     transform 0.2s ease-in-out;
 }
 
-@media (max-width: 900px) {
-  .dashboard-shell.has-history {
-    --dashboard-page-gutter: 20px;
-    --dashboard-history-edge-gutter: 12px;
-    --dashboard-scrollbar-inset: 6px;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
-
-  .dashboard-shell.has-history .dashboard-main,
-  .dashboard-shell.has-history .tab-history-panel {
-    grid-column: 1;
-  }
-
-  .dashboard-shell.has-history .dashboard-main {
-    padding-left: var(--dashboard-page-gutter);
-    padding-right: var(--dashboard-page-gutter);
-  }
-
-  .dashboard-shell.has-history .dashboard-main > .pinned-top {
-    --header-shadow-padding-fade: var(--dashboard-edge-bleed);
-    --header-shadow-left-reserve: var(--dashboard-edge-bleed);
-    margin-left: calc(0px - var(--dashboard-edge-bleed));
-    padding-left: var(--dashboard-edge-bleed);
-    padding-right: var(--dashboard-edge-bleed);
-  }
-
-  .dashboard-main > .scroll-region {
-    margin-right: calc(var(--dashboard-scrollbar-inset) - var(--dashboard-edge-bleed));
-    padding-right: calc(var(--dashboard-edge-bleed) - var(--dashboard-scrollbar-inset));
-  }
-
-  .dashboard-main > .scroll-region::-webkit-scrollbar {
-    width: 4px;
-  }
-}
-
 /* ---- Mission Cards ---- */
 .missions.is-packed .domain-block.layout-moving {
   z-index: 3;
