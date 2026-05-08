@@ -291,23 +291,6 @@ header {
 }
 
 /* ---- Activation history ---- */
-.history-entry-list::-webkit-scrollbar {
-  width: 2px;
-}
-
-.history-entry-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.history-entry-list::-webkit-scrollbar-thumb {
-  background: rgba(115, 115, 115, 0.28);
-  border-radius: 999px;
-}
-
-.history-entry-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(115, 115, 115, 0.4);
-}
-
 .history-entry::after {
   content: '';
   position: absolute;
@@ -391,8 +374,7 @@ header {
     padding-right: calc(var(--dashboard-edge-bleed) - var(--dashboard-scrollbar-inset));
   }
 
-  .dashboard-main > .scroll-region::-webkit-scrollbar,
-  .tab-history-panel .history-entry-list::-webkit-scrollbar {
+  .dashboard-main > .scroll-region::-webkit-scrollbar {
     width: 4px;
   }
 }
