@@ -125,7 +125,6 @@ header {
     transform 0.2s ease-in-out;
 }
 
-.domain-header .action-btn,
 .open-tabs-badge {
   font-variant-numeric: tabular-nums;
 }
@@ -561,7 +560,6 @@ header {
    out-of-flow at top:0) aligns perfectly with the row it overlays. */
 .domain-header .mission-subdomain,
 .domain-header .tab-count-badge,
-.domain-header .action-btn,
 .domain-header .domain-pin-btn,
 .domain-header .domain-fixed-indicator {
   height: 22px;
@@ -695,74 +693,6 @@ header {
 }
 .page-chip:has(.chip-actions):hover::after {
   opacity: 1;
-}
-
-.action-btn {
-  font-size: 12px;
-  font-family: sans-serif;
-  font-weight: 500;
-  padding: 5px 12px;
-  border-radius: 10px;
-  corner-shape: squircle;
-  border: 1px solid var(--warm-gray);
-  background: var(--card-bg);
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.2s;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.action-btn:hover {
-  border-color: var(--ink);
-  color: var(--ink);
-}
-
-.action-btn svg {
-  width: 12px;
-  height: 12px;
-}
-
-.action-btn.primary {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-}
-
-.action-btn.primary:hover {
-  opacity: 0.85;
-}
-
-.action-btn.close-tabs {
-  border-color: rgba(82, 82, 82, 0.3);
-  color: var(--accent-amber);
-  background: rgba(82, 82, 82, 0.04);
-}
-
-.action-btn.close-tabs:hover {
-  background: rgba(82, 82, 82, 0.1);
-  border-color: var(--accent-amber);
-}
-
-.action-btn.save-tabs {
-  border-color: rgba(90, 122, 98, 0.3);
-  color: var(--accent-sage);
-  background: rgba(90, 122, 98, 0.04);
-}
-
-.action-btn.save-tabs:hover {
-  background: rgba(90, 122, 98, 0.1);
-  border-color: var(--accent-sage);
-}
-
-.action-btn.danger {
-  color: var(--status-abandoned);
-}
-
-.action-btn.danger:hover {
-  border-color: var(--status-abandoned);
-  color: var(--status-abandoned);
 }
 
 /* ---- Animations ----

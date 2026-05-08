@@ -63,7 +63,11 @@ function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEven
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
-    <Button className="action-btn" title={title} onClick={onClick}>
+    <Button
+      className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink"
+      title={title}
+      onClick={onClick}
+    >
       {label}
     </Button>
   )
