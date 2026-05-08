@@ -48,18 +48,6 @@ function getHistoryTitleResizeObserver() {
   return historyTitleResizeObserver
 }
 
-function entryClass(entry: TabHistoryEntry) {
-  return [
-    'history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[18px] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.04)] text-tab-ink transition-[background,border-color,box-shadow] duration-150 ease-[ease] [corner-shape:squircle]',
-    entry.current ? 'is-current' : '',
-    entry.active ? 'is-active' : '',
-    entry.previousTarget ? 'is-previous-target' : '',
-    entry.nextTarget ? 'is-next-target' : ''
-  ]
-    .filter(Boolean)
-    .join(' ')
-}
-
 function entryBadges(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null) {
   const badges = []
   if (entry.active && !entry.current) badges.push('Active')
@@ -171,7 +159,15 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
       <span className="inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-[11px] font-medium tabular-nums text-[rgba(115,115,115,0.72)] group-hover/history-row:text-tab-muted group-focus-within/history-row:text-tab-muted">
         {indexLabel}
       </span>
-      <div className={entryClass(entry)}>
+      <div
+        className={cn(
+          'history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[18px] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.04)] text-tab-ink transition-[background,border-color,box-shadow] duration-150 ease-[ease] [corner-shape:squircle]',
+          entry.current && 'is-current border-[var(--accent-amber)] bg-tab-card shadow-[inset_0_0_0_1px_rgba(82,82,82,0.16)]',
+          entry.active && 'is-active',
+          entry.previousTarget && 'is-previous-target border-[rgba(22,163,74,0.45)]',
+          entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]'
+        )}
+      >
         <Button
           className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight disabled:cursor-default"
           disabled={!entry.exists}
