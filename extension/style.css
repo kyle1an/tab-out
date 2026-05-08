@@ -99,22 +99,3 @@
     width 0.2s ease-in-out,
     transform 0.2s ease-in-out;
 }
-
-/* ---- Mission Cards ---- */
-.missions.is-packed .domain-block.layout-moving {
-  z-index: 3;
-  transition: none;
-  will-change: transform;
-}
-
-.missions.is-packed .domain-block.layout-moving.layout-moving-active {
-  transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .missions.is-packed .domain-block.layout-moving,
-  .missions.is-packed .domain-block.layout-moving.layout-moving-active {
-    transition: none;
-    transform: none;
-  }
-}

@@ -54,11 +54,10 @@ test('shouldAnimateMasonryResize only changes when the column count changes', ()
 
 test('masonry card motion uses transform instead of layout-property transitions', () => {
   const css = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const activeMoveRule = css.match(/\.missions\.is-packed \.domain-block\.layout-moving\.layout-moving-active\s*\{([^}]*)\}/)
+  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
 
-  assert.ok(activeMoveRule)
-  assert.match(activeMoveRule[1], /transform 0\.28s/)
-  assert.doesNotMatch(activeMoveRule[1], /\b(top|left|width)\s+0\.\d+s/)
+  assert.match(domainCardSource, /\[\.missions\.is-packed_&\.layout-moving\.layout-moving-active\]:\[transition:transform_0\.28s_cubic-bezier\(0\.2,0,0,1\)\]/)
+  assert.doesNotMatch(domainCardSource, /\b(?:top|left|width)_0\.\d+s/)
   assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })
 
