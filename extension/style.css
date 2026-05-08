@@ -126,9 +126,7 @@ header {
 }
 
 .domain-header .action-btn,
-.open-tabs-badge,
-.pathgroup-header-count,
-.subdomain-header-count {
+.open-tabs-badge {
   font-variant-numeric: tabular-nums;
 }
 
@@ -790,12 +788,6 @@ header {
 .mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-header {
   padding-top: 0;
 }
-.pathgroup-header-count {
-  font-size: 12px;
-  color: var(--muted);
-  opacity: 0.7;
-}
-
 /* Cluster-level close — round, hidden by default, fades in on
    section hover. Absolute positioning keeps it out of the flex
    flow so the label/count row stays stable as the action appears.
@@ -899,11 +891,6 @@ header {
   color: var(--muted);
   letter-spacing: 0.2px;
 }
-.subdomain-header-count {
-  opacity: 0.55;
-  font-weight: 500;
-}
-
 /* Trailing "." after a subdomain name ("dev2us.") evokes the
    FQDN-style absolute-name notation where the missing suffix is
    implied by context (card title / base domain). Thinner + dimmer

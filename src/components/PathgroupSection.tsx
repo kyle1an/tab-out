@@ -65,7 +65,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
             PRs
           </span>
         )}
-        <span className="pathgroup-header-count">{count}</span>
+        <span className="pathgroup-header-count text-xs tabular-nums text-tab-muted opacity-70">{count}</span>
         {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} onClick={onCloseCluster} />}
       </div>
       {visibleChips.map((chip) => (

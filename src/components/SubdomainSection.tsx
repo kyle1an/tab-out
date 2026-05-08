@@ -68,7 +68,7 @@ export function SubdomainSection({
       {showHeader && (
         <div className="subdomain-header">
           <span className="subdomain-header-name">{headerLabel}</span>
-          <span className="subdomain-header-count">{sectionCount}</span>
+          <span className="subdomain-header-count font-medium tabular-nums opacity-[0.55]">{sectionCount}</span>
           {hasClose && <SubdomainCloseButton count={sectionClosableUrls.length} onClick={onCloseSubdomain} />}
         </div>
       )}
