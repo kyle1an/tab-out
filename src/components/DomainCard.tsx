@@ -194,7 +194,13 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
         {closableExtras > 0 && <DedupButton count={closableExtras} onClick={onDedup} />}
         {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
       </header>
-      <div className="mission-card">
+      <div
+        className={cn(
+          'mission-card relative flex flex-col gap-2 overflow-hidden rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
+          isAppsCard ? 'p-[7px]' : 'p-2 group-hover/domain-block:shadow-[0_2px_6px_var(--shadow)]',
+          (isFixedCard || group.pinned) && 'border-[rgba(82,82,82,0.32)]'
+        )}
+      >
         <div className="mission-pages flex flex-col gap-0">
           {sections.map((section, index) => (
             <SubdomainSection

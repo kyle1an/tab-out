@@ -416,53 +416,6 @@ header {
   }
 }
 
-.mission-card {
-  background: var(--card-bg);
-  border: 1px solid var(--warm-gray);
-  /* Concentric nesting: outerRadius − padding = innerRadius. Card 22
-     minus symmetric 8px padding lands the implied inner at 14, close
-     enough to .page-chip's 10 for the chip's outer curve to read as
-     sharing a center with the card's inner curve. */
-  border-radius: 22px;
-  corner-shape: squircle;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition:
-    box-shadow 0.25s ease,
-    transform 0.25s ease;
-  /* No cursor: pointer here — the card itself isn't a click target.
-     Actual clickable descendants (chips, buttons, env pills) carry
-     their own cursor: pointer, so hovering blank card area now shows
-     the default arrow like any non-interactive surface. */
-  position: relative;
-  overflow: hidden;
-}
-
-/* Hover shadow lifted to the block level — hovering the header (which
-   sits above the card, outside its border) also lifts the card, so
-   the block reads as one cohesive hover target. */
-.domain-block:hover .mission-card {
-  /* Middle ground between the prior heavy 0 2px 8px and the too-soft
-     0 1px 4px. Keeps the 2px y-offset for a clear "lift" cue, drops
-     the blur 8 → 6 so it doesn't spill as far. */
-  box-shadow: 0 2px 6px var(--shadow);
-}
-
-.domain-block-pinned .mission-card,
-.domain-block-fixed .mission-card {
-  border-color: rgba(82, 82, 82, 0.32);
-}
-
-.domain-block-apps:hover .mission-card {
-  box-shadow: none;
-}
-
-.domain-block-apps .mission-card {
-  padding: 7px;
-}
-
 /* ---- Tab row — each tab is a full-width row with favicon, title, and actions ---- */
 .page-chip {
   font-family: inherit;
