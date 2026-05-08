@@ -4,6 +4,7 @@ import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
 import { markClosure } from '../extension/undo.js'
 import { PageChip } from './PageChip'
 import { Button } from './ui/Button'
+import { cn } from '../lib/cn'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface PathgroupCloseButtonProps {
@@ -19,6 +20,7 @@ interface PathgroupSectionProps {
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
+  className?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -38,7 +40,7 @@ function PathgroupCloseButton({ count, onClick }: PathgroupCloseButtonProps) {
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
@@ -56,7 +58,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
   }
 
   return (
-    <div className="pathgroup-section group/pathgroup-section flex flex-col" data-expanded={expanded ? 'true' : undefined}>
+    <div className={cn('pathgroup-section group/pathgroup-section flex flex-col', className)} data-expanded={expanded ? 'true' : undefined}>
       <div className="pathgroup-header relative flex items-center gap-1.5 pt-[3px] pr-6 pb-0.5 pl-0">
         <span
           className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"

@@ -95,7 +95,7 @@ export function SubdomainSection({
           onLayoutChange={onLayoutChange}
         />
       )}
-      {clusters.map((cluster) => (
+      {clusters.map((cluster, index) => (
         <PathgroupSection
           key={cluster.key}
           label={cluster.label}
@@ -105,6 +105,7 @@ export function SubdomainSection({
           visibleChips={cluster.visibleChips}
           hiddenChips={cluster.hiddenChips}
           hiddenCount={cluster.hiddenCount}
+          className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />

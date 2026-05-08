@@ -754,15 +754,6 @@ header {
   top: calc(50% - 1px);
 }
 
-/* Breathing room between adjacent path groups. These groups no
-   longer draw their own separator line; the gap lets each small
-   label row read as a lightweight cluster inside the subdomain. */
-.pathgroup-section + .pathgroup-section,
-.flat-section + .pathgroup-section,
-.pathgroup-section + .flat-section {
-  margin-top: 2px;
-}
-
 /* Subdomain section — groups chips that share a subdomain inside a
    card. Only rendered as a visible sub-group when the card has 2+
    subdomains (otherwise there's just one section, flat-rendered).
