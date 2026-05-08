@@ -13,6 +13,7 @@ import {
   isHistoryFilterEnabled
 } from '../src/extension/history-source.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
+import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import type { DashboardTab } from '../src/extension/types'
@@ -485,6 +486,66 @@ test('history filter off skips Chrome history search', async () => {
     if (originalHistory === undefined) delete (globalThis.chrome as any).history
     else (globalThis.chrome as any).history = originalHistory
   }
+})
+
+test('filter search request owns bookmark and history inclusion rules', () => {
+  assert.deepEqual(
+    buildFilterSearchRequest({
+      source: 'tabs',
+      filter: ' openai ',
+      historyRange: '7d',
+      historyFilterEnabled: true
+    }),
+    {
+      query: ' openai ',
+      historyQuery: 'openai',
+      historyRange: '7d',
+      includeBookmarkMatches: true,
+      includeHistoryMatches: true
+    }
+  )
+
+  assert.deepEqual(
+    buildFilterSearchRequest({
+      source: 'bookmarks',
+      filter: 'openai',
+      historyRange: '7d',
+      historyFilterEnabled: true
+    }),
+    {
+      query: 'openai',
+      historyQuery: '',
+      historyRange: '7d',
+      includeBookmarkMatches: false,
+      includeHistoryMatches: false
+    }
+  )
+})
+
+test('filter search readiness rejects stale side-search snapshots', () => {
+  const dashboard = {
+    realTabs: [],
+    domainGroups: [],
+    bookmarkSearchReady: true,
+    historySearchQuery: 'openai',
+    historyRange: '1d'
+  }
+  const options = {
+    source: 'tabs' as const,
+    filter: 'openai',
+    historyRange: '7d',
+    historyFilterEnabled: true
+  }
+
+  assert.equal(canUseHistorySearchResults(dashboard, options), false)
+  assert.equal(dashboardNeedsFilterSearchRefresh(dashboard, options), true)
+  assert.equal(
+    dashboardNeedsFilterSearchRefresh(dashboard, {
+      ...options,
+      historyFilterEnabled: false
+    }),
+    false
+  )
 })
 
 test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {

@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react'
+import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { buildDashboardViewModel } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardData, DashboardSource, DomainGroup } from '../extension/types'
 import type { MissionOrderMap } from './useDashboardRefresh'
@@ -21,6 +22,7 @@ type DashboardViewModelOptions = {
 }
 
 export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady }: DashboardViewModelOptions) {
+  const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
   const bookmarkTabs = dashboard?.bookmarkTabs || EMPTY_TABS
@@ -36,7 +38,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   })
 
   const bookmarkSearchVm =
-    source === 'tabs' && filter && dashboard?.bookmarkSearchReady
+    canUseBookmarkSearchResults(dashboard, filterSearchOptions)
       ? buildDashboardViewModel({
           realTabs: bookmarkTabs,
           domainGroups: bookmarkDomainGroups,
@@ -46,7 +48,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
       : null
 
   const historySearchVm =
-    source === 'tabs' && filter && historyFilterEnabled && dashboard?.historySearchQuery === filter.trim() && dashboard?.historyRange === historyRange
+    canUseHistorySearchResults(dashboard, filterSearchOptions)
       ? buildDashboardViewModel({
           realTabs: historyTabs,
           domainGroups: historyDomainGroups,
@@ -59,8 +61,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const unmatchedCards = dashboardVm.unmatchedCards
   const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || EMPTY_CARD_ENTRIES
   const historyMatchedCards = historySearchVm?.matchedCards || EMPTY_CARD_ENTRIES
-  const showBookmarkMatches = isReady && source === 'tabs' && !!filter && bookmarkMatchedCards.length > 0
-  const showHistoryMatches = isReady && source === 'tabs' && !!filter && historyMatchedCards.length > 0
+  const showBookmarkMatches = isReady && canUseBookmarkSearchResults(dashboard, filterSearchOptions) && bookmarkMatchedCards.length > 0
+  const showHistoryMatches = isReady && canUseHistorySearchResults(dashboard, filterSearchOptions) && historyMatchedCards.length > 0
 
   return {
     dashboardVm,
@@ -72,7 +74,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     showOtherTabs: isReady && dashboardVm.showOtherTabs,
     showBookmarkMatches,
     showHistoryMatches,
-    showHistoryRange: isReady && source === 'tabs' && !!filter,
+    showHistoryRange: isReady && shouldShowHistoryRange(filterSearchOptions),
     showPrimaryEmptyState: !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0)
   }
 }

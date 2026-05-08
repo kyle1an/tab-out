@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
+import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { fetchDashboardData } from '../extension/render.js'
 import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot } from '../extension/types'
@@ -27,15 +28,16 @@ type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
 }
 
 export async function fetchDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions) {
+  const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
   const [dashboard, tabHistory] = await Promise.all([
     fetchDashboardData(previousOrder[source] || new Map(), source, {
       pinnedDomains,
       bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
       historyPreviousOrder: previousOrder.history || new Map(),
-      includeBookmarkMatches: source === 'tabs' && filter !== '',
-      includeHistoryMatches: source === 'tabs' && filter !== '' && historyFilterEnabled,
-      searchQuery: filter,
-      historyRange
+      includeBookmarkMatches: filterSearch.includeBookmarkMatches,
+      includeHistoryMatches: filterSearch.includeHistoryMatches,
+      searchQuery: filterSearch.query,
+      historyRange: filterSearch.historyRange
     }),
     fetchTabHistorySnapshot()
   ])
@@ -83,9 +85,7 @@ export function useDashboardRefresh({
   useEffect(() => registerDashboardRefresh((options: RefreshOptions) => refreshRef.current(options)), [])
 
   useEffect(() => {
-    if (!dashboard || !pinsLoaded || source !== 'tabs' || !filter) return
-    const historySearchReady = !historyFilterEnabled || (dashboard.historySearchQuery === filter.trim() && dashboard.historyRange === historyRange)
-    if (dashboard.bookmarkSearchReady && historySearchReady) return
+    if (!pinsLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return
     const frame = requestAnimationFrame(() => refreshRef.current())
     return () => cancelAnimationFrame(frame)
   }, [dashboard, filter, historyRange, historyFilterEnabled, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
