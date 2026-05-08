@@ -10,6 +10,7 @@ interface SelectControlProps<TValue extends string> {
   options: readonly SelectControlOption<TValue>[]
   ariaLabel: string
   triggerClassName?: string
+  iconClassName?: string
   positionerClassName?: string
   popupClassName?: string
   listClassName?: string
@@ -29,6 +30,7 @@ export function SelectControl<TValue extends string>({
   options,
   ariaLabel,
   triggerClassName,
+  iconClassName,
   positionerClassName,
   popupClassName,
   listClassName,
@@ -45,6 +47,11 @@ export function SelectControl<TValue extends string>({
     <Select.Root value={value} items={options} onValueChange={handleValueChange}>
       <Select.Trigger className={triggerClassName} aria-label={ariaLabel}>
         <Select.Value />
+        <Select.Icon className={iconClassName}>
+          <svg className="block h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="3" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+          </svg>
+        </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
         <Select.Positioner className={positionerClassName} sideOffset={6} alignItemWithTrigger={false}>

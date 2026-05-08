@@ -115,7 +115,8 @@ export function HeaderBar({
           <SourceSwitch source={source} onSourceChange={onSourceChange} />
           {showHistoryRange && (
             <SelectControl
-              triggerClassName="history-range-select"
+              triggerClassName="history-range-select box-border inline-flex h-[var(--header-control-height)] cursor-pointer appearance-none items-center justify-start gap-1.5 rounded-[12px] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] py-0 pr-2 pl-2.5 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] text-[var(--ink)] outline-none [font-family:inherit] [corner-shape:squircle] focus:border-[var(--accent-amber)] focus:bg-tab-card"
+              iconClassName="pointer-events-none flex text-[#525252]"
               positionerClassName="history-range-positioner z-[120]"
               popupClassName="history-range-popup box-border max-h-[min(260px,var(--available-height))] min-w-[var(--anchor-width)] overflow-auto rounded-[12px] border border-[var(--warm-gray)] bg-tab-card p-1 shadow-[0_14px_36px_rgba(10,10,10,0.14)] outline-none [corner-shape:squircle]"
               listClassName="history-range-list flex flex-col gap-0.5"
