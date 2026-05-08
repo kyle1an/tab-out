@@ -185,40 +185,6 @@
   }
 }
 
-/* ---- Tab row — each tab is a full-width row with favicon, title, and actions ---- */
-.page-chip {
-  font-family: inherit;
-  font-size: 13px;
-  text-align: left;
-  color: var(--ink);
-  background: transparent;
-  /* padding-left = 12px reserves room for the group indicator stripe
-     (see ::before below) plus a visual gap before the favicon.
-     Vertical padding trimmed 8→5 + line-height tightened 1.4→1.25
-     for denser rows — cumulative across 10+ chips per card this
-     gives back real vertical space without the chip feeling
-     cramped. Horizontal padding left intact so text doesn't butt
-     the edge. */
-  padding: 5px 4px 5px 12px;
-  /* Concentric with .mission-card (18px radius, 14px vertical padding).
-     Strict math says ~4px, but chips are interactive rows that need
-     visible rounding to feel tappable — 10px is the "medium step"
-     below the card's 18px and matches .action-btn at the same depth.
-     The key win vs the old 16px: a clear radius-delta so the card
-     reads as container, chip as content. */
-  border-radius: 10px;
-  corner-shape: squircle;
-  border: none;
-  position: relative;
-  display: flex;
-  /* Top-align so the favicon lands on the first line of a wrapped title
-     instead of floating between lines. The favicon and chip-text each apply
-     their own vertical adjustments below. */
-  align-items: flex-start;
-  gap: 8px;
-  line-height: 1.25;
-}
-
 /* Tab-group indicator — inset 2px vertical stripe, positioned inside
    the rounded chip so the chip's border-radius and the indicator can
    each have their own clean shape. Color comes from the `--group-color`

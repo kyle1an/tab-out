@@ -44,7 +44,7 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
       {!expanded && hiddenCount > 0 && (
         <Button
           className={cn(
-            'page-chip page-chip-overflow clickable cursor-pointer py-1.5 pr-1 text-xs tabular-nums text-tab-muted transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)]',
+            'page-chip page-chip-overflow clickable relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.5 pr-1 text-left text-xs tabular-nums text-tab-muted [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)]',
             iconOnly ? 'pl-1' : 'pl-3'
           )}
           onClick={onExpand}
