@@ -290,39 +290,6 @@ header {
   -webkit-appearance: none;
 }
 
-/* ---- Activation history ---- */
-.history-entry::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 56px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    color-mix(in srgb, var(--card-bg) 96%, rgb(82 82 82)) 50%
-  );
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  pointer-events: none;
-  z-index: 1;
-  border-top-right-radius: inherit;
-  border-bottom-right-radius: inherit;
-  corner-shape: squircle;
-}
-
-.history-entry-row:hover .history-entry::after,
-.history-entry:focus-within::after {
-  opacity: 1;
-}
-
-.history-entry-row:hover .history-entry,
-.history-entry:focus-within {
-  background: var(--card-bg);
-  border-color: var(--accent-amber);
-}
-
 @media (max-width: 900px) {
   .dashboard-shell.has-history {
     --dashboard-page-gutter: 20px;
