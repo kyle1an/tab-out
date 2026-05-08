@@ -93,8 +93,8 @@ export function HeaderBar({
   }
 
   return (
-    <header>
-      <div className="header-row">
+    <header className="flex flex-col [--header-control-height:34px] [--header-control-font-size:13px] [--header-control-line-height:16px]">
+      <div className="header-row flex items-center justify-between gap-4">
         <HeaderStats
           source={source}
           ready={ready}
@@ -111,7 +111,7 @@ export function HeaderBar({
           onDedupAll={onDedupAll}
           onCloseFiltered={onCloseFiltered}
         />
-        <div className="header-controls">
+        <div className="header-controls inline-flex items-center gap-2.5">
           <SourceSwitch source={source} onSourceChange={onSourceChange} />
           {showHistoryRange && (
             <SelectControl

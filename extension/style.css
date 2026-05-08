@@ -12,32 +12,7 @@
    into focused files — base.css is the first extraction.
    ============================================================ */
 
-/* ---- Header ---- */
-/* Single row: stats inline on one side, filter on the other. The old
-   stacked h1 + sub-line + section-header layout collapsed into this
-   ~32px bar to give the card grid ~75px more vertical real estate. */
-header {
-  --header-control-height: 34px;
-  --header-control-font-size: 13px;
-  --header-control-line-height: 16px;
-  display: flex;
-  flex-direction: column;
-}
-
-.header-row {
-  display: flex;
-  /* Stats on the left, filter controls on the right. */
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-}
-
-.header-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
+/* ---- Source switch ---- */
 .source-switch-root {
   display: inline-flex;
   box-sizing: border-box;
