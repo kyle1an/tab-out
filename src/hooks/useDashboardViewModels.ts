@@ -73,8 +73,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange: isReady && source === 'tabs' && !!filter,
-    showPrimaryEmptyState: !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0),
-    primaryMissionsClass: 'missions' + (matchedCards.length === 0 ? ' missions-empty' : '')
+    showPrimaryEmptyState: !((showBookmarkMatches || showHistoryMatches) && matchedCards.length === 0)
   }
 }
 

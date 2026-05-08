@@ -457,42 +457,6 @@ header {
 }
 
 /* ---- Mission Cards ---- */
-.missions {
-  --masonry-min-col-width: 260px;
-  --masonry-ideal-col-width: 304px;
-  --masonry-gap: 10px;
-  /* JS-driven masonry — packMissionsMasonry() in layout.js absolutely
-     positions each .domain-block (the unit wrapping .domain-header +
-     .mission-card) in the shortest column and pins it there for future
-     re-packs. Width comfort targets live in CSS variables above so
-     media queries can tune column behavior without duplicating the
-     packing algorithm. */
-  position: relative;
-  /* No top margin — the pinned-top's 12px bottom padding already
-     supplies the gap between the section-header and the first card,
-     keeping the vertical rhythm uniform with the header's own 12px
-     flex gap. */
-  margin-top: 0;
-  /* No margin-bottom — .scroll-region padding-bottom handles the
-     bottom buffer. Keeping it here as 0 avoids stacking two sources of
-     bottom whitespace. */
-  margin-bottom: 0;
-}
-
-@media (max-width: 560px) {
-  .missions {
-    --masonry-min-col-width: 240px;
-    --masonry-ideal-col-width: 280px;
-  }
-}
-
-@media (min-width: 1200px) {
-  .missions {
-    --masonry-min-col-width: 280px;
-    --masonry-ideal-col-width: 340px;
-  }
-}
-
 .missions.is-packed .domain-block.layout-moving {
   z-index: 3;
   transition: none;
@@ -556,17 +520,6 @@ header {
 
 .domain-block-apps .mission-card {
   padding: 7px;
-}
-
-/* Wrapper around the divider + secondary missions grid. Block-level in
-   document flow so the secondary grid naturally sits below the primary
-   masonry. Hidden when the filter is empty or every tab matches. */
-.missions-other {
-  margin-top: 24px;
-}
-
-.missions.missions-empty + .missions-other {
-  margin-top: 0;
 }
 
 /* Card close button — absolute-positioned over the top-right of the

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { closeDuplicateTabs, closeTabsExact } from '../extension/tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
@@ -15,6 +15,7 @@ import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { UrlPreview } from './UrlPreview'
+import { cn } from '../lib/cn'
 import type { DashboardData, DashboardSource, TabHistorySnapshot } from './types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
@@ -36,6 +37,20 @@ function MissionsDivider({ label }: { label: string }) {
     </div>
   )
 }
+
+const MissionsGrid = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'> & { empty?: boolean }>(function MissionsGrid({ className, empty = false, ...props }, ref) {
+  return (
+    <div
+      ref={ref}
+      className={cn(
+        'missions relative mt-0 mb-0 [--masonry-gap:10px] [--masonry-ideal-col-width:304px] [--masonry-min-col-width:260px] max-[560px]:[--masonry-ideal-col-width:280px] max-[560px]:[--masonry-min-col-width:240px] min-[1200px]:[--masonry-ideal-col-width:340px] min-[1200px]:[--masonry-min-col-width:280px]',
+        empty && 'missions-empty',
+        className
+      )}
+      {...props}
+    />
+  )
+})
 
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
@@ -131,8 +146,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     showBookmarkMatches,
     showHistoryMatches,
     showHistoryRange,
-    showPrimaryEmptyState,
-    primaryMissionsClass
+    showPrimaryEmptyState
   } = useDashboardViewModels({
     dashboard,
     source,
@@ -187,6 +201,10 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
   const showTabHistory = isReady && source === 'tabs'
   const dashboardShellClass = ['dashboard-shell', showTabHistory ? 'has-history' : '', source === 'bookmarks' ? 'is-bookmarks' : ''].filter(Boolean).join(' ')
+  const primaryMissionsEmpty = matchedCards.length === 0
+  const bookmarkMatchesFlush = primaryMissionsEmpty
+  const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
+  const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistoryMatches
 
   useMissionOrderMemory({
     previousOrderRef,
@@ -237,7 +255,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
           <div className="scroll-region" ref={scrollRegionRef}>
             {isReady && (
               <>
-                <div className={primaryMissionsClass} id="openTabsMissions" ref={primaryMissionsRef}>
+                <MissionsGrid empty={primaryMissionsEmpty} id="openTabsMissions" ref={primaryMissionsRef}>
                   <Missions
                     cards={matchedCards}
                     filter={filter}
@@ -247,12 +265,12 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                     onLayoutChange={scheduleMissionsMasonry}
                     onTogglePinnedDomain={togglePinnedDomain}
                   />
-                </div>
+                </MissionsGrid>
 
                 {showBookmarkMatches && (
-                  <div className="missions-other missions-bookmarks" id="bookmarkMatchesSection">
+                  <div className={cn('missions-other missions-bookmarks mt-6', bookmarkMatchesFlush && 'mt-0')} id="bookmarkMatchesSection">
                     <MissionsDivider label="Bookmarks" />
-                    <div className="missions" id="bookmarkMatchesMissions" ref={bookmarkMissionsRef}>
+                    <MissionsGrid id="bookmarkMatchesMissions" ref={bookmarkMissionsRef}>
                       <Missions
                         cards={bookmarkMatchedCards}
                         filter={filter}
@@ -262,14 +280,14 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         onLayoutChange={scheduleMissionsMasonry}
                         onTogglePinnedDomain={togglePinnedDomain}
                       />
-                    </div>
+                    </MissionsGrid>
                   </div>
                 )}
 
                 {showHistoryMatches && (
-                  <div className="missions-other missions-history" id="historyMatchesSection">
+                  <div className={cn('missions-other missions-history mt-6', historyMatchesFlush && 'mt-0')} id="historyMatchesSection">
                     <MissionsDivider label="History" />
-                    <div className="missions" id="historyMatchesMissions" ref={historyMissionsRef}>
+                    <MissionsGrid id="historyMatchesMissions" ref={historyMissionsRef}>
                       <Missions
                         cards={historyMatchedCards}
                         filter={filter}
@@ -279,14 +297,14 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         onLayoutChange={scheduleMissionsMasonry}
                         onTogglePinnedDomain={togglePinnedDomain}
                       />
-                    </div>
+                    </MissionsGrid>
                   </div>
                 )}
 
                 {showOtherTabs && (
-                  <div className="missions-other" id="openTabsMissionsOther">
+                  <div className={cn('missions-other mt-6', otherTabsFlush && 'mt-0')} id="openTabsMissionsOther">
                     <MissionsDivider label="Other tabs" />
-                    <div className="missions" id="openTabsMissionsUnmatched" ref={unmatchedMissionsRef}>
+                    <MissionsGrid id="openTabsMissionsUnmatched" ref={unmatchedMissionsRef}>
                       <Missions
                         cards={unmatchedCards}
                         filter={filter}
@@ -296,7 +314,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         onLayoutChange={scheduleMissionsMasonry}
                         onTogglePinnedDomain={togglePinnedDomain}
                       />
-                    </div>
+                    </MissionsGrid>
                   </div>
                 )}
               </>
