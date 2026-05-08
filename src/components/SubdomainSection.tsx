@@ -1,6 +1,4 @@
-import { closeTabsExact } from '../extension/tabs.js'
-import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
-import { markClosure } from '../extension/undo.js'
+import { closeExactTabSection } from '../extension/tab-actions'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import { Button } from './ui/Button'
@@ -63,11 +61,7 @@ export function SubdomainSection({
 
   async function onCloseSubdomain() {
     if (!sectionClosableUrls || sectionClosableUrls.length === 0) return
-    const snapshot = await closeTabsExact(sectionClosableUrls, { preserveGroups: true })
-    if (snapshot.length > 0) {
-      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
-    }
-    await requestDashboardRefresh({ animateCards: true })
+    await closeExactTabSection({ urls: sectionClosableUrls })
   }
 
   return (

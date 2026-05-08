@@ -1,11 +1,10 @@
 import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import { closeDuplicateTabs, closeTabsExact } from '../extension/tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
-import { markClosure } from '../extension/undo.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
+import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useDashboardViewModels, useMissionOrderMemory } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
@@ -157,26 +156,11 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   })
 
   async function onCloseFiltered() {
-    const urls = dashboardVm.filteredCloseUrls
-    if (urls.length === 0) {
-      showToast('Nothing to close')
-      return
-    }
-    const snapshot = await closeTabsExact(urls, { preserveGroups: true })
-    if (snapshot.length > 0) {
-      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
-    } else {
-      showToast('Nothing to close')
-    }
-    await refreshDashboard({ animateCards: true })
+    await closeFilteredTabs(dashboardVm.filteredCloseUrls)
   }
 
   async function onDedupAll() {
-    const urls = dashboardVm.globalDedupeUrls
-    if (urls.length === 0) return
-    const snapshot = await closeDuplicateTabs(urls, true, { preservePinnedTabOut: true })
-    markClosure(snapshot, `Closed ${snapshot.length} duplicate${snapshot.length !== 1 ? 's' : ''}`)
-    await refreshDashboard({ animateCards: true })
+    await dedupeTabs({ urls: dashboardVm.globalDedupeUrls, preservePinnedTabOut: true })
   }
 
   async function onSourceChange(nextSource: DashboardSource) {

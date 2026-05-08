@@ -1,11 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react'
-import { focusExactTab, focusTab, fetchOpenTabs, openTabUrl, snapshotChromeTabs } from '../extension/tabs.js'
-import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
-import { unwrapSuspenderUrl } from '../extension/suspender.js'
-import { deleteHistorySourceUrl } from '../extension/history-source.js'
-import { markClosure } from '../extension/undo.js'
-import { showToast } from '../extension/toast.js'
+import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
+import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { Button } from './ui/Button'
 import { cn } from '../lib/cn'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
@@ -175,51 +171,17 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
 
-    const allTabs = await chrome.tabs.query({})
-    let toCloseList: chrome.tabs.Tab[] = []
-    let matchCount = 0
-    if (isFolded) {
-      const targetEffectives = new Set(envs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
-      const targetUrls = new Set(envs.map((env) => env.tabUrl))
-      toCloseList = allTabs.filter((tab) => {
-        const tabUrl = tab.url || ''
-        return targetUrls.has(tabUrl) || targetEffectives.has(unwrapSuspenderUrl(tabUrl))
-      })
-      matchCount = toCloseList.length
-    } else {
-      const targetEffective = unwrapSuspenderUrl(chip.tabUrl)
-      const matches = allTabs.filter((tab) => {
-        const tabUrl = tab.url || ''
-        return tabUrl === chip.tabUrl || unwrapSuspenderUrl(tabUrl) === targetEffective
-      })
-      toCloseList = matches.slice(0, 1)
-      matchCount = matches.length
-    }
-    const snapshot = toCloseList.length > 0 ? snapshotChromeTabs(toCloseList) : []
-    for (const tab of toCloseList) {
-      if (typeof tab.id !== 'number') continue
-      try {
-        await chrome.tabs.remove(tab.id)
-      } catch {}
-    }
-    await fetchOpenTabs()
-
-    const isLastTabForUrl = isFolded || matchCount <= 1
-
-    if (isLastTabForUrl && chipEl) {
-      chipEl.classList.add('closing')
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
-
-    setPreview('')
-    await requestDashboardRefresh({ animateCards: true })
-
-    if (snapshot.length > 0) {
-      const label = isFolded ? `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} across subdomains` : 'Tab closed'
-      markClosure(snapshot, label)
-    } else {
-      showToast('Nothing to close')
-    }
+    await closeChipTarget({
+      tabUrl: chip.tabUrl,
+      envs,
+      onAfterClose: async ({ shouldAnimateRemoval }) => {
+        if (shouldAnimateRemoval && chipEl) {
+          chipEl.classList.add('closing')
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
+        setPreview('')
+      }
+    })
   }
 
   async function onDeleteHistory(e: MouseEvent<HTMLButtonElement>) {
@@ -228,18 +190,14 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
     const urls: string[] = Array.from(new Set(isFolded ? envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
     if (urls.length === 0) return
 
-    const results = await Promise.all(urls.map((url) => deleteHistorySourceUrl(url)))
-    const deletedCount = results.filter(Boolean).length
-    if (deletedCount === 0) {
-      showToast('Could not delete history')
-      return
-    }
-
-    chipEl?.classList.add('closing')
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    setPreview('')
-    await requestDashboardRefresh({ animateCards: true })
-    showToast(deletedCount === 1 ? 'History deleted' : `Deleted ${deletedCount} history items`)
+    await deleteHistoryUrls({
+      urls,
+      onAfterDelete: async () => {
+        chipEl?.classList.add('closing')
+        await new Promise((resolve) => setTimeout(resolve, 200))
+        setPreview('')
+      }
+    })
   }
 
   const style = chip.isGrouped ? ({ '--group-color': chip.groupDotColor } as CSSProperties) : undefined

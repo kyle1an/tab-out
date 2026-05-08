@@ -1,8 +1,5 @@
-import { closeTabsExact, closeDuplicateTabs } from '../extension/tabs.js'
-import { markClosure } from '../extension/undo.js'
-import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
-import { tabMatchesFilter } from '../extension/render.js'
 import { isPinnableDomain } from '../extension/domain-pins.js'
+import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { SubdomainSection } from './SubdomainSection'
 import { Button } from './ui/Button'
 import { cn } from '../lib/cn'
@@ -123,37 +120,35 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
 
-    const scopedTabs = filter ? group.tabs.filter((tab) => tabMatchesFilter(tab, filter)) : group.tabs
-    const urls = scopedTabs.map((tab) => tab.url)
-    const snapshot = await closeTabsExact(urls, { preserveGroups: true })
-
-    if (block && !filter) {
-      block.classList.add('closing')
-      await new Promise((resolve) => setTimeout(resolve, 250))
-    }
-
-    markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''} from ${displayName}`)
-    await requestDashboardRefresh({ animateCards: true })
+    await closeDomainTabs({
+      group,
+      filter,
+      displayName,
+      onAfterClose: async () => {
+        if (block && !filter) {
+          block.classList.add('closing')
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+      }
+    })
   }
 
   async function onDedup(e: MouseEvent<HTMLButtonElement>) {
     const btn = e.currentTarget
     const urls = vm.closableDupeUrls || []
-    if (urls.length === 0) return
 
-    const dupeSnapshot = await closeDuplicateTabs(urls, true, {
-      preservePinnedTabOut: group.domain === '__tab-out__'
+    await dedupeTabs({
+      urls,
+      preservePinnedTabOut: group.domain === '__tab-out__',
+      onAfterClose: async () => {
+        btn.classList.add('closing')
+        const block = btn.closest('.domain-block')
+        if (block) {
+          block.querySelectorAll('.chip-dupe-badge').forEach((badge) => badge.classList.add('closing'))
+        }
+        await new Promise((resolve) => setTimeout(resolve, 200))
+      }
     })
-
-    btn.classList.add('closing')
-    const block = btn.closest('.domain-block')
-    if (block) {
-      block.querySelectorAll('.chip-dupe-badge').forEach((badge) => badge.classList.add('closing'))
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200))
-
-    markClosure(dupeSnapshot, `Closed ${dupeSnapshot.length} duplicate${dupeSnapshot.length !== 1 ? 's' : ''}`)
-    await requestDashboardRefresh({ animateCards: true })
   }
 
   async function onTogglePin(e: MouseEvent<HTMLButtonElement>) {

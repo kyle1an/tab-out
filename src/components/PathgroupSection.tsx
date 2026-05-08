@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { closeTabsExact } from '../extension/tabs.js'
-import { requestDashboardRefresh } from '../extension/dashboard-controller.js'
-import { markClosure } from '../extension/undo.js'
+import { closeExactTabSection } from '../extension/tab-actions'
 import { PageChip } from './PageChip'
 import { Button } from './ui/Button'
 import { cn } from '../lib/cn'
@@ -55,11 +53,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
 
   async function onCloseCluster() {
     if (!closableUrls || closableUrls.length === 0) return
-    const snapshot = await closeTabsExact(closableUrls, { preserveGroups: true })
-    if (snapshot.length > 0) {
-      markClosure(snapshot, `Closed ${snapshot.length} tab${snapshot.length !== 1 ? 's' : ''}`)
-    }
-    await requestDashboardRefresh({ animateCards: true })
+    await closeExactTabSection({ urls: closableUrls })
   }
 
   return (
