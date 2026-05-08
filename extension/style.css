@@ -341,33 +341,6 @@ header {
 }
 
 /* ---- Activation history ---- */
-.tab-history-panel {
-  grid-column: 1;
-  position: sticky;
-  top: 0;
-  min-width: 0;
-  height: 100vh;
-  max-height: 100vh;
-  padding-left: var(--dashboard-history-edge-gutter);
-  display: flex;
-  flex-direction: column;
-}
-
-.history-entry-list {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  overflow-y: auto;
-  padding-top: 12px;
-  padding-right: 14px;
-  padding-bottom: 30px;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-}
-
 .history-entry-list::-webkit-scrollbar {
   width: 2px;
 }
@@ -383,33 +356,6 @@ header {
 
 .history-entry-list::-webkit-scrollbar-thumb:hover {
   background: rgba(115, 115, 115, 0.4);
-}
-
-.history-entry-row {
-  font-family: inherit;
-  width: 100%;
-  flex: 0 0 auto;
-  min-width: 0;
-  min-height: 36px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.history-entry {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 36px;
-  border: 1px solid var(--warm-gray);
-  background: rgba(115, 115, 115, 0.04);
-  color: var(--ink);
-  border-radius: 18px;
-  corner-shape: squircle;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
 }
 
 .history-entry::after {
@@ -458,160 +404,9 @@ header {
   border-color: rgba(37, 99, 235, 0.42);
 }
 
-.history-entry-main {
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 400;
-  width: 100%;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 9px;
-  line-height: 1.25;
-  text-align: left;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-
-.history-entry-main:disabled {
-  cursor: default;
-}
-
-.history-entry-index {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1px;
-  background: transparent;
-  color: rgba(115, 115, 115, 0.72);
-  font-size: 11px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-.history-entry-row:hover .history-entry-index,
-.history-entry-row:focus-within .history-entry-index {
-  color: var(--muted);
-}
-
-.history-favicon-frame {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-}
-
-.history-favicon {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: contain;
-}
-
-.history-entry-copy {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-}
-
-.history-entry-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: inherit;
-  font-weight: inherit;
-  color: var(--ink);
-}
-
 .history-entry-title.history-entry-title-truncated {
   text-overflow: clip;
   mask-image: linear-gradient(to right, black 0, black calc(100% - 14px), transparent);
-}
-
-.history-entry-badges {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.history-badge {
-  font-size: 10px;
-  font-weight: 600;
-  color: var(--muted);
-  background: rgba(115, 115, 115, 0.08);
-  border-radius: 999px;
-  padding: 2px 6px;
-  white-space: nowrap;
-}
-
-.history-entry-actions {
-  position: absolute;
-  top: 50%;
-  right: 6px;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.history-entry-close {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--muted);
-  opacity: 0;
-  pointer-events: none;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition:
-    opacity 0.15s ease,
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.history-entry-row:hover .history-entry-close,
-.history-entry:focus-within .history-entry-close {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.history-entry-close:hover,
-.history-entry-close:focus-visible {
-  background: var(--card-bg);
-  border-color: var(--status-abandoned);
-  color: var(--status-abandoned);
-}
-
-.history-entry-close:disabled {
-  display: none;
-}
-
-.history-entry-close svg {
-  width: 14px;
-  height: 14px;
-  display: block;
 }
 
 .history-entry-row.closing {
@@ -652,22 +447,6 @@ header {
 
   .dashboard-main > .scroll-region {
     margin-right: calc(var(--dashboard-scrollbar-inset) - var(--dashboard-edge-bleed));
-    padding-right: calc(var(--dashboard-edge-bleed) - var(--dashboard-scrollbar-inset));
-  }
-
-  .tab-history-panel {
-    position: static;
-    height: auto;
-    max-height: 260px;
-    margin-left: 0;
-    margin-right: var(--dashboard-scrollbar-inset);
-    padding-left: var(--dashboard-history-edge-gutter);
-    padding-right: 0;
-    padding-bottom: 0;
-    border-bottom: 1px solid var(--warm-gray);
-  }
-
-  .tab-history-panel .history-entry-list {
     padding-right: calc(var(--dashboard-edge-bleed) - var(--dashboard-scrollbar-inset));
   }
 
@@ -813,33 +592,6 @@ header {
 
 .missions.missions-empty + .missions-other {
   margin-top: 0;
-}
-
-/* "Other tabs" separator — static HTML now; lives between the two
-   masonry containers. Flex row with thin rules flanking a centered
-   label. */
-.missions-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  pointer-events: none;
-}
-
-.missions-divider-rule {
-  flex: 1;
-  height: 1px;
-  background: var(--warm-gray);
-}
-
-.missions-divider-label {
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 /* Card close button — absolute-positioned over the top-right of the
@@ -2076,58 +1828,6 @@ header {
 .action-btn.danger:hover {
   border-color: var(--status-abandoned);
   color: var(--status-abandoned);
-}
-
-/* ---- URL preview (Chrome-style bottom-left link status) ----
-   Anchored to the bottom-left corner so it sits exactly where the
-   browser's own status bar appears when hovering a link. Rounded
-   only on the top-right corner (the edge that faces into the page),
-   matching the native look. Hidden with opacity 0 + pointer-events
-   off so it can't block clicks while fading out. Wiring in src/app.tsx. */
-.url-preview {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  /* Cap at viewport-minus-small-margin so a very long URL still gets
-     a clean ellipsis rather than running to the right edge, but don't
-     cut short earlier than needed — Chrome's native preview stretches
-     nearly the whole width before truncating. */
-  max-width: calc(100vw - 32px);
-  height: 28px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  background: var(--card-bg);
-  color: var(--ink);
-  font-family: sans-serif;
-  font-size: 13px;
-  line-height: 16px;
-  border: 1px solid var(--warm-gray);
-  border-left: none;
-  border-bottom: none;
-  border-radius: 0 6px 0 0;
-  corner-shape: squircle;
-  box-shadow: 0 -2px 8px var(--shadow);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s ease;
-  z-index: 100;
-}
-
-.url-preview span {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 16px;
-}
-
-.url-preview.visible {
-  opacity: 1;
 }
 
 /* ---- Animations ----

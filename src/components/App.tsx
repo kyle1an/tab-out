@@ -27,6 +27,16 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
   return refs.map((ref) => ref.current)
 }
 
+function MissionsDivider({ label }: { label: string }) {
+  return (
+    <div className="missions-divider pointer-events-none mb-4 flex items-center gap-3 text-[11px] font-medium tracking-[0.6px] text-tab-muted uppercase" role="separator">
+      <span className="missions-divider-rule h-px flex-1 bg-(--warm-gray)" />
+      <span className="missions-divider-label shrink-0 whitespace-nowrap">{label}</span>
+      <span className="missions-divider-rule h-px flex-1 bg-(--warm-gray)" />
+    </div>
+  )
+}
+
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
   const [source, setSource] = useState<DashboardSource>('tabs')
@@ -241,11 +251,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
                 {showBookmarkMatches && (
                   <div className="missions-other missions-bookmarks" id="bookmarkMatchesSection">
-                    <div className="missions-divider" role="separator">
-                      <span className="missions-divider-rule" />
-                      <span className="missions-divider-label">Bookmarks</span>
-                      <span className="missions-divider-rule" />
-                    </div>
+                    <MissionsDivider label="Bookmarks" />
                     <div className="missions" id="bookmarkMatchesMissions" ref={bookmarkMissionsRef}>
                       <Missions
                         cards={bookmarkMatchedCards}
@@ -262,11 +268,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
                 {showHistoryMatches && (
                   <div className="missions-other missions-history" id="historyMatchesSection">
-                    <div className="missions-divider" role="separator">
-                      <span className="missions-divider-rule" />
-                      <span className="missions-divider-label">History</span>
-                      <span className="missions-divider-rule" />
-                    </div>
+                    <MissionsDivider label="History" />
                     <div className="missions" id="historyMatchesMissions" ref={historyMissionsRef}>
                       <Missions
                         cards={historyMatchedCards}
@@ -283,11 +285,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
                 {showOtherTabs && (
                   <div className="missions-other" id="openTabsMissionsOther">
-                    <div className="missions-divider" role="separator">
-                      <span className="missions-divider-rule" />
-                      <span className="missions-divider-label">Other tabs</span>
-                      <span className="missions-divider-rule" />
-                    </div>
+                    <MissionsDivider label="Other tabs" />
                     <div className="missions" id="openTabsMissionsUnmatched" ref={unmatchedMissionsRef}>
                       <Missions
                         cards={unmatchedCards}

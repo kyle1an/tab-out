@@ -48,7 +48,7 @@ export function HeaderStats({
       <span className="font-medium text-tab-ink">{tabsLabel}</span>
       {source === 'tabs' && dedupCount > 0 && (
         <Button
-          className="action-btn h-(--header-control-height) box-border px-3 [font-family:inherit] [font-size:var(--header-control-font-size)] [line-height:var(--header-control-line-height)]"
+          className="action-btn h-(--header-control-height) box-border px-3 font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height)"
           title={dedupTitle}
           onClick={onDedupAll}
         >
@@ -69,7 +69,7 @@ export function HeaderStats({
       )}
       {source === 'tabs' && filteredCloseCount > 0 && (
         <Button
-          className="action-btn close-tabs h-(--header-control-height) box-border px-3 [font-family:inherit] [font-size:var(--header-control-font-size)] [line-height:var(--header-control-line-height)]"
+          className="action-btn close-tabs h-(--header-control-height) box-border px-3 font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height)"
           title={closeFilteredTitle}
           onClick={onCloseFiltered}
         >
