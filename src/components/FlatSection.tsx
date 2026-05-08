@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { PageChip } from './PageChip'
 import { Button } from './ui/Button'
+import { cn } from '../lib/cn'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface FlatSectionProps {
@@ -33,7 +34,13 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, onHoverUrl
         </div>
       )}
       {!expanded && hiddenCount > 0 && (
-        <Button className="page-chip page-chip-overflow clickable" onClick={onExpand}>
+        <Button
+          className={cn(
+            'page-chip page-chip-overflow clickable py-1.5 pr-1 text-xs tabular-nums text-tab-muted',
+            iconOnly ? 'pl-1' : 'pl-3'
+          )}
+          onClick={onExpand}
+        >
           <span className="chip-text">+{hiddenCount} more</span>
         </Button>
       )}

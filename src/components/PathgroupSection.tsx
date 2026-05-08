@@ -79,7 +79,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         </div>
       )}
       {!expanded && hiddenCount > 0 && (
-        <Button className="page-chip page-chip-overflow clickable" onClick={onExpand}>
+        <Button className="page-chip page-chip-overflow clickable py-1.5 pr-1 pl-3 text-xs tabular-nums text-tab-muted" onClick={onExpand}>
           <span className="chip-text">+{hiddenCount} more</span>
         </Button>
       )}
