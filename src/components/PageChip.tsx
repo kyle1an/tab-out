@@ -283,13 +283,13 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
         </span>
       )}
       {!chip.iconOnly && (
-        <span className="chip-text" ref={chipTextRef}>
+        <span className={cn('chip-text', chip.pathSuffix && 'max-h-[calc(3lh)]')} ref={chipTextRef}>
           {isFolded && (
-            <span className="chip-env-stack">
+            <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
               {envs.map((env) => (
                 <Button
                   key={env.rawUrl || env.tabUrl}
-                  className="chip-env clickable"
+                  className="chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink"
                   title={`Focus ${env.prefix} tab`}
                   onClick={(e) => onEnvClick(e, env)}
                   onKeyDown={(e) => onEnvKeyDown(e, env)}
@@ -303,10 +303,24 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
               ))}
             </span>
           )}
-          {!isFolded && chip.leadPrefix && <span className="chip-subdomain">{chip.leadPrefix}</span>}
-          {chip.pathGroupLabel && <span className="chip-pathgroup">{chip.pathGroupLabel}</span>}
-          {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? seg : <span key={index} className="chip-strip-indicator" aria-hidden="true">~</span>))}
-          {chip.pathSuffix && <span className="chip-path">{chip.pathSuffix}</span>}
+          {!isFolded && chip.leadPrefix && (
+            <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">{chip.leadPrefix}</span>
+          )}
+          {chip.pathGroupLabel && (
+            <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
+              {chip.pathGroupLabel}
+            </span>
+          )}
+          {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? seg : (
+            <span
+              key={index}
+              className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
+              aria-hidden="true"
+            >
+              ~
+            </span>
+          )))}
+          {chip.pathSuffix && <span className="chip-path ml-1.5 inline-block whitespace-nowrap text-xs font-normal text-tab-muted opacity-75">{chip.pathSuffix}</span>}
         </span>
       )}
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
