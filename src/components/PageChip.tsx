@@ -249,7 +249,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
 
   return (
     <div
-      className={'page-chip clickable' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
+      className={'page-chip clickable group/page-chip' + (isFolded ? ' page-chip-folded' : '') + (chip.iconOnly ? ' page-chip-icon-only' : '')}
       title={chipLabel}
       aria-label={chipLabel}
       style={style}
@@ -324,14 +324,14 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
         </span>
       )}
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
-        <div className="chip-actions">
+        <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
           <Button
-            className="chip-action chip-close"
+            className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
             title={isHistorySource ? 'Delete from history' : 'Close this tab'}
             aria-label={isHistorySource ? 'Delete from history' : 'Close this tab'}
             onClick={isHistorySource ? onDeleteHistory : onClose}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+            <svg className="h-[15px] w-[15px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
           </Button>

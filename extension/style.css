@@ -689,16 +689,6 @@ header {
   display: none;
 }
 
-.page-chip-icon-only .chip-actions {
-  right: 4px;
-  top: 4px;
-  transform: none;
-}
-
-.page-chip-icon-only .chip-action {
-  background: rgba(255, 255, 255, 0.92);
-}
-
 /* Title text — wraps up to 2 lines, then the last line fades out on the
    right in the style of Chrome's tab strip. We use max-height + overflow
    (NOT -webkit-line-clamp) because line-clamp hard-codes a "…" ellipsis
@@ -815,54 +805,6 @@ header {
   padding-top: 2px;
 }
 
-/* Action buttons grouped on the right */
-.chip-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  /* Absolutely positioned so the close button DOESN'T contribute to the
-     chip's height. Without this, a tall icon button stretches a single-line
-     chip and the text/favicon end up top-aligned in a chip that's taller
-     than the line — visibly off-center. With absolute positioning:
-     • 1-line title  → chip = text height; everything sits on the same line.
-     • 2-line title  → chip = text height; text top-aligned, close button
-       stays vertically centered on the chip's full height (between lines). */
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  /* Above .page-chip::after (z-index: 1) so the × stays on top of
-     the hover overlay that hides the title text behind it. */
-  z-index: 2;
-}
-
-/* ---- Chip action buttons (save + close) ---- */
-.chip-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 4px;
-  /* Match Chrome tab strip's circular close-button affordance */
-  border-radius: 50%;
-  /* Hidden until the parent chip is hovered (Chrome-tab behavior). */
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 0.15s,
-    color 0.15s,
-    background 0.15s;
-  flex-shrink: 0;
-}
-
-.page-chip:hover .chip-action {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* Right-edge overlay that reveals on chip hover when an action button is present. GPU-cheap opacity
    transition gives a smooth fade-in; the endpoint color matches the
    chip's COMPOSITE hover background (card-bg plus the faint
@@ -894,20 +836,6 @@ header {
 }
 .page-chip:has(.chip-actions):hover::after {
   opacity: 1;
-}
-
-.chip-action svg {
-  width: 15px;
-  height: 15px;
-}
-
-.chip-action:hover {
-  opacity: 1;
-  background: rgba(115, 115, 115, 0.1);
-}
-
-.chip-close:hover {
-  background: rgba(82, 82, 82, 0.1);
 }
 
 .page-chip.clickable {
