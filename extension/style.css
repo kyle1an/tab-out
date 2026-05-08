@@ -130,8 +130,7 @@ header {
 .chip-dupe-badge,
 .page-chip-overflow,
 .pathgroup-header-count,
-.subdomain-header-count,
-.card-close-btn-text {
+.subdomain-header-count {
   font-variant-numeric: tabular-nums;
 }
 
@@ -522,140 +521,6 @@ header {
   padding: 7px;
 }
 
-/* Card close button — absolute-positioned over the top-right of the
-   .domain-block so its hover-expand OVERLAYS the title and row-2
-   metadata instead of pushing them out of the flex flow. Two reasons:
-     1. With the two-row header, an in-flow close button would either
-        reserve width on row 2 (eating Dedupe-N's space) or break to a
-        third row on hover-expand (layout jump). Taking it out of flow
-        sidesteps both.
-     2. When the button expands to "Close all N tabs", its solid
-        card-bg + border cleanly covers whatever's underneath, so the
-        user sees a single readable label instead of two overlapping
-        items. Same pattern the original card-corner close used.
-
-   At rest the button is opacity:0 + pointer-events:none so the
-   invisible button can't catch clicks. Revealed on .domain-block:hover
-   (Chrome-tab pattern). */
-.card-close-btn {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  /* flex-end keeps the label pinned to the button's right edge — as
-     the label's max-width grows the label's LEFT edge travels
-     leftward, not the right. Combined with the absolute × below
-     (out of flex flow entirely), there's nothing left in the row
-     whose shift could drag the text rightward. */
-  justify-content: flex-end;
-  gap: 0;
-  padding: 0 10px;
-  /* min-width matches the × + padding footprint so the button has
-     something to show at rest even though text max-width is 0.
-     Without this the button would collapse to padding-width and
-     the × (absolute) would float outside it. */
-  min-width: 22px;
-  box-sizing: border-box;
-  height: 22px;
-  /* <button> elements don't inherit font-family by default — browsers
-     use their own "button font" (Arial on most platforms). Force the
-     same Chrome sans-serif the rest of the page uses. */
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  /* Gray at rest — the × matches every other close button in the
-     app (chip ×, subdomain ×, cluster ×). Red only fires on hover
-     of the button itself (see .card-close-btn:hover below). Commit-
-     escalation pattern: button appears on block hover = "an option
-     exists," hovering the button itself escalates to the red danger
-     cue. Reversible destructive action (undo toast lives for 6 s)
-     fits this tier better than ambient red. */
-  color: var(--muted);
-  background: transparent;
-  opacity: 0;
-  pointer-events: none;
-  border: 1px solid transparent;
-  /* Small squircle, concentric with .action-btn / .open-tabs-badge
-     family so the close button sits in the same radius league as the
-     other header metadata. */
-  border-radius: 8px;
-  corner-shape: squircle;
-  cursor: pointer;
-  transition:
-    opacity 0.2s ease-out,
-    background 0.2s ease-out,
-    border-color 0.2s ease-out,
-    color 0.2s ease-out;
-  white-space: nowrap;
-}
-
-/* Reveal on domain-block hover — hovering the header or the card
-   both trigger the reveal since both are inside the positioned block. */
-.domain-block:hover .card-close-btn {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-/* The × is pulled OUT of flex flow so it doesn't reserve row width.
-   As the × fades out on hover its space doesn't get "reclaimed" by
-   the label (which used to slide the label's right edge rightward
-   and make the whole thing feel like a left-to-right reveal). Now
-   the label's right edge is pinned by justify-content: flex-end
-   and the × just cross-fades in place above that anchor. */
-.card-close-btn svg {
-  position: absolute;
-  top: 50%;
-  right: 5px;
-  transform: translateY(-50%);
-  width: 13px;
-  height: 13px;
-  opacity: 1;
-  transition: opacity 0.2s ease-out;
-}
-
-.card-close-btn:hover svg {
-  opacity: 0;
-}
-
-.card-close-btn-text {
-  display: inline-block;
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  /* text-align: right makes the characters surface from the label's
-     RIGHT edge as max-width grows — last character visible first,
-     preceding chars revealing leftward. Matches the button frame's
-     own right-anchored expansion (the button is
-     `position: absolute; right: 0`, so its left edge travels
-     leftward as it grows). Without this override the button grew
-     left while the characters inside revealed left-to-right, which
-     read as the text animation running the wrong direction. */
-  text-align: right;
-  transition:
-    max-width 0.2s ease-out,
-    opacity 0.2s ease-out;
-}
-
-.card-close-btn:hover {
-  /* Hover shows danger via red border + red text (the "outlined
-     destructive" pattern), not a solid red fill. The card-bg
-     background keeps the label readable against the page bg while
-     the red stroke on border + text (+ currentColor-inherited ×)
-     communicates intent. Quieter than red-fill + white-text, but
-     still unambiguously destructive. */
-  background: var(--card-bg);
-  border-color: var(--status-abandoned);
-  color: var(--status-abandoned);
-}
-
-.card-close-btn:hover .card-close-btn-text {
-  max-width: 200px;
-  opacity: 1;
-}
-
-
 /* Closing animation — shared by the whole domain block, the chip ×,
    the dedup button and every (Nx) dupe badge. Every handler just does
    `el.classList.add('closing')` + awaits the CSS transition, then
@@ -702,8 +567,7 @@ header {
 .domain-header .tab-count-badge,
 .domain-header .action-btn,
 .domain-header .domain-pin-btn,
-.domain-header .domain-fixed-indicator,
-.card-close-btn {
+.domain-header .domain-fixed-indicator {
   height: 22px;
   box-sizing: border-box;
   /* Zero the vertical padding — with explicit height + flex

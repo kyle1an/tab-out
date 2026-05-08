@@ -20,9 +20,14 @@ interface DomainCardProps {
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   return (
-    <Button className="card-close-btn" onClick={onClick}>
-      <span className="card-close-btn-text">{label}</span>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <Button
+      className="card-close-btn group/card-close pointer-events-none absolute top-0 right-0 z-2 box-border flex h-[22px] min-w-[22px] cursor-pointer items-center justify-end gap-0 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 py-0 text-[12px] font-medium text-tab-muted opacity-0 transition-[opacity,background,border-color,color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-[var(--status-abandoned)] hover:bg-tab-card hover:text-[var(--status-abandoned)]"
+      onClick={onClick}
+    >
+      <span className="card-close-btn-text inline-block max-w-0 overflow-hidden text-right tabular-nums opacity-0 transition-[max-width,opacity] duration-200 ease-out group-hover/card-close:max-w-[200px] group-hover/card-close:opacity-100">
+        {label}
+      </span>
+      <svg className="absolute top-1/2 right-[5px] h-[13px] w-[13px] -translate-y-1/2 opacity-100 transition-opacity duration-200 ease-out group-hover/card-close:opacity-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
     </Button>
