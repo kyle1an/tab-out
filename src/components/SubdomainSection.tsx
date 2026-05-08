@@ -65,7 +65,7 @@ export function SubdomainSection({
   }
 
   return (
-    <div className="subdomain-section" data-kind={isPort ? 'port' : undefined}>
+    <div className="subdomain-section flex flex-col" data-kind={isPort ? 'port' : undefined}>
       {showHeader && (
         <div className="subdomain-header">
           <span
