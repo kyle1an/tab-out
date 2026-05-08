@@ -36,10 +36,10 @@ interface HeaderBarProps extends DashboardStats {
 function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
   return (
     <SegmentedTabs
-      rootClassName="source-switch-root"
-      listClassName="source-switch"
-      tabClassName="source-switch-option"
-      indicatorClassName="source-switch-indicator"
+      rootClassName="source-switch-root inline-flex box-border h-[var(--header-control-height)] rounded-[16px] border border-[var(--warm-gray)] [corner-shape:squircle]"
+      listClassName="source-switch relative z-0 flex h-full box-border items-center gap-1 px-1 py-0"
+      tabClassName="source-switch-option relative z-1 inline-flex h-8 box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-lg before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:outline-none focus-visible:before:outline-[var(--accent-amber)] data-[active]:text-tab-ink"
+      indicatorClassName="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-[var(--active-tab-width)] rounded-lg bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]"
       value={source}
       options={SOURCE_SWITCH_OPTIONS}
       ariaLabel="Dashboard source"
