@@ -891,31 +891,6 @@ header {
   color: var(--muted);
   letter-spacing: 0.2px;
 }
-/* Trailing "." after a subdomain name ("dev2us.") evokes the
-   FQDN-style absolute-name notation where the missing suffix is
-   implied by context (card title / base domain). Thinner + dimmer
-   than the name itself so it registers as quiet punctuation rather
-   than a sentence terminator. */
-.subdomain-header-name::after {
-  content: '.';
-  margin-left: 1px;
-  font-weight: 400;
-  opacity: 0.45;
-}
-
-/* Port section (multi-port localhost card) — `:3000` instead of
-   `3000.`. Mirror the mission-subdomain.is-port pattern so the pill
-   and the section header read identically. */
-.subdomain-section[data-kind='port'] .subdomain-header-name::before {
-  content: ':';
-  font-weight: 400;
-  opacity: 0.45;
-}
-
-.subdomain-section[data-kind='port'] .subdomain-header-name::after {
-  content: none;
-}
-
 /* Subdomain-level close — sits right next to the count, clustered
    with the rest of the header text so the pairing reads as "here's
    this subdomain's stats, and here's the close for it." Hidden by

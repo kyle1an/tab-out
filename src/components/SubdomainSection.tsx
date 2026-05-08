@@ -4,6 +4,7 @@ import { markClosure } from '../extension/undo.js'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import { Button } from './ui/Button'
+import { cn } from '../lib/cn'
 import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface SubdomainCloseButtonProps {
@@ -67,7 +68,16 @@ export function SubdomainSection({
     <div className="subdomain-section" data-kind={isPort ? 'port' : undefined}>
       {showHeader && (
         <div className="subdomain-header">
-          <span className="subdomain-header-name">{headerLabel}</span>
+          <span
+            className={cn(
+              'subdomain-header-name',
+              isPort
+                ? "before:font-normal before:opacity-45 before:content-[':']"
+                : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
+            )}
+          >
+            {headerLabel}
+          </span>
           <span className="subdomain-header-count font-medium tabular-nums opacity-[0.55]">{sectionCount}</span>
           {hasClose && <SubdomainCloseButton count={sectionClosableUrls.length} onClick={onCloseSubdomain} />}
         </div>
