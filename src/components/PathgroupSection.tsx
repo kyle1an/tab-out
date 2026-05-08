@@ -26,8 +26,12 @@ interface PathgroupSectionProps {
 function PathgroupCloseButton({ count, onClick }: PathgroupCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
-    <Button className="pathgroup-close-btn" title={title} onClick={onClick}>
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+    <Button
+      className="pathgroup-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]"
+      title={title}
+      onClick={onClick}
+    >
+      <svg className="block h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
     </Button>
@@ -52,8 +56,8 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
   }
 
   return (
-    <div className="pathgroup-section flex flex-col" data-expanded={expanded ? 'true' : undefined}>
-      <div className="pathgroup-header">
+    <div className="pathgroup-section group/pathgroup-section flex flex-col" data-expanded={expanded ? 'true' : undefined}>
+      <div className="pathgroup-header relative flex items-center gap-1.5 pt-[3px] pr-6 pb-0.5 pl-0">
         <span
           className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
           title={label}

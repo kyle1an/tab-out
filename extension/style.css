@@ -767,20 +767,6 @@ header {
    2+ chips share a path-level cluster (same repo, same Jira project,
    etc). One level deeper than .subdomain-section; the header reuses
    the pill style as its label, followed by a muted member count. */
-.pathgroup-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  /* Top padding 6 → 3 — the inter-section margin trim alone wasn't
-     visible because this padding dominated the gap between the
-     preceding chip and the cluster label. Bottom kept at 2 so the
-     label still has a hair of air above the first chip. */
-  padding: 3px 24px 2px 0;
-  /* Anchor for the absolutely-positioned close button. The right
-     padding reserves the button's hover target so long path labels
-     truncate before they can sit under the close icon. */
-  position: relative;
-}
 /* If the very first content block in the card is a pathgroup section,
    the card's own padding already supplies the top breathing room. Drop
    the header's top padding in that one case so the cluster label sits
@@ -788,53 +774,11 @@ header {
 .mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-header {
   padding-top: 0;
 }
-/* Cluster-level close — round, hidden by default, fades in on
-   section hover. Absolute positioning keeps it out of the flex
-   flow so the label/count row stays stable as the action appears.
-   Mirrors the card-close policy: clicking only closes ungrouped
-   tabs in the cluster (grouped tabs are preserved upstream in
-   closeTabsExact). */
-.pathgroup-close-btn {
-  position: absolute;
-  right: 0;
-  /* Header padding is now ~symmetric (3 top / 2 bottom after the
-     earlier density trim) so the geometric center and the content's
-     visual center are within 0.5 px of each other — just center
-     normally. The old +2px offset was calibrated for the earlier
-     6/2 padding and left the × sitting below the pill's baseline. */
-  top: 50%;
-  transform: translateY(-50%);
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: var(--card-bg);
-  border: none;
-  border-radius: 50%;
-  color: var(--muted);
-  cursor: pointer;
-  opacity: 0;
-  transition:
-    opacity 0.15s,
-    background 0.12s;
-}
-.pathgroup-section:hover .pathgroup-close-btn {
-  opacity: 1;
-}
 /* The first-pathgroup header trims only its top padding, leaving a
    slightly bottom-heavy box. Nudge just that close button up 1px so
    it stays optically centered on the label row. */
 .mission-pages > .subdomain-section:first-child > .pathgroup-section:first-child .pathgroup-close-btn {
   top: calc(50% - 1px);
-}
-.pathgroup-close-btn:hover {
-  background: #ededed;
-}
-.pathgroup-close-btn svg {
-  width: 12px;
-  height: 12px;
-  display: block;
 }
 
 /* Breathing room between adjacent path groups. These groups no
