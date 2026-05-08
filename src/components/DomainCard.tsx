@@ -40,7 +40,7 @@ function TabBadge({ label, title }: { label?: string | number; title?: string })
   if (slashIndex > 0) {
     return (
       <span
-        className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0.5 text-[12px] font-medium text-[var(--accent-amber)] [corner-shape:squircle]"
+        className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]"
         title={title}
       >
         <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
@@ -51,7 +51,7 @@ function TabBadge({ label, title }: { label?: string | number; title?: string })
 
   return (
     <span
-      className="open-tabs-badge tab-count-badge inline-flex items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0.5 text-[12px] font-medium text-[var(--accent-amber)] [corner-shape:squircle]"
+      className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]"
       title={title}
     >
       {labelText}
@@ -181,8 +181,10 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
         {vm.singleSubdomainKey && (
           <span
             className={cn(
-              'mission-subdomain inline-flex items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0.5 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
-              vm.singleSubdomainIsPort && 'is-port'
+              'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
+              vm.singleSubdomainIsPort
+                ? "before:font-normal before:opacity-45 before:content-[':']"
+                : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
             )}
           >
             {vm.singleSubdomainKey}
