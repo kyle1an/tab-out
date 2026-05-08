@@ -359,15 +359,6 @@ header {
   mask-image: linear-gradient(to right, black 0, black calc(100% - 14px), transparent);
 }
 
-.history-entry-row.closing {
-  opacity: 0;
-  transform: scale(0.96);
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
-  pointer-events: none;
-}
-
 @media (max-width: 900px) {
   .dashboard-shell.has-history {
     --dashboard-page-gutter: 20px;
@@ -470,39 +461,6 @@ header {
 
 .domain-block-apps .mission-card {
   padding: 7px;
-}
-
-/* Closing animation — shared by the whole domain block, the chip ×,
-   the dedup button and every (Nx) dupe badge. Every handler just does
-   `el.classList.add('closing')` + awaits the CSS transition, then
-   re-renders — no more inline style mutations in JS.
-
-   Animating at the .domain-block level means the header fades with
-   the card as one unit on close, rather than the card collapsing out
-   from under a still-visible title. */
-.domain-block.closing {
-  opacity: 0;
-  transform: scale(0.9);
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
-  pointer-events: none;
-}
-
-.page-chip.closing {
-  opacity: 0;
-  transform: scale(0.8);
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-  pointer-events: none;
-}
-
-.action-btn.closing,
-.chip-dupe-badge.closing {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  pointer-events: none;
 }
 
 /* ---- Tab row — each tab is a full-width row with favicon, title, and actions ---- */

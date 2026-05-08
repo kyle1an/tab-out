@@ -161,7 +161,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
 
   return (
     <div
-      className="history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-center gap-2 font-[inherit]"
+      className="history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-center gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]"
       title={entry.title || entry.displayUrl || entry.url}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

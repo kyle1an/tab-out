@@ -250,7 +250,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
   return (
     <div
       className={cn(
-        'page-chip clickable group/page-chip cursor-pointer transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)]',
+        'page-chip clickable group/page-chip cursor-pointer transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]',
         isFolded && 'page-chip-folded after:hidden',
         chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
         chip.iconOnly && chip.isApp && 'overflow-visible outline-none'
@@ -277,7 +277,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
           {!chip.iconOnly && dupeCount > 1 && (
             <span
               className={cn(
-                'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)]',
+                'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
                 dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
               )}
               aria-hidden="true"

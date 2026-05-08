@@ -64,7 +64,7 @@ function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEven
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
     <Button
-      className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink"
+      className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]"
       title={title}
       onClick={onClick}
     >
@@ -164,7 +164,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   return (
     <div
       className={cn(
-        'domain-block group/domain-block relative flex flex-col gap-1',
+        'domain-block group/domain-block relative flex flex-col gap-1 [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[250ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
         vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
         isAppsCard && 'domain-block-apps',
         isFixedCard && 'domain-block-fixed',
