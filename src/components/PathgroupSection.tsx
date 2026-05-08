@@ -95,7 +95,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         </div>
       )}
       {!expanded && hiddenCount > 0 && (
-        <Button className="page-chip page-chip-overflow clickable relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.5 pr-1 pl-3 text-left text-xs tabular-nums text-tab-muted [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)]" onClick={onExpand}>
+        <Button className="page-chip page-chip-overflow clickable relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.5 pr-1 pl-3 text-left text-xs tabular-nums text-tab-muted [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] hover:bg-[rgba(82,82,82,0.04)]" onClick={onExpand}>
           <span className="chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:'']">+{hiddenCount} more</span>
         </Button>
       )}
