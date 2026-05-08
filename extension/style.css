@@ -446,16 +446,6 @@ header {
   pointer-events: none;
 }
 
-/* Title runs full-width by default — the close button only appears on
-   chip hover (Chrome-tab style), so the extra right-side padding that
-   was reserved for the always-visible × is no longer needed. Text
-   fades into the button area on hover via a mask (below). */
-
-.chip-text.chip-text-truncated {
-  mask-image:
-    linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
-    linear-gradient(to right, black 0, black calc(100% - 60px), rgba(0, 0, 0, 0.35) calc(100% - 20px), transparent);
-}
 /* Right-edge overlay that reveals on chip hover when an action button is present. GPU-cheap opacity
    transition gives a smooth fade-in; the endpoint color matches the
    chip's COMPOSITE hover background (card-bg plus the faint

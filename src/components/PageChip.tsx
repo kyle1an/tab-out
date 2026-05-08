@@ -288,7 +288,13 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
         </span>
       )}
       {!chip.iconOnly && (
-        <span className={cn("chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:'']", chip.pathSuffix && 'max-h-[calc(3lh)]')} ref={chipTextRef}>
+        <span
+          className={cn(
+            "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+            chip.pathSuffix && 'max-h-[calc(3lh)]'
+          )}
+          ref={chipTextRef}
+        >
           {isFolded && (
             <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
               {envs.map((env) => (
