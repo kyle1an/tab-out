@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from 'react'
+import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { buildDashboardViewModel } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardData, DashboardSource, DomainGroup } from '../extension/types'
@@ -7,10 +8,6 @@ import type { MissionOrderMap } from './useDashboardRefresh'
 const EMPTY_TABS: DashboardData['realTabs'] = []
 const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []
 const EMPTY_CARD_ENTRIES: DashboardCardEntry[] = []
-
-function stableGroupId(group: DomainGroup): string {
-  return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
-}
 
 type DashboardViewModelOptions = {
   dashboard: DashboardData | null
@@ -89,12 +86,12 @@ type MissionOrderMemoryOptions = {
 
 export function useMissionOrderMemory({ previousOrderRef, source, matchedCards, bookmarkMatchedCards, historyMatchedCards }: MissionOrderMemoryOptions): void {
   useEffect(() => {
-    previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+    previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
     if (source === 'tabs' && bookmarkMatchedCards.length > 0) {
-      previousOrderRef.current.bookmarks = new Map(bookmarkMatchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+      previousOrderRef.current.bookmarks = new Map(bookmarkMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
     }
     if (source === 'tabs' && historyMatchedCards.length > 0) {
-      previousOrderRef.current.history = new Map(historyMatchedCards.map(({ group }, index) => [stableGroupId(group), index]))
+      previousOrderRef.current.history = new Map(historyMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
     }
   }, [bookmarkMatchedCards, historyMatchedCards, matchedCards, previousOrderRef, source])
 }

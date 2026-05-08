@@ -1,6 +1,7 @@
 import { DomainCard } from './DomainCard'
+import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { cn } from '../lib/cn'
-import type { DashboardCardEntry, DashboardSource, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface MissionsProps {
   cards: DashboardCardEntry[]
@@ -10,10 +11,6 @@ interface MissionsProps {
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
-}
-
-function stableKey(group: DomainGroup) {
-  return 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
 }
 
 function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
@@ -43,7 +40,7 @@ export function Missions({ cards, filter = '', source = 'tabs', showEmptyState =
     <>
       {cards.map(({ group, vm }) => (
         <DomainCard
-          key={stableKey(group)}
+          key={domainGroupCardId(group)}
           group={group}
           vm={vm}
           filter={filter}

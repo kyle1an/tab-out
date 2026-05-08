@@ -1,3 +1,4 @@
+import { domainGroupCardId } from './domain-card-id.js'
 import { registrableDomain } from './domains.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 import type { CustomGroupRule, DashboardTab, DomainGroup, DomainGroupBuildOptions } from './types'
@@ -105,13 +106,12 @@ export function buildDomainGroups(
   // Stable re-sort: previously-seen cards keep their prior order; new
   // cards stay where the utility-card/tab-count sort put them (at the
   // end, since `return 0` preserves Array.prototype.sort stability).
-  const stableDomainId = (g: DomainGroup) => 'domain-' + g.domain.replace(/[^a-z0-9]/g, '-')
   groupedDomains.sort((a, b) => {
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta
     if (a.pinned && b.pinned) return (pinnedOrder.get(a.domain) ?? 0) - (pinnedOrder.get(b.domain) ?? 0)
-    const aPrev = previousOrder.get(stableDomainId(a))
-    const bPrev = previousOrder.get(stableDomainId(b))
+    const aPrev = previousOrder.get(domainGroupCardId(a))
+    const bPrev = previousOrder.get(domainGroupCardId(b))
     if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev
     if (aPrev !== undefined) return -1
     if (bPrev !== undefined) return 1

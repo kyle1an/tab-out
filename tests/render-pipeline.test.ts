@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 import { flattenBookmarkNodes } from '../src/extension/bookmarks.js'
+import { domainCardId } from '../src/extension/domain-card-id.js'
 import {
   DEFAULT_HISTORY_RANGE,
   HISTORY_FILTER_OFF,
@@ -116,6 +117,11 @@ test('buildDomainGroups keeps saved pin order ahead of previous card order', () 
     groups.map((group) => group.domain),
     ['example.com', 'openai.com', 'github.com']
   )
+})
+
+test('domainCardId is the shared identity for card order and DOM hooks', () => {
+  assert.equal(domainCardId('github.com'), 'domain-github-com')
+  assert.equal(domainCardId('__tab-out__'), 'domain---tab-out--')
 })
 
 test('buildDomainGroups keeps system cards ahead of pinned domain cards', () => {

@@ -1,3 +1,4 @@
+import { domainGroupCardId } from './domain-card-id.js'
 import { pickFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { cleanTitle, stripTitleNoise } from './titles.js'
@@ -195,7 +196,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const allTabs = group.tabs || []
   const filtering = filter !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
-  const stableId = 'domain-' + group.domain.replace(/[^a-z0-9]/g, '-')
+  const stableId = domainGroupCardId(group)
   const isAppsGroup = group.domain === '__standalone-apps__'
 
   if (filtering && isAppsGroup) {
