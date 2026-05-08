@@ -252,7 +252,8 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
       className={cn(
         'page-chip clickable group/page-chip cursor-pointer transition-colors duration-150 hover:bg-[rgba(82,82,82,0.04)]',
         isFolded && 'page-chip-folded after:hidden',
-        chip.iconOnly && 'page-chip-icon-only'
+        chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
+        chip.iconOnly && chip.isApp && 'overflow-visible outline-none'
       )}
       title={chipLabel}
       aria-label={chipLabel}

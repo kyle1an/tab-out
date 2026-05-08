@@ -659,36 +659,6 @@ header {
    was reserved for the always-visible × is no longer needed. Text
    fades into the button area on hover via a mask (below). */
 
-.page-chip-icon-only {
-  width: 24px;
-  min-width: 24px;
-  min-height: 24px;
-  padding: 0;
-  justify-content: center;
-  align-items: center;
-  gap: 0;
-  border-radius: 12px;
-  corner-shape: squircle;
-  overflow: hidden;
-  background: transparent;
-  border: none;
-  outline: 1px solid rgba(115, 115, 115, 0.18);
-  outline-offset: 1px;
-}
-
-.page-chip-icon-only:has(.chip-favicon-frame.is-app) {
-  outline: none;
-  overflow: visible;
-}
-
-.page-chip-icon-only::after {
-  display: none;
-}
-
-.page-chip-icon-only::before {
-  display: none;
-}
-
 .chip-text.chip-text-truncated {
   mask-image:
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
