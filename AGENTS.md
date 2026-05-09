@@ -97,6 +97,15 @@ Once the extension is loaded:
 - During development, run `pnpm dev` to watch `src/` changes and rebuild the packaged bundles; refresh the Tab Out page for dashboard changes and reload the extension for manifest, service-worker, or permission changes.
 - To update: `cd tab-out && git pull`, run `pnpm install && pnpm build` only if source files changed without built assets, then reload the extension in `chrome://extensions`.
 
+## Git Commit Conventions
+
+- Use conventional commit subjects, such as `fix(ui): ...`, `refactor(ui): ...`, or `feat(ui): ...`.
+- For Codex-authored or Codex-assisted commits, include `Co-authored-by: Codex <noreply@openai.com>` as the final non-empty line.
+- Do not leave an extra blank line after the `Co-authored-by` trailer. GitHub may fail to render the co-author even when local `git interpret-trailers` still parses it.
+- For metadata-only commit-message rewrites, preserve author and committer timestamps.
+- Before rewriting published history, create a backup branch.
+- Push rewritten published history only with `git push --force-with-lease`.
+
 ## Live QA & Inspection
 
 - For live Tab Out behavior, inspect the real Chrome extension page, not the Codex in-app browser.
