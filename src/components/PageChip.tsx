@@ -248,15 +248,18 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const style = chip.isGrouped ? ({ '--group-color': chip.groupDotColor } as CSSProperties) : undefined
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
-  const chipLabel = [chip.tooltip, duplicateLabel].filter(Boolean).join(' · ')
+  const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
+  const chipLabel = [chip.tooltip, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
 
   return (
     <div
       className={cn(
         "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,color-mix(in_srgb,var(--card-bg)_96%,rgb(82_82_82))_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
+        chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2),0_1px_2px_rgba(10,10,10,0.04)] hover:bg-[rgba(82,82,82,0.095)]',
         isFolded && 'page-chip-folded after:hidden',
         chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
-        chip.iconOnly && chip.isApp && 'overflow-visible outline-none'
+        chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
+        chip.iconOnly && chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
       )}
       title={chipLabel}
       aria-label={chipLabel}
@@ -305,8 +308,11 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
                   variant="unstyled"
                   size="unstyled"
                   key={env.rawUrl || env.tabUrl}
-                  className="chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink"
-                  title={`Focus ${env.prefix} tab`}
+                  className={cn(
+                    "chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color,box-shadow] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink",
+                    env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
+                  )}
+                  title={`Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`}
                   onClick={(e) => onEnvClick(e, env)}
                   onKeyDown={(e) => onEnvKeyDown(e, env)}
                   onMouseEnter={() => onEnvMouseEnter(env)}

@@ -42,7 +42,7 @@ export { getFilteredCloseableUrls, tabMatchesFilter } from './filter-match.js'
  * same groups.
  */
 /**
- * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource }} [opts]
+ * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource, currentWindowId?: number | null }} [opts]
  * @returns {DashboardViewModel}
  */
 type DashboardViewModelOptions = {
@@ -50,9 +50,10 @@ type DashboardViewModelOptions = {
   domainGroups?: DomainGroup[]
   filter?: string
   source?: DashboardSource
+  currentWindowId?: number | null
 }
 
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs' }: DashboardViewModelOptions = {}): DashboardViewModel {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.length > 0
   const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
@@ -64,7 +65,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   const globalDedupeUrls: string[] = []
   let dedupCount = 0
   for (const group of groups) {
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations })
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -75,7 +76,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 
@@ -109,6 +110,15 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 function getDashboardGroupingConfig(): { customGroups: CustomGroupRule[] } {
   return {
     customGroups: window.LOCAL_CUSTOM_GROUPS || []
+  }
+}
+
+async function getCurrentWindowId(): Promise<number | null> {
+  try {
+    const currentWindow = await chrome.windows.getCurrent()
+    return typeof currentWindow.id === 'number' ? currentWindow.id : null
+  } catch {
+    return null
   }
 }
 
@@ -149,6 +159,7 @@ export async function fetchDashboardData(
     return {
       realTabs,
       domainGroups,
+      currentWindowId: null,
       bookmarkTabs: [],
       bookmarkDomainGroups: [],
       bookmarkSearchReady: false,
@@ -160,8 +171,9 @@ export async function fetchDashboardData(
   }
 
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
-  const [, bookmarkTabs, historyTabs] = await Promise.all([
+  const [, currentWindowId, bookmarkTabs, historyTabs] = await Promise.all([
     fetchOpenTabs(),
+    getCurrentWindowId(),
     includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([]),
     includeHistoryMatches ? fetchHistorySourceItems(searchQuery, historyRange) : Promise.resolve([])
   ])
@@ -172,6 +184,7 @@ export async function fetchDashboardData(
   return {
     realTabs,
     domainGroups,
+    currentWindowId,
     bookmarkTabs,
     bookmarkDomainGroups,
     bookmarkSearchReady: includeBookmarkMatches,

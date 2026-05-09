@@ -67,6 +67,7 @@ export interface DashboardChipEnv {
   prefix: string
   tabUrl: string
   rawUrl: string
+  activeInOtherWindow?: boolean
 }
 
 export interface DashboardChipData {
@@ -83,6 +84,7 @@ export interface DashboardChipData {
   isGrouped: boolean
   groupDotColor: string | null
   isApp: boolean
+  activeInOtherWindow?: boolean
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
 }
@@ -162,6 +164,7 @@ export interface DashboardViewModel {
 export interface DashboardData {
   realTabs: DashboardTab[]
   domainGroups: DomainGroup[]
+  currentWindowId?: number | null
   bookmarkTabs?: DashboardTab[]
   bookmarkDomainGroups?: DomainGroup[]
   bookmarkSearchReady?: boolean

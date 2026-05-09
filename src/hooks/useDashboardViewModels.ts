@@ -22,6 +22,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
+  const currentWindowId = dashboard?.currentWindowId ?? null
   const bookmarkTabs = dashboard?.bookmarkTabs || EMPTY_TABS
   const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || EMPTY_DOMAIN_GROUPS
   const historyTabs = dashboard?.historyTabs || EMPTY_TABS
@@ -31,7 +32,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     realTabs,
     domainGroups,
     filter,
-    source
+    source,
+    currentWindowId
   })
 
   const bookmarkSearchVm =

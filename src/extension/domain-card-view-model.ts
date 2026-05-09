@@ -13,6 +13,7 @@ type ComputeCardOptions = {
   filter?: string
   mode?: CardMode
   allowMutations?: boolean
+  currentWindowId?: number | null
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
 
@@ -35,6 +36,12 @@ type PathCategory = NonNullable<PathGroupResult['category']>
 function injectBreakPoints(str: string): string {
   if (!str) return str
   return str.replace(/[A-Za-z0-9_]{15,}/g, (token) => token.replace(/(.{5})(?=.)/g, '$1\u200B'))
+}
+
+function isActiveInOtherWindow(tab: DashboardTab, currentWindowId: number | null): boolean {
+  if (!tab.active) return false
+  if (typeof currentWindowId !== 'number') return true
+  return tab.windowId !== currentWindowId
 }
 
 /**
@@ -189,10 +196,10 @@ function disambiguatingPaths(urls: string[]): string[] {
 */
 /**
  * @param {DomainGroup} group
- * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean }} [opts]
+ * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
   const filtering = filter !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -407,6 +414,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
+    const activeInOtherWindow = isActiveInOtherWindow(tab, currentWindowId)
     return {
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
@@ -421,6 +429,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
       isApp: !!tab.isApp,
+      activeInOtherWindow,
       iconOnly,
       envs: null
     }
@@ -514,7 +523,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         try {
           sub = subdomainPrefix(new URL(t.url).hostname, group.domain)
         } catch {}
-        return { prefix: sub || '?', tabUrl: t.url, rawUrl: t.rawUrl || t.url }
+        return {
+          prefix: sub || '?',
+          tabUrl: t.url,
+          rawUrl: t.rawUrl || t.url,
+          activeInOtherWindow: isActiveInOtherWindow(t, currentWindowId)
+        }
       })
       .sort((a, b) => a.prefix.localeCompare(b.prefix, undefined, { numeric: true }))
     const tooltip = [envs.map((e) => e.prefix).join(' · '), label].filter(Boolean).join(' · ')
@@ -535,6 +549,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       // is running in an app window — a mixed set isn't clearly one
       // or the other, so we bias toward "not app" (no dashed marker).
       isApp: tabs.every((t) => t.isApp),
+      activeInOtherWindow: envs.some((env) => env.activeInOtherWindow),
       envs
     }
   }

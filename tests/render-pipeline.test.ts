@@ -253,24 +253,47 @@ test('computeDomainCardViewModel disambiguates collisions by rendered title', ()
   assert.deepEqual(new Set(chips.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
 })
 
+test('computeDomainCardViewModel marks active tabs from other windows', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/current-window', title: 'Current window', active: true, windowId: 1 }),
+      makeTab({ id: 2, url: 'https://example.com/other-window', title: 'Other window', active: true, windowId: 2 })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const chips = vm.sections[0].flatVisibleChips
+  const currentWindowChip = chips.find((chip) => chip.tabUrl === 'https://example.com/current-window')
+  const otherWindowChip = chips.find((chip) => chip.tabUrl === 'https://example.com/other-window')
+
+  assert.equal(currentWindowChip?.activeInOtherWindow, false)
+  assert.equal(otherWindowChip?.activeInOtherWindow, true)
+})
+
 test('computeDomainCardViewModel keeps the shared folded section headerless', () => {
   const group = {
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://dev.example.com/settings', title: 'Settings' }),
-      makeTab({ id: 2, url: 'https://qa.example.com/settings', title: 'Settings' }),
+      makeTab({ id: 2, url: 'https://qa.example.com/settings', title: 'Settings', active: true, windowId: 2 }),
       makeTab({ id: 3, url: 'https://dev.example.com/logs', title: 'Logs' })
     ]
   }
 
-  const vm = computeDomainCardViewModel(group)
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
   assert.equal(vm.isHidden, false)
   assert.equal(vm.sections[0].isShared, true)
   assert.equal(vm.sections[0].showHeader, false)
   assert.equal(vm.sections[0].flatVisibleChips.length, 1)
+  assert.equal(vm.sections[0].flatVisibleChips[0].activeInOtherWindow, true)
   assert.deepEqual(
     vm.sections[0].flatVisibleChips[0].envs.map((env) => env.prefix),
     ['dev', 'qa']
+  )
+  assert.deepEqual(
+    vm.sections[0].flatVisibleChips[0].envs.map((env) => env.activeInOtherWindow || false),
+    [false, true]
   )
 })
 
