@@ -190,6 +190,7 @@ test('PageChip renders folded titles before env controls', () => {
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Deployment History'],
+        suppressedTitleParts: ['| Example Retail', '- DEV1'],
         envs: [
           { prefix: 'dev1us', tabUrl: 'https://dev1us.example.com/deployments', rawUrl: 'https://dev1us.example.com/deployments' },
           { prefix: 'dev2us', tabUrl: 'https://dev2us.example.com/deployments', rawUrl: 'https://dev2us.example.com/deployments' }
@@ -201,6 +202,7 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(html, /page-chip-folded\b/)
   assert.match(html, /chip-folded-content\b/)
   assert.match(html, /chip-title-row\b[^>]*>Deployment History[\s\S]*chip-env-row\b[^>]*>[\s\S]*dev1us[\s\S]*dev2us/)
+  assert.equal([...html.matchAll(/chip-title-suppression-marker/g)].length, 2)
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'folded page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-folded\b/)

@@ -268,8 +268,8 @@ test('computeDomainCardViewModel hides repeated trailing title suffixes in norma
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
   assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
-  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- Example Workspace'], ['- Example Workspace']])
-  assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Example Workspace', count: 2 }])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- Example Workspace', '- Slack'], ['- Example Workspace', '- Slack']])
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Example Workspace', count: 2 }, { text: '- Slack', count: 2 }])
 })
 
 test('computeDomainCardViewModel keeps repeated title suffixes visible while filtering', () => {
@@ -286,8 +286,8 @@ test('computeDomainCardViewModel keeps repeated title suffixes visible while fil
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
   assert.deepEqual(titles, ['Alpha channel - Example Workspace', 'Beta channel - Example Workspace'])
-  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [[], []])
-  assert.deepEqual(vm.suppressedTitleParts, [])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- Slack'], ['- Slack']])
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Slack', count: 2 }])
 })
 
 test('computeDomainCardViewModel tracks multiple hidden title parts per chip', () => {
@@ -304,8 +304,8 @@ test('computeDomainCardViewModel tracks multiple hidden title parts per chip', (
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
   assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
-  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- JIRA', '- Example Workspace'], ['- JIRA', '- Example Workspace']])
-  assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Example Workspace', count: 2 }, { text: '- JIRA', count: 2 }])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- JIRA', '- Example Workspace', '- Slack'], ['- JIRA', '- Example Workspace', '- Slack']])
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Example Workspace', count: 2 }, { text: '- JIRA', count: 2 }, { text: '- Slack', count: 2 }])
 })
 
 test('computeDomainCardViewModel suppresses shared title text before structural path labels', () => {
@@ -332,8 +332,8 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   const chips = chipsFrom(vm)
   const visibleTitles = chips.map(chipTitle)
 
-  assert.deepEqual(vm.suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }])
-  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['— Content — Example Website —'], ['— Content — Example Website —']])
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['— Content — Example Website —', '— Contentful'], ['— Content — Example Website —', '— Contentful']])
   assert.deepEqual(visibleTitles, [
     'Example Article Beta ~ /',
     'Example Article Alpha ~ /'
@@ -343,7 +343,7 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   const filteredVm = computeDomainCardViewModel(group, { filter: 'example website' })
   const filteredTitles = chipsFrom(filteredVm).map(chipTitle)
 
-  assert.deepEqual(filteredVm.suppressedTitleParts, [])
+  assert.deepEqual(filteredVm.suppressedTitleParts, [{ text: '— Contentful', count: 2 }])
   assert.ok(filteredTitles.every((title) => title.includes('Content') && title.includes('Example Website')))
 })
 
@@ -362,6 +362,53 @@ test('computeDomainCardViewModel treats Google Search as shared hidden title tex
   assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Google Search', count: 2 }])
   assert.deepEqual(section.clusters.map((cluster) => cluster.label), [])
   assert.equal(section.hasFlat, true)
+})
+
+test('computeDomainCardViewModel exposes Confluence product and site suffixes as title noise', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({
+        url: 'https://example.atlassian.net/browse/TASK-1001',
+        title: '[TASK-1001] My account: Suggestion to add'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://example.atlassian.net/browse/DOC-1002',
+        title: '[DOC-1002] Example Product Article'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-alpha/Example+Architecture+Plan',
+        title: 'Example Architecture Plan - Example Knowledge Site - Confluence'
+      }),
+      makeTab({
+        id: 4,
+        url: 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-beta/Example+Shared+Library',
+        title: 'Example Shared Library Design - Example Knowledge Site - Confluence'
+      }),
+      makeTab({
+        id: 5,
+        url: 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-gamma/Example+Content+Guide',
+        title: 'Example Mobile App HTML Content Guide - Example Knowledge Site - Confluence'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections
+    .flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
+    .filter((chip) => chip.tabUrl.includes('/wiki/'))
+  const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
+
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: '- Confluence', count: 3 }, { text: '- Example-Site', count: 3 }])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [
+    ['- Example-Site', '- Confluence'],
+    ['- Example-Site', '- Confluence'],
+    ['- Example-Site', '- Confluence']
+  ])
+  assert.ok(titles.every((title) => !title.includes('Example-Site')))
+  assert.ok(titles.every((title) => !title.includes('Confluence')))
 })
 
 test('computeDomainCardViewModel marks active tabs from other windows', () => {
@@ -406,6 +453,27 @@ test('computeDomainCardViewModel keeps the shared folded section headerless', ()
     vm.sections[0].flatVisibleChips[0].envs.map((env) => env.activeInOtherWindow || false),
     [false, true]
   )
+})
+
+test('computeDomainCardViewModel carries every env suppression token on folded chips', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({ url: 'https://dev1.example.test/deployments', title: 'Deployment History | Example Retail - DEV1' }),
+      makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History | Example Retail - DEV2' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const foldedChip = vm.sections[0].flatVisibleChips[0]
+
+  assert.equal(vm.sections[0].isShared, true)
+  assert.deepEqual(vm.suppressedTitleParts, [
+    { text: '| Example Retail', count: 2 },
+    { text: '- DEV1', count: 1 },
+    { text: '- DEV2', count: 1 }
+  ])
+  assert.deepEqual(foldedChip.suppressedTitleParts, ['| Example Retail', '- DEV1', '- DEV2'])
 })
 
 test('buildDashboardViewModel derives matched and unmatched cards in one pass', () => {

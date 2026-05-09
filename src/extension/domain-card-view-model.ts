@@ -1,7 +1,7 @@
 import { domainGroupCardId } from './domain-card-id.js'
 import { pickFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
-import { cleanTitle, stripTitleNoise } from './titles.js'
+import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { tabMatchesFilter } from './filter-match.js'
@@ -20,6 +20,10 @@ type TitlePresentation = {
   displayTitle: string
   suppressedTitleParts: string[]
   suppressedTitlePartsBeforeStructuralTail: string[]
+}
+type BaseTitlePresentation = {
+  displayTitle: string
+  removedDomainTitleSuffix: string
 }
 type TitleSuppressionCandidate = {
   index: number
@@ -70,6 +74,13 @@ function isSuppressibleTrailingTitleSegment(segment: string): boolean {
   return words.length >= 2 || /^[A-Z]{2,}$/.test(text)
 }
 
+function isSuppressiblePathGroupTrailingTitleSegment(segment: string): boolean {
+  const text = segment.trim()
+  if (isSuppressibleTrailingTitleSegment(text)) return true
+  if (text.length < 4 || /[\d/#?&=]/.test(text) || !/[A-Za-z]/.test(text)) return false
+  return /[-_]/.test(text)
+}
+
 function isExpandableStructuralTitleSegment(segment: string): boolean {
   const text = segment.trim()
   if (text.length < 4 || /[\d/#?&=]/.test(text)) return false
@@ -84,7 +95,11 @@ function matchingStructuralTrailingTitleSegment(title: string, structuralTailLab
   return segment
 }
 
-function titleSuppressionCandidates(title: string, structuralTailLabel = ''): TitleSuppressionCandidate[] {
+function titleSuppressionCandidates(
+  title: string,
+  structuralTailLabel = '',
+  isSuppressibleSegment = isSuppressibleTrailingTitleSegment
+): TitleSuppressionCandidate[] {
   const structuralTail = matchingStructuralTrailingTitleSegment(title, structuralTailLabel)
   const scopeTitle = structuralTail ? title.slice(0, structuralTail.index).trim() : title
   const segment = trailingTitleSegment(scopeTitle)
@@ -92,7 +107,7 @@ function titleSuppressionCandidates(title: string, structuralTailLabel = ''): Ti
 
   const candidates: TitleSuppressionCandidate[] = []
   const suffix = scopeTitle.slice(segment.index + segment.separator.length).trim()
-  if (isSuppressibleTrailingTitleSegment(suffix)) {
+  if (isSuppressibleSegment(suffix)) {
     candidates.push({
       index: segment.index,
       text: title.slice(segment.index, structuralTail ? structuralTail.index + structuralTail.separator.length : undefined).trim(),
@@ -105,7 +120,7 @@ function titleSuppressionCandidates(title: string, structuralTailLabel = ''): Ti
     const previousSegment = trailingTitleSegment(prefix)
     if (previousSegment && isExpandableStructuralTitleSegment(previousSegment.suffix)) {
       const expandedSuffix = scopeTitle.slice(previousSegment.index + previousSegment.separator.length).trim()
-      if (isSuppressibleTrailingTitleSegment(expandedSuffix)) {
+      if (isSuppressibleSegment(expandedSuffix)) {
         candidates.push({
           index: previousSegment.index,
           text: title.slice(previousSegment.index, structuralTail.index + structuralTail.separator.length).trim(),
@@ -116,6 +131,16 @@ function titleSuppressionCandidates(title: string, structuralTailLabel = ''): Ti
   }
 
   return candidates
+}
+
+function uniqueTitleSuppressionCandidates(candidates: TitleSuppressionCandidate[]): TitleSuppressionCandidate[] {
+  const seen = new Set<string>()
+  return candidates.filter((candidate) => {
+    const key = `${candidate.index}\u0000${candidate.structuralTailIndex ?? ''}\u0000${candidate.text.toLowerCase()}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function isActiveInOtherWindow(tab: DashboardTab, currentWindowId: number | null): boolean {
@@ -399,45 +424,86 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
   }
 
-  function baseDisplayTitle(tab: DashboardTab): string {
+  function baseTitlePresentation(tab: DashboardTab): BaseTitlePresentation {
     let hostname = group.domain
     try {
       hostname = new URL(tab.url).hostname
     } catch {}
-    return cleanTitle(stripTitleNoise(tab.title || ''), hostname)
+    const cleaned = cleanTitleWithRemovedSuffix(stripTitleNoise(tab.title || ''), hostname, titleNoiseSuffixesForUrl(tab.url))
+    return {
+      displayTitle: cleaned.title,
+      removedDomainTitleSuffix: cleaned.removedSuffix
+    }
   }
 
-  function structuralTitleTailLabel(tab: DashboardTab): string {
+  function titleNoiseSuffixesForUrl(url: string): string[] {
     try {
-      return resolvePathGroup(tab.url)?.label || ''
+      const parsed = new URL(url)
+      if (parsed.hostname.endsWith('.atlassian.net') && parsed.pathname.startsWith('/wiki/')) return ['Confluence']
+    } catch {}
+    return []
+  }
+
+  function structuralPathGroup(tab: DashboardTab): PathGroupResult | null {
+    try {
+      return resolvePathGroup(tab.url)
     } catch {
-      return ''
+      return null
     }
   }
 
   function buildTitlePresentations(): Map<string, TitlePresentation> {
-    const rows = uniqueTabs.map((tab) => ({
-      url: tab.url,
-      displayTitle: baseDisplayTitle(tab),
-      suppressedTitleParts: [] as string[],
-      suppressedTitlePartsBeforeStructuralTail: [] as string[],
-      structuralTailLabel: structuralTitleTailLabel(tab)
-    }))
+    const rows = uniqueTabs.map((tab) => {
+      const baseTitle = baseTitlePresentation(tab)
+      const pathGroup = structuralPathGroup(tab)
+      return {
+        url: tab.url,
+        displayTitle: baseTitle.displayTitle,
+        suppressedTitleParts: baseTitle.removedDomainTitleSuffix ? [baseTitle.removedDomainTitleSuffix] : ([] as string[]),
+        suppressedTitlePartsBeforeStructuralTail: [] as string[],
+        structuralTailLabel: pathGroup?.label || '',
+        pathGroupKey: pathGroup?.key || ''
+      }
+    })
 
     if (filtering || rows.length < 2) {
-      return new Map(rows.map((row) => [row.url, { displayTitle: row.displayTitle, suppressedTitleParts: [], suppressedTitlePartsBeforeStructuralTail: [] }]))
+      return new Map(rows.map((row) => [row.url, {
+        displayTitle: row.displayTitle,
+        suppressedTitleParts: row.suppressedTitleParts,
+        suppressedTitlePartsBeforeStructuralTail: row.suppressedTitlePartsBeforeStructuralTail
+      }]))
+    }
+
+    const pathGroupSizes = new Map<string, number>()
+    for (const row of rows) {
+      if (!row.pathGroupKey) continue
+      pathGroupSizes.set(row.pathGroupKey, (pathGroupSizes.get(row.pathGroupKey) || 0) + 1)
     }
 
     const minCount = rows.length <= 3 ? 2 : 3
     for (let pass = 0; pass < 3; pass += 1) {
       const counts = new Map<string, number>()
+      const pathGroupCounts = new Map<string, Map<string, number>>()
       const candidatesByUrl = new Map<string, TitleSuppressionCandidate[]>()
       for (const row of rows) {
-        const candidates = titleSuppressionCandidates(row.displayTitle, row.structuralTailLabel).filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
+        const cardCandidates = titleSuppressionCandidates(row.displayTitle, row.structuralTailLabel).filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
+        const pathGroupCandidates = row.pathGroupKey
+          ? titleSuppressionCandidates(row.displayTitle, row.structuralTailLabel, isSuppressiblePathGroupTrailingTitleSegment)
+            .filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
+          : []
+        const candidates = uniqueTitleSuppressionCandidates([...cardCandidates, ...pathGroupCandidates])
         candidatesByUrl.set(row.url, candidates)
-        for (const candidate of candidates) {
+        for (const candidate of cardCandidates) {
           const key = candidate.text.toLowerCase()
           counts.set(key, (counts.get(key) || 0) + 1)
+        }
+        if (row.pathGroupKey) {
+          const groupCounts = pathGroupCounts.get(row.pathGroupKey) || new Map<string, number>()
+          pathGroupCounts.set(row.pathGroupKey, groupCounts)
+          for (const candidate of pathGroupCandidates) {
+            const key = candidate.text.toLowerCase()
+            groupCounts.set(key, (groupCounts.get(key) || 0) + 1)
+          }
         }
       }
 
@@ -446,12 +512,27 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           .filter(([, count]) => count >= minCount && count / rows.length >= 0.25)
           .map(([suffix]) => suffix)
       )
-      if (suffixesToSuppress.size === 0) break
+      const pathGroupSuffixesToSuppress = new Map<string, Set<string>>()
+      for (const [pathGroupKey, groupCounts] of pathGroupCounts.entries()) {
+        const groupSize = pathGroupSizes.get(pathGroupKey) || 0
+        if (groupSize < 2) continue
+        const suffixes = new Set(
+          [...groupCounts.entries()]
+            .filter(([, count]) => count >= 2 && count / groupSize >= 0.75)
+            .map(([suffix]) => suffix)
+        )
+        if (suffixes.size > 0) pathGroupSuffixesToSuppress.set(pathGroupKey, suffixes)
+      }
+      if (suffixesToSuppress.size === 0 && pathGroupSuffixesToSuppress.size === 0) break
 
       let changed = false
       for (const row of rows) {
+        const pathGroupSuffixes = pathGroupSuffixesToSuppress.get(row.pathGroupKey)
         const candidate = (candidatesByUrl.get(row.url) || [])
-          .filter((candidate) => suffixesToSuppress.has(candidate.text.toLowerCase()))
+          .filter((candidate) => {
+            const key = candidate.text.toLowerCase()
+            return suffixesToSuppress.has(key) || !!pathGroupSuffixes?.has(key)
+          })
           .sort((a, b) => b.text.length - a.text.length)[0]
         if (!candidate) continue
         const stripped = row.displayTitle.slice(0, candidate.index).trim()
@@ -476,7 +557,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const titlePresentationByUrl = buildTitlePresentations()
 
   function titlePresentation(tab: DashboardTab): TitlePresentation {
-    return titlePresentationByUrl.get(tab.url) || { displayTitle: baseDisplayTitle(tab), suppressedTitleParts: [], suppressedTitlePartsBeforeStructuralTail: [] }
+    const baseTitle = baseTitlePresentation(tab)
+    return titlePresentationByUrl.get(tab.url) || {
+      displayTitle: baseTitle.displayTitle,
+      suppressedTitleParts: baseTitle.removedDomainTitleSuffix ? [baseTitle.removedDomainTitleSuffix] : [],
+      suppressedTitlePartsBeforeStructuralTail: []
+    }
   }
 
   // Build the exact title string the chip displays BEFORE path crumbs
@@ -500,6 +586,28 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   const suppressedTitleParts = titleSuppressionSummary()
+  const suppressedTitlePartOrder = new Map(suppressedTitleParts.map((part, index) => [part.text.toLowerCase(), index]))
+
+  function aggregateSuppressedTitleParts(tabs: DashboardTab[]): string[] {
+    const partsByKey = new Map<string, { text: string; order: number; firstSeen: number }>()
+    let firstSeen = 0
+    for (const tab of tabs) {
+      for (const part of titlePresentation(tab).suppressedTitleParts) {
+        const key = part.toLowerCase()
+        if (partsByKey.has(key)) continue
+        partsByKey.set(key, {
+          text: part,
+          order: suppressedTitlePartOrder.get(key) ?? Number.MAX_SAFE_INTEGER,
+          firstSeen
+        })
+        firstSeen += 1
+      }
+    }
+
+    return [...partsByKey.values()]
+      .sort((a, b) => a.order - b.order || a.firstSeen - b.firstSeen)
+      .map((part) => part.text)
+  }
 
   // Sort by title — the exact string the chip displays, so the visible
   // order never diverges from the sort order. `numeric: true` gives
@@ -757,7 +865,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,
-      suppressedTitleParts: presentation.suppressedTitleParts,
+      suppressedTitleParts: aggregateSuppressedTitleParts(tabs),
       pathSuffix: '',
       tooltip,
       dupeCount: 1,
