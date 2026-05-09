@@ -26,6 +26,7 @@ interface SubdomainSectionProps {
   filter?: string
   activeSuppressedTitle?: string
   activeSuppressionTone?: TitleSuppressionTone | ''
+  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -63,6 +64,7 @@ export function SubdomainSection({
   filter = '',
   activeSuppressedTitle = '',
   activeSuppressionTone = '',
+  suppressedTitleToneByText,
   onHoverUrlChange = null,
   onLayoutChange = null
 }: SubdomainSectionProps) {
@@ -112,6 +114,7 @@ export function SubdomainSection({
           filter={filter}
           activeSuppressedTitle={activeSuppressedTitle}
           activeSuppressionTone={activeSuppressionTone}
+          suppressedTitleToneByText={suppressedTitleToneByText}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
@@ -131,6 +134,7 @@ export function SubdomainSection({
           filter={filter}
           activeSuppressedTitle={activeSuppressedTitle}
           activeSuppressionTone={activeSuppressionTone}
+          suppressedTitleToneByText={suppressedTitleToneByText}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />

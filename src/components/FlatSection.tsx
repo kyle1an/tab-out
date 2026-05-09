@@ -13,11 +13,12 @@ interface FlatSectionProps {
   filter?: string
   activeSuppressedTitle?: string
   activeSuppressionTone?: TitleSuppressionTone | ''
+  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
 
-export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
+export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const iconOnly = visibleChips.length > 0 && visibleChips.every((chip) => chip.iconOnly)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
@@ -37,12 +38,12 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
       data-expanded={expanded ? 'true' : undefined}
     >
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} onHoverUrlChange={onHoverUrlChange} />
+        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} onHoverUrlChange={onHoverUrlChange} />
       ))}
       {hiddenCount > 0 && (
         <div className={cn('page-chips-overflow', iconOnly && 'w-full', iconOnly && expanded && 'flex flex-wrap gap-2.5')}>
           {hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} onHoverUrlChange={onHoverUrlChange} />
+            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} onHoverUrlChange={onHoverUrlChange} />
           ))}
         </div>
       )}

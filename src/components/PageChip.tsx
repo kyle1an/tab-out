@@ -4,7 +4,7 @@ import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { titleSuppressionChipHighlightClass } from './title-suppression'
+import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
@@ -20,6 +20,7 @@ interface PageChipProps {
   filter?: string
   activeSuppressedTitle?: string
   activeSuppressionTone?: TitleSuppressionTone | ''
+  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
   onHoverUrlChange?: HoverUrlChangeHandler | null
 }
 
@@ -108,7 +109,7 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', onHoverUrlChange = null }: PageChipProps) {
+export function PageChip({ chip, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, onHoverUrlChange = null }: PageChipProps) {
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -314,18 +315,28 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
   function renderSuppressionMarker(mode: ChipTextRenderMode) {
     if (suppressedTitleParts.length === 0) return null
 
-    const marker = (
-      <span
-        className="chip-title-suppression-marker ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-lg bg-[rgba(115,115,115,0.1)] px-1 text-xs leading-none font-semibold text-tab-muted align-baseline [corner-shape:squircle]"
-        aria-label={hiddenTitleLabel}
-        title={hiddenTitleLabel}
-      >
-        ~
-      </span>
-    )
+    return suppressedTitleParts.map((part, index) => {
+      const partKey = part.trim().toLowerCase()
+      const active = activeSuppressedTitleKey !== '' && partKey === activeSuppressedTitleKey
+      const tone = active ? activeSuppressionTone : suppressedTitleToneByText?.get(partKey) ?? ''
+      const label = `Suppressed title text: ${part}`
+      const marker = (
+        <span
+          key={part}
+          className={cn(
+            'chip-title-suppression-marker inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.1)] px-1 text-xs leading-none font-medium text-tab-muted align-baseline [corner-shape:squircle]',
+            index === 0 ? 'ml-1' : 'ml-0.5',
+            titleSuppressionMarkerClass(tone, active)
+          )}
+          aria-label={label}
+        >
+          ~
+        </span>
+      )
 
-    if (mode === 'tooltip') return marker
-    return <TooltipAnchor content={hiddenTitleLabel}>{marker}</TooltipAnchor>
+      if (mode === 'tooltip') return marker
+      return <TooltipAnchor key={part} content={label} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
+    })
   }
 
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
@@ -378,7 +389,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
             className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
             aria-hidden="true"
           >
-            ~
+            /
           </span>
         )))}
         {renderSuppressionMarker(mode)}

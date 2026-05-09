@@ -8,6 +8,7 @@ import { DomainCard } from '../src/components/DomainCard.js'
 import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
+import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
 import type { DashboardCardVM, DashboardChipData, DomainGroup } from '../src/extension/types'
 
 function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData {
@@ -59,6 +60,57 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.match(html, /chip-title-suppression-marker\b/)
   assert.match(html, />~<\/span>/)
   assert.match(html, /Suppressed title text: Example Workspace/)
+  assert.doesNotMatch(html, /chip-title-suppression-marker[^>]* title=/)
+  const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
+  assert.ok(markerMatch, 'title suppression marker should render')
+  assert.match(markerMatch[1], /\btext-xs\b/)
+  assert.match(markerMatch[1], /\bfont-medium\b/)
+  assert.doesNotMatch(markerMatch[1], /\bfont-semibold\b/)
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /className="title-suppression-marker-tooltip text-\[13px\] leading-4"/)
+})
+
+test('PageChip colors title suppression markers from token tones before hover', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Alpha channel'],
+        suppressedTitleParts: ['Example Workspace', 'JIRA']
+      }),
+      suppressedTitleToneByText: new Map<string, TitleSuppressionTone | ''>([
+        ['example workspace', 'amber'],
+        ['jira', 'teal']
+      ])
+    })
+  )
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.equal(markerClasses.length, 2)
+  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(markerClasses[0], /bg-\[rgba\(217,119,6,0\.08\)\]/)
+  assert.doesNotMatch(markerClasses[0], /bg-\[rgba\(217,119,6,0\.16\)\]/)
+  assert.doesNotMatch(markerClasses[0], /\bhover:/)
+  assert.doesNotMatch(markerClasses[0], /\bfocus-visible:/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
+  assert.match(markerClasses[1], /bg-\[rgba\(20,184,166,0\.08\)\]/)
+  assert.doesNotMatch(markerClasses[1], /bg-\[rgba\(20,184,166,0\.16\)\]/)
+  assert.doesNotMatch(markerClasses[1], /\bhover:/)
+  assert.doesNotMatch(markerClasses[1], /\bfocus-visible:/)
+})
+
+test('PageChip uses a path-style placeholder for stripped structural labels', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Alpha ', { placeholder: true }, ' Beta']
+      })
+    })
+  )
+
+  const stripMatch = html.match(/<span class="([^"]*\bchip-strip-indicator\b[^"]*)" aria-hidden="true">([^<]+)<\/span>/)
+  assert.ok(stripMatch, 'structural strip indicator should render')
+  assert.equal(stripMatch[2], '/')
+  assert.doesNotMatch(html, /chip-title-suppression-marker\b/)
 })
 
 test('PageChip marks chips affected by the active suppressed title text', () => {
@@ -84,8 +136,10 @@ test('PageChip marks chips affected by the active suppressed title text', () => 
 
   assert.match(defaultHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
   assert.match(defaultHtml, /bg-\[rgba\(234,179,8,0\.12\)\]/)
+  assert.match(defaultHtml, /chip-title-suppression-marker\b[^"]*bg-\[rgba\(234,179,8,0\.14\)\]/)
   assert.match(tealHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
   assert.match(tealHtml, /bg-\[rgba\(20,184,166,0\.12\)\]/)
+  assert.match(tealHtml, /chip-title-suppression-marker\b[^"]*bg-\[rgba\(20,184,166,0\.16\)\]/)
   assert.doesNotMatch(tealHtml, /bg-\[rgba\(234,179,8,0\.12\)\]/)
 })
 
@@ -308,7 +362,25 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
       { text: 'JIRA', count: 2 },
       { text: 'Content — Example Website', count: 3 }
     ],
-    sections: []
+    sections: [
+      {
+        key: '',
+        sectionCount: 1,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: false,
+        hasFlat: true,
+        flatVisibleChips: [
+          makeChip({
+            displaySegments: ['Alpha channel'],
+            suppressedTitleParts: ['JIRA', 'Content — Example Website']
+          })
+        ],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        clusters: []
+      }
+    ]
   }
 
   const html = renderToStaticMarkup(
@@ -324,4 +396,8 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
   assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
   assert.match(tokenClasses[2], /title-suppression-token-tone-sky/)
   assert.notEqual(tokenClasses[0], tokenClasses[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  assert.equal(markerClasses.length, 2)
+  assert.match(markerClasses[0], /title-suppression-token-tone-teal/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-sky/)
 })

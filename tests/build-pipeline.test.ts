@@ -123,6 +123,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tooltipSource, /window\.removeEventListener\('scroll', handleScroll, true\)/)
   assert.match(tooltipSource, /latestPointerPointRef/)
   assert.match(tooltipSource, /eventDetails\.reason !== 'trigger-hover'/)
+  assert.match(tooltipSource, /onClick\?\.\(event\)[\s\S]*event\.stopPropagation\(\)/)
+  assert.match(tooltipSource, /onPointerDown\?\.\(event\)[\s\S]*event\.stopPropagation\(\)/)
   assert.match(tooltipSource, /TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS = 200/)
   assert.match(tooltipSource, /frozenPointerClearTimerRef/)
   assert.match(tooltipSource, /'children' \| 'content'/)

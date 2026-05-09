@@ -4,21 +4,25 @@ import type { DashboardChipData } from './types'
 export const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
 export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
 
-const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string; active: string }> = {
+const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string; marker: string; active: string }> = {
   amber: {
     base: 'title-suppression-token-tone-amber border-[rgba(217,119,6,0.22)] bg-[rgba(217,119,6,0.08)] text-tab-ink hover:border-[rgba(217,119,6,0.36)] hover:bg-[rgba(217,119,6,0.13)] focus-visible:outline-[rgba(217,119,6,0.72)]',
+    marker: 'title-suppression-token-tone-amber border-[rgba(217,119,6,0.22)] bg-[rgba(217,119,6,0.08)] text-tab-ink',
     active: 'border-[rgba(217,119,6,0.42)] bg-[rgba(217,119,6,0.16)] shadow-[inset_0_0_0_1px_rgba(217,119,6,0.22)]'
   },
   teal: {
     base: 'title-suppression-token-tone-teal border-[rgba(20,184,166,0.22)] bg-[rgba(20,184,166,0.08)] text-tab-ink hover:border-[rgba(20,184,166,0.38)] hover:bg-[rgba(20,184,166,0.13)] focus-visible:outline-[rgba(20,184,166,0.72)]',
+    marker: 'title-suppression-token-tone-teal border-[rgba(20,184,166,0.22)] bg-[rgba(20,184,166,0.08)] text-tab-ink',
     active: 'border-[rgba(20,184,166,0.42)] bg-[rgba(20,184,166,0.16)] shadow-[inset_0_0_0_1px_rgba(20,184,166,0.22)]'
   },
   sky: {
     base: 'title-suppression-token-tone-sky border-[rgba(14,165,233,0.22)] bg-[rgba(14,165,233,0.08)] text-tab-ink hover:border-[rgba(14,165,233,0.38)] hover:bg-[rgba(14,165,233,0.13)] focus-visible:outline-[rgba(14,165,233,0.72)]',
+    marker: 'title-suppression-token-tone-sky border-[rgba(14,165,233,0.22)] bg-[rgba(14,165,233,0.08)] text-tab-ink',
     active: 'border-[rgba(14,165,233,0.42)] bg-[rgba(14,165,233,0.16)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22)]'
   },
   rose: {
     base: 'title-suppression-token-tone-rose border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.08)] text-tab-ink hover:border-[rgba(244,63,94,0.38)] hover:bg-[rgba(244,63,94,0.13)] focus-visible:outline-[rgba(244,63,94,0.72)]',
+    marker: 'title-suppression-token-tone-rose border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.08)] text-tab-ink',
     active: 'border-[rgba(244,63,94,0.42)] bg-[rgba(244,63,94,0.16)] shadow-[inset_0_0_0_1px_rgba(244,63,94,0.22)]'
   }
 }
@@ -68,6 +72,11 @@ export function titleSuppressionOverflowHighlightClass(tone: TitleSuppressionTon
 
 export function titleSuppressionBadgeClass(tone: TitleSuppressionTone | '') {
   return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].badge : 'bg-[rgba(234,179,8,0.16)]'
+}
+
+export function titleSuppressionMarkerClass(tone: TitleSuppressionTone | '', active = false) {
+  if (tone) return cn(TITLE_SUPPRESSION_TOKEN_TONES[tone].marker, active && TITLE_SUPPRESSION_TOKEN_TONES[tone].active)
+  return active ? 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.14)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.18)]' : ''
 }
 
 export function countHiddenSuppressedTitleMatches(hiddenChips: DashboardChipData[], activeSuppressedTitle: string): number {

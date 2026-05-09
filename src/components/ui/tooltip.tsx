@@ -74,6 +74,8 @@ function TooltipContent({
   collisionPadding = 0,
   positionMethod,
   children,
+  onClick,
+  onPointerDown,
   ...props
 }: TooltipPrimitive.Popup.Props &
   Pick<
@@ -108,6 +110,14 @@ function TooltipContent({
             'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-[10px] bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-tab-ink shadow-lg shadow-[var(--warm-gray)] outline-1 outline-[var(--warm-gray)] transition-[transform,opacity] duration-150 [corner-shape:squircle] [overflow-wrap:anywhere] data-[align=end]:data-[side=bottom]:rounded-tr-none data-[align=end]:data-[side=top]:rounded-br-none data-[align=start]:data-[side=bottom]:rounded-tl-none data-[align=start]:data-[side=top]:rounded-bl-none data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-instant:transition-none data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',
             className
           )}
+          onClick={(event) => {
+            onClick?.(event)
+            event.stopPropagation()
+          }}
+          onPointerDown={(event) => {
+            onPointerDown?.(event)
+            event.stopPropagation()
+          }}
           {...props}
         >
           {children}

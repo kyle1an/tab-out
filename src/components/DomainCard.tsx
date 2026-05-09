@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { titleSuppressionTokenToneClass, titleSuppressionToneForIndex } from './title-suppression'
+import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
@@ -129,6 +130,12 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const useSuppressionTokenTones = suppressedTitleParts.length > 1
   const activeSuppressedTitleIndex = suppressedTitleParts.findIndex((part) => part.text === activeSuppressedTitle)
   const activeSuppressionTone = useSuppressionTokenTones && activeSuppressedTitleIndex >= 0 ? titleSuppressionToneForIndex(activeSuppressedTitleIndex) : ''
+  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>(
+    suppressedTitleParts.map((part, index) => [
+      part.text.trim().toLowerCase(),
+      useSuppressionTokenTones ? titleSuppressionToneForIndex(index) : ''
+    ])
+  )
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
@@ -254,6 +261,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
               filter={highlightFilter}
               activeSuppressedTitle={activeSuppressedTitle}
               activeSuppressionTone={activeSuppressionTone}
+              suppressedTitleToneByText={suppressedTitleToneByText}
               onHoverUrlChange={onHoverUrlChange}
               onLayoutChange={onLayoutChange}
             />
