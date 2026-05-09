@@ -98,6 +98,21 @@ test('PageChip colors title suppression markers from token tones before hover', 
   assert.doesNotMatch(markerClasses[1], /\bfocus-visible:/)
 })
 
+test('PageChip can render a title suppression marker inline before structural placeholders', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Alpha channel — ', { titleSuppression: 'Example Workspace' }, ' — ', { placeholder: true }],
+        suppressedTitleParts: ['Example Workspace']
+      })
+    })
+  )
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.equal(markerClasses.length, 1)
+  assert.match(html, /Alpha channel — [\s\S]*chip-title-suppression-marker[\s\S]*>~<\/span>[\s\S]* — [\s\S]*chip-strip-indicator[\s\S]*>\/<\/span>/)
+})
+
 test('PageChip uses a path-style placeholder for stripped structural labels', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {

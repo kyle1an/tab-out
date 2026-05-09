@@ -321,7 +321,11 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
       title
     }))
   }
-  const chipTitle = (chip: DashboardChipData) => chip.displaySegments.map((segment) => (typeof segment === 'string' ? segment : '~')).join('')
+  const chipTitle = (chip: DashboardChipData) => chip.displaySegments.map((segment) => {
+    if (typeof segment === 'string') return segment
+    if ('titleSuppression' in segment) return '~'
+    return '/'
+  }).join('')
   const chipsFrom = (vm: DashboardCardVM) => vm.sections.flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
 
   const vm = computeDomainCardViewModel(group)
@@ -330,7 +334,10 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
 
   assert.deepEqual(vm.suppressedTitleParts, [{ text: 'Content — Example Website', count: 2 }])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['Content — Example Website'], ['Content — Example Website']])
-  assert.ok(visibleTitles.every((title) => title.includes('~')))
+  assert.deepEqual(visibleTitles, [
+    'Example Article Beta — ~ — /',
+    'Example Article Alpha — ~ — /'
+  ])
   assert.ok(visibleTitles.every((title) => !title.includes('Content') && !title.includes('Example Website')))
 
   const filteredVm = computeDomainCardViewModel(group, { filter: 'example website' })

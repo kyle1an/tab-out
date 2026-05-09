@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
-import type { DashboardChipEnv } from '../extension/types'
+import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
 const chipTextTruncationCallbacks = new WeakMap<
@@ -28,6 +28,10 @@ type ChipTextRenderMode = 'chip' | 'tooltip'
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
+}
+
+function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titleSuppression: string } {
+  return typeof segment !== 'string' && 'titleSuppression' in segment
 }
 
 function renderHighlightedText(text: string, filter: string, keyPrefix: string): ReactNode {
@@ -312,31 +316,45 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
   } as CSSProperties : undefined
 
-  function renderSuppressionMarker(mode: ChipTextRenderMode) {
+  function renderSuppressionMarker(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
+    const partKey = part.trim().toLowerCase()
+    const active = activeSuppressedTitleKey !== '' && partKey === activeSuppressedTitleKey
+    const tone = active ? activeSuppressionTone : suppressedTitleToneByText?.get(partKey) ?? ''
+    const label = `Suppressed title text: ${part}`
+    const marker = (
+      <span
+        key={key}
+        className={cn(
+          'chip-title-suppression-marker inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.1)] px-1 text-xs leading-none font-medium text-tab-muted align-baseline [corner-shape:squircle]',
+          markerClassName,
+          titleSuppressionMarkerClass(tone, active)
+        )}
+        aria-label={label}
+      >
+        ~
+      </span>
+    )
+
+    if (mode === 'tooltip') return marker
+    return <TooltipAnchor key={key} content={label} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
+  }
+
+  function renderTrailingSuppressionMarkers(mode: ChipTextRenderMode) {
     if (suppressedTitleParts.length === 0) return null
 
-    return suppressedTitleParts.map((part, index) => {
-      const partKey = part.trim().toLowerCase()
-      const active = activeSuppressedTitleKey !== '' && partKey === activeSuppressedTitleKey
-      const tone = active ? activeSuppressionTone : suppressedTitleToneByText?.get(partKey) ?? ''
-      const label = `Suppressed title text: ${part}`
-      const marker = (
-        <span
-          key={part}
-          className={cn(
-            'chip-title-suppression-marker inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.1)] px-1 text-xs leading-none font-medium text-tab-muted align-baseline [corner-shape:squircle]',
-            index === 0 ? 'ml-1' : 'ml-0.5',
-            titleSuppressionMarkerClass(tone, active)
-          )}
-          aria-label={label}
-        >
-          ~
-        </span>
-      )
+    const inlineSuppressedTitleKeys = new Set(
+      chip.displaySegments
+        .filter(isTitleSuppressionSegment)
+        .map((segment) => segment.titleSuppression.trim().toLowerCase())
+    )
+    const trailingParts = suppressedTitleParts.filter((part) => !inlineSuppressedTitleKeys.has(part.trim().toLowerCase()))
 
-      if (mode === 'tooltip') return marker
-      return <TooltipAnchor key={part} content={label} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
-    })
+    return trailingParts.map((part, index) => renderSuppressionMarker(
+      part,
+      mode,
+      `trailing-title-suppression-${part}`,
+      index === 0 ? 'ml-1' : 'ml-0.5'
+    ))
   }
 
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
@@ -383,16 +401,20 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
             {renderHighlightedText(pathGroupDisplayLabel(chip.pathGroupLabel), filter, `${mode}-pathgroup`)}
           </span>
         )}
-        {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? renderHighlightedText(seg, filter, `${mode}-segment-${index}`) : (
-          <span
-            key={index}
-            className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
-            aria-hidden="true"
-          >
-            /
-          </span>
-        )))}
-        {renderSuppressionMarker(mode)}
+        {chip.displaySegments.map((seg, index) => {
+          if (typeof seg === 'string') return renderHighlightedText(seg, filter, `${mode}-segment-${index}`)
+          if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `inline-title-suppression-${index}`)
+          return (
+            <span
+              key={index}
+              className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
+              aria-hidden="true"
+            >
+              /
+            </span>
+          )
+        })}
+        {renderTrailingSuppressionMarkers(mode)}
         {chip.pathSuffix && (
           <>
             {' '}

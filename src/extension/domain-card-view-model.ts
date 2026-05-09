@@ -19,6 +19,7 @@ type PathCategory = NonNullable<PathGroupResult['category']>
 type TitlePresentation = {
   displayTitle: string
   suppressedTitleParts: string[]
+  suppressedTitlePartsBeforeStructuralTail: string[]
 }
 type TitleSuppressionCandidate = {
   index: number
@@ -27,6 +28,7 @@ type TitleSuppressionCandidate = {
 }
 
 const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
+const TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
 
 /**
  * injectBreakPoints(str) — insert U+200B (zero-width space) into
@@ -176,6 +178,36 @@ function stripPgLabel(label: string, pgLabel: string): DashboardSegment[] {
   if (!hasText) return [label]
 
   return segments
+}
+
+function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is { placeholder: true } {
+  return typeof segment !== 'string' && 'placeholder' in segment
+}
+
+function insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
+  segments: DashboardSegment[],
+  suppressedTitleParts: string[]
+): DashboardSegment[] {
+  if (suppressedTitleParts.length === 0) return segments
+
+  const placeholderIndex = segments.findLastIndex(isStructuralPlaceholderSegment)
+  if (placeholderIndex <= 0) return segments
+
+  const separator = segments[placeholderIndex - 1]
+  if (typeof separator !== 'string' || !TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS.includes(separator)) {
+    return segments
+  }
+
+  const inserted: DashboardSegment[] = []
+  for (const part of suppressedTitleParts) {
+    inserted.push({ titleSuppression: part }, separator)
+  }
+
+  return [
+    ...segments.slice(0, placeholderIndex),
+    ...inserted,
+    ...segments.slice(placeholderIndex)
+  ]
 }
 
 /**
@@ -371,11 +403,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       url: tab.url,
       displayTitle: baseDisplayTitle(tab),
       suppressedTitleParts: [] as string[],
+      suppressedTitlePartsBeforeStructuralTail: [] as string[],
       structuralTailLabel: structuralTitleTailLabel(tab)
     }))
 
     if (filtering || rows.length < 2) {
-      return new Map(rows.map((row) => [row.url, { displayTitle: row.displayTitle, suppressedTitleParts: [] }]))
+      return new Map(rows.map((row) => [row.url, { displayTitle: row.displayTitle, suppressedTitleParts: [], suppressedTitlePartsBeforeStructuralTail: [] }]))
     }
 
     const minCount = rows.length <= 3 ? 2 : 3
@@ -408,18 +441,25 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         if (stripped.length < 3) continue
         row.displayTitle = stripped + (candidate.structuralTailIndex === null ? '' : row.displayTitle.slice(candidate.structuralTailIndex))
         row.suppressedTitleParts.unshift(candidate.suffix)
+        if (candidate.structuralTailIndex !== null) {
+          row.suppressedTitlePartsBeforeStructuralTail.unshift(candidate.suffix)
+        }
         changed = true
       }
       if (!changed) break
     }
 
-    return new Map(rows.map((row) => [row.url, { displayTitle: row.displayTitle, suppressedTitleParts: row.suppressedTitleParts }]))
+    return new Map(rows.map((row) => [row.url, {
+      displayTitle: row.displayTitle,
+      suppressedTitleParts: row.suppressedTitleParts,
+      suppressedTitlePartsBeforeStructuralTail: row.suppressedTitlePartsBeforeStructuralTail
+    }]))
   }
 
   const titlePresentationByUrl = buildTitlePresentations()
 
   function titlePresentation(tab: DashboardTab): TitlePresentation {
-    return titlePresentationByUrl.get(tab.url) || { displayTitle: baseDisplayTitle(tab), suppressedTitleParts: [] }
+    return titlePresentationByUrl.get(tab.url) || { displayTitle: baseDisplayTitle(tab), suppressedTitleParts: [], suppressedTitlePartsBeforeStructuralTail: [] }
   }
 
   // Build the exact title string the chip displays BEFORE path crumbs
@@ -559,7 +599,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
     const leadPrefix = subPrefix || portPrefix
     const pgLabel = pathGroupLabel || ''
-    const rawSegments = stripPgLabel(label, stripLabel || pgLabel)
+    const rawSegments = insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
+      stripPgLabel(label, stripLabel || pgLabel),
+      presentation.suppressedTitlePartsBeforeStructuralTail
+    )
     // Inject zero-width spaces into long unbreakable tokens so the
     // browser can break them if layout needs to — without us setting
     // global `word-break: break-all` (which would also break SHORT
