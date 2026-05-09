@@ -380,16 +380,19 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
         )))}
         {renderSuppressionMarker(mode)}
         {chip.pathSuffix && (
-          <span
-            className={cn(
-              'chip-path text-xs font-normal text-tab-muted opacity-75',
-              mode === 'chip'
-                ? 'inline-block whitespace-nowrap'
-                : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal [width:max-content] [overflow-wrap:break-word]'
-            )}
-          >
-            {renderHighlightedText(chip.pathSuffix, filter, `${mode}-path`)}
-          </span>
+          <>
+            {' '}
+            <span
+              className={cn(
+                'chip-path text-xs font-normal text-tab-muted opacity-75',
+                mode === 'chip'
+                  ? 'inline-block whitespace-nowrap'
+                  : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal [width:max-content] [overflow-wrap:break-word]'
+              )}
+            >
+              {renderHighlightedText(chip.pathSuffix, filter, `${mode}-path`)}
+            </span>
+          </>
         )}
       </>
     )

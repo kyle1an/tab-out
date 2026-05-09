@@ -3,6 +3,7 @@ import { closeExactTabSection } from '../extension/tab-actions'
 import { PageChip } from './PageChip'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import { countHiddenSuppressedTitleMatches } from './title-suppression'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface PathgroupCloseButtonProps {
@@ -55,6 +56,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
 export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', activeSuppressedTitle = '', onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const displayLabel = pathGroupDisplayLabel(label)
+  const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
 
   function onExpand() {
     setExpanded(true)
@@ -100,10 +102,18 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
       {!expanded && hiddenCount > 0 && (
         <button
           type="button"
-          className="page-chip page-chip-overflow clickable relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight tabular-nums text-tab-muted [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,color-mix(in_srgb,var(--card-bg)_96%,rgb(82_82_82))_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100"
+          className={cn(
+            "page-chip page-chip-overflow clickable relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight tabular-nums text-tab-muted [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,color-mix(in_srgb,var(--card-bg)_96%,rgb(82_82_82))_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100",
+            hiddenSuppressionMatchCount > 0 && 'page-chip-overflow-suppression-highlighted bg-[rgba(234,179,8,0.08)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.24)] hover:bg-[rgba(234,179,8,0.12)]'
+          )}
           onClick={onExpand}
         >
           <span className="chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal text-[13px] max-h-[calc(2lh)] [hyphenate-character:'']">+{hiddenCount} more</span>
+          {hiddenSuppressionMatchCount > 0 && (
+            <span className="page-chip-overflow-suppression-badge relative z-[2] inline-flex h-4 min-w-4 items-center justify-center rounded-lg bg-[rgba(234,179,8,0.16)] px-1 text-xs leading-none font-semibold text-tab-ink [corner-shape:squircle]">
+              ~{hiddenSuppressionMatchCount}
+            </span>
+          )}
         </button>
       )}
     </div>

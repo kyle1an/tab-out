@@ -210,7 +210,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
             {suppressedTitleParts.map((part) => {
               const label = `Suppressed in ${part.count} title${part.count !== 1 ? 's' : ''}: ${part.text}`
               return (
-                <TooltipAnchor key={part.text} content={label}>
+                <TooltipAnchor key={part.text} content={label} className="title-suppression-tooltip text-[13px] leading-4">
                   <button
                     type="button"
                     className={cn(

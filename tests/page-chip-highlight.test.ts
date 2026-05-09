@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -98,6 +99,7 @@ test('PageChip renders path suffixes without a left margin utility', () => {
   const pathMatch = html.match(/<span class="([^"]*\bchip-path\b[^"]*)">/)
   assert.ok(pathMatch, 'chip path suffix should render')
   assert.doesNotMatch(pathMatch[1], /\bml-/)
+  assert.match(html, /OpenAI Docs\s+<span class="[^"]*\bchip-path\b[^"]*">\/docs\/reference<\/span>/)
 })
 
 test('PageChip renders folded titles before env controls', () => {
@@ -190,6 +192,52 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
   }
 })
 
+test('Overflow expanders highlight hidden chips that match active suppressed title text', () => {
+  const hiddenChips = [
+    makeChip({
+      rawUrl: 'https://openai.com/hidden-workspace',
+      displaySegments: ['Hidden workspace page'],
+      suppressedTitleParts: ['Example Workspace']
+    }),
+    makeChip({
+      rawUrl: 'https://openai.com/hidden-other',
+      displaySegments: ['Hidden other page'],
+      suppressedTitleParts: ['Other Workspace']
+    })
+  ]
+  const flatHtml = renderToStaticMarkup(
+    React.createElement(FlatSection, {
+      visibleChips: [],
+      hiddenChips,
+      hiddenCount: hiddenChips.length,
+      activeSuppressedTitle: 'Example Workspace'
+    })
+  )
+  const pathgroupHtml = renderToStaticMarkup(
+    React.createElement(PathgroupSection, {
+      label: 'openai/docs',
+      isPR: false,
+      count: 2,
+      closableUrls: [],
+      visibleChips: [],
+      hiddenChips,
+      hiddenCount: hiddenChips.length,
+      activeSuppressedTitle: 'Example Workspace'
+    })
+  )
+
+  for (const html of [flatHtml, pathgroupHtml]) {
+    const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
+    assert.ok(overflowButtonMatch, 'overflow expander button should render')
+    assert.match(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
+    assert.match(overflowButtonMatch[1], /bg-\[rgba\(234,179,8,0\.08\)\]/)
+    assert.match(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(234,179,8,0\.24\)\]/)
+    assert.match(html, /page-chip-overflow-suppression-badge[\s\S]*>~1<\/span>/)
+    assert.doesNotMatch(html, /hidden title suppresses/)
+    assert.doesNotMatch(html, /Click to show/)
+  }
+})
+
 test('DomainCard shows common suppressed title text above the chips without a summary label', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
@@ -221,5 +269,7 @@ test('DomainCard shows common suppressed title text above the chips without a su
   assert.match(tokenMatch[1], /rounded-\[6px\]/)
   assert.match(html, /Example Workspace/)
   assert.match(html, /Suppressed in 2 titles: Example Workspace/)
+  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
+  assert.match(domainCardSource, /className="title-suppression-tooltip text-\[13px\] leading-4"/)
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
 })
