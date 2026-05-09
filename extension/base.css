@@ -34,6 +34,10 @@
   --dashboard-history-edge-gutter: 12px;
   --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
+  --header-control-height: 34px;
+  --header-control-radius: 16px;
+  --header-control-font-size: 13px;
+  --header-control-line-height: 16px;
 }
 
 * {

@@ -42,10 +42,14 @@ function HistoryRangeSelect({
 
   return (
     <Select value={value} items={HISTORY_RANGE_OPTIONS} onValueChange={handleValueChange}>
-      <SelectTrigger aria-label="History search range">
+      <SelectTrigger
+        size="header"
+        className="border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)]"
+        aria-label="History search range"
+      >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent size="header">
         <SelectGroup>
           {HISTORY_RANGE_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value} label={option.label}>
@@ -81,7 +85,7 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
 
   return (
     <Tabs
-      className="source-switch-root inline-flex box-border h-[var(--header-control-height)] rounded-[16px] border border-[var(--warm-gray)] [corner-shape:squircle]"
+      className="source-switch-root inline-flex box-border h-[var(--header-control-height)] rounded-[var(--header-control-radius)] border border-[var(--warm-gray)] [corner-shape:squircle]"
       value={source}
       onValueChange={handleSourceChange}
     >
@@ -94,13 +98,13 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
           <TabsTrigger
             key={option.value}
             variant="unstyled"
-            className="source-switch-option relative z-1 inline-flex h-8 box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-lg before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:outline-none focus-visible:before:outline-[var(--accent-amber)] data-[active]:text-tab-ink"
+            className="source-switch-option relative z-1 inline-flex h-8 box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:outline-none focus-visible:before:outline-[var(--accent-amber)] data-[active]:text-tab-ink"
             value={option.value}
           >
             {option.label}
           </TabsTrigger>
         ))}
-        <TabsIndicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-[var(--active-tab-width)] rounded-lg bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]" />
+        <TabsIndicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-[var(--active-tab-width)] rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]" />
       </TabsList>
     </Tabs>
   )
@@ -151,7 +155,7 @@ export function HeaderBar({
   }
 
   return (
-    <header className="flex flex-col [--header-control-height:34px] [--header-control-font-size:13px] [--header-control-line-height:16px]">
+    <header className="flex flex-col">
       <div className="header-row flex items-center justify-between gap-4">
         <HeaderStats
           source={source}
@@ -181,7 +185,7 @@ export function HeaderBar({
             <Input
               ref={inputRef}
               type="search"
-              className="tab-filter box-border h-[var(--header-control-height)] w-[280px] rounded-[12px] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] text-[var(--ink)] outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-[var(--muted)] focus:border-[var(--accent-amber)] focus:bg-tab-card [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
+              className="tab-filter box-border h-[var(--header-control-height)] w-[280px] rounded-[var(--header-control-radius)] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] text-[var(--ink)] outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-[var(--muted)] focus:border-[var(--accent-amber)] focus:bg-tab-card [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
               autoComplete="off"
               spellCheck="false"
               placeholder={filterPlaceholder}
