@@ -275,7 +275,7 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
   }
 })
 
-test('Overflow expanders highlight hidden chips that match active suppressed title text', () => {
+test('Overflow expanders keep the row neutral when only some hidden chips match active suppressed title text', () => {
   const hiddenChips = [
     makeChip({
       rawUrl: 'https://openai.com/hidden-workspace',
@@ -314,13 +314,63 @@ test('Overflow expanders highlight hidden chips that match active suppressed tit
   for (const html of [flatHtml, pathgroupHtml]) {
     const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
     assert.ok(overflowButtonMatch, 'overflow expander button should render')
-    assert.match(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
-    assert.match(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.08\)\]/)
-    assert.match(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.24\)\]/)
-    assert.match(html, /page-chip-overflow-suppression-badge[^"]*bg-\[rgba\(20,184,166,0\.16\)\][\s\S]*>~1<\/span>/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
+    assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.08\)\]/)
+    assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.12\)\]/)
+    assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.24\)\]/)
+    assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.32\)\]/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-\[rgba\(20,184,166,0\.22\)\][^"]*bg-\[rgba\(20,184,166,0\.16\)\][\s\S]*>~1<\/span>/)
     assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(234,179,8,0\.08\)\]/)
     assert.doesNotMatch(html, /hidden title suppresses/)
     assert.doesNotMatch(html, /Click to show/)
+  }
+})
+
+test('Overflow expanders use full chip color when all hidden chips match active suppressed title text', () => {
+  const hiddenChips = [
+    makeChip({
+      rawUrl: 'https://openai.com/hidden-workspace',
+      displaySegments: ['Hidden workspace page'],
+      suppressedTitleParts: ['Example Workspace']
+    }),
+    makeChip({
+      rawUrl: 'https://openai.com/hidden-workspace-2',
+      displaySegments: ['Hidden workspace page 2'],
+      suppressedTitleParts: ['Example Workspace']
+    })
+  ]
+  const flatHtml = renderToStaticMarkup(
+    React.createElement(FlatSection, {
+      visibleChips: [],
+      hiddenChips,
+      hiddenCount: hiddenChips.length,
+      activeSuppressedTitle: 'Example Workspace',
+      activeSuppressionTone: 'teal'
+    })
+  )
+  const pathgroupHtml = renderToStaticMarkup(
+    React.createElement(PathgroupSection, {
+      label: 'openai/docs',
+      isPR: false,
+      count: 2,
+      closableUrls: [],
+      visibleChips: [],
+      hiddenChips,
+      hiddenCount: hiddenChips.length,
+      activeSuppressedTitle: 'Example Workspace',
+      activeSuppressionTone: 'teal'
+    })
+  )
+
+  for (const html of [flatHtml, pathgroupHtml]) {
+    const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
+    assert.ok(overflowButtonMatch, 'overflow expander button should render')
+    assert.match(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
+    assert.match(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.12\)\]/)
+    assert.match(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.32\)\]/)
+    assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.08\)\]/)
+    assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.24\)\]/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-\[rgba\(20,184,166,0\.22\)\][^"]*bg-\[rgba\(20,184,166,0\.16\)\][\s\S]*>~2<\/span>/)
   }
 })
 

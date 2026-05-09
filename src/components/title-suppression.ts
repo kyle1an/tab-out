@@ -27,26 +27,22 @@ const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string
   }
 }
 
-const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: string; overflow: string; badge: string }> = {
+const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: string; badge: string }> = {
   amber: {
     chip: 'bg-[rgba(217,119,6,0.12)] shadow-[inset_0_0_0_1px_rgba(217,119,6,0.32)]',
-    overflow: 'bg-[rgba(217,119,6,0.08)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(217,119,6,0.24)] hover:bg-[rgba(217,119,6,0.12)]',
-    badge: 'bg-[rgba(217,119,6,0.16)]'
+    badge: 'border-[rgba(217,119,6,0.22)] bg-[rgba(217,119,6,0.16)]'
   },
   teal: {
     chip: 'bg-[rgba(20,184,166,0.12)] shadow-[inset_0_0_0_1px_rgba(20,184,166,0.32)]',
-    overflow: 'bg-[rgba(20,184,166,0.08)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(20,184,166,0.24)] hover:bg-[rgba(20,184,166,0.12)]',
-    badge: 'bg-[rgba(20,184,166,0.16)]'
+    badge: 'border-[rgba(20,184,166,0.22)] bg-[rgba(20,184,166,0.16)]'
   },
   sky: {
     chip: 'bg-[rgba(14,165,233,0.12)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.32)]',
-    overflow: 'bg-[rgba(14,165,233,0.08)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(14,165,233,0.24)] hover:bg-[rgba(14,165,233,0.12)]',
-    badge: 'bg-[rgba(14,165,233,0.16)]'
+    badge: 'border-[rgba(14,165,233,0.22)] bg-[rgba(14,165,233,0.16)]'
   },
   rose: {
     chip: 'bg-[rgba(244,63,94,0.12)] shadow-[inset_0_0_0_1px_rgba(244,63,94,0.32)]',
-    overflow: 'bg-[rgba(244,63,94,0.08)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(244,63,94,0.24)] hover:bg-[rgba(244,63,94,0.12)]',
-    badge: 'bg-[rgba(244,63,94,0.16)]'
+    badge: 'border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.16)]'
   }
 }
 
@@ -67,11 +63,11 @@ export function titleSuppressionChipHighlightClass(tone: TitleSuppressionTone | 
 }
 
 export function titleSuppressionOverflowHighlightClass(tone: TitleSuppressionTone | '') {
-  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].overflow : 'bg-[rgba(234,179,8,0.08)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.24)] hover:bg-[rgba(234,179,8,0.12)]'
+  return cn(titleSuppressionChipHighlightClass(tone), 'text-tab-ink')
 }
 
 export function titleSuppressionBadgeClass(tone: TitleSuppressionTone | '') {
-  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].badge : 'bg-[rgba(234,179,8,0.16)]'
+  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].badge : 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.16)]'
 }
 
 export function titleSuppressionMarkerClass(tone: TitleSuppressionTone | '', active = false) {
