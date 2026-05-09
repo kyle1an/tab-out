@@ -77,7 +77,7 @@ test('source switch indicator keeps transform-based transition', () => {
   assert.doesNotMatch(source, /source-switch-indicator[^"]*-translate-y-1\/2/)
 })
 
-test('header controls share one height and corner radius contract', () => {
+test('header controls share one size and corner radius contract', () => {
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const headerBarSource = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
   const headerStatsSource = readFileSync(new URL('../src/components/HeaderStats.tsx', import.meta.url), 'utf8')
@@ -85,12 +85,16 @@ test('header controls share one height and corner radius contract', () => {
 
   assert.match(baseCss, /--header-control-height: 34px/)
   assert.match(baseCss, /--header-control-radius: 16px/)
+  assert.match(baseCss, /--header-control-font-size: 13px/)
+  assert.match(baseCss, /--header-control-line-height: 16px/)
   assert.match(headerBarSource, /source-switch-root[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\]/)
+  assert.match(headerBarSource, /source-switch-option[^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
   assert.match(headerBarSource, /source-switch-option[^"]*before:rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
   assert.match(headerBarSource, /source-switch-indicator[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
-  assert.match(headerBarSource, /<SelectTrigger\s+className="[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\]/)
+  assert.match(headerBarSource, /<SelectTrigger\s+className="[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\][^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
   assert.match(headerBarSource, /<SelectContent[\s\S]*align="start"[\s\S]*alignItemWithTrigger=\{false\}[\s\S]*className="[^"]*rounded-\[var\(--header-control-radius\)\]/)
-  assert.match(headerBarSource, /tab-filter[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\]/)
+  assert.match(headerBarSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
+  assert.match(headerBarSource, /tab-filter[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\][^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
   assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\[var\(--header-control-radius\)\]/)
   assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
   assert.doesNotMatch(selectSource, /data-\[size=header\]|in-data-\[size=header\]|SelectPrimitive\.Popup[\s\S]*data-size=\{size\}|SelectPrimitive\.List[\s\S]*data-size=\{size\}/)

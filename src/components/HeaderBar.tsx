@@ -59,7 +59,7 @@ function HistoryRangeSelect({
               key={option.value}
               value={option.value}
               label={option.label}
-              className="rounded-[calc(var(--header-control-radius)_-_6px)] [corner-shape:squircle]"
+              className="rounded-[calc(var(--header-control-radius)_-_6px)] text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] [corner-shape:squircle]"
             >
               {option.label}
             </SelectItem>
