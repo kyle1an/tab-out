@@ -21,6 +21,7 @@ interface PathgroupSectionProps {
   hiddenCount: number
   className?: string
   isFirstContent?: boolean
+  filter?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -43,7 +44,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
 
   function onExpand() {
@@ -79,12 +80,12 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} isFirstContent={isFirstContent} onClick={onCloseCluster} />}
       </div>
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
+        <PageChip key={chip.rawUrl} chip={chip} filter={filter} onHoverUrlChange={onHoverUrlChange} />
       ))}
       {hiddenCount > 0 && (
         <div className="page-chips-overflow">
           {hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} onHoverUrlChange={onHoverUrlChange} />
+            <PageChip key={chip.rawUrl} chip={chip} filter={filter} onHoverUrlChange={onHoverUrlChange} />
           ))}
         </div>
       )}

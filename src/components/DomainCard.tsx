@@ -116,6 +116,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const closableExtras = vm.closableExtras ?? 0
   const closableCount = vm.closableCount ?? 0
   const sections = vm.sections ?? []
+  const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
@@ -211,6 +212,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
               flatHiddenChips={section.flatHiddenChips}
               flatHiddenCount={section.flatHiddenCount}
               clusters={section.clusters}
+              filter={highlightFilter}
               onHoverUrlChange={onHoverUrlChange}
               onLayoutChange={onLayoutChange}
             />

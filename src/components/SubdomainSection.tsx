@@ -22,6 +22,7 @@ interface SubdomainSectionProps {
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
   clusters: DashboardClusterVM[]
+  filter?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -53,6 +54,7 @@ export function SubdomainSection({
   flatHiddenChips,
   flatHiddenCount,
   clusters,
+  filter = '',
   onHoverUrlChange = null,
   onLayoutChange = null
 }: SubdomainSectionProps) {
@@ -99,6 +101,7 @@ export function SubdomainSection({
           hiddenChips={flatHiddenChips}
           hiddenCount={flatHiddenCount}
           afterSeparator={!isFirst && !showHeader}
+          filter={filter}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
@@ -115,6 +118,7 @@ export function SubdomainSection({
           hiddenCount={cluster.hiddenCount}
           className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
           isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
+          filter={filter}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />

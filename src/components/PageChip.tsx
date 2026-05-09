@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent } from 'react'
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { Button } from './ui/Button'
@@ -11,7 +11,52 @@ let chipTextResizeObserver: ResizeObserver | null = null
 
 interface PageChipProps {
   chip: DashboardChipData
+  filter?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
+}
+
+function renderHighlightedText(text: string, filter: string, keyPrefix: string): ReactNode {
+  const query = filter.trim()
+  if (!text || !query) return text
+
+  const normalizedChars: string[] = []
+  const originalIndexes: number[] = []
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (char === '\u200B') continue
+    normalizedChars.push(char)
+    originalIndexes.push(index)
+  }
+
+  const normalizedText = normalizedChars.join('').toLowerCase()
+  const normalizedQuery = query.toLowerCase()
+  const nodes: ReactNode[] = []
+  let cursor = 0
+  let searchFrom = 0
+
+  while (searchFrom < normalizedText.length) {
+    const matchIndex = normalizedText.indexOf(normalizedQuery, searchFrom)
+    if (matchIndex === -1) break
+
+    const originalStart = originalIndexes[matchIndex]
+    const normalizedEnd = matchIndex + normalizedQuery.length
+    const originalEnd = normalizedEnd < originalIndexes.length ? originalIndexes[normalizedEnd] : text.length
+    if (originalStart > cursor) nodes.push(text.slice(cursor, originalStart))
+    nodes.push(
+      <mark
+        key={`${keyPrefix}-${originalStart}-${originalEnd}`}
+        className="chip-filter-match rounded-[2px] bg-[rgba(234,179,8,0.24)] text-inherit [font:inherit] [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]"
+      >
+        {text.slice(originalStart, originalEnd)}
+      </mark>
+    )
+    cursor = originalEnd
+    searchFrom = normalizedEnd
+  }
+
+  if (nodes.length === 0) return text
+  if (cursor < text.length) nodes.push(text.slice(cursor))
+  return nodes
 }
 
 function isChipTextTruncated(textEl: HTMLElement | null) {
@@ -39,7 +84,7 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
+export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChipProps) {
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const isHistorySource = chip.sourceType === 'history'
@@ -267,20 +312,22 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
                   onFocus={() => onEnvFocus(env)}
                   onBlur={onEnvBlur}
                 >
-                  {env.prefix}
+                  {renderHighlightedText(env.prefix, filter, `env-${env.prefix}`)}
                 </Button>
               ))}
             </span>
           )}
           {!isFolded && chip.leadPrefix && (
-            <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">{chip.leadPrefix}</span>
+            <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
+              {renderHighlightedText(chip.leadPrefix, filter, 'lead')}
+            </span>
           )}
           {chip.pathGroupLabel && (
             <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-              {chip.pathGroupLabel}
+              {renderHighlightedText(chip.pathGroupLabel, filter, 'pathgroup')}
             </span>
           )}
-          {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? seg : (
+          {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? renderHighlightedText(seg, filter, `segment-${index}`) : (
             <span
               key={index}
               className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
@@ -289,7 +336,7 @@ export function PageChip({ chip, onHoverUrlChange = null }: PageChipProps) {
               ~
             </span>
           )))}
-          {chip.pathSuffix && <span className="chip-path ml-1.5 inline-block whitespace-nowrap text-xs font-normal text-tab-muted opacity-75">{chip.pathSuffix}</span>}
+          {chip.pathSuffix && <span className="chip-path ml-1.5 inline-block whitespace-nowrap text-xs font-normal text-tab-muted opacity-75">{renderHighlightedText(chip.pathSuffix, filter, 'path')}</span>}
         </span>
       )}
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
