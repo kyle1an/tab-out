@@ -40,6 +40,7 @@ function injectBreakPoints(str: string): string {
 
 function isActiveInOtherWindow(tab: DashboardTab, currentWindowId: number | null): boolean {
   if (!tab.active) return false
+  if (tab.isApp) return false
   if (typeof currentWindowId !== 'number') return true
   return tab.windowId !== currentWindowId
 }

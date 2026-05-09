@@ -142,8 +142,8 @@ test('buildDomainGroups keeps system cards ahead of pinned domain cards', () => 
 
 test('buildDomainGroups collects standalone app tabs into a dedicated apps card', () => {
   const groups = buildDomainGroups([
-    makeTab({ url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),
-    makeTab({ id: 2, url: 'https://calendar.google.com/calendar/u/0/r', title: 'Calendar', isApp: true }),
+    makeTab({ url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', active: true, isApp: true, windowId: 2 }),
+    makeTab({ id: 2, url: 'https://calendar.google.com/calendar/u/0/r', title: 'Calendar', active: true, isApp: true, windowId: 3 }),
     makeTab({ id: 3, url: 'https://github.com/openai/openai', title: 'openai/openai' })
   ])
 
@@ -155,11 +155,12 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
     ['https://mail.google.com/mail/u/0/', 'https://calendar.google.com/calendar/u/0/r']
   )
 
-  const appsVm = computeDomainCardViewModel(appsGroup)
+  const appsVm = computeDomainCardViewModel(appsGroup, { currentWindowId: 1 })
   assert.equal(appsVm.displayName, 'Apps')
   assert.equal(appsVm.tabCountLabel, '2')
   assert.equal(appsVm.tabCountTitle, '2 open tabs')
   assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => chip.iconOnly), true)
+  assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => !chip.activeInOtherWindow), true)
 
   const filteredAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
   assert.equal(filteredAppsVm.isHidden, true)
