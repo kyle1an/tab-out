@@ -17,6 +17,14 @@ import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
 import { cn } from '@/lib/utils'
 
 const TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS = 200
+const TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX = 1
+const TOOLTIP_COLLISION_AVOIDANCE: NonNullable<
+  TooltipPrimitive.Positioner.Props['collisionAvoidance']
+> = {
+  side: 'flip',
+  align: 'flip',
+  fallbackAxisSide: 'none'
+}
 
 function TooltipProvider({
   delay = 500,
@@ -60,14 +68,25 @@ function TooltipContent({
   side = 'bottom',
   sideOffset = 10,
   align = 'start',
-  alignOffset = 0,
+  alignOffset = TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX,
+  arrowPadding = 0,
+  collisionAvoidance = TOOLTIP_COLLISION_AVOIDANCE,
+  collisionPadding = 0,
   positionMethod,
   children,
   ...props
 }: TooltipPrimitive.Popup.Props &
   Pick<
     TooltipPrimitive.Positioner.Props,
-    'align' | 'alignOffset' | 'anchor' | 'positionMethod' | 'side' | 'sideOffset'
+    | 'align'
+    | 'alignOffset'
+    | 'anchor'
+    | 'arrowPadding'
+    | 'collisionAvoidance'
+    | 'collisionPadding'
+    | 'positionMethod'
+    | 'side'
+    | 'sideOffset'
   >) {
   return (
     <TooltipPrimitive.Portal>
@@ -75,6 +94,9 @@ function TooltipContent({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
+        arrowPadding={arrowPadding}
+        collisionAvoidance={collisionAvoidance}
+        collisionPadding={collisionPadding}
         positionMethod={positionMethod}
         side={side}
         sideOffset={sideOffset}
@@ -83,15 +105,12 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-lg bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-tab-ink shadow-lg shadow-[var(--warm-gray)] outline-1 outline-[var(--warm-gray)] transition-[transform,opacity] duration-150 [corner-shape:squircle] [overflow-wrap:anywhere] data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-instant:transition-none data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',
+            'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-lg bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-tab-ink shadow-lg shadow-[var(--warm-gray)] outline-1 outline-[var(--warm-gray)] transition-[transform,opacity] duration-150 [corner-shape:squircle] [overflow-wrap:anywhere] data-[align=end]:data-[side=bottom]:rounded-tr-none data-[align=end]:data-[side=top]:rounded-br-none data-[align=start]:data-[side=bottom]:rounded-tl-none data-[align=start]:data-[side=top]:rounded-bl-none data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-instant:transition-none data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',
             className
           )}
           {...props}
         >
           {children}
-          <TooltipPrimitive.Arrow className="z-50 flex data-[side=bottom]:-top-2 data-[side=bottom]:rotate-0 data-[side=inline-end]:left-[-13px] data-[side=inline-end]:-rotate-90 data-[side=inline-start]:right-[-13px] data-[side=inline-start]:rotate-90 data-[side=left]:right-[-13px] data-[side=left]:rotate-90 data-[side=right]:left-[-13px] data-[side=right]:-rotate-90 data-[side=top]:-bottom-2 data-[side=top]:rotate-180">
-            <ArrowSvg />
-          </TooltipPrimitive.Arrow>
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
@@ -229,25 +248,6 @@ function TooltipAnchor({
         {content}
       </TooltipContent>
     </Tooltip>
-  )
-}
-
-function ArrowSvg(props: ComponentProps<'svg'>) {
-  return (
-    <svg width="20" height="10" viewBox="0 0 20 10" fill="none" {...props}>
-      <path
-        d="M9.66437 2.60207L4.80758 6.97318C4.07308 7.63423 3.11989 8 2.13172 8H0V10H20V8H18.5349C17.5468 8 16.5936 7.63423 15.8591 6.97318L11.0023 2.60207C10.622 2.2598 10.0447 2.25979 9.66437 2.60207Z"
-        className="fill-[canvas]"
-      />
-      <path
-        d="M8.99542 1.85876C9.75604 1.17425 10.9106 1.17422 11.6713 1.85878L16.5281 6.22989C17.0789 6.72568 17.7938 7.00001 18.5349 7.00001L15.89 7L11.0023 2.60207C10.622 2.2598 10.0447 2.2598 9.66436 2.60207L4.77734 7L2.13171 7.00001C2.87284 7.00001 3.58774 6.72568 4.13861 6.22989L8.99542 1.85876Z"
-        className="fill-[var(--warm-gray)]"
-      />
-      <path
-        d="M10.3333 3.34539L5.47654 7.71648C4.55842 8.54279 3.36693 9 2.13172 9H0V8H2.13172C3.11989 8 4.07308 7.63423 4.80758 6.97318L9.66437 2.60207C10.0447 2.25979 10.622 2.2598 11.0023 2.60207L15.8591 6.97318C16.5936 7.63423 17.5468 8 18.5349 8H20V9H18.5349C17.2998 9 16.1083 8.54278 15.1901 7.71648L10.3333 3.34539Z"
-        className="dark:fill-[var(--warm-gray)]"
-      />
-    </svg>
   )
 }
 

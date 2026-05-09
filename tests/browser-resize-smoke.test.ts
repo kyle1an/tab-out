@@ -245,12 +245,23 @@ async function waitForTooltipRect(session: CdpSession) {
         const tooltip = document.querySelector('[data-slot="tooltip-content"]')
         const rect = tooltip?.getBoundingClientRect()
         if (rect && rect.width > 0 && rect.height > 0) {
+          const styles = window.getComputedStyle(tooltip)
+          const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0
           resolve({
             left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            visualLeft: Math.round(rect.left - outlineWidth),
+            visualRight: Math.round(rect.right + outlineWidth),
             top: Math.round(rect.top),
             width: Math.round(rect.width),
             height: Math.round(rect.height),
-            text: tooltip.textContent || ''
+            text: tooltip.textContent || '',
+            outlineWidth,
+            side: tooltip.getAttribute('data-side'),
+            align: tooltip.getAttribute('data-align'),
+            topLeftRadius: styles.borderTopLeftRadius,
+            topRightRadius: styles.borderTopRightRadius,
+            svgCount: tooltip.querySelectorAll('svg').length
           })
         } else if (Date.now() - start > 2000) {
           resolve(null)
@@ -326,6 +337,59 @@ async function measureTooltipFreeze(session: CdpSession) {
   return { target, first, second, closing }
 }
 
+async function measureTooltipEdgeFlip(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chips = Array.from(document.querySelectorAll('.page-chip'))
+          .map((chip) => {
+            const rect = chip.getBoundingClientRect()
+            return { rect }
+          })
+          .filter(({ rect }) => rect.width > 120 && rect.height > 8)
+          .sort((a, b) => b.rect.right - a.rect.right)
+
+        const target = chips[0]
+        if (target) {
+          resolve({
+            startX: Math.round(target.rect.right - 4),
+            y: Math.round(target.rect.top + target.rect.height / 2),
+            viewportRight: window.innerWidth
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a right-edge page chip to hover for tooltip smoke test')
+
+  await wait(250)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.startX,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+
+  return { target, first }
+}
+
 test('dashboard cards repack when the viewport resizes', async (t) => {
   if (!RUN_BROWSER_SMOKE) {
     t.skip('set RUN_BROWSER_SMOKE=1 to launch Chrome for the resize smoke test')
@@ -386,11 +450,21 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   const tooltip = await measureTooltipFreeze(session)
   assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)
   assert.ok(tooltip.second, `tooltip should stay open during an in-chip pointer move: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs(tooltip.first.left - tooltip.target.startX) <= 24, `tooltip should open near the pointer x coordinate: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs(tooltip.first.visualLeft - tooltip.target.startX) <= 1, `tooltip visible border edge should align with the pointer x coordinate: ${JSON.stringify(tooltip)}`)
+  assert.equal(tooltip.first.align, 'start', `tooltip should use start alignment away from viewport edges: ${JSON.stringify(tooltip)}`)
+  assert.equal(tooltip.first.topLeftRadius, '0px', `tooltip anchor corner should be square: ${JSON.stringify(tooltip)}`)
+  assert.equal(tooltip.first.svgCount, 0, `tooltip should not render an arrow svg: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs(tooltip.first.left - tooltip.second.left) <= 1, `tooltip left should freeze after open: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs(tooltip.first.top - tooltip.second.top) <= 1, `tooltip top should freeze after open: ${JSON.stringify(tooltip)}`)
   if (tooltip.closing) {
     assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
     assert.ok(Math.abs(tooltip.first.top - tooltip.closing.top) <= 1, `tooltip top should stay frozen while closing: ${JSON.stringify(tooltip)}`)
   }
+
+  const edgeTooltip = await measureTooltipEdgeFlip(session)
+  assert.ok(edgeTooltip.first, `tooltip should open near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+  assert.equal(edgeTooltip.first.align, 'end', `tooltip should flip alignment near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+  assert.ok(edgeTooltip.first.visualRight <= edgeTooltip.target.viewportRight + 1, `tooltip should stay within the viewport after alignment flip: ${JSON.stringify(edgeTooltip)}`)
+  assert.ok(Math.abs(edgeTooltip.first.visualRight - edgeTooltip.target.startX) <= 1, `tooltip visible border edge should align with the pointer after alignment flip: ${JSON.stringify(edgeTooltip)}`)
+  assert.equal(edgeTooltip.first.topRightRadius, '0px', `tooltip flipped anchor corner should be square: ${JSON.stringify(edgeTooltip)}`)
 })
