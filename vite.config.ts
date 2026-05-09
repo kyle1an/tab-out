@@ -6,6 +6,11 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, 'src')
+    }
+  },
   build: {
     target: 'esnext',
     outDir: 'extension/dist',

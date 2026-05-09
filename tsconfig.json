@@ -15,7 +15,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["chrome", "node", "react", "react-dom"],
-    "maxNodeModuleJsDepth": 0
+    "maxNodeModuleJsDepth": 0,
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src", "vite.config.ts"],
   "exclude": ["extension/dist/**", "extension/vendor/**", "tests/**"]
