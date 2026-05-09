@@ -145,6 +145,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /page-chip-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight \[overflow-wrap:break-word\]/)
   assert.match(pageChipSource, /w-\[var\(--page-chip-tooltip-text-width\)\]/)
   assert.match(pageChipSource, /whitespace-normal hyphens-auto break-normal/)
+  assert.match(pageChipSource, /inline-block max-w-\[calc\(100%-6px\)\] whitespace-normal break-normal \[width:max-content\] \[overflow-wrap:break-word\]/)
   assert.doesNotMatch(pageChipSource, /duplicateLabel \|\| activeLabel/)
   assert.doesNotMatch(pageChipSource, /\? chip\.tooltip : undefined/)
   assert.doesNotMatch(pageChipSource, /@chenglou\/pretext/)
