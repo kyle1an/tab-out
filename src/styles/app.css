@@ -17,4 +17,16 @@
   --color-tab-card: var(--card-bg);
   --color-tab-border: var(--warm-gray);
   --color-tab-danger: var(--status-abandoned);
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-popover: var(--card-bg);
+  --color-popover-foreground: var(--ink);
+  --color-input: var(--warm-gray);
+  --color-border: var(--warm-gray);
+  --color-ring: var(--accent-amber);
+  --color-destructive: var(--status-abandoned);
+  --color-muted: color-mix(in srgb, var(--card-bg) 92%, var(--accent-amber));
+  --color-muted-foreground: var(--muted);
+  --color-accent: color-mix(in srgb, var(--card-bg) 92%, var(--accent-amber));
+  --color-accent-foreground: var(--ink);
 }
