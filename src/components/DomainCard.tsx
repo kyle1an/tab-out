@@ -1,7 +1,6 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { SubdomainSection } from './SubdomainSection'
-import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
@@ -17,9 +16,8 @@ interface DomainCardProps {
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
   return (
-    <Button
-      variant="unstyled"
-      size="unstyled"
+    <button
+      type="button"
       className="card-close-btn group/card-close pointer-events-none absolute top-0 right-0 z-2 box-border flex h-[22px] min-w-[22px] cursor-pointer items-center justify-end gap-0 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 py-0 text-[12px] font-medium text-tab-muted opacity-0 transition-[opacity,background,border-color,color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-[var(--status-abandoned)] hover:bg-tab-card hover:text-[var(--status-abandoned)]"
       onClick={onClick}
     >
@@ -29,7 +27,7 @@ function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: Mous
       <svg className="absolute top-1/2 right-[5px] h-[13px] w-[13px] -translate-y-1/2 opacity-100 transition-opacity duration-200 ease-out group-hover/card-close:opacity-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
-    </Button>
+    </button>
   )
 }
 
@@ -62,15 +60,14 @@ function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEven
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
-    <Button
-      variant="unstyled"
-      size="unstyled"
+    <button
+      type="button"
       className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]"
       title={title}
       onClick={onClick}
     >
       {label}
-    </Button>
+    </button>
   )
 }
 
@@ -78,9 +75,8 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
   const action = pinned ? 'Unpin' : 'Pin'
   const title = `${action} ${displayName}`
   return (
-    <Button
-      variant="unstyled"
-      size="unstyled"
+    <button
+      type="button"
       className={cn(
         'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.35] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:opacity-100 hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink focus-visible:opacity-100',
         pinned && 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100'
@@ -93,7 +89,7 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
       <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
       </svg>
-    </Button>
+    </button>
   )
 }
 

@@ -4,7 +4,6 @@ import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '.
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { cn } from '@/lib/utils'
-import { Button } from './ui/button'
 import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry } from '../extension/types'
 
@@ -168,9 +167,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
           entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]'
         )}
       >
-        <Button
-          variant="unstyled"
-          size="unstyled"
+        <button
+          type="button"
           className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight disabled:cursor-default"
           disabled={!entry.exists}
           onClick={onFocusEntry}
@@ -192,11 +190,10 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
               </span>
             )}
           </span>
-        </Button>
+        </button>
         <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
-          <Button
-            variant="unstyled"
-            size="unstyled"
+          <button
+            type="button"
             className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 transition-[opacity,background,border-color,color] duration-150 group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger disabled:hidden"
             disabled={!entry.exists}
             title="Close this tab"
@@ -206,7 +203,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
             <svg className="block h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
             </svg>
-          </Button>
+          </button>
         </div>
       </div>
     </div>

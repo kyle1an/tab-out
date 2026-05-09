@@ -1,7 +1,6 @@
 import { closeExactTabSection } from '../extension/tab-actions'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
-import { Button } from './ui/button'
 import { cn } from '@/lib/utils'
 import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
@@ -30,9 +29,8 @@ interface SubdomainSectionProps {
 function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
-    <Button
-      variant="unstyled"
-      size="unstyled"
+    <button
+      type="button"
       className="subdomain-close-btn grid h-[18px] w-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed]"
       title={title}
       onClick={onClick}
@@ -40,7 +38,7 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
       <svg className="block h-3 w-3 flex-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
-    </Button>
+    </button>
   )
 }
 

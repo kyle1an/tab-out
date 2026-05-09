@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
+import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
-import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { Tabs, TabsIndicator, TabsList, TabsTrigger } from './ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
 import { cn } from '@/lib/utils'
@@ -43,16 +43,24 @@ function HistoryRangeSelect({
   return (
     <Select value={value} items={HISTORY_RANGE_OPTIONS} onValueChange={handleValueChange}>
       <SelectTrigger
-        size="header"
-        className="border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)]"
+        className="h-[var(--header-control-height)] rounded-[var(--header-control-radius)] border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] [corner-shape:squircle]"
         aria-label="History search range"
       >
         <SelectValue />
       </SelectTrigger>
-      <SelectContent size="header">
+      <SelectContent
+        align="start"
+        alignItemWithTrigger={false}
+        className="rounded-[var(--header-control-radius)] [corner-shape:squircle]"
+      >
         <SelectGroup>
           {HISTORY_RANGE_OPTIONS.map((option) => (
-            <SelectItem key={option.value} value={option.value} label={option.label}>
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              label={option.label}
+              className="rounded-[calc(var(--header-control-radius)_-_6px)] [corner-shape:squircle]"
+            >
               {option.label}
             </SelectItem>
           ))}
@@ -90,21 +98,20 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
       onValueChange={handleSourceChange}
     >
       <TabsList
-        variant="unstyled"
-        className="source-switch relative z-0 flex h-full box-border items-center gap-1 px-1 py-0"
+        variant="line"
+        className="source-switch relative z-0 flex h-full box-border items-center gap-1 rounded-none px-1 py-0"
         aria-label="Dashboard source"
       >
         {SOURCE_SWITCH_OPTIONS.map((option) => (
           <TabsTrigger
             key={option.value}
-            variant="unstyled"
-            className="source-switch-option relative z-1 inline-flex h-8 box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:outline-none focus-visible:before:outline-[var(--accent-amber)] data-[active]:text-tab-ink"
+            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-[var(--accent-amber)] data-[active]:bg-transparent data-[active]:text-tab-ink data-[active]:shadow-none dark:data-[active]:border-transparent dark:data-[active]:bg-transparent"
             value={option.value}
           >
             {option.label}
           </TabsTrigger>
         ))}
-        <TabsIndicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-[var(--active-tab-width)] rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]" />
+        <TabsPrimitive.Indicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-[var(--active-tab-width)] rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]" />
       </TabsList>
     </Tabs>
   )
@@ -192,9 +199,8 @@ export function HeaderBar({
               value={filter}
               onChange={(e) => updateFilter(e.currentTarget.value)}
             />
-            <Button
-              variant="unstyled"
-              size="unstyled"
+            <button
+              type="button"
               className="tab-filter-clear absolute top-1/2 right-1.5 hidden h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-tab-ink [&_svg]:h-3 [&_svg]:w-3"
               title="Clear filter"
               aria-label="Clear filter"
@@ -203,7 +209,7 @@ export function HeaderBar({
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
-            </Button>
+            </button>
           </div>
         </div>
       </div>
