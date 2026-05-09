@@ -35,5 +35,8 @@ test('PageChip highlights matched filter keywords inside visible chip text', () 
   )
 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> Docs/)
+  assert.match(html, /chip-filter-match\b[^"]*bg-\[rgba\(234,179,8,0\.42\)\][^"]*text-tab-ink[^"]*\[font:inherit\]/)
+  assert.match(html, /chip-text\b[^"]*text-\[color-mix\(in_srgb,var\(--ink\)_72%,var\(--muted\)\)\]/)
   assert.doesNotMatch(html, /\bpx-0\.5\b/)
+  assert.doesNotMatch(html, /chip-filter-match\b[^"]*font-semibold/)
 })

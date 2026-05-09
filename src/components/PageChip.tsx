@@ -45,7 +45,7 @@ function renderHighlightedText(text: string, filter: string, keyPrefix: string):
     nodes.push(
       <mark
         key={`${keyPrefix}-${originalStart}-${originalEnd}`}
-        className="chip-filter-match rounded-[2px] bg-[rgba(234,179,8,0.24)] text-inherit [font:inherit] [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]"
+        className="chip-filter-match rounded-[2px] bg-[rgba(234,179,8,0.42)] text-tab-ink [font:inherit] [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]"
       >
         {text.slice(originalStart, originalEnd)}
       </mark>
@@ -87,6 +87,7 @@ function getChipTextResizeObserver() {
 export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChipProps) {
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
+  const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
   const primaryPreviewUrl = isFolded ? envs[0]?.tabUrl || '' : chip.tabUrl || ''
@@ -297,6 +298,7 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
         <span
           className={cn(
             "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+            hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
             chip.pathSuffix && 'max-h-[calc(3lh)]'
           )}
           ref={chipTextRef}
