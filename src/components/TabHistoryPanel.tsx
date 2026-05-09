@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
-import type { MouseEvent, ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties, MouseEvent, ReactNode } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
@@ -9,6 +9,16 @@ import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, 
 import type { TabHistoryEntry } from '../extension/types'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
+const HISTORY_TITLE_TOOLTIP_WRAP_EXTRA_PX = 24
+const historyTitleTruncationCallbacks = new WeakMap<
+  HTMLElement,
+  (metrics: HistoryTitleMetrics) => void
+>()
+
+type HistoryTitleMetrics = {
+  isTruncated: boolean
+  width: number
+}
 
 interface HistoryEntryProps {
   entry: TabHistoryEntry
@@ -31,9 +41,24 @@ function isHistoryTitleTruncated(titleEl: HTMLElement | null) {
   return titleEl.scrollWidth - titleEl.clientWidth > 1
 }
 
+function getHistoryTitleWidth(titleEl: HTMLElement | null) {
+  if (!titleEl) return 0
+  return Math.round(titleEl.getBoundingClientRect().width * 100) / 100
+}
+
+function sameHistoryTitleMetrics(a: HistoryTitleMetrics, b: HistoryTitleMetrics) {
+  return a.isTruncated === b.isTruncated && Math.abs(a.width - b.width) < 0.1
+}
+
 function syncHistoryTitleFade(titleEl: HTMLElement | null) {
-  if (!titleEl) return
-  titleEl.classList.toggle('history-entry-title-truncated', isHistoryTitleTruncated(titleEl))
+  if (!titleEl) return { isTruncated: false, width: 0 }
+
+  const isTruncated = isHistoryTitleTruncated(titleEl)
+  const width = getHistoryTitleWidth(titleEl)
+  const metrics = { isTruncated, width }
+  titleEl.classList.toggle('history-entry-title-truncated', isTruncated)
+  historyTitleTruncationCallbacks.get(titleEl)?.(metrics)
+  return metrics
 }
 
 function getHistoryTitleResizeObserver() {
@@ -75,12 +100,21 @@ function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnap
 
 function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null)
+  const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
+    isTruncated: false,
+    width: 0
+  })
+
+  const updateTitleTruncation = useCallback((titleEl: HTMLElement | null) => {
+    const metrics = syncHistoryTitleFade(titleEl)
+    setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
+  }, [])
 
   useLayoutEffect(() => {
     const titleEl = titleRef.current
     if (!titleEl) return
 
-    const frameId = requestAnimationFrame(() => syncHistoryTitleFade(titleEl))
+    const frameId = requestAnimationFrame(() => updateTitleTruncation(titleEl))
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -88,19 +122,28 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
     const titleEl = titleRef.current
     if (!titleEl) return
 
+    let disposed = false
     const observer = getHistoryTitleResizeObserver()
+    historyTitleTruncationCallbacks.set(titleEl, (metrics) => {
+      if (disposed) return
+      setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
+    })
     observer?.observe(titleEl)
 
     const fontSet = document.fonts
-    const onFontsDone = () => syncHistoryTitleFade(titleEl)
+    const onFontsDone = () => {
+      if (!disposed) updateTitleTruncation(titleEl)
+    }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
-    fontSet?.ready?.then?.(() => syncHistoryTitleFade(titleEl))
+    fontSet?.ready?.then?.(onFontsDone)
 
     return () => {
+      disposed = true
       observer?.unobserve(titleEl)
+      historyTitleTruncationCallbacks.delete(titleEl)
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
-  }, [])
+  }, [updateTitleTruncation])
 
   async function refreshAfterMutation() {
     if (onTabsChange) {
@@ -147,6 +190,22 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
 
   const badges = entryBadges(entry, snapshot)
   const entryLabel = entry.title || entry.displayUrl || entry.url
+  const titleTooltipWidth = titleMetrics.width > 0
+    ? `min(calc(100vw - 32px), ${Math.round((titleMetrics.width + HISTORY_TITLE_TOOLTIP_WRAP_EXTRA_PX) * 100) / 100}px)`
+    : ''
+  const titleTooltipStyle = titleTooltipWidth ? {
+    '--history-entry-title-tooltip-width': titleTooltipWidth
+  } as CSSProperties : undefined
+  const titleTooltipContent = titleMetrics.isTruncated && entryLabel ? (
+    <span
+      className={cn(
+        'history-entry-title-tooltip block min-w-0 max-w-[calc(100vw-32px)] whitespace-normal text-[13px] leading-tight font-normal text-tab-ink [font-family:inherit] [overflow-wrap:anywhere]',
+        titleTooltipWidth && 'w-[var(--history-entry-title-tooltip-width)]'
+      )}
+    >
+      {entryLabel}
+    </span>
+  ) : undefined
 
   return (
     <div
@@ -168,7 +227,11 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
           entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]'
         )}
       >
-        <TooltipAnchor content={entryLabel}>
+        <TooltipAnchor
+          content={titleTooltipContent}
+          className="history-entry-title-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+          style={titleTooltipStyle}
+        >
           <button
             type="button"
             className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight disabled:cursor-default"
