@@ -23,12 +23,14 @@ type TitlePresentation = {
 }
 type TitleSuppressionCandidate = {
   index: number
-  suffix: string
+  text: string
   structuralTailIndex: number | null
 }
 
 const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
 const TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
+const TITLE_BOUNDARY_SEPARATOR_RE = /^[-\u2013\u2014\u00b7|:]/
+const TITLE_BOUNDARY_TRAILING_SEPARATOR_RE = /[-\u2013\u2014\u00b7|:]$/
 
 /**
  * injectBreakPoints(str) — insert U+200B (zero-width space) into
@@ -93,7 +95,7 @@ function titleSuppressionCandidates(title: string, structuralTailLabel = ''): Ti
   if (isSuppressibleTrailingTitleSegment(suffix)) {
     candidates.push({
       index: segment.index,
-      suffix,
+      text: title.slice(segment.index, structuralTail ? structuralTail.index + structuralTail.separator.length : undefined).trim(),
       structuralTailIndex: structuralTail?.index ?? null
     })
   }
@@ -106,7 +108,7 @@ function titleSuppressionCandidates(title: string, structuralTailLabel = ''): Ti
       if (isSuppressibleTrailingTitleSegment(expandedSuffix)) {
         candidates.push({
           index: previousSegment.index,
-          suffix: expandedSuffix,
+          text: title.slice(previousSegment.index, structuralTail.index + structuralTail.separator.length).trim(),
           structuralTailIndex: structuralTail.index
         })
       }
@@ -184,6 +186,11 @@ function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is {
   return typeof segment !== 'string' && 'placeholder' in segment
 }
 
+function isBoundaryWrappedTitleSuppression(part: string): boolean {
+  const text = part.trim()
+  return TITLE_BOUNDARY_SEPARATOR_RE.test(text) && TITLE_BOUNDARY_TRAILING_SEPARATOR_RE.test(text)
+}
+
 function insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
   segments: DashboardSegment[],
   suppressedTitleParts: string[]
@@ -199,8 +206,18 @@ function insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
   }
 
   const inserted: DashboardSegment[] = []
+  const suppressionsIncludeBoundary = suppressedTitleParts.some(isBoundaryWrappedTitleSuppression)
   for (const part of suppressedTitleParts) {
-    inserted.push({ titleSuppression: part }, separator)
+    inserted.push({ titleSuppression: part }, suppressionsIncludeBoundary ? ' ' : separator)
+  }
+
+  if (suppressionsIncludeBoundary) {
+    return [
+      ...segments.slice(0, placeholderIndex - 1),
+      ' ',
+      ...inserted,
+      ...segments.slice(placeholderIndex)
+    ]
   }
 
   return [
@@ -419,7 +436,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         const candidates = titleSuppressionCandidates(row.displayTitle, row.structuralTailLabel).filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
         candidatesByUrl.set(row.url, candidates)
         for (const candidate of candidates) {
-          const key = candidate.suffix.toLowerCase()
+          const key = candidate.text.toLowerCase()
           counts.set(key, (counts.get(key) || 0) + 1)
         }
       }
@@ -434,15 +451,15 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       let changed = false
       for (const row of rows) {
         const candidate = (candidatesByUrl.get(row.url) || [])
-          .filter((candidate) => suffixesToSuppress.has(candidate.suffix.toLowerCase()))
-          .sort((a, b) => b.suffix.length - a.suffix.length)[0]
+          .filter((candidate) => suffixesToSuppress.has(candidate.text.toLowerCase()))
+          .sort((a, b) => b.text.length - a.text.length)[0]
         if (!candidate) continue
         const stripped = row.displayTitle.slice(0, candidate.index).trim()
         if (stripped.length < 3) continue
         row.displayTitle = stripped + (candidate.structuralTailIndex === null ? '' : row.displayTitle.slice(candidate.structuralTailIndex))
-        row.suppressedTitleParts.unshift(candidate.suffix)
+        row.suppressedTitleParts.unshift(candidate.text)
         if (candidate.structuralTailIndex !== null) {
-          row.suppressedTitlePartsBeforeStructuralTail.unshift(candidate.suffix)
+          row.suppressedTitlePartsBeforeStructuralTail.unshift(candidate.text)
         }
         changed = true
       }
