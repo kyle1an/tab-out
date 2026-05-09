@@ -16,6 +16,8 @@ interface PageChipProps {
   onHoverUrlChange?: HoverUrlChangeHandler | null
 }
 
+type ChipTextRenderMode = 'chip' | 'tooltip'
+
 function renderHighlightedText(text: string, filter: string, keyPrefix: string): ReactNode {
   const query = filter.trim()
   if (!text || !query) return text
@@ -276,11 +278,97 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const chipLabel = [chip.tooltip, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
-  const chipTooltipContent = chip.iconOnly || isTextTruncated ? chip.tooltip : undefined
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
 
+  function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
+    const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
+    const envClassName = cn(
+      "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
+      mode === 'chip' && 'clickable cursor-pointer transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink',
+      env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
+    )
+
+    if (mode === 'tooltip') {
+      return (
+        <span key={env.rawUrl || env.tabUrl} className={envClassName}>
+          {renderHighlightedText(env.prefix, filter, `tooltip-env-${env.prefix}`)}
+        </span>
+      )
+    }
+
+    return (
+      <TooltipAnchor key={env.rawUrl || env.tabUrl} content={envLabel}>
+        <button
+          type="button"
+          className={envClassName}
+          aria-label={envLabel}
+          onClick={(e) => onEnvClick(e, env)}
+          onKeyDown={(e) => onEnvKeyDown(e, env)}
+          onMouseEnter={() => onEnvMouseEnter(env)}
+          onMouseLeave={onEnvMouseLeave}
+          onFocus={() => onEnvFocus(env)}
+          onBlur={onEnvBlur}
+        >
+          {renderHighlightedText(env.prefix, filter, `env-${env.prefix}`)}
+        </button>
+      </TooltipAnchor>
+    )
+  }
+
+  function renderChipTextContent(mode: ChipTextRenderMode) {
+    return (
+      <>
+        {isFolded && (
+          <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
+            {envs.map((env) => renderEnvLabel(env, mode))}
+          </span>
+        )}
+        {!isFolded && chip.leadPrefix && (
+          <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
+            {renderHighlightedText(chip.leadPrefix, filter, `${mode}-lead`)}
+          </span>
+        )}
+        {chip.pathGroupLabel && (
+          <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
+            {renderHighlightedText(chip.pathGroupLabel, filter, `${mode}-pathgroup`)}
+          </span>
+        )}
+        {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? renderHighlightedText(seg, filter, `${mode}-segment-${index}`) : (
+          <span
+            key={index}
+            className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
+            aria-hidden="true"
+          >
+            ~
+          </span>
+        )))}
+        {chip.pathSuffix && (
+          <span
+            className={cn(
+              'chip-path ml-1.5 text-xs font-normal text-tab-muted opacity-75',
+              mode === 'chip' ? 'inline-block whitespace-nowrap' : 'inline'
+            )}
+          >
+            {renderHighlightedText(chip.pathSuffix, filter, `${mode}-path`)}
+          </span>
+        )}
+      </>
+    )
+  }
+
+  const chipTooltipContent = chip.iconOnly || isTextTruncated ? (
+    <span
+      className={cn(
+        "chip-text block min-w-0 text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:'']",
+        hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
+      )}
+    >
+      {renderChipTextContent('tooltip')}
+    </span>
+  ) : undefined
+
   return (
-    <TooltipAnchor content={chipTooltipContent}>
+    <TooltipAnchor content={chipTooltipContent} className="text-[13px] leading-tight">
       <div
         className={cn(
           "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
@@ -336,53 +424,7 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
           )}
           ref={chipTextRef}
         >
-          {isFolded && (
-            <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
-              {envs.map((env) => {
-                const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
-                return (
-                  <TooltipAnchor key={env.rawUrl || env.tabUrl} content={envLabel}>
-                    <button
-                      type="button"
-                      className={cn(
-                        "chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color,box-shadow] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink",
-                        env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
-                      )}
-                      aria-label={envLabel}
-                      onClick={(e) => onEnvClick(e, env)}
-                      onKeyDown={(e) => onEnvKeyDown(e, env)}
-                      onMouseEnter={() => onEnvMouseEnter(env)}
-                      onMouseLeave={onEnvMouseLeave}
-                      onFocus={() => onEnvFocus(env)}
-                      onBlur={onEnvBlur}
-                    >
-                      {renderHighlightedText(env.prefix, filter, `env-${env.prefix}`)}
-                    </button>
-                  </TooltipAnchor>
-                )
-              })}
-            </span>
-          )}
-          {!isFolded && chip.leadPrefix && (
-            <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-              {renderHighlightedText(chip.leadPrefix, filter, 'lead')}
-            </span>
-          )}
-          {chip.pathGroupLabel && (
-            <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-              {renderHighlightedText(chip.pathGroupLabel, filter, 'pathgroup')}
-            </span>
-          )}
-          {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? renderHighlightedText(seg, filter, `segment-${index}`) : (
-            <span
-              key={index}
-              className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
-              aria-hidden="true"
-            >
-              ~
-            </span>
-          )))}
-          {chip.pathSuffix && <span className="chip-path ml-1.5 inline-block whitespace-nowrap text-xs font-normal text-tab-muted opacity-75">{renderHighlightedText(chip.pathSuffix, filter, 'path')}</span>}
+          {renderChipTextContent('chip')}
         </span>
       )}
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (

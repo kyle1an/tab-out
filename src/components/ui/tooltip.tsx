@@ -127,14 +127,19 @@ type TooltipTriggerElement = ReactElement<{
   onPointerMove?: (event: ReactPointerEvent<HTMLElement>) => void
 }>
 
+type TooltipAnchorProps = Omit<
+  ComponentProps<typeof TooltipContent>,
+  'children' | 'content'
+> & {
+  content?: ReactNode
+  children: TooltipTriggerElement
+}
+
 function TooltipAnchor({
   content,
   children,
   ...contentProps
-}: Omit<ComponentProps<typeof TooltipContent>, 'children'> & {
-  content?: ReactNode
-  children: TooltipTriggerElement
-}) {
+}: TooltipAnchorProps) {
   const latestPointerPointRef = useRef<CursorPoint | null>(null)
   const frozenPointerClearTimerRef = useRef<number | null>(null)
   const [frozenPointerPoint, setFrozenPointerPoint] =
