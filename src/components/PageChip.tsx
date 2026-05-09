@@ -4,6 +4,8 @@ import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import { titleSuppressionChipHighlightClass } from './title-suppression'
+import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
 
@@ -17,6 +19,7 @@ interface PageChipProps {
   chip: DashboardChipData
   filter?: string
   activeSuppressedTitle?: string
+  activeSuppressionTone?: TitleSuppressionTone | ''
   onHoverUrlChange?: HoverUrlChangeHandler | null
 }
 
@@ -105,7 +108,7 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHoverUrlChange = null }: PageChipProps) {
+export function PageChip({ chip, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', onHoverUrlChange = null }: PageChipProps) {
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -449,7 +452,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
           chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           chip.activeInOtherWindow && !isFolded && 'hover:bg-[rgba(82,82,82,0.095)]',
           isFolded && 'page-chip-folded cursor-default after:hidden',
-          suppressionHighlighted && 'page-chip-suppression-highlighted bg-[rgba(234,179,8,0.12)] shadow-[inset_0_0_0_1px_rgba(234,179,8,0.32)]',
+          suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
           chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
           chip.iconOnly && chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'

@@ -17,7 +17,7 @@ import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlF
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
-import type { DashboardTab } from '../src/extension/types'
+import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
 
 (globalThis as any).chrome = {
   runtime: {
@@ -306,6 +306,38 @@ test('computeDomainCardViewModel tracks multiple hidden title parts per chip', (
   assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['JIRA', 'Example Workspace'], ['JIRA', 'Example Workspace']])
   assert.deepEqual(vm.suppressedTitleParts, [{ text: 'Example Workspace', count: 2 }, { text: 'JIRA', count: 2 }])
+})
+
+test('computeDomainCardViewModel suppresses shared title text before structural path labels', () => {
+  const titles = [
+    'Example Article Alpha — Content — Example Website — env-alpha — Contentful',
+    'Example Article Beta — Content — Example Website — env-alpha — Contentful'
+  ]
+  const group = {
+    domain: 'contentful.com',
+    tabs: titles.map((title, index) => makeTab({
+      id: index + 1,
+      url: `https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-${index + 1}`,
+      title
+    }))
+  }
+  const chipTitle = (chip: DashboardChipData) => chip.displaySegments.map((segment) => (typeof segment === 'string' ? segment : '~')).join('')
+  const chipsFrom = (vm: DashboardCardVM) => vm.sections.flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = chipsFrom(vm)
+  const visibleTitles = chips.map(chipTitle)
+
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: 'Content — Example Website', count: 2 }])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['Content — Example Website'], ['Content — Example Website']])
+  assert.ok(visibleTitles.every((title) => title.includes('~')))
+  assert.ok(visibleTitles.every((title) => !title.includes('Content') && !title.includes('Example Website')))
+
+  const filteredVm = computeDomainCardViewModel(group, { filter: 'example website' })
+  const filteredTitles = chipsFrom(filteredVm).map(chipTitle)
+
+  assert.deepEqual(filteredVm.suppressedTitleParts, [])
+  assert.ok(filteredTitles.every((title) => title.includes('Content') && title.includes('Example Website')))
 })
 
 test('computeDomainCardViewModel treats Google Search as shared hidden title text instead of a path group', () => {

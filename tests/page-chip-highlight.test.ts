@@ -62,7 +62,7 @@ test('PageChip renders a title suppression marker when common title text is supp
 })
 
 test('PageChip marks chips affected by the active suppressed title text', () => {
-  const html = renderToStaticMarkup(
+  const defaultHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
@@ -71,8 +71,22 @@ test('PageChip marks chips affected by the active suppressed title text', () => 
       activeSuppressedTitle: 'Example Workspace'
     })
   )
+  const tealHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Alpha channel'],
+        suppressedTitleParts: ['Example Workspace']
+      }),
+      activeSuppressedTitle: 'Example Workspace',
+      activeSuppressionTone: 'teal'
+    })
+  )
 
-  assert.match(html, /page-chip\b[^"]*page-chip-suppression-highlighted/)
+  assert.match(defaultHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
+  assert.match(defaultHtml, /bg-\[rgba\(234,179,8,0\.12\)\]/)
+  assert.match(tealHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
+  assert.match(tealHtml, /bg-\[rgba\(20,184,166,0\.12\)\]/)
+  assert.doesNotMatch(tealHtml, /bg-\[rgba\(234,179,8,0\.12\)\]/)
 })
 
 test('PageChip renders path-group pills with a slash prefix', () => {
@@ -210,7 +224,8 @@ test('Overflow expanders highlight hidden chips that match active suppressed tit
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      activeSuppressedTitle: 'Example Workspace'
+      activeSuppressedTitle: 'Example Workspace',
+      activeSuppressionTone: 'teal'
     })
   )
   const pathgroupHtml = renderToStaticMarkup(
@@ -222,7 +237,8 @@ test('Overflow expanders highlight hidden chips that match active suppressed tit
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      activeSuppressedTitle: 'Example Workspace'
+      activeSuppressedTitle: 'Example Workspace',
+      activeSuppressionTone: 'teal'
     })
   )
 
@@ -230,9 +246,10 @@ test('Overflow expanders highlight hidden chips that match active suppressed tit
     const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
     assert.ok(overflowButtonMatch, 'overflow expander button should render')
     assert.match(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
-    assert.match(overflowButtonMatch[1], /bg-\[rgba\(234,179,8,0\.08\)\]/)
-    assert.match(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(234,179,8,0\.24\)\]/)
-    assert.match(html, /page-chip-overflow-suppression-badge[\s\S]*>~1<\/span>/)
+    assert.match(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.08\)\]/)
+    assert.match(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.24\)\]/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*bg-\[rgba\(20,184,166,0\.16\)\][\s\S]*>~1<\/span>/)
+    assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(234,179,8,0\.08\)\]/)
     assert.doesNotMatch(html, /hidden title suppresses/)
     assert.doesNotMatch(html, /Click to show/)
   }
@@ -267,9 +284,44 @@ test('DomainCard shows common suppressed title text above the chips without a su
   const tokenMatch = html.match(/<button[^>]*class="([^"]*title-suppression-token[^"]*)"/)
   assert.ok(tokenMatch, 'suppression token button should render')
   assert.match(tokenMatch[1], /rounded-\[6px\]/)
+  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
   assert.match(html, /Example Workspace/)
   assert.match(html, /Suppressed in 2 titles: Example Workspace/)
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
   assert.match(domainCardSource, /className="title-suppression-tooltip text-\[13px\] leading-4"/)
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
+})
+
+test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {
+  const group: DomainGroup = {
+    domain: 'slack.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-slack-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '4',
+    suppressedTitleParts: [
+      { text: 'Example Workspace', count: 2 },
+      { text: 'JIRA', count: 2 },
+      { text: 'Content — Example Website', count: 3 }
+    ],
+    sections: []
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.equal(tokenClasses.length, 3)
+  assert.match(tokenClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
+  assert.match(tokenClasses[2], /title-suppression-token-tone-sky/)
+  assert.notEqual(tokenClasses[0], tokenClasses[1])
 })

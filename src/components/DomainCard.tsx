@@ -5,6 +5,7 @@ import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
+import { titleSuppressionTokenToneClass, titleSuppressionToneForIndex } from './title-suppression'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
@@ -125,6 +126,9 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
+  const useSuppressionTokenTones = suppressedTitleParts.length > 1
+  const activeSuppressedTitleIndex = suppressedTitleParts.findIndex((part) => part.text === activeSuppressedTitle)
+  const activeSuppressionTone = useSuppressionTokenTones && activeSuppressedTitleIndex >= 0 ? titleSuppressionToneForIndex(activeSuppressedTitleIndex) : ''
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
@@ -207,15 +211,16 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       >
         {suppressedTitleParts.length > 0 && (
           <div className="title-suppression-summary flex flex-wrap items-center gap-1 text-xs leading-4 text-tab-muted">
-            {suppressedTitleParts.map((part) => {
+            {suppressedTitleParts.map((part, index) => {
               const label = `Suppressed in ${part.count} title${part.count !== 1 ? 's' : ''}: ${part.text}`
+              const active = activeSuppressedTitle === part.text
               return (
                 <TooltipAnchor key={part.text} content={label} className="title-suppression-tooltip text-[13px] leading-4">
                   <button
                     type="button"
                     className={cn(
                       'title-suppression-token inline-flex h-5 cursor-help items-center gap-1 rounded-[6px] border border-transparent bg-[rgba(115,115,115,0.08)] px-1.5 py-0 text-xs leading-none font-medium text-tab-muted transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-[rgba(234,179,8,0.32)] hover:bg-[rgba(234,179,8,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-                      activeSuppressedTitle === part.text && 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.14)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.18)]'
+                      titleSuppressionTokenToneClass(index, useSuppressionTokenTones, active)
                     )}
                     aria-label={label}
                     onMouseEnter={() => setActiveSuppressedTitle(part.text)}
@@ -248,6 +253,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
               clusters={section.clusters}
               filter={highlightFilter}
               activeSuppressedTitle={activeSuppressedTitle}
+              activeSuppressionTone={activeSuppressionTone}
               onHoverUrlChange={onHoverUrlChange}
               onLayoutChange={onLayoutChange}
             />

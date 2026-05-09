@@ -3,6 +3,7 @@ import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface SubdomainCloseButtonProps {
@@ -24,6 +25,7 @@ interface SubdomainSectionProps {
   clusters: DashboardClusterVM[]
   filter?: string
   activeSuppressedTitle?: string
+  activeSuppressionTone?: TitleSuppressionTone | ''
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -60,6 +62,7 @@ export function SubdomainSection({
   clusters,
   filter = '',
   activeSuppressedTitle = '',
+  activeSuppressionTone = '',
   onHoverUrlChange = null,
   onLayoutChange = null
 }: SubdomainSectionProps) {
@@ -108,6 +111,7 @@ export function SubdomainSection({
           afterSeparator={!isFirst && !showHeader}
           filter={filter}
           activeSuppressedTitle={activeSuppressedTitle}
+          activeSuppressionTone={activeSuppressionTone}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
@@ -126,6 +130,7 @@ export function SubdomainSection({
           isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
           filter={filter}
           activeSuppressedTitle={activeSuppressedTitle}
+          activeSuppressionTone={activeSuppressionTone}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
