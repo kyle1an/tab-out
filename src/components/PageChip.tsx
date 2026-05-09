@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
-import { Button } from './ui/Button'
+import { Button } from './ui/button'
 import { cn } from '../lib/cn'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
@@ -302,6 +302,8 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
             <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
               {envs.map((env) => (
                 <Button
+                  variant="unstyled"
+                  size="unstyled"
                   key={env.rawUrl || env.tabUrl}
                   className="chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink"
                   title={`Focus ${env.prefix} tab`}
@@ -342,6 +344,8 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
           <Button
+            variant="unstyled"
+            size="unstyled"
             className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
             title={isHistorySource ? 'Delete from history' : 'Close this tab'}
             aria-label={isHistorySource ? 'Delete from history' : 'Close this tab'}

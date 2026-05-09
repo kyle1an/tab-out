@@ -4,7 +4,7 @@ import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '.
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { cn } from '../lib/cn'
-import { Button } from './ui/Button'
+import { Button } from './ui/button'
 import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry } from '../extension/types'
 
@@ -169,6 +169,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
         )}
       >
         <Button
+          variant="unstyled"
+          size="unstyled"
           className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight disabled:cursor-default"
           disabled={!entry.exists}
           onClick={onFocusEntry}
@@ -193,6 +195,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
         </Button>
         <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
           <Button
+            variant="unstyled"
+            size="unstyled"
             className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 transition-[opacity,background,border-color,color] duration-150 group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger disabled:hidden"
             disabled={!entry.exists}
             title="Close this tab"

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { PageChip } from './PageChip'
-import { Button } from './ui/Button'
+import { Button } from './ui/button'
 import { cn } from '../lib/cn'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
@@ -44,6 +44,8 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
       )}
       {!expanded && hiddenCount > 0 && (
         <Button
+          variant="unstyled"
+          size="unstyled"
           className={cn(
             "page-chip page-chip-overflow clickable relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-1.5 pr-1 text-left text-xs tabular-nums text-tab-muted [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,color-mix(in_srgb,var(--card-bg)_96%,rgb(82_82_82))_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100",
             iconOnly ? 'pl-1' : 'pl-3'
