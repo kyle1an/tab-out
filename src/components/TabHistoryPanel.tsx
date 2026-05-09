@@ -3,6 +3,7 @@ import type { MouseEvent, ReactNode } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry } from '../extension/types'
@@ -145,11 +146,11 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   }
 
   const badges = entryBadges(entry, snapshot)
+  const entryLabel = entry.title || entry.displayUrl || entry.url
 
   return (
     <div
       className="history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-center gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]"
-      title={entry.title || entry.displayUrl || entry.url}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onFocus={onMouseEnter}
@@ -167,43 +168,46 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
           entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]'
         )}
       >
-        <button
-          type="button"
-          className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight disabled:cursor-default"
-          disabled={!entry.exists}
-          onClick={onFocusEntry}
-        >
-          <span className={cn('grid h-4 w-4 flex-none place-items-center', !entry.favIconUrl && 'invisible')}>
-            {entry.favIconUrl && <img className="block h-full w-full object-contain" src={entry.favIconUrl} alt="" />}
-          </span>
-          <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
-            <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
-              {entry.title}
-            </span>
-            {badges.length > 0 && (
-              <span className="inline-flex flex-none items-center gap-1">
-                {badges.map((badge) => (
-                  <span key={badge} className="whitespace-nowrap rounded-full bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
-                    {badge}
-                  </span>
-                ))}
-              </span>
-            )}
-          </span>
-        </button>
-        <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
+        <TooltipAnchor content={entryLabel}>
           <button
             type="button"
-            className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 transition-[opacity,background,border-color,color] duration-150 group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger disabled:hidden"
+            className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight disabled:cursor-default"
             disabled={!entry.exists}
-            title="Close this tab"
-            aria-label={`Close ${entry.title}`}
-            onClick={onCloseEntry}
+            onClick={onFocusEntry}
           >
-            <svg className="block h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
+            <span className={cn('grid h-4 w-4 flex-none place-items-center', !entry.favIconUrl && 'invisible')}>
+              {entry.favIconUrl && <img className="block h-full w-full object-contain" src={entry.favIconUrl} alt="" />}
+            </span>
+            <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
+              <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
+                {entry.title}
+              </span>
+              {badges.length > 0 && (
+                <span className="inline-flex flex-none items-center gap-1">
+                  {badges.map((badge) => (
+                    <span key={badge} className="whitespace-nowrap rounded-full bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
+                      {badge}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </span>
           </button>
+        </TooltipAnchor>
+        <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
+          <TooltipAnchor content="Close this tab">
+            <button
+              type="button"
+              className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 transition-[opacity,background,border-color,color] duration-150 group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger disabled:hidden"
+              disabled={!entry.exists}
+              aria-label={`Close ${entry.title}`}
+              onClick={onCloseEntry}
+            >
+              <svg className="block h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </TooltipAnchor>
         </div>
       </div>
     </div>

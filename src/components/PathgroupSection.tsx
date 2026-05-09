@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { PageChip } from './PageChip'
+import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
@@ -28,19 +29,21 @@ interface PathgroupSectionProps {
 function PathgroupCloseButton({ count, isFirstContent = false, onClick }: PathgroupCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
-    <button
-      type="button"
-      className={cn(
-        'pathgroup-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
-        isFirstContent && 'top-[calc(50%_-_1px)]'
-      )}
-      title={title}
-      onClick={onClick}
-    >
-      <svg className="block h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-      </svg>
-    </button>
+    <TooltipAnchor content={title}>
+      <button
+        type="button"
+        className={cn(
+          'pathgroup-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
+          isFirstContent && 'top-[calc(50%_-_1px)]'
+        )}
+        aria-label={title}
+        onClick={onClick}
+      >
+        <svg className="block h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </TooltipAnchor>
   )
 }
 
@@ -65,12 +68,11 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
           isFirstContent ? 'pt-0' : 'pt-[3px]'
         )}
       >
-        <span
-          className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
-          title={label}
-        >
-          {label}
-        </span>
+        <TooltipAnchor content={label}>
+          <span className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
+            {label}
+          </span>
+        </TooltipAnchor>
         {isPR && (
           <span className="chip-pathgroup chip-pathgroup-pr -ml-0.5 inline-block rounded-lg bg-[rgba(115,115,115,0.18)] px-[5px] text-xs font-semibold text-tab-ink align-baseline [corner-shape:squircle]">
             PRs

@@ -1,6 +1,7 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { SubdomainSection } from './SubdomainSection'
+import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
@@ -36,23 +37,21 @@ function TabBadge({ label, title }: { label?: string | number; title?: string })
   const slashIndex = labelText.indexOf('/')
   if (slashIndex > 0) {
     return (
-      <span
-        className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]"
-        title={title}
-      >
-        <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
-        <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
-      </span>
+      <TooltipAnchor content={title}>
+        <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
+          <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
+          <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
+        </span>
+      </TooltipAnchor>
     )
   }
 
   return (
-    <span
-      className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]"
-      title={title}
-    >
-      {labelText}
-    </span>
+    <TooltipAnchor content={title}>
+      <span className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
+        {labelText}
+      </span>
+    </TooltipAnchor>
   )
 }
 
@@ -60,14 +59,15 @@ function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEven
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
-    <button
-      type="button"
-      className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]"
-      title={title}
-      onClick={onClick}
-    >
-      {label}
-    </button>
+    <TooltipAnchor content={title}>
+      <button
+        type="button"
+        className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]"
+        onClick={onClick}
+      >
+        {label}
+      </button>
+    </TooltipAnchor>
   )
 }
 
@@ -75,36 +75,39 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
   const action = pinned ? 'Unpin' : 'Pin'
   const title = `${action} ${displayName}`
   return (
-    <button
-      type="button"
-      className={cn(
-        'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.35] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:opacity-100 hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink focus-visible:opacity-100',
-        pinned && 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100'
-      )}
-      title={title}
-      aria-label={title}
-      aria-pressed={pinned ? 'true' : 'false'}
-      onClick={onClick}
-    >
-      <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
-      </svg>
-    </button>
+    <TooltipAnchor content={title}>
+      <button
+        type="button"
+        className={cn(
+          'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.35] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:opacity-100 hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink focus-visible:opacity-100',
+          pinned && 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100'
+        )}
+        aria-label={title}
+        aria-pressed={pinned ? 'true' : 'false'}
+        onClick={onClick}
+      >
+        <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
+        </svg>
+      </button>
+    </TooltipAnchor>
   )
 }
 
 function FixedIndicator({ displayName }: { displayName?: string }) {
+  const title = `${displayName} is fixed at the top`
   return (
-    <span
-      className="domain-fixed-indicator inline-flex h-[22px] w-[22px] min-w-[22px] items-center justify-center rounded-lg border border-[var(--warm-gray)] bg-[rgba(82,82,82,0.06)] p-0 text-tab-muted opacity-[0.78] [corner-shape:squircle]"
-      role="img"
-      aria-label={`${displayName} is fixed at the top`}
-      title={`${displayName} is fixed at the top`}
-    >
-      <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
-      </svg>
-    </span>
+    <TooltipAnchor content={title}>
+      <span
+        className="domain-fixed-indicator inline-flex h-[22px] w-[22px] min-w-[22px] items-center justify-center rounded-lg border border-[var(--warm-gray)] bg-[rgba(82,82,82,0.06)] p-0 text-tab-muted opacity-[0.78] [corner-shape:squircle]"
+        role="img"
+        aria-label={title}
+      >
+        <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
+        </svg>
+      </span>
+    </TooltipAnchor>
   )
 }
 

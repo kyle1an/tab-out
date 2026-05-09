@@ -13,6 +13,7 @@ import { useUrlPreview } from '../hooks/useUrlPreview'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
+import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
 import { cn } from '@/lib/utils'
 import type { DashboardData, DashboardSource, TabHistorySnapshot } from './types'
@@ -198,7 +199,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   })
 
   return (
-    <>
+    <TooltipProvider>
       <div
         className={cn(
           'dashboard-shell',
@@ -319,7 +320,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
       </div>
 
       <UrlPreview url={urlPreview.url} visible={urlPreview.visible} />
-    </>
+    </TooltipProvider>
   )
 }
 

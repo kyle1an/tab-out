@@ -235,6 +235,97 @@ async function measureDashboard(session: CdpSession, width: number) {
   }).then((result: any) => result.result.value)
 }
 
+async function waitForTooltipRect(session: CdpSession) {
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const tooltip = document.querySelector('[data-slot="tooltip-content"]')
+        const rect = tooltip?.getBoundingClientRect()
+        if (rect && rect.width > 0 && rect.height > 0) {
+          resolve({
+            left: Math.round(rect.left),
+            top: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            text: tooltip.textContent || ''
+          })
+        } else if (Date.now() - start > 2000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+}
+
+async function measureTooltipFreeze(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = document.querySelector('.page-chip')
+        const rect = chip?.getBoundingClientRect()
+        if (rect && rect.width > 120 && rect.height > 8) {
+          const startX = Math.round(rect.left + 24)
+          const y = Math.round(rect.top + rect.height / 2)
+          resolve({
+            startX,
+            moveX: Math.round(Math.min(rect.right - 8, startX + 80)),
+            y
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a page chip to hover for tooltip smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.startX,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.moveX,
+    y: target.y
+  })
+  await wait(150)
+  const second = await waitForTooltipRect(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.moveX,
+    y: target.y + 80
+  })
+  await wait(50)
+  const closing = await waitForTooltipRect(session)
+
+  return { target, first, second, closing }
+}
+
 test('dashboard cards repack when the viewport resizes', async (t) => {
   if (!RUN_BROWSER_SMOKE) {
     t.skip('set RUN_BROWSER_SMOKE=1 to launch Chrome for the resize smoke test')
@@ -291,4 +382,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(wide.cardCount >= 12, `dashboard should render enough cards for a column smoke test: ${JSON.stringify(wide)}`)
   assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
+
+  const tooltip = await measureTooltipFreeze(session)
+  assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)
+  assert.ok(tooltip.second, `tooltip should stay open during an in-chip pointer move: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs(tooltip.first.left - tooltip.target.startX) <= 24, `tooltip should open near the pointer x coordinate: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs(tooltip.first.left - tooltip.second.left) <= 1, `tooltip left should freeze after open: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs(tooltip.first.top - tooltip.second.top) <= 1, `tooltip top should freeze after open: ${JSON.stringify(tooltip)}`)
+  if (tooltip.closing) {
+    assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
+    assert.ok(Math.abs(tooltip.first.top - tooltip.closing.top) <= 1, `tooltip top should stay frozen while closing: ${JSON.stringify(tooltip)}`)
+  }
 })

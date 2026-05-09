@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
+import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
@@ -255,28 +256,29 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const chipLabel = [chip.tooltip, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
+  const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
 
   return (
-    <div
-      className={cn(
-        "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
-        chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] hover:bg-[rgba(82,82,82,0.095)]',
-        isFolded && 'page-chip-folded after:hidden',
-        chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
-        chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
-        chip.iconOnly && chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
-      )}
-      title={chipLabel}
-      aria-label={chipLabel}
-      style={style}
-      tabIndex={0}
-      onClick={onFocus}
-      onKeyDown={onChipKeyDown}
-      onMouseEnter={onChipMouseEnter}
-      onMouseLeave={onChipMouseLeave}
-      onFocus={onChipFocus}
-      onBlur={onChipBlur}
-    >
+    <TooltipAnchor content={chipLabel}>
+      <div
+        className={cn(
+          "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
+          chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] hover:bg-[rgba(82,82,82,0.095)]',
+          isFolded && 'page-chip-folded after:hidden',
+          chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
+          chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
+          chip.iconOnly && chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
+        )}
+        aria-label={chipLabel}
+        style={style}
+        tabIndex={0}
+        onClick={onFocus}
+        onKeyDown={onChipKeyDown}
+        onMouseEnter={onChipMouseEnter}
+        onMouseLeave={onChipMouseLeave}
+        onFocus={onChipFocus}
+        onBlur={onChipBlur}
+      >
       {chip.activeInOtherWindow && !chip.iconOnly && (
         <span
           className="active-chip-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)] [corner-shape:squircle]"
@@ -315,25 +317,29 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
         >
           {isFolded && (
             <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
-              {envs.map((env) => (
-                <button
-                  type="button"
-                  key={env.rawUrl || env.tabUrl}
-                  className={cn(
-                    "chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color,box-shadow] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink",
-                    env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
-                  )}
-                  title={`Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`}
-                  onClick={(e) => onEnvClick(e, env)}
-                  onKeyDown={(e) => onEnvKeyDown(e, env)}
-                  onMouseEnter={() => onEnvMouseEnter(env)}
-                  onMouseLeave={onEnvMouseLeave}
-                  onFocus={() => onEnvFocus(env)}
-                  onBlur={onEnvBlur}
-                >
-                  {renderHighlightedText(env.prefix, filter, `env-${env.prefix}`)}
-                </button>
-              ))}
+              {envs.map((env) => {
+                const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
+                return (
+                  <TooltipAnchor key={env.rawUrl || env.tabUrl} content={envLabel}>
+                    <button
+                      type="button"
+                      className={cn(
+                        "chip-env clickable inline-flex cursor-pointer items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted transition-[background,color,box-shadow] duration-150 ease-in-out [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.'] hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink",
+                        env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
+                      )}
+                      aria-label={envLabel}
+                      onClick={(e) => onEnvClick(e, env)}
+                      onKeyDown={(e) => onEnvKeyDown(e, env)}
+                      onMouseEnter={() => onEnvMouseEnter(env)}
+                      onMouseLeave={onEnvMouseLeave}
+                      onFocus={() => onEnvFocus(env)}
+                      onBlur={onEnvBlur}
+                    >
+                      {renderHighlightedText(env.prefix, filter, `env-${env.prefix}`)}
+                    </button>
+                  </TooltipAnchor>
+                )
+              })}
             </span>
           )}
           {!isFolded && chip.leadPrefix && (
@@ -360,19 +366,21 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
       )}
       {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
-          <button
-            type="button"
-            className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
-            title={isHistorySource ? 'Delete from history' : 'Close this tab'}
-            aria-label={isHistorySource ? 'Delete from history' : 'Close this tab'}
-            onClick={isHistorySource ? onDeleteHistory : onClose}
-          >
-            <svg className="h-[15px] w-[15px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <TooltipAnchor content={closeActionLabel}>
+            <button
+              type="button"
+              className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
+              aria-label={closeActionLabel}
+              onClick={isHistorySource ? onDeleteHistory : onClose}
+            >
+              <svg className="h-[15px] w-[15px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </TooltipAnchor>
         </div>
       )}
-    </div>
+      </div>
+    </TooltipAnchor>
   )
 }
