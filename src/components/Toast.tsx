@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react'
 import { Toast as BaseToast } from '@base-ui/react/toast'
 import { createRoot } from 'react-dom/client'
-import { cn } from '../lib/cn'
+import { cn } from '@/lib/utils'
 import { toastManager } from '../extension/toast.js'
 
 export function Toast() {

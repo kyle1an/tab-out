@@ -2,7 +2,7 @@ import { isPinnableDomain } from '../extension/domain-pins.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { SubdomainSection } from './SubdomainSection'
 import { Button } from './ui/button'
-import { cn } from '../lib/cn'
+import { cn } from '@/lib/utils'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 

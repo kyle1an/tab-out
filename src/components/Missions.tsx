@@ -1,6 +1,6 @@
 import { DomainCard } from './DomainCard'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
-import { cn } from '../lib/cn'
+import { cn } from '@/lib/utils'
 import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface MissionsProps {

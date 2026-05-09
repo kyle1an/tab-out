@@ -3,7 +3,7 @@ import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } 
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { Button } from './ui/button'
-import { cn } from '../lib/cn'
+import { cn } from '@/lib/utils'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
 

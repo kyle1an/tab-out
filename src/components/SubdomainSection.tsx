@@ -2,7 +2,7 @@ import { closeExactTabSection } from '../extension/tab-actions'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import { Button } from './ui/button'
-import { cn } from '../lib/cn'
+import { cn } from '@/lib/utils'
 import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface SubdomainCloseButtonProps {

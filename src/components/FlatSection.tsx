@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { PageChip } from './PageChip'
 import { Button } from './ui/button'
-import { cn } from '../lib/cn'
+import { cn } from '@/lib/utils'
 import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface FlatSectionProps {
