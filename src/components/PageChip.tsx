@@ -8,7 +8,10 @@ import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
-const chipTextTruncationCallbacks = new WeakMap<HTMLElement, (isTruncated: boolean) => void>()
+const chipTextTruncationCallbacks = new WeakMap<
+  HTMLElement,
+  (metrics: { isTruncated: boolean; width: number }) => void
+>()
 
 interface PageChipProps {
   chip: DashboardChipData
@@ -70,13 +73,19 @@ function isChipTextTruncated(textEl: HTMLElement | null) {
   )
 }
 
+function getChipTextWidth(textEl: HTMLElement | null) {
+  if (!textEl) return 0
+  return Math.round(textEl.getBoundingClientRect().width * 100) / 100
+}
+
 function syncChipTextFade(textEl: HTMLElement | null) {
-  if (!textEl) return false
+  if (!textEl) return { isTruncated: false, width: 0 }
 
   const isTruncated = isChipTextTruncated(textEl)
+  const width = getChipTextWidth(textEl)
   textEl.classList.toggle('chip-text-truncated', isTruncated)
-  chipTextTruncationCallbacks.get(textEl)?.(isTruncated)
-  return isTruncated
+  chipTextTruncationCallbacks.get(textEl)?.({ isTruncated, width })
+  return { isTruncated, width }
 }
 
 function getChipTextResizeObserver() {
@@ -100,10 +109,12 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const primaryPreviewUrl = isFolded ? envs[0]?.tabUrl || '' : chip.tabUrl || ''
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const [isTextTruncated, setIsTextTruncated] = useState(false)
+  const [chipTextWidth, setChipTextWidth] = useState(0)
 
   const updateChipTextTruncation = useCallback((textEl: HTMLElement | null) => {
-    const isTruncated = syncChipTextFade(textEl)
+    const { isTruncated, width } = syncChipTextFade(textEl)
     setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
+    setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
   }, [])
 
   useLayoutEffect(() => {
@@ -120,9 +131,10 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
 
     let disposed = false
     const observer = getChipTextResizeObserver()
-    chipTextTruncationCallbacks.set(textEl, (isTruncated) => {
+    chipTextTruncationCallbacks.set(textEl, ({ isTruncated, width }) => {
       if (disposed) return
       setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
+      setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
     })
     observer?.observe(textEl)
 
@@ -279,6 +291,10 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const chipLabel = [chip.tooltip, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
+  const chipTooltipTextWidth = !chip.iconOnly && chipTextWidth > 0 ? `${chipTextWidth}px` : ''
+  const chipTooltipStyle = chipTooltipTextWidth ? {
+    '--page-chip-tooltip-text-width': chipTooltipTextWidth
+  } as CSSProperties : undefined
 
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
@@ -359,7 +375,8 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const chipTooltipContent = chip.iconOnly || isTextTruncated ? (
     <span
       className={cn(
-        "chip-text block min-w-0 text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:'']",
+        "chip-text block min-w-0 max-w-[calc(100vw-32px)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]",
+        chipTooltipTextWidth && 'w-[var(--page-chip-tooltip-text-width)]',
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
       )}
     >
@@ -368,7 +385,11 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   ) : undefined
 
   return (
-    <TooltipAnchor content={chipTooltipContent} className="text-[13px] leading-tight">
+    <TooltipAnchor
+      content={chipTooltipContent}
+      className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+      style={chipTooltipStyle}
+    >
       <div
         className={cn(
           "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
