@@ -254,6 +254,77 @@ test('computeDomainCardViewModel disambiguates collisions by rendered title', ()
   assert.deepEqual(new Set(chips.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
 })
 
+test('computeDomainCardViewModel hides repeated trailing title suffixes in normal mode', () => {
+  const group = {
+    domain: 'slack.com',
+    tabs: [
+      makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - Example Workspace - Slack' }),
+      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections[0].flatVisibleChips
+  const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
+
+  assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['Example Workspace'], ['Example Workspace']])
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: 'Example Workspace', count: 2 }])
+})
+
+test('computeDomainCardViewModel keeps repeated title suffixes visible while filtering', () => {
+  const group = {
+    domain: 'slack.com',
+    tabs: [
+      makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - Example Workspace - Slack' }),
+      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - Example Workspace - Slack' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { filter: 'workspace' })
+  const chips = vm.sections[0].flatVisibleChips
+  const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
+
+  assert.deepEqual(titles, ['Alpha channel - Example Workspace', 'Beta channel - Example Workspace'])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [[], []])
+  assert.deepEqual(vm.suppressedTitleParts, [])
+})
+
+test('computeDomainCardViewModel tracks multiple hidden title parts per chip', () => {
+  const group = {
+    domain: 'slack.com',
+    tabs: [
+      makeTab({ url: 'https://app.slack.com/client/T123/C123', title: 'Alpha channel - JIRA - Example Workspace - Slack' }),
+      makeTab({ id: 2, url: 'https://app.slack.com/client/T123/C456', title: 'Beta channel - JIRA - Example Workspace - Slack' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections[0].flatVisibleChips
+  const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
+
+  assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
+  assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['JIRA', 'Example Workspace'], ['JIRA', 'Example Workspace']])
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: 'Example Workspace', count: 2 }, { text: 'JIRA', count: 2 }])
+})
+
+test('computeDomainCardViewModel treats Google Search as shared hidden title text instead of a path group', () => {
+  const group = {
+    domain: 'google.com',
+    tabs: [
+      makeTab({ url: 'https://www.google.com/search?q=alpha', title: 'alpha - Google Search' }),
+      makeTab({ id: 2, url: 'https://www.google.com/search?q=beta', title: 'beta - Google Search' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const section = vm.sections[0]
+
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: 'Google Search', count: 2 }])
+  assert.deepEqual(section.clusters.map((cluster) => cluster.label), [])
+  assert.equal(section.hasFlat, true)
+})
+
 test('computeDomainCardViewModel marks active tabs from other windows', () => {
   const group = {
     domain: 'example.com',

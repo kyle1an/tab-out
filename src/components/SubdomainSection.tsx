@@ -23,6 +23,7 @@ interface SubdomainSectionProps {
   flatHiddenCount: number
   clusters: DashboardClusterVM[]
   filter?: string
+  activeSuppressedTitle?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -58,6 +59,7 @@ export function SubdomainSection({
   flatHiddenCount,
   clusters,
   filter = '',
+  activeSuppressedTitle = '',
   onHoverUrlChange = null,
   onLayoutChange = null
 }: SubdomainSectionProps) {
@@ -105,6 +107,7 @@ export function SubdomainSection({
           hiddenCount={flatHiddenCount}
           afterSeparator={!isFirst && !showHeader}
           filter={filter}
+          activeSuppressedTitle={activeSuppressedTitle}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
@@ -122,6 +125,7 @@ export function SubdomainSection({
           className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
           isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
           filter={filter}
+          activeSuppressedTitle={activeSuppressedTitle}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />

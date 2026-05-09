@@ -9,11 +9,12 @@ interface FlatSectionProps {
   hiddenCount: number
   afterSeparator?: boolean
   filter?: string
+  activeSuppressedTitle?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
 
-export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
+export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', activeSuppressedTitle = '', onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const iconOnly = visibleChips.length > 0 && visibleChips.every((chip) => chip.iconOnly)
 
@@ -32,12 +33,12 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
       data-expanded={expanded ? 'true' : undefined}
     >
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} filter={filter} onHoverUrlChange={onHoverUrlChange} />
+        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} onHoverUrlChange={onHoverUrlChange} />
       ))}
       {hiddenCount > 0 && (
         <div className={cn('page-chips-overflow', iconOnly && 'w-full', iconOnly && expanded && 'flex flex-wrap gap-2.5')}>
           {hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} filter={filter} onHoverUrlChange={onHoverUrlChange} />
+            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} onHoverUrlChange={onHoverUrlChange} />
           ))}
         </div>
       )}

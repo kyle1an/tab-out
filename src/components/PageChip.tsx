@@ -16,10 +16,15 @@ const chipTextTruncationCallbacks = new WeakMap<
 interface PageChipProps {
   chip: DashboardChipData
   filter?: string
+  activeSuppressedTitle?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
 }
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
+
+function pathGroupDisplayLabel(label: string): string {
+  return label.startsWith('/') ? label : `/${label}`
+}
 
 function renderHighlightedText(text: string, filter: string, keyPrefix: string): ReactNode {
   const query = filter.trim()
@@ -100,13 +105,16 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChipProps) {
+export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHoverUrlChange = null }: PageChipProps) {
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
   const primaryPreviewUrl = isFolded ? envs[0]?.tabUrl || '' : chip.tabUrl || ''
+  const suppressedTitleParts = chip.suppressedTitleParts || []
+  const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
+  const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const [isTextTruncated, setIsTextTruncated] = useState(false)
   const [chipTextWidth, setChipTextWidth] = useState(0)
@@ -289,12 +297,30 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
-  const chipLabel = [chip.tooltip, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
+  const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
+  const chipLabel = [chip.tooltip, hiddenTitleLabel, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const chipTooltipTextWidth = !chip.iconOnly && chipTextWidth > 0 ? `${chipTextWidth}px` : ''
   const chipTooltipStyle = chipTooltipTextWidth ? {
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
   } as CSSProperties : undefined
+
+  function renderSuppressionMarker(mode: ChipTextRenderMode) {
+    if (suppressedTitleParts.length === 0) return null
+
+    const marker = (
+      <span
+        className="chip-title-suppression-marker ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-lg bg-[rgba(115,115,115,0.1)] px-1 text-[11px] leading-none font-semibold text-tab-muted align-baseline [corner-shape:squircle]"
+        aria-label={hiddenTitleLabel}
+        title={hiddenTitleLabel}
+      >
+        ~
+      </span>
+    )
+
+    if (mode === 'tooltip') return marker
+    return <TooltipAnchor content={hiddenTitleLabel}>{marker}</TooltipAnchor>
+  }
 
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
@@ -346,7 +372,7 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
         )}
         {chip.pathGroupLabel && (
           <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-            {renderHighlightedText(chip.pathGroupLabel, filter, `${mode}-pathgroup`)}
+            {renderHighlightedText(pathGroupDisplayLabel(chip.pathGroupLabel), filter, `${mode}-pathgroup`)}
           </span>
         )}
         {chip.displaySegments.map((seg, index) => (typeof seg === 'string' ? renderHighlightedText(seg, filter, `${mode}-segment-${index}`) : (
@@ -358,6 +384,7 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
             ~
           </span>
         )))}
+        {renderSuppressionMarker(mode)}
         {chip.pathSuffix && (
           <span
             className={cn(
@@ -397,6 +424,7 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
           "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
           chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] hover:bg-[rgba(82,82,82,0.095)]',
           isFolded && 'page-chip-folded after:hidden',
+          suppressionHighlighted && 'page-chip-suppression-highlighted bg-[rgba(234,179,8,0.12)] shadow-[inset_0_0_0_1px_rgba(234,179,8,0.32)]',
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
           chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
           chip.iconOnly && chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'

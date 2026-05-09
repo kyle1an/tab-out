@@ -63,6 +63,11 @@ export interface DomainGroupBuildOptions {
 
 export type DashboardSegment = string | { placeholder: true }
 
+export interface DashboardTitleSuppression {
+  text: string
+  count: number
+}
+
 export interface DashboardChipEnv {
   prefix: string
   tabUrl: string
@@ -77,6 +82,7 @@ export interface DashboardChipData {
   leadPrefix: string
   pathGroupLabel: string
   displaySegments: DashboardSegment[]
+  suppressedTitleParts: string[]
   pathSuffix: string
   tooltip: string
   dupeCount: number
@@ -130,6 +136,7 @@ export interface DashboardCardVM {
   singleSubdomainKey?: string
   singleSubdomainIsPort?: boolean
   displayName?: string
+  suppressedTitleParts?: DashboardTitleSuppression[]
   sections?: DashboardSectionVM[]
 }
 

@@ -3,6 +3,7 @@ import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { SubdomainSection } from './SubdomainSection'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
@@ -112,6 +113,7 @@ function FixedIndicator({ displayName }: { displayName?: string }) {
 }
 
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
+  const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'
@@ -122,6 +124,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const closableCount = vm.closableCount ?? 0
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
+  const suppressedTitleParts = vm.suppressedTitleParts ?? []
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
@@ -202,6 +205,32 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           (isFixedCard || group.pinned) && 'border-[rgba(82,82,82,0.32)]'
         )}
       >
+        {suppressedTitleParts.length > 0 && (
+          <div className="title-suppression-summary flex flex-wrap items-center gap-1 text-[11px] leading-4 text-tab-muted">
+            {suppressedTitleParts.map((part) => {
+              const label = `Suppressed in ${part.count} title${part.count !== 1 ? 's' : ''}: ${part.text}`
+              return (
+                <TooltipAnchor key={part.text} content={label}>
+                  <button
+                    type="button"
+                    className={cn(
+                      'title-suppression-token inline-flex h-5 cursor-help items-center gap-1 rounded-[6px] border border-transparent bg-[rgba(115,115,115,0.08)] px-1.5 py-0 text-[11px] leading-none font-medium text-tab-muted transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-[rgba(234,179,8,0.32)] hover:bg-[rgba(234,179,8,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+                      activeSuppressedTitle === part.text && 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.14)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.18)]'
+                    )}
+                    aria-label={label}
+                    onMouseEnter={() => setActiveSuppressedTitle(part.text)}
+                    onMouseLeave={() => setActiveSuppressedTitle('')}
+                    onFocus={() => setActiveSuppressedTitle(part.text)}
+                    onBlur={() => setActiveSuppressedTitle('')}
+                  >
+                    <span className="title-suppression-token-text max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{part.text}</span>
+                    {part.count > 1 && <span className="title-suppression-token-count tabular-nums opacity-65">{part.count}</span>}
+                  </button>
+                </TooltipAnchor>
+              )
+            })}
+          </div>
+        )}
         <div className="mission-pages flex flex-col gap-0">
           {sections.map((section, index) => (
             <SubdomainSection
@@ -218,6 +247,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
               flatHiddenCount={section.flatHiddenCount}
               clusters={section.clusters}
               filter={highlightFilter}
+              activeSuppressedTitle={activeSuppressedTitle}
               onHoverUrlChange={onHoverUrlChange}
               onLayoutChange={onLayoutChange}
             />

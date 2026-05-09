@@ -16,6 +16,12 @@ type ComputeCardOptions = {
   currentWindowId?: number | null
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
+type TitlePresentation = {
+  displayTitle: string
+  suppressedTitleParts: string[]
+}
+
+const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
 
 /**
  * injectBreakPoints(str) — insert U+200B (zero-width space) into
@@ -36,6 +42,23 @@ type PathCategory = NonNullable<PathGroupResult['category']>
 function injectBreakPoints(str: string): string {
   if (!str) return str
   return str.replace(/[A-Za-z0-9_]{15,}/g, (token) => token.replace(/(.{5})(?=.)/g, '$1\u200B'))
+}
+
+function trailingTitleSegment(title: string): { index: number; separator: string; suffix: string } | null {
+  let match: { index: number; separator: string; suffix: string } | null = null
+  for (const separator of TITLE_SEGMENT_SEPARATORS) {
+    const index = title.lastIndexOf(separator)
+    if (index === -1 || index < (match?.index ?? -1)) continue
+    match = { index, separator, suffix: title.slice(index + separator.length).trim() }
+  }
+  return match?.suffix ? match : null
+}
+
+function isSuppressibleTrailingTitleSegment(segment: string): boolean {
+  const text = segment.trim()
+  if (text.length < 4 || /[\d/#?&=]/.test(text)) return false
+  const words = text.split(/\s+/).filter(Boolean)
+  return words.length >= 2 || /^[A-Z]{2,}$/.test(text)
 }
 
 function isActiveInOtherWindow(tab: DashboardTab, currentWindowId: number | null): boolean {
@@ -274,16 +297,87 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
   }
 
-  // Build the exact title string the chip displays BEFORE path crumbs
-  // and path-group placeholders. Shared by sort order and collision
-  // detection so both reason over the same visible label.
-  function displayTitle(tab: DashboardTab): string {
+  function baseDisplayTitle(tab: DashboardTab): string {
     let hostname = group.domain
     try {
       hostname = new URL(tab.url).hostname
     } catch {}
     return cleanTitle(stripTitleNoise(tab.title || ''), hostname)
   }
+
+  function buildTitlePresentations(): Map<string, TitlePresentation> {
+    const rows = uniqueTabs.map((tab) => ({
+      url: tab.url,
+      displayTitle: baseDisplayTitle(tab),
+      suppressedTitleParts: [] as string[]
+    }))
+
+    if (filtering || rows.length < 2) {
+      return new Map(rows.map((row) => [row.url, { displayTitle: row.displayTitle, suppressedTitleParts: [] }]))
+    }
+
+    const minCount = rows.length <= 3 ? 2 : 3
+    for (let pass = 0; pass < 3; pass += 1) {
+      const counts = new Map<string, number>()
+      for (const row of rows) {
+        const segment = trailingTitleSegment(row.displayTitle)
+        if (!segment || !isSuppressibleTrailingTitleSegment(segment.suffix)) continue
+        const stripped = row.displayTitle.slice(0, segment.index).trim()
+        if (stripped.length < 3) continue
+        const key = segment.suffix.toLowerCase()
+        counts.set(key, (counts.get(key) || 0) + 1)
+      }
+
+      const suffixesToSuppress = new Set(
+        [...counts.entries()]
+          .filter(([, count]) => count >= minCount && count / rows.length >= 0.25)
+          .map(([suffix]) => suffix)
+      )
+      if (suffixesToSuppress.size === 0) break
+
+      let changed = false
+      for (const row of rows) {
+        const segment = trailingTitleSegment(row.displayTitle)
+        if (!segment || !suffixesToSuppress.has(segment.suffix.toLowerCase())) continue
+        const stripped = row.displayTitle.slice(0, segment.index).trim()
+        if (stripped.length < 3) continue
+        row.displayTitle = stripped
+        row.suppressedTitleParts.unshift(segment.suffix)
+        changed = true
+      }
+      if (!changed) break
+    }
+
+    return new Map(rows.map((row) => [row.url, { displayTitle: row.displayTitle, suppressedTitleParts: row.suppressedTitleParts }]))
+  }
+
+  const titlePresentationByUrl = buildTitlePresentations()
+
+  function titlePresentation(tab: DashboardTab): TitlePresentation {
+    return titlePresentationByUrl.get(tab.url) || { displayTitle: baseDisplayTitle(tab), suppressedTitleParts: [] }
+  }
+
+  // Build the exact title string the chip displays BEFORE path crumbs
+  // and path-group placeholders. Shared by sort order and collision
+  // detection so both reason over the same visible label.
+  function displayTitle(tab: DashboardTab): string {
+    return titlePresentation(tab).displayTitle
+  }
+
+  function titleSuppressionSummary() {
+    const counts = new Map<string, number>()
+    for (const presentation of titlePresentationByUrl.values()) {
+      for (const part of presentation.suppressedTitleParts) {
+        counts.set(part, (counts.get(part) || 0) + 1)
+      }
+    }
+
+    return [...counts.entries()]
+      .map(([text, count]) => ({ text, count }))
+      .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, undefined, { numeric: true }))
+  }
+
+  const suppressedTitleParts = titleSuppressionSummary()
 
   // Sort by title — the exact string the chip displays, so the visible
   // order never diverges from the sort order. `numeric: true` gives
@@ -390,8 +484,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     try {
       parsed = new URL(tab.url)
     } catch {}
-    const hostname = parsed ? parsed.hostname : group.domain
-    const label = cleanTitle(stripTitleNoise(tab.title || ''), hostname)
+    const presentation = titlePresentation(tab)
+    const label = presentation.displayTitle
     let subPrefix = ''
     let portPrefix = ''
     if (parsed && showPrefix) {
@@ -423,6 +517,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       leadPrefix,
       pathGroupLabel: pgLabel,
       displaySegments,
+      suppressedTitleParts: presentation.suppressedTitleParts,
       pathSuffix: pathSuffix || '',
       tooltip,
       dupeCount: urlCounts[tab.url] || 1,
@@ -480,6 +575,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       singleSubdomainKey: '',
       singleSubdomainIsPort: false,
       displayName: group.label || 'Apps',
+      suppressedTitleParts: [],
       sections: [
         {
           key: '__apps__',
@@ -505,12 +601,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   function buildFoldedChipData(tabs: DashboardTab[]): DashboardChipData {
     const primary = tabs[0]
     if (!primary) throw new Error('Folded chip requires at least one tab')
-    let parsed: URL | null = null
-    try {
-      parsed = new URL(primary.url)
-    } catch {}
-    const hostname = parsed ? parsed.hostname : group.domain
-    const label = cleanTitle(stripTitleNoise(primary.title || ''), hostname)
+    const presentation = titlePresentation(primary)
+    const label = presentation.displayTitle
     const rawSegments = stripPgLabel(label, '')
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     // Sort envs by prefix with numeric-aware compare so dev2us lands
@@ -540,6 +632,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,
+      suppressedTitleParts: presentation.suppressedTitleParts,
       pathSuffix: '',
       tooltip,
       dupeCount: 1,
@@ -791,6 +884,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     singleSubdomainKey,
     singleSubdomainIsPort,
     displayName,
+    suppressedTitleParts,
     sections: vmSections
   }
 }

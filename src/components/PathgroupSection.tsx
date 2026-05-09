@@ -22,8 +22,13 @@ interface PathgroupSectionProps {
   className?: string
   isFirstContent?: boolean
   filter?: string
+  activeSuppressedTitle?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
+}
+
+function pathGroupDisplayLabel(label: string): string {
+  return label.startsWith('/') ? label : `/${label}`
 }
 
 function PathgroupCloseButton({ count, isFirstContent = false, onClick }: PathgroupCloseButtonProps) {
@@ -47,8 +52,9 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', activeSuppressedTitle = '', onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  const displayLabel = pathGroupDisplayLabel(label)
 
   function onExpand() {
     setExpanded(true)
@@ -68,9 +74,9 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
           isFirstContent ? 'pt-0' : 'pt-[3px]'
         )}
       >
-        <TooltipAnchor content={label}>
+        <TooltipAnchor content={displayLabel}>
           <span className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-            {label}
+            {displayLabel}
           </span>
         </TooltipAnchor>
         {isPR && (
@@ -82,12 +88,12 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} isFirstContent={isFirstContent} onClick={onCloseCluster} />}
       </div>
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} filter={filter} onHoverUrlChange={onHoverUrlChange} />
+        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} onHoverUrlChange={onHoverUrlChange} />
       ))}
       {hiddenCount > 0 && (
         <div className="page-chips-overflow">
           {hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} filter={filter} onHoverUrlChange={onHoverUrlChange} />
+            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} onHoverUrlChange={onHoverUrlChange} />
           ))}
         </div>
       )}
