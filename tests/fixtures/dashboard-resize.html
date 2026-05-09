@@ -28,7 +28,9 @@
         return {
           id: index + 1,
           url: `https://${domain}/docs/${index + 1}`,
-          title: `Example ${index + 1} with enough tooltip text to prove viewport-edge collision flipping keeps the popup visible`,
+          title: index === 0
+            ? 'Short title'
+            : `Example ${index + 1} with enough tooltip text to prove viewport-edge collision flipping keeps the popup visible`,
           favIconUrl: '',
           windowId: 1,
           active: index === 0,

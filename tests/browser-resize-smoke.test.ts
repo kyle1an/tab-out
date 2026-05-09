@@ -288,7 +288,11 @@ async function measureTooltipFreeze(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chip = document.querySelector('.page-chip')
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) =>
+            candidate.textContent?.includes('enough tooltip text') &&
+            candidate.querySelector('.chip-text-truncated')
+          )
         const rect = chip?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
           const startX = Math.round(rect.left + 24)
@@ -335,6 +339,57 @@ async function measureTooltipFreeze(session: CdpSession) {
   const closing = await waitForTooltipRect(session)
 
   return { target, first, second, closing }
+}
+
+async function measureShortChipTooltipAbsence(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) => candidate.textContent?.includes('Short title'))
+        const rect = chip?.getBoundingClientRect()
+        const textEl = chip?.querySelector('.chip-text')
+        if (rect && textEl && rect.width > 120 && rect.height > 8) {
+          resolve({
+            startX: Math.round(rect.left + 24),
+            y: Math.round(rect.top + rect.height / 2),
+            isTruncated: textEl.classList.contains('chip-text-truncated')
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a short page chip to hover for tooltip absence smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.startX,
+    y: target.y
+  })
+  await wait(650)
+
+  const tooltipCount = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+  }).then((result: any) => result.result.value)
+
+  return { target, tooltipCount }
 }
 
 async function measureTooltipEdgeFlip(session: CdpSession) {
@@ -446,6 +501,10 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(wide.cardCount >= 12, `dashboard should render enough cards for a column smoke test: ${JSON.stringify(wide)}`)
   assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
+
+  const shortTooltip = await measureShortChipTooltipAbsence(session)
+  assert.equal(shortTooltip.target.isTruncated, false, `short chip text should fit for tooltip absence smoke test: ${JSON.stringify(shortTooltip)}`)
+  assert.equal(shortTooltip.tooltipCount, 0, `page chip should not show a tooltip when its text fits: ${JSON.stringify(shortTooltip)}`)
 
   const tooltip = await measureTooltipFreeze(session)
   assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)

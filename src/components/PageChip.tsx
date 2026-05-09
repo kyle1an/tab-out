@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
@@ -8,6 +8,7 @@ import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
+const chipTextTruncationCallbacks = new WeakMap<HTMLElement, (isTruncated: boolean) => void>()
 
 interface PageChipProps {
   chip: DashboardChipData
@@ -68,8 +69,12 @@ function isChipTextTruncated(textEl: HTMLElement | null) {
 }
 
 function syncChipTextFade(textEl: HTMLElement | null) {
-  if (!textEl) return
-  textEl.classList.toggle('chip-text-truncated', isChipTextTruncated(textEl))
+  if (!textEl) return false
+
+  const isTruncated = isChipTextTruncated(textEl)
+  textEl.classList.toggle('chip-text-truncated', isTruncated)
+  chipTextTruncationCallbacks.get(textEl)?.(isTruncated)
+  return isTruncated
 }
 
 function getChipTextResizeObserver() {
@@ -92,12 +97,18 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
   const primaryPreviewUrl = isFolded ? envs[0]?.tabUrl || '' : chip.tabUrl || ''
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
+  const [isTextTruncated, setIsTextTruncated] = useState(false)
+
+  const updateChipTextTruncation = useCallback((textEl: HTMLElement | null) => {
+    const isTruncated = syncChipTextFade(textEl)
+    setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
+  }, [])
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl) return
 
-    const frameId = requestAnimationFrame(() => syncChipTextFade(textEl))
+    const frameId = requestAnimationFrame(() => updateChipTextTruncation(textEl))
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -105,19 +116,28 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
     const textEl = chipTextRef.current
     if (!textEl) return
 
+    let disposed = false
     const observer = getChipTextResizeObserver()
+    chipTextTruncationCallbacks.set(textEl, (isTruncated) => {
+      if (disposed) return
+      setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
+    })
     observer?.observe(textEl)
 
     const fontSet = document.fonts
-    const onFontsDone = () => syncChipTextFade(textEl)
+    const onFontsDone = () => {
+      if (!disposed) updateChipTextTruncation(textEl)
+    }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
-    fontSet?.ready?.then?.(() => syncChipTextFade(textEl))
+    fontSet?.ready?.then?.(onFontsDone)
 
     return () => {
+      disposed = true
       observer?.unobserve(textEl)
+      chipTextTruncationCallbacks.delete(textEl)
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
-  }, [])
+  }, [updateChipTextTruncation])
 
   function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
@@ -256,10 +276,11 @@ export function PageChip({ chip, filter = '', onHoverUrlChange = null }: PageChi
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const chipLabel = [chip.tooltip, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
+  const chipTooltipContent = chip.iconOnly || isTextTruncated ? chip.tooltip : undefined
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
 
   return (
-    <TooltipAnchor content={chipLabel}>
+    <TooltipAnchor content={chipTooltipContent}>
       <div
         className={cn(
           "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
