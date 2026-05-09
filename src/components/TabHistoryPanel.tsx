@@ -215,7 +215,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
       onFocus={onMouseEnter}
       onBlur={onMouseLeave}
     >
-      <span className="inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-[11px] font-medium tabular-nums text-[rgba(115,115,115,0.72)] group-hover/history-row:text-tab-muted group-focus-within/history-row:text-tab-muted">
+      <span className="inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.72)] group-hover/history-row:text-tab-muted group-focus-within/history-row:text-tab-muted">
         {indexLabel}
       </span>
       <div

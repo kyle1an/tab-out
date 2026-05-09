@@ -4,6 +4,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { DomainCard } from '../src/components/DomainCard.js'
+import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
 import type { DashboardCardVM, DashboardChipData, DomainGroup } from '../src/extension/types'
@@ -85,6 +86,59 @@ test('PageChip renders path-group pills with a slash prefix', () => {
   assert.match(html, /chip-pathgroup\b[^>]*>\/openai\/docs<\/span>/)
 })
 
+test('PageChip renders path suffixes without a left margin utility', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        pathSuffix: '/docs/reference'
+      })
+    })
+  )
+
+  const pathMatch = html.match(/<span class="([^"]*\bchip-path\b[^"]*)">/)
+  assert.ok(pathMatch, 'chip path suffix should render')
+  assert.doesNotMatch(pathMatch[1], /\bml-/)
+})
+
+test('PageChip renders folded titles before env controls', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Deployment History'],
+        envs: [
+          { prefix: 'dev1us', tabUrl: 'https://dev1us.example.com/deployments', rawUrl: 'https://dev1us.example.com/deployments' },
+          { prefix: 'dev2us', tabUrl: 'https://dev2us.example.com/deployments', rawUrl: 'https://dev2us.example.com/deployments' }
+        ]
+      })
+    })
+  )
+
+  assert.match(html, /page-chip-folded\b/)
+  assert.match(html, /chip-folded-content\b/)
+  assert.match(html, /chip-title-row\b[^>]*>Deployment History[\s\S]*chip-env-row\b[^>]*>[\s\S]*dev1us[\s\S]*dev2us/)
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  assert.ok(chipMatch, 'folded page chip should render')
+  assert.match(chipMatch[1], /\bpage-chip-folded\b/)
+  assert.match(chipMatch[1], /\bcursor-default\b/)
+  assert.doesNotMatch(chipMatch[1], /\bclickable\b/)
+  assert.doesNotMatch(chipMatch[1], /\bcursor-pointer\b/)
+  assert.doesNotMatch(chipMatch[1], /\bhover:bg/)
+  assert.doesNotMatch(chipMatch[1], /\bfocus-visible:outline/)
+  assert.doesNotMatch(html, /\btabindex="0"/)
+  const envRowMatch = html.match(/<span class="([^"]*\bchip-env-row\b[^"]*)">/)
+  assert.ok(envRowMatch, 'folded env row should render')
+  assert.doesNotMatch(envRowMatch[1], /\bmr-/)
+  const envButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-env\b[^"]*)"/)
+  assert.ok(envButtonMatch, 'folded env button should render')
+  assert.match(envButtonMatch[1], /\bh-6\b/)
+  assert.match(envButtonMatch[1], /\bpx-2\b/)
+  assert.match(envButtonMatch[1], /rounded-\[7px\]/)
+  assert.match(envButtonMatch[1], /\bclickable\b/)
+  assert.match(envButtonMatch[1], /\bcursor-pointer\b/)
+  assert.match(envButtonMatch[1], /\bhover:bg/)
+  assert.match(envButtonMatch[1], /\bfocus-visible:outline/)
+})
+
 test('PathgroupSection renders header path-group pills with a slash prefix', () => {
   const html = renderToStaticMarkup(
     React.createElement(PathgroupSection, {
@@ -99,6 +153,41 @@ test('PathgroupSection renders header path-group pills with a slash prefix', () 
   )
 
   assert.match(html, /chip-pathgroup\b[^>]*>\/openai\/docs<\/span>/)
+})
+
+test('Overflow expanders use one-line chip text and height metrics', () => {
+  const flatHtml = renderToStaticMarkup(
+    React.createElement(FlatSection, {
+      visibleChips: [],
+      hiddenChips: [makeChip({ rawUrl: 'https://openai.com/hidden' })],
+      hiddenCount: 1
+    })
+  )
+  const pathgroupHtml = renderToStaticMarkup(
+    React.createElement(PathgroupSection, {
+      label: 'openai/docs',
+      isPR: false,
+      count: 2,
+      closableUrls: [],
+      visibleChips: [],
+      hiddenChips: [makeChip({ rawUrl: 'https://openai.com/path-hidden' })],
+      hiddenCount: 1
+    })
+  )
+
+  for (const html of [flatHtml, pathgroupHtml]) {
+    const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
+    assert.ok(overflowButtonMatch, 'overflow expander button should render')
+    assert.match(overflowButtonMatch[1], /py-\[5px\]/)
+    assert.match(overflowButtonMatch[1], /text-\[13px\]/)
+    assert.match(overflowButtonMatch[1], /\bleading-tight\b/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\bpy-1\.5\b/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\btext-xs\b/)
+
+    const moreTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)">\+1 more<\/span>/)
+    assert.ok(moreTextMatch, 'overflow more-count text should render')
+    assert.match(moreTextMatch[1], /text-\[13px\]/)
+  }
 })
 
 test('DomainCard shows common suppressed title text above the chips without a summary label', () => {

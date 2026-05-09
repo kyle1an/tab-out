@@ -111,7 +111,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
-  const primaryPreviewUrl = isFolded ? envs[0]?.tabUrl || '' : chip.tabUrl || ''
+  const primaryPreviewUrl = chip.tabUrl || ''
   const suppressedTitleParts = chip.suppressedTitleParts || []
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
@@ -166,7 +166,8 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
   }
 
   async function onFocus() {
-    const targetUrl = isFolded ? envs[0]?.tabUrl : chip.tabUrl
+    if (isFolded) return
+    const targetUrl = chip.tabUrl
     if (!targetUrl) return
     if (isReadOnlySource) {
       const focused = await focusExactTab(targetUrl)
@@ -212,6 +213,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
   }
 
   function onChipMouseEnter() {
+    if (isFolded) return
     setPreview(primaryPreviewUrl)
   }
 
@@ -221,6 +223,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
   }
 
   function onChipFocus() {
+    if (isFolded) return
     setPreview(primaryPreviewUrl)
   }
 
@@ -235,7 +238,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
 
   function onEnvMouseLeave(e: MouseEvent<HTMLButtonElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
-    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
+    if (!isFolded && chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
       return
     }
@@ -248,7 +251,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
 
   function onEnvBlur(e: FocusEvent<HTMLButtonElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
-    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
+    if (!isFolded && chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
       return
     }
@@ -310,7 +313,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
 
     const marker = (
       <span
-        className="chip-title-suppression-marker ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-lg bg-[rgba(115,115,115,0.1)] px-1 text-[11px] leading-none font-semibold text-tab-muted align-baseline [corner-shape:squircle]"
+        className="chip-title-suppression-marker ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-lg bg-[rgba(115,115,115,0.1)] px-1 text-xs leading-none font-semibold text-tab-muted align-baseline [corner-shape:squircle]"
         aria-label={hiddenTitleLabel}
         title={hiddenTitleLabel}
       >
@@ -326,7 +329,8 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
-      mode === 'chip' && 'clickable cursor-pointer transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink',
+      isFolded && 'h-6 rounded-[7px] px-2',
+      mode === 'chip' && 'clickable cursor-pointer transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
       env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 
@@ -357,19 +361,9 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
     )
   }
 
-  function renderChipTextContent(mode: ChipTextRenderMode) {
+  function renderTitleContent(mode: ChipTextRenderMode) {
     return (
       <>
-        {isFolded && (
-          <span className="chip-env-stack mr-1.5 inline-flex gap-[3px] align-baseline">
-            {envs.map((env) => renderEnvLabel(env, mode))}
-          </span>
-        )}
-        {!isFolded && chip.leadPrefix && (
-          <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-            {renderHighlightedText(chip.leadPrefix, filter, `${mode}-lead`)}
-          </span>
-        )}
         {chip.pathGroupLabel && (
           <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
             {renderHighlightedText(pathGroupDisplayLabel(chip.pathGroupLabel), filter, `${mode}-pathgroup`)}
@@ -388,7 +382,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
         {chip.pathSuffix && (
           <span
             className={cn(
-              'chip-path ml-1.5 text-xs font-normal text-tab-muted opacity-75',
+              'chip-path text-xs font-normal text-tab-muted opacity-75',
               mode === 'chip'
                 ? 'inline-block whitespace-nowrap'
                 : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal [width:max-content] [overflow-wrap:break-word]'
@@ -397,6 +391,32 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
             {renderHighlightedText(chip.pathSuffix, filter, `${mode}-path`)}
           </span>
         )}
+      </>
+    )
+  }
+
+  function renderChipTextContent(mode: ChipTextRenderMode) {
+    if (isFolded) {
+      return (
+        <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
+          <span className="chip-title-row block min-w-0 max-w-full">
+            {renderTitleContent(mode)}
+          </span>
+          <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
+            {envs.map((env) => renderEnvLabel(env, mode))}
+          </span>
+        </span>
+      )
+    }
+
+    return (
+      <>
+        {chip.leadPrefix && (
+          <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
+            {renderHighlightedText(chip.leadPrefix, filter, `${mode}-lead`)}
+          </span>
+        )}
+        {renderTitleContent(mode)}
       </>
     )
   }
@@ -421,9 +441,11 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
     >
       <div
         className={cn(
-          "page-chip clickable group/page-chip relative flex cursor-pointer items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
-          chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] hover:bg-[rgba(82,82,82,0.095)]',
-          isFolded && 'page-chip-folded after:hidden',
+          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
+          !isFolded && 'clickable cursor-pointer hover:bg-[rgba(82,82,82,0.04)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
+          chip.activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
+          chip.activeInOtherWindow && !isFolded && 'hover:bg-[rgba(82,82,82,0.095)]',
+          isFolded && 'page-chip-folded cursor-default after:hidden',
           suppressionHighlighted && 'page-chip-suppression-highlighted bg-[rgba(234,179,8,0.12)] shadow-[inset_0_0_0_1px_rgba(234,179,8,0.32)]',
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
           chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
@@ -431,13 +453,13 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
         )}
         aria-label={chipLabel}
         style={style}
-        tabIndex={0}
-        onClick={onFocus}
-        onKeyDown={onChipKeyDown}
-        onMouseEnter={onChipMouseEnter}
-        onMouseLeave={onChipMouseLeave}
-        onFocus={onChipFocus}
-        onBlur={onChipBlur}
+        tabIndex={isFolded ? undefined : 0}
+        onClick={isFolded ? undefined : onFocus}
+        onKeyDown={isFolded ? undefined : onChipKeyDown}
+        onMouseEnter={isFolded ? undefined : onChipMouseEnter}
+        onMouseLeave={isFolded ? undefined : onChipMouseLeave}
+        onFocus={isFolded ? undefined : onChipFocus}
+        onBlur={isFolded ? undefined : onChipBlur}
       >
       {chip.activeInOtherWindow && !chip.iconOnly && (
         <span
@@ -471,7 +493,8 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', onHove
           className={cn(
             "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
             hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
-            chip.pathSuffix && 'max-h-[calc(3lh)]'
+            chip.pathSuffix && 'max-h-[calc(3lh)]',
+            isFolded && 'max-h-none'
           )}
           ref={chipTextRef}
         >

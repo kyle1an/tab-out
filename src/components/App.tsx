@@ -30,7 +30,7 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
 
 function MissionsDivider({ label }: { label: string }) {
   return (
-    <div className="missions-divider pointer-events-none mb-4 flex items-center gap-3 text-[11px] font-medium tracking-[0.6px] text-tab-muted uppercase" role="separator">
+    <div className="missions-divider pointer-events-none mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase" role="separator">
       <span className="missions-divider-rule h-px flex-1 bg-(--warm-gray)" />
       <span className="missions-divider-label shrink-0 whitespace-nowrap">{label}</span>
       <span className="missions-divider-rule h-px flex-1 bg-(--warm-gray)" />

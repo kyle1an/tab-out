@@ -75,6 +75,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   const appStylesheet = readFileSync('src/styles/app.css', 'utf8')
   const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')
   const baseStylesheet = readFileSync('extension/base.css', 'utf8')
+  const domainCardSource = readFileSync('src/components/DomainCard.tsx', 'utf8')
   const pageChipSource = readFileSync('src/components/PageChip.tsx', 'utf8')
   const tabHistoryPanelSource = readFileSync('src/components/TabHistoryPanel.tsx', 'utf8')
   const headerBarSource = readFileSync('src/components/HeaderBar.tsx', 'utf8')
@@ -88,6 +89,10 @@ test('extension HTML loads the Vite-built React entry', () => {
   const utilsSource = readFileSync('src/lib/utils.ts', 'utf8')
   const sharedTypesSource = readFileSync('src/extension/types.d.ts', 'utf8')
   assert.match(appSource, /styles\/app\.css/)
+  assert.doesNotMatch(
+    [appComponentSource, domainCardSource, pageChipSource, tabHistoryPanelSource].join('\n'),
+    /text-\[11px\]/
+  )
   assert.match(`${appComponentSource}\n${toastSource}`, /react-dom\/client/)
   assert.match(buttonSource, /@base-ui\/react\/button/)
   assert.match(buttonSource, /class-variance-authority/)
