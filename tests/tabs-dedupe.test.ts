@@ -94,6 +94,7 @@ test('global dedupe returns an undo snapshot for closed Tab Out duplicates', asy
   assert.deepEqual(snapshot, [
     {
       url: tabOutUrl,
+      rawUrl: tabOutUrl,
       title: 'Tab Out',
       pinned: false,
       groupId: -1,
@@ -115,6 +116,7 @@ test('global dedupe returns an undo snapshot for closed native new-tab duplicate
   assert.deepEqual(snapshot, [
     {
       url: newTabUrl,
+      rawUrl: newTabUrl,
       title: 'New Tab',
       pinned: false,
       groupId: -1,

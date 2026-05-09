@@ -28,9 +28,13 @@ let lastClosure: ClosureSnapshot | null = null
 /**
  * undoLastClose() — restore the most recently closed tabs via
  * chrome.tabs.create({ active: false }). The restored tab keeps its
- * original URL, window placement, pinned state, and Chrome group
- * membership. Page state (scroll, form data, navigation history) is
- * not preserved — worth it to avoid the focus-steal of sessions.restore.
+ * original Chrome URL, window placement, tab-strip index, pinned state,
+ * and Chrome group membership. For suspended tabs, we try the raw
+ * suspender URL first so the tab comes back suspended like Chrome's
+ * native reopen path; if Chrome refuses that extension URL, we fall
+ * back to the effective page URL. Page state (scroll, form data,
+ * navigation history) is not preserved — worth it to avoid the
+ * focus-steal of sessions.restore.
  *
  * After restoring, the toast offers a "Switch" button for single-tab
  * undo so the user can jump to the restored tab if they want.
@@ -41,14 +45,9 @@ export async function undoLastClose(): Promise<void> {
   lastClosure = null
 
   const restoredTabIds: number[] = []
-  for (const t of closure.tabs) {
+  for (const t of tabsInRestoreOrder(closure.tabs)) {
     try {
-      const created = await chrome.tabs.create({
-        url: t.url,
-        windowId: t.windowId,
-        pinned: t.pinned,
-        active: false
-      })
+      const created = await restoreSnapshotTab(t)
       if (created && created.id != null) restoredTabIds.push(created.id)
       if (created.id != null && t.groupId !== undefined && t.groupId !== -1 && chrome.tabs.group) {
         try {
@@ -82,6 +81,45 @@ export async function undoLastClose(): Promise<void> {
   } else {
     showToast(msg)
   }
+}
+
+async function restoreSnapshotTab(tab: TabSnapshot): Promise<chrome.tabs.Tab> {
+  const restoreUrl = tab.rawUrl || tab.url
+  const createProperties: chrome.tabs.CreateProperties = {
+    url: restoreUrl,
+    windowId: tab.windowId,
+    ...(Number.isInteger(tab.index) ? { index: tab.index } : {}),
+    pinned: tab.pinned,
+    active: false
+  }
+
+  try {
+    return await chrome.tabs.create(createProperties)
+  } catch (error) {
+    if (!tab.url || restoreUrl === tab.url) throw error
+    return chrome.tabs.create({ ...createProperties, url: tab.url })
+  }
+}
+
+function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
+  const windows = new Map<number, Array<{ tab: TabSnapshot; sequence: number }>>()
+  tabs.forEach((tab, sequence) => {
+    const bucket = windows.get(tab.windowId) ?? []
+    bucket.push({ tab, sequence })
+    windows.set(tab.windowId, bucket)
+  })
+
+  return Array.from(windows.values()).flatMap((bucket) => {
+    return bucket
+      .slice()
+      .sort((a, b) => {
+        const aIndex = Number.isInteger(a.tab.index) ? a.tab.index as number : Number.POSITIVE_INFINITY
+        const bIndex = Number.isInteger(b.tab.index) ? b.tab.index as number : Number.POSITIVE_INFINITY
+        if (aIndex !== bIndex) return aIndex - bIndex
+        return a.sequence - b.sequence
+      })
+      .map(({ tab }) => tab)
+  })
 }
 
 /**

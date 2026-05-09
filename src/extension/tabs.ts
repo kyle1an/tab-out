@@ -33,10 +33,12 @@ function tabIds(tabs: chrome.tabs.Tab[]): number[] {
 
 /**
  * snapshotChromeTabs(chromeTabs) — captures enough info per tab to
- * recreate it later via chrome.tabs.create() (used by undo). Skips
- * chrome:// and chrome-extension:// URLs by default since those aren't
- * worth recreating, except for Tab Out's new-tab URLs when the caller
- * explicitly opts in.
+ * recreate it later via chrome.tabs.create() (used by undo). `url` is
+ * the effective URL used by the dashboard for matching; `rawUrl` is
+ * Chrome's actual tab URL, which lets undo preserve suspended tabs.
+ * Skips chrome:// and chrome-extension:// URLs by default since those
+ * aren't worth recreating, except for Tab Out's new-tab URLs when the
+ * caller explicitly opts in.
  *
  * @param {Array<{ url?: string, title?: string, pinned?: boolean, groupId?: number, windowId: number, index?: number }>} chromeTabs
  * @param {{ includeTabOutUrls?: boolean }} [opts]
@@ -47,6 +49,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
   return chromeTabs
     .map((t) => ({
       url: unwrapSuspenderUrl(t.url || ''),
+      rawUrl: t.url || '',
       title: t.title || '',
       pinned: !!t.pinned,
       groupId: typeof t.groupId === 'number' ? t.groupId : -1,

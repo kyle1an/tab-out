@@ -17,6 +17,7 @@ export interface DashboardTab {
 
 export interface TabSnapshot {
   url: string
+  rawUrl?: string
   title: string
   pinned: boolean
   groupId: number

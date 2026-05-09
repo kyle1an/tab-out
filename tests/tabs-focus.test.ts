@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
 import { closeHistoryEntry } from '../src/extension/tab-history.js'
-import { focusTab } from '../src/extension/tabs.js'
+import { focusTab, snapshotChromeTabs } from '../src/extension/tabs.js'
 import { markClosure, undoLastClose } from '../src/extension/undo.js'
 
 function createChromeMock(initialTabs: any[], currentWindowId = 1) {
@@ -38,15 +38,27 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       },
       async create(createProperties) {
         calls.create.push({ ...createProperties })
+        if (createProperties.url === 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs') {
+          throw new Error('Cannot create blocked extension URL')
+        }
         const nextId = Math.max(0, ...tabs.map((tab) => Number(tab.id) || 0)) + 1
+        const windowId = createProperties.windowId ?? currentWindowId
+        const windowTabs = tabs.filter((tab) => tab.windowId === windowId)
+        const requestedIndex = Number.isInteger(createProperties.index) ? createProperties.index : windowTabs.length
+        const insertionIndex = Math.max(0, Math.min(requestedIndex, windowTabs.length))
+        for (const candidate of windowTabs) {
+          const candidateIndex = Number.isInteger(candidate.index) ? candidate.index : windowTabs.indexOf(candidate)
+          if (candidateIndex >= insertionIndex) candidate.index = candidateIndex + 1
+        }
         const tab = {
           id: nextId,
-          windowId: createProperties.windowId ?? currentWindowId,
+          windowId,
           url: createProperties.url || 'chrome://newtab/',
           title: '',
           active: !!createProperties.active,
           pinned: !!createProperties.pinned,
-          groupId: -1
+          groupId: -1,
+          index: insertionIndex
         }
         tabs.push(tab)
         return { ...tab }
@@ -120,6 +132,7 @@ test('closeHistoryEntry removes the exact history tab and returns an undo snapsh
   assert.deepEqual(result.snapshot, [
     {
       url: 'https://example.com/docs',
+      rawUrl: 'https://example.com/docs',
       title: 'Docs',
       pinned: true,
       groupId: 4,
@@ -155,10 +168,114 @@ test('undoLastClose restores tabs and requests animated dashboard refresh', asyn
     {
       url: 'https://example.com/docs',
       windowId: 1,
+      index: 1,
       pinned: true,
       active: false
     }
   ])
   assert.equal(tabs.some((tab) => tab.url === 'https://example.com/docs'), true)
   assert.deepEqual(refreshOptions, { animateCards: true })
+})
+
+test('snapshotChromeTabs stores raw suspended URL for undo and effective URL for matching', () => {
+  const rawUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs%3Fq%3D1'
+
+  const snapshot = snapshotChromeTabs([
+    {
+      url: rawUrl,
+      title: rawUrl,
+      pinned: false,
+      groupId: -1,
+      windowId: 1,
+      index: 2
+    }
+  ])
+
+  assert.deepEqual(snapshot, [
+    {
+      url: 'https://example.com/docs?q=1',
+      rawUrl,
+      title: rawUrl,
+      pinned: false,
+      groupId: -1,
+      windowId: 1,
+      index: 2
+    }
+  ])
+})
+
+test('undoLastClose restores raw suspended URL before falling back to effective URL', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+
+  markClosure([
+    {
+      url: 'https://example.com/docs',
+      rawUrl: 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs',
+      title: 'Docs',
+      pinned: false,
+      groupId: -1,
+      windowId: 1,
+      index: 1
+    }
+  ])
+  await undoLastClose()
+
+  assert.equal(calls.create[0].url, 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs')
+  assert.equal(tabs.some((tab) => tab.url === 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'), true)
+
+  markClosure([
+    {
+      url: 'https://example.com/docs',
+      rawUrl: 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs',
+      title: 'Docs',
+      pinned: false,
+      groupId: -1,
+      windowId: 1,
+      index: 2
+    }
+  ])
+  await undoLastClose()
+
+  assert.deepEqual(calls.create.slice(-2).map((call) => call.url), [
+    'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs',
+    'https://example.com/docs'
+  ])
+  assert.equal(tabs.some((tab) => tab.url === 'https://example.com/docs'), true)
+})
+
+test('undoLastClose restores same-window tabs in their original tab-strip order', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 },
+    { id: 2, windowId: 1, url: 'https://charlie.example/', title: 'Charlie', active: false, pinned: false, groupId: -1, index: 1 },
+    { id: 3, windowId: 1, url: 'https://echo.example/', title: 'Echo', active: false, pinned: false, groupId: -1, index: 2 }
+  ])
+
+  markClosure([
+    {
+      url: 'https://delta.example/',
+      title: 'Delta',
+      pinned: false,
+      groupId: -1,
+      windowId: 1,
+      index: 3
+    },
+    {
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      pinned: false,
+      groupId: -1,
+      windowId: 1,
+      index: 1
+    }
+  ])
+  await undoLastClose()
+
+  assert.deepEqual(calls.create.map(({ url, windowId, index, active }) => ({ url, windowId, index, active })), [
+    { url: 'https://bravo.example/', windowId: 1, index: 1, active: false },
+    { url: 'https://delta.example/', windowId: 1, index: 3, active: false }
+  ])
+  assert.equal(tabs.find((tab) => tab.url === 'https://bravo.example/')?.index, 1)
+  assert.equal(tabs.find((tab) => tab.url === 'https://delta.example/')?.index, 3)
 })
