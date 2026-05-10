@@ -373,6 +373,87 @@ async function measureTooltipFreeze(session: CdpSession) {
   return { target, first, second, afterScrollTooltipCount, closing: null }
 }
 
+async function measureTooltipPopupHover(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) =>
+            candidate.textContent?.includes('enough tooltip text') &&
+            candidate.querySelector('.chip-text-truncated')
+          )
+        const rect = chip?.getBoundingClientRect()
+        if (rect && rect.width > 120 && rect.height > 8) {
+          resolve({
+            startX: Math.round(rect.left + 24),
+            y: Math.round(rect.top + rect.height / 2)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a page chip to hover for popup hover smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.startX,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+
+  assert.ok(first, `tooltip should open before popup hover check: ${JSON.stringify({ target, first })}`)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: Math.round(first.left + first.width / 2),
+    y: Math.round((target.y + first.top) / 2)
+  })
+  await wait(50)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: Math.round(first.left + first.width / 2),
+    y: Math.round(first.top + first.height / 2)
+  })
+  await wait(220)
+  const whileHovered = await waitForTooltipRect(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(360)
+  const afterLeaveTooltips = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
+      .map((tooltip) => tooltip.textContent || '')`
+  }).then((result: any) => result.result.value)
+
+  return { target, first, whileHovered, afterLeaveTooltips }
+}
+
 async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -622,6 +703,13 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
     assert.ok(Math.abs(tooltip.first.top - tooltip.closing.top) <= 1, `tooltip top should stay frozen while closing: ${JSON.stringify(tooltip)}`)
   }
+
+  const popupHover = await measureTooltipPopupHover(session)
+  assert.ok(popupHover.whileHovered, `tooltip should remain open when the pointer moves into the popup: ${JSON.stringify(popupHover)}`)
+  assert.ok(
+    !popupHover.afterLeaveTooltips.some((text: string) => text === popupHover.first.text),
+    `original tooltip should close after the pointer leaves the popup: ${JSON.stringify(popupHover)}`
+  )
 
   const markerHandoff = await measureMarkerToChipTooltipHandoff(session)
   assert.equal(markerHandoff.target.markerText, '/', `strip indicator should render compact marker text in the chip: ${JSON.stringify(markerHandoff)}`)
