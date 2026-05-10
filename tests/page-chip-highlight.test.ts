@@ -423,7 +423,7 @@ test('DomainCard shows common suppressed title text above the chips without a su
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
 })
 
-test('DomainCard renders section-scoped suppressed title text near the section chips with a local tone', () => {
+test('DomainCard renders section-scoped single suppressed title text as neutral', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
     tabs: []
@@ -471,11 +471,11 @@ test('DomainCard renders section-scoped suppressed title text near the section c
   const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
   assert.ok(tokenMatch, 'section-scoped suppression token should render')
   assert.ok(markerMatch, 'matching suppression marker should render')
-  assert.match(tokenMatch[1], /title-suppression-token-tone-amber/)
-  assert.match(markerMatch[1], /title-suppression-token-tone-amber/)
+  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
+  assert.doesNotMatch(markerMatch[1], /title-suppression-token-tone-/)
 })
 
-test('DomainCard renders pathgroup-scoped title tokens with a local marker tone', () => {
+test('DomainCard renders pathgroup-scoped single suppressed title text as neutral', () => {
   const group: DomainGroup = {
     domain: 'contentful.com',
     tabs: []
@@ -536,8 +536,79 @@ test('DomainCard renders pathgroup-scoped title tokens with a local marker tone'
 
   assert.ok(tokenMatch, 'pathgroup-scoped suppression token should render')
   assert.ok(markerMatch, 'matching suppression marker should render')
-  assert.match(tokenMatch[1], /title-suppression-token-tone-amber/)
-  assert.match(markerMatch[1], /title-suppression-token-tone-amber/)
+  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
+  assert.doesNotMatch(markerMatch[1], /title-suppression-token-tone-/)
+})
+
+test('DomainCard renders pathgroup-scoped multiple suppressed titles with local tones', () => {
+  const group: DomainGroup = {
+    domain: 'contentful.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-contentful-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '2',
+    suppressedTitleParts: [],
+    allSuppressedTitleParts: [
+      { text: 'Unrelated Card Token', count: 2 },
+      { text: 'JIRA', count: 2 },
+      { text: 'Content — Example Website', count: 2 }
+    ],
+    sections: [
+      {
+        key: 'app',
+        sectionCount: 2,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: false,
+        hasFlat: false,
+        flatVisibleChips: [],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: [
+          {
+            key: 'dev2',
+            label: 'dev2',
+            isPR: false,
+            count: 2,
+            closableUrls: [],
+            suppressedTitleParts: [
+              { text: 'JIRA', count: 2 },
+              { text: 'Content — Example Website', count: 2 }
+            ],
+            visibleChips: [
+              makeChip({
+                displaySegments: ['Example Article'],
+                suppressedTitleParts: ['JIRA', 'Content — Example Website']
+              })
+            ],
+            hiddenChips: [],
+            hiddenCount: 0
+          }
+        ]
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.equal(tokenClasses.length, 2)
+  assert.match(tokenClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
+  assert.equal(markerClasses.length, 2)
+  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
 })
 
 test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {

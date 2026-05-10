@@ -139,7 +139,7 @@ export function SubdomainSection({
       )}
       {clusters.map((cluster, index) => {
         const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
-        const clusterSuppressionToneScope = createTitleSuppressionToneScope(clusterSuppressedTitleParts, { usePaletteForSingle: true })
+        const clusterSuppressionToneScope = createTitleSuppressionToneScope(clusterSuppressedTitleParts)
         const clusterSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
           suppressedTitleToneByText,
           clusterSuppressionToneScope.suppressedTitleToneByText

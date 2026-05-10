@@ -218,7 +218,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
         <div className="mission-pages flex flex-col gap-0">
           {sections.map((section, index) => {
             const sectionSuppressedTitleParts = section.suppressedTitleParts ?? []
-            const sectionSuppressionToneScope = createTitleSuppressionToneScope(sectionSuppressedTitleParts, { usePaletteForSingle: true })
+            const sectionSuppressionToneScope = createTitleSuppressionToneScope(sectionSuppressedTitleParts)
             const sectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
               cardSuppressionToneScope.suppressedTitleToneByText,
               sectionSuppressionToneScope.suppressedTitleToneByText

@@ -60,11 +60,8 @@ export function titleSuppressionToneForIndex(index: number): TitleSuppressionTon
   return TITLE_SUPPRESSION_TONE_NAMES[index % TITLE_SUPPRESSION_TONE_NAMES.length]
 }
 
-export function createTitleSuppressionToneScope(
-  parts: readonly { text: string }[],
-  options: { usePaletteForSingle?: boolean } = {}
-): TitleSuppressionToneScope {
-  const useSuppressionTokenTones = options.usePaletteForSingle ? parts.length > 0 : parts.length > 1
+export function createTitleSuppressionToneScope(parts: readonly { text: string }[]): TitleSuppressionToneScope {
+  const useSuppressionTokenTones = parts.length > 1
   const suppressedTitleToneIndexByText = new Map<string, number>(
     parts.map((part, index) => [titleSuppressionKey(part.text), index])
   )
