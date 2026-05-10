@@ -370,12 +370,26 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
     )
     const trailingParts = suppressedTitleParts.filter((part) => !inlineSuppressedTitleKeys.has(part.trim().toLowerCase()))
 
-    return trailingParts.map((part, index) => renderSuppressionMarker(
-      part,
-      mode,
-      `trailing-title-suppression-${part}`,
-      index === 0 ? 'ml-1' : 'ml-0.5'
-    ))
+    return trailingParts.map((part, index) => {
+      const markerSpacingClass = mode === 'chip' ? (index === 0 ? 'ml-1' : 'ml-0.5') : ''
+      const marker = renderSuppressionMarker(
+        part,
+        mode,
+        `trailing-title-suppression-marker-${part}`,
+        markerSpacingClass
+      )
+
+      if (mode === 'tooltip') {
+        return (
+          <span key={`trailing-title-suppression-${part}-${index}`}>
+            {' '}
+            {marker}
+          </span>
+        )
+      }
+
+      return marker
+    })
   }
 
   function renderStructuralPlaceholder(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string) {

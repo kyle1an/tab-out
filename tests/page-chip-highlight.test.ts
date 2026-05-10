@@ -84,6 +84,13 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)
 })
 
+test('PageChip tooltip keeps selectable whitespace before trailing suppression labels', () => {
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+
+  assert.match(pageChipSource, /const markerSpacingClass = mode === 'chip' \? \(index === 0 \? 'ml-1' : 'ml-0\.5'\) : ''/)
+  assert.match(pageChipSource, /if \(mode === 'tooltip'\) \{[\s\S]*\{\s*' '\s*\}[\s\S]*\{marker\}/)
+})
+
 test('PageChip colors title suppression markers from token tones before hover', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
