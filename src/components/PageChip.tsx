@@ -21,6 +21,7 @@ interface PageChipProps {
   activeSuppressedTitle?: string
   activeSuppressionTone?: TitleSuppressionTone | ''
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  dedupeBadgesClosing?: boolean
   onHoverUrlChange?: HoverUrlChangeHandler | null
 }
 
@@ -117,7 +118,7 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, onHoverUrlChange = null }: PageChipProps) {
+export function PageChip({ chip, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, dedupeBadgesClosing = false, onHoverUrlChange = null }: PageChipProps) {
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -573,7 +574,8 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
             <span
               className={cn(
                 'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-                dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
+                dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]',
+                dedupeBadgesClosing && 'closing'
               )}
               aria-hidden="true"
             >

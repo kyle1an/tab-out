@@ -58,14 +58,17 @@ function TabBadge({ label, title }: { label?: string | number; title?: string })
   )
 }
 
-function DedupButton({ count, onClick }: { count: number; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
+function DedupButton({ count, closing = false, onClick }: { count: number; closing?: boolean; onClick: () => void | Promise<void> }) {
   const label = `Dedupe ${count}`
   const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
     <TooltipAnchor content={title}>
       <button
         type="button"
-        className="action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]"
+        className={cn(
+          'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+          closing && 'closing'
+        )}
         onClick={onClick}
       >
         {label}
@@ -116,6 +119,7 @@ function FixedIndicator({ displayName }: { displayName?: string }) {
 
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
+  const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'
@@ -145,19 +149,14 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     })
   }
 
-  async function onDedup(e: MouseEvent<HTMLButtonElement>) {
-    const btn = e.currentTarget
+  async function onDedup() {
     const urls = vm.closableDupeUrls || []
 
     await dedupeTabs({
       urls,
       preservePinnedTabOut: group.domain === '__tab-out__',
       onAfterClose: async () => {
-        btn.classList.add('closing')
-        const block = btn.closest('.domain-block')
-        if (block) {
-          block.querySelectorAll('.chip-dupe-badge').forEach((badge) => badge.classList.add('closing'))
-        }
+        setDedupeBadgesClosing(true)
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
     })
@@ -198,7 +197,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           </span>
         )}
         <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
-        {closableExtras > 0 && <DedupButton count={closableExtras} onClick={onDedup} />}
+        {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
         {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
       </header>
       <div
@@ -244,6 +243,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
                 useSuppressionTokenTones={sectionSuppressionToneScope.useSuppressionTokenTones}
                 suppressedTitleToneIndexByText={sectionSuppressionToneScope.suppressedTitleToneIndexByText}
                 suppressedTitleToneByText={sectionSuppressedTitleToneByText}
+                dedupeBadgesClosing={dedupeBadgesClosing}
                 onActiveSuppressedTitleChange={setActiveSuppressedTitle}
                 onHoverUrlChange={onHoverUrlChange}
                 onLayoutChange={onLayoutChange}

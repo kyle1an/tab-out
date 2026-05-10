@@ -32,6 +32,7 @@ interface SubdomainSectionProps {
   useSuppressionTokenTones?: boolean
   suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  dedupeBadgesClosing?: boolean
   onActiveSuppressedTitleChange?: (text: string) => void
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
@@ -74,6 +75,7 @@ export function SubdomainSection({
   useSuppressionTokenTones = false,
   suppressedTitleToneIndexByText = new Map<string, number>(),
   suppressedTitleToneByText,
+  dedupeBadgesClosing = false,
   onActiveSuppressedTitleChange,
   onHoverUrlChange = null,
   onLayoutChange = null
@@ -133,6 +135,7 @@ export function SubdomainSection({
           activeSuppressedTitle={activeSuppressedTitle}
           activeSuppressionTone={activeSuppressionTone}
           suppressedTitleToneByText={suppressedTitleToneByText}
+          dedupeBadgesClosing={dedupeBadgesClosing}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />
@@ -163,6 +166,7 @@ export function SubdomainSection({
             useSuppressionTokenTones={clusterSuppressionToneScope.useSuppressionTokenTones}
             suppressedTitleToneIndexByText={clusterSuppressionToneScope.suppressedTitleToneIndexByText}
             suppressedTitleToneByText={clusterSuppressedTitleToneByText}
+            dedupeBadgesClosing={dedupeBadgesClosing}
             onActiveSuppressedTitleChange={onActiveSuppressedTitleChange}
             onHoverUrlChange={onHoverUrlChange}
             onLayoutChange={onLayoutChange}

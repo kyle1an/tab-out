@@ -31,6 +31,7 @@ interface PathgroupSectionProps {
   useSuppressionTokenTones?: boolean
   suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  dedupeBadgesClosing?: boolean
   onActiveSuppressedTitleChange?: (text: string) => void
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
@@ -61,7 +62,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleParts = [], useSuppressionTokenTones = false, suppressedTitleToneIndexByText = new Map<string, number>(), suppressedTitleToneByText, onActiveSuppressedTitleChange, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleParts = [], useSuppressionTokenTones = false, suppressedTitleToneIndexByText = new Map<string, number>(), suppressedTitleToneByText, dedupeBadgesClosing = false, onActiveSuppressedTitleChange, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const displayLabel = pathGroupDisplayLabel(label)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
@@ -107,12 +108,12 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         className="pb-1"
       />
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} onHoverUrlChange={onHoverUrlChange} />
+        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} dedupeBadgesClosing={dedupeBadgesClosing} onHoverUrlChange={onHoverUrlChange} />
       ))}
       {hiddenCount > 0 && (
         <div className="page-chips-overflow">
           {hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} onHoverUrlChange={onHoverUrlChange} />
+            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} dedupeBadgesClosing={dedupeBadgesClosing} onHoverUrlChange={onHoverUrlChange} />
           ))}
         </div>
       )}

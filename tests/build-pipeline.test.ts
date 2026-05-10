@@ -245,6 +245,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(baseStylesheet, /button,\ninput,\nselect,\ntextarea\s*\{\n\s*font-family: inherit;/)
   assert.match(pageChipSource, /'chip-dupe-badge [^']*items-start[^']*px-0[^']*pt-px/)
   assert.match(pageChipSource, /dupeCount > 9 && 'chip-dupe-badge-wide [^']*px-1/)
+  assert.match(pageChipSource, /dedupeBadgesClosing && 'closing'/)
+  assert.doesNotMatch(domainCardSource, /querySelectorAll/)
   assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
   assert.doesNotMatch(sharedTypesSource, /const chrome:\s*any/)
   assert.doesNotMatch(sharedTypesSource, /LOCAL_PATH_GROUPERS\?:\s*any\[\]/)
