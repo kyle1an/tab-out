@@ -6,7 +6,7 @@ import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { tabMatchesFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
-import type { DashboardCardVM, DashboardChipData, DashboardSectionVM, DashboardSegment, DashboardTab, DomainGroup, PathGroupResult } from './types'
+import type { DashboardCardVM, DashboardChipData, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DomainGroup, PathGroupResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
@@ -33,6 +33,17 @@ type TitleSuppressionCandidate = {
   index: number
   text: string
   structuralTailIndex: number | null
+}
+type TitlePresentationRow = {
+  url: string
+  rawTitle: string
+  displayTitle: string
+  removedDomainTitleSuffix: string
+  removedDomainTitleSuffixLabel: string
+  suppressedTitleParts: string[]
+  suppressedTitlePartsBeforeStructuralTail: string[]
+  structuralTails: StructuralTitleTail[]
+  pathGroupKey: string
 }
 
 const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
@@ -266,6 +277,126 @@ function insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
   ]
 }
 
+function rowHasSuppressionSequence(parts: string[], sequence: string[]): boolean {
+  for (let index = 0; index <= parts.length - sequence.length; index += 1) {
+    if (sequence.every((part, offset) => parts[index + offset] === part)) return true
+  }
+  return false
+}
+
+function continuousSuppressionSpan(title: string, parts: string[]): string | null {
+  if (parts.length < 2) return null
+
+  const lowerTitle = title.toLowerCase()
+  const firstPart = parts[0].toLowerCase()
+  let searchStart = 0
+
+  while (searchStart < lowerTitle.length) {
+    const startIndex = lowerTitle.indexOf(firstPart, searchStart)
+    if (startIndex === -1) return null
+
+    let cursor = startIndex + parts[0].length
+    let matched = true
+    for (const part of parts.slice(1)) {
+      const partIndex = lowerTitle.indexOf(part.toLowerCase(), cursor)
+      if (partIndex === -1 || title.slice(cursor, partIndex).trim()) {
+        matched = false
+        break
+      }
+      cursor = partIndex + part.length
+    }
+
+    if (matched) return title.slice(startIndex, cursor).trim()
+    searchStart = startIndex + 1
+  }
+
+  return null
+}
+
+function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
+  const rowIndexesByPart = new Map<string, number[]>()
+  rows.forEach((row, rowIndex) => {
+    for (const part of row.suppressedTitleParts) {
+      if (!rowIndexesByPart.has(part)) rowIndexesByPart.set(part, [])
+      const indexes = rowIndexesByPart.get(part)
+      if (indexes?.[indexes.length - 1] !== rowIndex) indexes?.push(rowIndex)
+    }
+  })
+
+  const occurrenceKeyByPart = new Map<string, string>()
+  for (const [part, rowIndexes] of rowIndexesByPart) {
+    occurrenceKeyByPart.set(part, rowIndexes.join('\u0000'))
+  }
+
+  const mergeTextBySequence = new Map<string, string | null>()
+  function mergeTextFor(sequence: string[]): string | null {
+    const sequenceKey = sequence.join('\u0001')
+    if (mergeTextBySequence.has(sequenceKey)) return mergeTextBySequence.get(sequenceKey) ?? null
+
+    const occurrenceKey = occurrenceKeyByPart.get(sequence[0])
+    if (!occurrenceKey || !sequence.every((part) => occurrenceKeyByPart.get(part) === occurrenceKey)) {
+      mergeTextBySequence.set(sequenceKey, null)
+      return null
+    }
+
+    const rowIndexes = rowIndexesByPart.get(sequence[0]) || []
+    let mergedText = ''
+    for (const rowIndex of rowIndexes) {
+      const row = rows[rowIndex]
+      if (!rowHasSuppressionSequence(row.suppressedTitleParts, sequence)) {
+        mergeTextBySequence.set(sequenceKey, null)
+        return null
+      }
+      const span = continuousSuppressionSpan(row.rawTitle, sequence)
+      if (!span || (mergedText && span !== mergedText)) {
+        mergeTextBySequence.set(sequenceKey, null)
+        return null
+      }
+      mergedText = span
+    }
+
+    mergeTextBySequence.set(sequenceKey, mergedText || null)
+    return mergedText || null
+  }
+
+  for (const row of rows) {
+    if (row.suppressedTitleParts.length < 2) continue
+
+    const partsBeforeStructuralTail = new Set(row.suppressedTitlePartsBeforeStructuralTail)
+    const nextParts: string[] = []
+    const nextPartsBeforeStructuralTail: string[] = []
+    for (let index = 0; index < row.suppressedTitleParts.length;) {
+      let merged: { text: string; endIndex: number } | null = null
+      for (let endIndex = row.suppressedTitleParts.length; endIndex > index + 1; endIndex -= 1) {
+        const sequence = row.suppressedTitleParts.slice(index, endIndex)
+        const text = mergeTextFor(sequence)
+        if (text) {
+          merged = { text, endIndex }
+          break
+        }
+      }
+
+      if (merged) {
+        const sequence = row.suppressedTitleParts.slice(index, merged.endIndex)
+        nextParts.push(merged.text)
+        if (sequence.every((part) => partsBeforeStructuralTail.has(part))) {
+          nextPartsBeforeStructuralTail.push(merged.text)
+        }
+        index = merged.endIndex
+        continue
+      }
+
+      const part = row.suppressedTitleParts[index]
+      nextParts.push(part)
+      if (partsBeforeStructuralTail.has(part)) nextPartsBeforeStructuralTail.push(part)
+      index += 1
+    }
+
+    row.suppressedTitleParts = nextParts
+    row.suppressedTitlePartsBeforeStructuralTail = nextPartsBeforeStructuralTail
+  }
+}
+
 /**
  * disambiguatingPaths(urls) — given a list of URLs that share a
  * visible title, return just the *differing* tokens for each. Path
@@ -467,7 +598,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   function buildTitlePresentations(): Map<string, TitlePresentation> {
-    const rows = uniqueTabs.map((tab) => {
+    const rows: TitlePresentationRow[] = uniqueTabs.map((tab) => {
       const rawTitle = stripTitleNoise(tab.title || '')
       const baseTitle = baseTitlePresentation(tab)
       const pathGroup = structuralPathGroup(tab)
@@ -505,6 +636,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
 
     if (filtering || rows.length < 2) {
+      mergeContinuousSuppressedTitleParts(rows)
       return new Map(rows.map((row) => [row.url, {
         displayTitle: row.displayTitle,
         suppressedTitleParts: row.suppressedTitleParts,
@@ -585,6 +717,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       if (!changed) break
     }
 
+    mergeContinuousSuppressedTitleParts(rows)
     return new Map(rows.map((row) => [row.url, {
       displayTitle: row.displayTitle,
       suppressedTitleParts: row.suppressedTitleParts,
@@ -610,21 +743,38 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   function titleSuppressionSummary() {
-    const counts = new Map<string, number>()
+    const partsByText = new Map<string, { text: string; count: number; firstPartIndex: number; firstSeen: number }>()
+    let firstSeen = 0
     for (const presentation of titlePresentationByUrl.values()) {
-      for (const part of presentation.suppressedTitleParts) {
-        counts.set(part, (counts.get(part) || 0) + 1)
-      }
+      presentation.suppressedTitleParts.forEach((part, partIndex) => {
+        const existing = partsByText.get(part)
+        if (existing) {
+          existing.count += 1
+          existing.firstPartIndex = Math.min(existing.firstPartIndex, partIndex)
+          return
+        }
+        partsByText.set(part, {
+          text: part,
+          count: 1,
+          firstPartIndex: partIndex,
+          firstSeen
+        })
+        firstSeen += 1
+      })
     }
 
-    return [...counts.entries()]
-      .filter(([, count]) => count > 1)
-      .map(([text, count]) => ({ text, count }))
-      .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, undefined, { numeric: true }))
+    return [...partsByText.values()]
+      .filter((part) => part.count > 1)
+      .sort((a, b) => b.count - a.count || a.firstPartIndex - b.firstPartIndex || a.firstSeen - b.firstSeen || a.text.localeCompare(b.text, undefined, { numeric: true }))
+      .map(({ text, count }) => ({ text, count }))
   }
 
   const suppressedTitleParts = titleSuppressionSummary()
   const suppressedTitlePartOrder = new Map(suppressedTitleParts.map((part, index) => [part.text.toLowerCase(), index]))
+
+  function titleSuppressionKey(text: string): string {
+    return text.trim().toLowerCase()
+  }
 
   function aggregateSuppressedTitleParts(tabs: DashboardTab[]): string[] {
     const partsByKey = new Map<string, { text: string; order: number; firstSeen: number }>()
@@ -848,6 +998,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       singleSubdomainIsPort: false,
       displayName: group.label || 'Apps',
       suppressedTitleParts: [],
+      allSuppressedTitleParts: [],
       sections: [
         {
           key: '__apps__',
@@ -860,6 +1011,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           flatVisibleChips: appChips,
           flatHiddenChips: [],
           flatHiddenCount: 0,
+          suppressedTitleParts: [],
           clusters: []
         }
       ]
@@ -941,6 +1093,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       flatVisibleChips: vis,
       flatHiddenChips: hid,
       flatHiddenCount: hid.length,
+      suppressedTitleParts: [],
       clusters: []
     }
   }
@@ -1105,6 +1258,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       flatVisibleChips,
       flatHiddenChips,
       flatHiddenCount: flatHid.length,
+      suppressedTitleParts: [],
       clusters
     }
   })
@@ -1113,6 +1267,88 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // subdomain sections — it reads as a TL;DR of "these pages are the
   // same across your envs, you probably want to see them grouped."
   if (sharedSectionData) sectionsData.unshift(sharedSectionData)
+
+  function scopeSuppressedTitleParts(sectionsToScope: DashboardSectionVM[]) {
+    type ScopeTracker = {
+      part: DashboardTitleSuppression
+      sectionIndexes: Set<number>
+      flatSectionIndexes: Set<number>
+      clusterRefs: Set<string>
+    }
+
+    const trackers = new Map<string, ScopeTracker>()
+    for (const part of suppressedTitleParts) {
+      trackers.set(titleSuppressionKey(part.text), {
+        part,
+        sectionIndexes: new Set(),
+        flatSectionIndexes: new Set(),
+        clusterRefs: new Set()
+      })
+    }
+
+    function recordChip(chip: DashboardChipData, sectionIndex: number, clusterIndex: number | null) {
+      for (const part of chip.suppressedTitleParts || []) {
+        const tracker = trackers.get(titleSuppressionKey(part))
+        if (!tracker) continue
+        tracker.sectionIndexes.add(sectionIndex)
+        if (clusterIndex === null) {
+          tracker.flatSectionIndexes.add(sectionIndex)
+        } else {
+          tracker.clusterRefs.add(`${sectionIndex}\u0000${clusterIndex}`)
+        }
+      }
+    }
+
+    sectionsToScope.forEach((section, sectionIndex) => {
+      section.flatVisibleChips.forEach((chip) => recordChip(chip, sectionIndex, null))
+      section.flatHiddenChips.forEach((chip) => recordChip(chip, sectionIndex, null))
+      section.clusters.forEach((cluster, clusterIndex) => {
+        cluster.visibleChips.forEach((chip) => recordChip(chip, sectionIndex, clusterIndex))
+        cluster.hiddenChips.forEach((chip) => recordChip(chip, sectionIndex, clusterIndex))
+      })
+    })
+
+    const cardParts: DashboardTitleSuppression[] = []
+    const sectionPartsByIndex = new Map<number, DashboardTitleSuppression[]>()
+    const clusterPartsByRef = new Map<string, DashboardTitleSuppression[]>()
+
+    for (const part of suppressedTitleParts) {
+      const tracker = trackers.get(titleSuppressionKey(part.text))
+      if (!tracker || tracker.sectionIndexes.size === 0) {
+        cardParts.push(part)
+        continue
+      }
+
+      if (tracker.clusterRefs.size === 1 && tracker.flatSectionIndexes.size === 0) {
+        const clusterRef = [...tracker.clusterRefs][0]
+        if (!clusterPartsByRef.has(clusterRef)) clusterPartsByRef.set(clusterRef, [])
+        clusterPartsByRef.get(clusterRef)?.push(part)
+        continue
+      }
+
+      if (tracker.sectionIndexes.size === 1) {
+        const sectionIndex = [...tracker.sectionIndexes][0]
+        if (!sectionPartsByIndex.has(sectionIndex)) sectionPartsByIndex.set(sectionIndex, [])
+        sectionPartsByIndex.get(sectionIndex)?.push(part)
+        continue
+      }
+
+      cardParts.push(part)
+    }
+
+    const scopedSections = sectionsToScope.map((section, sectionIndex) => ({
+      ...section,
+      suppressedTitleParts: sectionPartsByIndex.get(sectionIndex) ?? [],
+      clusters: section.clusters.map((cluster, clusterIndex) => ({
+        ...cluster,
+        suppressedTitleParts: clusterPartsByRef.get(`${sectionIndex}\u0000${clusterIndex}`) ?? []
+      }))
+    }))
+
+    return { cardParts, scopedSections }
+  }
+
+  const { cardParts: cardSuppressedTitleParts, scopedSections: scopedSectionsData } = scopeSuppressedTitleParts(sectionsData)
 
   // Labels derived for the React component to consume directly.
   // closableCountLabel mirrors the original "Close all N tabs" vs
@@ -1133,12 +1369,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const vmClosableExtras = isUnmatched || !allowMutations ? 0 : closableExtras
   const vmClosableDupeUrls = isUnmatched || !allowMutations ? [] : closableDupeUrls
   const vmSections = isUnmatched
-    ? sectionsData.map((s) => ({
+    ? scopedSectionsData.map((s) => ({
         ...s,
         sectionClosableUrls: [],
         clusters: s.clusters.map((c) => ({ ...c, closableUrls: [] }))
       }))
-    : sectionsData
+    : scopedSectionsData
 
   return {
     stableId,
@@ -1156,7 +1392,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     singleSubdomainKey,
     singleSubdomainIsPort,
     displayName,
-    suppressedTitleParts,
+    suppressedTitleParts: cardSuppressedTitleParts,
+    allSuppressedTitleParts: suppressedTitleParts,
     sections: vmSections
   }
 }

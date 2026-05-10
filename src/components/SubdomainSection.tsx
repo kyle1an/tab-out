@@ -1,10 +1,11 @@
 import { closeExactTabSection } from '../extension/tab-actions'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
+import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, DashboardClusterVM, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
+import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface SubdomainCloseButtonProps {
   count: number
@@ -22,11 +23,15 @@ interface SubdomainSectionProps {
   flatVisibleChips: DashboardChipData[]
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
+  suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: DashboardClusterVM[]
   filter?: string
   activeSuppressedTitle?: string
   activeSuppressionTone?: TitleSuppressionTone | ''
+  useSuppressionTokenTones?: boolean
+  suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  onActiveSuppressedTitleChange?: (text: string) => void
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -60,11 +65,15 @@ export function SubdomainSection({
   flatVisibleChips,
   flatHiddenChips,
   flatHiddenCount,
+  suppressedTitleParts = [],
   clusters,
   filter = '',
   activeSuppressedTitle = '',
   activeSuppressionTone = '',
+  useSuppressionTokenTones = false,
+  suppressedTitleToneIndexByText = new Map<string, number>(),
   suppressedTitleToneByText,
+  onActiveSuppressedTitleChange,
   onHoverUrlChange = null,
   onLayoutChange = null
 }: SubdomainSectionProps) {
@@ -105,6 +114,14 @@ export function SubdomainSection({
           {hasClose && <SubdomainCloseButton count={sectionClosableUrls.length} onClick={onCloseSubdomain} />}
         </div>
       )}
+      <TitleSuppressionSummary
+        suppressedTitleParts={suppressedTitleParts}
+        activeSuppressedTitle={activeSuppressedTitle}
+        setActiveSuppressedTitle={onActiveSuppressedTitleChange ?? (() => {})}
+        useSuppressionTokenTones={useSuppressionTokenTones}
+        suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
+        className={showHeader ? 'px-3 pb-1' : 'pb-1'}
+      />
       {hasFlat && (
         <FlatSection
           visibleChips={flatVisibleChips}
@@ -134,7 +151,11 @@ export function SubdomainSection({
           filter={filter}
           activeSuppressedTitle={activeSuppressedTitle}
           activeSuppressionTone={activeSuppressionTone}
+          suppressedTitleParts={cluster.suppressedTitleParts ?? []}
+          useSuppressionTokenTones={useSuppressionTokenTones}
+          suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
           suppressedTitleToneByText={suppressedTitleToneByText}
+          onActiveSuppressedTitleChange={onActiveSuppressedTitleChange}
           onHoverUrlChange={onHoverUrlChange}
           onLayoutChange={onLayoutChange}
         />

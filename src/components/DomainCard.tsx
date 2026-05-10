@@ -1,13 +1,14 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { SubdomainSection } from './SubdomainSection'
+import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
-import { titleSuppressionTokenToneClass, titleSuppressionToneForIndex } from './title-suppression'
+import { titleSuppressionToneForIndex } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import type { DashboardCardVM, DashboardTitleSuppression, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
@@ -114,6 +115,30 @@ function FixedIndicator({ displayName }: { displayName?: string }) {
   )
 }
 
+function titleSuppressionKey(text: string): string {
+  return text.trim().toLowerCase()
+}
+
+function collectSuppressedTitleParts(vm: DashboardCardVM): DashboardTitleSuppression[] {
+  if (vm.allSuppressedTitleParts) return vm.allSuppressedTitleParts
+
+  const partsByKey = new Map<string, DashboardTitleSuppression>()
+  function add(parts?: DashboardTitleSuppression[]) {
+    for (const part of parts || []) {
+      const key = titleSuppressionKey(part.text)
+      if (!partsByKey.has(key)) partsByKey.set(key, part)
+    }
+  }
+
+  add(vm.suppressedTitleParts)
+  for (const section of vm.sections || []) {
+    add(section.suppressedTitleParts)
+    for (const cluster of section.clusters) add(cluster.suppressedTitleParts)
+  }
+
+  return [...partsByKey.values()]
+}
+
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   if (vm.isHidden) return null
@@ -127,12 +152,16 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
-  const useSuppressionTokenTones = suppressedTitleParts.length > 1
-  const activeSuppressedTitleIndex = suppressedTitleParts.findIndex((part) => part.text === activeSuppressedTitle)
+  const allSuppressedTitleParts = collectSuppressedTitleParts(vm)
+  const useSuppressionTokenTones = allSuppressedTitleParts.length > 1
+  const suppressedTitleToneIndexByText = new Map<string, number>(
+    allSuppressedTitleParts.map((part, index) => [titleSuppressionKey(part.text), index])
+  )
+  const activeSuppressedTitleIndex = suppressedTitleToneIndexByText.get(titleSuppressionKey(activeSuppressedTitle)) ?? -1
   const activeSuppressionTone = useSuppressionTokenTones && activeSuppressedTitleIndex >= 0 ? titleSuppressionToneForIndex(activeSuppressedTitleIndex) : ''
   const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>(
-    suppressedTitleParts.map((part, index) => [
-      part.text.trim().toLowerCase(),
+    allSuppressedTitleParts.map((part, index) => [
+      titleSuppressionKey(part.text),
       useSuppressionTokenTones ? titleSuppressionToneForIndex(index) : ''
     ])
   )
@@ -216,33 +245,13 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           (isFixedCard || group.pinned) && 'border-[rgba(82,82,82,0.32)]'
         )}
       >
-        {suppressedTitleParts.length > 0 && (
-          <div className="title-suppression-summary flex flex-wrap items-center gap-1 text-xs leading-4 text-tab-muted">
-            {suppressedTitleParts.map((part, index) => {
-              const label = `Suppressed in ${part.count} title${part.count !== 1 ? 's' : ''}: ${part.text}`
-              const active = activeSuppressedTitle === part.text
-              return (
-                <TooltipAnchor key={part.text} content={label} className="title-suppression-tooltip text-[13px] leading-4">
-                  <button
-                    type="button"
-                    className={cn(
-                      'title-suppression-token inline-flex h-5 cursor-help items-center gap-1 rounded-[6px] border border-transparent bg-[rgba(115,115,115,0.08)] px-1.5 py-0 text-xs leading-none font-medium text-tab-muted transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-[rgba(234,179,8,0.32)] hover:bg-[rgba(234,179,8,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-                      titleSuppressionTokenToneClass(index, useSuppressionTokenTones, active)
-                    )}
-                    aria-label={label}
-                    onMouseEnter={() => setActiveSuppressedTitle(part.text)}
-                    onMouseLeave={() => setActiveSuppressedTitle('')}
-                    onFocus={() => setActiveSuppressedTitle(part.text)}
-                    onBlur={() => setActiveSuppressedTitle('')}
-                  >
-                    <span className="title-suppression-token-text max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{part.text}</span>
-                    {part.count > 1 && <span className="title-suppression-token-count tabular-nums opacity-65">{part.count}</span>}
-                  </button>
-                </TooltipAnchor>
-              )
-            })}
-          </div>
-        )}
+        <TitleSuppressionSummary
+          suppressedTitleParts={suppressedTitleParts}
+          activeSuppressedTitle={activeSuppressedTitle}
+          setActiveSuppressedTitle={setActiveSuppressedTitle}
+          useSuppressionTokenTones={useSuppressionTokenTones}
+          suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
+        />
         <div className="mission-pages flex flex-col gap-0">
           {sections.map((section, index) => (
             <SubdomainSection
@@ -257,11 +266,15 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
               flatVisibleChips={section.flatVisibleChips}
               flatHiddenChips={section.flatHiddenChips}
               flatHiddenCount={section.flatHiddenCount}
+              suppressedTitleParts={section.suppressedTitleParts ?? []}
               clusters={section.clusters}
               filter={highlightFilter}
               activeSuppressedTitle={activeSuppressedTitle}
               activeSuppressionTone={activeSuppressionTone}
+              useSuppressionTokenTones={useSuppressionTokenTones}
+              suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
               suppressedTitleToneByText={suppressedTitleToneByText}
+              onActiveSuppressedTitleChange={setActiveSuppressedTitle}
               onHoverUrlChange={onHoverUrlChange}
               onLayoutChange={onLayoutChange}
             />

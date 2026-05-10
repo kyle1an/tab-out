@@ -7,6 +7,7 @@ import type {
   DashboardSource,
   DashboardSectionVM,
   DashboardStats,
+  DashboardTitleSuppression,
   DomainGroup,
   TabHistorySnapshot
 } from '../extension/types'
@@ -26,6 +27,7 @@ export type {
   DashboardSource,
   DashboardSectionVM,
   DashboardStats,
+  DashboardTitleSuppression,
   DomainGroup,
   TabHistorySnapshot
 }

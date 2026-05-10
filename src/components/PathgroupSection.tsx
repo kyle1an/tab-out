@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { PageChip } from './PageChip'
+import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
+import type { DashboardChipData, DashboardTitleSuppression, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
 interface PathgroupCloseButtonProps {
   count: number
@@ -26,7 +27,11 @@ interface PathgroupSectionProps {
   filter?: string
   activeSuppressedTitle?: string
   activeSuppressionTone?: TitleSuppressionTone | ''
+  suppressedTitleParts?: DashboardTitleSuppression[]
+  useSuppressionTokenTones?: boolean
+  suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  onActiveSuppressedTitleChange?: (text: string) => void
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
 }
@@ -56,7 +61,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleParts = [], useSuppressionTokenTones = false, suppressedTitleToneIndexByText = new Map<string, number>(), suppressedTitleToneByText, onActiveSuppressedTitleChange, onHoverUrlChange = null, onLayoutChange = null }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
   const displayLabel = pathGroupDisplayLabel(label)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
@@ -93,6 +98,14 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
         <span className="pathgroup-header-count text-xs tabular-nums text-tab-muted opacity-70">{count}</span>
         {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} isFirstContent={isFirstContent} onClick={onCloseCluster} />}
       </div>
+      <TitleSuppressionSummary
+        suppressedTitleParts={suppressedTitleParts}
+        activeSuppressedTitle={activeSuppressedTitle}
+        setActiveSuppressedTitle={onActiveSuppressedTitleChange ?? (() => {})}
+        useSuppressionTokenTones={useSuppressionTokenTones}
+        suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
+        className="pb-1"
+      />
       {visibleChips.map((chip) => (
         <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} onHoverUrlChange={onHoverUrlChange} />
       ))}

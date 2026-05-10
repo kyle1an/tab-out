@@ -411,9 +411,120 @@ test('DomainCard shows common suppressed title text above the chips without a su
   assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
   assert.match(html, /Example Workspace/)
   assert.match(html, /Suppressed in 2 titles: Example Workspace/)
-  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
-  assert.match(domainCardSource, /className="title-suppression-tooltip text-\[13px\] leading-4"/)
+  const summarySource = readFileSync(new URL('../src/components/TitleSuppressionSummary.tsx', import.meta.url), 'utf8')
+  assert.match(summarySource, /className="title-suppression-tooltip text-\[13px\] leading-4"/)
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
+})
+
+test('DomainCard renders section-scoped suppressed title text near the section chips', () => {
+  const group: DomainGroup = {
+    domain: 'slack.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-slack-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '2',
+    suppressedTitleParts: [],
+    allSuppressedTitleParts: [{ text: 'Example Workspace', count: 2 }],
+    sections: [
+      {
+        key: 'app',
+        sectionCount: 2,
+        sectionClosableUrls: [],
+        showHeader: true,
+        isShared: false,
+        hasFlat: true,
+        flatVisibleChips: [
+          makeChip({
+            displaySegments: ['Alpha channel'],
+            suppressedTitleParts: ['Example Workspace']
+          })
+        ],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [{ text: 'Example Workspace', count: 2 }],
+        clusters: []
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+
+  assert.match(html, /subdomain-header[\s\S]*app[\s\S]*title-suppression-summary[\s\S]*Example Workspace/)
+  assert.match(html, /chip-title-suppression-marker\b/)
+})
+
+test('DomainCard renders pathgroup-scoped title tokens with the global marker tone', () => {
+  const group: DomainGroup = {
+    domain: 'contentful.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-contentful-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '2',
+    suppressedTitleParts: [],
+    allSuppressedTitleParts: [
+      { text: 'JIRA', count: 2 },
+      { text: 'Content — Example Website', count: 2 }
+    ],
+    sections: [
+      {
+        key: 'app',
+        sectionCount: 2,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: false,
+        hasFlat: false,
+        flatVisibleChips: [],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: [
+          {
+            key: 'dev2',
+            label: 'dev2',
+            isPR: false,
+            count: 2,
+            closableUrls: [],
+            suppressedTitleParts: [{ text: 'Content — Example Website', count: 2 }],
+            visibleChips: [
+              makeChip({
+                displaySegments: ['Example Article'],
+                suppressedTitleParts: ['Content — Example Website']
+              })
+            ],
+            hiddenChips: [],
+            hiddenCount: 0
+          }
+        ]
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
+  const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
+
+  assert.ok(tokenMatch, 'pathgroup-scoped suppression token should render')
+  assert.ok(markerMatch, 'matching suppression marker should render')
+  assert.match(tokenMatch[1], /title-suppression-token-tone-teal/)
+  assert.match(markerMatch[1], /title-suppression-token-tone-teal/)
 })
 
 test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {

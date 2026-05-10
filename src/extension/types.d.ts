@@ -101,6 +101,7 @@ export interface DashboardClusterVM {
   isPR: boolean
   count: number
   closableUrls: string[]
+  suppressedTitleParts?: DashboardTitleSuppression[]
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
@@ -117,6 +118,7 @@ export interface DashboardSectionVM {
   flatVisibleChips: DashboardChipData[]
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
+  suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: DashboardClusterVM[]
 }
 
@@ -137,6 +139,7 @@ export interface DashboardCardVM {
   singleSubdomainIsPort?: boolean
   displayName?: string
   suppressedTitleParts?: DashboardTitleSuppression[]
+  allSuppressedTitleParts?: DashboardTitleSuppression[]
   sections?: DashboardSectionVM[]
 }
 
