@@ -96,7 +96,7 @@ export function SubdomainSection({
       {showHeader && (
         <div
           className={cn(
-            'subdomain-header flex items-center gap-1.5 px-3 pb-0.5 text-xs font-semibold tracking-[0.2px] text-tab-muted',
+            'subdomain-header flex items-center gap-1.5 pb-0.5 text-xs font-semibold tracking-[0.2px] text-tab-muted',
             isFirst ? 'pt-0.5' : 'pt-1.5'
           )}
         >
@@ -120,7 +120,7 @@ export function SubdomainSection({
         setActiveSuppressedTitle={onActiveSuppressedTitleChange ?? (() => {})}
         useSuppressionTokenTones={useSuppressionTokenTones}
         suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
-        className={showHeader ? 'px-3 pb-1' : 'pb-1'}
+        className="pb-1"
       />
       {hasFlat && (
         <FlatSection
