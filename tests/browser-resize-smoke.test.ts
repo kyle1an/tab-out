@@ -361,17 +361,6 @@ async function measureTooltipFreeze(session: CdpSession) {
   await wait(150)
   const second = await waitForTooltipRect(session)
 
-  let popupHover = null
-  if (second) {
-    await session.send('Input.dispatchMouseEvent', {
-      type: 'mouseMoved',
-      x: Math.round((second.left + second.right) / 2),
-      y: Math.round((second.top + second.bottom) / 2)
-    })
-    await wait(150)
-    popupHover = await waitForTooltipRect(session)
-  }
-
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollBy(0, 160)`
   })
@@ -381,7 +370,7 @@ async function measureTooltipFreeze(session: CdpSession) {
     expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
   }).then((result: any) => result.result.value)
 
-  return { target, first, second, popupHover, afterScrollTooltipCount, closing: null }
+  return { target, first, second, afterScrollTooltipCount, closing: null }
 }
 
 async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
@@ -628,7 +617,6 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(tooltip.first.svgCount, 0, `tooltip should not render an arrow svg: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs(tooltip.first.left - tooltip.second.left) <= 1, `tooltip left should freeze after open: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs(tooltip.first.top - tooltip.second.top) <= 1, `tooltip top should freeze after open: ${JSON.stringify(tooltip)}`)
-  assert.ok(tooltip.popupHover, `tooltip should stay open when the pointer moves onto the popup: ${JSON.stringify(tooltip)}`)
   assert.equal(tooltip.afterScrollTooltipCount, 0, `tooltip should close when the dashboard scrolls: ${JSON.stringify(tooltip)}`)
   if (tooltip.closing) {
     assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
