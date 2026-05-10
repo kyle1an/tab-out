@@ -737,8 +737,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     // visual). Threshold 15 chars + every 5-char split keeps natural
     // English words (which are almost always <15 chars outside
     // "internationalization"-class outliers) intact and only tags
-    // compound identifiers / usernames / hashes / slugs. Tooltip
-    // keeps the unmodified string so copy-paste stays clean.
+    // compound identifiers / usernames / hashes / slugs. Page-chip
+    // tooltip rendering intentionally reuses these display segments so
+    // highlighting and visual structure match the source chip.
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)

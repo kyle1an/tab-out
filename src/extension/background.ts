@@ -1,8 +1,9 @@
 /**
- * background.js — Service Worker for Badge Updates
+ * background.ts — Service worker for badge, commands, and tab history
  *
  * Chrome's "always-on" background script for Tab Out.
- * Its only job: keep the toolbar badge showing the current open tab count.
+ * It keeps the toolbar badge current, handles extension commands, and
+ * maintains the activation history used by tab switching / close restore.
  *
  * Since we no longer have a server, we query chrome.tabs directly.
  * The badge counts real web tabs (skipping chrome:// and extension pages).

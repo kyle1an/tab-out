@@ -84,10 +84,10 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 | Extension | Chrome Manifest V3 (service worker + new-tab override) |
 | Rendering | React + TSX source under `src/`, bundled by Vite into `extension/dist/app.js` |
 | Styling | Semantic CSS classes plus prefixed Tailwind v4 utilities, bundled by Vite into `extension/dist/assets/app.css` |
-| Service worker | Source under `src/extension/background.js`, bundled by Vite into `extension/dist/background.js` |
+| Service worker | Source under `src/extension/background.ts`, bundled by Vite into `extension/dist/background.js` |
 | Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS confetti particles |
-| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` only stores pinned domain-card order |
+| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` stores pinned domain-card order and activation history |
 
 ## Development
 

@@ -12,7 +12,7 @@ Before doing anything technical, tell the user what they're about to get:
 >
 > Here's what makes it great:
 > - **See all your open tabs at a glance** grouped by domain on a grid
-> - **Homepages group** pulls Gmail, X, LinkedIn, YouTube, GitHub homepages into one card for easy cleanup
+> - **Homepages stay with their site** so Gmail, X, LinkedIn, YouTube, GitHub homepages sit in their own domain cards for easy cleanup
 > - **Close tabs with style** satisfying confetti burst
 > - **Duplicate detection** flags when you have the same page open twice
 > - **Click any tab title to jump to it** even across different Chrome windows
@@ -76,16 +76,16 @@ Once the extension is loaded:
 >
 > Here's how it works:
 > 1. **Your open tabs are grouped by domain** in a grid layout.
-> 2. **Homepages** (Gmail inbox, X home, YouTube, etc.) are in their own group at the top.
+> 2. **Homepages** (Gmail inbox, X home, YouTube, etc.) stay inside their site's own domain card.
 > 3. **Click any tab title** to jump directly to that tab — even across Chrome windows.
 > 4. **Click the X** next to any tab to close just that one (with confetti). Undo is in the toast.
 > 5. **Click "Close all N tabs"** on a group header to close the whole card.
-> 6. **Duplicate tabs** show an "(2x)" badge. Click the card's **"Dedupe N"** button (or the global **"Dedupe N"** in the top bar) to keep one copy per URL.
+> 6. **Duplicate tabs** show a count badge. Click the card's **"Dedupe N"** button (or the global **"Dedupe N"** in the top bar) to keep one copy per URL.
 > 7. **Live filter:** type in the filter input to narrow the dashboard. Matching tabs stay put, matching bookmarks and recent history appear below them, and the history range menu can switch between last day/week/month/3 months. The rest slide into an "Other tabs" section below so everything stays accounted for. Press Esc or click the ✕ inside the input to clear.
 > 8. **Filter shortcut:** assign **"Open Tab Out with the filter focused"** in `chrome://extensions/shortcuts` to open a fresh Tab Out page with the filter ready for typing.
 > 9. **Cross-subdomain fold:** if a page exists in multiple subdomains (dev/qa/prod, or tenant subdomains, etc.), it shows as one chip with a row of clickable env pills under an "Across subdomains" section.
 >
-> That's it! No server to run, no config files. Everything works right away.
+> That's it! No server to run, no required config files. Everything works right away.
 
 ---
 
