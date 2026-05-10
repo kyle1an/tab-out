@@ -439,12 +439,14 @@ async function measureTooltipPopupHover(session: CdpSession) {
   await wait(220)
   const whileHovered = await waitForTooltipRect(session)
 
-  await session.send('Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x: 8,
-    y: 8
-  })
-  await wait(360)
+  for (let index = 0; index < 8; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 8 + index * 16,
+      y: 8 + index * 5
+    })
+    await wait(80)
+  }
   const afterLeaveTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))

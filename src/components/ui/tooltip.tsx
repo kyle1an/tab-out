@@ -317,7 +317,9 @@ function TooltipAnchor({
 
       pointerInsideRef.current = false
       popupPointerInsideRef.current = false
-      scheduleHoverClose()
+      if (hoverCloseTimerRef.current === null) {
+        scheduleHoverClose()
+      }
     }
     const hoverWatchId = window.setInterval(() => {
       if (isTooltipRegionActive()) {

@@ -134,6 +134,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tooltipSource, /onMouseEnter=\{handleContentMouseEnter\}/)
   assert.match(tooltipSource, /onMouseLeave=\{handleContentMouseLeave\}/)
   assert.match(tooltipSource, /pointerInsideRef\.current \|\| popupPointerInsideRef\.current/)
+  assert.match(tooltipSource, /if \(hoverCloseTimerRef\.current === null\) \{[\s\S]*scheduleHoverClose\(\)/)
   assert.match(tooltipSource, /matches\(':hover'\)/)
   assert.match(tooltipSource, /document\.addEventListener\('mousemove', handlePointerOrMouseMove, true\)/)
   assert.match(tooltipSource, /onPointerLeave: handlePointerLeave/)
