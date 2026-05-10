@@ -97,6 +97,12 @@ Once the extension is loaded:
 - During development, run `pnpm dev` to watch `src/` changes and rebuild the packaged bundles; refresh the Tab Out page for dashboard changes and reload the extension for manifest, service-worker, or permission changes.
 - To update: `cd tab-out && git pull`, run `pnpm install && pnpm build` only if source files changed without built assets, then reload the extension in `chrome://extensions`.
 
+## React Coding Conventions
+
+- React Compiler is enabled for this repo. Do not add `useMemo`, `useCallback`, or `React.memo` as default render-performance guards in new code.
+- Use manual memoization only when function or object identity is part of the behavior contract, such as stable values passed through React context, callbacks returned from custom hooks where consumers depend on stable identity, effect/listener/timer cleanup patterns that require stable references, or third-party component APIs that depend on referential equality.
+- When touching existing manual memoization, remove it only with focused verification. Existing hooks may be preserving behavior or compiler output.
+
 ## Git Commit Conventions
 
 - Use conventional commit subjects, such as `fix(ui): ...`, `refactor(ui): ...`, or `feat(ui): ...`.

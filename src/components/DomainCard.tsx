@@ -5,7 +5,7 @@ import { SubdomainSection } from './SubdomainSection'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
@@ -114,13 +114,13 @@ function FixedIndicator({ displayName }: { displayName?: string }) {
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
-  const cardContext = useMemo(() => ({
+  const cardContext = {
     activeSuppressedTitle,
     setActiveSuppressedTitle,
     dedupeBadgesClosing,
     onHoverUrlChange,
     onLayoutChange
-  }), [activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, onLayoutChange])
+  }
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'

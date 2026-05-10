@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, MouseEvent, ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties, Dispatch, MouseEvent, ReactNode, SetStateAction } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
@@ -61,6 +61,14 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null) {
   return metrics
 }
 
+function updateTitleTruncation(
+  titleEl: HTMLElement | null,
+  setTitleMetrics: Dispatch<SetStateAction<HistoryTitleMetrics>>
+) {
+  const metrics = syncHistoryTitleFade(titleEl)
+  setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
+}
+
 function getHistoryTitleResizeObserver() {
   if (typeof ResizeObserver !== 'function') return null
   if (!historyTitleResizeObserver) {
@@ -105,16 +113,11 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
     width: 0
   })
 
-  const updateTitleTruncation = useCallback((titleEl: HTMLElement | null) => {
-    const metrics = syncHistoryTitleFade(titleEl)
-    setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
-  }, [])
-
   useLayoutEffect(() => {
     const titleEl = titleRef.current
     if (!titleEl) return
 
-    const frameId = requestAnimationFrame(() => updateTitleTruncation(titleEl))
+    const frameId = requestAnimationFrame(() => updateTitleTruncation(titleEl, setTitleMetrics))
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -132,7 +135,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
 
     const fontSet = document.fonts
     const onFontsDone = () => {
-      if (!disposed) updateTitleTruncation(titleEl)
+      if (!disposed) updateTitleTruncation(titleEl, setTitleMetrics)
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -143,7 +146,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
       historyTitleTruncationCallbacks.delete(titleEl)
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
-  }, [updateTitleTruncation])
+  }, [])
 
   async function refreshAfterMutation() {
     if (onTabsChange) {

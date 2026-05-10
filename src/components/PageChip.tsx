@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
@@ -103,6 +103,16 @@ function syncChipTextFade(textEl: HTMLElement | null) {
   return { isTruncated, width }
 }
 
+function updateChipTextTruncation(
+  textEl: HTMLElement | null,
+  setIsTextTruncated: Dispatch<SetStateAction<boolean>>,
+  setChipTextWidth: Dispatch<SetStateAction<number>>
+) {
+  const { isTruncated, width } = syncChipTextFade(textEl)
+  setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
+  setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
+}
+
 function getChipTextResizeObserver() {
   if (typeof ResizeObserver !== 'function') return null
   if (!chipTextResizeObserver) {
@@ -131,17 +141,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const [isTextTruncated, setIsTextTruncated] = useState(false)
   const [chipTextWidth, setChipTextWidth] = useState(0)
 
-  const updateChipTextTruncation = useCallback((textEl: HTMLElement | null) => {
-    const { isTruncated, width } = syncChipTextFade(textEl)
-    setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
-    setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
-  }, [])
-
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl) return
 
-    const frameId = requestAnimationFrame(() => updateChipTextTruncation(textEl))
+    const frameId = requestAnimationFrame(() => updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth))
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -160,7 +164,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
     const fontSet = document.fonts
     const onFontsDone = () => {
-      if (!disposed) updateChipTextTruncation(textEl)
+      if (!disposed) updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth)
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -171,7 +175,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       chipTextTruncationCallbacks.delete(textEl)
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
-  }, [updateChipTextTruncation])
+  }, [])
 
   function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
