@@ -117,3 +117,17 @@ Once the extension is loaded:
 - Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.
 - Do not add squircle styling to true circles or pills such as `border-radius: 50%` or `999px`.
 - Squircle corners read less rounded than ordinary rounded corners. As a visual rule of thumb, a `4px` squircle looks similar to a `2px` non-squircle corner.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as local markdown under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the default five-status vocabulary for local markdown issues. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repo with root `CONTEXT.md` and optional root `docs/adr/`. See `docs/agents/domain.md`.
