@@ -315,6 +315,9 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const chipLabel = [chip.tooltip, hiddenTitleLabel, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
+  const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
+  const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
+  const shouldShowChipTooltip = chip.iconOnly || isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders
   const chipTooltipTextWidth = !chip.iconOnly && chipTextWidth > 0 ? `${chipTextWidth}px` : ''
   const chipTooltipStyle = chipTooltipTextWidth ? {
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
@@ -339,7 +342,21 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
       </span>
     )
 
-    if (mode === 'tooltip') return marker
+    if (mode === 'tooltip') {
+      return (
+        <span
+          key={key}
+          className={cn(
+            'chip-title-suppression-marker inline-flex min-h-4 max-w-full items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.08)] px-1 text-xs leading-4 font-medium text-tab-muted align-baseline [corner-shape:squircle] [overflow-wrap:anywhere]',
+            markerClassName,
+            titleSuppressionMarkerClass(tone, active)
+          )}
+          aria-label={label}
+        >
+          {renderHighlightedText(part, filter, `${key}-label`)}
+        </span>
+      )
+    }
     return <TooltipAnchor key={key} content={part} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
   }
 
@@ -374,7 +391,17 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
       </span>
     )
 
-    if (mode === 'tooltip' && hiddenLabel) return renderHighlightedText(hiddenLabel, filter, `${key}-label`)
+    if (mode === 'tooltip' && hiddenLabel) {
+      return (
+        <span
+          key={key}
+          className="chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle] [overflow-wrap:anywhere]"
+          aria-label={hiddenLabel}
+        >
+          {renderHighlightedText(hiddenLabel, filter, `${key}-label`)}
+        </span>
+      )
+    }
     if (!hiddenLabel) return marker
     return <TooltipAnchor key={key} content={hiddenLabel} className="chip-strip-indicator-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
   }
@@ -475,7 +502,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
     )
   }
 
-  const chipTooltipContent = chip.iconOnly || isTextTruncated ? (
+  const chipTooltipContent = shouldShowChipTooltip ? (
     <span
       className={cn(
         "chip-text block min-w-0 max-w-[calc(100vw-32px)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]",
