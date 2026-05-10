@@ -3,6 +3,7 @@ import type { DashboardChipData } from './types'
 
 export const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
 export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
+export const TITLE_SUPPRESSION_MARKER_SYMBOL = '˷'
 
 export interface TitleSuppressionToneScope {
   useSuppressionTokenTones: boolean

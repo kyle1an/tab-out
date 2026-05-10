@@ -357,11 +357,11 @@ test('computeDomainCardViewModel scopes title suppression tokens to a pathgroup 
 
   const vm = computeDomainCardViewModel(group)
   const appSection = vm.sections.find((section) => section.key === 'app')
-  const dev2Cluster = appSection?.clusters.find((cluster) => cluster.label === 'dev2')
+  const envAlphaCluster = appSection?.clusters.find((cluster) => cluster.label === 'env-alpha')
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(appSection?.suppressedTitleParts, [])
-  assert.deepEqual(dev2Cluster?.suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
+  assert.deepEqual(envAlphaCluster?.suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
 })
 
 test('computeDomainCardViewModel suppresses shared title text before structural path labels', () => {
@@ -379,7 +379,7 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   }
   const chipTitle = (chip: DashboardChipData) => chip.displaySegments.map((segment) => {
     if (typeof segment === 'string') return segment
-    if ('titleSuppression' in segment) return '~'
+    if ('titleSuppression' in segment) return '˷'
     return '/'
   }).join('')
   const chipsFrom = (vm: DashboardCardVM) => vm.sections.flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
@@ -393,8 +393,8 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   assert.deepEqual(vm.sections[0].clusters[0].suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['— Content — Example Website —', '— Contentful'], ['— Content — Example Website —', '— Contentful']])
   assert.deepEqual(visibleTitles, [
-    'Example Article Beta ~ /',
-    'Example Article Alpha ~ /'
+    'Example Article Beta ˷ /',
+    'Example Article Alpha ˷ /'
   ])
   assert.ok(visibleTitles.every((title) => !title.includes('Content') && !title.includes('Example Website')))
 

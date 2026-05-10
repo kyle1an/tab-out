@@ -4,7 +4,7 @@ import { PageChip } from './PageChip'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass } from './title-suppression'
+import { TITLE_SUPPRESSION_MARKER_SYMBOL, countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, DashboardTitleSuppression, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
@@ -128,7 +128,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
           <span className="chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal text-[13px] max-h-[calc(2lh)] [hyphenate-character:'']">+{hiddenCount} more</span>
           {hiddenSuppressionMatchCount > 0 && (
             <span className={cn("page-chip-overflow-suppression-badge relative z-[2] inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent px-1 text-xs leading-none font-semibold text-tab-ink [corner-shape:squircle]", titleSuppressionBadgeClass(activeSuppressionTone))}>
-              ~{hiddenSuppressionMatchCount}
+              {TITLE_SUPPRESSION_MARKER_SYMBOL}{hiddenSuppressionMatchCount}
             </span>
           )}
         </button>

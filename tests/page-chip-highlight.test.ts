@@ -63,7 +63,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   )
 
   assert.match(html, /chip-title-suppression-marker\b/)
-  assert.match(html, />~<\/span>/)
+  assert.match(html, />˷<\/span>/)
   assert.match(html, /Suppressed title text: Example Workspace/)
   assert.doesNotMatch(html, /chip-title-suppression-marker[^>]* title=/)
   const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
@@ -72,6 +72,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.match(markerMatch[1], /\bfont-medium\b/)
   assert.doesNotMatch(markerMatch[1], /\bfont-semibold\b/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /content=\{part\}/)
   assert.match(pageChipSource, /className="title-suppression-marker-tooltip text-\[13px\] leading-4"/)
 })
 
@@ -115,7 +116,7 @@ test('PageChip can render a title suppression marker inline before structural pl
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
 
   assert.equal(markerClasses.length, 1)
-  assert.match(html, /Alpha channel — [\s\S]*chip-title-suppression-marker[\s\S]*>~<\/span>[\s\S]* — [\s\S]*chip-strip-indicator[\s\S]*>\/<\/span>/)
+  assert.match(html, /Alpha channel — [\s\S]*chip-title-suppression-marker[\s\S]*>˷<\/span>[\s\S]* — [\s\S]*chip-strip-indicator[\s\S]*>\/<\/span>/)
 })
 
 test('PageChip uses a path-style placeholder for stripped structural labels', () => {
@@ -327,7 +328,7 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
     assert.doesNotMatch(overflowButtonMatch[1], /bg-\[#f0fdfa\]/)
     assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.24\)\]/)
     assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.32\)\]/)
-    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-\[#5eead4\][^"]*bg-\[#ccfbf1\][\s\S]*>~1<\/span>/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-\[#5eead4\][^"]*bg-\[#ccfbf1\][\s\S]*>˷1<\/span>/)
     assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(234,179,8,0\.08\)\]/)
     assert.doesNotMatch(html, /hidden title suppresses/)
     assert.doesNotMatch(html, /Click to show/)
@@ -380,7 +381,7 @@ test('Overflow expanders use full chip color when all hidden chips match active 
     assert.doesNotMatch(overflowButtonMatch[1], /bg-\[rgba\(20,184,166,0\.12\)\]/)
     assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.24\)\]/)
     assert.doesNotMatch(overflowButtonMatch[1], /shadow-\[inset_0_0_0_1px_rgba\(20,184,166,0\.32\)\]/)
-    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-\[#5eead4\][^"]*bg-\[#ccfbf1\][\s\S]*>~2<\/span>/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-\[#5eead4\][^"]*bg-\[#ccfbf1\][\s\S]*>˷2<\/span>/)
   }
 })
 

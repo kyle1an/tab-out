@@ -4,7 +4,7 @@ import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass } from './title-suppression'
+import { TITLE_SUPPRESSION_MARKER_SYMBOL, titleSuppressionChipHighlightClass, titleSuppressionMarkerClass } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, HoverUrlChangeHandler } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
@@ -331,12 +331,12 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
         )}
         aria-label={label}
       >
-        ~
+        {TITLE_SUPPRESSION_MARKER_SYMBOL}
       </span>
     )
 
     if (mode === 'tooltip') return marker
-    return <TooltipAnchor key={key} content={label} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
+    return <TooltipAnchor key={key} content={part} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
   }
 
   function renderTrailingSuppressionMarkers(mode: ChipTextRenderMode) {
