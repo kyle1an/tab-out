@@ -387,11 +387,16 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   const vm = computeDomainCardViewModel(group)
   const chips = chipsFrom(vm)
   const visibleTitles = chips.map(chipTitle)
+  const structuralPlaceholderLabels = chips.map((chip) => {
+    const placeholder = chip.displaySegments.find((segment) => typeof segment !== 'string' && 'placeholder' in segment)
+    return placeholder && 'placeholder' in placeholder ? placeholder.label : undefined
+  })
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
   assert.deepEqual(vm.sections[0].clusters[0].suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['— Content — Example Website —', '— Contentful'], ['— Content — Example Website —', '— Contentful']])
+  assert.deepEqual(structuralPlaceholderLabels, ['dev2', 'dev2'])
   assert.deepEqual(visibleTitles, [
     'Example Article Beta ˷ /',
     'Example Article Alpha ˷ /'

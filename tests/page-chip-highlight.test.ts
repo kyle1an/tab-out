@@ -134,6 +134,23 @@ test('PageChip uses a path-style placeholder for stripped structural labels', ()
   assert.doesNotMatch(html, /chip-title-suppression-marker\b/)
 })
 
+test('PageChip labels stripped path-group placeholders with the pathgroup value', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Alpha ', { placeholder: true, label: 'openai/docs' }, ' Beta']
+      })
+    })
+  )
+
+  assert.match(html, /chip-strip-indicator\b[^>]*aria-label="openai\/docs"[^>]*>\/<\/span>/)
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /mode === 'tooltip' && hiddenLabel/)
+  assert.match(pageChipSource, /renderHighlightedText\(hiddenLabel, filter/)
+  assert.match(pageChipSource, /content=\{hiddenLabel\}/)
+  assert.match(pageChipSource, /className="chip-strip-indicator-tooltip text-\[13px\] leading-4"/)
+})
+
 test('PageChip marks chips affected by the active suppressed title text', () => {
   const defaultHtml = renderToStaticMarkup(
     React.createElement(PageChip, {

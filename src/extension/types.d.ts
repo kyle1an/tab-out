@@ -61,7 +61,7 @@ export interface DomainGroupBuildOptions {
   pinnedDomains?: string[]
 }
 
-export type DashboardSegment = string | { placeholder: true } | { titleSuppression: string }
+export type DashboardSegment = string | { placeholder: true; label?: string } | { titleSuppression: string }
 
 export interface DashboardTitleSuppression {
   text: string

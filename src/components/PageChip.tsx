@@ -34,6 +34,10 @@ function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titl
   return typeof segment !== 'string' && 'titleSuppression' in segment
 }
 
+function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is { placeholder: true; label?: string } {
+  return typeof segment !== 'string' && 'placeholder' in segment
+}
+
 function renderHighlightedText(text: string, filter: string, keyPrefix: string): ReactNode {
   const query = filter.trim()
   if (!text || !query) return text
@@ -357,6 +361,24 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
     ))
   }
 
+  function renderStructuralPlaceholder(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string) {
+    const hiddenLabel = segment.label || chip.pathGroupLabel
+    const marker = (
+      <span
+        key={key}
+        className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
+        aria-hidden={hiddenLabel ? undefined : true}
+        aria-label={hiddenLabel || undefined}
+      >
+        /
+      </span>
+    )
+
+    if (mode === 'tooltip' && hiddenLabel) return renderHighlightedText(hiddenLabel, filter, `${key}-label`)
+    if (!hiddenLabel) return marker
+    return <TooltipAnchor key={key} content={hiddenLabel} className="chip-strip-indicator-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
+  }
+
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
     const envClassName = cn(
@@ -404,15 +426,8 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
         {chip.displaySegments.map((seg, index) => {
           if (typeof seg === 'string') return renderHighlightedText(seg, filter, `${mode}-segment-${index}`)
           if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `inline-title-suppression-${index}`)
-          return (
-            <span
-              key={index}
-              className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
-              aria-hidden="true"
-            >
-              /
-            </span>
-          )
+          if (isStructuralPlaceholderSegment(seg)) return renderStructuralPlaceholder(seg, mode, `structural-placeholder-${index}`)
+          return null
         })}
         {renderTrailingSuppressionMarkers(mode)}
         {chip.pathSuffix && (

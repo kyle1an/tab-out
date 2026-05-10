@@ -216,7 +216,7 @@ function stripPgLabel(label: string, pgLabel: string): DashboardSegment[] {
     const textBefore = label.slice(cursor, hit.index)
     if (textBefore) segments.push(textBefore)
     if (hit.prefixSep) segments.push(hit.prefixSep)
-    segments.push({ placeholder: true })
+    segments.push({ placeholder: true, label: pgLabel })
     cursor = hit.index + hit.length
   }
   const textAfter = label.slice(cursor)
