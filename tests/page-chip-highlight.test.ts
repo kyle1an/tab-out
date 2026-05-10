@@ -423,7 +423,7 @@ test('DomainCard shows common suppressed title text above the chips without a su
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
 })
 
-test('DomainCard renders section-scoped suppressed title text near the section chips', () => {
+test('DomainCard renders section-scoped suppressed title text near the section chips with a local tone', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
     tabs: []
@@ -467,9 +467,15 @@ test('DomainCard renders section-scoped suppressed title text near the section c
 
   assert.match(html, /subdomain-header[\s\S]*app[\s\S]*title-suppression-summary[\s\S]*Example Workspace/)
   assert.match(html, /chip-title-suppression-marker\b/)
+  const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
+  const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
+  assert.ok(tokenMatch, 'section-scoped suppression token should render')
+  assert.ok(markerMatch, 'matching suppression marker should render')
+  assert.match(tokenMatch[1], /title-suppression-token-tone-amber/)
+  assert.match(markerMatch[1], /title-suppression-token-tone-amber/)
 })
 
-test('DomainCard renders pathgroup-scoped title tokens with the global marker tone', () => {
+test('DomainCard renders pathgroup-scoped title tokens with a local marker tone', () => {
   const group: DomainGroup = {
     domain: 'contentful.com',
     tabs: []
@@ -530,8 +536,8 @@ test('DomainCard renders pathgroup-scoped title tokens with the global marker to
 
   assert.ok(tokenMatch, 'pathgroup-scoped suppression token should render')
   assert.ok(markerMatch, 'matching suppression marker should render')
-  assert.match(tokenMatch[1], /title-suppression-token-tone-teal/)
-  assert.match(markerMatch[1], /title-suppression-token-tone-teal/)
+  assert.match(tokenMatch[1], /title-suppression-token-tone-amber/)
+  assert.match(markerMatch[1], /title-suppression-token-tone-amber/)
 })
 
 test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {

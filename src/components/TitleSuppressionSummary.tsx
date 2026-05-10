@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils'
-import { titleSuppressionTokenToneClass } from './title-suppression'
+import { titleSuppressionKey, titleSuppressionTokenToneClass } from './title-suppression'
 import type { DashboardTitleSuppression } from './types'
 
 interface TitleSuppressionSummaryProps {
@@ -9,10 +9,6 @@ interface TitleSuppressionSummaryProps {
   useSuppressionTokenTones: boolean
   suppressedTitleToneIndexByText: ReadonlyMap<string, number>
   className?: string
-}
-
-function titleSuppressionKey(text: string): string {
-  return text.trim().toLowerCase()
 }
 
 export function TitleSuppressionSummary({

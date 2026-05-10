@@ -4,6 +4,7 @@ import { PathgroupSection } from './PathgroupSection'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
 
@@ -136,30 +137,38 @@ export function SubdomainSection({
           onLayoutChange={onLayoutChange}
         />
       )}
-      {clusters.map((cluster, index) => (
-        <PathgroupSection
-          key={cluster.key}
-          label={cluster.label}
-          isPR={cluster.isPR}
-          count={cluster.count}
-          closableUrls={cluster.closableUrls}
-          visibleChips={cluster.visibleChips}
-          hiddenChips={cluster.hiddenChips}
-          hiddenCount={cluster.hiddenCount}
-          className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
-          isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
-          filter={filter}
-          activeSuppressedTitle={activeSuppressedTitle}
-          activeSuppressionTone={activeSuppressionTone}
-          suppressedTitleParts={cluster.suppressedTitleParts ?? []}
-          useSuppressionTokenTones={useSuppressionTokenTones}
-          suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
-          suppressedTitleToneByText={suppressedTitleToneByText}
-          onActiveSuppressedTitleChange={onActiveSuppressedTitleChange}
-          onHoverUrlChange={onHoverUrlChange}
-          onLayoutChange={onLayoutChange}
-        />
-      ))}
+      {clusters.map((cluster, index) => {
+        const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
+        const clusterSuppressionToneScope = createTitleSuppressionToneScope(clusterSuppressedTitleParts, { usePaletteForSingle: true })
+        const clusterSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
+          suppressedTitleToneByText,
+          clusterSuppressionToneScope.suppressedTitleToneByText
+        )
+        return (
+          <PathgroupSection
+            key={cluster.key}
+            label={cluster.label}
+            isPR={cluster.isPR}
+            count={cluster.count}
+            closableUrls={cluster.closableUrls}
+            visibleChips={cluster.visibleChips}
+            hiddenChips={cluster.hiddenChips}
+            hiddenCount={cluster.hiddenCount}
+            className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
+            isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
+            filter={filter}
+            activeSuppressedTitle={activeSuppressedTitle}
+            activeSuppressionTone={titleSuppressionToneForText(activeSuppressedTitle, clusterSuppressedTitleToneByText)}
+            suppressedTitleParts={clusterSuppressedTitleParts}
+            useSuppressionTokenTones={clusterSuppressionToneScope.useSuppressionTokenTones}
+            suppressedTitleToneIndexByText={clusterSuppressionToneScope.suppressedTitleToneIndexByText}
+            suppressedTitleToneByText={clusterSuppressedTitleToneByText}
+            onActiveSuppressedTitleChange={onActiveSuppressedTitleChange}
+            onHoverUrlChange={onHoverUrlChange}
+            onLayoutChange={onLayoutChange}
+          />
+        )
+      })}
     </div>
   )
 }

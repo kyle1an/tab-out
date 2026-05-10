@@ -4,6 +4,16 @@ import type { DashboardChipData } from './types'
 export const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
 export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
 
+export interface TitleSuppressionToneScope {
+  useSuppressionTokenTones: boolean
+  suppressedTitleToneIndexByText: ReadonlyMap<string, number>
+  suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
+}
+
+export function titleSuppressionKey(text: string): string {
+  return text.trim().toLowerCase()
+}
+
 const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string; marker: string; active: string }> = {
   amber: {
     base: 'title-suppression-token-tone-amber border-[#fdba74] bg-[#fff7ed] text-tab-ink hover:border-[#fb923c] hover:bg-[#ffedd5] focus-visible:outline-[rgba(249,115,22,0.72)]',
@@ -48,6 +58,42 @@ const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: st
 
 export function titleSuppressionToneForIndex(index: number): TitleSuppressionTone {
   return TITLE_SUPPRESSION_TONE_NAMES[index % TITLE_SUPPRESSION_TONE_NAMES.length]
+}
+
+export function createTitleSuppressionToneScope(
+  parts: readonly { text: string }[],
+  options: { usePaletteForSingle?: boolean } = {}
+): TitleSuppressionToneScope {
+  const useSuppressionTokenTones = options.usePaletteForSingle ? parts.length > 0 : parts.length > 1
+  const suppressedTitleToneIndexByText = new Map<string, number>(
+    parts.map((part, index) => [titleSuppressionKey(part.text), index])
+  )
+  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>(
+    parts.map((part, index) => [
+      titleSuppressionKey(part.text),
+      useSuppressionTokenTones ? titleSuppressionToneForIndex(index) : ''
+    ])
+  )
+
+  return { useSuppressionTokenTones, suppressedTitleToneIndexByText, suppressedTitleToneByText }
+}
+
+export function mergeTitleSuppressionToneMaps(
+  ...maps: Array<ReadonlyMap<string, TitleSuppressionTone | ''> | undefined>
+): ReadonlyMap<string, TitleSuppressionTone | ''> {
+  const merged = new Map<string, TitleSuppressionTone | ''>()
+  for (const map of maps) {
+    if (!map) continue
+    for (const [key, tone] of map) merged.set(key, tone)
+  }
+  return merged
+}
+
+export function titleSuppressionToneForText(
+  text: string,
+  toneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+): TitleSuppressionTone | '' {
+  return toneByText?.get(titleSuppressionKey(text)) ?? ''
 }
 
 export function titleSuppressionTokenToneClass(index: number, enabled: boolean, active: boolean) {

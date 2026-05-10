@@ -6,9 +6,8 @@ import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
-import { titleSuppressionToneForIndex } from './title-suppression'
-import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardCardVM, DashboardTitleSuppression, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps, titleSuppressionToneForText } from './title-suppression'
+import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
@@ -115,30 +114,6 @@ function FixedIndicator({ displayName }: { displayName?: string }) {
   )
 }
 
-function titleSuppressionKey(text: string): string {
-  return text.trim().toLowerCase()
-}
-
-function collectSuppressedTitleParts(vm: DashboardCardVM): DashboardTitleSuppression[] {
-  if (vm.allSuppressedTitleParts) return vm.allSuppressedTitleParts
-
-  const partsByKey = new Map<string, DashboardTitleSuppression>()
-  function add(parts?: DashboardTitleSuppression[]) {
-    for (const part of parts || []) {
-      const key = titleSuppressionKey(part.text)
-      if (!partsByKey.has(key)) partsByKey.set(key, part)
-    }
-  }
-
-  add(vm.suppressedTitleParts)
-  for (const section of vm.sections || []) {
-    add(section.suppressedTitleParts)
-    for (const cluster of section.clusters) add(cluster.suppressedTitleParts)
-  }
-
-  return [...partsByKey.values()]
-}
-
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   if (vm.isHidden) return null
@@ -152,19 +127,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
-  const allSuppressedTitleParts = collectSuppressedTitleParts(vm)
-  const useSuppressionTokenTones = allSuppressedTitleParts.length > 1
-  const suppressedTitleToneIndexByText = new Map<string, number>(
-    allSuppressedTitleParts.map((part, index) => [titleSuppressionKey(part.text), index])
-  )
-  const activeSuppressedTitleIndex = suppressedTitleToneIndexByText.get(titleSuppressionKey(activeSuppressedTitle)) ?? -1
-  const activeSuppressionTone = useSuppressionTokenTones && activeSuppressedTitleIndex >= 0 ? titleSuppressionToneForIndex(activeSuppressedTitleIndex) : ''
-  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>(
-    allSuppressedTitleParts.map((part, index) => [
-      titleSuppressionKey(part.text),
-      useSuppressionTokenTones ? titleSuppressionToneForIndex(index) : ''
-    ])
-  )
+  const cardSuppressionToneScope = createTitleSuppressionToneScope(suppressedTitleParts)
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')
@@ -249,36 +212,44 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           suppressedTitleParts={suppressedTitleParts}
           activeSuppressedTitle={activeSuppressedTitle}
           setActiveSuppressedTitle={setActiveSuppressedTitle}
-          useSuppressionTokenTones={useSuppressionTokenTones}
-          suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
+          useSuppressionTokenTones={cardSuppressionToneScope.useSuppressionTokenTones}
+          suppressedTitleToneIndexByText={cardSuppressionToneScope.suppressedTitleToneIndexByText}
         />
         <div className="mission-pages flex flex-col gap-0">
-          {sections.map((section, index) => (
-            <SubdomainSection
-              key={section.key || '__root__'}
-              subdomainKey={section.key}
-              isFirst={index === 0}
-              isPort={section.isPort}
-              sectionCount={section.sectionCount}
-              sectionClosableUrls={section.sectionClosableUrls}
-              showHeader={section.showHeader}
-              hasFlat={section.hasFlat}
-              flatVisibleChips={section.flatVisibleChips}
-              flatHiddenChips={section.flatHiddenChips}
-              flatHiddenCount={section.flatHiddenCount}
-              suppressedTitleParts={section.suppressedTitleParts ?? []}
-              clusters={section.clusters}
-              filter={highlightFilter}
-              activeSuppressedTitle={activeSuppressedTitle}
-              activeSuppressionTone={activeSuppressionTone}
-              useSuppressionTokenTones={useSuppressionTokenTones}
-              suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
-              suppressedTitleToneByText={suppressedTitleToneByText}
-              onActiveSuppressedTitleChange={setActiveSuppressedTitle}
-              onHoverUrlChange={onHoverUrlChange}
-              onLayoutChange={onLayoutChange}
-            />
-          ))}
+          {sections.map((section, index) => {
+            const sectionSuppressedTitleParts = section.suppressedTitleParts ?? []
+            const sectionSuppressionToneScope = createTitleSuppressionToneScope(sectionSuppressedTitleParts, { usePaletteForSingle: true })
+            const sectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
+              cardSuppressionToneScope.suppressedTitleToneByText,
+              sectionSuppressionToneScope.suppressedTitleToneByText
+            )
+            return (
+              <SubdomainSection
+                key={section.key || '__root__'}
+                subdomainKey={section.key}
+                isFirst={index === 0}
+                isPort={section.isPort}
+                sectionCount={section.sectionCount}
+                sectionClosableUrls={section.sectionClosableUrls}
+                showHeader={section.showHeader}
+                hasFlat={section.hasFlat}
+                flatVisibleChips={section.flatVisibleChips}
+                flatHiddenChips={section.flatHiddenChips}
+                flatHiddenCount={section.flatHiddenCount}
+                suppressedTitleParts={sectionSuppressedTitleParts}
+                clusters={section.clusters}
+                filter={highlightFilter}
+                activeSuppressedTitle={activeSuppressedTitle}
+                activeSuppressionTone={titleSuppressionToneForText(activeSuppressedTitle, sectionSuppressedTitleToneByText)}
+                useSuppressionTokenTones={sectionSuppressionToneScope.useSuppressionTokenTones}
+                suppressedTitleToneIndexByText={sectionSuppressionToneScope.suppressedTitleToneIndexByText}
+                suppressedTitleToneByText={sectionSuppressedTitleToneByText}
+                onActiveSuppressedTitleChange={setActiveSuppressedTitle}
+                onHoverUrlChange={onHoverUrlChange}
+                onLayoutChange={onLayoutChange}
+              />
+            )
+          })}
         </div>
       </div>
     </div>
