@@ -1,9 +1,10 @@
 import { useState } from 'react'
+import { useDomainCardContext } from './DomainCardContext'
 import { PageChip } from './PageChip'
 import { cn } from '@/lib/utils'
-import { TITLE_SUPPRESSION_MARKER_SYMBOL, countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass } from './title-suppression'
+import { TITLE_SUPPRESSION_MARKER_SYMBOL, countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
+import type { DashboardChipData } from './types'
 
 interface FlatSectionProps {
   visibleChips: DashboardChipData[]
@@ -11,17 +12,14 @@ interface FlatSectionProps {
   hiddenCount: number
   afterSeparator?: boolean
   filter?: string
-  activeSuppressedTitle?: string
-  activeSuppressionTone?: TitleSuppressionTone | ''
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
-  dedupeBadgesClosing?: boolean
-  onHoverUrlChange?: HoverUrlChangeHandler | null
-  onLayoutChange?: LayoutChangeHandler | null
 }
 
-export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, dedupeBadgesClosing = false, onHoverUrlChange = null, onLayoutChange = null }: FlatSectionProps) {
+export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', suppressedTitleToneByText }: FlatSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  const { activeSuppressedTitle, onLayoutChange } = useDomainCardContext()
   const iconOnly = visibleChips.length > 0 && visibleChips.every((chip) => chip.iconOnly)
+  const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
   const hiddenSuppressionCoversAll = hiddenSuppressionMatchCount > 0 && hiddenSuppressionMatchCount === hiddenCount
 
@@ -40,12 +38,12 @@ export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSepar
       data-expanded={expanded ? 'true' : undefined}
     >
       {visibleChips.map((chip) => (
-        <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} dedupeBadgesClosing={dedupeBadgesClosing} onHoverUrlChange={onHoverUrlChange} />
+        <PageChip key={chip.rawUrl} chip={chip} filter={filter} suppressedTitleToneByText={suppressedTitleToneByText} />
       ))}
       {hiddenCount > 0 && (
         <div className={cn('page-chips-overflow', iconOnly && 'w-full', iconOnly && expanded && 'flex flex-wrap gap-2.5')}>
           {hiddenChips.map((chip) => (
-            <PageChip key={chip.rawUrl} chip={chip} filter={filter} activeSuppressedTitle={activeSuppressedTitle} activeSuppressionTone={activeSuppressionTone} suppressedTitleToneByText={suppressedTitleToneByText} dedupeBadgesClosing={dedupeBadgesClosing} onHoverUrlChange={onHoverUrlChange} />
+            <PageChip key={chip.rawUrl} chip={chip} filter={filter} suppressedTitleToneByText={suppressedTitleToneByText} />
           ))}
         </div>
       )}

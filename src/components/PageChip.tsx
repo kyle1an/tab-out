@@ -2,11 +2,12 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
+import { useDomainCardContext } from './DomainCardContext'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { TITLE_SUPPRESSION_MARKER_SYMBOL, titleSuppressionChipHighlightClass, titleSuppressionMarkerClass } from './title-suppression'
+import { TITLE_SUPPRESSION_MARKER_SYMBOL, titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, HoverUrlChangeHandler } from './types'
+import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
@@ -18,11 +19,7 @@ const chipTextTruncationCallbacks = new WeakMap<
 interface PageChipProps {
   chip: DashboardChipData
   filter?: string
-  activeSuppressedTitle?: string
-  activeSuppressionTone?: TitleSuppressionTone | ''
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
-  dedupeBadgesClosing?: boolean
-  onHoverUrlChange?: HoverUrlChangeHandler | null
 }
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
@@ -118,7 +115,8 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-export function PageChip({ chip, filter = '', activeSuppressedTitle = '', activeSuppressionTone = '', suppressedTitleToneByText, dedupeBadgesClosing = false, onHoverUrlChange = null }: PageChipProps) {
+export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
+  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -127,6 +125,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
   const primaryPreviewUrl = chip.tabUrl || ''
   const suppressedTitleParts = chip.suppressedTitleParts || []
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
+  const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const [isTextTruncated, setIsTextTruncated] = useState(false)

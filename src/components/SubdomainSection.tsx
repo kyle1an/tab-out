@@ -1,12 +1,13 @@
 import { closeExactTabSection } from '../extension/tab-actions'
+import { useDomainCardContext } from './DomainCardContext'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps, titleSuppressionToneForText } from './title-suppression'
+import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, HoverUrlChangeHandler, LayoutChangeHandler } from './types'
+import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression } from './types'
 
 interface SubdomainCloseButtonProps {
   count: number
@@ -27,15 +28,9 @@ interface SubdomainSectionProps {
   suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: DashboardClusterVM[]
   filter?: string
-  activeSuppressedTitle?: string
-  activeSuppressionTone?: TitleSuppressionTone | ''
   useSuppressionTokenTones?: boolean
   suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
-  dedupeBadgesClosing?: boolean
-  onActiveSuppressedTitleChange?: (text: string) => void
-  onHoverUrlChange?: HoverUrlChangeHandler | null
-  onLayoutChange?: LayoutChangeHandler | null
 }
 
 function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
@@ -70,16 +65,11 @@ export function SubdomainSection({
   suppressedTitleParts = [],
   clusters,
   filter = '',
-  activeSuppressedTitle = '',
-  activeSuppressionTone = '',
   useSuppressionTokenTones = false,
   suppressedTitleToneIndexByText = new Map<string, number>(),
-  suppressedTitleToneByText,
-  dedupeBadgesClosing = false,
-  onActiveSuppressedTitleChange,
-  onHoverUrlChange = null,
-  onLayoutChange = null
+  suppressedTitleToneByText
 }: SubdomainSectionProps) {
+  const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()
   const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
   const headerLabel = subdomainKey
 
@@ -120,7 +110,7 @@ export function SubdomainSection({
       <TitleSuppressionSummary
         suppressedTitleParts={suppressedTitleParts}
         activeSuppressedTitle={activeSuppressedTitle}
-        setActiveSuppressedTitle={onActiveSuppressedTitleChange ?? (() => {})}
+        setActiveSuppressedTitle={setActiveSuppressedTitle}
         useSuppressionTokenTones={useSuppressionTokenTones}
         suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
         className="pb-1"
@@ -132,12 +122,7 @@ export function SubdomainSection({
           hiddenCount={flatHiddenCount}
           afterSeparator={!isFirst && !showHeader}
           filter={filter}
-          activeSuppressedTitle={activeSuppressedTitle}
-          activeSuppressionTone={activeSuppressionTone}
           suppressedTitleToneByText={suppressedTitleToneByText}
-          dedupeBadgesClosing={dedupeBadgesClosing}
-          onHoverUrlChange={onHoverUrlChange}
-          onLayoutChange={onLayoutChange}
         />
       )}
       {clusters.map((cluster, index) => {
@@ -160,16 +145,10 @@ export function SubdomainSection({
             className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
             isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
             filter={filter}
-            activeSuppressedTitle={activeSuppressedTitle}
-            activeSuppressionTone={titleSuppressionToneForText(activeSuppressedTitle, clusterSuppressedTitleToneByText)}
             suppressedTitleParts={clusterSuppressedTitleParts}
             useSuppressionTokenTones={clusterSuppressionToneScope.useSuppressionTokenTones}
             suppressedTitleToneIndexByText={clusterSuppressionToneScope.suppressedTitleToneIndexByText}
             suppressedTitleToneByText={clusterSuppressedTitleToneByText}
-            dedupeBadgesClosing={dedupeBadgesClosing}
-            onActiveSuppressedTitleChange={onActiveSuppressedTitleChange}
-            onHoverUrlChange={onHoverUrlChange}
-            onLayoutChange={onLayoutChange}
           />
         )
       })}

@@ -1,12 +1,13 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
+import { DomainCardProvider } from './DomainCardContext'
 import { SubdomainSection } from './SubdomainSection'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { MouseEvent } from 'react'
-import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps, titleSuppressionToneForText } from './title-suppression'
+import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { DashboardCardVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
@@ -120,6 +121,13 @@ function FixedIndicator({ displayName }: { displayName?: string }) {
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
+  const cardContext = useMemo(() => ({
+    activeSuppressedTitle,
+    setActiveSuppressedTitle,
+    dedupeBadgesClosing,
+    onHoverUrlChange,
+    onLayoutChange
+  }), [activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, onLayoutChange])
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'
@@ -168,90 +176,86 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   }
 
   return (
-    <div
-      className={cn(
-        'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[250ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
-        vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
-        isAppsCard && 'domain-block-apps',
-        isFixedCard && 'domain-block-fixed',
-        group.pinned && 'domain-block-pinned'
-      )}
-      data-domain-id={vm.stableId}
-    >
-      <header className="domain-header flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1 p-0">
-        <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-semibold tracking-[0.1px] text-tab-ink">
-          {displayName}
-        </span>
-        {isFixedCard && <FixedIndicator displayName={displayName} />}
-        {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
-        {vm.singleSubdomainKey && (
-          <span
-            className={cn(
-              'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
-              vm.singleSubdomainIsPort
-                ? "before:font-normal before:opacity-45 before:content-[':']"
-                : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
-            )}
-          >
-            {vm.singleSubdomainKey}
-          </span>
-        )}
-        <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
-        {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
-        {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
-      </header>
+    <DomainCardProvider value={cardContext}>
       <div
         className={cn(
-          'mission-card relative flex flex-col gap-2 overflow-hidden rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
-          isAppsCard ? 'p-[7px]' : 'p-2 group-hover/domain-block:shadow-[0_2px_6px_var(--shadow)]',
-          (isFixedCard || group.pinned) && 'border-[rgba(82,82,82,0.32)]'
+          'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[250ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
+          vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
+          isAppsCard && 'domain-block-apps',
+          isFixedCard && 'domain-block-fixed',
+          group.pinned && 'domain-block-pinned'
         )}
+        data-domain-id={vm.stableId}
       >
-        <TitleSuppressionSummary
-          suppressedTitleParts={suppressedTitleParts}
-          activeSuppressedTitle={activeSuppressedTitle}
-          setActiveSuppressedTitle={setActiveSuppressedTitle}
-          useSuppressionTokenTones={cardSuppressionToneScope.useSuppressionTokenTones}
-          suppressedTitleToneIndexByText={cardSuppressionToneScope.suppressedTitleToneIndexByText}
-        />
-        <div className="mission-pages flex flex-col gap-0">
-          {sections.map((section, index) => {
-            const sectionSuppressedTitleParts = section.suppressedTitleParts ?? []
-            const sectionSuppressionToneScope = createTitleSuppressionToneScope(sectionSuppressedTitleParts)
-            const sectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
-              cardSuppressionToneScope.suppressedTitleToneByText,
-              sectionSuppressionToneScope.suppressedTitleToneByText
-            )
-            return (
-              <SubdomainSection
-                key={section.key || '__root__'}
-                subdomainKey={section.key}
-                isFirst={index === 0}
-                isPort={section.isPort}
-                sectionCount={section.sectionCount}
-                sectionClosableUrls={section.sectionClosableUrls}
-                showHeader={section.showHeader}
-                hasFlat={section.hasFlat}
-                flatVisibleChips={section.flatVisibleChips}
-                flatHiddenChips={section.flatHiddenChips}
-                flatHiddenCount={section.flatHiddenCount}
-                suppressedTitleParts={sectionSuppressedTitleParts}
-                clusters={section.clusters}
-                filter={highlightFilter}
-                activeSuppressedTitle={activeSuppressedTitle}
-                activeSuppressionTone={titleSuppressionToneForText(activeSuppressedTitle, sectionSuppressedTitleToneByText)}
-                useSuppressionTokenTones={sectionSuppressionToneScope.useSuppressionTokenTones}
-                suppressedTitleToneIndexByText={sectionSuppressionToneScope.suppressedTitleToneIndexByText}
-                suppressedTitleToneByText={sectionSuppressedTitleToneByText}
-                dedupeBadgesClosing={dedupeBadgesClosing}
-                onActiveSuppressedTitleChange={setActiveSuppressedTitle}
-                onHoverUrlChange={onHoverUrlChange}
-                onLayoutChange={onLayoutChange}
-              />
-            )
-          })}
+        <header className="domain-header flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1 p-0">
+          <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-semibold tracking-[0.1px] text-tab-ink">
+            {displayName}
+          </span>
+          {isFixedCard && <FixedIndicator displayName={displayName} />}
+          {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
+          {vm.singleSubdomainKey && (
+            <span
+              className={cn(
+                'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
+                vm.singleSubdomainIsPort
+                  ? "before:font-normal before:opacity-45 before:content-[':']"
+                  : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
+              )}
+            >
+              {vm.singleSubdomainKey}
+            </span>
+          )}
+          <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
+          {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
+          {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
+        </header>
+        <div
+          className={cn(
+            'mission-card relative flex flex-col gap-2 overflow-hidden rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
+            isAppsCard ? 'p-[7px]' : 'p-2 group-hover/domain-block:shadow-[0_2px_6px_var(--shadow)]',
+            (isFixedCard || group.pinned) && 'border-[rgba(82,82,82,0.32)]'
+          )}
+        >
+          <TitleSuppressionSummary
+            suppressedTitleParts={suppressedTitleParts}
+            activeSuppressedTitle={activeSuppressedTitle}
+            setActiveSuppressedTitle={setActiveSuppressedTitle}
+            useSuppressionTokenTones={cardSuppressionToneScope.useSuppressionTokenTones}
+            suppressedTitleToneIndexByText={cardSuppressionToneScope.suppressedTitleToneIndexByText}
+          />
+          <div className="mission-pages flex flex-col gap-0">
+            {sections.map((section, index) => {
+              const sectionSuppressedTitleParts = section.suppressedTitleParts ?? []
+              const sectionSuppressionToneScope = createTitleSuppressionToneScope(sectionSuppressedTitleParts)
+              const sectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
+                cardSuppressionToneScope.suppressedTitleToneByText,
+                sectionSuppressionToneScope.suppressedTitleToneByText
+              )
+              return (
+                <SubdomainSection
+                  key={section.key || '__root__'}
+                  subdomainKey={section.key}
+                  isFirst={index === 0}
+                  isPort={section.isPort}
+                  sectionCount={section.sectionCount}
+                  sectionClosableUrls={section.sectionClosableUrls}
+                  showHeader={section.showHeader}
+                  hasFlat={section.hasFlat}
+                  flatVisibleChips={section.flatVisibleChips}
+                  flatHiddenChips={section.flatHiddenChips}
+                  flatHiddenCount={section.flatHiddenCount}
+                  suppressedTitleParts={sectionSuppressedTitleParts}
+                  clusters={section.clusters}
+                  filter={highlightFilter}
+                  useSuppressionTokenTones={sectionSuppressionToneScope.useSuppressionTokenTones}
+                  suppressedTitleToneIndexByText={sectionSuppressionToneScope.suppressedTitleToneIndexByText}
+                  suppressedTitleToneByText={sectionSuppressedTitleToneByText}
+                />
+              )
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </DomainCardProvider>
   )
 }

@@ -5,6 +5,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { DomainCard } from '../src/components/DomainCard.js'
+import { DomainCardProvider, type DomainCardContextValue } from '../src/components/DomainCardContext.js'
 import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
@@ -30,6 +31,19 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
     envs: null,
     ...overrides
   }
+}
+
+function renderWithDomainCardContext(element: React.ReactElement, overrides: Partial<DomainCardContextValue> = {}) {
+  const value: DomainCardContextValue = {
+    activeSuppressedTitle: '',
+    setActiveSuppressedTitle: () => {},
+    dedupeBadgesClosing: false,
+    onHoverUrlChange: null,
+    onLayoutChange: null,
+    ...overrides
+  }
+
+  return renderToStaticMarkup(React.createElement(DomainCardProvider, { value }, element))
 }
 
 test('PageChip highlights matched filter keywords inside visible chip text', () => {
@@ -173,24 +187,26 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
 })
 
 test('PageChip marks chips affected by the active suppressed title text', () => {
-  const defaultHtml = renderToStaticMarkup(
+  const defaultHtml = renderWithDomainCardContext(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
         suppressedTitleParts: ['Example Workspace']
-      }),
-      activeSuppressedTitle: 'Example Workspace'
-    })
+      })
+    }),
+    { activeSuppressedTitle: 'Example Workspace' }
   )
-  const tealHtml = renderToStaticMarkup(
+  const tealHtml = renderWithDomainCardContext(
     React.createElement(PageChip, {
       chip: makeChip({
         displaySegments: ['Alpha channel'],
         suppressedTitleParts: ['Example Workspace']
       }),
-      activeSuppressedTitle: 'Example Workspace',
-      activeSuppressionTone: 'teal'
-    })
+      suppressedTitleToneByText: new Map<string, TitleSuppressionTone | ''>([
+        ['example workspace', 'teal']
+      ])
+    }),
+    { activeSuppressedTitle: 'Example Workspace' }
   )
 
   assert.match(defaultHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
@@ -334,16 +350,19 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
       suppressedTitleParts: ['Other Workspace']
     })
   ]
-  const flatHtml = renderToStaticMarkup(
+  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>([
+    ['example workspace', 'teal']
+  ])
+  const flatHtml = renderWithDomainCardContext(
     React.createElement(FlatSection, {
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      activeSuppressedTitle: 'Example Workspace',
-      activeSuppressionTone: 'teal'
-    })
+      suppressedTitleToneByText
+    }),
+    { activeSuppressedTitle: 'Example Workspace' }
   )
-  const pathgroupHtml = renderToStaticMarkup(
+  const pathgroupHtml = renderWithDomainCardContext(
     React.createElement(PathgroupSection, {
       label: 'openai/docs',
       isPR: false,
@@ -352,9 +371,9 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      activeSuppressedTitle: 'Example Workspace',
-      activeSuppressionTone: 'teal'
-    })
+      suppressedTitleToneByText
+    }),
+    { activeSuppressedTitle: 'Example Workspace' }
   )
 
   for (const html of [flatHtml, pathgroupHtml]) {
@@ -386,16 +405,19 @@ test('Overflow expanders use full chip color when all hidden chips match active 
       suppressedTitleParts: ['Example Workspace']
     })
   ]
-  const flatHtml = renderToStaticMarkup(
+  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>([
+    ['example workspace', 'teal']
+  ])
+  const flatHtml = renderWithDomainCardContext(
     React.createElement(FlatSection, {
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      activeSuppressedTitle: 'Example Workspace',
-      activeSuppressionTone: 'teal'
-    })
+      suppressedTitleToneByText
+    }),
+    { activeSuppressedTitle: 'Example Workspace' }
   )
-  const pathgroupHtml = renderToStaticMarkup(
+  const pathgroupHtml = renderWithDomainCardContext(
     React.createElement(PathgroupSection, {
       label: 'openai/docs',
       isPR: false,
@@ -404,9 +426,9 @@ test('Overflow expanders use full chip color when all hidden chips match active 
       visibleChips: [],
       hiddenChips,
       hiddenCount: hiddenChips.length,
-      activeSuppressedTitle: 'Example Workspace',
-      activeSuppressionTone: 'teal'
-    })
+      suppressedTitleToneByText
+    }),
+    { activeSuppressedTitle: 'Example Workspace' }
   )
 
   for (const html of [flatHtml, pathgroupHtml]) {
