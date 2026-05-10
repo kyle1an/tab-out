@@ -6,43 +6,43 @@ export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
 
 const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string; marker: string; active: string }> = {
   amber: {
-    base: 'title-suppression-token-tone-amber border-[rgba(217,119,6,0.22)] bg-[rgba(217,119,6,0.08)] text-tab-ink hover:border-[rgba(217,119,6,0.36)] hover:bg-[rgba(217,119,6,0.13)] focus-visible:outline-[rgba(217,119,6,0.72)]',
-    marker: 'title-suppression-token-tone-amber border-[rgba(217,119,6,0.22)] bg-[rgba(217,119,6,0.08)] text-tab-ink',
-    active: 'border-[rgba(217,119,6,0.42)] bg-[rgba(217,119,6,0.16)] shadow-[inset_0_0_0_1px_rgba(217,119,6,0.22)]'
+    base: 'title-suppression-token-tone-amber border-[#fdba74] bg-[#fff7ed] text-tab-ink hover:border-[#fb923c] hover:bg-[#ffedd5] focus-visible:outline-[rgba(249,115,22,0.72)]',
+    marker: 'title-suppression-token-tone-amber border-[#fdba74] bg-[#fff7ed] text-tab-ink',
+    active: 'border-[#f97316] bg-[#ffedd5] shadow-[inset_0_0_0_1px_rgba(249,115,22,0.22)]'
   },
   teal: {
-    base: 'title-suppression-token-tone-teal border-[rgba(20,184,166,0.22)] bg-[rgba(20,184,166,0.08)] text-tab-ink hover:border-[rgba(20,184,166,0.38)] hover:bg-[rgba(20,184,166,0.13)] focus-visible:outline-[rgba(20,184,166,0.72)]',
-    marker: 'title-suppression-token-tone-teal border-[rgba(20,184,166,0.22)] bg-[rgba(20,184,166,0.08)] text-tab-ink',
-    active: 'border-[rgba(20,184,166,0.42)] bg-[rgba(20,184,166,0.16)] shadow-[inset_0_0_0_1px_rgba(20,184,166,0.22)]'
+    base: 'title-suppression-token-tone-teal border-[#5eead4] bg-[#f0fdfa] text-tab-ink hover:border-[#2dd4bf] hover:bg-[#ccfbf1] focus-visible:outline-[rgba(20,184,166,0.72)]',
+    marker: 'title-suppression-token-tone-teal border-[#5eead4] bg-[#f0fdfa] text-tab-ink',
+    active: 'border-[#14b8a6] bg-[#ccfbf1] shadow-[inset_0_0_0_1px_rgba(20,184,166,0.22)]'
   },
   sky: {
-    base: 'title-suppression-token-tone-sky border-[rgba(14,165,233,0.22)] bg-[rgba(14,165,233,0.08)] text-tab-ink hover:border-[rgba(14,165,233,0.38)] hover:bg-[rgba(14,165,233,0.13)] focus-visible:outline-[rgba(14,165,233,0.72)]',
-    marker: 'title-suppression-token-tone-sky border-[rgba(14,165,233,0.22)] bg-[rgba(14,165,233,0.08)] text-tab-ink',
-    active: 'border-[rgba(14,165,233,0.42)] bg-[rgba(14,165,233,0.16)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22)]'
+    base: 'title-suppression-token-tone-sky border-[#7dd3fc] bg-[#f0f9ff] text-tab-ink hover:border-[#38bdf8] hover:bg-[#e0f2fe] focus-visible:outline-[rgba(14,165,233,0.72)]',
+    marker: 'title-suppression-token-tone-sky border-[#7dd3fc] bg-[#f0f9ff] text-tab-ink',
+    active: 'border-[#0ea5e9] bg-[#e0f2fe] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22)]'
   },
   rose: {
-    base: 'title-suppression-token-tone-rose border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.08)] text-tab-ink hover:border-[rgba(244,63,94,0.38)] hover:bg-[rgba(244,63,94,0.13)] focus-visible:outline-[rgba(244,63,94,0.72)]',
-    marker: 'title-suppression-token-tone-rose border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.08)] text-tab-ink',
-    active: 'border-[rgba(244,63,94,0.42)] bg-[rgba(244,63,94,0.16)] shadow-[inset_0_0_0_1px_rgba(244,63,94,0.22)]'
+    base: 'title-suppression-token-tone-rose border-[#fda4af] bg-[#fff1f2] text-tab-ink hover:border-[#fb7185] hover:bg-[#ffe4e6] focus-visible:outline-[rgba(244,63,94,0.72)]',
+    marker: 'title-suppression-token-tone-rose border-[#fda4af] bg-[#fff1f2] text-tab-ink',
+    active: 'border-[#f43f5e] bg-[#ffe4e6] shadow-[inset_0_0_0_1px_rgba(244,63,94,0.22)]'
   }
 }
 
 const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: string; badge: string }> = {
   amber: {
-    chip: 'bg-[rgba(217,119,6,0.12)] shadow-[inset_0_0_0_1px_rgba(217,119,6,0.32)]',
-    badge: 'border-[rgba(217,119,6,0.22)] bg-[rgba(217,119,6,0.16)]'
+    chip: 'bg-[#fff7ed] shadow-[inset_0_0_0_1px_#fdba74]',
+    badge: 'border-[#fdba74] bg-[#ffedd5]'
   },
   teal: {
-    chip: 'bg-[rgba(20,184,166,0.12)] shadow-[inset_0_0_0_1px_rgba(20,184,166,0.32)]',
-    badge: 'border-[rgba(20,184,166,0.22)] bg-[rgba(20,184,166,0.16)]'
+    chip: 'bg-[#f0fdfa] shadow-[inset_0_0_0_1px_#5eead4]',
+    badge: 'border-[#5eead4] bg-[#ccfbf1]'
   },
   sky: {
-    chip: 'bg-[rgba(14,165,233,0.12)] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.32)]',
-    badge: 'border-[rgba(14,165,233,0.22)] bg-[rgba(14,165,233,0.16)]'
+    chip: 'bg-[#f0f9ff] shadow-[inset_0_0_0_1px_#7dd3fc]',
+    badge: 'border-[#7dd3fc] bg-[#e0f2fe]'
   },
   rose: {
-    chip: 'bg-[rgba(244,63,94,0.12)] shadow-[inset_0_0_0_1px_rgba(244,63,94,0.32)]',
-    badge: 'border-[rgba(244,63,94,0.22)] bg-[rgba(244,63,94,0.16)]'
+    chip: 'bg-[#fff1f2] shadow-[inset_0_0_0_1px_#fda4af]',
+    badge: 'border-[#fda4af] bg-[#ffe4e6]'
   }
 }
 

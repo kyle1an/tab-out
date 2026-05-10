@@ -25,6 +25,10 @@ type BaseTitlePresentation = {
   displayTitle: string
   removedDomainTitleSuffix: string
 }
+type StructuralTitleTail = {
+  label: string
+  includeSeparatorInSuppression: boolean
+}
 type TitleSuppressionCandidate = {
   index: number
   text: string
@@ -87,20 +91,26 @@ function isExpandableStructuralTitleSegment(segment: string): boolean {
   return text.split(/\s+/).filter(Boolean).length === 1
 }
 
-function matchingStructuralTrailingTitleSegment(title: string, structuralTailLabel: string) {
-  const tailKey = structuralTailLabel.trim().toLowerCase()
-  if (!tailKey) return null
+function matchingStructuralTrailingTitleSegment(title: string, structuralTails: StructuralTitleTail[]) {
+  const tailsByKey = new Map(
+    structuralTails
+      .map((tail) => [tail.label.trim().toLowerCase(), tail] as const)
+      .filter(([key]) => key)
+  )
+  if (tailsByKey.size === 0) return null
   const segment = trailingTitleSegment(title)
-  if (!segment || segment.suffix.trim().toLowerCase() !== tailKey) return null
-  return segment
+  if (!segment) return null
+  const suffixKey = segment.suffix.trim().toLowerCase()
+  const tail = tailsByKey.get(suffixKey)
+  return tail ? { ...segment, includeSeparatorInSuppression: tail.includeSeparatorInSuppression } : null
 }
 
 function titleSuppressionCandidates(
   title: string,
-  structuralTailLabel = '',
+  structuralTails: StructuralTitleTail[] = [],
   isSuppressibleSegment = isSuppressibleTrailingTitleSegment
 ): TitleSuppressionCandidate[] {
-  const structuralTail = matchingStructuralTrailingTitleSegment(title, structuralTailLabel)
+  const structuralTail = matchingStructuralTrailingTitleSegment(title, structuralTails)
   const scopeTitle = structuralTail ? title.slice(0, structuralTail.index).trim() : title
   const segment = trailingTitleSegment(scopeTitle)
   if (!segment) return []
@@ -110,7 +120,7 @@ function titleSuppressionCandidates(
   if (isSuppressibleSegment(suffix)) {
     candidates.push({
       index: segment.index,
-      text: title.slice(segment.index, structuralTail ? structuralTail.index + structuralTail.separator.length : undefined).trim(),
+      text: title.slice(segment.index, structuralTail ? structuralTail.index + (structuralTail.includeSeparatorInSuppression ? structuralTail.separator.length : 0) : undefined).trim(),
       structuralTailIndex: structuralTail?.index ?? null
     })
   }
@@ -123,7 +133,7 @@ function titleSuppressionCandidates(
       if (isSuppressibleSegment(expandedSuffix)) {
         candidates.push({
           index: previousSegment.index,
-          text: title.slice(previousSegment.index, structuralTail.index + structuralTail.separator.length).trim(),
+          text: title.slice(previousSegment.index, structuralTail.index + (structuralTail.includeSeparatorInSuppression ? structuralTail.separator.length : 0)).trim(),
           structuralTailIndex: structuralTail.index
         })
       }
@@ -214,6 +224,10 @@ function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is {
 function isBoundaryWrappedTitleSuppression(part: string): boolean {
   const text = part.trim()
   return TITLE_BOUNDARY_SEPARATOR_RE.test(text) && TITLE_BOUNDARY_TRAILING_SEPARATOR_RE.test(text)
+}
+
+function titleSuppressionTailLabel(part: string): string {
+  return part.trim().replace(TITLE_BOUNDARY_SEPARATOR_RE, '').trim()
 }
 
 function insertTitleSuppressionSegmentsBeforeStructuralPlaceholder(
@@ -454,17 +468,41 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
 
   function buildTitlePresentations(): Map<string, TitlePresentation> {
     const rows = uniqueTabs.map((tab) => {
+      const rawTitle = stripTitleNoise(tab.title || '')
       const baseTitle = baseTitlePresentation(tab)
       const pathGroup = structuralPathGroup(tab)
       return {
         url: tab.url,
+        rawTitle,
         displayTitle: baseTitle.displayTitle,
-        suppressedTitleParts: baseTitle.removedDomainTitleSuffix ? [baseTitle.removedDomainTitleSuffix] : ([] as string[]),
+        removedDomainTitleSuffix: baseTitle.removedDomainTitleSuffix,
+        removedDomainTitleSuffixLabel: titleSuppressionTailLabel(baseTitle.removedDomainTitleSuffix),
+        suppressedTitleParts: [] as string[],
         suppressedTitlePartsBeforeStructuralTail: [] as string[],
-        structuralTailLabel: pathGroup?.label || '',
+        structuralTails: pathGroup?.label ? [{ label: pathGroup.label, includeSeparatorInSuppression: true }] : ([] as StructuralTitleTail[]),
         pathGroupKey: pathGroup?.key || ''
       }
     })
+
+    const removedDomainTitleSuffixCounts = new Map<string, number>()
+    for (const row of rows) {
+      if (!row.removedDomainTitleSuffix) continue
+      removedDomainTitleSuffixCounts.set(row.removedDomainTitleSuffix, (removedDomainTitleSuffixCounts.get(row.removedDomainTitleSuffix) || 0) + 1)
+    }
+    for (const row of rows) {
+      if (!row.removedDomainTitleSuffix) continue
+      if ((removedDomainTitleSuffixCounts.get(row.removedDomainTitleSuffix) || 0) > 1) {
+        row.suppressedTitleParts.push(row.removedDomainTitleSuffix)
+      } else {
+        row.displayTitle = row.rawTitle
+        if (row.removedDomainTitleSuffixLabel) {
+          row.structuralTails.push({
+            label: row.removedDomainTitleSuffixLabel,
+            includeSeparatorInSuppression: false
+          })
+        }
+      }
+    }
 
     if (filtering || rows.length < 2) {
       return new Map(rows.map((row) => [row.url, {
@@ -486,9 +524,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       const pathGroupCounts = new Map<string, Map<string, number>>()
       const candidatesByUrl = new Map<string, TitleSuppressionCandidate[]>()
       for (const row of rows) {
-        const cardCandidates = titleSuppressionCandidates(row.displayTitle, row.structuralTailLabel).filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
+        const cardCandidates = titleSuppressionCandidates(row.displayTitle, row.structuralTails).filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
         const pathGroupCandidates = row.pathGroupKey
-          ? titleSuppressionCandidates(row.displayTitle, row.structuralTailLabel, isSuppressiblePathGroupTrailingTitleSegment)
+          ? titleSuppressionCandidates(row.displayTitle, row.structuralTails, isSuppressiblePathGroupTrailingTitleSegment)
             .filter((candidate) => row.displayTitle.slice(0, candidate.index).trim().length >= 3)
           : []
         const candidates = uniqueTitleSuppressionCandidates([...cardCandidates, ...pathGroupCandidates])
@@ -557,10 +595,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const titlePresentationByUrl = buildTitlePresentations()
 
   function titlePresentation(tab: DashboardTab): TitlePresentation {
-    const baseTitle = baseTitlePresentation(tab)
     return titlePresentationByUrl.get(tab.url) || {
-      displayTitle: baseTitle.displayTitle,
-      suppressedTitleParts: baseTitle.removedDomainTitleSuffix ? [baseTitle.removedDomainTitleSuffix] : [],
+      displayTitle: stripTitleNoise(tab.title || ''),
+      suppressedTitleParts: [],
       suppressedTitlePartsBeforeStructuralTail: []
     }
   }
@@ -581,6 +618,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
 
     return [...counts.entries()]
+      .filter(([, count]) => count > 1)
       .map(([text, count]) => ({ text, count }))
       .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, undefined, { numeric: true }))
   }

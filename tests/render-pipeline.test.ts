@@ -241,7 +241,7 @@ test('computeDomainCardViewModel disambiguates collisions by rendered title', ()
   const group = {
     domain: 'example.com',
     tabs: [
-      makeTab({ url: 'https://example.com/team/dashboard', title: 'Dashboard - Example' }),
+      makeTab({ url: 'https://example.com/team/dashboard', title: 'Dashboard' }),
       makeTab({ id: 2, url: 'https://example.com/me/dashboard', title: 'Dashboard' })
     ]
   }
@@ -411,6 +411,36 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
   assert.ok(titles.every((title) => !title.includes('Confluence')))
 })
 
+test('computeDomainCardViewModel keeps one-off cleaned title suffixes out of the summary row', () => {
+  const wikiUrl = 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-alpha/Example+Architecture+Plan'
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({
+        url: wikiUrl,
+        title: 'Example Architecture Plan - Confluence'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://example.atlassian.net/browse/TASK-1001',
+        title: '[TASK-1001] My account: Suggestion to add'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections.flatMap((section) => [
+    ...section.flatVisibleChips,
+    ...section.clusters.flatMap((cluster) => cluster.visibleChips)
+  ])
+  const wikiChip = chips.find((chip) => chip.tabUrl === wikiUrl)
+  const wikiTitle = wikiChip?.displaySegments.filter((seg) => typeof seg === 'string').join('')
+
+  assert.deepEqual(vm.suppressedTitleParts, [])
+  assert.deepEqual(wikiChip?.suppressedTitleParts, [])
+  assert.equal(wikiTitle, 'Example Architecture Plan - Confluence')
+})
+
 test('computeDomainCardViewModel marks active tabs from other windows', () => {
   const group = {
     domain: 'example.com',
@@ -469,11 +499,13 @@ test('computeDomainCardViewModel carries every env suppression token on folded c
 
   assert.equal(vm.sections[0].isShared, true)
   assert.deepEqual(vm.suppressedTitleParts, [
-    { text: '| Example Retail', count: 2 },
-    { text: '- DEV1', count: 1 },
-    { text: '- DEV2', count: 1 }
+    { text: '| Example Retail', count: 2 }
   ])
-  assert.deepEqual(foldedChip.suppressedTitleParts, ['| Example Retail', '- DEV1', '- DEV2'])
+  assert.deepEqual(foldedChip.suppressedTitleParts, ['| Example Retail'])
+  assert.deepEqual(
+    foldedChip.displaySegments.filter((seg) => typeof seg === 'string').join(''),
+    'Deployment History - DEV1'
+  )
 })
 
 test('buildDashboardViewModel derives matched and unmatched cards in one pass', () => {

@@ -325,7 +325,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
       <span
         key={key}
         className={cn(
-          'chip-title-suppression-marker inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.1)] px-1 text-xs leading-none font-medium text-tab-muted align-baseline [corner-shape:squircle]',
+          'chip-title-suppression-marker inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.08)] px-1 text-xs leading-none font-medium text-tab-muted align-baseline [corner-shape:squircle]',
           markerClassName,
           titleSuppressionMarkerClass(tone, active)
         )}
