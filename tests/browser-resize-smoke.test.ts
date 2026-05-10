@@ -275,6 +275,36 @@ async function waitForTooltipRect(session: CdpSession) {
   }).then((result: any) => result.result.value)
 }
 
+async function waitForTooltipContaining(session: CdpSession, text: string, timeoutMs = 2000) {
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const tooltips = Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
+          .map((tooltip) => {
+            const rect = tooltip.getBoundingClientRect()
+            return {
+              text: tooltip.textContent || '',
+              width: rect.width,
+              height: rect.height,
+              ending: tooltip.hasAttribute('data-ending-style')
+            }
+          })
+          .filter((tooltip) => tooltip.width > 0 && tooltip.height > 0 && !tooltip.ending)
+        const found = tooltips.some((tooltip) => tooltip.text.includes(${JSON.stringify(text)}))
+        if (found || Date.now() - start > ${JSON.stringify(timeoutMs)}) {
+          resolve({ found, tooltips })
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+}
+
 async function measureTooltipFreeze(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -354,6 +384,71 @@ async function measureTooltipFreeze(session: CdpSession) {
   return { target, first, second, popupHover, afterScrollTooltipCount, closing: null }
 }
 
+async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) =>
+            candidate.textContent?.includes('Hover Handoff Title') &&
+            candidate.querySelector('.chip-strip-indicator')
+          )
+        const marker = chip?.querySelector('.chip-strip-indicator')
+        const text = chip?.querySelector('.chip-text')
+        const markerRect = marker?.getBoundingClientRect()
+        const textRect = text?.getBoundingClientRect()
+        if (markerRect && textRect && markerRect.width > 0 && textRect.width > 0) {
+          resolve({
+            markerX: Math.round(markerRect.left + markerRect.width / 2),
+            textX: Math.round(Math.min(textRect.right - 8, markerRect.right + 16)),
+            y: Math.round(markerRect.top + markerRect.height / 2),
+            markerText: marker.textContent || '',
+            chipText: chip?.textContent || ''
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a chip with a strip indicator for tooltip handoff smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.markerX,
+    y: target.y
+  })
+  await wait(650)
+  const markerTooltip = await waitForTooltipContaining(session, 'dev2')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.textX,
+    y: target.y
+  })
+  const chipTooltip = await waitForTooltipContaining(session, 'Hover Handoff Title')
+
+  return { target, markerTooltip, chipTooltip }
+}
+
 async function measureShortChipTooltipAbsence(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -424,6 +519,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
       const start = Date.now()
       const wait = () => {
         const chips = Array.from(document.querySelectorAll('.page-chip'))
+          .filter((chip) => chip.textContent?.includes('viewport-edge'))
           .map((chip) => {
             const rect = chip.getBoundingClientRect()
             return { rect }
@@ -538,6 +634,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
     assert.ok(Math.abs(tooltip.first.top - tooltip.closing.top) <= 1, `tooltip top should stay frozen while closing: ${JSON.stringify(tooltip)}`)
   }
+
+  const markerHandoff = await measureMarkerToChipTooltipHandoff(session)
+  assert.equal(markerHandoff.target.markerText, '/', `strip indicator should render compact marker text in the chip: ${JSON.stringify(markerHandoff)}`)
+  assert.ok(markerHandoff.markerTooltip.found, `strip indicator tooltip should open first: ${JSON.stringify(markerHandoff)}`)
+  assert.ok(
+    markerHandoff.markerTooltip.tooltips.some((tooltip: { text: string }) => tooltip.text.includes('Hover Handoff Title')),
+    `strip indicator should use the chip-level tooltip instead of a marker-only tooltip: ${JSON.stringify(markerHandoff)}`
+  )
+  assert.ok(markerHandoff.chipTooltip.found, `chip text tooltip should open after moving from the strip indicator to chip text: ${JSON.stringify(markerHandoff)}`)
 
   const edgeTooltip = await measureTooltipEdgeFlip(session)
   assert.ok(edgeTooltip.first, `tooltip should open near the viewport edge: ${JSON.stringify(edgeTooltip)}`)

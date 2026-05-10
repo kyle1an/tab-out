@@ -23,22 +23,45 @@
         addListener() {},
         removeListener() {}
       }
-      const tabs = Array.from({ length: 24 }, (_, index) => {
-        const domain = `tab-out-smoke-${String(index + 1).padStart(2, '0')}.com`
-        return {
-          id: index + 1,
-          url: `https://${domain}/docs/${index + 1}`,
-          title: index === 0
-            ? 'Short title'
-            : `Example ${index + 1} with enough tooltip text to prove viewport-edge collision flipping keeps the popup visible`,
+      const tabs = [
+        {
+          id: 1001,
+          url: 'https://app.contentful.com/spaces/smoke/environments/dev2/entries/hover-handoff-one',
+          title: 'Hover Handoff Title dev2 extra context',
           favIconUrl: '',
           windowId: 1,
-          active: index === 0,
+          active: false,
           pinned: false,
           groupId: -1,
-          index
-        }
-      })
+          index: 1001
+        },
+        {
+          id: 1002,
+          url: 'https://app.contentful.com/spaces/smoke/environments/dev2/entries/hover-handoff-two',
+          title: 'Another Handoff Page dev2 sibling context',
+          favIconUrl: '',
+          windowId: 1,
+          active: false,
+          pinned: false,
+          groupId: -1,
+          index: 1002
+        },
+        ...Array.from({ length: 24 }, (_, index) => {
+          const domain = `tab-out-smoke-${String(index + 1).padStart(2, '0')}.com`
+          return {
+            id: index + 1,
+            url: `https://${domain}/docs/${index + 1}`,
+            title: index === 0
+              ? 'Short title'
+              : `Example ${index + 1} with enough tooltip text to prove viewport-edge collision flipping keeps the popup visible`,
+            favIconUrl: '',
+            windowId: 1,
+            active: index === 0,
+            pinned: false,
+            groupId: -1,
+            index
+          }
+        })]
 
       window.chrome = {
         bookmarks: {

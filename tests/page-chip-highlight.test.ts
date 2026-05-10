@@ -74,12 +74,14 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.match(markerMatch[1], /\btext-xs\b/)
   assert.match(markerMatch[1], /\bfont-medium\b/)
   assert.doesNotMatch(markerMatch[1], /\bfont-semibold\b/)
+  const markerElementMatch = html.match(/<span class="[^"]*\bchip-title-suppression-marker\b[^"]*"[^>]*>/)
+  assert.ok(markerElementMatch, 'title suppression marker element should render')
+  assert.doesNotMatch(markerElementMatch[0], /data-slot="tooltip-trigger"/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /const shouldShowChipTooltip = chip\.iconOnly \|\| isTextTruncated \|\| hasTitleSuppressionMarkers \|\| hasStructuralPlaceholders/)
   assert.match(pageChipSource, /mode === 'tooltip'[\s\S]*chip-title-suppression-marker inline-flex min-h-4/)
   assert.match(pageChipSource, /renderHighlightedText\(part, filter/)
-  assert.match(pageChipSource, /content=\{part\}/)
-  assert.match(pageChipSource, /className="title-suppression-marker-tooltip text-\[13px\] leading-4"/)
+  assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)
 })
 
 test('PageChip colors title suppression markers from token tones before hover', () => {
@@ -150,6 +152,9 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
   )
 
   assert.match(html, /chip-strip-indicator\b[^>]*aria-label="openai\/docs"[^>]*>\/<\/span>/)
+  const markerElementMatch = html.match(/<span class="[^"]*\bchip-strip-indicator\b[^"]*"[^>]*>/)
+  assert.ok(markerElementMatch, 'strip indicator element should render')
+  assert.doesNotMatch(markerElementMatch[0], /data-slot="tooltip-trigger"/)
   const chipMatch = html.match(/<div class="[^"]*\bpage-chip\b[^"]*"[^>]*>/)
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[0], /data-slot="tooltip-trigger"/)
@@ -157,8 +162,7 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
   assert.match(pageChipSource, /mode === 'tooltip' && hiddenLabel/)
   assert.match(pageChipSource, /chip-strip-indicator inline-block max-w-full/)
   assert.match(pageChipSource, /renderHighlightedText\(hiddenLabel, filter/)
-  assert.match(pageChipSource, /content=\{hiddenLabel\}/)
-  assert.match(pageChipSource, /className="chip-strip-indicator-tooltip text-\[13px\] leading-4"/)
+  assert.doesNotMatch(pageChipSource, /chip-strip-indicator-tooltip/)
 })
 
 test('PageChip marks chips affected by the active suppressed title text', () => {

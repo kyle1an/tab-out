@@ -357,7 +357,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
         </span>
       )
     }
-    return <TooltipAnchor key={key} content={part} className="title-suppression-marker-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
+    return marker
   }
 
   function renderTrailingSuppressionMarkers(mode: ChipTextRenderMode) {
@@ -402,8 +402,7 @@ export function PageChip({ chip, filter = '', activeSuppressedTitle = '', active
         </span>
       )
     }
-    if (!hiddenLabel) return marker
-    return <TooltipAnchor key={key} content={hiddenLabel} className="chip-strip-indicator-tooltip text-[13px] leading-4">{marker}</TooltipAnchor>
+    return marker
   }
 
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
