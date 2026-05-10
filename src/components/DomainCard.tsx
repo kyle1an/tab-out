@@ -36,45 +36,38 @@ function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: Mous
   )
 }
 
-function TabBadge({ label, title }: { label?: string | number; title?: string }) {
+function TabBadge({ label }: { label?: string | number }) {
   const labelText = String(label ?? '')
   const slashIndex = labelText.indexOf('/')
   if (slashIndex > 0) {
     return (
-      <TooltipAnchor content={title}>
-        <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
-          <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
-          <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
-        </span>
-      </TooltipAnchor>
+      <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
+        <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
+        <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
+      </span>
     )
   }
 
   return (
-    <TooltipAnchor content={title}>
-      <span className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
-        {labelText}
-      </span>
-    </TooltipAnchor>
+    <span className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
+      {labelText}
+    </span>
   )
 }
 
 function DedupButton({ count, closing = false, onClick }: { count: number; closing?: boolean; onClick: () => void | Promise<void> }) {
   const label = `Dedupe ${count}`
-  const title = `Close ${count} duplicate${count !== 1 ? 's' : ''}`
   return (
-    <TooltipAnchor content={title}>
-      <button
-        type="button"
-        className={cn(
-          'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-          closing && 'closing'
-        )}
-        onClick={onClick}
-      >
-        {label}
-      </button>
-    </TooltipAnchor>
+    <button
+      type="button"
+      className={cn(
+        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+        closing && 'closing'
+      )}
+      onClick={onClick}
+    >
+      {label}
+    </button>
   )
 }
 
@@ -205,7 +198,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
               {vm.singleSubdomainKey}
             </span>
           )}
-          <TabBadge label={vm.tabCountLabel} title={vm.tabCountTitle} />
+          <TabBadge label={vm.tabCountLabel} />
           {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
           {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
         </header>

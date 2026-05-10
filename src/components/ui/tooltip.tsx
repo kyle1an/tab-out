@@ -162,6 +162,23 @@ type TooltipTriggerElement = ReactElement<{
   onPointerMove?: (event: ReactPointerEvent<HTMLElement>) => void
 }>
 
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return
+  if (typeof ref === 'function') {
+    ref(value)
+    return
+  }
+
+  const mutableRef = ref as { current: T | null }
+  mutableRef.current = value
+}
+
+function composeRefs<T>(...refs: Array<Ref<T> | undefined>): Ref<T> {
+  return (value) => {
+    for (const ref of refs) assignRef(ref, value)
+  }
+}
+
 type TooltipAnchorProps = Omit<
   ComponentProps<typeof TooltipContent>,
   'children' | 'content'
@@ -440,6 +457,11 @@ function TooltipAnchor({
     [markContentPointerOutside]
   )
 
+  const triggerRef = useMemo(
+    () => composeRefs(children.props.ref, triggerElementRef),
+    [children.props.ref]
+  )
+
   const trigger = useMemo(
     () =>
       cloneElement(children, {
@@ -448,9 +470,9 @@ function TooltipAnchor({
         onPointerEnter: handlePointerEnter,
         onPointerLeave: handlePointerLeave,
         onPointerMove: handlePointerMove,
-        ref: triggerElementRef
+        ref: triggerRef
       }),
-    [children, handleBlur, handleFocus, handlePointerEnter, handlePointerLeave, handlePointerMove]
+    [children, handleBlur, handleFocus, handlePointerEnter, handlePointerLeave, handlePointerMove, triggerRef]
   )
 
   const cursorAnchor = useMemo(() => {

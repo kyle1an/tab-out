@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
 import { PageChip } from './PageChip'
@@ -8,6 +8,12 @@ import { cn } from '@/lib/utils'
 import { TITLE_SUPPRESSION_MARKER_SYMBOL, countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, DashboardTitleSuppression } from './types'
+
+let pathgroupLabelResizeObserver: ResizeObserver | null = null
+const pathgroupLabelTruncationCallbacks = new WeakMap<
+  HTMLElement,
+  (isTruncated: boolean) => void
+>()
 
 interface PathgroupCloseButtonProps {
   count: number
@@ -36,6 +42,29 @@ function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
 }
 
+function isPathgroupLabelTruncated(labelEl: HTMLElement | null) {
+  if (!labelEl) return false
+  return labelEl.scrollWidth - labelEl.clientWidth > 1
+}
+
+function syncPathgroupLabelTruncation(labelEl: HTMLElement | null) {
+  const isTruncated = isPathgroupLabelTruncated(labelEl)
+  if (labelEl) pathgroupLabelTruncationCallbacks.get(labelEl)?.(isTruncated)
+  return isTruncated
+}
+
+function getPathgroupLabelResizeObserver() {
+  if (typeof ResizeObserver !== 'function') return null
+  if (!pathgroupLabelResizeObserver) {
+    pathgroupLabelResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target instanceof HTMLElement) syncPathgroupLabelTruncation(entry.target)
+      }
+    })
+  }
+  return pathgroupLabelResizeObserver
+}
+
 function PathgroupCloseButton({ count, isFirstContent = false, onClick }: PathgroupCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
@@ -59,11 +88,56 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
 
 export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', suppressedTitleParts = [], useSuppressionTokenTones = false, suppressedTitleToneIndexByText = new Map<string, number>(), suppressedTitleToneByText }: PathgroupSectionProps) {
   const [expanded, setExpanded] = useState(false)
+  const labelRef = useRef<HTMLSpanElement | null>(null)
+  const [pathgroupLabelTruncated, setPathgroupLabelTruncated] = useState(false)
   const { activeSuppressedTitle, setActiveSuppressedTitle, onLayoutChange } = useDomainCardContext()
   const displayLabel = pathGroupDisplayLabel(label)
+  const pathgroupLabelTooltipContent = pathgroupLabelTruncated ? (
+    <span className="text-[13px] leading-tight">{displayLabel}</span>
+  ) : undefined
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
   const hiddenSuppressionCoversAll = hiddenSuppressionMatchCount > 0 && hiddenSuppressionMatchCount === hiddenCount
+
+  const updatePathgroupLabelTruncation = useCallback((labelEl: HTMLElement | null) => {
+    const isTruncated = syncPathgroupLabelTruncation(labelEl)
+    setPathgroupLabelTruncated((current) => current === isTruncated ? current : isTruncated)
+  }, [])
+
+  useLayoutEffect(() => {
+    const labelEl = labelRef.current
+    if (!labelEl) return
+
+    const frameId = requestAnimationFrame(() => updatePathgroupLabelTruncation(labelEl))
+    return () => cancelAnimationFrame(frameId)
+  })
+
+  useEffect(() => {
+    const labelEl = labelRef.current
+    if (!labelEl) return
+
+    let disposed = false
+    const observer = getPathgroupLabelResizeObserver()
+    pathgroupLabelTruncationCallbacks.set(labelEl, (isTruncated) => {
+      if (disposed) return
+      setPathgroupLabelTruncated((current) => current === isTruncated ? current : isTruncated)
+    })
+    observer?.observe(labelEl)
+
+    const fontSet = document.fonts
+    const onFontsDone = () => {
+      if (!disposed) updatePathgroupLabelTruncation(labelEl)
+    }
+    fontSet?.addEventListener?.('loadingdone', onFontsDone)
+    fontSet?.ready?.then?.(onFontsDone)
+
+    return () => {
+      disposed = true
+      observer?.unobserve(labelEl)
+      pathgroupLabelTruncationCallbacks.delete(labelEl)
+      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+    }
+  }, [updatePathgroupLabelTruncation])
 
   function onExpand() {
     setExpanded(true)
@@ -83,8 +157,8 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
           isFirstContent ? 'pt-0' : 'pt-[3px]'
         )}
       >
-        <TooltipAnchor content={displayLabel}>
-          <span className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
+        <TooltipAnchor content={pathgroupLabelTooltipContent}>
+          <span ref={labelRef} className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
             {displayLabel}
           </span>
         </TooltipAnchor>
