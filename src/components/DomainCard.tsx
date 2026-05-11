@@ -291,8 +291,8 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
         <div
           className={cn(
             'mission-card relative flex flex-col gap-2 overflow-hidden rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
-            isAppsCard ? 'p-[7px]' : 'p-2 group-hover/domain-block:shadow-[0_2px_6px_var(--shadow)]',
-            (isFixedCard || group.pinned) && 'border-[rgba(82,82,82,0.32)]'
+            isAppsCard ? 'p-[7px]' : 'p-2',
+            (isFixedCard || group.pinned) && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
           )}
         >
           <TitleSuppressionSummary
