@@ -34,6 +34,7 @@
   --dashboard-history-edge-gutter: 12px;
   --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
+  --dashboard-card-shadow-bleed: 6px;
   --header-control-height: 34px;
   --header-control-radius: 16px;
   --header-control-font-size: 13px;
@@ -192,8 +193,8 @@ body {
 }
 
 .dashboard-shell.is-bookmarks .dashboard-main > .scroll-region {
-  margin-left: calc(0px - var(--dashboard-edge-bleed));
-  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
+  margin-left: calc(0px - var(--dashboard-edge-bleed) - var(--dashboard-card-shadow-bleed));
+  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter) + var(--dashboard-card-shadow-bleed));
 }
 
 .pinned-top.is-scrolled {
@@ -224,8 +225,10 @@ body {
 }
 
 .dashboard-main > .scroll-region {
+  margin-left: calc(0px - var(--dashboard-card-shadow-bleed));
   margin-right: calc(0px - var(--dashboard-edge-bleed));
   padding-top: 6px;
+  padding-left: var(--dashboard-card-shadow-bleed);
   padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
   padding-bottom: 50px;
   scrollbar-gutter: stable;
