@@ -364,6 +364,40 @@ test('computeDomainCardViewModel scopes title suppression tokens to a pathgroup 
   assert.deepEqual(envAlphaCluster?.suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
 })
 
+test('computeDomainCardViewModel orders title suppression summary by source title position before count', () => {
+  const group = {
+    domain: 'contentful.com',
+    tabs: [
+      makeTab({
+        url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-alpha',
+        title: 'Example Article Alpha — Content — Example Website — env-alpha — Contentful'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-beta',
+        title: 'Example Article Beta — Content — Example Website — env-alpha — Contentful'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-gamma',
+        title: 'Content: All entries — env-alpha — Contentful'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const appSection = vm.sections.find((section) => section.key === 'app')
+  const envAlphaCluster = appSection?.clusters.find((cluster) => cluster.label === 'env-alpha')
+  const expectedSummary = [
+    { text: '— Content — Example Website —', count: 2 },
+    { text: '— Contentful', count: 3 }
+  ]
+
+  assert.deepEqual(vm.suppressedTitleParts, [])
+  assert.deepEqual(vm.allSuppressedTitleParts, expectedSummary)
+  assert.deepEqual(envAlphaCluster?.suppressedTitleParts, expectedSummary)
+})
+
 test('computeDomainCardViewModel suppresses shared title text before structural path labels', () => {
   const titles = [
     'Example Article Alpha — Content — Example Website — env-alpha — Contentful',
@@ -396,10 +430,10 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
   assert.deepEqual(vm.sections[0].clusters[0].suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['— Content — Example Website —', '— Contentful'], ['— Content — Example Website —', '— Contentful']])
-  assert.deepEqual(structuralPlaceholderLabels, ['dev2', 'dev2'])
+  assert.deepEqual(structuralPlaceholderLabels, ['env-alpha', 'env-alpha'])
   assert.deepEqual(visibleTitles, [
-    'Example Article Beta ˷ /',
-    'Example Article Alpha ˷ /'
+    'Example Article Alpha ˷ /',
+    'Example Article Beta ˷ /'
   ])
   assert.ok(visibleTitles.every((title) => !title.includes('Content') && !title.includes('Example Website')))
 
@@ -431,6 +465,80 @@ test('computeDomainCardViewModel treats Google Search as shared hidden title tex
   assert.equal(section.hasFlat, true)
 })
 
+test('computeDomainCardViewModel marks single title suppression that spans rendered child groups', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({
+        url: 'https://example.atlassian.net/jira/your-work',
+        title: 'Work item search - JIRA'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://example.atlassian.net/browse/TASK-1001',
+        title: '[TASK-1001] Account settings - JIRA'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://example.atlassian.net/browse/DOC-201',
+        title: '[DOC-201] Example checklist - JIRA'
+      }),
+      makeTab({
+        id: 4,
+        url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+        title: 'Platform Architecture Notes - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 5,
+        url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-beta',
+        title: 'Shared Library Plan - Example-Site - Confluence'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const section = vm.sections[0]
+
+  assert.deepEqual(vm.suppressedTitleParts, [])
+  assert.deepEqual(section.suppressedTitleParts, [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }])
+  assert.equal(section.hasFlat, true)
+  assert.deepEqual(section.clusters.map((cluster) => cluster.label), ['DOC', 'KB', 'TASK'])
+})
+
+test('computeDomainCardViewModel keeps single title suppression neutral when it is the only card meaning', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({
+        url: 'https://www.example.test/',
+        title: 'Deployment History - ENV A | Example Retail'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://env-a.example.test/order',
+        title: 'Order Page | Example Retail'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://env-b.example.test/resource/config/account/en-US.json',
+        title: 'env-b.example.test/resource/config/account/en-US.json | Example Retail'
+      }),
+      makeTab({
+        id: 4,
+        url: 'https://stage.example.test/help',
+        title: 'stage.example.test/help | Example Retail'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+
+  assert.deepEqual(vm.suppressedTitleParts, [{ text: '| Example Retail', count: 4 }])
+  assert.equal(vm.suppressedTitleParts[0].spansRenderedChildGroups, undefined)
+  assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '| Example Retail', count: 4 }])
+  assert.ok(vm.sections.length > 1)
+})
+
 test('computeDomainCardViewModel exposes Confluence product and site suffixes as title noise', () => {
   const group = {
     domain: 'atlassian.net',
@@ -446,18 +554,18 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
       }),
       makeTab({
         id: 3,
-        url: 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-alpha/Example+Architecture+Plan',
-        title: 'Example Architecture Plan - Example Knowledge Site - Confluence'
+        url: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-alpha/Platform+Architecture+Notes',
+        title: 'Platform Architecture Notes - Example-Site - Confluence'
       }),
       makeTab({
         id: 4,
-        url: 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-beta/Example+Shared+Library',
-        title: 'Example Shared Library Design - Example Knowledge Site - Confluence'
+        url: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-beta/Shared+Library+Plan',
+        title: 'Shared Library Plan - Example-Site - Confluence'
       }),
       makeTab({
         id: 5,
-        url: 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-gamma/Example+Content+Guide',
-        title: 'Example Mobile App HTML Content Guide - Example Knowledge Site - Confluence'
+        url: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-gamma/Content+Guide',
+        title: 'Example Content Guide - Example-Site - Confluence'
       })
     ]
   }
@@ -471,19 +579,20 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
   const zcsCluster = vm.sections.flatMap((section) => section.clusters).find((cluster) => cluster.label === 'DOCS')
 
   assert.deepEqual(vm.suppressedTitleParts, [])
-  assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example Knowledge Site - Confluence', count: 3 }])
-  assert.deepEqual(zcsCluster?.suppressedTitleParts, [{ text: '- Example Knowledge Site - Confluence', count: 3 }])
+  assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example-Site - Confluence', count: 3 }])
+  assert.deepEqual(zcsCluster?.suppressedTitleParts, [{ text: '- Example-Site - Confluence', count: 3 }])
+  assert.equal(zcsCluster?.suppressedTitleParts?.[0]?.spansRenderedChildGroups, undefined)
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [
-    ['- Example Knowledge Site - Confluence'],
-    ['- Example Knowledge Site - Confluence'],
-    ['- Example Knowledge Site - Confluence']
+    ['- Example-Site - Confluence'],
+    ['- Example-Site - Confluence'],
+    ['- Example-Site - Confluence']
   ])
   assert.ok(titles.every((title) => !title.includes('Example-Site')))
   assert.ok(titles.every((title) => !title.includes('Confluence')))
 })
 
 test('computeDomainCardViewModel keeps one-off cleaned title suffixes out of the summary row', () => {
-  const wikiUrl = 'https://example.atlassian.net/wiki/spaces/SPACE/pages/page-alpha/Example+Architecture+Plan'
+  const wikiUrl = 'https://example.atlassian.net/wiki/spaces/DOCS/pages/page-alpha/Platform+Architecture+Notes'
   const group = {
     domain: 'atlassian.net',
     tabs: [

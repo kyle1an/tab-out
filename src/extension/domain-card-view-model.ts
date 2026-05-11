@@ -19,6 +19,7 @@ type PathCategory = NonNullable<PathGroupResult['category']>
 type TitlePresentation = {
   displayTitle: string
   suppressedTitleParts: string[]
+  suppressedTitlePartPositions: number[]
   suppressedTitlePartsBeforeStructuralTail: string[]
 }
 type BaseTitlePresentation = {
@@ -41,6 +42,7 @@ type TitlePresentationRow = {
   removedDomainTitleSuffix: string
   removedDomainTitleSuffixLabel: string
   suppressedTitleParts: string[]
+  suppressedTitlePartPositions: number[]
   suppressedTitlePartsBeforeStructuralTail: string[]
   structuralTails: StructuralTitleTail[]
   pathGroupKey: string
@@ -237,6 +239,11 @@ function isBoundaryWrappedTitleSuppression(part: string): boolean {
   return TITLE_BOUNDARY_SEPARATOR_RE.test(text) && TITLE_BOUNDARY_TRAILING_SEPARATOR_RE.test(text)
 }
 
+function titleSuppressionPartPosition(title: string, part: string): number {
+  const index = title.toLowerCase().indexOf(part.toLowerCase())
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index
+}
+
 function titleSuppressionTailLabel(part: string): string {
   return part.trim().replace(TITLE_BOUNDARY_SEPARATOR_RE, '').trim()
 }
@@ -364,6 +371,7 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
 
     const partsBeforeStructuralTail = new Set(row.suppressedTitlePartsBeforeStructuralTail)
     const nextParts: string[] = []
+    const nextPartPositions: number[] = []
     const nextPartsBeforeStructuralTail: string[] = []
     for (let index = 0; index < row.suppressedTitleParts.length;) {
       let merged: { text: string; endIndex: number } | null = null
@@ -379,6 +387,7 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
       if (merged) {
         const sequence = row.suppressedTitleParts.slice(index, merged.endIndex)
         nextParts.push(merged.text)
+        nextPartPositions.push(titleSuppressionPartPosition(row.rawTitle, merged.text))
         if (sequence.every((part) => partsBeforeStructuralTail.has(part))) {
           nextPartsBeforeStructuralTail.push(merged.text)
         }
@@ -388,11 +397,13 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
 
       const part = row.suppressedTitleParts[index]
       nextParts.push(part)
+      nextPartPositions.push(row.suppressedTitlePartPositions[index] ?? titleSuppressionPartPosition(row.rawTitle, part))
       if (partsBeforeStructuralTail.has(part)) nextPartsBeforeStructuralTail.push(part)
       index += 1
     }
 
     row.suppressedTitleParts = nextParts
+    row.suppressedTitlePartPositions = nextPartPositions
     row.suppressedTitlePartsBeforeStructuralTail = nextPartsBeforeStructuralTail
   }
 }
@@ -609,6 +620,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         removedDomainTitleSuffix: baseTitle.removedDomainTitleSuffix,
         removedDomainTitleSuffixLabel: titleSuppressionTailLabel(baseTitle.removedDomainTitleSuffix),
         suppressedTitleParts: [] as string[],
+        suppressedTitlePartPositions: [] as number[],
         suppressedTitlePartsBeforeStructuralTail: [] as string[],
         structuralTails: pathGroup?.label ? [{ label: pathGroup.label, includeSeparatorInSuppression: true }] : ([] as StructuralTitleTail[]),
         pathGroupKey: pathGroup?.key || ''
@@ -624,6 +636,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       if (!row.removedDomainTitleSuffix) continue
       if ((removedDomainTitleSuffixCounts.get(row.removedDomainTitleSuffix) || 0) > 1) {
         row.suppressedTitleParts.push(row.removedDomainTitleSuffix)
+        row.suppressedTitlePartPositions.push(titleSuppressionPartPosition(row.rawTitle, row.removedDomainTitleSuffix))
       } else {
         row.displayTitle = row.rawTitle
         if (row.removedDomainTitleSuffixLabel) {
@@ -640,6 +653,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       return new Map(rows.map((row) => [row.url, {
         displayTitle: row.displayTitle,
         suppressedTitleParts: row.suppressedTitleParts,
+        suppressedTitlePartPositions: row.suppressedTitlePartPositions,
         suppressedTitlePartsBeforeStructuralTail: row.suppressedTitlePartsBeforeStructuralTail
       }]))
     }
@@ -709,6 +723,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         if (stripped.length < 3) continue
         row.displayTitle = stripped + (candidate.structuralTailIndex === null ? '' : row.displayTitle.slice(candidate.structuralTailIndex))
         row.suppressedTitleParts.unshift(candidate.text)
+        row.suppressedTitlePartPositions.unshift(titleSuppressionPartPosition(row.rawTitle, candidate.text))
         if (candidate.structuralTailIndex !== null) {
           row.suppressedTitlePartsBeforeStructuralTail.unshift(candidate.text)
         }
@@ -721,6 +736,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return new Map(rows.map((row) => [row.url, {
       displayTitle: row.displayTitle,
       suppressedTitleParts: row.suppressedTitleParts,
+      suppressedTitlePartPositions: row.suppressedTitlePartPositions,
       suppressedTitlePartsBeforeStructuralTail: row.suppressedTitlePartsBeforeStructuralTail
     }]))
   }
@@ -731,6 +747,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return titlePresentationByUrl.get(tab.url) || {
       displayTitle: stripTitleNoise(tab.title || ''),
       suppressedTitleParts: [],
+      suppressedTitlePartPositions: [],
       suppressedTitlePartsBeforeStructuralTail: []
     }
   }
@@ -743,19 +760,28 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   function titleSuppressionSummary() {
-    const partsByText = new Map<string, { text: string; count: number; firstPartIndex: number; firstSeen: number }>()
+    const partsByText = new Map<string, { text: string; count: number; firstTitlePosition: number; firstPartIndex: number; firstSeen: number }>()
+    const beforeByKey = new Map<string, Set<string>>()
     let firstSeen = 0
     for (const presentation of titlePresentationByUrl.values()) {
+      const partKeys = presentation.suppressedTitleParts.map(titleSuppressionKey)
+      partKeys.forEach((key, index) => {
+        if (!beforeByKey.has(key)) beforeByKey.set(key, new Set())
+        for (const laterKey of partKeys.slice(index + 1)) beforeByKey.get(key)?.add(laterKey)
+      })
       presentation.suppressedTitleParts.forEach((part, partIndex) => {
         const existing = partsByText.get(part)
+        const titlePosition = presentation.suppressedTitlePartPositions[partIndex] ?? Number.MAX_SAFE_INTEGER
         if (existing) {
           existing.count += 1
+          existing.firstTitlePosition = Math.min(existing.firstTitlePosition, titlePosition)
           existing.firstPartIndex = Math.min(existing.firstPartIndex, partIndex)
           return
         }
         partsByText.set(part, {
           text: part,
           count: 1,
+          firstTitlePosition: titlePosition,
           firstPartIndex: partIndex,
           firstSeen
         })
@@ -763,14 +789,35 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       })
     }
 
+    const reachesCache = new Map<string, boolean>()
+    function reaches(fromKey: string, toKey: string, seen = new Set<string>()): boolean {
+      const cacheKey = `${fromKey}\u0000${toKey}`
+      if (reachesCache.has(cacheKey)) return !!reachesCache.get(cacheKey)
+      if (seen.has(fromKey)) return false
+      seen.add(fromKey)
+      const direct = beforeByKey.get(fromKey)
+      const result = !!direct?.has(toKey) || [...(direct ?? [])].some((nextKey) => reaches(nextKey, toKey, seen))
+      reachesCache.set(cacheKey, result)
+      return result
+    }
+
     return [...partsByText.values()]
       .filter((part) => part.count > 1)
-      .sort((a, b) => b.count - a.count || a.firstPartIndex - b.firstPartIndex || a.firstSeen - b.firstSeen || a.text.localeCompare(b.text, undefined, { numeric: true }))
+      .sort((a, b) => {
+        const aKey = titleSuppressionKey(a.text)
+        const bKey = titleSuppressionKey(b.text)
+        const aBeforeB = reaches(aKey, bKey)
+        const bBeforeA = reaches(bKey, aKey)
+        if (aBeforeB && !bBeforeA) return -1
+        if (bBeforeA && !aBeforeB) return 1
+        return a.firstTitlePosition - b.firstTitlePosition || a.firstPartIndex - b.firstPartIndex || b.count - a.count || a.firstSeen - b.firstSeen || a.text.localeCompare(b.text, undefined, { numeric: true })
+      })
       .map(({ text, count }) => ({ text, count }))
   }
 
   const suppressedTitleParts = titleSuppressionSummary()
   const suppressedTitlePartOrder = new Map(suppressedTitleParts.map((part, index) => [part.text.toLowerCase(), index]))
+  const hasMultipleVisibleSuppressionMeanings = suppressedTitleParts.length > 1
 
   function titleSuppressionKey(text: string): string {
     return text.trim().toLowerCase()
@@ -1286,6 +1333,23 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       })
     }
 
+    function childGroupScopedPart(part: DashboardTitleSuppression, spansRenderedChildGroups: boolean): DashboardTitleSuppression {
+      return hasMultipleVisibleSuppressionMeanings && spansRenderedChildGroups ? { ...part, spansRenderedChildGroups: true } : part
+    }
+
+    function clusterRef(sectionIndex: number, clusterIndex: number): string {
+      return `${sectionIndex}\u0000${clusterIndex}`
+    }
+
+    function sectionChildGroupCount(tracker: ScopeTracker, sectionIndex: number): number {
+      let count = tracker.flatSectionIndexes.has(sectionIndex) ? 1 : 0
+      const prefix = `${sectionIndex}\u0000`
+      for (const ref of tracker.clusterRefs) {
+        if (ref.startsWith(prefix)) count += 1
+      }
+      return count
+    }
+
     function recordChip(chip: DashboardChipData, sectionIndex: number, clusterIndex: number | null) {
       for (const part of chip.suppressedTitleParts || []) {
         const tracker = trackers.get(titleSuppressionKey(part))
@@ -1294,7 +1358,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         if (clusterIndex === null) {
           tracker.flatSectionIndexes.add(sectionIndex)
         } else {
-          tracker.clusterRefs.add(`${sectionIndex}\u0000${clusterIndex}`)
+          tracker.clusterRefs.add(clusterRef(sectionIndex, clusterIndex))
         }
       }
     }
@@ -1320,20 +1384,20 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       }
 
       if (tracker.clusterRefs.size === 1 && tracker.flatSectionIndexes.size === 0) {
-        const clusterRef = [...tracker.clusterRefs][0]
-        if (!clusterPartsByRef.has(clusterRef)) clusterPartsByRef.set(clusterRef, [])
-        clusterPartsByRef.get(clusterRef)?.push(part)
+        const clusterRefKey = [...tracker.clusterRefs][0]
+        if (!clusterPartsByRef.has(clusterRefKey)) clusterPartsByRef.set(clusterRefKey, [])
+        clusterPartsByRef.get(clusterRefKey)?.push(part)
         continue
       }
 
       if (tracker.sectionIndexes.size === 1) {
         const sectionIndex = [...tracker.sectionIndexes][0]
         if (!sectionPartsByIndex.has(sectionIndex)) sectionPartsByIndex.set(sectionIndex, [])
-        sectionPartsByIndex.get(sectionIndex)?.push(part)
+        sectionPartsByIndex.get(sectionIndex)?.push(childGroupScopedPart(part, sectionChildGroupCount(tracker, sectionIndex) > 1))
         continue
       }
 
-      cardParts.push(part)
+      cardParts.push(childGroupScopedPart(part, tracker.sectionIndexes.size > 1))
     }
 
     const scopedSections = sectionsToScope.map((section, sectionIndex) => ({
@@ -1341,7 +1405,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       suppressedTitleParts: sectionPartsByIndex.get(sectionIndex) ?? [],
       clusters: section.clusters.map((cluster, clusterIndex) => ({
         ...cluster,
-        suppressedTitleParts: clusterPartsByRef.get(`${sectionIndex}\u0000${clusterIndex}`) ?? []
+        suppressedTitleParts: clusterPartsByRef.get(clusterRef(sectionIndex, clusterIndex)) ?? []
       }))
     }))
 

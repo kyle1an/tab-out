@@ -112,6 +112,13 @@ Once the extension is loaded:
 - Before rewriting published history, create a backup branch.
 - Push rewritten published history only with `git push --force-with-lease`.
 
+## Repository Privacy Hygiene
+
+- Do not commit real/private URLs, customer domains, tenant names, account names, project keys, space IDs, entry IDs, route paths, content titles, or screenshot-derived labels in comments, tests, fixtures, documentation, or example data.
+- Use fake or generic values that preserve only the structural shape needed for the behavior under test, such as `example.com`, `example.test`, `example-space`, `env-alpha`, `entry-alpha`, and neutral titles like `Example Article`.
+- Public product hosts are allowed in implementation code when the feature depends on them, such as host-specific path-group rules, but tests should still use generic tenants, paths, IDs, and titles.
+- When adapting a real repro into a test or doc, replace all customer, product, content, and route wording with neutral examples before committing.
+
 ## Live QA & Inspection
 
 - For live Tab Out behavior, inspect the real Chrome extension page, not the Codex in-app browser.

@@ -6,7 +6,7 @@ import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
-import type { TitleSuppressionTone } from './title-suppression'
+import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
 import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression } from './types'
 
 interface SubdomainCloseButtonProps {
@@ -26,7 +26,10 @@ interface SubdomainSectionProps {
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
   suppressedTitleParts?: DashboardTitleSuppression[]
-  clusters: DashboardClusterVM[]
+  clusters: Array<DashboardClusterVM & {
+    titleSuppressionToneScope?: TitleSuppressionToneScope
+    suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  }>
   filter?: string
   useSuppressionTokenTones?: boolean
   suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
@@ -127,8 +130,8 @@ export function SubdomainSection({
       )}
       {clusters.map((cluster, index) => {
         const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
-        const clusterSuppressionToneScope = createTitleSuppressionToneScope(clusterSuppressedTitleParts)
-        const clusterSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
+        const clusterSuppressionToneScope = cluster.titleSuppressionToneScope ?? createTitleSuppressionToneScope(clusterSuppressedTitleParts)
+        const clusterSuppressedTitleToneByText = cluster.suppressedTitleToneByText ?? mergeTitleSuppressionToneMaps(
           suppressedTitleToneByText,
           clusterSuppressionToneScope.suppressedTitleToneByText
         )

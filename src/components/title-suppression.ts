@@ -9,6 +9,17 @@ export interface TitleSuppressionToneScope {
   useSuppressionTokenTones: boolean
   suppressedTitleToneIndexByText: ReadonlyMap<string, number>
   suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
+  usedToneCount: number
+}
+
+type TitleSuppressionTonePart = {
+  text: string
+  count?: number
+  spansRenderedChildGroups?: boolean
+}
+
+interface TitleSuppressionToneScopeOptions {
+  startToneIndex?: number
 }
 
 export function titleSuppressionKey(text: string): string {
@@ -61,19 +72,33 @@ export function titleSuppressionToneForIndex(index: number): TitleSuppressionTon
   return TITLE_SUPPRESSION_TONE_NAMES[index % TITLE_SUPPRESSION_TONE_NAMES.length]
 }
 
-export function createTitleSuppressionToneScope(parts: readonly { text: string }[]): TitleSuppressionToneScope {
-  const useSuppressionTokenTones = parts.length > 1
+export function createTitleSuppressionToneScope(
+  parts: readonly TitleSuppressionTonePart[],
+  { startToneIndex = 0 }: TitleSuppressionToneScopeOptions = {}
+): TitleSuppressionToneScope {
+  const useSuppressionTokenTones = parts.length > 1 || parts.some((part) => !!part.spansRenderedChildGroups)
+  const toneOrderedParts = [...parts]
+    .map((part, displayIndex) => ({ part, displayIndex }))
+    .sort((a, b) => (b.part.count ?? 0) - (a.part.count ?? 0) || a.displayIndex - b.displayIndex || a.part.text.localeCompare(b.part.text, undefined, { numeric: true }))
+  const toneIndexByText = new Map<string, number>(
+    toneOrderedParts.map(({ part }, toneOffset) => [titleSuppressionKey(part.text), startToneIndex + toneOffset])
+  )
   const suppressedTitleToneIndexByText = new Map<string, number>(
-    parts.map((part, index) => [titleSuppressionKey(part.text), index])
+    parts.map((part, index) => [titleSuppressionKey(part.text), toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex + index])
   )
   const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>(
-    parts.map((part, index) => [
+    parts.map((part) => [
       titleSuppressionKey(part.text),
-      useSuppressionTokenTones ? titleSuppressionToneForIndex(index) : ''
+      useSuppressionTokenTones ? titleSuppressionToneForIndex(toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex) : ''
     ])
   )
 
-  return { useSuppressionTokenTones, suppressedTitleToneIndexByText, suppressedTitleToneByText }
+  return {
+    useSuppressionTokenTones,
+    suppressedTitleToneIndexByText,
+    suppressedTitleToneByText,
+    usedToneCount: useSuppressionTokenTones ? parts.length : 0
+  }
 }
 
 export function mergeTitleSuppressionToneMaps(

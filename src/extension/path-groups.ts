@@ -118,8 +118,8 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
   },
 
   // Contentful: /spaces/<SPACE>/environments/<ENV>/... → group by env.
-  // Environment is the axis that actually varies across tabs (dev2,
-  // master, prod); the space is usually constant for a given user.
+  // Environment is the axis that actually varies across tabs (env-a,
+  // env-b, prod); the space is usually constant for a given user.
   {
     hostname: 'app.contentful.com',
     extract: (u: URL) => {

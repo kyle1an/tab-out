@@ -66,6 +66,7 @@ export type DashboardSegment = string | { placeholder: true; label?: string } | 
 export interface DashboardTitleSuppression {
   text: string
   count: number
+  spansRenderedChildGroups?: boolean
 }
 
 export interface DashboardChipEnv {

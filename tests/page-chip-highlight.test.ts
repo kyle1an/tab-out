@@ -536,6 +536,147 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
   assert.doesNotMatch(markerMatch[1], /title-suppression-token-tone-/)
 })
 
+test('DomainCard colors section-scoped single suppressed title text when it spans rendered child groups', () => {
+  const group: DomainGroup = {
+    domain: 'atlassian.net',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-atlassian-net',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '3',
+    suppressedTitleParts: [],
+    allSuppressedTitleParts: [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }],
+    sections: [
+      {
+        key: '',
+        sectionCount: 3,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: false,
+        hasFlat: true,
+        flatVisibleChips: [
+          makeChip({
+            displaySegments: ['Work item search'],
+            suppressedTitleParts: ['- JIRA']
+          })
+        ],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }],
+        clusters: [
+          {
+            key: 'jira:CT',
+            label: 'CT',
+            isPR: false,
+            count: 1,
+            closableUrls: [],
+            suppressedTitleParts: [],
+            visibleChips: [
+              makeChip({
+                rawUrl: 'https://example.atlassian.net/browse/APP-1',
+                tabUrl: 'https://example.atlassian.net/browse/APP-1',
+                displaySegments: ['[APP-1] Account settings'],
+                suppressedTitleParts: ['- JIRA']
+              })
+            ],
+            hiddenChips: [],
+            hiddenCount: 0
+          }
+        ]
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.ok(tokenMatch, 'section-scoped suppression token should render')
+  assert.match(tokenMatch[1], /title-suppression-token-tone-amber/)
+  assert.equal(markerClasses.length, 2)
+  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-amber/)
+})
+
+test('DomainCard keeps cross-child single suppressed title text neutral when it is the only card meaning', () => {
+  const group: DomainGroup = {
+    domain: 'example.test',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-example-test',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '4',
+    suppressedTitleParts: [{ text: '| Example Retail', count: 4 }],
+    allSuppressedTitleParts: [{ text: '| Example Retail', count: 4 }],
+    sections: [
+      {
+        key: '',
+        sectionCount: 2,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: true,
+        hasFlat: true,
+        flatVisibleChips: [
+          makeChip({
+            displaySegments: ['Deployment History - ENV A'],
+            suppressedTitleParts: ['| Example Retail']
+          })
+        ],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: []
+      },
+      {
+        key: 'env-a',
+        sectionCount: 1,
+        sectionClosableUrls: [],
+        showHeader: true,
+        isShared: false,
+        hasFlat: true,
+        flatVisibleChips: [
+          makeChip({
+            rawUrl: 'https://env-a.example.test/order',
+            tabUrl: 'https://env-a.example.test/order',
+            displaySegments: ['Order Page'],
+            suppressedTitleParts: ['| Example Retail']
+          })
+        ],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: []
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.ok(tokenMatch, 'card-scoped suppression token should render')
+  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
+  assert.equal(markerClasses.length, 2)
+  assert.doesNotMatch(markerClasses[0], /title-suppression-token-tone-/)
+  assert.doesNotMatch(markerClasses[1], /title-suppression-token-tone-/)
+})
+
 test('DomainCard renders pathgroup-scoped single suppressed title text as neutral', () => {
   const group: DomainGroup = {
     domain: 'contentful.com',
@@ -672,6 +813,164 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
   assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
 })
 
+test('DomainCard displays suppression tokens in title order while coloring higher coverage tokens first', () => {
+  const group: DomainGroup = {
+    domain: 'contentful.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-contentful-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '17',
+    suppressedTitleParts: [],
+    allSuppressedTitleParts: [
+      { text: '— Content — Example Website —', count: 6 },
+      { text: '— Example Website —', count: 3 },
+      { text: '— Contentful', count: 14 }
+    ],
+    sections: [
+      {
+        key: 'app',
+        sectionCount: 17,
+        sectionClosableUrls: [],
+        showHeader: true,
+        isShared: false,
+        hasFlat: false,
+        flatVisibleChips: [],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: [
+          {
+            key: 'dev2',
+            label: 'dev2',
+            isPR: false,
+            count: 8,
+            closableUrls: [],
+            suppressedTitleParts: [
+              { text: '— Content — Example Website —', count: 6 },
+              { text: '— Example Website —', count: 3 },
+              { text: '— Contentful', count: 14 }
+            ],
+            visibleChips: [
+              makeChip({
+                displaySegments: ['Example Article Beta'],
+                suppressedTitleParts: ['— Content — Example Website —', '— Example Website —', '— Contentful']
+              })
+            ],
+            hiddenChips: [],
+            hiddenCount: 0
+          }
+        ]
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenMatches = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"[^>]*aria-label="Suppressed in \d+ titles: ([^"]+)"/g)]
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.deepEqual(tokenMatches.map((match) => match[2]), [
+    '— Content — Example Website —',
+    '— Example Website —',
+    '— Contentful'
+  ])
+  assert.match(tokenMatches[0][1], /title-suppression-token-tone-teal/)
+  assert.match(tokenMatches[1][1], /title-suppression-token-tone-sky/)
+  assert.match(tokenMatches[2][1], /title-suppression-token-tone-amber/)
+  assert.equal(markerClasses.length, 3)
+  assert.match(markerClasses[0], /title-suppression-token-tone-teal/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-sky/)
+  assert.match(markerClasses[2], /title-suppression-token-tone-amber/)
+})
+
+test('DomainCard coordinates child title suppression tones with a colored ancestor scope', () => {
+  const group: DomainGroup = {
+    domain: 'atlassian.net',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-atlassian-net',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '5',
+    suppressedTitleParts: [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }],
+    allSuppressedTitleParts: [
+      { text: '- JIRA', count: 3, spansRenderedChildGroups: true },
+      { text: '- Example-Site', count: 2 },
+      { text: '- Confluence', count: 2 }
+    ],
+    sections: [
+      {
+        key: '',
+        sectionCount: 5,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: false,
+        hasFlat: true,
+        flatVisibleChips: [
+          makeChip({
+            displaySegments: ['Work item search'],
+            suppressedTitleParts: ['- JIRA']
+          })
+        ],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: [
+          {
+            key: 'wiki:KB',
+            label: 'KB',
+            isPR: false,
+            count: 2,
+            closableUrls: [],
+            suppressedTitleParts: [
+              { text: '- Example-Site', count: 2 },
+              { text: '- Confluence', count: 2 }
+            ],
+            visibleChips: [
+              makeChip({
+                rawUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+                tabUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+                displaySegments: ['Platform Architecture Notes'],
+                suppressedTitleParts: ['- Example-Site', '- Confluence']
+              })
+            ],
+            hiddenChips: [],
+            hiddenCount: 0
+          }
+        ]
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+
+  assert.equal(tokenClasses.length, 3)
+  assert.match(tokenClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
+  assert.match(tokenClasses[2], /title-suppression-token-tone-sky/)
+  assert.equal(markerClasses.length, 3)
+  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
+  assert.match(markerClasses[2], /title-suppression-token-tone-sky/)
+})
+
 test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
@@ -718,12 +1017,12 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
 
   assert.equal(tokenClasses.length, 3)
-  assert.match(tokenClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
-  assert.match(tokenClasses[2], /title-suppression-token-tone-sky/)
+  assert.match(tokenClasses[0], /title-suppression-token-tone-teal/)
+  assert.match(tokenClasses[1], /title-suppression-token-tone-sky/)
+  assert.match(tokenClasses[2], /title-suppression-token-tone-amber/)
   assert.notEqual(tokenClasses[0], tokenClasses[1])
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
   assert.equal(markerClasses.length, 2)
-  assert.match(markerClasses[0], /title-suppression-token-tone-teal/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-sky/)
+  assert.match(markerClasses[0], /title-suppression-token-tone-sky/)
+  assert.match(markerClasses[1], /title-suppression-token-tone-amber/)
 })
