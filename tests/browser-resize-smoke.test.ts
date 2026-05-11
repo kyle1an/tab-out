@@ -235,6 +235,79 @@ async function measureDashboard(session: CdpSession, width: number) {
   }).then((result: any) => result.result.value)
 }
 
+async function measureHorizontalScrollLock(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 760,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const scrollRegion = document.querySelector('.scroll-region')
+        const rect = scrollRegion?.getBoundingClientRect()
+        if (scrollRegion && rect && rect.width > 0 && rect.height > 0) {
+          const probe = document.createElement('div')
+          probe.dataset.scrollLockProbe = 'true'
+          probe.style.cssText = 'display:block;width:200vw;height:1px;pointer-events:none;'
+          scrollRegion.append(probe)
+          scrollRegion.scrollTo(0, 0)
+          requestAnimationFrame(() => {
+            const styles = window.getComputedStyle(scrollRegion)
+            resolve({
+              x: Math.round(rect.left + rect.width / 2),
+              y: Math.round(rect.top + Math.min(Math.max(rect.height / 2, 48), rect.height - 8)),
+              initialScrollLeft: scrollRegion.scrollLeft,
+              scrollWidth: scrollRegion.scrollWidth,
+              clientWidth: scrollRegion.clientWidth,
+              overflowX: styles.overflowX,
+              overscrollBehaviorX: styles.overscrollBehaviorX
+            })
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a scroll region for horizontal scroll lock smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseWheel',
+    x: target.x,
+    y: target.y,
+    deltaX: 220,
+    deltaY: 0
+  })
+  await wait(160)
+
+  const after = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const scrollRegion = document.querySelector('.scroll-region')
+      const probe = scrollRegion?.querySelector('[data-scroll-lock-probe="true"]')
+      const result = {
+        scrollLeft: scrollRegion?.scrollLeft ?? null,
+        scrollWidth: scrollRegion?.scrollWidth ?? 0,
+        clientWidth: scrollRegion?.clientWidth ?? 0
+      }
+      probe?.remove()
+      return result
+    })()`
+  }).then((result: any) => result.result.value)
+
+  return { ...target, afterScrollLeft: after.scrollLeft, afterScrollWidth: after.scrollWidth, afterClientWidth: after.clientWidth }
+}
+
 async function waitForTooltipRect(session: CdpSession) {
   return evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -686,6 +759,13 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(wide.cardCount >= 12, `dashboard should render enough cards for a column smoke test: ${JSON.stringify(wide)}`)
   assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
+
+  const horizontalScroll = await measureHorizontalScrollLock(session)
+  assert.equal(horizontalScroll.overflowX, 'hidden', `scroll region should hide horizontal overflow: ${JSON.stringify(horizontalScroll)}`)
+  assert.equal(horizontalScroll.overscrollBehaviorX, 'none', `scroll region should suppress x-axis overscroll: ${JSON.stringify(horizontalScroll)}`)
+  assert.ok(horizontalScroll.scrollWidth > horizontalScroll.clientWidth, `smoke probe should create horizontal overflow: ${JSON.stringify(horizontalScroll)}`)
+  assert.equal(horizontalScroll.initialScrollLeft, 0, `scroll region should start at the left edge: ${JSON.stringify(horizontalScroll)}`)
+  assert.equal(horizontalScroll.afterScrollLeft, 0, `horizontal wheel input should not move the scroll region sideways: ${JSON.stringify(horizontalScroll)}`)
 
   const shortTooltip = await measureShortChipTooltipAbsence(session)
   assert.equal(shortTooltip.target.isTruncated, false, `short chip text should fit for tooltip absence smoke test: ${JSON.stringify(shortTooltip)}`)
