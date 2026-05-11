@@ -20,11 +20,7 @@ const GOOGLE_DOCS_PREFIXES = [
 ]
 
 const ATLASSIAN_PREFIXES = [
-  '/jira/servicedesk',
-  '/jira/software',
-  '/jira/core',
-  '/jira/your-work',
-  '/jira/projects',
+  '/jira',
   '/servicedesk',
   '/browse',
   '/issues',

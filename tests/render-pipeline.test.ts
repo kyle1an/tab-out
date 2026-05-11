@@ -590,7 +590,7 @@ test('computeDomainCardViewModel leaves a single docs.google.com product tab fla
   assert.equal(docsSection.flatVisibleChips[0].tabUrl, 'https://docs.google.com/document/d/doc-alpha/edit')
 })
 
-test('resolveWebsitePathSection returns longest meaningful Atlassian path prefixes', () => {
+test('resolveWebsitePathSection groups Atlassian Jira app paths under /jira', () => {
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/browse/APP-123'), {
     key: '/browse',
     label: '/browse'
@@ -599,13 +599,17 @@ test('resolveWebsitePathSection returns longest meaningful Atlassian path prefix
     key: '/wiki',
     label: '/wiki'
   })
+  assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/for-you'), {
+    key: '/jira',
+    label: '/jira'
+  })
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/software/projects/APP/boards/1'), {
-    key: '/jira/software',
-    label: '/jira/software'
+    key: '/jira',
+    label: '/jira'
   })
   assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/servicedesk/projects/HELP/queues/custom/1'), {
-    key: '/jira/servicedesk',
-    label: '/jira/servicedesk'
+    key: '/jira',
+    label: '/jira'
   })
   assert.equal(resolveWebsitePathSection('https://example.atlassian.net/rest/api/3/issue/APP-123'), null)
 })
@@ -684,7 +688,7 @@ test('computeDomainCardViewModel marks single title suppression that spans rende
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(section.suppressedTitleParts, [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }])
   assert.equal(section.hasFlat, false)
-  assert.deepEqual(section.websitePathSections.map((websitePathSection) => websitePathSection.label), ['/browse', '/jira/your-work', '/wiki'])
+  assert.deepEqual(section.websitePathSections.map((websitePathSection) => websitePathSection.label), ['/browse', '/jira', '/wiki'])
   assert.deepEqual(section.websitePathSections.find((websitePathSection) => websitePathSection.label === '/browse')?.clusters.map((cluster) => cluster.label), ['DOC', 'TASK'])
   assert.deepEqual(section.websitePathSections.find((websitePathSection) => websitePathSection.label === '/wiki')?.clusters.map((cluster) => cluster.label), ['KB'])
 })
