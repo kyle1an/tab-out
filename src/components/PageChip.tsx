@@ -181,9 +181,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     return e.key === 'Enter' || e.key === ' '
   }
 
-  async function onFocus() {
-    if (isFolded) return
-    const targetUrl = chip.tabUrl
+  async function focusChipUrl(targetUrl: string | undefined) {
     if (!targetUrl) return
     if (isReadOnlySource) {
       const focused = await focusExactTab(targetUrl)
@@ -191,6 +189,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       return
     }
     await focusTab(targetUrl)
+  }
+
+  async function onFocus() {
+    if (isFolded) return
+    await focusChipUrl(chip.tabUrl)
   }
 
   async function onChipKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -202,26 +205,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     e.stopPropagation()
-    if (!env.tabUrl) return
-    if (isReadOnlySource) {
-      const focused = await focusExactTab(env.tabUrl)
-      if (!focused) await openTabUrl(env.tabUrl)
-      return
-    }
-    await focusTab(env.tabUrl)
+    await focusChipUrl(env.tabUrl)
   }
 
   async function onEnvKeyDown(e: KeyboardEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
-    if (!env.tabUrl) return
-    if (isReadOnlySource) {
-      const focused = await focusExactTab(env.tabUrl)
-      if (!focused) await openTabUrl(env.tabUrl)
-      return
-    }
-    await focusTab(env.tabUrl)
+    await focusChipUrl(env.tabUrl)
   }
 
   function setPreview(url: string) {
