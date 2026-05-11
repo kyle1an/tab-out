@@ -529,6 +529,95 @@ async function measureTooltipPopupHover(session: CdpSession) {
   return { target, first, whileHovered, afterLeaveTooltips }
 }
 
+async function measureActionTooltipClickClose(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const button = document.querySelector('.domain-pin-btn')
+        const rect = button?.getBoundingClientRect()
+        if (rect && rect.width > 0 && rect.height > 0) {
+          resolve({
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+            label: button.getAttribute('aria-label')
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a pin button for tooltip click-close smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: target.x,
+    y: target.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: target.x,
+    y: target.y
+  })
+  await wait(120)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(360)
+
+  const afterLeaveTooltips = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
+      .filter((tooltip) => {
+        const rect = tooltip.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+      })
+      .map((tooltip) => tooltip.textContent || '')`
+  }).then((result: any) => result.result.value)
+
+  const focusedAfterLeave = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.activeElement?.classList.contains('domain-pin-btn') || false`
+  }).then((result: any) => result.result.value)
+
+  return { target, first, afterLeaveTooltips, focusedAfterLeave }
+}
+
 async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -792,6 +881,11 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     !popupHover.afterLeaveTooltips.some((text: string) => text === popupHover.first.text),
     `original tooltip should close after the pointer leaves the popup: ${JSON.stringify(popupHover)}`
   )
+
+  const actionTooltip = await measureActionTooltipClickClose(session)
+  assert.ok(actionTooltip.first, `pin tooltip should open before click-close check: ${JSON.stringify(actionTooltip)}`)
+  assert.equal(actionTooltip.focusedAfterLeave, true, `pin button should keep focus after click so this smoke covers pointer-focus behavior: ${JSON.stringify(actionTooltip)}`)
+  assert.deepEqual(actionTooltip.afterLeaveTooltips, [], `pin tooltip should close after click when the pointer leaves the focused button: ${JSON.stringify(actionTooltip)}`)
 
   const markerHandoff = await measureMarkerToChipTooltipHandoff(session)
   assert.equal(markerHandoff.target.markerText, '/', `strip indicator should render compact marker text in the chip: ${JSON.stringify(markerHandoff)}`)

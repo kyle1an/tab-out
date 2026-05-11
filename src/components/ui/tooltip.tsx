@@ -157,6 +157,7 @@ type TooltipTriggerElement = ReactElement<{
   ref?: Ref<HTMLElement>
   onBlur?: (event: ReactFocusEvent<HTMLElement>) => void
   onFocus?: (event: ReactFocusEvent<HTMLElement>) => void
+  onPointerDown?: (event: ReactPointerEvent<HTMLElement>) => void
   onPointerEnter?: (event: ReactPointerEvent<HTMLElement>) => void
   onPointerLeave?: (event: ReactPointerEvent<HTMLElement>) => void
   onPointerMove?: (event: ReactPointerEvent<HTMLElement>) => void
@@ -201,6 +202,7 @@ function TooltipAnchor({
   const hoverCloseTimerRef = useRef<number | null>(null)
   const hoverDelayRef = useRef(TOOLTIP_INITIAL_REST_DELAY_MS)
   const pointerInsideRef = useRef(false)
+  const pointerFocusedRef = useRef(false)
   const popupPointerInsideRef = useRef(false)
   const [frozenPointerPoint, setFrozenPointerPoint] =
     useState<CursorPoint | null>(null)
@@ -315,7 +317,9 @@ function TooltipAnchor({
       const popupElement = popupElementRef.current
       const activeElement = document.activeElement
       const triggerHasFocus =
-        activeElement instanceof Node && !!triggerElement?.contains(activeElement)
+        !pointerFocusedRef.current &&
+        activeElement instanceof Node &&
+        !!triggerElement?.contains(activeElement)
 
       return !!(
         triggerHasFocus ||
@@ -376,6 +380,15 @@ function TooltipAnchor({
     [anchorId, children.props, clearHoverCloseTimer, scheduleHoverOpen]
   )
 
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      children.props.onPointerDown?.(event)
+      pointerFocusedRef.current = true
+      closeTooltip()
+    },
+    [children.props, closeTooltip]
+  )
+
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       children.props.onPointerMove?.(event)
@@ -405,6 +418,7 @@ function TooltipAnchor({
   const handleFocus = useCallback(
     (event: ReactFocusEvent<HTMLElement>) => {
       children.props.onFocus?.(event)
+      if (pointerFocusedRef.current) return
       openTooltip(null)
     },
     [children.props, openTooltip]
@@ -413,6 +427,7 @@ function TooltipAnchor({
   const handleBlur = useCallback(
     (event: ReactFocusEvent<HTMLElement>) => {
       children.props.onBlur?.(event)
+      pointerFocusedRef.current = false
       closeTooltip()
     },
     [children.props, closeTooltip]
@@ -467,12 +482,13 @@ function TooltipAnchor({
       cloneElement(children, {
         onBlur: handleBlur,
         onFocus: handleFocus,
+        onPointerDown: handlePointerDown,
         onPointerEnter: handlePointerEnter,
         onPointerLeave: handlePointerLeave,
         onPointerMove: handlePointerMove,
         ref: triggerRef
       }),
-    [children, handleBlur, handleFocus, handlePointerEnter, handlePointerLeave, handlePointerMove, triggerRef]
+    [children, handleBlur, handleFocus, handlePointerDown, handlePointerEnter, handlePointerLeave, handlePointerMove, triggerRef]
   )
 
   const cursorAnchor = useMemo(() => {
