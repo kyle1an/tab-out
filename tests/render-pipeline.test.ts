@@ -255,6 +255,37 @@ test('computeDomainCardViewModel disambiguates collisions by rendered title', ()
   assert.deepEqual(new Set(chips.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
 })
 
+test('computeDomainCardViewModel skips path suffixes for duplicate titles in different rendered path groups', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({ url: 'https://example.atlassian.net/browse/APP-1001', title: 'Example task' }),
+      makeTab({ id: 2, url: 'https://example.atlassian.net/browse/DOC-2001', title: 'Example task' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const clusters = vm.sections[0].clusters
+
+  assert.deepEqual(clusters.map((cluster) => cluster.label), ['APP', 'DOC'])
+  assert.deepEqual(clusters.flatMap((cluster) => cluster.visibleChips.map((chip) => chip.pathSuffix)), ['', ''])
+})
+
+test('computeDomainCardViewModel keeps path suffixes for duplicate titles inside the same rendered path group', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({ url: 'https://example.atlassian.net/browse/APP-1001', title: 'Example task' }),
+      makeTab({ id: 2, url: 'https://example.atlassian.net/browse/APP-1002', title: 'Example task' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections[0].clusters[0].visibleChips
+
+  assert.deepEqual(chips.map((chip) => chip.pathSuffix), ['…/APP-1001', '…/APP-1002'])
+})
+
 test('computeDomainCardViewModel hides repeated trailing title suffixes in normal mode', () => {
   const group = {
     domain: 'slack.com',

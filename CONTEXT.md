@@ -21,6 +21,7 @@
 - **Website Path Sections** do not introduce a new indentation level unless their title-suppression summaries can stay visually aligned with the group that owns them.
 - A **Website Path Section** may contain one or more **Path Groups**, and a **Path Group** may contain one or more **Page Chips**.
 - **Path Group** singleton behavior belongs to the Path Group rule itself; adding a **Website Path Section** does not change whether a single site-specific object stays grouped.
+- A **Page Chip** shows a URL path suffix only when another chip in the same rendered group has the same visible title; sibling Website Path Sections and Path Groups already provide enough context.
 - For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
 - For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira`, and `/servicedesk`.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.

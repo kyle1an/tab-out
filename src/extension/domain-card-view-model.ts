@@ -1040,14 +1040,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const CATEGORY_ORDER: Record<PathCategory, number> = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
   const categoryRank = (category?: PathGroupResult['category']) => CATEGORY_ORDER[category ?? 'other']
 
-  function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>): SectionContentVM {
-    // Title-collision disambiguation: if two tabs in this content
-    // group render with the same visible title, append the smallest
-    // path crumb that tells them apart. Noiseless for the common case
-    // (no collision → empty string → <PageChip> skips the crumb span).
+  function titleCollisionPathByUrl(groupTabs: DashboardTab[]): Map<string, string> {
     const pathByUrl = new Map<string, string>()
     const sameTitle = new Map<string, DashboardTab[]>()
-    for (const t of contentTabs) {
+    for (const t of groupTabs) {
       const titleKey = displayTitle(t).toLowerCase()
       if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
       sameTitle.get(titleKey)?.push(t)
@@ -1057,7 +1053,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       const suffixes = disambiguatingPaths(collided.map((t) => t.url))
       collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i] ?? ''))
     }
+    return pathByUrl
+  }
 
+  function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>): SectionContentVM {
     // Path-group pills: resolve each tab's path group (github repo,
     // jira project, contentful env, etc.) and only keep labels whose
     // group has ≥2 members in this content group. A lone group is
@@ -1128,6 +1127,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         const bCat = categoryRank(pgByUrl.get(b.url)?.category)
         return aCat - bCat
       })
+      // Title-collision disambiguation is scoped to the rendered
+      // group. If path-group headers already separate same-title
+      // chips, URL crumbs would duplicate that structural signal.
+      const pathByUrl = titleCollisionPathByUrl(orderedTabs)
       const { vis, hid } = splitForOverflow(orderedTabs)
       const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
       const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
@@ -1144,9 +1147,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       }
     })
 
+    const flatPathByUrl = titleCollisionPathByUrl(singletonTabs)
     const { vis: flatVis, hid: flatHid } = splitForOverflow(singletonTabs)
-    const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
-    const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+    const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, flatPathByUrl.get(t.url) || '', ''))
+    const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, flatPathByUrl.get(t.url) || '', ''))
 
     return {
       hasFlat: singletonTabs.length > 0,
