@@ -110,8 +110,8 @@ export function SubdomainSection({
             className={cn(
               'subdomain-header-name',
               isPort
-                ? "before:font-normal before:opacity-45 before:content-[':']"
-                : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
+                ? "before:content-[':']"
+                : "after:ml-px after:content-['.']"
             )}
           >
             {headerLabel}
