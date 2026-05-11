@@ -1,4 +1,5 @@
 import { DEFAULT_HISTORY_RANGE } from './history-source.js'
+import { dashboardSourceAllowsSideSearches } from './dashboard-source.js'
 import type { DashboardData, DashboardSource } from './types'
 
 export type FilterSearchOptions = {
@@ -17,7 +18,7 @@ export type FilterSearchRequest = {
 }
 
 function isTabFilterSearch({ source, filter }: Pick<FilterSearchOptions, 'source' | 'filter'>): boolean {
-  return source === 'tabs' && filter !== ''
+  return dashboardSourceAllowsSideSearches(source) && filter !== ''
 }
 
 export function buildFilterSearchRequest({

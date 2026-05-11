@@ -7,6 +7,7 @@ import { resolvePathGroup } from './path-groups.js'
 import { resolveWebsitePathSection } from './website-path-sections.js'
 import { tabMatchesFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
+import { dashboardItemNameForTabs } from './dashboard-source.js'
 import type { DashboardCardVM, DashboardChipData, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
@@ -549,12 +550,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
 
   const tabCount = tabs.length
   const totalTabCount = allTabs.length
-  const itemLabel =
-    allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'bookmark')
-      ? 'bookmark'
-      : allTabs.length > 0 && allTabs.every((tab) => tab.sourceType === 'history')
-        ? 'history result'
-        : 'open tab'
+  const itemLabel = dashboardItemNameForTabs(allTabs, 'open tab')
   const tabCountLabel = filtering && tabCount !== totalTabCount ? `${tabCount}/${totalTabCount}` : `${tabCount}`
   const tabCountTitle = filtering
     ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`

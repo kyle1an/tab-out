@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
+import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
@@ -131,7 +132,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
-  const isReadOnlySource = chip.sourceType === 'bookmark' || isHistorySource
+  const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
   const primaryPreviewUrl = chip.tabUrl || ''
   const suppressedTitleParts = chip.suppressedTitleParts || []
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()

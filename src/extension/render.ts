@@ -24,6 +24,7 @@ import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
+import { dashboardSourceAllowsTabActions } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesFilter } from './filter-match.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 
@@ -58,7 +59,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
-  const allowMutations = source === 'tabs'
+  const allowMutations = dashboardSourceAllowsTabActions(source)
 
   const matchedCards: DashboardCardEntry[] = []
   const unmatchedCards: DashboardCardEntry[] = []

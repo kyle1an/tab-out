@@ -1,5 +1,6 @@
 import { DomainCard } from './DomainCard'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
+import { dashboardSourceEmptyNoun } from '../extension/dashboard-source.js'
 import { cn } from '@/lib/utils'
 import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
@@ -14,7 +15,7 @@ interface MissionsProps {
 }
 
 function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
-  const noun = source === 'bookmarks' ? 'bookmarks' : source === 'history' ? 'history results' : 'tabs'
+  const noun = dashboardSourceEmptyNoun(source)
   return (
     <div className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center">
       <div className="text-base font-normal text-tab-ink">No {noun}.</div>
