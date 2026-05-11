@@ -3,11 +3,12 @@ import { useDomainCardContext } from './DomainCardContext'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
+import { WebsitePathSection } from './WebsitePathSection'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression } from './types'
+import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, DashboardWebsitePathSectionVM } from './types'
 
 interface SubdomainCloseButtonProps {
   count: number
@@ -26,6 +27,14 @@ interface SubdomainSectionProps {
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
   suppressedTitleParts?: DashboardTitleSuppression[]
+  websitePathSections: Array<DashboardWebsitePathSectionVM & {
+    titleSuppressionToneScope?: TitleSuppressionToneScope
+    suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+    clusters: Array<DashboardClusterVM & {
+      titleSuppressionToneScope?: TitleSuppressionToneScope
+      suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+    }>
+  }>
   clusters: Array<DashboardClusterVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
     suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
@@ -66,6 +75,7 @@ export function SubdomainSection({
   flatHiddenChips,
   flatHiddenCount,
   suppressedTitleParts = [],
+  websitePathSections,
   clusters,
   filter = '',
   useSuppressionTokenTones = false,
@@ -128,6 +138,26 @@ export function SubdomainSection({
           suppressedTitleToneByText={suppressedTitleToneByText}
         />
       )}
+      {websitePathSections.map((websitePathSection, index) => (
+        <WebsitePathSection
+          key={websitePathSection.key}
+          label={websitePathSection.label}
+          sectionCount={websitePathSection.sectionCount}
+          sectionClosableUrls={websitePathSection.sectionClosableUrls}
+          hasFlat={websitePathSection.hasFlat}
+          flatVisibleChips={websitePathSection.flatVisibleChips}
+          flatHiddenChips={websitePathSection.flatHiddenChips}
+          flatHiddenCount={websitePathSection.flatHiddenCount}
+          suppressedTitleParts={websitePathSection.suppressedTitleParts ?? []}
+          clusters={websitePathSection.clusters}
+          className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
+          isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
+          filter={filter}
+          useSuppressionTokenTones={websitePathSection.titleSuppressionToneScope?.useSuppressionTokenTones ?? false}
+          suppressedTitleToneIndexByText={websitePathSection.titleSuppressionToneScope?.suppressedTitleToneIndexByText ?? new Map<string, number>()}
+          suppressedTitleToneByText={websitePathSection.suppressedTitleToneByText}
+        />
+      ))}
       {clusters.map((cluster, index) => {
         const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
         const clusterSuppressionToneScope = cluster.titleSuppressionToneScope ?? createTitleSuppressionToneScope(clusterSuppressedTitleParts)
@@ -145,8 +175,8 @@ export function SubdomainSection({
             visibleChips={cluster.visibleChips}
             hiddenChips={cluster.hiddenChips}
             hiddenCount={cluster.hiddenCount}
-            className={hasFlat || index > 0 ? 'mt-0.5' : undefined}
-            isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
+            className={hasFlat || websitePathSections.length > 0 || index > 0 ? 'mt-0.5' : undefined}
+            isFirstContent={isFirst && !showHeader && !hasFlat && websitePathSections.length === 0 && index === 0}
             filter={filter}
             suppressedTitleParts={clusterSuppressedTitleParts}
             useSuppressionTokenTones={clusterSuppressionToneScope.useSuppressionTokenTones}

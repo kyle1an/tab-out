@@ -16,8 +16,15 @@
 ## Relationships
 
 - A **Website Path Section** is used only when a known host's URL path carries stable user-facing meaning; generic first-segment path splitting is not a Domain concept.
+- Tenant-style **Domain Cards** keep subdomain sections outside **Website Path Sections**, so unrelated tenants are not mixed before their website paths are grouped.
+- A **Website Path Section** is visible only when it reduces ambiguity: multiple website path sections are present, or one section groups multiple pages while sibling pages remain outside it.
+- **Website Path Sections** do not introduce a new indentation level unless their title-suppression summaries can stay visually aligned with the group that owns them.
 - A **Website Path Section** may contain one or more **Path Groups**, and a **Path Group** may contain one or more **Page Chips**.
+- **Path Group** singleton behavior belongs to the Path Group rule itself; adding a **Website Path Section** does not change whether a single site-specific object stays grouped.
+- For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
+- For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira/software`, `/jira/core`, `/jira/servicedesk`, `/jira/your-work`, `/jira/projects`, and `/servicedesk`.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.
+- Repeated title noise inside a visible **Website Path Section** is scoped to that section when no narrower **Path Group** owns it.
 - A **Title Suppression Scope** owns its summary tokens and matching chip markers; visible scopes coordinate palette colors within a **Domain Card** so two visible suppression meanings do not use the same color.
 - **Title Suppression Summary** tokens render in source-title reading order, so the summary reconstructs where suppressed text came from instead of ranking tokens by frequency.
 - **Title Suppression Scope** colors are allocated by token coverage before summary position; broad, high-coverage tokens can keep stable early palette colors even when they render later in the summary.

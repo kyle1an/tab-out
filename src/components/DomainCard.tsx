@@ -9,7 +9,7 @@ import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
@@ -117,10 +117,17 @@ type RenderClusterVM = DashboardClusterVM & {
   suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
 }
 
+type RenderWebsitePathSectionVM = DashboardWebsitePathSectionVM & {
+  titleSuppressionToneScope: TitleSuppressionToneScope
+  suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
+  clusters: RenderClusterVM[]
+}
+
 type RenderSectionVM = DashboardSectionVM & {
   titleSuppressionToneScope: TitleSuppressionToneScope
   suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
   clusters: RenderClusterVM[]
+  websitePathSections: RenderWebsitePathSectionVM[]
 }
 
 export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
@@ -160,6 +167,35 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       cardSuppressionToneScope.suppressedTitleToneByText,
       sectionSuppressionToneScope.suppressedTitleToneByText
     )
+    const renderedWebsitePathSections = (section.websitePathSections ?? []).map((websitePathSection) => {
+      const websitePathSectionSuppressedTitleParts = websitePathSection.suppressedTitleParts ?? []
+      const websitePathSectionSuppressionToneScope = allocateTitleSuppressionToneScope(websitePathSectionSuppressedTitleParts)
+      const websitePathSectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
+        sectionSuppressedTitleToneByText,
+        websitePathSectionSuppressionToneScope.suppressedTitleToneByText
+      )
+      const renderedWebsitePathClusters = websitePathSection.clusters.map((cluster) => {
+        const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
+        const clusterSuppressionToneScope = allocateTitleSuppressionToneScope(clusterSuppressedTitleParts)
+        const clusterSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
+          websitePathSectionSuppressedTitleToneByText,
+          clusterSuppressionToneScope.suppressedTitleToneByText
+        )
+
+        return {
+          ...cluster,
+          titleSuppressionToneScope: clusterSuppressionToneScope,
+          suppressedTitleToneByText: clusterSuppressedTitleToneByText
+        }
+      })
+
+      return {
+        ...websitePathSection,
+        titleSuppressionToneScope: websitePathSectionSuppressionToneScope,
+        suppressedTitleToneByText: websitePathSectionSuppressedTitleToneByText,
+        clusters: renderedWebsitePathClusters
+      }
+    })
     const renderedClusters = section.clusters.map((cluster) => {
       const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
       const clusterSuppressionToneScope = allocateTitleSuppressionToneScope(clusterSuppressedTitleParts)
@@ -179,7 +215,8 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
       ...section,
       titleSuppressionToneScope: sectionSuppressionToneScope,
       suppressedTitleToneByText: sectionSuppressedTitleToneByText,
-      clusters: renderedClusters
+      clusters: renderedClusters,
+      websitePathSections: renderedWebsitePathSections
     }
   })
 
@@ -281,6 +318,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
                   flatHiddenChips={section.flatHiddenChips}
                   flatHiddenCount={section.flatHiddenCount}
                   suppressedTitleParts={section.suppressedTitleParts ?? []}
+                  websitePathSections={section.websitePathSections}
                   clusters={section.clusters}
                   filter={highlightFilter}
                   useSuppressionTokenTones={section.titleSuppressionToneScope.useSuppressionTokenTones}

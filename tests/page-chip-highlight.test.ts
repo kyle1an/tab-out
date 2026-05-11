@@ -9,6 +9,7 @@ import { DomainCardProvider, type DomainCardContextValue } from '../src/componen
 import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
+import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
 import type { DashboardCardVM, DashboardChipData, DomainGroup } from '../src/extension/types'
 
@@ -302,6 +303,143 @@ test('PathgroupSection renders header path-group pills with a slash prefix', () 
   assert.match(html, /chip-pathgroup\b[^>]*>\/openai\/docs<\/span>/)
 })
 
+test('WebsitePathSection renders raw path labels and keeps suppression summary on the section rail', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(WebsitePathSection, {
+      label: '/wiki',
+      sectionCount: 3,
+      sectionClosableUrls: [],
+      hasFlat: true,
+      flatVisibleChips: [
+        makeChip({
+          rawUrl: 'https://example.atlassian.net/wiki/home',
+          tabUrl: 'https://example.atlassian.net/wiki/home',
+          displaySegments: ['Wiki home'],
+          suppressedTitleParts: ['- Example-Site - Confluence']
+        })
+      ],
+      flatHiddenChips: [],
+      flatHiddenCount: 0,
+      suppressedTitleParts: [{ text: '- Example-Site - Confluence', count: 3, spansRenderedChildGroups: true }],
+      clusters: [
+        {
+          key: 'wiki:KB',
+          label: 'KB',
+          isPR: false,
+          count: 2,
+          closableUrls: [],
+          suppressedTitleParts: [],
+          visibleChips: [
+            makeChip({
+              rawUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+              tabUrl: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+              displaySegments: ['Alpha guide'],
+              suppressedTitleParts: ['- Example-Site - Confluence']
+            })
+          ],
+          hiddenChips: [],
+          hiddenCount: 0
+        }
+      ]
+    })
+  )
+
+  assert.match(html, /website-path-section\b/)
+  const websitePathLabelMatch = html.match(/<span class="([^"]*\bwebsite-path-section-label\b[^"]*)"[^>]*>\/wiki<\/span>/)
+  assert.ok(websitePathLabelMatch, 'website path section label should render')
+  assert.doesNotMatch(websitePathLabelMatch[1], /\bchip-pathgroup\b/)
+  assert.doesNotMatch(websitePathLabelMatch[1], /\bbg-\[/)
+  assert.doesNotMatch(websitePathLabelMatch[1], /\brounded/)
+  assert.doesNotMatch(websitePathLabelMatch[1], /\bpx-/)
+  assert.match(websitePathLabelMatch[1], /\bfont-semibold\b/)
+  assert.match(websitePathLabelMatch[1], /\btracking-wide\b/)
+  assert.match(html, /chip-pathgroup\b[^>]*>\/KB<\/span>/)
+  assert.doesNotMatch(html, /Confluence space|Jira|Google Docs/)
+  const summaryMatch = html.match(/<div class="([^"]*\btitle-suppression-summary\b[^"]*)">/)
+  assert.ok(summaryMatch, 'website-path suppression summary should render')
+  assert.doesNotMatch(summaryMatch[1], /\b(?:pl|ml|px)-/)
+  assert.match(html, /Suppressed in 3 titles: - Example-Site - Confluence/)
+})
+
+test('DomainCard renders docs.google.com website path sections through WebsitePathSection', () => {
+  const group: DomainGroup = {
+    domain: 'google.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-google-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '2',
+    suppressedTitleParts: [],
+    sections: [
+      {
+        key: 'docs',
+        sectionCount: 2,
+        sectionClosableUrls: [],
+        showHeader: false,
+        isShared: false,
+        hasFlat: false,
+        flatVisibleChips: [],
+        flatHiddenChips: [],
+        flatHiddenCount: 0,
+        suppressedTitleParts: [],
+        clusters: [],
+        websitePathSections: [
+          {
+            key: '/document',
+            label: '/document',
+            sectionCount: 1,
+            sectionClosableUrls: [],
+            hasFlat: true,
+            flatVisibleChips: [
+              makeChip({
+                rawUrl: 'https://docs.google.com/document/d/doc-alpha/edit',
+                tabUrl: 'https://docs.google.com/document/d/doc-alpha/edit',
+                displaySegments: ['Example Spec']
+              })
+            ],
+            flatHiddenChips: [],
+            flatHiddenCount: 0,
+            suppressedTitleParts: [],
+            clusters: []
+          },
+          {
+            key: '/spreadsheets',
+            label: '/spreadsheets',
+            sectionCount: 1,
+            sectionClosableUrls: [],
+            hasFlat: true,
+            flatVisibleChips: [
+              makeChip({
+                rawUrl: 'https://docs.google.com/spreadsheets/d/sheet-alpha/edit',
+                tabUrl: 'https://docs.google.com/spreadsheets/d/sheet-alpha/edit',
+                displaySegments: ['Example Budget']
+              })
+            ],
+            flatHiddenChips: [],
+            flatHiddenCount: 0,
+            suppressedTitleParts: [],
+            clusters: []
+          }
+        ]
+      }
+    ]
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+
+  assert.match(html, /website-path-section-label\b[^>]*>\/document<\/span>[\s\S]*Example Spec/)
+  assert.match(html, /website-path-section-label\b[^>]*>\/spreadsheets<\/span>[\s\S]*Example Budget/)
+  assert.equal([...html.matchAll(/website-path-section\b/g)].length > 0, true)
+})
+
 test('Overflow expanders use one-line chip text and height metrics', () => {
   const flatHtml = renderToStaticMarkup(
     React.createElement(FlatSection, {
@@ -514,7 +652,8 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
         flatHiddenChips: [],
         flatHiddenCount: 0,
         suppressedTitleParts: [{ text: 'Example Workspace', count: 2 }],
-        clusters: []
+        clusters: [],
+        websitePathSections: []
       }
     ]
   }
@@ -585,7 +724,8 @@ test('DomainCard colors section-scoped single suppressed title text when it span
             hiddenChips: [],
             hiddenCount: 0
           }
-        ]
+        ],
+        websitePathSections: []
       }
     ]
   }
@@ -636,7 +776,8 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
         flatHiddenChips: [],
         flatHiddenCount: 0,
         suppressedTitleParts: [],
-        clusters: []
+        clusters: [],
+        websitePathSections: []
       },
       {
         key: 'env-a',
@@ -656,7 +797,8 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
         flatHiddenChips: [],
         flatHiddenCount: 0,
         suppressedTitleParts: [],
-        clusters: []
+        clusters: [],
+        websitePathSections: []
       }
     ]
   }
@@ -722,7 +864,8 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
             hiddenChips: [],
             hiddenCount: 0
           }
-        ]
+        ],
+        websitePathSections: []
       }
     ]
   }
@@ -791,7 +934,8 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
             hiddenChips: [],
             hiddenCount: 0
           }
-        ]
+        ],
+        websitePathSections: []
       }
     ]
   }
@@ -863,7 +1007,8 @@ test('DomainCard displays suppression tokens in title order while coloring highe
             hiddenChips: [],
             hiddenCount: 0
           }
-        ]
+        ],
+        websitePathSections: []
       }
     ]
   }
@@ -947,7 +1092,8 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
             hiddenChips: [],
             hiddenCount: 0
           }
-        ]
+        ],
+        websitePathSections: []
       }
     ]
   }
@@ -1003,7 +1149,8 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
         ],
         flatHiddenChips: [],
         flatHiddenCount: 0,
-        clusters: []
+        clusters: [],
+        websitePathSections: []
       }
     ]
   }

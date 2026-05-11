@@ -4,9 +4,10 @@ import { isGroupedTab, groupDotColor } from './groups.js'
 import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
+import { resolveWebsitePathSection } from './website-path-sections.js'
 import { tabMatchesFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
-import type { DashboardCardVM, DashboardChipData, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DomainGroup, PathGroupResult } from './types'
+import type { DashboardCardVM, DashboardChipData, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
@@ -46,6 +47,16 @@ type TitlePresentationRow = {
   suppressedTitlePartsBeforeStructuralTail: string[]
   structuralTails: StructuralTitleTail[]
   pathGroupKey: string
+}
+type SectionContentVM = {
+  hasFlat: boolean
+  flatVisibleChips: DashboardChipData[]
+  flatHiddenChips: DashboardChipData[]
+  flatHiddenCount: number
+  clusters: DashboardClusterVM[]
+}
+type WebsitePathSectionBucket = WebsitePathSectionResult & {
+  tabs: DashboardTab[]
 }
 
 const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
@@ -1022,6 +1033,130 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return { vis: tabs.slice(0, CHIPS_PER_SECTION), hid: tabs.slice(CHIPS_PER_SECTION) }
   }
 
+  // Order chips within a cluster by sub-category (if the adapter
+  // provided one), then by their display-label order (preserved via
+  // stable sort, since the input tabs are already sorted by display
+  // label above). Unknown categories fall to 'other'.
+  const CATEGORY_ORDER: Record<PathCategory, number> = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
+  const categoryRank = (category?: PathGroupResult['category']) => CATEGORY_ORDER[category ?? 'other']
+
+  function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>): SectionContentVM {
+    // Title-collision disambiguation: if two tabs in this content
+    // group render with the same visible title, append the smallest
+    // path crumb that tells them apart. Noiseless for the common case
+    // (no collision → empty string → <PageChip> skips the crumb span).
+    const pathByUrl = new Map<string, string>()
+    const sameTitle = new Map<string, DashboardTab[]>()
+    for (const t of contentTabs) {
+      const titleKey = displayTitle(t).toLowerCase()
+      if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
+      sameTitle.get(titleKey)?.push(t)
+    }
+    for (const collided of sameTitle.values()) {
+      if (collided.length < 2) continue
+      const suffixes = disambiguatingPaths(collided.map((t) => t.url))
+      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i] ?? ''))
+    }
+
+    // Path-group pills: resolve each tab's path group (github repo,
+    // jira project, contentful env, etc.) and only keep labels whose
+    // group has ≥2 members in this content group. A lone group is
+    // usually silent clutter — the signal is "these belong together,"
+    // which takes at least two chips to convey.
+    //
+    // Exception: adapters can opt in to `alwaysCluster: true` to
+    // bypass the threshold. Jira uses this so ticket keys stay as
+    // their own cluster even at member-count 1 — a self-contained
+    // identifier and, more importantly, a position-stable anchor.
+    //
+    // Extra guardrail: drop labels already carried by the parent
+    // domain/subdomain/path-section context.
+    const pgByUrl = new Map<string, PathGroupResult>()
+    const pgKeyCount = new Map<string, number>()
+    for (const t of contentTabs) {
+      const pg = resolvePathGroup(t.url)
+      if (!pg) continue
+      pgByUrl.set(t.url, pg)
+      pgKeyCount.set(pg.key, (pgKeyCount.get(pg.key) || 0) + 1)
+    }
+    const pgLabelByUrl = new Map<string, string>()
+    for (const [url, pg] of pgByUrl) {
+      if (!pg.alwaysCluster && (pgKeyCount.get(pg.key) ?? 0) < 2) continue
+      if (redundantLabels.has(pg.label)) continue
+      pgLabelByUrl.set(url, pg.label)
+    }
+
+    // Build cluster blocks (≥2 members share a path-group label) and
+    // a singleton block. Clusters render as labeled sub-sections; the
+    // pill becomes the header and inner chips skip their per-chip
+    // pill. Singletons follow flat with no header. Each block manages
+    // its OWN visible/hidden split and its OWN "+N more" expander.
+    const clusterByLabel = new Map<string, DashboardTab[]>()
+    const singletonTabs: DashboardTab[] = []
+    for (const t of contentTabs) {
+      const lbl = pgLabelByUrl.get(t.url)
+      if (!lbl) {
+        singletonTabs.push(t)
+        continue
+      }
+      if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, [])
+      clusterByLabel.get(lbl)?.push(t)
+    }
+    const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+
+    // Pull requests deserve their own section under a repo: they're
+    // action items ("review me"), not browsing state ("I'm reading
+    // this file"). Splitting them into a sibling sub-cluster lets
+    // each half claim its own CHIPS_PER_SECTION limit instead of
+    // fighting over one.
+    const rawClusters: Array<{ label: string; tabs: DashboardTab[]; key: string; isPR: boolean }> = []
+    for (const [lbl, tabs] of sortedClusters) {
+      const prTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category === 'pull')
+      const nonPrTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category !== 'pull')
+      if (prTabs.length >= 2 && nonPrTabs.length >= 1) {
+        rawClusters.push({ label: lbl, tabs: nonPrTabs, key: lbl, isPR: false })
+        rawClusters.push({ label: lbl, tabs: prTabs, key: lbl + ':pr', isPR: true })
+      } else {
+        const allArePRs = prTabs.length === tabs.length && tabs.length > 0
+        rawClusters.push({ label: lbl, tabs, key: lbl, isPR: allArePRs })
+      }
+    }
+
+    const clusters = rawClusters.map(({ label, tabs, key, isPR }) => {
+      const orderedTabs = tabs.slice().sort((a, b) => {
+        const aCat = categoryRank(pgByUrl.get(a.url)?.category)
+        const bCat = categoryRank(pgByUrl.get(b.url)?.category)
+        return aCat - bCat
+      })
+      const { vis, hid } = splitForOverflow(orderedTabs)
+      const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
+      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
+      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
+      return {
+        key,
+        label,
+        isPR,
+        count: tabs.length,
+        closableUrls: clusterClosable.map((t) => t.url),
+        visibleChips,
+        hiddenChips,
+        hiddenCount: hid.length
+      }
+    })
+
+    const { vis: flatVis, hid: flatHid } = splitForOverflow(singletonTabs)
+    const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+    const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+
+    return {
+      hasFlat: singletonTabs.length > 0,
+      flatVisibleChips,
+      flatHiddenChips,
+      flatHiddenCount: flatHid.length,
+      clusters
+    }
+  }
+
   if (isAppsGroup) {
     const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', '', { iconOnly: true }))
     const vmClosableCount = displayMode === 'unmatched' || !allowMutations ? 0 : closableCount
@@ -1059,7 +1194,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           flatHiddenChips: [],
           flatHiddenCount: 0,
           suppressedTitleParts: [],
-          clusters: []
+          clusters: [],
+          websitePathSections: []
         }
       ]
     }
@@ -1141,7 +1277,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       flatHiddenChips: hid,
       flatHiddenCount: hid.length,
       suppressedTitleParts: [],
-      clusters: []
+      clusters: [],
+      websitePathSections: []
     }
   }
 
@@ -1156,136 +1293,42 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     // the card-title pill (single-subdomain card).
     const showChipPrefix = !showHeader && !singleSubdomainKey
 
-    // Title-collision disambiguation: if two tabs in this section
-    // render with the same visible title, append the smallest path
-    // crumb that tells them apart. Noiseless for the common case
-    // (no collision → empty string → <PageChip> skips the crumb span).
-    const pathByUrl = new Map<string, string>()
-    const sameTitle = new Map<string, DashboardTab[]>()
-    for (const t of sectionTabs) {
-      const titleKey = displayTitle(t).toLowerCase()
-      if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
-      sameTitle.get(titleKey)?.push(t)
-    }
-    for (const collided of sameTitle.values()) {
-      if (collided.length < 2) continue
-      const suffixes = disambiguatingPaths(collided.map((t) => t.url))
-      collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i] ?? ''))
-    }
-
-    // Path-group pills: resolve each tab's path group (github repo,
-    // jira project, contentful env, etc.) and only keep labels whose
-    // group has ≥2 members in this section. A lone group is usually
-    // silent clutter — the signal is "these belong together," which
-    // takes at least two chips to convey.
-    //
-    // Exception: adapters can opt in to `alwaysCluster: true` to
-    // bypass the threshold. Jira uses this so ticket keys stay as
-    // their own cluster even at member-count 1 — a self-contained
-    // identifier and, more importantly, a position-stable anchor.
-    // (Closing one of a two-member cluster without the flag would
-    // suddenly drop the survivor into the flat section; with it, the
-    // cluster persists in place.)
-    //
-    // Extra guardrail: drop labels that equal the subdomain or the
-    // card domain (redundant information already carried by the
-    // section header or card title).
-    const pgByUrl = new Map<string, PathGroupResult>()
-    const pgKeyCount = new Map<string, number>()
-    for (const t of sectionTabs) {
-      const pg = resolvePathGroup(t.url)
-      if (!pg) continue
-      pgByUrl.set(t.url, pg)
-      pgKeyCount.set(pg.key, (pgKeyCount.get(pg.key) || 0) + 1)
-    }
-    const pgLabelByUrl = new Map<string, string>()
-    for (const [url, pg] of pgByUrl) {
-      if (!pg.alwaysCluster && (pgKeyCount.get(pg.key) ?? 0) < 2) continue
-      if (pg.label === key || pg.label === group.domain) continue
-      pgLabelByUrl.set(url, pg.label)
-    }
-
-    // Build cluster blocks (≥2 members share a path-group label) and
-    // a singleton block. Clusters render as labeled sub-sections; the
-    // pill becomes the header and inner chips skip their per-chip
-    // pill. Singletons follow flat with no header. Each block manages
-    // its OWN visible/hidden split and its OWN "+N more" expander —
-    // when a cluster overflows, expansion happens inside the cluster
-    // so hidden members never leave their header's visual context.
-    const clusterByLabel = new Map<string, DashboardTab[]>()
-    const singletonTabs: DashboardTab[] = []
-    for (const t of sectionTabs) {
-      const lbl = pgLabelByUrl.get(t.url)
-      if (!lbl) {
-        singletonTabs.push(t)
+    const parentRedundantLabels = new Set([key, group.domain].filter(Boolean))
+    const websitePathBuckets = new Map<string, WebsitePathSectionBucket>()
+    const tabsWithoutWebsitePathSection: DashboardTab[] = []
+    for (const tab of sectionTabs) {
+      const websitePathSection = resolveWebsitePathSection(tab.url)
+      if (!websitePathSection) {
+        tabsWithoutWebsitePathSection.push(tab)
         continue
       }
-      if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, [])
-      clusterByLabel.get(lbl)?.push(t)
+      const bucket = websitePathBuckets.get(websitePathSection.key) || { ...websitePathSection, tabs: [] }
+      bucket.tabs.push(tab)
+      websitePathBuckets.set(websitePathSection.key, bucket)
     }
-    const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
-
-    // Order chips within a cluster by sub-category (if the adapter
-    // provided one), then by their display-label order (preserved via
-    // stable sort, since sectionTabs was already sorted by display
-    // label above). Unknown categories fall to 'other'.
-    const CATEGORY_ORDER: Record<PathCategory, number> = { pull: 0, issue: 1, commit: 2, code: 3, other: 4 }
-    const categoryRank = (category?: PathGroupResult['category']) => CATEGORY_ORDER[category ?? 'other']
-
-    // Pull requests deserve their own section under a repo: they're
-    // action items ("review me"), not browsing state ("I'm reading
-    // this file"). Splitting them into a sibling sub-cluster lets
-    // each half claim its own CHIPS_PER_SECTION limit instead of
-    // fighting over one — 10 total visible for a PR-heavy repo
-    // instead of 5 with the rest hidden behind "+N more".
-    //
-    // Threshold: split only when the PR side has ≥2 tabs AND the
-    // non-PR side has ≥1. A single PR stays folded into the main
-    // cluster; a repo with only PRs stays as one section (and
-    // cosmetically still gets the PR label via `isPR`).
-    const rawClusters: Array<{ label: string; tabs: DashboardTab[]; key: string; isPR: boolean }> = []
-    for (const [lbl, tabs] of sortedClusters) {
-      const prTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category === 'pull')
-      const nonPrTabs = tabs.filter((t) => pgByUrl.get(t.url)?.category !== 'pull')
-      if (prTabs.length >= 2 && nonPrTabs.length >= 1) {
-        rawClusters.push({ label: lbl, tabs: nonPrTabs, key: lbl, isPR: false })
-        rawClusters.push({ label: lbl, tabs: prTabs, key: lbl + ':pr', isPR: true })
-      } else {
-        const allArePRs = prTabs.length === tabs.length && tabs.length > 0
-        rawClusters.push({ label: lbl, tabs, key: lbl, isPR: allArePRs })
-      }
-    }
-
-    // Per-cluster data objects. <PathgroupSection> handles the
-    // header (pill + count + rule + close button), visible/hidden
-    // chip split, and local expand state. <PageChip> consumes the
-    // chip-data objects directly (Phase 5).
-    const clusters = rawClusters.map(({ label, tabs, key, isPR }) => {
-      const orderedTabs = tabs.slice().sort((a, b) => {
-        const aCat = categoryRank(pgByUrl.get(a.url)?.category)
-        const bCat = categoryRank(pgByUrl.get(b.url)?.category)
-        return aCat - bCat
-      })
-      const { vis, hid } = splitForOverflow(orderedTabs)
-      const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
-      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
-      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
-      return {
-        key,
-        label,
-        isPR,
-        count: tabs.length,
-        closableUrls: clusterClosable.map((t) => t.url),
-        visibleChips,
-        hiddenChips,
-        hiddenCount: hid.length
-      }
-    })
-
-    // Flat singletons: split into visible + hidden chip-data arrays.
-    const { vis: flatVis, hid: flatHid } = splitForOverflow(singletonTabs)
-    const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
-    const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', ''))
+    const websitePathBucketList = [...websitePathBuckets.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    const showWebsitePathSections =
+      websitePathBucketList.length > 1 ||
+      (websitePathBucketList.length === 1 && websitePathBucketList[0].tabs.length >= 2 && tabsWithoutWebsitePathSection.length > 0)
+    const parentTabs = showWebsitePathSections ? tabsWithoutWebsitePathSection : sectionTabs
+    const parentContent = buildSectionContent(parentTabs, showChipPrefix, parentRedundantLabels)
+    const websitePathSections: DashboardWebsitePathSectionVM[] = showWebsitePathSections
+      ? websitePathBucketList.map((websitePathSection) => {
+          const content = buildSectionContent(
+            websitePathSection.tabs,
+            showChipPrefix,
+            new Set([...parentRedundantLabels, websitePathSection.label])
+          )
+          return {
+            key: websitePathSection.key,
+            label: websitePathSection.label,
+            sectionCount: websitePathSection.tabs.length,
+            sectionClosableUrls: allowMutations ? websitePathSection.tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url) : [],
+            ...content,
+            suppressedTitleParts: []
+          }
+        })
+      : []
 
     // Closable URLs for the subdomain-level close button in the
     // SubdomainSection header (shown only on multi-subdomain cards,
@@ -1301,12 +1344,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       showHeader,
       isShared: false,
       isPort: isPortGroup,
-      hasFlat: singletonTabs.length > 0,
-      flatVisibleChips,
-      flatHiddenChips,
-      flatHiddenCount: flatHid.length,
+      ...parentContent,
       suppressedTitleParts: [],
-      clusters
+      websitePathSections
     }
   })
 
@@ -1321,6 +1361,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       sectionIndexes: Set<number>
       flatSectionIndexes: Set<number>
       clusterRefs: Set<string>
+      websitePathSectionRefs: Set<string>
+      websitePathFlatRefs: Set<string>
+      websitePathClusterRefs: Set<string>
     }
 
     const trackers = new Map<string, ScopeTracker>()
@@ -1329,7 +1372,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         part,
         sectionIndexes: new Set(),
         flatSectionIndexes: new Set(),
-        clusterRefs: new Set()
+        clusterRefs: new Set(),
+        websitePathSectionRefs: new Set(),
+        websitePathFlatRefs: new Set(),
+        websitePathClusterRefs: new Set()
       })
     }
 
@@ -1338,24 +1384,60 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
 
     function clusterRef(sectionIndex: number, clusterIndex: number): string {
-      return `${sectionIndex}\u0000${clusterIndex}`
+      return `cluster\u0000${sectionIndex}\u0000${clusterIndex}`
+    }
+
+    function websitePathSectionRef(sectionIndex: number, websitePathSectionIndex: number): string {
+      return `website-path-section\u0000${sectionIndex}\u0000${websitePathSectionIndex}`
+    }
+
+    function websitePathClusterRef(sectionIndex: number, websitePathSectionIndex: number, clusterIndex: number): string {
+      return `website-path-cluster\u0000${sectionIndex}\u0000${websitePathSectionIndex}\u0000${clusterIndex}`
     }
 
     function sectionChildGroupCount(tracker: ScopeTracker, sectionIndex: number): number {
       let count = tracker.flatSectionIndexes.has(sectionIndex) ? 1 : 0
-      const prefix = `${sectionIndex}\u0000`
+      const clusterPrefix = `cluster\u0000${sectionIndex}\u0000`
+      const websitePathSectionPrefix = `website-path-section\u0000${sectionIndex}\u0000`
       for (const ref of tracker.clusterRefs) {
+        if (ref.startsWith(clusterPrefix)) count += 1
+      }
+      for (const ref of tracker.websitePathSectionRefs) {
+        if (ref.startsWith(websitePathSectionPrefix)) count += 1
+      }
+      return count
+    }
+
+    function websitePathChildGroupCount(tracker: ScopeTracker, sectionIndex: number, websitePathSectionIndex: number): number {
+      const websiteRef = websitePathSectionRef(sectionIndex, websitePathSectionIndex)
+      let count = tracker.websitePathFlatRefs.has(websiteRef) ? 1 : 0
+      const prefix = `website-path-cluster\u0000${sectionIndex}\u0000${websitePathSectionIndex}\u0000`
+      for (const ref of tracker.websitePathClusterRefs) {
         if (ref.startsWith(prefix)) count += 1
       }
       return count
     }
 
-    function recordChip(chip: DashboardChipData, sectionIndex: number, clusterIndex: number | null) {
+    function recordChip(
+      chip: DashboardChipData,
+      sectionIndex: number,
+      clusterIndex: number | null,
+      websitePathSectionIndex: number | null = null,
+      websitePathSectionClusterIndex: number | null = null
+    ) {
       for (const part of chip.suppressedTitleParts || []) {
         const tracker = trackers.get(titleSuppressionKey(part))
         if (!tracker) continue
         tracker.sectionIndexes.add(sectionIndex)
-        if (clusterIndex === null) {
+        if (websitePathSectionIndex !== null) {
+          const websiteRef = websitePathSectionRef(sectionIndex, websitePathSectionIndex)
+          tracker.websitePathSectionRefs.add(websiteRef)
+          if (websitePathSectionClusterIndex === null) {
+            tracker.websitePathFlatRefs.add(websiteRef)
+          } else {
+            tracker.websitePathClusterRefs.add(websitePathClusterRef(sectionIndex, websitePathSectionIndex, websitePathSectionClusterIndex))
+          }
+        } else if (clusterIndex === null) {
           tracker.flatSectionIndexes.add(sectionIndex)
         } else {
           tracker.clusterRefs.add(clusterRef(sectionIndex, clusterIndex))
@@ -1370,11 +1452,22 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         cluster.visibleChips.forEach((chip) => recordChip(chip, sectionIndex, clusterIndex))
         cluster.hiddenChips.forEach((chip) => recordChip(chip, sectionIndex, clusterIndex))
       })
+      const sectionWebsitePathSections = section.websitePathSections ?? []
+      sectionWebsitePathSections.forEach((websitePathSection, websitePathSectionIndex) => {
+        websitePathSection.flatVisibleChips.forEach((chip) => recordChip(chip, sectionIndex, null, websitePathSectionIndex, null))
+        websitePathSection.flatHiddenChips.forEach((chip) => recordChip(chip, sectionIndex, null, websitePathSectionIndex, null))
+        websitePathSection.clusters.forEach((cluster, clusterIndex) => {
+          cluster.visibleChips.forEach((chip) => recordChip(chip, sectionIndex, null, websitePathSectionIndex, clusterIndex))
+          cluster.hiddenChips.forEach((chip) => recordChip(chip, sectionIndex, null, websitePathSectionIndex, clusterIndex))
+        })
+      })
     })
 
     const cardParts: DashboardTitleSuppression[] = []
     const sectionPartsByIndex = new Map<number, DashboardTitleSuppression[]>()
     const clusterPartsByRef = new Map<string, DashboardTitleSuppression[]>()
+    const websitePathSectionPartsByRef = new Map<string, DashboardTitleSuppression[]>()
+    const websitePathClusterPartsByRef = new Map<string, DashboardTitleSuppression[]>()
 
     for (const part of suppressedTitleParts) {
       const tracker = trackers.get(titleSuppressionKey(part.text))
@@ -1383,10 +1476,42 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         continue
       }
 
-      if (tracker.clusterRefs.size === 1 && tracker.flatSectionIndexes.size === 0) {
+      if (
+        tracker.clusterRefs.size === 1 &&
+        tracker.flatSectionIndexes.size === 0 &&
+        tracker.websitePathSectionRefs.size === 0
+      ) {
         const clusterRefKey = [...tracker.clusterRefs][0]
         if (!clusterPartsByRef.has(clusterRefKey)) clusterPartsByRef.set(clusterRefKey, [])
         clusterPartsByRef.get(clusterRefKey)?.push(part)
+        continue
+      }
+
+      if (
+        tracker.websitePathClusterRefs.size === 1 &&
+        tracker.websitePathFlatRefs.size === 0 &&
+        tracker.clusterRefs.size === 0 &&
+        tracker.flatSectionIndexes.size === 0
+      ) {
+        const clusterRefKey = [...tracker.websitePathClusterRefs][0]
+        if (!websitePathClusterPartsByRef.has(clusterRefKey)) websitePathClusterPartsByRef.set(clusterRefKey, [])
+        websitePathClusterPartsByRef.get(clusterRefKey)?.push(part)
+        continue
+      }
+
+      if (
+        tracker.websitePathSectionRefs.size === 1 &&
+        tracker.clusterRefs.size === 0 &&
+        tracker.flatSectionIndexes.size === 0
+      ) {
+        const websiteRef = [...tracker.websitePathSectionRefs][0]
+        const [, sectionIndexText, websitePathSectionIndexText] = websiteRef.split('\u0000')
+        const sectionIndex = Number(sectionIndexText)
+        const websitePathSectionIndex = Number(websitePathSectionIndexText)
+        if (!websitePathSectionPartsByRef.has(websiteRef)) websitePathSectionPartsByRef.set(websiteRef, [])
+        websitePathSectionPartsByRef.get(websiteRef)?.push(
+          childGroupScopedPart(part, websitePathChildGroupCount(tracker, sectionIndex, websitePathSectionIndex) > 1)
+        )
         continue
       }
 
@@ -1406,6 +1531,14 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       clusters: section.clusters.map((cluster, clusterIndex) => ({
         ...cluster,
         suppressedTitleParts: clusterPartsByRef.get(clusterRef(sectionIndex, clusterIndex)) ?? []
+      })),
+      websitePathSections: (section.websitePathSections ?? []).map((websitePathSection, websitePathSectionIndex) => ({
+        ...websitePathSection,
+        suppressedTitleParts: websitePathSectionPartsByRef.get(websitePathSectionRef(sectionIndex, websitePathSectionIndex)) ?? [],
+        clusters: websitePathSection.clusters.map((cluster, clusterIndex) => ({
+          ...cluster,
+          suppressedTitleParts: websitePathClusterPartsByRef.get(websitePathClusterRef(sectionIndex, websitePathSectionIndex, clusterIndex)) ?? []
+        }))
       }))
     }))
 
@@ -1436,7 +1569,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     ? scopedSectionsData.map((s) => ({
         ...s,
         sectionClosableUrls: [],
-        clusters: s.clusters.map((c) => ({ ...c, closableUrls: [] }))
+        clusters: s.clusters.map((c) => ({ ...c, closableUrls: [] })),
+        websitePathSections: (s.websitePathSections ?? []).map((websitePathSection) => ({
+          ...websitePathSection,
+          sectionClosableUrls: [],
+          clusters: websitePathSection.clusters.map((c) => ({ ...c, closableUrls: [] }))
+        }))
       }))
     : scopedSectionsData
 

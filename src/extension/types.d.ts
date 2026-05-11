@@ -55,6 +55,17 @@ export interface PathGroupRule {
   extract(url: URL): PathGroupResult | null
 }
 
+export interface WebsitePathSectionResult {
+  key: string
+  label: string
+}
+
+export interface WebsitePathSectionRule {
+  hostname?: string
+  hostnameEndsWith?: string
+  extract(url: URL): WebsitePathSectionResult | null
+}
+
 export interface DomainGroupBuildOptions {
   previousOrder?: Map<string, number>
   customGroups?: CustomGroupRule[]
@@ -108,6 +119,19 @@ export interface DashboardClusterVM {
   hiddenCount: number
 }
 
+export interface DashboardWebsitePathSectionVM {
+  key: string
+  label: string
+  sectionCount: number
+  sectionClosableUrls: string[]
+  hasFlat: boolean
+  flatVisibleChips: DashboardChipData[]
+  flatHiddenChips: DashboardChipData[]
+  flatHiddenCount: number
+  suppressedTitleParts?: DashboardTitleSuppression[]
+  clusters: DashboardClusterVM[]
+}
+
 export interface DashboardSectionVM {
   key: string
   sectionCount: number
@@ -121,6 +145,7 @@ export interface DashboardSectionVM {
   flatHiddenCount: number
   suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: DashboardClusterVM[]
+  websitePathSections: DashboardWebsitePathSectionVM[]
 }
 
 export interface DashboardCardVM {

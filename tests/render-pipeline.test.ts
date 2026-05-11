@@ -17,6 +17,7 @@ import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlF
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
+import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
 
 (globalThis as any).chrome = {
@@ -465,6 +466,187 @@ test('computeDomainCardViewModel treats Google Search as shared hidden title tex
   assert.equal(section.hasFlat, true)
 })
 
+test('resolveWebsitePathSection returns raw Google document product paths', () => {
+  assert.deepEqual(resolveWebsitePathSection('https://docs.google.com/document/d/doc-alpha/edit'), {
+    key: '/document',
+    label: '/document'
+  })
+  assert.deepEqual(resolveWebsitePathSection('https://docs.google.com/spreadsheets/d/sheet-alpha/edit'), {
+    key: '/spreadsheets',
+    label: '/spreadsheets'
+  })
+  assert.deepEqual(resolveWebsitePathSection('https://docs.google.com/presentation/d/deck-alpha/edit'), {
+    key: '/presentation',
+    label: '/presentation'
+  })
+  assert.equal(resolveWebsitePathSection('https://docs.google.com/viewer?url=https%3A%2F%2Fexample.com'), null)
+})
+
+test('computeDomainCardViewModel splits docs.google.com products into website path sections when multiple paths are present', () => {
+  const group = {
+    domain: 'google.com',
+    tabs: [
+      makeTab({
+        url: 'https://docs.google.com/document/d/doc-alpha/edit',
+        title: 'Example Spec - Google Docs'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://docs.google.com/spreadsheets/d/sheet-alpha/edit',
+        title: 'Example Budget - Google Sheets'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const docsSection = vm.sections.find((section) => section.key === 'docs')
+
+  assert.ok(docsSection)
+  assert.equal(docsSection.hasFlat, false)
+  assert.deepEqual(
+    docsSection.websitePathSections.map((section) => section.label),
+    ['/document', '/spreadsheets']
+  )
+  assert.deepEqual(
+    docsSection.websitePathSections.map((section) => section.flatVisibleChips.map((chip) => chip.tabUrl)),
+    [
+      ['https://docs.google.com/document/d/doc-alpha/edit'],
+      ['https://docs.google.com/spreadsheets/d/sheet-alpha/edit']
+    ]
+  )
+})
+
+test('computeDomainCardViewModel keeps Atlassian tenants separate while nesting website paths and project groups', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({
+        url: 'https://alpha.atlassian.net/browse/APP-1001',
+        title: '[APP-1001] Example task'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://alpha.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+        title: 'Alpha guide - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://alpha.atlassian.net/wiki/spaces/KB/pages/page-beta',
+        title: 'Beta guide - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 4,
+        url: 'https://beta.atlassian.net/browse/OPS-2001',
+        title: '[OPS-2001] Example incident'
+      }),
+      makeTab({
+        id: 5,
+        url: 'https://beta.atlassian.net/wiki/spaces/RUN/pages/page-alpha',
+        title: 'Runbook alpha - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 6,
+        url: 'https://beta.atlassian.net/wiki/spaces/RUN/pages/page-beta',
+        title: 'Runbook beta - Example-Site - Confluence'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const alphaSection = vm.sections.find((section) => section.key === 'alpha')
+  const betaSection = vm.sections.find((section) => section.key === 'beta')
+
+  assert.ok(alphaSection)
+  assert.ok(betaSection)
+  assert.equal(alphaSection.showHeader, true)
+  assert.equal(betaSection.showHeader, true)
+  assert.deepEqual(alphaSection.websitePathSections.map((section) => section.label), ['/browse', '/wiki'])
+  assert.deepEqual(betaSection.websitePathSections.map((section) => section.label), ['/browse', '/wiki'])
+  assert.deepEqual(alphaSection.websitePathSections.find((section) => section.label === '/browse')?.clusters.map((cluster) => cluster.label), ['APP'])
+  assert.deepEqual(alphaSection.websitePathSections.find((section) => section.label === '/wiki')?.clusters.map((cluster) => cluster.label), ['KB'])
+  assert.deepEqual(betaSection.websitePathSections.find((section) => section.label === '/browse')?.clusters.map((cluster) => cluster.label), ['OPS'])
+  assert.deepEqual(betaSection.websitePathSections.find((section) => section.label === '/wiki')?.clusters.map((cluster) => cluster.label), ['RUN'])
+  assert.deepEqual(alphaSection.clusters, [])
+  assert.deepEqual(betaSection.clusters, [])
+})
+
+test('computeDomainCardViewModel leaves a single docs.google.com product tab flat', () => {
+  const group = {
+    domain: 'google.com',
+    tabs: [
+      makeTab({
+        url: 'https://docs.google.com/document/d/doc-alpha/edit',
+        title: 'Example Spec - Google Docs'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const docsSection = vm.sections[0]
+
+  assert.equal(docsSection.key, 'docs')
+  assert.equal(docsSection.websitePathSections.length, 0)
+  assert.equal(docsSection.flatVisibleChips.length, 1)
+  assert.equal(docsSection.flatVisibleChips[0].tabUrl, 'https://docs.google.com/document/d/doc-alpha/edit')
+})
+
+test('resolveWebsitePathSection returns longest meaningful Atlassian path prefixes', () => {
+  assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/browse/APP-123'), {
+    key: '/browse',
+    label: '/browse'
+  })
+  assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha'), {
+    key: '/wiki',
+    label: '/wiki'
+  })
+  assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/software/projects/APP/boards/1'), {
+    key: '/jira/software',
+    label: '/jira/software'
+  })
+  assert.deepEqual(resolveWebsitePathSection('https://example.atlassian.net/jira/servicedesk/projects/HELP/queues/custom/1'), {
+    key: '/jira/servicedesk',
+    label: '/jira/servicedesk'
+  })
+  assert.equal(resolveWebsitePathSection('https://example.atlassian.net/rest/api/3/issue/APP-123'), null)
+})
+
+test('computeDomainCardViewModel scopes title suppression to a website path before its subdomain', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({
+        url: 'https://example.atlassian.net/wiki/home',
+        title: 'Wiki home - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha',
+        title: 'Alpha guide - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-beta',
+        title: 'Beta guide - Example-Site - Confluence'
+      }),
+      makeTab({
+        id: 4,
+        url: 'https://example.atlassian.net/browse/APP-1001',
+        title: '[APP-1001] Example task'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const section = vm.sections[0]
+  const wikiSection = section.websitePathSections.find((websitePathSection) => websitePathSection.label === '/wiki')
+  const kbCluster = wikiSection?.clusters.find((cluster) => cluster.label === 'KB')
+
+  assert.deepEqual(vm.suppressedTitleParts, [])
+  assert.deepEqual(section.suppressedTitleParts, [])
+  assert.deepEqual(wikiSection?.suppressedTitleParts, [{ text: '- Confluence', count: 3, spansRenderedChildGroups: true }])
+  assert.deepEqual(kbCluster?.suppressedTitleParts, [{ text: '- Example-Site', count: 2 }])
+})
+
 test('computeDomainCardViewModel marks single title suppression that spans rendered child groups', () => {
   const group = {
     domain: 'atlassian.net',
@@ -501,8 +683,10 @@ test('computeDomainCardViewModel marks single title suppression that spans rende
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(section.suppressedTitleParts, [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }])
-  assert.equal(section.hasFlat, true)
-  assert.deepEqual(section.clusters.map((cluster) => cluster.label), ['DOC', 'KB', 'TASK'])
+  assert.equal(section.hasFlat, false)
+  assert.deepEqual(section.websitePathSections.map((websitePathSection) => websitePathSection.label), ['/browse', '/jira/your-work', '/wiki'])
+  assert.deepEqual(section.websitePathSections.find((websitePathSection) => websitePathSection.label === '/browse')?.clusters.map((cluster) => cluster.label), ['DOC', 'TASK'])
+  assert.deepEqual(section.websitePathSections.find((websitePathSection) => websitePathSection.label === '/wiki')?.clusters.map((cluster) => cluster.label), ['KB'])
 })
 
 test('computeDomainCardViewModel keeps single title suppression neutral when it is the only card meaning', () => {
@@ -572,16 +756,18 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
 
   const vm = computeDomainCardViewModel(group)
   const chips = vm.sections
-    .flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
+    .flatMap((section) => section.websitePathSections.flatMap((websitePathSection) => websitePathSection.clusters.flatMap((cluster) => cluster.visibleChips)))
     .filter((chip) => chip.tabUrl.includes('/wiki/'))
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
-  const zcsCluster = vm.sections.flatMap((section) => section.clusters).find((cluster) => cluster.label === 'DOCS')
+  const wikiSection = vm.sections.flatMap((section) => section.websitePathSections).find((websitePathSection) => websitePathSection.label === '/wiki')
+  const docsCluster = wikiSection?.clusters.find((cluster) => cluster.label === 'DOCS')
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example-Site - Confluence', count: 3 }])
-  assert.deepEqual(zcsCluster?.suppressedTitleParts, [{ text: '- Example-Site - Confluence', count: 3 }])
-  assert.equal(zcsCluster?.suppressedTitleParts?.[0]?.spansRenderedChildGroups, undefined)
+  assert.deepEqual(wikiSection?.suppressedTitleParts, [])
+  assert.deepEqual(docsCluster?.suppressedTitleParts, [{ text: '- Example-Site - Confluence', count: 3 }])
+  assert.equal(docsCluster?.suppressedTitleParts?.[0]?.spansRenderedChildGroups, undefined)
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [
     ['- Example-Site - Confluence'],
     ['- Example-Site - Confluence'],
@@ -611,7 +797,11 @@ test('computeDomainCardViewModel keeps one-off cleaned title suffixes out of the
   const vm = computeDomainCardViewModel(group)
   const chips = vm.sections.flatMap((section) => [
     ...section.flatVisibleChips,
-    ...section.clusters.flatMap((cluster) => cluster.visibleChips)
+    ...section.clusters.flatMap((cluster) => cluster.visibleChips),
+    ...section.websitePathSections.flatMap((websitePathSection) => [
+      ...websitePathSection.flatVisibleChips,
+      ...websitePathSection.clusters.flatMap((cluster) => cluster.visibleChips)
+    ])
   ])
   const wikiChip = chips.find((chip) => chip.tabUrl === wikiUrl)
   const wikiTitle = wikiChip?.displaySegments.filter((seg) => typeof seg === 'string').join('')
