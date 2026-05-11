@@ -309,8 +309,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
   const style = {
     '--chip-hover-fade-bg': chip.activeInOtherWindow
-      ? 'color-mix(in srgb, var(--card-bg) 90.5%, rgb(82 82 82))'
-      : 'color-mix(in srgb, var(--card-bg) 96%, rgb(82 82 82))',
+      ? 'color-mix(in srgb, var(--card-bg) 87%, rgb(82 82 82))'
+      : 'color-mix(in srgb, var(--card-bg) 92.5%, rgb(82 82 82))',
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
   } as CSSProperties
   const dupeCount = chip.dupeCount || 1
