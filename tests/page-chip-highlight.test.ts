@@ -299,10 +299,10 @@ test('PageChip marks chips affected by the active suppressed title text', () => 
 
   assert.match(defaultHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
   assert.match(defaultHtml, /\bbg-yellow-50\b/)
-  assert.match(defaultHtml, /chip-title-suppression-marker\b[^"]*\bbg-yellow-100\b/)
+  assert.match(defaultHtml, /chip-title-suppression-marker\b[^"]*\bbg-yellow-50\b/)
   assert.match(tealHtml, /page-chip\b[^"]*page-chip-suppression-highlighted/)
   assert.match(tealHtml, /\bbg-teal-50\b/)
-  assert.match(tealHtml, /chip-title-suppression-marker\b[^"]*\bbg-teal-100\b/)
+  assert.match(tealHtml, /chip-title-suppression-marker\b[^"]*\bbg-teal-50\b/)
   assert.doesNotMatch(tealHtml, /\bbg-yellow-50\b/)
 })
 
@@ -606,8 +606,8 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
     assert.ok(overflowButtonMatch, 'overflow expander button should render')
     assert.doesNotMatch(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
     assert.doesNotMatch(overflowButtonMatch[1], /\bbg-teal-50\b/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bring-teal-200\b/)
-    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-teal-200[^"]*bg-teal-100[\s\S]*>˷1<\/span>/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\bring-teal-50\b/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-teal-50[^"]*bg-teal-50[\s\S]*>˷1<\/span>/)
     assert.doesNotMatch(overflowButtonMatch[1], /\bbg-yellow-50\b/)
     assert.doesNotMatch(html, /hidden title suppresses/)
     assert.doesNotMatch(html, /Click to show/)
@@ -660,8 +660,8 @@ test('Overflow expanders use full chip color when all hidden chips match active 
     assert.match(overflowButtonMatch[1], /\bbg-teal-50\b/)
     assert.match(overflowButtonMatch[1], /\bring-1\b/)
     assert.match(overflowButtonMatch[1], /\bring-inset\b/)
-    assert.match(overflowButtonMatch[1], /\bring-teal-200\b/)
-    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-teal-200[^"]*bg-teal-100[\s\S]*>˷2<\/span>/)
+    assert.match(overflowButtonMatch[1], /\bring-teal-50\b/)
+    assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-teal-50[^"]*bg-teal-50[\s\S]*>˷2<\/span>/)
   }
 })
 
