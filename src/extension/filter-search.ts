@@ -18,7 +18,7 @@ export type FilterSearchRequest = {
 }
 
 function isTabFilterSearch({ source, filter }: Pick<FilterSearchOptions, 'source' | 'filter'>): boolean {
-  return dashboardSourceAllowsSideSearches(source) && filter !== ''
+  return dashboardSourceAllowsSideSearches(source) && filter.trim() !== ''
 }
 
 export function buildFilterSearchRequest({

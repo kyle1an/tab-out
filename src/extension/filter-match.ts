@@ -1,24 +1,29 @@
 import { getRealTabs } from './tabs.js'
 import { isGroupedTab } from './groups.js'
+import { matchValuesForFilterTerm, parseFilterQuery, searchablePartsForDashboardItem, searchableTextForDashboardItem } from './filter-query.js'
 
 import type { DashboardTab } from './types'
 
+export function tabMatchesLegacyFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>, filter: string): boolean {
+  const q = filter.trim().toLowerCase()
+  if (!q) return true
+  const { title, url } = searchablePartsForDashboardItem(tab)
+  return title.toLowerCase().includes(q) || url.toLowerCase().includes(q)
+}
+
 export function tabMatchesFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>, filter: string): boolean {
-  if (!filter) return true
-  const q = filter.toLowerCase()
-  const rawTitle = tab.title || ''
-  const searchableTitle = tab.isTabOut ? rawTitle.replace(/^.+ - Tab Out$/i, 'Tab Out') : rawTitle
-  let searchableUrl = tab.url || ''
-  if (tab.isTabOut) {
-    try {
-      const parsed = new URL(searchableUrl)
-      parsed.search = ''
-      searchableUrl = parsed.toString()
-    } catch {}
-  }
-  const title = searchableTitle.toLowerCase()
-  const url = searchableUrl.toLowerCase()
-  return title.includes(q) || url.includes(q)
+  if (!filter.trim()) return true
+  const query = parseFilterQuery(filter)
+  if (query.terms.length === 0) return false
+
+  const searchableText = searchableTextForDashboardItem(tab)
+  return query.terms.every((term) => matchValuesForFilterTerm(term).some((value) => searchableText.includes(value)))
+}
+
+export function tabMatchesSourceFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut' | 'sourceType'>, filter: string): boolean {
+  return tab.sourceType === 'history'
+    ? tabMatchesLegacyFilter(tab, filter)
+    : tabMatchesFilter(tab, filter)
 }
 
 /**
@@ -27,11 +32,11 @@ export function tabMatchesFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTa
  * ungrouped, non-chrome. Returns [] when no filter is active.
  */
 export function getFilteredCloseableUrls(realTabs: DashboardTab[] = getRealTabs(), filter = ''): string[] {
-  if (!filter) return []
+  if (!filter.trim()) return []
   return realTabs
     .filter((t) => !t.isApp)
     .filter((t) => !isGroupedTab(t))
     .filter((t) => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
-    .filter((t) => tabMatchesFilter(t, filter))
+    .filter((t) => tabMatchesSourceFilter(t, filter))
     .map((t) => t.url)
 }

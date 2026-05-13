@@ -25,13 +25,13 @@ import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { dashboardSourceAllowsTabActions } from './dashboard-source.js'
-import { getFilteredCloseableUrls, tabMatchesFilter } from './filter-match.js'
+import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 
 export { pickFavicon } from './favicons.js'
 export { buildDomainGroups } from './domain-groups.js'
 export { computeDomainCardViewModel } from './domain-card-view-model.js'
-export { getFilteredCloseableUrls, tabMatchesFilter } from './filter-match.js'
+export { getFilteredCloseableUrls, tabMatchesFilter, tabMatchesLegacyFilter, tabMatchesSourceFilter } from './filter-match.js'
 
 /**
  * buildDashboardViewModel({ realTabs, domainGroups, filter }) — derives the
@@ -55,8 +55,8 @@ type DashboardViewModelOptions = {
 }
 
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null }: DashboardViewModelOptions = {}): DashboardViewModel {
-  const filtering = filter.length > 0
-  const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesFilter(t, filter)) : realTabs
+  const filtering = filter.trim().length > 0
+  const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
   const allowMutations = dashboardSourceAllowsTabActions(source)

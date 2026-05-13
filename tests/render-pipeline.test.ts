@@ -15,7 +15,8 @@ import {
 } from '../src/extension/history-source.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
-import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel } from '../src/extension/render.js'
+import { parseFilterQuery } from '../src/extension/filter-query.js'
+import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
@@ -948,6 +949,87 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
 })
 
+test('parseFilterQuery separates tokens, quoted phrases, and open-ended phrases', () => {
+  assert.deepEqual(parseFilterQuery(' github "pull request" 4706 "open ended ').terms, [
+    { kind: 'token', value: 'github' },
+    { kind: 'phrase', value: 'pull request' },
+    { kind: 'token', value: '4706' },
+    { kind: 'phrase', value: 'open ended' }
+  ])
+})
+
+test('tabMatchesFilter uses tokenized AND and quoted phrase semantics', () => {
+  const tab = makeTab({
+    url: 'https://github.com/example/repo/pull/4706',
+    title: 'Pull Request review'
+  })
+
+  assert.equal(tabMatchesFilter(tab, 'github 4706'), true)
+  assert.equal(tabMatchesFilter(tab, '4706 github'), true)
+  assert.equal(tabMatchesFilter(tab, 'github 9999'), false)
+  assert.equal(tabMatchesFilter(tab, 'github "pull request"'), true)
+  assert.equal(tabMatchesFilter(tab, 'github "request pull"'), false)
+  assert.equal(tabMatchesFilter(tab, 'github "pull request'), true)
+  assert.equal(tabMatchesFilter(tab, 'github pr'), true)
+  assert.equal(tabMatchesFilter(tab, 'github "pr"'), false)
+  assert.equal(tabMatchesFilter(tab, '   '), true)
+})
+
+test('tokenized filter matches drive filtered close targets for open tabs', () => {
+  const groups = buildDomainGroups([
+    makeTab({ url: 'https://github.com/example/repo/pull/4706', title: 'Pull Request review' }),
+    makeTab({ id: 2, url: 'https://github.com/example/repo/pull/9999', title: 'Pull Request review' })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const vm = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: 'github pr 4706'
+  })
+
+  assert.deepEqual(vm.filteredCloseUrls, ['https://github.com/example/repo/pull/4706'])
+  assert.equal(vm.stats.visibleTabs, 1)
+
+  const blankVm = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: '   '
+  })
+  assert.equal(blankVm.stats.filtering, false)
+  assert.deepEqual(blankVm.filteredCloseUrls, [])
+})
+
+test('history source keeps legacy raw-substring filter behavior for this pass', () => {
+  const historyTabs = [
+    makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' })
+  ]
+  const bookmarkTabs = [
+    makeTab({ id: 'b1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'bookmark' })
+  ]
+  const historyGroups = buildDomainGroups(historyTabs)
+  const bookmarkGroups = buildDomainGroups(bookmarkTabs)
+
+  assert.equal(tabMatchesLegacyFilter(historyTabs[0], 'docs openai'), false)
+  assert.equal(tabMatchesFilter(bookmarkTabs[0], 'docs openai'), true)
+
+  const historyVm = buildDashboardViewModel({
+    realTabs: historyTabs,
+    domainGroups: historyGroups,
+    filter: 'docs openai',
+    source: 'history'
+  })
+  const bookmarkVm = buildDashboardViewModel({
+    realTabs: bookmarkTabs,
+    domainGroups: bookmarkGroups,
+    filter: 'docs openai',
+    source: 'bookmarks'
+  })
+
+  assert.equal(historyVm.matchedCards.length, 0)
+  assert.equal(bookmarkVm.matchedCards.length, 1)
+})
+
 test('computeDomainCardViewModel uses the simple count when every chip matches the filter', () => {
   const group = {
     domain: 'example.com',
@@ -1115,6 +1197,26 @@ test('history range options default to the last day search window', () => {
   assert.equal(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE).days, 1)
 })
 
+test('history source sends the raw trimmed filter text to Chrome history search', async () => {
+  const originalHistory = (globalThis.chrome as any).history
+  let searchedText = ''
+  ;(globalThis.chrome as any).history = {
+    async search(query: any) {
+      searchedText = query.text
+      return [{ id: '1', title: 'Pull Request review', url: 'https://github.com/example/repo/pull/4706' }]
+    }
+  }
+
+  try {
+    const items = await fetchHistorySourceItems(' github "pull request" 4706 ', '7d')
+    assert.equal(searchedText, 'github "pull request" 4706')
+    assert.deepEqual(items.map((item) => item.sourceType), ['history'])
+  } finally {
+    if (originalHistory === undefined) delete (globalThis.chrome as any).history
+    else (globalThis.chrome as any).history = originalHistory
+  }
+})
+
 test('history filter off skips Chrome history search', async () => {
   assert.equal(isHistoryFilterEnabled(HISTORY_FILTER_OFF), false)
 
@@ -1163,6 +1265,22 @@ test('filter search request owns bookmark and history inclusion rules', () => {
     }),
     {
       query: 'openai',
+      historyQuery: '',
+      historyRange: '7d',
+      includeBookmarkMatches: false,
+      includeHistoryMatches: false
+    }
+  )
+
+  assert.deepEqual(
+    buildFilterSearchRequest({
+      source: 'tabs',
+      filter: '   ',
+      historyRange: '7d',
+      historyFilterEnabled: true
+    }),
+    {
+      query: '   ',
       historyQuery: '',
       historyRange: '7d',
       includeBookmarkMatches: false,

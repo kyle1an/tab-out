@@ -3,7 +3,7 @@ import { deleteHistorySourceUrl } from './history-source.js'
 import { unwrapSuspenderUrl } from './suspender.js'
 import { closeDuplicateTabs, closeTabsExact, fetchOpenTabs, snapshotChromeTabs } from './tabs.js'
 import { showToast } from './toast.js'
-import { tabMatchesFilter } from './filter-match.js'
+import { tabMatchesSourceFilter } from './filter-match.js'
 import { markClosure } from './undo.js'
 import type { DashboardChipEnv, DomainGroup, TabSnapshot } from './types'
 
@@ -78,7 +78,7 @@ export async function closeFilteredTabs(urls: string[]): Promise<TabActionResult
 }
 
 export async function closeDomainTabs({ group, filter, displayName, onAfterClose }: CloseDomainTabsOptions): Promise<TabActionResult> {
-  const scopedTabs = filter ? group.tabs.filter((tab) => tabMatchesFilter(tab, filter)) : group.tabs
+  const scopedTabs = filter ? group.tabs.filter((tab) => tabMatchesSourceFilter(tab, filter)) : group.tabs
   const snapshot = await closeTabsExact(scopedTabs.map((tab) => tab.url), { preserveGroups: true })
   const result = { snapshot }
 

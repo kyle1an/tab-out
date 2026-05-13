@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
+import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
@@ -24,6 +25,7 @@ interface PageChipProps {
 }
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
+type HighlightMode = 'parsed' | 'legacy'
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
@@ -37,9 +39,15 @@ function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is {
   return typeof segment !== 'string' && 'placeholder' in segment
 }
 
-function renderHighlightedText(text: string, filter: string, keyPrefix: string): ReactNode {
+function highlightTermsForFilter(filter: string, mode: HighlightMode): string[] {
   const query = filter.trim()
-  if (!text || !query) return text
+  if (!query) return []
+  if (mode === 'legacy') return [query.toLowerCase()]
+  return [...new Set(parseFilterQuery(query).terms.flatMap((term) => matchValuesForFilterTerm(term)))]
+}
+
+function renderHighlightedText(text: string, highlightTerms: readonly string[], keyPrefix: string): ReactNode {
+  if (!text || highlightTerms.length === 0) return text
 
   const normalizedChars: string[] = []
   const originalIndexes: number[] = []
@@ -51,18 +59,38 @@ function renderHighlightedText(text: string, filter: string, keyPrefix: string):
   }
 
   const normalizedText = normalizedChars.join('').toLowerCase()
-  const normalizedQuery = query.toLowerCase()
+  const ranges: Array<{ start: number; end: number }> = []
+  for (const term of highlightTerms) {
+    if (!term) continue
+    let searchFrom = 0
+    while (searchFrom < normalizedText.length) {
+      const start = normalizedText.indexOf(term, searchFrom)
+      if (start === -1) break
+      const end = start + term.length
+      ranges.push({ start, end })
+      searchFrom = end
+    }
+  }
+
+  if (ranges.length === 0) return text
+
+  ranges.sort((a, b) => a.start - b.start || b.end - a.end)
+  const mergedRanges: Array<{ start: number; end: number }> = []
+  for (const range of ranges) {
+    const previous = mergedRanges[mergedRanges.length - 1]
+    if (previous && range.start <= previous.end) {
+      previous.end = Math.max(previous.end, range.end)
+    } else {
+      mergedRanges.push({ ...range })
+    }
+  }
+
   const nodes: ReactNode[] = []
   let cursor = 0
-  let searchFrom = 0
 
-  while (searchFrom < normalizedText.length) {
-    const matchIndex = normalizedText.indexOf(normalizedQuery, searchFrom)
-    if (matchIndex === -1) break
-
-    const originalStart = originalIndexes[matchIndex]
-    const normalizedEnd = matchIndex + normalizedQuery.length
-    const originalEnd = normalizedEnd < originalIndexes.length ? originalIndexes[normalizedEnd] : text.length
+  for (const range of mergedRanges) {
+    const originalStart = originalIndexes[range.start]
+    const originalEnd = range.end < originalIndexes.length ? originalIndexes[range.end] : text.length
     if (originalStart > cursor) nodes.push(text.slice(cursor, originalStart))
     nodes.push(
       <mark
@@ -73,10 +101,8 @@ function renderHighlightedText(text: string, filter: string, keyPrefix: string):
       </mark>
     )
     cursor = originalEnd
-    searchFrom = normalizedEnd
   }
 
-  if (nodes.length === 0) return text
   if (cursor < text.length) nodes.push(text.slice(cursor))
   return nodes
 }
@@ -132,6 +158,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
+  const highlightTerms = highlightTermsForFilter(filter, isHistorySource ? 'legacy' : 'parsed')
   const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
   const primaryPreviewUrl = chip.tabUrl || ''
   const suppressedTitleParts = chip.suppressedTitleParts || []
@@ -349,7 +376,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           )}
           aria-label={label}
         >
-          {renderHighlightedText(part, filter, `${key}-label`)}
+          {renderHighlightedText(part, highlightTerms, `${key}-label`)}
         </span>
       )
     }
@@ -408,7 +435,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           className="chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle] [overflow-wrap:anywhere]"
           aria-label={hiddenLabel}
         >
-          {renderHighlightedText(hiddenLabel, filter, `${key}-label`)}
+          {renderHighlightedText(hiddenLabel, highlightTerms, `${key}-label`)}
         </span>
       )
     }
@@ -427,7 +454,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     if (mode === 'tooltip') {
       return (
         <span key={env.rawUrl || env.tabUrl} className={envClassName}>
-          {renderHighlightedText(env.prefix, filter, `tooltip-env-${env.prefix}`)}
+          {renderHighlightedText(env.prefix, highlightTerms, `tooltip-env-${env.prefix}`)}
         </span>
       )
     }
@@ -445,7 +472,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           onFocus={() => onEnvFocus(env)}
           onBlur={onEnvBlur}
         >
-          {renderHighlightedText(env.prefix, filter, `env-${env.prefix}`)}
+          {renderHighlightedText(env.prefix, highlightTerms, `env-${env.prefix}`)}
         </button>
       </TooltipAnchor>
     )
@@ -456,11 +483,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <>
         {chip.pathGroupLabel && (
           <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-            {renderHighlightedText(pathGroupDisplayLabel(chip.pathGroupLabel), filter, `${mode}-pathgroup`)}
+            {renderHighlightedText(pathGroupDisplayLabel(chip.pathGroupLabel), highlightTerms, `${mode}-pathgroup`)}
           </span>
         )}
         {chip.displaySegments.map((seg, index) => {
-          if (typeof seg === 'string') return renderHighlightedText(seg, filter, `${mode}-segment-${index}`)
+          if (typeof seg === 'string') return renderHighlightedText(seg, highlightTerms, `${mode}-segment-${index}`)
           if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `inline-title-suppression-${index}`)
           if (isStructuralPlaceholderSegment(seg)) return renderStructuralPlaceholder(seg, mode, `structural-placeholder-${index}`)
           return null
@@ -477,7 +504,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal [width:max-content] [overflow-wrap:break-word]'
               )}
             >
-              {renderHighlightedText(chip.pathSuffix, filter, `${mode}-path`)}
+              {renderHighlightedText(chip.pathSuffix, highlightTerms, `${mode}-path`)}
             </span>
           </>
         )}
@@ -503,7 +530,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <>
         {chip.leadPrefix && (
           <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-            {renderHighlightedText(chip.leadPrefix, filter, `${mode}-lead`)}
+            {renderHighlightedText(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
           </span>
         )}
         {renderTitleContent(mode)}

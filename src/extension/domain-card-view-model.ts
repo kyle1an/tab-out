@@ -5,7 +5,7 @@ import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { resolveWebsitePathSection } from './website-path-sections.js'
-import { tabMatchesFilter } from './filter-match.js'
+import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { dashboardItemNameForTabs } from './dashboard-source.js'
 import type { DashboardCardVM, DashboardChipData, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
@@ -520,7 +520,7 @@ function disambiguatingPaths(urls: string[]): string[] {
  */
 export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
-  const filtering = filter !== ''
+  const filtering = filter.trim() !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
   const stableId = domainGroupCardId(group)
   const isAppsGroup = group.domain === '__standalone-apps__'
@@ -537,7 +537,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const tabs =
     filtering
       ? allTabs.filter((t) => {
-          const m = tabMatchesFilter(t, filter)
+          const m = tabMatchesSourceFilter(t, filter)
           return mode === 'unmatched' ? !m : m
         })
       : mode === 'unmatched'

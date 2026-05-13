@@ -67,6 +67,53 @@ test('PageChip highlights matched filter keywords inside visible chip text', () 
   assert.doesNotMatch(chipMatch[1], /\bcursor-pointer\b/)
 })
 
+test('PageChip highlights each parsed filter token in visible chip text', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip(),
+      filter: 'docs openai'
+    })
+  )
+
+  assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> <mark class="chip-filter-match\b[^"]*">Docs<\/mark>/)
+})
+
+test('PageChip highlights quoted filter phrases as one contiguous match', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip(),
+      filter: '"OpenAI Docs"'
+    })
+  )
+
+  assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI Docs<\/mark>/)
+})
+
+test('PageChip highlights token aliases in visible chip text', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Pull Request review'],
+        tooltip: 'Pull Request review'
+      }),
+      filter: 'pr'
+    })
+  )
+
+  assert.match(html, /<mark class="chip-filter-match\b[^"]*">Pull Request<\/mark> review/)
+})
+
+test('PageChip keeps history highlighting on legacy raw filter text for this pass', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'history' }),
+      filter: 'docs openai'
+    })
+  )
+
+  assert.doesNotMatch(html, /chip-filter-match/)
+})
+
 test('PageChip renders a title suppression marker when common title text is suppressed', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
@@ -95,7 +142,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /const shouldShowChipTooltip = chip\.iconOnly \|\| isTextTruncated \|\| hasTitleSuppressionMarkers \|\| hasStructuralPlaceholders/)
   assert.match(pageChipSource, /mode === 'tooltip'[\s\S]*chip-title-suppression-marker inline-flex min-h-4/)
-  assert.match(pageChipSource, /renderHighlightedText\(part, filter/)
+  assert.match(pageChipSource, /renderHighlightedText\(part, highlightTerms/)
   assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)
 })
 
@@ -183,7 +230,7 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /mode === 'tooltip' && hiddenLabel/)
   assert.match(pageChipSource, /chip-strip-indicator inline-block max-w-full/)
-  assert.match(pageChipSource, /renderHighlightedText\(hiddenLabel, filter/)
+  assert.match(pageChipSource, /renderHighlightedText\(hiddenLabel, highlightTerms/)
   assert.doesNotMatch(pageChipSource, /chip-strip-indicator-tooltip/)
 })
 
