@@ -78,6 +78,17 @@ test('PageChip highlights each parsed filter token in visible chip text', () => 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> <mark class="chip-filter-match\b[^"]*">Docs<\/mark>/)
 })
 
+test('PageChip renders the active chip frame without the other-window label', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ activeChipFrame: true })
+    })
+  )
+
+  assert.match(html, /active-chip-frame\b/)
+  assert.doesNotMatch(html, /Active in another window/)
+})
+
 test('PageChip highlights quoted filter phrases as one contiguous match', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {

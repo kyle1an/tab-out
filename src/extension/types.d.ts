@@ -103,6 +103,7 @@ export interface DashboardChipData {
   groupDotColor: string | null
   isApp: boolean
   activeInOtherWindow?: boolean
+  activeChipFrame?: boolean
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
 }

@@ -80,8 +80,10 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
       <button
         type="button"
         className={cn(
-          'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.35] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:opacity-100 hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink focus-visible:opacity-100',
-          pinned && 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100'
+          'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
+          pinned
+            ? 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
+            : 'border-transparent bg-transparent text-tab-muted opacity-[0.35] hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100'
         )}
         aria-label={title}
         aria-pressed={pinned ? 'true' : 'false'}

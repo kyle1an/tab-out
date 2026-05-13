@@ -865,6 +865,37 @@ test('computeDomainCardViewModel marks active tabs from other windows', () => {
   assert.equal(otherWindowChip?.activeInOtherWindow, true)
 })
 
+test('computeDomainCardViewModel frames the current Tab Out page without marking it as other-window active', () => {
+  const group = {
+    domain: '__tab-out__',
+    label: 'New tabs',
+    tabs: [
+      makeTab({
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        active: true,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 2,
+        url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+        rawUrl: 'chrome-extension://tab-out/index.html?focusFilter=1',
+        title: 'Tab Out',
+        windowId: 2,
+        isTabOut: true
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const currentTabOutChip = vm.sections[0].flatVisibleChips.find((chip) => chip.rawUrl === 'chrome-extension://tab-out/index.html')
+
+  assert.equal(currentTabOutChip?.activeInOtherWindow, false)
+  assert.equal(currentTabOutChip?.activeChipFrame, true)
+})
+
 test('computeDomainCardViewModel keeps the shared folded section headerless', () => {
   const group = {
     domain: 'example.com',

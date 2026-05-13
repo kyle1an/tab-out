@@ -185,6 +185,12 @@ function isActiveInOtherWindow(tab: DashboardTab, currentWindowId: number | null
   return tab.windowId !== currentWindowId
 }
 
+function isCurrentTabOutPage(tab: DashboardTab, currentWindowId: number | null): boolean {
+  if (!tab.active || !tab.isTabOut || tab.isApp) return false
+  if (typeof currentWindowId !== 'number') return false
+  return tab.windowId === currentWindowId
+}
+
 /**
  * stripPgLabel(label, pgLabel) — build the chip title as a segment
  * array where EVERY occurrence of the pill label (as an exact
@@ -986,6 +992,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     const activeInOtherWindow = isActiveInOtherWindow(tab, currentWindowId)
+    const activeChipFrame = activeInOtherWindow || isCurrentTabOutPage(tab, currentWindowId)
     return {
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
@@ -1002,6 +1009,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
       isApp: !!tab.isApp,
       activeInOtherWindow,
+      activeChipFrame,
       iconOnly,
       envs: null
     }
@@ -1251,6 +1259,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       // or the other, so we bias toward "not app" (no dashed marker).
       isApp: tabs.every((t) => t.isApp),
       activeInOtherWindow: envs.some((env) => env.activeInOtherWindow),
+      activeChipFrame: envs.some((env) => env.activeInOtherWindow),
       envs
     }
   }
