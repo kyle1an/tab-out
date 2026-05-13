@@ -28,43 +28,43 @@ export function titleSuppressionKey(text: string): string {
 
 const TITLE_SUPPRESSION_TOKEN_TONES: Record<TitleSuppressionTone, { base: string; marker: string; active: string }> = {
   amber: {
-    base: 'title-suppression-token-tone-amber border-[#fdba74] bg-[#fff7ed] text-tab-ink hover:border-[#fb923c] hover:bg-[#ffedd5] focus-visible:outline-[rgba(249,115,22,0.72)]',
-    marker: 'title-suppression-token-tone-amber border-[#fdba74] bg-[#fff7ed] text-tab-ink',
-    active: 'border-[#f97316] bg-[#ffedd5] shadow-[inset_0_0_0_1px_rgba(249,115,22,0.22)]'
+    base: 'title-suppression-token-tone-amber border-yellow-200 bg-yellow-50 text-tab-muted hover:border-yellow-300 hover:bg-yellow-100 hover:text-tab-ink focus-visible:outline-yellow-400',
+    marker: 'title-suppression-token-tone-amber border-yellow-200 bg-yellow-50 text-tab-muted',
+    active: 'border-yellow-300 bg-yellow-100 text-tab-ink ring-1 ring-inset ring-yellow-200'
   },
   teal: {
-    base: 'title-suppression-token-tone-teal border-[#5eead4] bg-[#f0fdfa] text-tab-ink hover:border-[#2dd4bf] hover:bg-[#ccfbf1] focus-visible:outline-[rgba(20,184,166,0.72)]',
-    marker: 'title-suppression-token-tone-teal border-[#5eead4] bg-[#f0fdfa] text-tab-ink',
-    active: 'border-[#14b8a6] bg-[#ccfbf1] shadow-[inset_0_0_0_1px_rgba(20,184,166,0.22)]'
+    base: 'title-suppression-token-tone-teal border-teal-200 bg-teal-50 text-tab-muted hover:border-teal-300 hover:bg-teal-100 hover:text-tab-ink focus-visible:outline-teal-400',
+    marker: 'title-suppression-token-tone-teal border-teal-200 bg-teal-50 text-tab-muted',
+    active: 'border-teal-300 bg-teal-100 text-tab-ink ring-1 ring-inset ring-teal-200'
   },
   sky: {
-    base: 'title-suppression-token-tone-sky border-[#7dd3fc] bg-[#f0f9ff] text-tab-ink hover:border-[#38bdf8] hover:bg-[#e0f2fe] focus-visible:outline-[rgba(14,165,233,0.72)]',
-    marker: 'title-suppression-token-tone-sky border-[#7dd3fc] bg-[#f0f9ff] text-tab-ink',
-    active: 'border-[#0ea5e9] bg-[#e0f2fe] shadow-[inset_0_0_0_1px_rgba(14,165,233,0.22)]'
+    base: 'title-suppression-token-tone-sky border-sky-200 bg-sky-50 text-tab-muted hover:border-sky-300 hover:bg-sky-100 hover:text-tab-ink focus-visible:outline-sky-400',
+    marker: 'title-suppression-token-tone-sky border-sky-200 bg-sky-50 text-tab-muted',
+    active: 'border-sky-300 bg-sky-100 text-tab-ink ring-1 ring-inset ring-sky-200'
   },
   rose: {
-    base: 'title-suppression-token-tone-rose border-[#fda4af] bg-[#fff1f2] text-tab-ink hover:border-[#fb7185] hover:bg-[#ffe4e6] focus-visible:outline-[rgba(244,63,94,0.72)]',
-    marker: 'title-suppression-token-tone-rose border-[#fda4af] bg-[#fff1f2] text-tab-ink',
-    active: 'border-[#f43f5e] bg-[#ffe4e6] shadow-[inset_0_0_0_1px_rgba(244,63,94,0.22)]'
+    base: 'title-suppression-token-tone-rose border-rose-200 bg-rose-50 text-tab-muted hover:border-rose-300 hover:bg-rose-100 hover:text-tab-ink focus-visible:outline-rose-400',
+    marker: 'title-suppression-token-tone-rose border-rose-200 bg-rose-50 text-tab-muted',
+    active: 'border-rose-300 bg-rose-100 text-tab-ink ring-1 ring-inset ring-rose-200'
   }
 }
 
 const TITLE_SUPPRESSION_HIGHLIGHT_TONES: Record<TitleSuppressionTone, { chip: string; badge: string }> = {
   amber: {
-    chip: 'bg-[#fff7ed] shadow-[inset_0_0_0_1px_#fdba74]',
-    badge: 'border-[#fdba74] bg-[#ffedd5]'
+    chip: 'bg-yellow-50 ring-1 ring-inset ring-yellow-200',
+    badge: 'border-yellow-200 bg-yellow-100'
   },
   teal: {
-    chip: 'bg-[#f0fdfa] shadow-[inset_0_0_0_1px_#5eead4]',
-    badge: 'border-[#5eead4] bg-[#ccfbf1]'
+    chip: 'bg-teal-50 ring-1 ring-inset ring-teal-200',
+    badge: 'border-teal-200 bg-teal-100'
   },
   sky: {
-    chip: 'bg-[#f0f9ff] shadow-[inset_0_0_0_1px_#7dd3fc]',
-    badge: 'border-[#7dd3fc] bg-[#e0f2fe]'
+    chip: 'bg-sky-50 ring-1 ring-inset ring-sky-200',
+    badge: 'border-sky-200 bg-sky-100'
   },
   rose: {
-    chip: 'bg-[#fff1f2] shadow-[inset_0_0_0_1px_#fda4af]',
-    badge: 'border-[#fda4af] bg-[#ffe4e6]'
+    chip: 'bg-rose-50 ring-1 ring-inset ring-rose-200',
+    badge: 'border-rose-200 bg-rose-100'
   }
 }
 
@@ -121,14 +121,14 @@ export function titleSuppressionToneForText(
 
 export function titleSuppressionTokenToneClass(index: number, enabled: boolean, active: boolean) {
   if (!enabled) {
-    return active ? 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.14)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.18)]' : ''
+    return active ? 'border-yellow-300 bg-yellow-100 text-tab-ink ring-1 ring-inset ring-yellow-200' : ''
   }
   const tone = TITLE_SUPPRESSION_TOKEN_TONES[titleSuppressionToneForIndex(index)]
   return cn(tone.base, active && tone.active)
 }
 
 export function titleSuppressionChipHighlightClass(tone: TitleSuppressionTone | '') {
-  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].chip : 'bg-[rgba(234,179,8,0.12)] shadow-[inset_0_0_0_1px_rgba(234,179,8,0.32)]'
+  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].chip : 'bg-yellow-50 ring-1 ring-inset ring-yellow-200'
 }
 
 export function titleSuppressionOverflowHighlightClass(tone: TitleSuppressionTone | '') {
@@ -136,12 +136,12 @@ export function titleSuppressionOverflowHighlightClass(tone: TitleSuppressionTon
 }
 
 export function titleSuppressionBadgeClass(tone: TitleSuppressionTone | '') {
-  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].badge : 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.16)]'
+  return tone ? TITLE_SUPPRESSION_HIGHLIGHT_TONES[tone].badge : 'border-yellow-200 bg-yellow-100'
 }
 
 export function titleSuppressionMarkerClass(tone: TitleSuppressionTone | '', active = false) {
   if (tone) return cn(TITLE_SUPPRESSION_TOKEN_TONES[tone].marker, active && TITLE_SUPPRESSION_TOKEN_TONES[tone].active)
-  return active ? 'border-[rgba(234,179,8,0.4)] bg-[rgba(234,179,8,0.14)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(234,179,8,0.18)]' : ''
+  return active ? 'border-yellow-300 bg-yellow-100 text-tab-ink ring-1 ring-inset ring-yellow-200' : ''
 }
 
 export function countHiddenSuppressedTitleMatches(hiddenChips: DashboardChipData[], activeSuppressedTitle: string): number {

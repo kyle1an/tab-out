@@ -32,7 +32,7 @@ export function TitleSuppressionSummary({
             key={part.text}
             type="button"
             className={cn(
-              'title-suppression-token inline-flex h-5 items-center gap-1 rounded-[6px] border border-transparent bg-[rgba(115,115,115,0.08)] px-1.5 py-0 text-xs leading-none font-medium text-tab-muted transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-[rgba(234,179,8,0.32)] hover:bg-[rgba(234,179,8,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+              'title-suppression-token inline-flex h-5 items-center gap-1 rounded-[6px] border border-transparent bg-neutral-100 px-1.5 py-0 text-xs leading-none font-medium text-tab-muted transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-yellow-200 hover:bg-yellow-50 hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-yellow-400',
               titleSuppressionTokenToneClass(toneIndex, useSuppressionTokenTones, active)
             )}
             aria-label={label}
