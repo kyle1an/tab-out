@@ -312,6 +312,10 @@ function TooltipAnchor({
     if (!tooltipOpen) return
 
     const handleScroll = () => closeTooltip()
+    const handleWindowBlur = () => closeTooltip()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') closeTooltip()
+    }
     const isTooltipRegionActive = () => {
       const triggerElement = triggerElementRef.current
       const popupElement = popupElementRef.current
@@ -353,15 +357,19 @@ function TooltipAnchor({
     }, TOOLTIP_HOVER_WATCH_INTERVAL_MS)
 
     window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('blur', handleWindowBlur)
     window.addEventListener('pointermove', handlePointerOrMouseMove, true)
     window.addEventListener('mousemove', handlePointerOrMouseMove, true)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     document.addEventListener('pointermove', handlePointerOrMouseMove, true)
     document.addEventListener('mousemove', handlePointerOrMouseMove, true)
     return () => {
       window.clearInterval(hoverWatchId)
       window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('blur', handleWindowBlur)
       window.removeEventListener('pointermove', handlePointerOrMouseMove, true)
       window.removeEventListener('mousemove', handlePointerOrMouseMove, true)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
       document.removeEventListener('pointermove', handlePointerOrMouseMove, true)
       document.removeEventListener('mousemove', handlePointerOrMouseMove, true)
     }
