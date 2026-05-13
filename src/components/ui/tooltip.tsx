@@ -17,6 +17,8 @@ import type {
   ReactNode
 } from 'react'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
+import { mergeRefs } from 'foxact/merge-refs'
+import { useRetimer } from 'foxact/use-retimer'
 
 import { cn } from '@/lib/utils'
 
@@ -163,23 +165,6 @@ type TooltipTriggerElement = ReactElement<{
   onPointerMove?: (event: ReactPointerEvent<HTMLElement>) => void
 }>
 
-function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
-  if (!ref) return
-  if (typeof ref === 'function') {
-    ref(value)
-    return
-  }
-
-  const mutableRef = ref as { current: T | null }
-  mutableRef.current = value
-}
-
-function composeRefs<T>(...refs: Array<Ref<T> | undefined>): Ref<T> {
-  return (value) => {
-    for (const ref of refs) assignRef(ref, value)
-  }
-}
-
 type TooltipAnchorProps = Omit<
   ComponentProps<typeof TooltipContent>,
   'children' | 'content'
@@ -197,61 +182,46 @@ function TooltipAnchor({
   const triggerElementRef = useRef<HTMLElement | null>(null)
   const popupElementRef = useRef<HTMLDivElement | null>(null)
   const latestPointerPointRef = useRef<CursorPoint | null>(null)
-  const frozenPointerClearTimerRef = useRef<number | null>(null)
-  const hoverOpenTimerRef = useRef<number | null>(null)
-  const hoverCloseTimerRef = useRef<number | null>(null)
   const hoverDelayRef = useRef(TOOLTIP_INITIAL_REST_DELAY_MS)
   const pointerInsideRef = useRef(false)
   const pointerFocusedRef = useRef(false)
   const popupPointerInsideRef = useRef(false)
+  const hoverCloseScheduledRef = useRef(false)
+  const retimeFrozenPointerClear = useRetimer()
+  const retimeHoverOpen = useRetimer()
+  const retimeHoverClose = useRetimer()
   const [frozenPointerPoint, setFrozenPointerPoint] =
     useState<CursorPoint | null>(null)
   const [tooltipOpen, setTooltipOpen] = useState(false)
 
-  const clearFrozenPointerClearTimer = useCallback(() => {
-    if (frozenPointerClearTimerRef.current === null) return
-
-    window.clearTimeout(frozenPointerClearTimerRef.current)
-    frozenPointerClearTimerRef.current = null
-  }, [])
-
-  const clearHoverOpenTimer = useCallback(() => {
-    if (hoverOpenTimerRef.current === null) return
-
-    window.clearTimeout(hoverOpenTimerRef.current)
-    hoverOpenTimerRef.current = null
-  }, [])
-
   const clearHoverCloseTimer = useCallback(() => {
-    if (hoverCloseTimerRef.current === null) return
-
-    window.clearTimeout(hoverCloseTimerRef.current)
-    hoverCloseTimerRef.current = null
-  }, [])
+    hoverCloseScheduledRef.current = false
+    retimeHoverClose()
+  }, [retimeHoverClose])
 
   const clearFrozenPointerPointAfterClose = useCallback(() => {
-    clearFrozenPointerClearTimer()
-    frozenPointerClearTimerRef.current = window.setTimeout(() => {
-      setFrozenPointerPoint(null)
-      frozenPointerClearTimerRef.current = null
-    }, TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS)
-  }, [clearFrozenPointerClearTimer])
+    retimeFrozenPointerClear(
+      window.setTimeout(() => {
+        setFrozenPointerPoint(null)
+      }, TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS)
+    )
+  }, [retimeFrozenPointerClear])
 
   useEffect(
     () => () => {
-      clearFrozenPointerClearTimer()
+      retimeFrozenPointerClear()
       clearHoverCloseTimer()
-      clearHoverOpenTimer()
+      retimeHoverOpen()
       if (activeTooltipAnchorId === anchorId) {
         activeTooltipAnchorId = null
         latestTooltipActivityAt = now()
       }
     },
-    [anchorId, clearFrozenPointerClearTimer, clearHoverCloseTimer, clearHoverOpenTimer]
+    [anchorId, clearHoverCloseTimer, retimeFrozenPointerClear, retimeHoverOpen]
   )
 
   const closeTooltip = useCallback(() => {
-    clearHoverOpenTimer()
+    retimeHoverOpen()
     clearHoverCloseTimer()
     setTooltipOpen(false)
     if (activeTooltipAnchorId === anchorId) {
@@ -259,10 +229,10 @@ function TooltipAnchor({
       latestTooltipActivityAt = now()
     }
     clearFrozenPointerPointAfterClose()
-  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, clearHoverOpenTimer])
+  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, retimeHoverOpen])
 
   const openTooltip = useCallback((point: CursorPoint | null) => {
-    clearHoverOpenTimer()
+    retimeHoverOpen()
     clearHoverCloseTimer()
     if (!pointerInsideRef.current && point !== null) return
 
@@ -270,19 +240,20 @@ function TooltipAnchor({
     latestTooltipActivityAt = now()
     setFrozenPointerPoint(point)
     setTooltipOpen(true)
-  }, [anchorId, clearHoverCloseTimer, clearHoverOpenTimer])
+  }, [anchorId, clearHoverCloseTimer, retimeHoverOpen])
 
   const scheduleHoverClose = useCallback(() => {
-    clearHoverOpenTimer()
+    retimeHoverOpen()
     clearHoverCloseTimer()
 
-    hoverCloseTimerRef.current = window.setTimeout(() => {
-      hoverCloseTimerRef.current = null
+    hoverCloseScheduledRef.current = true
+    retimeHoverClose(window.setTimeout(() => {
+      hoverCloseScheduledRef.current = false
       if (pointerInsideRef.current || popupPointerInsideRef.current) return
 
       closeTooltip()
-    }, TOOLTIP_HOVERABLE_CLOSE_DELAY_MS)
-  }, [clearHoverCloseTimer, clearHoverOpenTimer, closeTooltip])
+    }, TOOLTIP_HOVERABLE_CLOSE_DELAY_MS))
+  }, [clearHoverCloseTimer, closeTooltip, retimeHoverClose, retimeHoverOpen])
 
   const updateLatestPointerPoint = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -297,15 +268,14 @@ function TooltipAnchor({
   const scheduleHoverOpen = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       updateLatestPointerPoint(event)
-      clearHoverOpenTimer()
+      retimeHoverOpen()
 
       const point = latestPointerPointRef.current
-      hoverOpenTimerRef.current = window.setTimeout(() => {
+      retimeHoverOpen(window.setTimeout(() => {
         openTooltip(point)
-        hoverOpenTimerRef.current = null
-      }, hoverDelayRef.current)
+      }, hoverDelayRef.current))
     },
-    [clearHoverOpenTimer, openTooltip, updateLatestPointerPoint]
+    [openTooltip, retimeHoverOpen, updateLatestPointerPoint]
   )
 
   useEffect(() => {
@@ -342,7 +312,7 @@ function TooltipAnchor({
 
       pointerInsideRef.current = false
       popupPointerInsideRef.current = false
-      if (hoverCloseTimerRef.current === null) {
+      if (!hoverCloseScheduledRef.current) {
         scheduleHoverClose()
       }
     }
@@ -351,7 +321,7 @@ function TooltipAnchor({
         clearHoverCloseTimer()
         return
       }
-      if (hoverCloseTimerRef.current === null) {
+      if (!hoverCloseScheduledRef.current) {
         scheduleHoverClose()
       }
     }, TOOLTIP_HOVER_WATCH_INTERVAL_MS)
@@ -481,7 +451,7 @@ function TooltipAnchor({
   )
 
   const triggerRef = useMemo(
-    () => composeRefs(children.props.ref, triggerElementRef),
+    () => mergeRefs<HTMLElement>(children.props.ref, triggerElementRef),
     [children.props.ref]
   )
 
