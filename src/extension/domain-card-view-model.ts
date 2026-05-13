@@ -191,6 +191,23 @@ function isCurrentTabOutPage(tab: DashboardTab, currentWindowId: number | null):
   return tab.windowId === currentWindowId
 }
 
+function isActiveInCurrentWindow(tab: DashboardTab, currentWindowId: number | null): boolean {
+  if (!tab.active || tab.isApp) return false
+  if (typeof currentWindowId !== 'number') return false
+  return tab.windowId === currentWindowId
+}
+
+function activeFrameStateForDuplicateSet(tabs: readonly DashboardTab[], currentWindowId: number | null): Pick<DashboardChipData, 'activeInOtherWindow' | 'activeChipFrame'> {
+  const activeInOtherWindow = tabs.some((tab) => isActiveInOtherWindow(tab, currentWindowId))
+  const activeCurrentWindowDuplicate = tabs.length > 1 && tabs.some((tab) => isActiveInCurrentWindow(tab, currentWindowId))
+  const activeCurrentTabOutPage = tabs.some((tab) => isCurrentTabOutPage(tab, currentWindowId))
+
+  return {
+    activeInOtherWindow,
+    activeChipFrame: activeInOtherWindow || activeCurrentWindowDuplicate || activeCurrentTabOutPage
+  }
+}
+
 /**
  * stripPgLabel(label, pgLabel) — build the chip title as a segment
  * array where EVERY occurrence of the pill label (as an exact
@@ -991,8 +1008,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
-    const activeInOtherWindow = isActiveInOtherWindow(tab, currentWindowId)
-    const activeChipFrame = activeInOtherWindow || isCurrentTabOutPage(tab, currentWindowId)
+    const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(tabsByUrl.get(tab.url) || [tab], currentWindowId)
     return {
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,

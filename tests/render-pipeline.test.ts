@@ -865,6 +865,40 @@ test('computeDomainCardViewModel marks active tabs from other windows', () => {
   assert.equal(otherWindowChip?.activeInOtherWindow, true)
 })
 
+test('computeDomainCardViewModel frames a duplicate URL when the active copy is not the displayed representative', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/current-page', title: 'Inactive duplicate', windowId: 2 }),
+      makeTab({ id: 2, url: 'https://example.com/current-page', title: 'Active duplicate', active: true, windowId: 1 })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const chip = vm.sections[0].flatVisibleChips.find((candidate) => candidate.tabUrl === 'https://example.com/current-page')
+
+  assert.equal(chip?.dupeCount, 2)
+  assert.equal(chip?.activeInOtherWindow, false)
+  assert.equal(chip?.activeChipFrame, true)
+})
+
+test('computeDomainCardViewModel marks a duplicate URL active in another window when the active copy is not the displayed representative', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/other-window-page', title: 'Inactive duplicate', windowId: 1 }),
+      makeTab({ id: 2, url: 'https://example.com/other-window-page', title: 'Active duplicate', active: true, windowId: 2 })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const chip = vm.sections[0].flatVisibleChips.find((candidate) => candidate.tabUrl === 'https://example.com/other-window-page')
+
+  assert.equal(chip?.dupeCount, 2)
+  assert.equal(chip?.activeInOtherWindow, true)
+  assert.equal(chip?.activeChipFrame, true)
+})
+
 test('computeDomainCardViewModel frames the current Tab Out page without marking it as other-window active', () => {
   const group = {
     domain: '__tab-out__',

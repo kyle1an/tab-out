@@ -78,15 +78,42 @@ test('PageChip highlights each parsed filter token in visible chip text', () => 
   assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> <mark class="chip-filter-match\b[^"]*">Docs<\/mark>/)
 })
 
-test('PageChip renders the active chip frame without the other-window label', () => {
+test('PageChip renders the current active chip frame without the other-window label', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({ activeChipFrame: true })
     })
   )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
 
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(frameMatch, 'active chip frame should render')
+  assert.match(chipMatch[1], /current-active-chip\b/)
+  assert.match(chipMatch[1], /\bbg-neutral-100\b/)
+  assert.match(chipMatch[1], /\bring-neutral-400\b/)
+  assert.doesNotMatch(chipMatch[1], /\bbefore:bg-neutral-700\b/)
+  assert.doesNotMatch(chipMatch[1], /\bbefore:w-1\b/)
+  assert.match(frameMatch[1], /current-active-chip-frame\b/)
   assert.match(html, /active-chip-frame\b/)
   assert.doesNotMatch(html, /Active in another window/)
+})
+
+test('PageChip keeps the other-window active chip style separate from the current active style', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ activeChipFrame: true, activeInOtherWindow: true })
+    })
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(frameMatch, 'active chip frame should render')
+  assert.match(html, /Active in another window/)
+  assert.doesNotMatch(chipMatch[1], /current-active-chip\b/)
+  assert.doesNotMatch(chipMatch[1], /\bring-neutral-400\b/)
+  assert.doesNotMatch(frameMatch[1], /current-active-chip-frame\b/)
 })
 
 test('PageChip highlights quoted filter phrases as one contiguous match', () => {
