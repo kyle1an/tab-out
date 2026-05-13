@@ -210,6 +210,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /focus-within:shadow-\[inset_0_0_0_1px_rgba\(234,179,8,0\.42\)\]/)
   assert.match(tabHistoryPanelSource, /className="flex min-h-8\.5[^"]*outline-none[^"]*focus-visible:outline-none/)
   assert.match(tabHistoryPanelSource, /className="pointer-events-none inline-flex h-5\.5[^"]*outline-none[^"]*focus-visible:outline-none/)
+  assert.doesNotMatch(tabHistoryPanelSource, /history-entry group\/history-entry[^"]*\btransition-/)
+  assert.doesNotMatch(tabHistoryPanelSource, /className="pointer-events-none inline-flex h-5\.5[^"]*\btransition-/)
   assert.doesNotMatch(tabHistoryPanelSource, /<TooltipAnchor content=\{entryLabel\}>/)
   assert.match(pathgroupSectionSource, /pathgroupLabelTruncated \? \(/)
   assert.match(pathgroupSectionSource, /className="text-\[13px\] leading-tight"/)
