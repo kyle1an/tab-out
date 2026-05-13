@@ -330,8 +330,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow
   const style = {
     '--chip-hover-fade-bg': hasActiveChipFrame
-      ? 'color-mix(in srgb, var(--card-bg) 85.5%, rgb(82 82 82))'
-      : 'color-mix(in srgb, var(--card-bg) 91%, rgb(82 82 82))',
+      ? 'color-mix(in srgb, var(--card-bg) 82%, rgb(82 82 82))'
+      : 'color-mix(in srgb, var(--card-bg) 87%, rgb(82 82 82))',
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
   } as CSSProperties
   const dupeCount = chip.dupeCount || 1
@@ -561,11 +561,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <div
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-colors duration-150 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:transition-opacity after:duration-200 after:ease-[ease] after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
-          !isFolded && 'clickable cursor-default hover:bg-[rgba(82,82,82,0.09)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
+          !isFolded && 'clickable cursor-default hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
           hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isFolded && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.145)]',
-          isCurrentActiveFrame && !isFolded && 'hover:bg-neutral-200',
+          hasActiveChipFrame && !isFolded && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
+          isCurrentActiveFrame && !isFolded && 'hover:bg-neutral-300',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
