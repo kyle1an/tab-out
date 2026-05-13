@@ -1482,4 +1482,6 @@ test('manifest keeps only the permissions used by the extension', () => {
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
   assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in global activation history')
   assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')
+  assert.equal(manifest.commands['open-new-tab'].description, 'Open a new Tab Out tab')
+  assert.equal('global' in manifest.commands['open-new-tab'], false)
 })

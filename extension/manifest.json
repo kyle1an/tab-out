@@ -15,6 +15,9 @@
     },
     "open-filter-tab": {
       "description": "Open Tab Out with the filter focused"
+    },
+    "open-new-tab": {
+      "description": "Open a new Tab Out tab"
     }
   },
   "action": {

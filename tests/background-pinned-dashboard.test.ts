@@ -589,6 +589,72 @@ test('filter shortcut opens in a normal browser window when a standalone app win
   assert.equal(mock.state.tabsById[73].active, true)
 })
 
+test('global new-tab shortcut opens a native new tab in the last focused normal window', async () => {
+  const mock = await loadBackground([
+    {
+      id: 81,
+      windowId: 1,
+      url: 'https://openai.com/',
+      title: 'OpenAI',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  mock.blurAllWindows()
+  onCommand('open-new-tab')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.create.at(-1), {
+    windowId: 1,
+    active: true
+  })
+  assert.deepEqual(mock.calls.windowUpdate.at(-1), {
+    windowId: 1,
+    updateInfo: { focused: true }
+  })
+
+  const createdTab = Object.values(mock.state.tabsById as Record<string, any>).find((tab) => tab.url === 'chrome://newtab/')
+  assert.ok(createdTab)
+  assert.equal(createdTab.active, true)
+  assert.equal(createdTab.pinned, false)
+})
+
+test('global new-tab shortcut opens a normal browser window when no normal window exists', async () => {
+  const mock = await loadBackground([
+    {
+      id: 91,
+      windowId: 10,
+      windowType: 'popup',
+      url: 'https://mail.example.com/',
+      title: 'Inbox',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('open-new-tab')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.create, [])
+  assert.deepEqual(mock.calls.windowCreate, [
+    {
+      type: 'normal',
+      focused: true
+    }
+  ])
+})
+
 test('active tab is primed to close back to the previous same-window tab without fallback flash', async () => {
   const mock = await loadBackground([
     {

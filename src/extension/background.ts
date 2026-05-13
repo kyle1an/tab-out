@@ -17,6 +17,7 @@
 import { updateBadge } from './background/badge.js'
 import { createChromeApi } from './background/chrome-api.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
+import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
 import {
   TAB_HISTORY_GET_MESSAGE,
   TAB_HISTORY_SWITCH_MESSAGE,
@@ -75,6 +76,8 @@ chromeApi.commands?.onCommand.addListener((command) => {
     tabHistoryService.switchTabHistory(1)
   } else if (command === OPEN_FILTER_TAB_COMMAND) {
     openFilterTab(chromeApi)
+  } else if (command === OPEN_NEW_TAB_COMMAND) {
+    openNewTab(chromeApi)
   }
 })
 
