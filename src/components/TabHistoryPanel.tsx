@@ -245,7 +245,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
         >
           <button
             type="button"
-            className="flex min-h-8.5 w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none disabled:cursor-default"
+            className="flex min-h-8.5 w-full cursor-default items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none disabled:cursor-default"
             disabled={!entry.exists}
             onClick={onFocusEntry}
           >

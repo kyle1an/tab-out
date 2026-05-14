@@ -224,6 +224,19 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
   assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
 })
 
+test('TabHistoryPanel keeps the history entry surface on the default cursor', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot()
+    })
+  )
+  const entryButtonMatch = html.match(/<button type="button" class="([^"]*\bw-full\b[^"]*\btext-left\b[^"]*)"/)
+
+  assert.ok(entryButtonMatch, 'history entry button should render')
+  assert.match(entryButtonMatch[1], /\bcursor-default\b/)
+  assert.doesNotMatch(entryButtonMatch[1], /\bcursor-pointer\b/)
+})
+
 test('cross-surface hover match styling is outline-only', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
   const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.history-entry\.history-entry-hover-match\s*\{([^}]*)\}/)
