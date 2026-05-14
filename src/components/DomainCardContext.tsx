@@ -1,11 +1,13 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import type { HoverUrlChangeHandler, LayoutChangeHandler } from './types'
+import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler } from './types'
 
 export type DomainCardContextValue = {
   activeSuppressedTitle: string
   setActiveSuppressedTitle: (text: string) => void
   dedupeBadgesClosing: boolean
   onHoverUrlChange: HoverUrlChangeHandler | null
+  activeHoverUrl: string
+  activeHoverSource: HoverUrlSource | null
   onLayoutChange: LayoutChangeHandler | null
 }
 
@@ -14,6 +16,8 @@ const defaultDomainCardContext: DomainCardContextValue = {
   setActiveSuppressedTitle: () => {},
   dedupeBadgesClosing: false,
   onHoverUrlChange: null,
+  activeHoverUrl: '',
+  activeHoverSource: null,
   onLayoutChange: null
 }
 

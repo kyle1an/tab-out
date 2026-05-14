@@ -9,13 +9,15 @@ import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
   vm: DashboardCardVM
   filter?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
+  activeHoverUrl?: string
+  activeHoverSource?: HoverUrlSource | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
 }
@@ -115,7 +117,7 @@ type RenderSectionVM = DashboardSectionVM & {
   websitePathSections: RenderWebsitePathSectionVM[]
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const cardContext = {
@@ -123,6 +125,8 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
     setActiveSuppressedTitle,
     dedupeBadgesClosing,
     onHoverUrlChange,
+    activeHoverUrl,
+    activeHoverSource,
     onLayoutChange
   }
   if (vm.isHidden) return null

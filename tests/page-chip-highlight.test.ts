@@ -9,9 +9,10 @@ import { DomainCardProvider, type DomainCardContextValue } from '../src/componen
 import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
+import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
-import type { DashboardCardVM, DashboardChipData, DomainGroup } from '../src/extension/types'
+import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistorySnapshot } from '../src/extension/types'
 
 function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData {
   return {
@@ -36,15 +37,50 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
 
 function renderWithDomainCardContext(element: React.ReactElement, overrides: Partial<DomainCardContextValue> = {}) {
   const value: DomainCardContextValue = {
-    activeSuppressedTitle: '',
-    setActiveSuppressedTitle: () => {},
-    dedupeBadgesClosing: false,
-    onHoverUrlChange: null,
-    onLayoutChange: null,
-    ...overrides
+    activeSuppressedTitle: overrides.activeSuppressedTitle ?? '',
+    setActiveSuppressedTitle: overrides.setActiveSuppressedTitle ?? (() => {}),
+    dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false,
+    onHoverUrlChange: overrides.onHoverUrlChange ?? null,
+    activeHoverUrl: overrides.activeHoverUrl ?? '',
+    activeHoverSource: overrides.activeHoverSource ?? null,
+    onLayoutChange: overrides.onLayoutChange ?? null
   }
 
   return renderToStaticMarkup(React.createElement(DomainCardProvider, { value }, element))
+}
+
+function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHistorySnapshot {
+  return {
+    stackSize: 1,
+    maxSize: 40,
+    cursorIndex: 0,
+    currentIndex: 0,
+    previousIndex: -1,
+    nextIndex: -1,
+    activeTabId: 101,
+    activeWindowId: 1,
+    activeWasInserted: false,
+    entries: [
+      {
+        index: 0,
+        tabId: 101,
+        windowId: 1,
+        exists: true,
+        active: true,
+        pinned: false,
+        discarded: false,
+        cursor: true,
+        current: true,
+        previousTarget: false,
+        nextTarget: false,
+        title: 'Example Docs',
+        url: 'https://example.com/docs',
+        displayUrl: 'example.com/docs',
+        favIconUrl: ''
+      }
+    ],
+    ...overrides
+  }
 }
 
 test('PageChip highlights matched filter keywords inside visible chip text', () => {
@@ -114,6 +150,88 @@ test('PageChip keeps the other-window active chip style separate from the curren
   assert.doesNotMatch(chipMatch[1], /current-active-chip\b/)
   assert.doesNotMatch(chipMatch[1], /\bring-neutral-400\b/)
   assert.doesNotMatch(frameMatch[1], /current-active-chip-frame\b/)
+})
+
+test('PageChip outlines matching live chips only when history hover owns the match', () => {
+  const chip = makeChip({
+    tabUrl: 'https://example.com/docs',
+    rawUrl: 'https://example.com/docs'
+  })
+  const matchedHtml = renderWithDomainCardContext(
+    React.createElement(PageChip, { chip }),
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' } as Partial<DomainCardContextValue>
+  )
+  const selfHoverHtml = renderWithDomainCardContext(
+    React.createElement(PageChip, { chip }),
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as Partial<DomainCardContextValue>
+  )
+  const chipMatch = matchedHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const selfHoverMatch = selfHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(selfHoverMatch, 'self-hover page chip should render')
+  assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
+  assert.doesNotMatch(selfHoverMatch[1], /\bpage-chip-hover-match\b/)
+})
+
+test('TabHistoryPanel outlines matching history rows only when chip hover owns the match', () => {
+  const snapshot = makeHistorySnapshot()
+  const matchedHtml = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/docs',
+      activeHoverSource: 'chip'
+    })
+  )
+  const selfHoverHtml = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/docs',
+      activeHoverSource: 'history'
+    })
+  )
+  const entryMatch = matchedHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const selfHoverMatch = selfHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+
+  assert.ok(entryMatch, 'history entry should render')
+  assert.ok(selfHoverMatch, 'self-hover history entry should render')
+  assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
+  assert.doesNotMatch(selfHoverMatch[1], /\bhistory-entry-hover-match\b/)
+})
+
+test('TabHistoryPanel matches chip hover against raw tab URLs without changing the preview URL', () => {
+  const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const snapshot = makeHistorySnapshot({
+    entries: [
+      {
+        ...makeHistorySnapshot().entries[0],
+        url: rawUrl,
+        displayUrl: 'example.com/docs'
+      }
+    ]
+  })
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/docs',
+      activeHoverUrls: ['https://example.com/docs', rawUrl],
+      activeHoverSource: 'chip'
+    })
+  )
+  const entryMatch = html.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+
+  assert.ok(entryMatch, 'history entry should render')
+  assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
+})
+
+test('cross-surface hover match styling is outline-only', () => {
+  const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.history-entry\.history-entry-hover-match\s*\{([^}]*)\}/)
+
+  assert.ok(match, 'cross-surface hover match rule should exist')
+  assert.match(match[1], /outline:\s*1px solid var\(--accent-amber\);/)
+  assert.match(match[1], /outline-offset:\s*1px;/)
+  assert.doesNotMatch(match[1], /\b(?:background|box-shadow|border):/)
 })
 
 test('PageChip highlights quoted filter phrases as one contiguous match', () => {

@@ -1,0 +1,5 @@
+.page-chip.page-chip-hover-match,
+.history-entry.history-entry-hover-match {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 1px;
+}

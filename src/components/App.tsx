@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
@@ -16,12 +16,18 @@ import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
 import { cn } from '@/lib/utils'
-import type { DashboardData, DashboardSource, TabHistorySnapshot } from './types'
+import type { DashboardData, DashboardSource, HoverUrlSource, TabHistorySnapshot } from './types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 
 type MissionContainerRef = {
   current: HTMLDivElement | null
+}
+
+type HoverMatchState = {
+  url: string
+  urls: string[]
+  source: HoverUrlSource | null
 }
 
 function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer[] {
@@ -57,6 +63,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const [source, setSource] = useState<DashboardSource>('tabs')
   const [historyRange, setHistoryRange] = useState(DEFAULT_HISTORY_RANGE)
   const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
+  const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
   const [isScrolled, setIsScrolled] = useState(false)
   const [tabHistory, setTabHistory] = useState<TabHistorySnapshot | null>(null)
   const sourceSwitchSeqRef = useRef(0)
@@ -86,6 +93,29 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
   }
 
+  function sameHoverUrls(a: readonly string[], b: readonly string[]) {
+    return a.length === b.length && a.every((url, index) => url === b[index])
+  }
+
+  function handleHoverUrlChange(url: string, source: HoverUrlSource = 'chip', matchUrls?: readonly string[]) {
+    const nextUrl = url || ''
+    const nextUrls = nextUrl
+      ? [...new Set((matchUrls && matchUrls.length > 0 ? matchUrls : [nextUrl]).filter(Boolean))]
+      : []
+    const nextSource = nextUrls.length > 0 ? source : null
+    setHoverMatch((current) => (
+      current.url === nextUrl && current.source === nextSource && sameHoverUrls(current.urls, nextUrls)
+        ? current
+        : { url: nextUrl, urls: nextUrls, source: nextSource }
+    ))
+    setUrlPreview(nextUrl)
+  }
+
+  const clearHoverUrlNow = useCallback(function clearHoverUrlNow() {
+    setHoverMatch((current) => (current.url || current.urls.length > 0 || current.source ? { url: '', urls: [], source: null } : current))
+    clearUrlPreviewNow()
+  }, [clearUrlPreviewNow])
+
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
   function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
@@ -106,7 +136,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     setDashboard,
     setTabHistory,
     onBeforeAnimatedRefresh: primeCardMoveAnimation,
-    onBeforePinnedRefresh: clearUrlPreviewNow
+    onBeforePinnedRefresh: clearHoverUrlNow
   })
 
   useEffect(() => {
@@ -126,14 +156,14 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
   useLayoutEffect(() => {
     if (!isReady) return
-    clearUrlPreviewNow()
+    clearHoverUrlNow()
     const containers = readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
     const previousRects = layoutMoveRectsRef.current
     layoutMoveRectsRef.current = null
     if (!previousRects) cancelDomainCardMoves(containers)
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
-  }, [dashboard, filter, source, isReady, clearUrlPreviewNow, packMissionsMasonryNow])
+  }, [dashboard, filter, source, isReady, clearHoverUrlNow, packMissionsMasonryNow])
 
   const {
     dashboardVm,
@@ -168,7 +198,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
-    clearUrlPreviewNow()
+    clearHoverUrlNow()
     const { dashboard: nextDashboard, tabHistory: nextTabHistory } = await fetchDashboardSnapshot({
       source: nextSource,
       filter,
@@ -211,7 +241,10 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
           <TabHistoryPanel
             snapshot={tabHistory}
             onSnapshotChange={setTabHistory}
-            onHoverUrlChange={setUrlPreview}
+            onHoverUrlChange={handleHoverUrlChange}
+            activeHoverUrl={hoverMatch.url}
+            activeHoverUrls={hoverMatch.urls}
+            activeHoverSource={hoverMatch.source}
             onTabsChange={() => refreshDashboard({ animateCards: true })}
           />
         )}
@@ -257,7 +290,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                     filter={filter}
                     source={source}
                     showEmptyState={showPrimaryEmptyState}
-                    onHoverUrlChange={setUrlPreview}
+                    onHoverUrlChange={handleHoverUrlChange}
+                    activeHoverUrl={hoverMatch.url}
+                    activeHoverSource={hoverMatch.source}
                     onLayoutChange={scheduleMissionsMasonry}
                     onTogglePinnedDomain={togglePinnedDomain}
                   />
@@ -272,7 +307,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         filter={filter}
                         source="bookmarks"
                         showEmptyState={false}
-                        onHoverUrlChange={setUrlPreview}
+                        onHoverUrlChange={handleHoverUrlChange}
+                        activeHoverUrl={hoverMatch.url}
+                        activeHoverSource={hoverMatch.source}
                         onLayoutChange={scheduleMissionsMasonry}
                         onTogglePinnedDomain={togglePinnedDomain}
                       />
@@ -289,7 +326,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         filter={filter}
                         source="history"
                         showEmptyState={false}
-                        onHoverUrlChange={setUrlPreview}
+                        onHoverUrlChange={handleHoverUrlChange}
+                        activeHoverUrl={hoverMatch.url}
+                        activeHoverSource={hoverMatch.source}
                         onLayoutChange={scheduleMissionsMasonry}
                         onTogglePinnedDomain={togglePinnedDomain}
                       />
@@ -306,7 +345,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                         filter={filter}
                         source={source}
                         showEmptyState={false}
-                        onHoverUrlChange={setUrlPreview}
+                        onHoverUrlChange={handleHoverUrlChange}
+                        activeHoverUrl={hoverMatch.url}
+                        activeHoverSource={hoverMatch.source}
                         onLayoutChange={scheduleMissionsMasonry}
                         onTogglePinnedDomain={togglePinnedDomain}
                       />

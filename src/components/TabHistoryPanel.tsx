@@ -5,7 +5,7 @@ import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import type { HoverUrlChangeHandler, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
+import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry } from '../extension/types'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
@@ -26,6 +26,9 @@ interface HistoryEntryProps {
   snapshot: TabHistorySnapshot | null
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
+  activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
+  activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
 }
 
@@ -33,6 +36,9 @@ interface TabHistoryPanelProps {
   snapshot: TabHistorySnapshot | null
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
+  activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
+  activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
 }
 
@@ -106,7 +112,7 @@ function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnap
   return String(fallback)
 }
 
-function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryProps) {
+function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     isTruncated: false,
@@ -184,7 +190,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   }
 
   function onMouseEnter() {
-    onHoverUrlChange?.(entry.url || '')
+    onHoverUrlChange?.(entry.url || '', 'history', [entry.url || ''])
   }
 
   function onMouseLeave() {
@@ -192,6 +198,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   }
 
   const badges = entryBadges(entry, snapshot)
+  const hoverMatched = activeHoverSource === 'chip' && !!entry.url && (entry.url === activeHoverUrl || activeHoverUrls.includes(entry.url))
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const titleTooltipWidth = titleMetrics.width > 0
     ? `min(calc(100vw - 32px), ${Math.round((titleMetrics.width + HISTORY_TITLE_TOOLTIP_WRAP_EXTRA_PX) * 100) / 100}px)`
@@ -227,7 +234,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
           entry.current && 'is-current border-[var(--accent-amber)] bg-tab-card shadow-[inset_0_0_0_1px_rgba(82,82,82,0.16)]',
           entry.active && 'is-active',
           entry.previousTarget && 'is-previous-target border-[rgba(22,163,74,0.45)]',
-          entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]'
+          entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]',
+          hoverMatched && 'history-entry-hover-match'
         )}
       >
         <TooltipAnchor
@@ -280,7 +288,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   )
 }
 
-export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, onTabsChange }: TabHistoryPanelProps) {
+export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
 
@@ -299,6 +307,9 @@ export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, 
               snapshot={snapshot}
               onSnapshotChange={onSnapshotChange}
               onHoverUrlChange={onHoverUrlChange}
+              activeHoverUrl={activeHoverUrl}
+              activeHoverUrls={activeHoverUrls}
+              activeHoverSource={activeHoverSource}
               onTabsChange={onTabsChange}
             />
           ))

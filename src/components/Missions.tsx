@@ -2,7 +2,7 @@ import { DomainCard } from './DomainCard'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardSourceEmptyNoun } from '../extension/dashboard-source.js'
 import { cn } from '@/lib/utils'
-import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
 
 interface MissionsProps {
   cards: DashboardCardEntry[]
@@ -10,6 +10,8 @@ interface MissionsProps {
   source?: DashboardSource
   showEmptyState?: boolean
   onHoverUrlChange?: HoverUrlChangeHandler | null
+  activeHoverUrl?: string
+  activeHoverSource?: HoverUrlSource | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
 }
@@ -31,7 +33,7 @@ function NoResultsState({ query = '' }: { query?: string }) {
   )
 }
 
-export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, onLayoutChange = null, onTogglePinnedDomain = null }: MissionsProps) {
+export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: MissionsProps) {
   if (!cards || cards.length === 0) {
     if (!showEmptyState) return null
     return filter ? <NoResultsState query={filter} /> : <EmptyState source={source} />
@@ -46,6 +48,8 @@ export function Missions({ cards, filter = '', source = 'tabs', showEmptyState =
           vm={vm}
           filter={filter}
           onHoverUrlChange={onHoverUrlChange}
+          activeHoverUrl={activeHoverUrl}
+          activeHoverSource={activeHoverSource}
           onLayoutChange={onLayoutChange}
           onTogglePinnedDomain={onTogglePinnedDomain}
         />

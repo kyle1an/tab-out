@@ -153,7 +153,7 @@ function getChipTextResizeObserver() {
 }
 
 export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
-  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange } = useDomainCardContext()
+  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverSource } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -243,13 +243,13 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     await focusChipUrl(env.tabUrl)
   }
 
-  function setPreview(url: string) {
-    if (onHoverUrlChange) onHoverUrlChange(url || '')
+  function setPreview(url: string, matchUrls: readonly string[] = [url]) {
+    if (onHoverUrlChange) onHoverUrlChange(url || '', 'chip', matchUrls)
   }
 
   function onChipMouseEnter() {
     if (isFolded) return
-    setPreview(primaryPreviewUrl)
+    setPreview(primaryPreviewUrl, [chip.tabUrl, chip.rawUrl])
   }
 
   function onChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
@@ -259,7 +259,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
   function onChipFocus() {
     if (isFolded) return
-    setPreview(primaryPreviewUrl)
+    setPreview(primaryPreviewUrl, [chip.tabUrl, chip.rawUrl])
   }
 
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
@@ -268,7 +268,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   }
 
   function onEnvMouseEnter(env: DashboardChipEnv) {
-    setPreview(env.tabUrl)
+    setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
   }
 
   function onEnvMouseLeave(e: MouseEvent<HTMLButtonElement>) {
@@ -281,7 +281,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   }
 
   function onEnvFocus(env: DashboardChipEnv) {
-    setPreview(env.tabUrl)
+    setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
   }
 
   function onEnvBlur(e: FocusEvent<HTMLButtonElement>) {
@@ -347,6 +347,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const chipTooltipStyle = chipTooltipTextWidth ? {
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
   } as CSSProperties : undefined
+  const hoverMatched = activeHoverSource === 'history' && !!activeHoverUrl && (
+    chip.tabUrl === activeHoverUrl ||
+    chip.rawUrl === activeHoverUrl ||
+    envs.some((env) => env.tabUrl === activeHoverUrl || env.rawUrl === activeHoverUrl)
+  )
 
   function renderSuppressionMarker(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
     const partKey = part.trim().toLowerCase()
@@ -567,6 +572,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           hasActiveChipFrame && !isFolded && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
           isCurrentActiveFrame && !isFolded && 'hover:bg-neutral-300',
           isFolded && 'page-chip-folded cursor-default after:hidden',
+          hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
           chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
