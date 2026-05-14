@@ -67,6 +67,7 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
         windowId: 1,
         exists: true,
         active: true,
+        activeInOtherWindow: false,
         pinned: false,
         discarded: false,
         cursor: true,
@@ -235,6 +236,161 @@ test('TabHistoryPanel keeps the history entry surface on the default cursor', ()
   assert.ok(entryButtonMatch, 'history entry button should render')
   assert.match(entryButtonMatch[1], /\bcursor-default\b/)
   assert.doesNotMatch(entryButtonMatch[1], /\bcursor-pointer\b/)
+})
+
+test('TabHistoryPanel borrows current PageChip surface styling for the current entry', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        activeTabId: 202,
+        currentIndex: 1,
+        entries: [
+          {
+            ...baseEntry,
+            index: 0,
+            tabId: 101,
+            active: false,
+            activeInOtherWindow: false,
+            cursor: false,
+            current: false,
+            title: 'Default Entry',
+            url: 'https://example.com/default',
+            displayUrl: 'example.com/default'
+          },
+          {
+            ...baseEntry,
+            index: 1,
+            tabId: 202,
+            title: 'Current Entry',
+            activeInOtherWindow: false,
+            url: 'https://example.com/current',
+            displayUrl: 'example.com/current'
+          }
+        ]
+      })
+    })
+  )
+  const entryClasses = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
+  const currentEntry = entryClasses.find((className) => /\bis-current\b/.test(className))
+  const defaultEntry = entryClasses.find((className) => !/\bis-current\b/.test(className))
+
+  assert.ok(currentEntry, 'current history entry should render')
+  assert.ok(defaultEntry, 'default history entry should render')
+  assert.match(defaultEntry, /\bbg-tab-card\b/)
+  assert.doesNotMatch(defaultEntry, /bg-\[rgba\(115,115,115,0\.04\)\]/)
+  assert.match(currentEntry, /\bcurrent-active-history-entry\b/)
+  assert.match(currentEntry, /\bbg-neutral-100\b/)
+  assert.match(currentEntry, /\bring-neutral-400\b/)
+  assert.match(currentEntry, /shadow-\[0_1px_2px_rgba\(10,10,10,0\.07\),inset_0_0_0_1px_rgba\(82,82,82,0\.48\)\]/)
+  assert.match(currentEntry, /\[--history-entry-fade-bg:var\(--color-neutral-100\)\]/)
+})
+
+test('TabHistoryPanel borrows other-window PageChip surface styling for active non-current entries', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        activeTabId: 202,
+        activeWindowId: 2,
+        currentIndex: 0,
+        entries: [
+          {
+            ...baseEntry,
+            index: 0,
+            tabId: 101,
+            active: false,
+            activeInOtherWindow: false,
+            title: 'Current Entry',
+            url: 'https://example.com/current',
+            displayUrl: 'example.com/current'
+          },
+          {
+            ...baseEntry,
+            index: 1,
+            tabId: 202,
+            windowId: 2,
+            active: false,
+            activeInOtherWindow: true,
+            cursor: false,
+            current: false,
+            title: 'Open Elsewhere',
+            url: 'https://example.com/elsewhere',
+            displayUrl: 'example.com/elsewhere'
+          }
+        ]
+      })
+    })
+  )
+  const entryClasses = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
+  const activeOtherEntry = entryClasses.find((className) => /\bis-active\b/.test(className) && !/\bis-current\b/.test(className))
+
+  assert.ok(activeOtherEntry, 'active non-current history entry should render')
+  assert.doesNotMatch(html, />Active<\/span>/)
+  assert.match(activeOtherEntry, /\bactive-in-other-window-history-entry\b/)
+  assert.match(activeOtherEntry, /\bborder-\[rgba\(115,115,115,0\.2\)\]/)
+  assert.match(activeOtherEntry, /\bbg-\[rgba\(82,82,82,0\.075\)\]/)
+  assert.match(activeOtherEntry, /shadow-\[0_1px_2px_rgba\(10,10,10,0\.04\)\]/)
+  assert.doesNotMatch(activeOtherEntry, /inset_0_0_0_1px_rgba\(115,115,115,0\.2\)/)
+  assert.match(activeOtherEntry, /group-hover\/history-row:bg-\[rgba\(82,82,82,0\.18\)\]/)
+  assert.match(activeOtherEntry, /\[--history-entry-fade-bg:color-mix\(in_srgb,var\(--card-bg\)_82%,rgb\(82_82_82\)\)\]/)
+  assert.doesNotMatch(activeOtherEntry, /\bcurrent-active-history-entry\b/)
+  assert.doesNotMatch(activeOtherEntry, /\bring-neutral-400\b/)
+})
+
+test('TabHistoryPanel keeps previous and next history targets visually neutral', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        currentIndex: 1,
+        previousIndex: 0,
+        nextIndex: 2,
+        entries: [
+          {
+            ...baseEntry,
+            index: 0,
+            tabId: 101,
+            active: false,
+            cursor: false,
+            current: false,
+            previousTarget: true,
+            title: 'Previous Entry',
+            url: 'https://example.com/previous',
+            displayUrl: 'example.com/previous'
+          },
+          {
+            ...baseEntry,
+            index: 1,
+            tabId: 202,
+            title: 'Current Entry',
+            url: 'https://example.com/current',
+            displayUrl: 'example.com/current'
+          },
+          {
+            ...baseEntry,
+            index: 2,
+            tabId: 303,
+            active: false,
+            cursor: false,
+            current: false,
+            nextTarget: true,
+            title: 'Next Entry',
+            url: 'https://example.com/next',
+            displayUrl: 'example.com/next'
+          }
+        ]
+      })
+    })
+  )
+  const entryClasses = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
+  const previousEntry = entryClasses.find((className) => /\bis-previous-target\b/.test(className))
+  const nextEntry = entryClasses.find((className) => /\bis-next-target\b/.test(className))
+
+  assert.ok(previousEntry, 'previous target history entry should render')
+  assert.ok(nextEntry, 'next target history entry should render')
+  assert.doesNotMatch(previousEntry, /border-\[rgba\(22,163,74,0\.45\)\]/)
+  assert.doesNotMatch(nextEntry, /border-\[rgba\(37,99,235,0\.42\)\]/)
 })
 
 test('cross-surface hover match styling is outline-only', () => {

@@ -224,6 +224,7 @@ export interface TabHistoryEntry {
   windowId: number
   exists: boolean
   active: boolean
+  activeInOtherWindow: boolean
   pinned: boolean
   discarded: boolean
   cursor: boolean

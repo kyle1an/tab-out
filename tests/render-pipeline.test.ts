@@ -1293,7 +1293,7 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
     entries: [
       { index: 0, tabId: 11, windowId: 1, title: 'Alpha', displayUrl: 'alpha.example', exists: true, previousTarget: true },
       { index: 1, tabId: 12, windowId: 1, title: 'Bravo', displayUrl: 'bravo.example', exists: true, active: true, current: true },
-      { index: 2, tabId: 13, windowId: 1, title: 'Charlie', displayUrl: 'charlie.example', exists: true, cursor: true, nextTarget: true }
+      { index: 2, tabId: 13, windowId: 1, title: 'Charlie', displayUrl: 'charlie.example', exists: true, activeInOtherWindow: true, cursor: true, nextTarget: true }
     ] as any
   })
 
@@ -1306,6 +1306,7 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
   assert.equal(snapshot.entries[1].current, true)
   assert.equal(snapshot.entries[1].active, true)
   assert.equal(snapshot.entries[2].cursor, true)
+  assert.equal(snapshot.entries[2].activeInOtherWindow, true)
   assert.equal(snapshot.entries[2].nextTarget, true)
 })
 

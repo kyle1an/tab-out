@@ -396,6 +396,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               windowId: entry.windowId,
               exists: !!tab,
               active: tab?.id === activeTab?.id,
+              activeInOtherWindow: !!(tab?.active && activeTab && tab.windowId !== activeTab.windowId),
               pinned: !!tab?.pinned,
               discarded: !!tab?.discarded,
               cursor: index === cleanHistory.index,

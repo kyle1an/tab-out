@@ -89,7 +89,6 @@ function getHistoryTitleResizeObserver() {
 
 function entryBadges(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null) {
   const badges = []
-  if (entry.active && !entry.current) badges.push('Active')
   if (entry.cursor && !entry.current) badges.push('Cursor')
   if (snapshot?.activeWasInserted && entry.current) badges.push('Pending')
   if (entry.pinned) badges.push('Pinned')
@@ -198,6 +197,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   }
 
   const badges = entryBadges(entry, snapshot)
+  const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
+  const isActiveEntry = entry.active || entry.activeInOtherWindow
   const hoverMatched = activeHoverSource === 'chip' && !!entry.url && (entry.url === activeHoverUrl || activeHoverUrls.includes(entry.url))
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const titleTooltipWidth = titleMetrics.width > 0
@@ -230,11 +231,12 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
       </span>
       <div
         className={cn(
-          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[18px] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.04)] text-tab-ink [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-14 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--card-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/history-row:border-[var(--accent-amber)] group-hover/history-row:bg-tab-card group-hover/history-row:after:opacity-100 focus-within:border-[var(--accent-amber)] focus-within:bg-tab-card focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
-          entry.current && 'is-current border-[var(--accent-amber)] bg-tab-card shadow-[inset_0_0_0_1px_rgba(82,82,82,0.16)]',
-          entry.active && 'is-active',
-          entry.previousTarget && 'is-previous-target border-[rgba(22,163,74,0.45)]',
-          entry.nextTarget && 'is-next-target border-[rgba(37,99,235,0.42)]',
+          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[18px] border border-[var(--warm-gray)] bg-tab-card text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-14 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/history-row:border-[var(--accent-amber)] group-hover/history-row:bg-tab-card group-hover/history-row:after:opacity-100 focus-within:border-[var(--accent-amber)] focus-within:bg-tab-card focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+          entry.current && 'is-current current-active-history-entry bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07),inset_0_0_0_1px_rgba(82,82,82,0.48)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
+          isActiveEntry && 'is-active',
+          activeInOtherWindow && 'active-in-other-window-history-entry border-[rgba(115,115,115,0.2)] bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
+          entry.previousTarget && 'is-previous-target',
+          entry.nextTarget && 'is-next-target',
           hoverMatched && 'history-entry-hover-match'
         )}
       >
