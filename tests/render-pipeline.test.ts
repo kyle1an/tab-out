@@ -623,6 +623,106 @@ test('computeDomainCardViewModel keeps Atlassian tenants separate while nesting 
   assert.deepEqual(betaSection.clusters, [])
 })
 
+test('computeDomainCardViewModel creates generic first-segment path sections within each current section', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({
+        url: 'https://env-a.example.test/resource/contentKeys/account/en-US.json',
+        title: 'env-a.example.test/resource/contentKeys/account/en-US.json'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://env-a.example.test/resource/contentKeys/cart/en-US.json',
+        title: 'env-a.example.test/resource/contentKeys/cart/en-US.json'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://env-a.example.test/gateway/contentful-sync/sync',
+        title: 'env-a.example.test/gateway/contentful-sync/sync'
+      }),
+      makeTab({
+        id: 4,
+        url: 'https://env-a.example.test/shop/frames',
+        title: 'Example Shop'
+      }),
+      makeTab({
+        id: 5,
+        url: 'https://env-b.example.test/resource/contentKeys/only-here/en-US.json',
+        title: 'env-b.example.test/resource/contentKeys/only-here/en-US.json'
+      }),
+      makeTab({
+        id: 6,
+        url: 'https://env-b.example.test/shop/sunglasses',
+        title: 'Example Sunglasses'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const envASection = vm.sections.find((section) => section.key === 'env-a')
+  const envBSection = vm.sections.find((section) => section.key === 'env-b')
+
+  assert.ok(envASection)
+  assert.ok(envBSection)
+  assert.deepEqual(
+    envASection.websitePathSections.map((section) => section.label),
+    ['/resource']
+  )
+  assert.deepEqual(
+    envASection.websitePathSections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    [
+      'https://env-a.example.test/resource/contentKeys/account/en-US.json',
+      'https://env-a.example.test/resource/contentKeys/cart/en-US.json'
+    ]
+  )
+  assert.equal(envASection.hasFlat, true)
+  assert.deepEqual(
+    envASection.flatVisibleChips.map((chip) => chip.tabUrl),
+    [
+      'https://env-a.example.test/gateway/contentful-sync/sync',
+      'https://env-a.example.test/shop/frames'
+    ]
+  )
+  assert.equal(envBSection.websitePathSections.length, 0)
+  assert.deepEqual(
+    envBSection.flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://env-b.example.test/resource/contentKeys/only-here/en-US.json', 'https://env-b.example.test/shop/sunglasses']
+  )
+})
+
+test('computeDomainCardViewModel applies generic path sections to root-domain sections too', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({
+        url: 'https://example.test/resource/contentKeys/account/en-US.json',
+        title: 'example.test/resource/contentKeys/account/en-US.json'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://example.test/resource/contentKeys/cart/en-US.json',
+        title: 'example.test/resource/contentKeys/cart/en-US.json'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://example.test/shop/frames',
+        title: 'Example Shop'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const rootSection = vm.sections.find((section) => section.key === '')
+
+  assert.ok(rootSection)
+  assert.deepEqual(
+    rootSection.websitePathSections.map((section) => section.label),
+    ['/resource']
+  )
+  assert.deepEqual(rootSection.flatVisibleChips.map((chip) => chip.tabUrl), ['https://example.test/shop/frames'])
+})
+
 test('computeDomainCardViewModel leaves a single docs.google.com product tab flat', () => {
   const group = {
     domain: 'google.com',

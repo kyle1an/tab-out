@@ -4,7 +4,7 @@ import { isGroupedTab, groupDotColor } from './groups.js'
 import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
-import { resolveWebsitePathSection } from './website-path-sections.js'
+import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './website-path-sections.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { dashboardItemNameForTabs } from './dashboard-source.js'
@@ -1320,16 +1320,33 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
 
     const parentRedundantLabels = new Set([key, group.domain].filter(Boolean))
     const websitePathBuckets = new Map<string, WebsitePathSectionBucket>()
+    const genericWebsitePathBuckets = new Map<string, WebsitePathSectionBucket>()
     const tabsWithoutWebsitePathSection: DashboardTab[] = []
     for (const tab of sectionTabs) {
       const websitePathSection = resolveWebsitePathSection(tab.url)
-      if (!websitePathSection) {
+      if (websitePathSection) {
+        const bucket = websitePathBuckets.get(websitePathSection.key) || { ...websitePathSection, tabs: [] }
+        bucket.tabs.push(tab)
+        websitePathBuckets.set(websitePathSection.key, bucket)
+        continue
+      }
+
+      const genericWebsitePathSection = resolveGenericWebsitePathSection(tab.url)
+      if (!genericWebsitePathSection) {
         tabsWithoutWebsitePathSection.push(tab)
         continue
       }
-      const bucket = websitePathBuckets.get(websitePathSection.key) || { ...websitePathSection, tabs: [] }
+
+      const bucket = genericWebsitePathBuckets.get(genericWebsitePathSection.key) || { ...genericWebsitePathSection, tabs: [] }
       bucket.tabs.push(tab)
-      websitePathBuckets.set(websitePathSection.key, bucket)
+      genericWebsitePathBuckets.set(genericWebsitePathSection.key, bucket)
+    }
+    for (const bucket of genericWebsitePathBuckets.values()) {
+      if (bucket.tabs.length >= 2) {
+        websitePathBuckets.set(bucket.key, bucket)
+      } else {
+        tabsWithoutWebsitePathSection.push(...bucket.tabs)
+      }
     }
     const websitePathBucketList = [...websitePathBuckets.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
     const showWebsitePathSections =

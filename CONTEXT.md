@@ -18,7 +18,7 @@
 
 ## Relationships
 
-- A **Website Path Section** is used only when a known host's URL path carries stable user-facing meaning; generic first-segment path splitting is not a Domain concept.
+- A **Website Path Section** uses known-host URL path rules first, then falls back to a generic first-segment section only when that segment has multiple pages in the current root/subdomain section and grouping reduces clutter.
 - Tenant-style **Domain Cards** keep subdomain sections outside **Website Path Sections**, so unrelated tenants are not mixed before their website paths are grouped.
 - A **Website Path Section** is visible only when it reduces ambiguity: multiple website path sections are present, or one section groups multiple pages while sibling pages remain outside it.
 - **Website Path Sections** do not introduce a new indentation level unless their title-suppression summaries can stay visually aligned with the group that owns them.
@@ -27,6 +27,7 @@
 - A **Page Chip** shows a URL path suffix only when another chip in the same rendered group has the same visible title; sibling Website Path Sections and Path Groups already provide enough context.
 - For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
 - For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira`, and `/servicedesk`.
+- For other sites, **Website Path Sections** may use the first path segment such as `/resource`, but singleton generic segments stay flat.
 - A **Filter Query** is the app-owned matching contract for open-tab and bookmark **Dashboard Items**.
 - A **Dashboard Item's** first-pass searchable text is its title and URL.
 - Unquoted multi-word **Filter Queries** use tokenized AND semantics, so each term must appear somewhere in the Dashboard Item's searchable text.

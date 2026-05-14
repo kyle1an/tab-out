@@ -11,6 +11,11 @@ function pathSection(prefix: string): WebsitePathSectionResult | null {
   return prefix ? { key: prefix, label: prefix } : null
 }
 
+function firstPathSegment(pathname: string): string {
+  const segment = pathname.split('/').find(Boolean)
+  return segment ? `/${segment}` : ''
+}
+
 const GOOGLE_DOCS_PREFIXES = [
   '/document',
   '/spreadsheets',
@@ -63,4 +68,13 @@ export function resolveWebsitePathSection(url: string): WebsitePathSectionResult
   }
 
   return null
+}
+
+export function resolveGenericWebsitePathSection(url: string): WebsitePathSectionResult | null {
+  if (!url) return null
+  try {
+    return pathSection(firstPathSegment(new URL(url).pathname))
+  } catch {
+    return null
+  }
 }
