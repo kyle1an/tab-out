@@ -84,10 +84,8 @@ export function buildDomainGroups(
   const pinnedOrder = new Map(normalizedPinnedDomains.map((domain, index) => [domain, index]))
 
   function orderTier(group: DomainGroup): number {
-    if (group.domain === '__tab-out__') return 0
-    if (group.domain === '__standalone-apps__') return 1
-    if (group.pinned) return 2
-    return 3
+    if (group.pinned) return 0
+    return 1
   }
 
   const groupedDomains = Object.values(groupMap)
@@ -95,7 +93,8 @@ export function buildDomainGroups(
     group.pinned = isPinnableDomain(group.domain) && pinnedOrder.has(group.domain)
   })
 
-  // Sort by fixed system cards, then user-pinned domains, then tab count.
+  // Sort by user-pinned cards, then tab count. Utility cards stay in the
+  // normal flow unless the user pins them explicitly.
   groupedDomains.sort((a, b) => {
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta
@@ -104,8 +103,8 @@ export function buildDomainGroups(
   })
 
   // Stable re-sort: previously-seen cards keep their prior order; new
-  // cards stay where the utility-card/tab-count sort put them (at the
-  // end, since `return 0` preserves Array.prototype.sort stability).
+  // cards stay where the pinned/tab-count sort put them (at the end,
+  // since `return 0` preserves Array.prototype.sort stability).
   groupedDomains.sort((a, b) => {
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta

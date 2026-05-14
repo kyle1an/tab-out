@@ -126,7 +126,7 @@ test('domainCardId is the shared identity for card order and DOM hooks', () => {
   assert.equal(domainCardId('__tab-out__'), 'domain---tab-out--')
 })
 
-test('buildDomainGroups keeps system cards ahead of pinned domain cards', () => {
+test('buildDomainGroups leaves utility cards unpinned by default', () => {
   const groups = buildDomainGroups(
     [
       makeTab({ url: 'https://openai.com/research', title: 'Research' }),
@@ -138,8 +138,29 @@ test('buildDomainGroups keeps system cards ahead of pinned domain cards', () => 
 
   assert.deepEqual(
     groups.map((group) => group.domain),
-    ['__tab-out__', '__standalone-apps__', 'openai.com']
+    ['openai.com', '__tab-out__', '__standalone-apps__']
   )
+  assert.equal(groups.find((group) => group.domain === '__tab-out__')?.pinned, false)
+  assert.equal(groups.find((group) => group.domain === '__standalone-apps__')?.pinned, false)
+})
+
+test('buildDomainGroups lets utility cards be explicitly pinned', () => {
+  const groups = buildDomainGroups(
+    [
+      makeTab({ url: 'https://openai.com/research', title: 'Research' }),
+      makeTab({ id: 2, url: 'https://mail.google.com/mail/u/0/', title: 'Inbox', isApp: true }),
+      makeTab({ id: 3, url: 'chrome-extension://tab-out/index.html', rawUrl: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true })
+    ],
+    { pinnedDomains: ['__standalone-apps__', '__tab-out__'] }
+  )
+
+  assert.deepEqual(
+    groups.map((group) => group.domain),
+    ['__standalone-apps__', '__tab-out__', 'openai.com']
+  )
+  assert.equal(groups[0].pinned, true)
+  assert.equal(groups[1].pinned, true)
+  assert.equal(groups[2].pinned, false)
 })
 
 test('buildDomainGroups collects standalone app tabs into a dedicated apps card', () => {

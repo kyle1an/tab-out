@@ -97,23 +97,6 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
   )
 }
 
-function FixedIndicator({ displayName }: { displayName?: string }) {
-  const title = `${displayName} is fixed at the top`
-  return (
-    <TooltipAnchor content={title}>
-      <span
-        className="domain-fixed-indicator inline-flex h-[22px] w-[22px] min-w-[22px] items-center justify-center rounded-lg border border-[var(--warm-gray)] bg-[rgba(82,82,82,0.06)] p-0 text-tab-muted opacity-[0.78] [corner-shape:squircle]"
-        role="img"
-        aria-label={title}
-      >
-        <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
-        </svg>
-      </span>
-    </TooltipAnchor>
-  )
-}
-
 type RenderClusterVM = DashboardClusterVM & {
   titleSuppressionToneScope: TitleSuppressionToneScope
   suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
@@ -145,7 +128,6 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
   const isAppsCard = group.domain === '__standalone-apps__'
-  const isFixedCard = group.domain === '__tab-out__' || group.domain === '__standalone-apps__'
   const canPin = isPinnableDomain(group.domain) && typeof onTogglePinnedDomain === 'function'
   const displayName = vm.displayName || group.label || group.domain
   const closableExtras = vm.closableExtras ?? 0
@@ -263,7 +245,6 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[250ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
           isAppsCard && 'domain-block-apps',
-          isFixedCard && 'domain-block-fixed',
           group.pinned && 'domain-block-pinned'
         )}
         data-domain-id={vm.stableId}
@@ -272,7 +253,6 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-semibold tracking-[0.1px] text-tab-ink">
             {displayName}
           </span>
-          {isFixedCard && <FixedIndicator displayName={displayName} />}
           {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
           {vm.singleSubdomainKey && (
             <span
@@ -294,7 +274,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, on
           className={cn(
             'mission-card relative flex flex-col gap-2 overflow-hidden rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
             isAppsCard ? 'p-[7px]' : 'p-2',
-            (isFixedCard || group.pinned) && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
+            group.pinned && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
           )}
         >
           <TitleSuppressionSummary

@@ -7,8 +7,10 @@
 
 export const DOMAIN_PIN_STORAGE_KEY = 'tabOutPinnedDomainsV1'
 
+const PINNABLE_SYSTEM_DOMAINS = new Set(['__tab-out__', '__standalone-apps__'])
+
 export function isPinnableDomain(domain: unknown): domain is string {
-  return !!domain && typeof domain === 'string' && !domain.startsWith('__')
+  return !!domain && typeof domain === 'string' && (!domain.startsWith('__') || PINNABLE_SYSTEM_DOMAINS.has(domain))
 }
 
 export function normalizePinnedDomains(domains: unknown = []): string[] {

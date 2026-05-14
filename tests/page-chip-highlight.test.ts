@@ -704,6 +704,37 @@ test('DomainCard shows common suppressed title text above the chips without a su
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
 })
 
+test('DomainCard renders utility cards as explicitly pinnable instead of fixed', () => {
+  const vm: DashboardCardVM = {
+    stableId: 'domain---tab-out--',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '1',
+    sections: []
+  }
+
+  const cards = [
+    { domain: '__tab-out__', label: 'New tabs', stableId: 'domain---tab-out--', pinLabel: 'Pin New tabs' },
+    { domain: '__standalone-apps__', label: 'Apps', stableId: 'domain---standalone-apps--', pinLabel: 'Pin Apps' }
+  ]
+
+  for (const card of cards) {
+    const html = renderToStaticMarkup(
+      React.createElement(DomainCard, {
+        group: { domain: card.domain, label: card.label, tabs: [] },
+        vm: { ...vm, stableId: card.stableId },
+        onTogglePinnedDomain: () => {}
+      })
+    )
+
+    assert.match(html, /\bdomain-pin-btn\b/)
+    assert.match(html, new RegExp(`aria-label="${card.pinLabel}"`))
+    assert.doesNotMatch(html, /\bdomain-fixed-indicator\b/)
+    assert.doesNotMatch(html, /\bdomain-block-fixed\b/)
+  }
+})
+
 test('DomainCard renders section-scoped single suppressed title text as neutral', () => {
   const group: DomainGroup = {
     domain: 'slack.com',
