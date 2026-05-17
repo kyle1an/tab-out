@@ -27,6 +27,21 @@ function resolveClassName(className: OverflowContainerClassName | undefined, exp
   return typeof className === 'function' ? className({ expanded }) : className
 }
 
+function chipMatchesActiveHover(chip: DashboardChipData, activeHoverUrl: string, activeHoverUrls: readonly string[]) {
+  return (
+    chip.tabUrl === activeHoverUrl ||
+    chip.rawUrl === activeHoverUrl ||
+    activeHoverUrls.includes(chip.tabUrl) ||
+    activeHoverUrls.includes(chip.rawUrl) ||
+    !!chip.envs?.some((env) => (
+      env.tabUrl === activeHoverUrl ||
+      env.rawUrl === activeHoverUrl ||
+      activeHoverUrls.includes(env.tabUrl) ||
+      activeHoverUrls.includes(env.rawUrl)
+    ))
+  )
+}
+
 export function usePageChipOverflow({
   visibleChips,
   hiddenChips,
@@ -37,10 +52,11 @@ export function usePageChipOverflow({
   overflowButtonClassName
 }: PageChipOverflowOptions): { expanded: boolean; pageChips: ReactNode } {
   const [expanded, setExpanded] = useState(false)
-  const { activeSuppressedTitle, onLayoutChange } = useDomainCardContext()
+  const { activeSuppressedTitle, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
   const hiddenSuppressionCoversAll = hiddenSuppressionMatchCount > 0 && hiddenSuppressionMatchCount === hiddenCount
+  const hiddenHoverMatched = (activeHoverSource === 'history' || activeHoverSource === 'working-set') && !!activeHoverUrl && hiddenChips.some((chip) => chipMatchesActiveHover(chip, activeHoverUrl, activeHoverUrls))
 
   function onExpand() {
     setExpanded(true)
@@ -64,6 +80,7 @@ export function usePageChipOverflow({
           type="button"
           className={cn(
             OVERFLOW_BUTTON_CLASS_NAME,
+            hiddenHoverMatched && 'page-chip-overflow-hover-match',
             hiddenSuppressionCoversAll && cn('page-chip-overflow-suppression-highlighted', titleSuppressionOverflowHighlightClass(activeSuppressionTone)),
             overflowButtonClassName
           )}

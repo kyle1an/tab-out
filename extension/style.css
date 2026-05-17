@@ -1,11 +1,13 @@
 .page-chip.page-chip-hover-match,
+.page-chip-overflow.page-chip-overflow-hover-match,
 .history-entry.history-entry-hover-match,
 .working-set-item.working-set-item-hover-match {
   outline: 1px solid var(--accent-amber);
   outline-offset: 1px;
 }
 
-.domain-block:has(.page-chip.page-chip-hover-match) > .mission-card {
+.domain-block:has(.page-chip.page-chip-hover-match) > .mission-card,
+.domain-block:has(.page-chip-overflow.page-chip-overflow-hover-match) > .mission-card {
   border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--warm-gray));
 }
 

@@ -312,6 +312,48 @@ test('PageChip matches working set hover against raw tab URLs', () => {
   assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
 })
 
+test('Overflow expander outlines when external hover matches a hidden chip', () => {
+  const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fhidden'
+  const hiddenChip = makeChip({
+    tabUrl: 'https://example.com/hidden',
+    rawUrl
+  })
+  const visibleChip = makeChip({
+    tabUrl: 'https://example.com/visible',
+    rawUrl: 'https://example.com/visible'
+  })
+  const renderOverflow = (context: Partial<DomainCardContextValue>) => renderWithDomainCardContext(
+    React.createElement(FlatSection, {
+      visibleChips: [visibleChip],
+      hiddenChips: [hiddenChip],
+      hiddenCount: 1
+    }),
+    context
+  )
+  const overflowClass = (html: string) => {
+    const match = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
+    assert.ok(match, 'overflow expander button should render')
+    return match[1]
+  }
+  const historyMatch = overflowClass(renderOverflow({
+    activeHoverUrl: 'https://example.com/hidden',
+    activeHoverSource: 'history'
+  }))
+  const workingSetRawMatch = overflowClass(renderOverflow({
+    activeHoverUrl: 'https://example.com/preview',
+    activeHoverUrls: [rawUrl],
+    activeHoverSource: 'working-set'
+  }))
+  const chipSelfMatch = overflowClass(renderOverflow({
+    activeHoverUrl: 'https://example.com/hidden',
+    activeHoverSource: 'chip'
+  }))
+
+  assert.match(historyMatch, /\bpage-chip-overflow-hover-match\b/)
+  assert.match(workingSetRawMatch, /\bpage-chip-overflow-hover-match\b/)
+  assert.doesNotMatch(chipSelfMatch, /\bpage-chip-overflow-hover-match\b/)
+})
+
 test('TabHistoryPanel outlines matching history rows only when chip hover owns the match', () => {
   const snapshot = makeHistorySnapshot()
   const matchedHtml = renderToStaticMarkup(
@@ -542,7 +584,7 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
 
 test('cross-surface hover match styling is outline-only', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.history-entry\.history-entry-hover-match,\n\.working-set-item\.working-set-item-hover-match\s*\{([^}]*)\}/)
+  const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.page-chip-overflow\.page-chip-overflow-hover-match,\n\.history-entry\.history-entry-hover-match,\n\.working-set-item\.working-set-item-hover-match\s*\{([^}]*)\}/)
 
   assert.ok(match, 'cross-surface hover match rule should exist')
   assert.match(match[1], /outline:\s*1px solid var\(--accent-amber\);/)
@@ -552,7 +594,7 @@ test('cross-surface hover match styling is outline-only', () => {
 
 test('domain card frames itself when a history hover highlights one of its chips', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const match = styleSource.match(/\.domain-block:has\(\.page-chip\.page-chip-hover-match\) > \.mission-card\s*\{([^}]*)\}/)
+  const match = styleSource.match(/\.domain-block:has\(\.page-chip\.page-chip-hover-match\) > \.mission-card,\n\.domain-block:has\(\.page-chip-overflow\.page-chip-overflow-hover-match\) > \.mission-card\s*\{([^}]*)\}/)
 
   assert.ok(match, 'domain card hover match rule should exist')
   assert.match(match[1], /border-color:\s*color-mix\(in srgb, var\(--accent-amber\) 42%, var\(--warm-gray\)\);/)
