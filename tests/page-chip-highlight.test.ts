@@ -157,6 +157,22 @@ test('PageChip keeps the other-window active chip style separate from the curren
   assert.doesNotMatch(frameMatch[1], /current-active-chip-frame\b/)
 })
 
+test('PageChip hover fade appears and clears without its own transition lag', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'tab' })
+    })
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.match(chipMatch[1], /\bhover:bg-\[rgba\(82,82,82,0\.13\)\]/)
+  assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
+  assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
+  assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
+  assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
+})
+
 test('PageChip outlines matching live chips only when history hover owns the match', () => {
   const chip = makeChip({
     tabUrl: 'https://example.com/docs',
@@ -854,6 +870,9 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
     assert.match(overflowButtonMatch[1], /py-\[5px\]/)
     assert.match(overflowButtonMatch[1], /text-\[13px\]/)
     assert.match(overflowButtonMatch[1], /\bleading-tight\b/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\bafter:transition-/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\bafter:duration-/)
+    assert.doesNotMatch(overflowButtonMatch[1], /\bafter:ease-/)
     assert.doesNotMatch(overflowButtonMatch[1], /\bpy-1\.5\b/)
     assert.doesNotMatch(overflowButtonMatch[1], /\btext-xs\b/)
 
