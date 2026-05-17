@@ -65,6 +65,7 @@ test('pageIdentityForWorkingSet distinguishes meaningful paths and ignores noisy
     'https://example.com/issues/456'
   )
   assert.equal(pageIdentityForWorkingSet('chrome-extension://tab-out/index.html'), '')
+  assert.equal(pageIdentityForWorkingSet('https://www.google.com/search?q=example'), '')
 })
 
 test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and folds duplicates', () => {
@@ -102,6 +103,30 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
   assert.equal(snapshot.items[1].dupeCount, 2)
   assert.equal(snapshot.items.some((item) => item.title === 'Tab Out'), false)
   assert.equal(snapshot.items.some((item) => item.title === 'Mail app'), false)
+})
+
+test('buildWorkingSetSnapshot excludes Google Search result pages from working set items', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const tabs = [
+    makeTab({ id: 1, url: 'https://www.google.com/search?q=example', title: 'example - Google Search' }),
+    makeTab({ id: 2, url: 'https://example.com/issues/alpha', title: 'Alpha issue' })
+  ]
+
+  let store = emptyWorkingSetActivity()
+  store = record(store, tabs[0], 'activation', now - 60_000)
+  store = record(store, tabs[1], 'activation', now - 30_000)
+
+  const snapshot = buildWorkingSetSnapshot({
+    tabs,
+    activity: store,
+    now,
+    minItems: 1
+  })
+
+  assert.deepEqual(
+    snapshot.items.map((item) => item.tabId),
+    [2]
+  )
 })
 
 test('buildWorkingSetSnapshot hides below the minimum meaningful candidate count', () => {

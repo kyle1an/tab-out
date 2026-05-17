@@ -129,6 +129,7 @@ export function pageIdentityForWorkingSet(url = ''): string {
     ) {
       return ''
     }
+    if (isGoogleSearchResultPage(parsed)) return ''
 
     parsed.hash = ''
     const cleanParams = new URLSearchParams()
@@ -147,6 +148,13 @@ export function pageIdentityForWorkingSet(url = ''): string {
   } catch {
     return ''
   }
+}
+
+function isGoogleSearchResultPage(parsed: URL): boolean {
+  return (
+    (parsed.hostname === 'www.google.com' || parsed.hostname === 'google.com') &&
+    parsed.pathname === '/search'
+  )
 }
 
 function unwrapWorkingSetSuspenderUrl(url?: string): string {
