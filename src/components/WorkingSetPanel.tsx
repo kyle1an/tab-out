@@ -160,7 +160,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
         type="button"
         className={cn(
           'working-set-item group/working-set-item relative flex min-h-12 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] transition-[border-color,background,box-shadow] duration-100 hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]',
-          item.active && 'border-transparent bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400'
+          item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)]'
         )}
         aria-label={`Switch to ${item.title}`}
         onClick={onClick}

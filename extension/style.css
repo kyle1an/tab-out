@@ -7,3 +7,12 @@
 .domain-block:has(.page-chip.page-chip-hover-match) > .mission-card {
   border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--warm-gray));
 }
+
+.working-set-item.is-active-working-set-item {
+  border-color: color-mix(in srgb, var(--accent-slate) 45%, var(--warm-gray));
+}
+
+.working-set-item.is-active-working-set-item:hover {
+  border-color: var(--accent-amber);
+  background: color-mix(in srgb, var(--card-bg) 88%, var(--accent-amber));
+}

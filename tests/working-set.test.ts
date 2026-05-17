@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -126,7 +127,10 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   const snapshot = {
     defaultLimit: 8,
     expandedLimit: 16,
-    items: Array.from({ length: 9 }, (_, index) => makeWorkingSetItem(index + 1, index === 1 ? { dupeCount: 2 } : {}))
+    items: Array.from({ length: 9 }, (_, index) => makeWorkingSetItem(index + 1, {
+      ...(index === 0 ? { active: true } : {}),
+      ...(index === 1 ? { dupeCount: 2 } : {})
+    }))
   }
 
   const html = renderToStaticMarkup(
@@ -144,6 +148,9 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.match(html, /working-set-title-truncated/)
   assert.doesNotMatch(html, /line-clamp-2/)
   assert.match(html, /minmax\(230px,1fr\)/)
+  assert.match(html, /working-set-item[^"]*\bis-active-working-set-item\b/)
+  assert.doesNotMatch(html, /working-set-item[^"]*\bring-inset\b/)
+  assert.doesNotMatch(html, /working-set-item[^"]*\bring-neutral-400\b/)
   assert.match(html, /Page 1/)
   assert.match(html, /Page 8/)
   assert.doesNotMatch(html, /Page 9/)
@@ -152,4 +159,20 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.doesNotMatch(html, /example\.com\/page-1/)
   assert.match(html, /×2/)
   assert.doesNotMatch(html, /Close this tab/)
+})
+
+test('WorkingSetPanel active item hover keeps one border layer with stronger contrast', () => {
+  const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  const activeMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item\s*\{([^}]*)\}/)
+  const activeHoverMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item:hover\s*\{([^}]*)\}/)
+
+  assert.ok(activeMatch, 'active working set item rule should exist')
+  assert.ok(activeHoverMatch, 'active working set item hover rule should exist')
+  assert.match(activeMatch[1], /border-color:\s*color-mix\(in srgb, var\(--accent-slate\) 45%, var\(--warm-gray\)\);/)
+  assert.doesNotMatch(activeMatch[1], /\bring\b/)
+  assert.doesNotMatch(activeMatch[1], /\boutline\b/)
+  assert.match(activeHoverMatch[1], /border-color:\s*var\(--accent-amber\);/)
+  assert.match(activeHoverMatch[1], /background:\s*color-mix\(in srgb, var\(--card-bg\) 88%, var\(--accent-amber\)\);/)
+  assert.doesNotMatch(activeHoverMatch[1], /\bring\b/)
+  assert.doesNotMatch(activeHoverMatch[1], /\boutline\b/)
 })
