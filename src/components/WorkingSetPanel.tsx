@@ -1,9 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
 import type { HoverUrlChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
+import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+
+let workingSetTitleResizeObserver: ResizeObserver | null = null
+const workingSetTitleTruncationCallbacks = new WeakMap<
+  HTMLElement,
+  (metrics: WorkingSetTitleMetrics) => void
+>()
+
+type WorkingSetTitleMetrics = {
+  isTruncated: boolean
+  width: number
+}
 
 interface WorkingSetPanelProps {
   snapshot: WorkingSetSnapshot | null
@@ -12,12 +25,101 @@ interface WorkingSetPanelProps {
   onTabsChange?: TabsChangeHandler
 }
 
+function isWorkingSetTitleTruncated(titleEl: HTMLElement | null) {
+  if (!titleEl) return false
+  return (
+    titleEl.scrollHeight - titleEl.clientHeight > 1 ||
+    titleEl.scrollWidth - titleEl.clientWidth > 1
+  )
+}
+
+function getWorkingSetTitleWidth(titleEl: HTMLElement | null) {
+  if (!titleEl) return 0
+  return Math.round(titleEl.getBoundingClientRect().width * 100) / 100
+}
+
+function sameWorkingSetTitleMetrics(a: WorkingSetTitleMetrics, b: WorkingSetTitleMetrics) {
+  return a.isTruncated === b.isTruncated && Math.abs(a.width - b.width) < 0.1
+}
+
+function syncWorkingSetTitleFade(titleEl: HTMLElement | null) {
+  if (!titleEl) return { isTruncated: false, width: 0 }
+
+  const isTruncated = isWorkingSetTitleTruncated(titleEl)
+  const width = getWorkingSetTitleWidth(titleEl)
+  const metrics = { isTruncated, width }
+  titleEl.classList.toggle('working-set-title-truncated', isTruncated)
+  workingSetTitleTruncationCallbacks.get(titleEl)?.(metrics)
+  return metrics
+}
+
+function updateWorkingSetTitleTruncation(
+  titleEl: HTMLElement | null,
+  setTitleMetrics: Dispatch<SetStateAction<WorkingSetTitleMetrics>>
+) {
+  const metrics = syncWorkingSetTitleFade(titleEl)
+  setTitleMetrics((current) => sameWorkingSetTitleMetrics(current, metrics) ? current : metrics)
+}
+
+function getWorkingSetTitleResizeObserver() {
+  if (typeof ResizeObserver !== 'function') return null
+  if (!workingSetTitleResizeObserver) {
+    workingSetTitleResizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target instanceof HTMLElement) syncWorkingSetTitleFade(entry.target)
+      }
+    })
+  }
+  return workingSetTitleResizeObserver
+}
+
 function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabsChange }: {
   item: WorkingSetItem
   onHoverUrlChange?: HoverUrlChangeHandler
   onSnapshotChange?: (snapshot: WorkingSetSnapshot) => void
   onTabsChange?: TabsChangeHandler
 }) {
+  const titleRef = useRef<HTMLSpanElement | null>(null)
+  const [titleMetrics, setTitleMetrics] = useState<WorkingSetTitleMetrics>({
+    isTruncated: false,
+    width: 0
+  })
+
+  useLayoutEffect(() => {
+    const titleEl = titleRef.current
+    if (!titleEl) return
+
+    const frameId = requestAnimationFrame(() => updateWorkingSetTitleTruncation(titleEl, setTitleMetrics))
+    return () => cancelAnimationFrame(frameId)
+  })
+
+  useEffect(() => {
+    const titleEl = titleRef.current
+    if (!titleEl) return
+
+    let disposed = false
+    const observer = getWorkingSetTitleResizeObserver()
+    workingSetTitleTruncationCallbacks.set(titleEl, (metrics) => {
+      if (disposed) return
+      setTitleMetrics((current) => sameWorkingSetTitleMetrics(current, metrics) ? current : metrics)
+    })
+    observer?.observe(titleEl)
+
+    const fontSet = document.fonts
+    const onFontsDone = () => {
+      if (!disposed) updateWorkingSetTitleTruncation(titleEl, setTitleMetrics)
+    }
+    fontSet?.addEventListener?.('loadingdone', onFontsDone)
+    fontSet?.ready?.then?.(onFontsDone)
+
+    return () => {
+      disposed = true
+      observer?.unobserve(titleEl)
+      workingSetTitleTruncationCallbacks.delete(titleEl)
+      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+    }
+  }, [])
+
   async function onClick() {
     const focused = await focusWorkingSetItem(item)
     if (!focused) return
@@ -33,38 +135,58 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
     onHoverUrlChange?.('')
   }
 
-  return (
-    <button
-      type="button"
+  const titleTooltipWidth = titleMetrics.width > 0 ? `${titleMetrics.width}px` : ''
+  const titleTooltipStyle = titleTooltipWidth ? {
+    '--working-set-title-tooltip-width': titleTooltipWidth
+  } as CSSProperties : undefined
+  const tooltipContent = titleMetrics.isTruncated ? (
+    <span
       className={cn(
-        'working-set-item group/working-set-item relative flex min-h-10 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] transition-[border-color,background,box-shadow] duration-100 hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]',
-        item.active && 'border-transparent bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400'
+        'block max-w-[min(360px,calc(100vw-32px))] text-[13px] leading-tight text-tab-ink [overflow-wrap:break-word]',
+        titleTooltipWidth && 'w-[var(--working-set-title-tooltip-width)]'
       )}
-      title={item.title}
-      aria-label={`Switch to ${item.title}`}
-      onClick={onClick}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onFocus={onMouseEnter}
-      onBlur={onMouseLeave}
     >
-      <span className={cn('grid h-4 w-4 flex-none place-items-center', !item.faviconUrl && 'invisible')}>
-        {item.faviconUrl && <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" />}
-      </span>
-      <span className="flex min-w-0 flex-auto flex-col gap-0.5">
-        <span className="working-set-title block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink">
-          {item.title}
+      {item.title}
+    </span>
+  ) : undefined
+
+  return (
+    <TooltipAnchor
+      content={tooltipContent}
+      className="working-set-item-tooltip"
+      style={titleTooltipStyle}
+    >
+      <button
+        type="button"
+        className={cn(
+          'working-set-item group/working-set-item relative flex min-h-12 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] transition-[border-color,background,box-shadow] duration-100 hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]',
+          item.active && 'border-transparent bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400'
+        )}
+        aria-label={`Switch to ${item.title}`}
+        onClick={onClick}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onFocus={onMouseEnter}
+        onBlur={onMouseLeave}
+      >
+        <span className={cn('grid h-4 w-4 flex-none place-items-center', !item.faviconUrl && 'invisible')}>
+          {item.faviconUrl && <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" />}
         </span>
-        <span className="working-set-url block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-tab-muted">
-          {item.displayUrl}
+        <span className="flex min-w-0 flex-auto items-center">
+          <span
+            ref={titleRef}
+            className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]"
+          >
+            {item.title}
+          </span>
         </span>
-      </span>
-      {item.dupeCount > 1 && (
-        <span className="working-set-dupe-badge inline-flex h-4 min-w-5 flex-none items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] px-1 text-[10px] font-semibold tabular-nums text-tab-muted">
-          ×{item.dupeCount}
-        </span>
-      )}
-    </button>
+        {item.dupeCount > 1 && (
+          <span className="working-set-dupe-badge inline-flex h-4 min-w-5 flex-none items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] px-1 text-[10px] font-semibold tabular-nums text-tab-muted">
+            ×{item.dupeCount}
+          </span>
+        )}
+      </button>
+    </TooltipAnchor>
   )
 }
 
@@ -98,7 +220,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, onSnapshotChange, 
           </button>
         )}
       </div>
-      <div className="working-set-grid grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
+      <div className="working-set-grid grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
         {visibleItems.map((item) => (
           <WorkingSetItemButton
             key={item.key}
