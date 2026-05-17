@@ -211,6 +211,50 @@ export interface DashboardData {
   historyRange?: string
 }
 
+export type WorkingSetActivityKind = 'activation' | 'navigation'
+
+export interface WorkingSetActivityEvent {
+  kind: WorkingSetActivityKind
+  at: number
+}
+
+export interface WorkingSetActivityRecord {
+  key: string
+  url: string
+  title: string
+  domain: string
+  lastSeenAt: number
+  lastActivatedAt?: number
+  lastNavigatedAt?: number
+  events: WorkingSetActivityEvent[]
+}
+
+export interface WorkingSetActivityStore {
+  version: 1
+  records: Record<string, WorkingSetActivityRecord>
+}
+
+export interface WorkingSetItem {
+  key: string
+  tabId: number
+  windowId: number
+  tabUrl: string
+  rawUrl: string
+  title: string
+  displayUrl: string
+  faviconUrl: string
+  dupeCount: number
+  active: boolean
+  activeInOtherWindow: boolean
+  score: number
+}
+
+export interface WorkingSetSnapshot {
+  defaultLimit: number
+  expandedLimit: number
+  items: WorkingSetItem[]
+}
+
 export interface BookmarkTreeNode {
   id?: string
   title?: string

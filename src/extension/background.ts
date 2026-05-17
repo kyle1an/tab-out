@@ -23,9 +23,12 @@ import {
   TAB_HISTORY_SWITCH_MESSAGE,
   createTabHistoryService
 } from './background/tab-history-service.js'
+import { createWorkingSetService } from './background/working-set-service.js'
+import { WORKING_SET_GET_MESSAGE } from './working-set.js'
 
 const chromeApi = createChromeApi(chrome)
 const tabHistoryService = createTabHistoryService(chromeApi)
+const workingSetService = createWorkingSetService(chromeApi)
 
 function refreshBadge() {
   updateBadge(chromeApi)
@@ -52,10 +55,19 @@ chromeApi.tabs.onCreated.addListener(() => {
 // follow the user's actual navigation path.
 chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
   tabHistoryService.recordTabActivation(windowId, tabId)
+  workingSetService.recordTabActivation(windowId, tabId)
 })
 
 chromeApi.windows.onFocusChanged.addListener((windowId) => {
   tabHistoryService.recordFocusedWindowActiveTab(windowId)
+  if (windowId != null && windowId !== chromeApi.windows.WINDOW_ID_NONE) {
+    chromeApi.tabs.query({ windowId, active: true })
+      .then((tabs) => {
+        const activeTab = tabs[0]
+        if (typeof activeTab?.id === 'number') workingSetService.recordTabActivation(windowId, activeTab.id)
+      })
+      .catch(() => {})
+  }
 })
 
 // Update badge whenever a tab is closed
@@ -65,8 +77,9 @@ chromeApi.tabs.onRemoved.addListener((tabId, removeInfo) => {
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
-chromeApi.tabs.onUpdated.addListener(() => {
+chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   refreshBadge()
+  workingSetService.recordTabNavigation(tabId, changeInfo, tab)
 })
 
 chromeApi.commands?.onCommand.addListener((command) => {
@@ -93,6 +106,13 @@ chromeApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
     const direction = message.direction === 1 ? 1 : -1
     tabHistoryService.switchTabHistory(direction)
       .then(() => tabHistoryService.getTabHistorySnapshot())
+      .then((snapshot) => sendResponse({ ok: true, snapshot }))
+      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    return true
+  }
+
+  if (message?.type === WORKING_SET_GET_MESSAGE) {
+    workingSetService.getWorkingSetSnapshot()
       .then((snapshot) => sendResponse({ ok: true, snapshot }))
       .catch(() => sendResponse({ ok: false, snapshot: null }))
     return true

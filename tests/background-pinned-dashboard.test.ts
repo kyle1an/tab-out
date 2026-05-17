@@ -786,6 +786,92 @@ test('tab history snapshot exposes previous and next command targets', async () 
   assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
 })
 
+test('working set snapshot ranks activated and actively navigated open tabs', async () => {
+  const originalDateNow = Date.now
+  let now = Date.UTC(2026, 4, 17, 12)
+  Date.now = () => now
+  const mock = await loadBackground([
+    {
+      id: 401,
+      windowId: 1,
+      url: 'https://alpha.example/docs',
+      title: 'Alpha docs',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 402,
+      windowId: 1,
+      url: 'https://bravo.example/home',
+      title: 'Bravo home',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 403,
+      windowId: 1,
+      url: 'https://charlie.example/report',
+      title: 'Charlie report',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    },
+    {
+      id: 404,
+      windowId: 1,
+      url: extensionUrl,
+      title: 'Tab Out',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 3
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  const onUpdated = mock.listeners.tabsOnUpdated[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+  assert.equal(typeof onUpdated, 'function')
+
+  try {
+    onFocusChanged(1)
+    await flushBackgroundWork()
+    now += 60_000
+    await mock.chrome.tabs.update(402, { active: true })
+    onActivated({ tabId: 402, windowId: 1 })
+    await flushBackgroundWork()
+
+    now += 60_000
+    mock.state.tabsById[402].url = 'https://bravo.example/issues/123?utm_source=mail#comments'
+    mock.state.tabsById[402].title = 'Bravo issue 123'
+    onUpdated(402, { url: mock.state.tabsById[402].url, title: mock.state.tabsById[402].title }, clone(mock.state.tabsById[402]))
+    await flushBackgroundWork()
+
+    now += 60_000
+    await mock.chrome.tabs.update(403, { active: true })
+    onActivated({ tabId: 403, windowId: 1 })
+    await flushBackgroundWork()
+
+    const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-working-set' })
+    assert.equal(response.ok, true)
+    assert.deepEqual(
+      response.snapshot.items.map((item) => item.tabId),
+      [403, 402, 401]
+    )
+    assert.equal(response.snapshot.items[1].displayUrl, 'bravo.example/issues/123')
+    assert.equal(response.snapshot.items.some((item) => item.title === 'Tab Out'), false)
+  } finally {
+    Date.now = originalDateNow
+  }
+})
+
 test('tab history survives extension reload through persistent storage', async () => {
   const mock = await loadBackground([
     {

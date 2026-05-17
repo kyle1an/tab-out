@@ -15,8 +15,10 @@ import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
+import { WorkingSetPanel } from './WorkingSetPanel'
 import { cn } from '@/lib/utils'
 import type { DashboardData, DashboardSource, HoverUrlSource, TabHistorySnapshot } from './types'
+import type { WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 
@@ -66,6 +68,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
   const [isScrolled, setIsScrolled] = useState(false)
   const [tabHistory, setTabHistory] = useState<TabHistorySnapshot | null>(null)
+  const [workingSet, setWorkingSet] = useState<WorkingSetSnapshot | null>(null)
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
@@ -135,6 +138,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     previousOrder: previousOrderRef.current,
     setDashboard,
     setTabHistory,
+    setWorkingSet,
     onBeforeAnimatedRefresh: primeCardMoveAnimation,
     onBeforePinnedRefresh: clearHoverUrlNow
   })
@@ -199,7 +203,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     clearHoverUrlNow()
-    const { dashboard: nextDashboard, tabHistory: nextTabHistory } = await fetchDashboardSnapshot({
+    const { dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet } = await fetchDashboardSnapshot({
       source: nextSource,
       filter,
       historyRange,
@@ -211,10 +215,12 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     layoutMoveRectsRef.current = previousRects
     setDashboard(nextDashboard)
     setTabHistory(nextTabHistory)
+    setWorkingSet(nextWorkingSet)
     setSource(nextSource)
   }
 
   const showTabHistory = isReady && source === 'tabs'
+  const showWorkingSet = isReady && source === 'tabs' && filter.trim() === '' && !!workingSet?.items.length
   const primaryMissionsEmpty = matchedCards.length === 0
   const bookmarkMatchesFlush = primaryMissionsEmpty
   const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
@@ -284,6 +290,15 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
           <div className="scroll-region max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1" ref={scrollRegionRef}>
             {isReady && (
               <>
+                {showWorkingSet && (
+                  <WorkingSetPanel
+                    snapshot={workingSet}
+                    onHoverUrlChange={handleHoverUrlChange}
+                    onSnapshotChange={setWorkingSet}
+                    onTabsChange={() => refreshDashboard({ animateCards: true })}
+                  />
+                )}
+
                 <MissionsGrid empty={primaryMissionsEmpty} id="openTabsMissions" ref={primaryMissionsRef}>
                   <Missions
                     cards={matchedCards}

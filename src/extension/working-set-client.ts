@@ -1,0 +1,64 @@
+import type { WorkingSetItem, WorkingSetSnapshot } from './types'
+
+const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
+const WORKING_SET_DEFAULT_LIMIT = 8
+const WORKING_SET_EXPANDED_LIMIT = 16
+
+function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
+  return {
+    defaultLimit: WORKING_SET_DEFAULT_LIMIT,
+    expandedLimit: WORKING_SET_EXPANDED_LIMIT,
+    items: []
+  }
+}
+
+export function normalizeWorkingSetSnapshot(snapshot: Partial<WorkingSetSnapshot> | null | undefined): WorkingSetSnapshot {
+  if (!snapshot || !Array.isArray(snapshot.items)) return emptyWorkingSetSnapshot()
+  const defaultLimit = Number.isInteger(snapshot.defaultLimit) ? Number(snapshot.defaultLimit) : WORKING_SET_DEFAULT_LIMIT
+  const expandedLimit = Number.isInteger(snapshot.expandedLimit) ? Number(snapshot.expandedLimit) : WORKING_SET_EXPANDED_LIMIT
+  const items = snapshot.items
+    .map((item): WorkingSetItem | null => {
+      if (!item || typeof item !== 'object' || !Number.isInteger(item.tabId) || !Number.isInteger(item.windowId)) return null
+      const tabUrl = String(item.tabUrl || '')
+      const key = String(item.key || tabUrl)
+      if (!key || !tabUrl) return null
+      return {
+        key,
+        tabId: Number(item.tabId),
+        windowId: Number(item.windowId),
+        tabUrl,
+        rawUrl: String(item.rawUrl || tabUrl),
+        title: String(item.title || item.displayUrl || tabUrl),
+        displayUrl: String(item.displayUrl || tabUrl),
+        faviconUrl: String(item.faviconUrl || ''),
+        dupeCount: Number.isInteger(item.dupeCount) ? Math.max(1, Number(item.dupeCount)) : 1,
+        active: !!item.active,
+        activeInOtherWindow: !!item.activeInOtherWindow,
+        score: typeof item.score === 'number' ? item.score : 0
+      }
+    })
+    .filter((item): item is WorkingSetItem => !!item)
+  return { defaultLimit, expandedLimit, items }
+}
+
+export async function fetchWorkingSetSnapshot(): Promise<WorkingSetSnapshot> {
+  if (!globalThis.chrome?.runtime?.sendMessage) return emptyWorkingSetSnapshot()
+  try {
+    const response = await chrome.runtime.sendMessage({ type: WORKING_SET_GET_MESSAGE })
+    if (!response?.ok) return emptyWorkingSetSnapshot()
+    return normalizeWorkingSetSnapshot(response.snapshot)
+  } catch {
+    return emptyWorkingSetSnapshot()
+  }
+}
+
+export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | 'windowId'>): Promise<boolean> {
+  if (!Number.isInteger(item.tabId) || !Number.isInteger(item.windowId)) return false
+  try {
+    await chrome.tabs.update(item.tabId, { active: true })
+    await chrome.windows.update(item.windowId, { focused: true })
+    return true
+  } catch {
+    return false
+  }
+}

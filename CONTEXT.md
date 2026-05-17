@@ -14,6 +14,8 @@
 - **Filter Query**: The user's parsed filter intent for app-owned matching, first applied to open-tab and bookmark Dashboard Items.
 - **Filter Match**: A decision that a Dashboard Item satisfies the current Filter Query.
 - **Companion Results**: Bookmark and history results shown alongside open-tab Filter Matches.
+- **Activation History**: The chronological open-tab focus path used for previous/next tab switching and close-recovery behavior.
+- **Working Set**: A shortcut section of open-tab Dashboard Items that the user is likely to return to before scanning Domain Cards or using a Filter Query.
 - **Tab Action**: A user intent from the dashboard that mutates tabs or history, records undo/toast feedback, and refreshes the Dashboard.
 
 ## Relationships
@@ -39,6 +41,23 @@
 - Filter highlighting marks each parsed term or quoted phrase that contributes to an app-owned **Filter Match**.
 - **Companion Results** are loaded only while open tabs are the selected **Source**, so they do not replace the selected source view.
 - Bookmark **Filter Matches** and history **Companion Results** remain read-only **Dashboard Items** even though they render as Page Chips.
+- A **Working Set** is a duplicate shortcut view over open tabs, so its items still appear in their owning **Domain Cards**.
+- A **Working Set** is not a **Source** and does not include bookmark or history **Dashboard Items**.
+- A **Working Set** crosses **Domain Card** boundaries because it is optimized for return switching rather than domain cleanup.
+- A **Working Set** prefers currently relevant open tabs: recent activations, repeated same-day navigation/use, and repeated current-week navigation/use can all raise an item, while older or monthly habits are only weak tie-breakers.
+- A **Working Set** may use historical activity signals to rank items, but every visible item must focus an existing open tab.
+- A **Working Set** treats active tab activation and active meaningful navigation as strong activity signals.
+- A **Working Set** treats repeated same-day exact page/path use as a medium activity signal, repeated current-week exact page/path use and same-domain habit as weak activity signals, and passive open duration or background tab churn as non-signals.
+- A **Working Set** ranks items by recency-dominant frecency, shows a small default set that can expand to a bounded larger set, and must not reorder live while the user is scanning it.
+- A **Working Set** excludes Tab Out pages, folds duplicate effective URLs, and does not treat Domain Card pins as a primary ranking signal.
+- A **Working Set** appears before **Domain Cards** only when there are enough meaningful candidates, and the fallback flow is stable **Domain Cards** followed by **Filter Query**.
+- A **Working Set** is for switching: its items support focus and URL preview, while cleanup actions remain in owning **Domain Cards**.
+- **Working Set** activity is local, bounded, and open-tab oriented; it identifies candidates by effective page identity for ranking and by live tab identity only for focusing.
+- **Working Set** activity scores should mostly come from recent days, with older activity pruned or retained only as a weak tie-breaker.
+- **Working Set** page identity should distinguish meaningful path changes while avoiding noisy query, hash, redirect, or background-update churn.
+- **Activation History** and **Working Set** may use overlapping activity evidence, but **Activation History** is chronological switching state while **Working Set** is ranked shortcut discovery.
+- A **Working Set** does not change **Domain Card** ordering by default, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
+- A **Working Set** excludes utility pages such as Tab Out pages and should drop non-open pages from the visible set while retaining recent activity only as historical ranking evidence.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.
 - Repeated title noise inside a visible **Website Path Section** is scoped to that section when no narrower **Path Group** owns it.
 - A **Title Suppression Scope** owns its summary tokens and matching chip markers; visible scopes coordinate palette colors within a **Domain Card** so two visible suppression meanings do not use the same color.

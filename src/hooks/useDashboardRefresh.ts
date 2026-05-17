@@ -4,7 +4,8 @@ import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { fetchDashboardData } from '../extension/render.js'
 import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
-import type { DashboardData, DashboardSource, TabHistorySnapshot } from '../extension/types'
+import { fetchWorkingSetSnapshot } from '../extension/working-set-client.js'
+import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
 
 export type RefreshOptions = { animateCards?: boolean }
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
@@ -23,13 +24,14 @@ type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
   pinsLoaded: boolean
   setDashboard: Dispatch<SetStateAction<DashboardData | null>>
   setTabHistory: Dispatch<SetStateAction<TabHistorySnapshot | null>>
+  setWorkingSet: Dispatch<SetStateAction<WorkingSetSnapshot | null>>
   onBeforeAnimatedRefresh?: () => void
   onBeforePinnedRefresh?: () => void
 }
 
 export async function fetchDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions) {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
-  const [dashboard, tabHistory] = await Promise.all([
+  const [dashboard, tabHistory, workingSet] = await Promise.all([
     fetchDashboardData(previousOrder[source] || new Map(), source, {
       pinnedDomains,
       bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
@@ -39,10 +41,11 @@ export async function fetchDashboardSnapshot({ source, filter, historyRange, his
       searchQuery: filterSearch.query,
       historyRange: filterSearch.historyRange
     }),
-    fetchTabHistorySnapshot()
+    fetchTabHistorySnapshot(),
+    fetchWorkingSetSnapshot()
   ])
 
-  return { dashboard, tabHistory }
+  return { dashboard, tabHistory, workingSet }
 }
 
 export function useDashboardRefresh({
@@ -56,6 +59,7 @@ export function useDashboardRefresh({
   previousOrder,
   setDashboard,
   setTabHistory,
+  setWorkingSet,
   onBeforeAnimatedRefresh,
   onBeforePinnedRefresh
 }: UseDashboardRefreshOptions) {
@@ -80,6 +84,7 @@ export function useDashboardRefresh({
     })
     setDashboard(next.dashboard)
     setTabHistory(next.tabHistory)
+    setWorkingSet(next.workingSet)
   }
 
   useEffect(() => registerDashboardRefresh((options: RefreshOptions) => refreshRef.current(options)), [])
