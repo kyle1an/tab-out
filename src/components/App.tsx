@@ -294,6 +294,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                   <WorkingSetPanel
                     snapshot={workingSet}
                     onHoverUrlChange={handleHoverUrlChange}
+                    activeHoverUrl={hoverMatch.url}
+                    activeHoverUrls={hoverMatch.urls}
+                    activeHoverSource={hoverMatch.source}
                     onSnapshotChange={setWorkingSet}
                     onTabsChange={() => refreshDashboard({ animateCards: true })}
                   />

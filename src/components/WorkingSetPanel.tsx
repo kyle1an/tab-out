@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
-import type { HoverUrlChangeHandler, TabsChangeHandler } from './types'
+import type { HoverUrlChangeHandler, HoverUrlSource, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,9 @@ type WorkingSetTitleMetrics = {
 interface WorkingSetPanelProps {
   snapshot: WorkingSetSnapshot | null
   onHoverUrlChange?: HoverUrlChangeHandler
+  activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
+  activeHoverSource?: HoverUrlSource | null
   onSnapshotChange?: (snapshot: WorkingSetSnapshot) => void
   onTabsChange?: TabsChangeHandler
 }
@@ -73,9 +76,12 @@ function getWorkingSetTitleResizeObserver() {
   return workingSetTitleResizeObserver
 }
 
-function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabsChange }: {
+function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: {
   item: WorkingSetItem
   onHoverUrlChange?: HoverUrlChangeHandler
+  activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
+  activeHoverSource?: HoverUrlSource | null
   onSnapshotChange?: (snapshot: WorkingSetSnapshot) => void
   onTabsChange?: TabsChangeHandler
 }) {
@@ -139,6 +145,12 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
   const titleTooltipStyle = titleTooltipWidth ? {
     '--working-set-title-tooltip-width': titleTooltipWidth
   } as CSSProperties : undefined
+  const hoverMatched = activeHoverSource === 'chip' && !!item.tabUrl && (
+    item.tabUrl === activeHoverUrl ||
+    item.rawUrl === activeHoverUrl ||
+    activeHoverUrls.includes(item.tabUrl) ||
+    activeHoverUrls.includes(item.rawUrl)
+  )
   const tooltipContent = titleMetrics.isTruncated ? (
     <span
       className={cn(
@@ -160,7 +172,8 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
         type="button"
         className={cn(
           'working-set-item group/working-set-item relative flex min-h-12 min-w-0 cursor-default items-center gap-2 rounded-xl border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]',
-          item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)]'
+          item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)]',
+          hoverMatched && 'working-set-item-hover-match'
         )}
         aria-label={`Switch to ${item.title}`}
         onClick={onClick}
@@ -190,7 +203,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
   )
 }
 
-export function WorkingSetPanel({ snapshot, onHoverUrlChange, onSnapshotChange, onTabsChange }: WorkingSetPanelProps) {
+export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: WorkingSetPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const items = snapshot?.items || []
   if (items.length === 0) return null
@@ -209,6 +222,9 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, onSnapshotChange, 
             key={item.key}
             item={item}
             onHoverUrlChange={onHoverUrlChange}
+            activeHoverUrl={activeHoverUrl}
+            activeHoverUrls={activeHoverUrls}
+            activeHoverSource={activeHoverSource}
             onSnapshotChange={onSnapshotChange}
             onTabsChange={onTabsChange}
           />

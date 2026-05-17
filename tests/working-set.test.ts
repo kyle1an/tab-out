@@ -180,6 +180,56 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.doesNotMatch(html, /Close this tab/)
 })
 
+test('WorkingSetPanel outlines matching items only when chip hover owns the match', () => {
+  const snapshot = {
+    defaultLimit: 8,
+    expandedLimit: 16,
+    items: [makeWorkingSetItem(1)]
+  }
+  const matchedHtml = renderToStaticMarkup(
+    React.createElement(WorkingSetPanel, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/page-1',
+      activeHoverSource: 'chip'
+    })
+  )
+  const selfHoverHtml = renderToStaticMarkup(
+    React.createElement(WorkingSetPanel, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/page-1',
+      activeHoverSource: 'working-set'
+    })
+  )
+  const itemMatch = matchedHtml.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
+  const selfHoverMatch = selfHoverHtml.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
+
+  assert.ok(itemMatch, 'working set item should render')
+  assert.ok(selfHoverMatch, 'self-hover working set item should render')
+  assert.match(itemMatch[1], /\bworking-set-item-hover-match\b/)
+  assert.doesNotMatch(selfHoverMatch[1], /\bworking-set-item-hover-match\b/)
+})
+
+test('WorkingSetPanel matches chip hover against raw tab URLs', () => {
+  const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fpage-1'
+  const snapshot = {
+    defaultLimit: 8,
+    expandedLimit: 16,
+    items: [makeWorkingSetItem(1, { rawUrl })]
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(WorkingSetPanel, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/preview',
+      activeHoverUrls: [rawUrl],
+      activeHoverSource: 'chip'
+    })
+  )
+  const itemMatch = html.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
+
+  assert.ok(itemMatch, 'working set item should render')
+  assert.match(itemMatch[1], /\bworking-set-item-hover-match\b/)
+})
+
 test('WorkingSetPanel active item hover keeps one border layer with stronger contrast', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
   const activeMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item\s*\{([^}]*)\}/)

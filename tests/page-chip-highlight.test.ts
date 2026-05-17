@@ -542,7 +542,7 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
 
 test('cross-surface hover match styling is outline-only', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.history-entry\.history-entry-hover-match\s*\{([^}]*)\}/)
+  const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.history-entry\.history-entry-hover-match,\n\.working-set-item\.working-set-item-hover-match\s*\{([^}]*)\}/)
 
   assert.ok(match, 'cross-surface hover match rule should exist')
   assert.match(match[1], /outline:\s*1px solid var\(--accent-amber\);/)
