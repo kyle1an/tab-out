@@ -9,7 +9,7 @@ import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { TITLE_SUPPRESSION_MARKER_SYMBOL, titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData } from './types'
+import type { DashboardChipData, LayoutChangeHandler } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
@@ -17,6 +17,8 @@ const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: { isTruncated: boolean; width: number }) => void
 >()
+export const PAGE_CHIP_CLOSE_ANIMATION_MS = 200
+const PAGE_CHIP_CLOSE_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 
 interface PageChipProps {
   chip: DashboardChipData
@@ -26,6 +28,114 @@ interface PageChipProps {
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
 type HighlightMode = 'parsed' | 'legacy'
+type PageChipCloseAnimationStyle = Partial<Pick<CSSStyleDeclaration, 'height' | 'left' | 'margin' | 'maxHeight' | 'opacity' | 'overflow' | 'paddingBottom' | 'paddingTop' | 'pointerEvents' | 'position' | 'top' | 'transform' | 'transformOrigin' | 'transition' | 'width' | 'zIndex'>>
+type PageChipCloseAnimationGhost = {
+  classList: Pick<DOMTokenList, 'add'>
+  style: PageChipCloseAnimationStyle
+  getBoundingClientRect?: () => unknown
+  setAttribute?: (name: string, value: string) => void
+  remove?: () => void
+}
+type PageChipCloseAnimationElement = {
+  classList: Pick<DOMTokenList, 'add'> & Partial<Pick<DOMTokenList, 'remove'>>
+  style: PageChipCloseAnimationStyle
+  getBoundingClientRect: () => Pick<DOMRect, 'height' | 'left' | 'top' | 'width'>
+  cloneNode?: (deep?: boolean) => PageChipCloseAnimationGhost
+  ownerDocument?: {
+    body?: {
+      appendChild: (node: PageChipCloseAnimationGhost) => unknown
+    }
+  }
+}
+type PageChipCloseAnimationScheduler = (handler: () => void, delay: number) => unknown
+
+function isPageChipCloseAnimationElement(value: unknown): value is PageChipCloseAnimationElement {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<PageChipCloseAnimationElement>
+  return (
+    !!candidate.classList &&
+    typeof candidate.classList.add === 'function' &&
+    !!candidate.style &&
+    typeof candidate.getBoundingClientRect === 'function'
+  )
+}
+
+function shouldReduceCloseMotion() {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
+function pageChipCloseAnimationWaitMs() {
+  return shouldReduceCloseMotion() ? 0 : PAGE_CHIP_CLOSE_ANIMATION_MS
+}
+
+function schedulePageChipCloseAnimationCleanup(handler: () => void, delay: number) {
+  return window.setTimeout(handler, delay)
+}
+
+function createClosingGhost(chipEl: PageChipCloseAnimationElement, rect: Pick<DOMRect, 'height' | 'left' | 'top' | 'width'>, duration: number, scheduleCleanup: PageChipCloseAnimationScheduler) {
+  const ghost = chipEl.cloneNode?.(true)
+  const body = chipEl.ownerDocument?.body
+  if (!ghost || !body) return
+
+  ghost.classList.add('page-chip-closing-ghost')
+  ghost.setAttribute?.('aria-hidden', 'true')
+  ghost.style.position = 'fixed'
+  ghost.style.left = `${rect.left}px`
+  ghost.style.top = `${rect.top}px`
+  ghost.style.width = `${rect.width}px`
+  ghost.style.height = `${rect.height}px`
+  ghost.style.margin = '0'
+  ghost.style.maxHeight = `${rect.height}px`
+  ghost.style.overflow = 'hidden'
+  ghost.style.pointerEvents = 'none'
+  ghost.style.zIndex = '50'
+  ghost.style.opacity = '1'
+  ghost.style.transform = 'scale(1)'
+  ghost.style.transformOrigin = 'top left'
+  ghost.style.transition = duration > 0
+    ? [
+        `opacity ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`,
+        `transform ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`
+      ].join(', ')
+    : 'none'
+
+  body.appendChild(ghost)
+  ghost.getBoundingClientRect?.()
+  ghost.style.opacity = '0'
+  ghost.style.transform = 'scale(0.96)'
+  scheduleCleanup(() => ghost.remove?.(), duration + 80)
+}
+
+export function startPageChipCloseAnimation(chipEl: unknown, onLayoutChange: LayoutChangeHandler | null = null, scheduleCleanup: PageChipCloseAnimationScheduler = schedulePageChipCloseAnimationCleanup): boolean {
+  if (!isPageChipCloseAnimationElement(chipEl)) return false
+
+  const duration = shouldReduceCloseMotion() ? 0 : PAGE_CHIP_CLOSE_ANIMATION_MS
+  const rect = chipEl.getBoundingClientRect()
+  const height = Math.max(0, Math.ceil(rect.height))
+  createClosingGhost(chipEl, rect, duration, scheduleCleanup)
+  chipEl.style.maxHeight = `${height}px`
+  chipEl.style.overflow = 'hidden'
+  chipEl.style.opacity = '0'
+  chipEl.style.transition = duration > 0
+    ? [
+        `max-height ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`,
+        `padding ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`
+      ].join(', ')
+    : 'none'
+
+  chipEl.getBoundingClientRect()
+  chipEl.classList.add('closing')
+  chipEl.style.maxHeight = '0px'
+  chipEl.style.paddingTop = '0px'
+  chipEl.style.paddingBottom = '0px'
+  onLayoutChange?.({ animate: duration > 0 })
+  return true
+}
+
+async function waitForPageChipCloseAnimation() {
+  const duration = pageChipCloseAnimationWaitMs()
+  if (duration > 0) await new Promise((resolve) => setTimeout(resolve, duration))
+}
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
@@ -153,7 +263,7 @@ function getChipTextResizeObserver() {
 }
 
 export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
-  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverSource } = useDomainCardContext()
+  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverSource, onLayoutChange } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -302,8 +412,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       envs,
       onAfterClose: async ({ shouldAnimateRemoval }) => {
         if (shouldAnimateRemoval && chipEl) {
-          chipEl.classList.add('closing')
-          await new Promise((resolve) => setTimeout(resolve, 200))
+          if (startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
         }
         setPreview('')
       }
@@ -319,8 +428,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     await deleteHistoryUrls({
       urls,
       onAfterDelete: async () => {
-        chipEl?.classList.add('closing')
-        await new Promise((resolve) => setTimeout(resolve, 200))
+        if (startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
         setPreview('')
       }
     })
@@ -565,7 +673,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     >
       <div
         className={cn(
-          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.8)]",
+          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           !isFolded && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
           !isFolded && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
           hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',

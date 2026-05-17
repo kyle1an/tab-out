@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { DomainCard } from '../src/components/DomainCard.js'
 import { DomainCardProvider, type DomainCardContextValue } from '../src/components/DomainCardContext.js'
 import { FlatSection } from '../src/components/FlatSection.js'
-import { PageChip } from '../src/components/PageChip.js'
+import { PAGE_CHIP_CLOSE_ANIMATION_MS, PageChip, startPageChipCloseAnimation } from '../src/components/PageChip.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
 import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
@@ -171,6 +171,95 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
+})
+
+test('PageChip close animation collapses the measured row height', () => {
+  const classNames = new Set<string>()
+  const appendedNodes: Array<{ classList: { classes: string[] }; style: Record<string, string>; ariaHidden?: string }> = []
+  const removedNodes: Array<unknown> = []
+  const style = {
+    maxHeight: '',
+    overflow: '',
+    paddingTop: '',
+    paddingBottom: '',
+    opacity: '',
+    transformOrigin: '',
+    transition: ''
+  }
+  let measured = 0
+  let ghostMeasured = 0
+  let layoutOptions: unknown = null
+  let scheduledDelay = 0
+  const chipEl = {
+    classList: {
+      add: (...names: string[]) => names.forEach((name) => classNames.add(name))
+    },
+    style,
+    ownerDocument: {
+      body: {
+        appendChild: (node: { classList: { classes: string[] }; style: Record<string, string>; ariaHidden?: string }) => {
+          appendedNodes.push(node)
+        }
+      }
+    },
+    cloneNode: () => ({
+      classList: {
+        classes: [] as string[],
+        add(...names: string[]) {
+          this.classes.push(...names)
+        }
+      },
+      style: {} as Record<string, string>,
+      getBoundingClientRect() {
+        ghostMeasured += 1
+      },
+      setAttribute(name: string, value: string) {
+        if (name === 'aria-hidden') this.ariaHidden = value
+      },
+      remove() {
+        removedNodes.push(this)
+      }
+    }),
+    getBoundingClientRect: () => {
+      measured += 1
+      return { left: 11.2, top: 22.8, width: 333.3, height: 37.4 }
+    }
+  }
+
+  const started = startPageChipCloseAnimation(chipEl, (options) => {
+    layoutOptions = options
+  }, (handler, delay) => {
+    scheduledDelay = delay
+    handler()
+    return 1
+  })
+
+  assert.equal(started, true)
+  assert.equal(measured, 2)
+  assert.equal(appendedNodes.length, 1)
+  const [ghost] = appendedNodes
+  assert.equal(ghostMeasured, 1)
+  assert.equal(ghost?.ariaHidden, 'true')
+  assert.equal(ghost?.style.position, 'fixed')
+  assert.equal(ghost?.style.left, '11.2px')
+  assert.equal(ghost?.style.top, '22.8px')
+  assert.equal(ghost?.style.width, '333.3px')
+  assert.equal(ghost?.style.height, '37.4px')
+  assert.equal(ghost?.style.transformOrigin, 'top left')
+  assert.match(ghost?.style.transition ?? '', new RegExp(`opacity ${PAGE_CHIP_CLOSE_ANIMATION_MS}ms`))
+  assert.equal(ghost?.style.opacity, '0')
+  assert.equal(ghost?.style.transform, 'scale(0.96)')
+  assert.deepEqual(ghost?.classList.classes, ['page-chip-closing-ghost'])
+  assert.equal(scheduledDelay, PAGE_CHIP_CLOSE_ANIMATION_MS + 80)
+  assert.equal(removedNodes[0], ghost)
+  assert.equal(style.maxHeight, '0px')
+  assert.equal(style.overflow, 'hidden')
+  assert.equal(style.paddingTop, '0px')
+  assert.equal(style.paddingBottom, '0px')
+  assert.equal(style.opacity, '0')
+  assert.match(style.transition, new RegExp(`max-height ${PAGE_CHIP_CLOSE_ANIMATION_MS}ms`))
+  assert.ok(classNames.has('closing'))
+  assert.deepEqual(layoutOptions, { animate: true })
 })
 
 test('PageChip outlines matching live chips only when history hover owns the match', () => {
