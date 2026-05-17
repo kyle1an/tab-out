@@ -455,7 +455,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const chipTooltipStyle = chipTooltipTextWidth ? {
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
   } as CSSProperties : undefined
-  const hoverMatched = (activeHoverSource === 'history' || activeHoverSource === 'working-set') && !!activeHoverUrl && (
+  const hoverMatched = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl && (
     chip.tabUrl === activeHoverUrl ||
     chip.rawUrl === activeHoverUrl ||
     activeHoverUrls.includes(chip.tabUrl) ||

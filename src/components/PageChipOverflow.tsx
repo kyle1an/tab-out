@@ -56,7 +56,7 @@ export function usePageChipOverflow({
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
   const hiddenSuppressionCoversAll = hiddenSuppressionMatchCount > 0 && hiddenSuppressionMatchCount === hiddenCount
-  const hiddenHoverMatched = (activeHoverSource === 'history' || activeHoverSource === 'working-set') && !!activeHoverUrl && hiddenChips.some((chip) => chipMatchesActiveHover(chip, activeHoverUrl, activeHoverUrls))
+  const hiddenHoverMatched = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl && hiddenChips.some((chip) => chipMatchesActiveHover(chip, activeHoverUrl, activeHoverUrls))
 
   function onExpand() {
     setExpanded(true)

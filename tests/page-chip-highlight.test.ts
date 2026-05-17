@@ -354,13 +354,20 @@ test('Overflow expander outlines when external hover matches a hidden chip', () 
   assert.doesNotMatch(chipSelfMatch, /\bpage-chip-overflow-hover-match\b/)
 })
 
-test('TabHistoryPanel outlines matching history rows only when chip hover owns the match', () => {
+test('TabHistoryPanel outlines matching history rows when another source owns the match', () => {
   const snapshot = makeHistorySnapshot()
-  const matchedHtml = renderToStaticMarkup(
+  const chipHoverHtml = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot,
       activeHoverUrl: 'https://example.com/docs',
       activeHoverSource: 'chip'
+    })
+  )
+  const workingSetHoverHtml = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/docs',
+      activeHoverSource: 'working-set'
     })
   )
   const selfHoverHtml = renderToStaticMarkup(
@@ -370,12 +377,15 @@ test('TabHistoryPanel outlines matching history rows only when chip hover owns t
       activeHoverSource: 'history'
     })
   )
-  const entryMatch = matchedHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const chipHoverMatch = chipHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const workingSetHoverMatch = workingSetHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
   const selfHoverMatch = selfHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
-  assert.ok(entryMatch, 'history entry should render')
+  assert.ok(chipHoverMatch, 'chip-hover history entry should render')
+  assert.ok(workingSetHoverMatch, 'working-set-hover history entry should render')
   assert.ok(selfHoverMatch, 'self-hover history entry should render')
-  assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
+  assert.match(chipHoverMatch[1], /\bhistory-entry-hover-match\b/)
+  assert.match(workingSetHoverMatch[1], /\bhistory-entry-hover-match\b/)
   assert.doesNotMatch(selfHoverMatch[1], /\bhistory-entry-hover-match\b/)
 })
 

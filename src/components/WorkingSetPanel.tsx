@@ -157,7 +157,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   const titleTooltipStyle = titleTooltipWidth ? {
     '--working-set-title-tooltip-width': titleTooltipWidth
   } as CSSProperties : undefined
-  const hoverMatched = activeHoverSource === 'chip' && !!item.tabUrl && (
+  const hoverMatched = !!activeHoverSource && activeHoverSource !== 'working-set' && !!item.tabUrl && (
     item.tabUrl === activeHoverUrl ||
     item.rawUrl === activeHoverUrl ||
     activeHoverUrls.includes(item.tabUrl) ||

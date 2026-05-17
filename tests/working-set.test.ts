@@ -276,17 +276,24 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.doesNotMatch(html, /Close this tab/)
 })
 
-test('WorkingSetPanel outlines matching items only when chip hover owns the match', () => {
+test('WorkingSetPanel outlines matching items when another source owns the match', () => {
   const snapshot = {
     defaultLimit: 8,
     expandedLimit: 16,
     items: [makeWorkingSetItem(1)]
   }
-  const matchedHtml = renderToStaticMarkup(
+  const chipHoverHtml = renderToStaticMarkup(
     React.createElement(WorkingSetPanel, {
       snapshot,
       activeHoverUrl: 'https://example.com/page-1',
       activeHoverSource: 'chip'
+    })
+  )
+  const historyHoverHtml = renderToStaticMarkup(
+    React.createElement(WorkingSetPanel, {
+      snapshot,
+      activeHoverUrl: 'https://example.com/page-1',
+      activeHoverSource: 'history'
     })
   )
   const selfHoverHtml = renderToStaticMarkup(
@@ -296,12 +303,15 @@ test('WorkingSetPanel outlines matching items only when chip hover owns the matc
       activeHoverSource: 'working-set'
     })
   )
-  const itemMatch = matchedHtml.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
+  const chipHoverMatch = chipHoverHtml.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
+  const historyHoverMatch = historyHoverHtml.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
   const selfHoverMatch = selfHoverHtml.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
 
-  assert.ok(itemMatch, 'working set item should render')
+  assert.ok(chipHoverMatch, 'chip-hover working set item should render')
+  assert.ok(historyHoverMatch, 'history-hover working set item should render')
   assert.ok(selfHoverMatch, 'self-hover working set item should render')
-  assert.match(itemMatch[1], /\bworking-set-item-hover-match\b/)
+  assert.match(chipHoverMatch[1], /\bworking-set-item-hover-match\b/)
+  assert.match(historyHoverMatch[1], /\bworking-set-item-hover-match\b/)
   assert.doesNotMatch(selfHoverMatch[1], /\bworking-set-item-hover-match\b/)
 })
 

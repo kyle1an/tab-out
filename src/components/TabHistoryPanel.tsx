@@ -199,7 +199,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   const badges = entryBadges(entry, snapshot)
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
-  const hoverMatched = activeHoverSource === 'chip' && !!entry.url && (entry.url === activeHoverUrl || activeHoverUrls.includes(entry.url))
+  const hoverMatched = !!activeHoverSource && activeHoverSource !== 'history' && !!entry.url && (entry.url === activeHoverUrl || activeHoverUrls.includes(entry.url))
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const titleTooltipWidth = titleMetrics.width > 0
     ? `min(calc(100vw - 32px), ${Math.round((titleMetrics.width + HISTORY_TITLE_TOOLTIP_WRAP_EXTRA_PX) * 100) / 100}px)`
