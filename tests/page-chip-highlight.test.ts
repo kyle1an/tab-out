@@ -522,6 +522,17 @@ test('cross-surface hover match styling is outline-only', () => {
   assert.doesNotMatch(match[1], /\b(?:background|box-shadow|border):/)
 })
 
+test('domain card frames itself when a history hover highlights one of its chips', () => {
+  const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  const match = styleSource.match(/\.domain-block:has\(\.page-chip\.page-chip-hover-match\) > \.mission-card\s*\{([^}]*)\}/)
+
+  assert.ok(match, 'domain card hover match rule should exist')
+  assert.match(match[1], /border-color:\s*color-mix\(in srgb, var\(--accent-amber\) 42%, var\(--warm-gray\)\);/)
+  assert.doesNotMatch(match[1], /\bbox-shadow:/)
+  assert.doesNotMatch(match[1], /\btransition:/)
+  assert.doesNotMatch(match[1], /\bbackground:/)
+})
+
 test('PageChip highlights quoted filter phrases as one contiguous match', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
