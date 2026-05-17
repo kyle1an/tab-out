@@ -2,7 +2,7 @@
 
 **Keep tabs on your tabs.**
 
-Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain so each site's homepages and content pages stay together. Close tabs with a satisfying confetti burst.
+Tab Out is a Chrome extension that replaces your new tab page with a dashboard of everything you have open. Tabs are grouped by domain so each site's homepages and content pages stay together. Close tabs with a polished collapse animation and undo toast.
 
 No server. No account. No external API calls. Just a Chrome extension.
 
@@ -24,11 +24,11 @@ The agent will walk you through it. Takes about 1 minute.
 
 - **See all your tabs at a glance** on a clean grid, grouped by domain
 - **Homepages stay with their site** so Gmail, GitHub, YouTube, and similar start pages remain in their own domain cards
-- **Close tabs with style** with a confetti burst, undoable via toast
+- **Close tabs with style** with a polished collapse animation, undoable via toast
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
 - **Pin domain cards** to keep important sites at the top of the dashboard
 - **Click any tab to jump to it** across Chrome windows
-- **Live filter** — type in the filter input to narrow the dashboard; Esc clears. Matching bookmarks and recent history appear below open-tab matches, with a history range menu for last day/week/month/3 months, and non-matching tabs move to an "Other tabs" section so every tab stays accounted for
+- **Live filter** — type in the filter input to narrow the dashboard; the clear button resets it. Matching bookmarks and recent history appear below open-tab matches, with a history range menu for last day/week/month/3 months, and non-matching tabs move to an "Other tabs" section so every tab stays accounted for
 - **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Global new-tab shortcut support** — assign "Open a new Tab Out tab" in `chrome://extensions/shortcuts` and set it to Global to create a fresh Tab Out page even when Chrome is not focused
@@ -71,7 +71,7 @@ You open a new tab
   -> Tab Out shows your open tabs grouped by domain
   -> Homepages stay inside their site's own domain card
   -> Click any tab title to jump to it
-  -> Close groups you're done with (confetti burst)
+  -> Close groups you're done with, with undo
 ```
 
 Everything runs inside the Chrome extension. No external server, no API calls, no data sent anywhere.
@@ -84,10 +84,10 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 |------|-----|
 | Extension | Chrome Manifest V3 (service worker + new-tab override) |
 | Rendering | React + TSX source under `src/`, bundled by Vite into `extension/dist/app.js` |
-| Styling | Semantic CSS classes plus prefixed Tailwind v4 utilities, bundled by Vite into `extension/dist/assets/app.css` |
+| Styling | Semantic CSS classes plus Tailwind v4 utilities, bundled by Vite into `extension/dist/assets/app.css` |
 | Service worker | Source under `src/extension/background.ts`, bundled by Vite into `extension/dist/background.js` |
 | Layout | JS-driven Pinterest-style masonry |
-| Animations | CSS transitions + JS confetti particles |
+| Animations | CSS transitions + JS-driven close and move animations |
 | State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` stores pinned domain-card order and activation history |
 
 ## Development

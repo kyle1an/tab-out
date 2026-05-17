@@ -1,146 +1,148 @@
-# AGENTS.md -- Tab Out: Setup & Onboarding Guide for Coding Agents
+# AGENTS.md -- Tab Out Coding Agent Guide
 
-You're installing **Tab Out** for the user. Your job is not just to set it up -- it's to get them excited about using it.
+This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day operating guide for coding agents. Use `README.md` for the public product tour and end-user install copy.
 
----
+## Operating Priorities
 
-## Step 0 -- Introduce the product
+- Start by checking the current code path before changing or documenting behavior.
+- Keep changes narrow. Avoid broad UI rewrites, formatting churn, dependency updates, or generated bundle changes unrelated to the task.
+- Edit source files first; regenerate bundles through the build scripts.
+- Do not stage, commit, amend, rewrite history, or push unless the user explicitly asks for that action.
+- Check `git status --short` before edits and before handoff. Leave unrelated dirty files untouched.
 
-Before doing anything technical, tell the user what they're about to get:
+## Product Behavior Contracts
 
-> **Tab Out** replaces your new tab page with a clean dashboard of everything you have open, grouped by domain.
->
-> Here's what makes it great:
-> - **See all your open tabs at a glance** grouped by domain on a grid
-> - **Homepages stay with their site** so Gmail, X, LinkedIn, YouTube, GitHub homepages sit in their own domain cards for easy cleanup
-> - **Close tabs with style** satisfying confetti burst
-> - **Duplicate detection** flags when you have the same page open twice
-> - **Click any tab title to jump to it** even across different Chrome windows
-> - **100% local** no server, no accounts, no data sent anywhere
->
-> It's just a Chrome extension. Setup takes about 1 minute.
+Update this section in the same patch when a change intentionally alters one of these durable behaviors. Do not update it for copy tweaks, CSS-only polish, temporary experiments, or internal refactors.
 
----
+- The dashboard groups open tab-like items by registrable domain. Homepage-like routes stay inside their site's normal domain card instead of being split into special homepage groups.
+- The tab source shows real web tabs plus Tab Out/new-tab pages. Chrome internal pages and unrelated extension pages are otherwise excluded from normal dashboard cards.
+- Standalone app/PWA windows are shown in the `Apps` utility card and do not receive active-tab highlighting.
+- `New tabs` (`__tab-out__`) and `Apps` (`__standalone-apps__`) are utility cards. They are unpinned by default, but the user can explicitly pin them like other pinnable cards.
+- Domain-card pins are user-facing dashboard ordering state stored in `chrome.storage.local`; they are separate from Chrome's native `tab.pinned` flag.
+- Duplicate handling renders one chip per effective URL with a count badge and keeps one copy according to the shared dedupe policy. Bulk close and dedupe preserve Chrome tab groups; Tab Out dedupe preserves pinned Tab Out tabs.
+- Filtering keeps matching open tabs in their normal cards and moves non-matching open tabs into the secondary "Other tabs" grid so every open tab remains accounted for.
+- While filtering the tab source, bookmark matches and history matches may appear as companion results. Bookmark and history results are read-only dashboard items; tab mutation actions must stay disabled for them.
+- History companion results are controlled by the history range menu: off, last day, last week, last month, or last 3 months.
+- A page open at the same path across two or more named subdomains folds into one headerless shared chip at the top of the card. Env pills focus the exact tab for that subdomain, and closing the folded chip closes every env copy.
+- Chip hover/focus updates the bottom-left URL preview for the exact target URL, including env pills.
+- Undo for close/dedupe actions restores tabs with `chrome.tabs.create({ active: false })` so the dashboard does not lose focus. Do not switch to `chrome.sessions.restore()` unless intentionally changing that UX contract.
+- Source-specific behavior and terminology live in `CONTEXT.md`; consult it before changing grouping, filtering, title suppression, website path sections, path groups, or source composition.
 
-## Step 1 -- Clone the repo
+## Source And Build
+
+- Runtime source lives under `src/`.
+- The unpacked Chrome extension surface is `extension/`.
+- Vite builds:
+  - `src/app.tsx` to `extension/dist/app.js`
+  - `src/extension/background.ts` to `extension/dist/background.js`
+  - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
+- `extension/base.css`, `extension/style.css`, and `vite.config.ts` are watched by `pnpm dev`.
+- `extension/index.html` and `extension/manifest.json` are runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
+- Do not hand-edit `extension/dist/*` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
+- When source or style changes legitimately alter `extension/dist/*`, include the generated bundle changes in the final ready-to-commit diff.
+
+## Development Loop
 
 ```bash
-git clone https://github.com/zarazhangrui/tab-out.git
-cd tab-out
+pnpm install
+pnpm setup:hooks
+pnpm dev
 ```
 
----
+- Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
+- Run `pnpm dev` while editing source or bundled styles.
+- Refresh the Tab Out page for dashboard/UI changes.
+- Reload the extension in `chrome://extensions` for manifest, permission, service-worker, or extension package changes.
+- Use `pnpm build:debug` only when a local sourcemap is needed.
 
-## Step 2 -- Install the Chrome extension
+## Verification
 
-This is the one step that requires manual action from the user. Make it as easy as possible.
+- Code changes: run `pnpm verify` before handoff unless there is a clear blocker.
+- UI/layout changes: run `pnpm verify`; also run `pnpm test:browser`, `pnpm verify:browser`, or perform real Chrome visual inspection when practical. If skipped, say why.
+- Extension API, shortcut, service-worker, tab/window, new-tab override, or focus behavior: prefer real Chrome inspection because harness tests cannot prove `chrome.*` runtime behavior.
+- Docs-only changes: focused checks are enough, such as `git diff --check -- AGENTS.md README.md`.
+- Commits: the pre-commit hook runs `pnpm verify`; enable it once per clone with `pnpm setup:hooks`.
 
-**First**, print the full path to the `extension/` folder:
-```bash
-echo "Extension folder: $(cd extension && pwd)"
-```
+## Live QA And Inspection
 
-**Then**, copy the `extension/` folder path to their clipboard:
-- macOS: `cd extension && pwd | pbcopy && echo "Path copied to clipboard"`
-- Linux: `cd extension && pwd | xclip -selection clipboard 2>/dev/null || echo "Path: $(pwd)"`
-- Windows: `cd extension && echo %CD% | clip`
+- For live Tab Out behavior, inspect the real Chrome extension page, not the Codex in-app browser.
+- The in-app browser or a localhost/file harness can render the shell, but it does not prove real `chrome.*` behavior, service-worker behavior, tab/window data, extension shortcuts, new-tab overrides, or extension-page focus.
+- Prefer `@Computer` for visible real-Chrome checks of the Tab Out new-tab page.
+- Prefer a working Chrome DevTools/CDP endpoint when DOM, console, service-worker, or network-level evidence is needed.
+- Clearly label any harness-only verification as limited.
 
-**Then**, open the extensions page:
-```bash
-open "chrome://extensions"
-```
+## Git And Commits
 
-**Then**, walk the user through it step by step:
-
-> I've copied the extension folder path to your clipboard. Now:
->
-> 1. You should see Chrome's extensions page. In the **top-right corner**, toggle on **Developer mode** (it's a switch).
-> 2. Once Developer mode is on, you'll see a button called **"Load unpacked"** appear in the top-left. Click it.
-> 3. A file picker will open. **Press Cmd+Shift+G** (Mac) or **Ctrl+L** (Windows/Linux) to open the "Go to folder" bar, then **paste** the path I copied (Cmd+V / Ctrl+V) and press Enter.
-> 4. Click **"Select"** or **"Open"** and the extension will install.
->
-> You should see "Tab Out" appear in your extensions list.
-
-**Also**, open the file browser directly to the extension folder as a fallback:
-- macOS: `open extension/`
-- Linux: `xdg-open extension/`
-- Windows: `explorer extension\\`
-
----
-
-## Step 3 -- Show them around
-
-Once the extension is loaded:
-
-> You're all set! Open a **new tab** and you'll see Tab Out.
->
-> Here's how it works:
-> 1. **Your open tabs are grouped by domain** in a grid layout.
-> 2. **Homepages** (Gmail inbox, X home, YouTube, etc.) stay inside their site's own domain card.
-> 3. **Click any tab title** to jump directly to that tab — even across Chrome windows.
-> 4. **Click the X** next to any tab to close just that one (with confetti). Undo is in the toast.
-> 5. **Click "Close all N tabs"** on a group header to close the whole card.
-> 6. **Duplicate tabs** show a count badge. Click the card's **"Dedupe N"** button (or the global **"Dedupe N"** in the top bar) to keep one copy per URL.
-> 7. **Live filter:** type in the filter input to narrow the dashboard. Matching tabs stay put, matching bookmarks and recent history appear below them, and the history range menu can switch between last day/week/month/3 months. The rest slide into an "Other tabs" section below so everything stays accounted for. Press Esc or click the ✕ inside the input to clear.
-> 8. **Filter shortcut:** assign **"Open Tab Out with the filter focused"** in `chrome://extensions/shortcuts` to open a fresh Tab Out page with the filter ready for typing.
-> 9. **Cross-subdomain fold:** if a page exists in multiple subdomains (dev/qa/prod, or tenant subdomains, etc.), it shows as one chip with a row of clickable env pills under an "Across subdomains" section.
->
-> That's it! No server to run, no required config files. Everything works right away.
-
----
-
-## Key Facts
-
-- Tab Out is a pure Chrome extension at runtime. No server is required; source lives under `src/` and Vite packages it into `extension/dist/app.js` plus `extension/dist/background.js`.
-- 100% local. No data is sent to any external service.
-- Run `pnpm setup:hooks` once per clone to enable the committed `.githooks/pre-commit` hook; it runs `pnpm verify` before commits.
-- During development, run `pnpm dev` to watch `src/` changes and rebuild the packaged bundles; refresh the Tab Out page for dashboard changes and reload the extension for manifest, service-worker, or permission changes.
-- To update: `cd tab-out && git pull`, run `pnpm install && pnpm build` only if source files changed without built assets, then reload the extension in `chrome://extensions`.
-
-## React Coding Conventions
-
-- React Compiler is enabled for this repo. Do not add `useMemo`, `useCallback`, or `React.memo` as default render-performance guards in new code.
-- Use manual memoization only when function or object identity is part of the behavior contract, such as stable values passed through React context, callbacks returned from custom hooks where consumers depend on stable identity, effect/listener/timer cleanup patterns that require stable references, or third-party component APIs that depend on referential equality.
-- When touching existing manual memoization, remove it only with focused verification. Existing hooks may be preserving behavior or compiler output.
-
-## Git Commit Conventions
-
-- Use conventional commit subjects, such as `fix(ui): ...`, `refactor(ui): ...`, or `feat(ui): ...`.
+- Do not stage files unless the user explicitly asks to stage, commit, or prepare a commit.
+- Do not commit, amend, rewrite history, or push unless explicitly requested.
+- When asked to commit, use a conventional commit subject such as `fix(ui): ...`, `refactor(ui): ...`, or `feat(ui): ...`.
 - For Codex-authored or Codex-assisted commits, include `Co-authored-by: Codex <noreply@openai.com>` as the final non-empty line.
 - Do not leave an extra blank line after the `Co-authored-by` trailer. GitHub may fail to render the co-author even when local `git interpret-trailers` still parses it.
 - For metadata-only commit-message rewrites, preserve author and committer timestamps.
 - Before rewriting published history, create a backup branch.
 - Push rewritten published history only with `git push --force-with-lease`.
 
-## Repository Privacy Hygiene
+## React Compiler
+
+- React Compiler is enabled for this repo.
+- Do not add `useMemo`, `useCallback`, or `React.memo` as default render-performance guards in new code.
+- Use manual memoization only when function or object identity is part of the behavior contract, such as stable values passed through React context, callbacks returned from custom hooks where consumers depend on stable identity, effect/listener/timer cleanup patterns that require stable references, or third-party component APIs that depend on referential equality.
+- When touching existing manual memoization, remove it only with focused verification. Existing hooks may be preserving behavior or compiler output.
+
+## UI Implementation
+
+- Preserve the compact dashboard density and existing visual language during narrow fixes.
+- Prefer existing local components and wrappers under `src/components/ui/`.
+- The repo uses Base UI, shadcn configuration, Tailwind v4 utilities, and `lucide-react`. Use those patterns for new UI where they fit, but do not churn existing inline SVGs during unrelated fixes.
+- Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.
+- Do not add squircle styling to true circles or pills such as `border-radius: 50%` or `999px`.
+- Squircle corners read less rounded than ordinary rounded corners. As a visual rule of thumb, a `4px` squircle looks similar to a `2px` non-squircle corner.
+
+## Privacy Hygiene
 
 - Do not commit real/private URLs, customer domains, tenant names, account names, project keys, space IDs, entry IDs, route paths, content titles, or screenshot-derived labels in comments, tests, fixtures, documentation, or example data.
 - Use fake or generic values that preserve only the structural shape needed for the behavior under test, such as `example.com`, `example.test`, `example-space`, `env-alpha`, `entry-alpha`, and neutral titles like `Example Article`.
 - Public product hosts are allowed in implementation code when the feature depends on them, such as host-specific path-group rules, but tests should still use generic tenants, paths, IDs, and titles.
 - When adapting a real repro into a test or doc, replace all customer, product, content, and route wording with neutral examples before committing.
+- `extension/config.local.js` is gitignored personal config. Inspect it only when debugging user-specific local grouping behavior, never commit it, and never copy real local values from it into tracked files.
 
-## Live QA & Inspection
+## First-Time Install Requests
 
-- For live Tab Out behavior, inspect the real Chrome extension page, not the Codex in-app browser.
-- The in-app browser or a localhost/file harness can render the shell, but it does not prove real `chrome.*` behavior, real tab/window data, service-worker behavior, extension shortcuts, new-tab overrides, or extension-page focus.
-- Prefer `@Computer` for visible real-Chrome checks of the Tab Out new-tab page. Prefer a working Chrome DevTools/CDP endpoint only when DOM, console, service-worker, or network-level evidence is needed.
+Use this section only when the user asks to install or onboard Tab Out. For ordinary coding, review, debugging, or QA tasks, skip the product pitch and go straight to repo work.
 
-## Visual Style Notes
+Short intro:
 
-- Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.
-- Do not add squircle styling to true circles or pills such as `border-radius: 50%` or `999px`.
-- Squircle corners read less rounded than ordinary rounded corners. As a visual rule of thumb, a `4px` squircle looks similar to a `2px` non-squircle corner.
+> Tab Out replaces your new tab page with a local Chrome dashboard of open tabs grouped by domain. It helps you jump between tabs, close clutter with undo, dedupe repeated pages, filter tabs/bookmarks/history, and fold matching pages across subdomains. No server, no account, no external API calls.
 
-## Agent skills
+If the repo is not cloned yet:
 
-### Issue tracker
+```bash
+git clone https://github.com/zarazhangrui/tab-out.git
+cd tab-out
+```
 
-Issues are tracked as local markdown under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+Then help the user load the unpacked extension:
 
-### Triage labels
+```bash
+extension_path="$(cd extension && pwd)"
+echo "Extension folder: $extension_path"
+printf "%s" "$extension_path" | pbcopy && echo "Path copied to clipboard"
+open "chrome://extensions"
+open "$extension_path"
+```
 
-Triage uses the default five-status vocabulary for local markdown issues. See `docs/agents/triage-labels.md`.
+Manual steps to give the user:
 
-### Domain docs
+1. In Chrome's extensions page, turn on Developer mode.
+2. Click Load unpacked.
+3. Paste the copied `extension/` path into the file picker.
+4. Select the folder and open a new tab.
 
-This is a single-context repo with root `CONTEXT.md` and optional root `docs/adr/`. See `docs/agents/domain.md`.
+For Linux, use `xclip` or print the path if clipboard support is unavailable. For Windows, use `clip` and `explorer extension\\`.
+
+## Local Workflow Docs
+
+- Issue tracker: local markdown issues live under `.scratch/<feature>/`; see `docs/agents/issue-tracker.md`.
+- Triage labels: use the default five-status vocabulary; see `docs/agents/triage-labels.md`.
+- Domain docs: this is a single-context repo with root `CONTEXT.md` and optional `docs/adr/`; see `docs/agents/domain.md`.
+- `docs/superpowers/*` contains historical plans/specs; read those only when the task names them or touches that exact work.
