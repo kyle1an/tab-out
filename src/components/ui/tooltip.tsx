@@ -396,7 +396,9 @@ function TooltipAnchor({
   const handleFocus = useCallback(
     (event: ReactFocusEvent<HTMLElement>) => {
       children.props.onFocus?.(event)
-      if (pointerFocusedRef.current) return
+      const focusVisible = event.currentTarget.matches(':focus-visible')
+      pointerFocusedRef.current = !focusVisible
+      if (!focusVisible) return
       openTooltip(null)
     },
     [children.props, openTooltip]

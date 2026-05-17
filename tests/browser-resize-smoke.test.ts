@@ -378,6 +378,18 @@ async function waitForTooltipContaining(session: CdpSession, text: string, timeo
   }).then((result: any) => result.result.value)
 }
 
+async function getVisibleTooltipTexts(session: CdpSession) {
+  return evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
+      .filter((tooltip) => {
+        const rect = tooltip.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+      })
+      .map((tooltip) => tooltip.textContent || '')`
+  }).then((result: any) => result.result.value)
+}
+
 async function measureTooltipFreeze(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -444,6 +456,112 @@ async function measureTooltipFreeze(session: CdpSession) {
   }).then((result: any) => result.result.value)
 
   return { target, first, second, afterScrollTooltipCount, closing: null }
+}
+
+async function measureInteractiveTooltipClickReturnFocus(
+  session: CdpSession,
+  selector: string,
+  marker: string,
+  targetLabel: string,
+  requiredDescendantSelector: string
+) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const trigger = Array.from(document.querySelectorAll(${JSON.stringify(selector)}))
+          .find((candidate) =>
+            candidate.textContent?.includes(${JSON.stringify(marker)}) &&
+            candidate.querySelector(${JSON.stringify(requiredDescendantSelector)})
+          )
+        const rect = trigger?.getBoundingClientRect()
+        if (trigger && rect && rect.width > 120 && rect.height > 8) {
+          trigger.setAttribute('data-smoke-click-return-target', ${JSON.stringify(targetLabel)})
+          resolve({
+            x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+            y: Math.round(rect.top + rect.height / 2)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, `expected a ${targetLabel} tooltip trigger for click-return smoke test`)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipContaining(session, marker)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: target.x,
+    y: target.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: target.x,
+    y: target.y
+  })
+  await wait(120)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(240)
+
+  const afterReturnFocus = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const trigger = document.querySelector(${JSON.stringify(`[data-smoke-click-return-target="${targetLabel}"]`)})
+      if (!(trigger instanceof HTMLElement)) return null
+      trigger.blur()
+      window.dispatchEvent(new Event('blur'))
+      trigger.focus()
+      window.dispatchEvent(new Event('focus'))
+      return {
+        active: document.activeElement === trigger,
+        focusVisible: trigger.matches(':focus-visible')
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+  await wait(240)
+
+  return {
+    target,
+    first,
+    afterReturnFocus,
+    afterReturnTooltips: await getVisibleTooltipTexts(session)
+  }
 }
 
 async function measureTooltipPopupHover(session: CdpSession) {
@@ -755,15 +873,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
   })
   await wait(360)
 
-  const afterLeaveTooltips = await evaluateWithNavigationRetry(session, {
-    returnByValue: true,
-    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
-      .filter((tooltip) => {
-        const rect = tooltip.getBoundingClientRect()
-        return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
-      })
-      .map((tooltip) => tooltip.textContent || '')`
-  }).then((result: any) => result.result.value)
+  const afterLeaveTooltips = await getVisibleTooltipTexts(session)
 
   const focusedAfterLeave = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1053,6 +1163,30 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(actionTooltip.first, `pin tooltip should open before click-close check: ${JSON.stringify(actionTooltip)}`)
   assert.equal(actionTooltip.focusedAfterLeave, true, `pin button should keep focus after click so this smoke covers pointer-focus behavior: ${JSON.stringify(actionTooltip)}`)
   assert.deepEqual(actionTooltip.afterLeaveTooltips, [], `pin tooltip should close after click when the pointer leaves the focused button: ${JSON.stringify(actionTooltip)}`)
+
+  const pageChipReturnTooltip = await measureInteractiveTooltipClickReturnFocus(
+    session,
+    '.page-chip',
+    'enough tooltip text',
+    'page-chip',
+    '.chip-text-truncated'
+  )
+  assert.ok(pageChipReturnTooltip.first.found, `page chip tooltip should open before click-return check: ${JSON.stringify(pageChipReturnTooltip)}`)
+  assert.equal(pageChipReturnTooltip.afterReturnFocus?.active, true, `page chip should be refocused during click-return smoke test: ${JSON.stringify(pageChipReturnTooltip)}`)
+  assert.equal(pageChipReturnTooltip.afterReturnFocus?.focusVisible, false, `page chip click-return focus should not be keyboard-visible focus: ${JSON.stringify(pageChipReturnTooltip)}`)
+  assert.deepEqual(pageChipReturnTooltip.afterReturnTooltips, [], `page chip tooltip should stay closed after pointer-click return focus: ${JSON.stringify(pageChipReturnTooltip)}`)
+
+  const workingSetReturnTooltip = await measureInteractiveTooltipClickReturnFocus(
+    session,
+    '.working-set-item',
+    'Working set item with enough tooltip text',
+    'working-set-item',
+    '.working-set-title-truncated'
+  )
+  assert.ok(workingSetReturnTooltip.first.found, `working set tooltip should open before click-return check: ${JSON.stringify(workingSetReturnTooltip)}`)
+  assert.equal(workingSetReturnTooltip.afterReturnFocus?.active, true, `working set item should be refocused during click-return smoke test: ${JSON.stringify(workingSetReturnTooltip)}`)
+  assert.equal(workingSetReturnTooltip.afterReturnFocus?.focusVisible, false, `working set click-return focus should not be keyboard-visible focus: ${JSON.stringify(workingSetReturnTooltip)}`)
+  assert.deepEqual(workingSetReturnTooltip.afterReturnTooltips, [], `working set tooltip should stay closed after pointer-click return focus: ${JSON.stringify(workingSetReturnTooltip)}`)
 
   const markerHandoff = await measureMarkerToChipTooltipHandoff(session)
   assert.equal(markerHandoff.target.markerText, '/', `strip indicator should render compact marker text in the chip: ${JSON.stringify(markerHandoff)}`)

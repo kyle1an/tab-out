@@ -23,6 +23,26 @@
         addListener() {},
         removeListener() {}
       }
+      const workingSetSnapshot = {
+        defaultLimit: 8,
+        expandedLimit: 16,
+        items: [
+          {
+            key: 'working-set-smoke-1',
+            tabId: 3,
+            windowId: 1,
+            tabUrl: 'https://tab-out-smoke-03.com/docs/3',
+            rawUrl: 'https://tab-out-smoke-03.com/docs/3',
+            title: 'Working set item with enough tooltip text to prove pointer-click return focus stays quiet after switching away from Tab Out and then returning to the dashboard without hovering the item again',
+            displayUrl: 'tab-out-smoke-03.com/docs/3',
+            faviconUrl: '',
+            dupeCount: 1,
+            active: false,
+            activeInOtherWindow: false,
+            score: 10
+          }
+        ]
+      }
       const tabs = [
         {
           id: 1001,
@@ -81,7 +101,12 @@
         },
         runtime: {
           getURL: (path) => `${window.location.origin}${path}`,
-          sendMessage: async () => ({ ok: false })
+          sendMessage: async (message) => {
+            if (message?.type === 'tab-out:get-working-set') {
+              return { ok: true, snapshot: workingSetSnapshot }
+            }
+            return { ok: false }
+          }
         },
         storage: {
           local: {
