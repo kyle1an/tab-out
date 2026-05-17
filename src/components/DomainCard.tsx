@@ -17,6 +17,7 @@ interface DomainCardProps {
   filter?: string
   onHoverUrlChange?: HoverUrlChangeHandler | null
   activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
   activeHoverSource?: HoverUrlSource | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
@@ -117,7 +118,7 @@ type RenderSectionVM = DashboardSectionVM & {
   websitePathSections: RenderWebsitePathSectionVM[]
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const cardContext = {
@@ -126,6 +127,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
     dedupeBadgesClosing,
     onHoverUrlChange,
     activeHoverUrl,
+    activeHoverUrls,
     activeHoverSource,
     onLayoutChange
   }

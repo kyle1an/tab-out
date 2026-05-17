@@ -263,7 +263,7 @@ function getChipTextResizeObserver() {
 }
 
 export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
-  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverSource, onLayoutChange } = useDomainCardContext()
+  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const hasFilter = filter.trim().length > 0
@@ -455,10 +455,17 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const chipTooltipStyle = chipTooltipTextWidth ? {
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
   } as CSSProperties : undefined
-  const hoverMatched = activeHoverSource === 'history' && !!activeHoverUrl && (
+  const hoverMatched = (activeHoverSource === 'history' || activeHoverSource === 'working-set') && !!activeHoverUrl && (
     chip.tabUrl === activeHoverUrl ||
     chip.rawUrl === activeHoverUrl ||
-    envs.some((env) => env.tabUrl === activeHoverUrl || env.rawUrl === activeHoverUrl)
+    activeHoverUrls.includes(chip.tabUrl) ||
+    activeHoverUrls.includes(chip.rawUrl) ||
+    envs.some((env) => (
+      env.tabUrl === activeHoverUrl ||
+      env.rawUrl === activeHoverUrl ||
+      activeHoverUrls.includes(env.tabUrl) ||
+      activeHoverUrls.includes(env.rawUrl)
+    ))
   )
 
   function renderSuppressionMarker(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {

@@ -195,3 +195,10 @@ test('WorkingSetPanel active item hover keeps one border layer with stronger con
   assert.doesNotMatch(activeHoverMatch[1], /\bring\b/)
   assert.doesNotMatch(activeHoverMatch[1], /\boutline\b/)
 })
+
+test('WorkingSetPanel emits an external hover source for matching open tab chips', () => {
+  const source = readFileSync(new URL('../src/components/WorkingSetPanel.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /onHoverUrlChange\?\.\(item\.tabUrl, 'working-set', \[item\.tabUrl, item\.rawUrl\]\)/)
+  assert.doesNotMatch(source, /onHoverUrlChange\?\.\(item\.tabUrl, 'chip', \[item\.tabUrl, item\.rawUrl\]\)/)
+})

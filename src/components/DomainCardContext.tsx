@@ -7,6 +7,7 @@ export type DomainCardContextValue = {
   dedupeBadgesClosing: boolean
   onHoverUrlChange: HoverUrlChangeHandler | null
   activeHoverUrl: string
+  activeHoverUrls: readonly string[]
   activeHoverSource: HoverUrlSource | null
   onLayoutChange: LayoutChangeHandler | null
 }
@@ -17,6 +18,7 @@ const defaultDomainCardContext: DomainCardContextValue = {
   dedupeBadgesClosing: false,
   onHoverUrlChange: null,
   activeHoverUrl: '',
+  activeHoverUrls: [],
   activeHoverSource: null,
   onLayoutChange: null
 }

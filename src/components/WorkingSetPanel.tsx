@@ -128,7 +128,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
   }
 
   function onMouseEnter() {
-    onHoverUrlChange?.(item.tabUrl, 'chip', [item.tabUrl, item.rawUrl])
+    onHoverUrlChange?.(item.tabUrl, 'working-set', [item.tabUrl, item.rawUrl])
   }
 
   function onMouseLeave() {

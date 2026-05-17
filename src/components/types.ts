@@ -13,7 +13,7 @@ import type {
   TabHistorySnapshot
 } from '../extension/types'
 
-export type HoverUrlSource = 'chip' | 'history'
+export type HoverUrlSource = 'chip' | 'history' | 'working-set'
 export type HoverUrlChangeHandler = (url: string, source?: HoverUrlSource, matchUrls?: readonly string[]) => void
 export type LayoutChangeHandler = (options?: { unpin?: boolean; animate?: boolean }) => void
 export type TogglePinnedDomainHandler = (domain: string) => void | Promise<void>

@@ -42,6 +42,7 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Par
     dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false,
     onHoverUrlChange: overrides.onHoverUrlChange ?? null,
     activeHoverUrl: overrides.activeHoverUrl ?? '',
+    activeHoverUrls: overrides.activeHoverUrls ?? [],
     activeHoverSource: overrides.activeHoverSource ?? null,
     onLayoutChange: overrides.onLayoutChange ?? null
   }
@@ -262,26 +263,53 @@ test('PageChip close animation collapses the measured row height', () => {
   assert.deepEqual(layoutOptions, { animate: true })
 })
 
-test('PageChip outlines matching live chips only when history hover owns the match', () => {
+test('PageChip outlines matching live chips when an external row owns the match', () => {
   const chip = makeChip({
     tabUrl: 'https://example.com/docs',
     rawUrl: 'https://example.com/docs'
   })
-  const matchedHtml = renderWithDomainCardContext(
+  const historyHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
     { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' } as Partial<DomainCardContextValue>
+  )
+  const workingSetHoverHtml = renderWithDomainCardContext(
+    React.createElement(PageChip, { chip }),
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' } as Partial<DomainCardContextValue>
   )
   const selfHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
     { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as Partial<DomainCardContextValue>
   )
-  const chipMatch = matchedHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const historyMatch = historyHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const workingSetMatch = workingSetHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
   const selfHoverMatch = selfHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
 
-  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(historyMatch, 'history-hover page chip should render')
+  assert.ok(workingSetMatch, 'working-set-hover page chip should render')
   assert.ok(selfHoverMatch, 'self-hover page chip should render')
-  assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
+  assert.match(historyMatch[1], /\bpage-chip-hover-match\b/)
+  assert.match(workingSetMatch[1], /\bpage-chip-hover-match\b/)
   assert.doesNotMatch(selfHoverMatch[1], /\bpage-chip-hover-match\b/)
+})
+
+test('PageChip matches working set hover against raw tab URLs', () => {
+  const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const chip = makeChip({
+    tabUrl: 'https://example.com/docs',
+    rawUrl
+  })
+  const html = renderWithDomainCardContext(
+    React.createElement(PageChip, { chip }),
+    {
+      activeHoverUrl: 'https://example.com/preview',
+      activeHoverUrls: [rawUrl],
+      activeHoverSource: 'working-set'
+    } as Partial<DomainCardContextValue>
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
 })
 
 test('TabHistoryPanel outlines matching history rows only when chip hover owns the match', () => {

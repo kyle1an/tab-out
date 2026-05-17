@@ -11,6 +11,7 @@ interface MissionsProps {
   showEmptyState?: boolean
   onHoverUrlChange?: HoverUrlChangeHandler | null
   activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
   activeHoverSource?: HoverUrlSource | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
@@ -33,7 +34,7 @@ function NoResultsState({ query = '' }: { query?: string }) {
   )
 }
 
-export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: MissionsProps) {
+export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: MissionsProps) {
   if (!cards || cards.length === 0) {
     if (!showEmptyState) return null
     return filter ? <NoResultsState query={filter} /> : <EmptyState source={source} />
@@ -49,6 +50,7 @@ export function Missions({ cards, filter = '', source = 'tabs', showEmptyState =
           filter={filter}
           onHoverUrlChange={onHoverUrlChange}
           activeHoverUrl={activeHoverUrl}
+          activeHoverUrls={activeHoverUrls}
           activeHoverSource={activeHoverSource}
           onLayoutChange={onLayoutChange}
           onTogglePinnedDomain={onTogglePinnedDomain}
