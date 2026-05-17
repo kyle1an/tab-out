@@ -212,6 +212,7 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.match(itemClassMatch[1], /\bcursor-default\b/)
   assert.match(itemClassMatch[1], /after:bg-\[linear-gradient\(to_right,transparent,var\(--working-set-hover-fade-bg\)_50%\)\]/)
   assert.match(itemClassMatch[1], /group-hover\/working-set-item:after:opacity-100/)
+  assert.doesNotMatch(itemClassMatch[1], /\bpr-8\b/)
   assert.doesNotMatch(itemClassMatch[1], /\bcursor-pointer\b/)
   assert.doesNotMatch(itemClassMatch[1], /\btransition-/)
   assert.doesNotMatch(itemClassMatch[1], /\bduration-/)
