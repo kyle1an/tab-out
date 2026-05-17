@@ -872,6 +872,92 @@ test('working set snapshot ranks activated and actively navigated open tabs', as
   }
 })
 
+test('working set dismiss hides an item until it is activated again', async () => {
+  const originalDateNow = Date.now
+  let now = Date.UTC(2026, 4, 17, 12)
+  Date.now = () => now
+  const mock = await loadBackground([
+    {
+      id: 501,
+      windowId: 1,
+      url: 'https://alpha.example/docs',
+      title: 'Alpha docs',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 502,
+      windowId: 1,
+      url: 'https://bravo.example/home',
+      title: 'Bravo home',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 503,
+      windowId: 1,
+      url: 'https://charlie.example/report',
+      title: 'Charlie report',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    },
+    {
+      id: 504,
+      windowId: 1,
+      url: 'https://delta.example/plan',
+      title: 'Delta plan',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 3
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+
+  try {
+    onFocusChanged(1)
+    await flushBackgroundWork()
+    for (const tabId of [502, 503, 504]) {
+      now += 60_000
+      await mock.chrome.tabs.update(tabId, { active: true })
+      onActivated({ tabId, windowId: 1 })
+      await flushBackgroundWork()
+    }
+
+    now += 60_000
+    const dismissedResponse = await sendRuntimeMessage(mock, {
+      type: 'tab-out:dismiss-working-set-item',
+      key: 'https://bravo.example/home'
+    })
+    assert.equal(dismissedResponse.ok, true)
+    assert.deepEqual(
+      dismissedResponse.snapshot.items.map((item) => item.tabId),
+      [504, 503, 501]
+    )
+
+    now += 60_000
+    await mock.chrome.tabs.update(502, { active: true })
+    onActivated({ tabId: 502, windowId: 1 })
+    await flushBackgroundWork()
+
+    const reactivatedResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-working-set' })
+    assert.equal(reactivatedResponse.ok, true)
+    assert.equal(reactivatedResponse.snapshot.items.some((item) => item.tabId === 502), true)
+  } finally {
+    Date.now = originalDateNow
+  }
+})
+
 test('tab history survives extension reload through persistent storage', async () => {
   const mock = await loadBackground([
     {

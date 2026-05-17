@@ -1,5 +1,6 @@
 import {
   buildWorkingSetSnapshot,
+  dismissWorkingSetActivity,
   emptyWorkingSetActivity,
   normalizeWorkingSetActivity,
   recordWorkingSetActivity
@@ -12,6 +13,7 @@ const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
 
 export type WorkingSetService = {
   getWorkingSetSnapshot: () => Promise<WorkingSetSnapshot>
+  dismissWorkingSetItem: (keyOrUrl: string) => Promise<WorkingSetSnapshot>
   recordTabActivation: (windowId: number, tabId: number) => Promise<void>
   recordTabNavigation: (tabId: number, changeInfo: { url?: string; title?: string }, tab: chrome.tabs.Tab) => Promise<void>
 }
@@ -88,6 +90,14 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
     }))
   }
 
+  async function dismissWorkingSetItem(keyOrUrl: string): Promise<WorkingSetSnapshot> {
+    if (!keyOrUrl) return getWorkingSetSnapshot()
+    const at = Math.max(Date.now(), lastActivityAt + 1)
+    lastActivityAt = at
+    await enqueueActivityMutation((activity) => dismissWorkingSetActivity(activity, keyOrUrl, at))
+    return getWorkingSetSnapshot()
+  }
+
   async function recordTabActivation(windowId: number, tabId: number): Promise<void> {
     if (typeof windowId !== 'number' || typeof tabId !== 'number') return
     try {
@@ -125,6 +135,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
 
   return {
     getWorkingSetSnapshot,
+    dismissWorkingSetItem,
     recordTabActivation,
     recordTabNavigation
   }

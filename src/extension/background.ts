@@ -24,7 +24,7 @@ import {
   createTabHistoryService
 } from './background/tab-history-service.js'
 import { createWorkingSetService } from './background/working-set-service.js'
-import { WORKING_SET_GET_MESSAGE } from './working-set.js'
+import { WORKING_SET_DISMISS_MESSAGE, WORKING_SET_GET_MESSAGE } from './working-set.js'
 
 const chromeApi = createChromeApi(chrome)
 const tabHistoryService = createTabHistoryService(chromeApi)
@@ -113,6 +113,13 @@ chromeApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === WORKING_SET_GET_MESSAGE) {
     workingSetService.getWorkingSetSnapshot()
+      .then((snapshot) => sendResponse({ ok: true, snapshot }))
+      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    return true
+  }
+
+  if (message?.type === WORKING_SET_DISMISS_MESSAGE) {
+    workingSetService.dismissWorkingSetItem(String(message.key || message.url || ''))
       .then((snapshot) => sendResponse({ ok: true, snapshot }))
       .catch(() => sendResponse({ ok: false, snapshot: null }))
     return true

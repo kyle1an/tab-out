@@ -1,6 +1,7 @@
 import type { WorkingSetItem, WorkingSetSnapshot } from './types'
 
 const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
+const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
 const WORKING_SET_DEFAULT_LIMIT = 8
 const WORKING_SET_EXPANDED_LIMIT = 16
 
@@ -60,5 +61,20 @@ export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | '
     return true
   } catch {
     return false
+  }
+}
+
+export async function dismissWorkingSetItem(item: Pick<WorkingSetItem, 'key' | 'tabUrl'>): Promise<WorkingSetSnapshot> {
+  if (!globalThis.chrome?.runtime?.sendMessage) return emptyWorkingSetSnapshot()
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: WORKING_SET_DISMISS_MESSAGE,
+      key: item.key,
+      url: item.tabUrl
+    })
+    if (!response?.ok) return emptyWorkingSetSnapshot()
+    return normalizeWorkingSetSnapshot(response.snapshot)
+  } catch {
+    return emptyWorkingSetSnapshot()
   }
 }

@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { WorkingSetPanel } from '../src/components/WorkingSetPanel.js'
 import {
   buildWorkingSetSnapshot,
+  dismissWorkingSetActivity,
   emptyWorkingSetActivity,
   pageIdentityForWorkingSet,
   recordWorkingSetActivity
@@ -123,6 +124,63 @@ test('buildWorkingSetSnapshot hides below the minimum meaningful candidate count
   assert.deepEqual(snapshot.items, [])
 })
 
+test('buildWorkingSetSnapshot excludes dismissed items until fresh activity or expiry', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const dismissedAt = now + 60_000
+  const tabs = [
+    makeTab({ id: 1, url: 'https://example.com/issues/alpha', title: 'Alpha issue' }),
+    makeTab({ id: 2, url: 'https://example.com/issues/bravo', title: 'Bravo issue' }),
+    makeTab({ id: 3, url: 'https://example.com/issues/charlie', title: 'Charlie issue' })
+  ]
+
+  let store = emptyWorkingSetActivity()
+  for (const tab of tabs) store = record(store, tab, 'activation', now)
+  const dismissedStore = dismissWorkingSetActivity(store, tabs[0].url, dismissedAt)
+
+  const dismissedSnapshot = buildWorkingSetSnapshot({
+    tabs,
+    activity: dismissedStore,
+    now: dismissedAt + 1,
+    minItems: 1
+  })
+  assert.deepEqual(
+    dismissedSnapshot.items.map((item) => item.tabId),
+    [2, 3]
+  )
+
+  const reactivatedStore = record(dismissedStore, tabs[0], 'activation', dismissedAt + 1000)
+  const reactivatedSnapshot = buildWorkingSetSnapshot({
+    tabs,
+    activity: reactivatedStore,
+    now: dismissedAt + 1001,
+    minItems: 1
+  })
+  assert.equal(reactivatedSnapshot.items.some((item) => item.tabId === 1), true)
+
+  const navigatedTab = makeTab({
+    id: 1,
+    rawUrl: 'https://example.com/issues/alpha/comments',
+    url: 'https://example.com/issues/alpha/comments',
+    title: 'Alpha issue comments'
+  })
+  const navigatedStore = record(dismissedStore, navigatedTab, 'navigation', dismissedAt + 2000)
+  const navigatedSnapshot = buildWorkingSetSnapshot({
+    tabs: [navigatedTab, tabs[1], tabs[2]],
+    activity: navigatedStore,
+    now: dismissedAt + 2001,
+    minItems: 1
+  })
+  assert.equal(navigatedSnapshot.items.some((item) => item.tabId === 1), true)
+
+  const nextDaySnapshot = buildWorkingSetSnapshot({
+    tabs,
+    activity: dismissedStore,
+    now: dismissedAt + 24 * 60 * 60_000,
+    minItems: 1
+  })
+  assert.equal(nextDaySnapshot.items.some((item) => item.tabId === 1), true)
+})
+
 test('WorkingSetPanel renders a bounded switching surface without cleanup controls', () => {
   const snapshot = {
     defaultLimit: 8,
@@ -143,7 +201,6 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.match(html, /working-set-panel/)
   assert.doesNotMatch(html, /working-set-panel-header/)
   assert.doesNotMatch(html, />Working set</)
-  assert.doesNotMatch(html, /data-slot="tooltip-trigger"/)
   assert.match(html, /rounded-xl/)
   assert.match(html, /min-h-12/)
   assert.match(html, /max-h-\[calc\(2lh\)\]/)
@@ -153,6 +210,8 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   const itemClassMatch = html.match(/<button[^>]*class="([^"]*\bworking-set-item\b[^"]*)"/)
   assert.ok(itemClassMatch, 'working set item should render as a button')
   assert.match(itemClassMatch[1], /\bcursor-default\b/)
+  assert.match(itemClassMatch[1], /after:bg-\[linear-gradient\(to_right,transparent,var\(--working-set-hover-fade-bg\)_50%\)\]/)
+  assert.match(itemClassMatch[1], /group-hover\/working-set-item:after:opacity-100/)
   assert.doesNotMatch(itemClassMatch[1], /\bcursor-pointer\b/)
   assert.doesNotMatch(itemClassMatch[1], /\btransition-/)
   assert.doesNotMatch(itemClassMatch[1], /\bduration-/)
@@ -177,6 +236,17 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.doesNotMatch(html, /working-set-url/)
   assert.doesNotMatch(html, /example\.com\/page-1/)
   assert.match(html, /×2/)
+  assert.match(html, /working-set-dismiss/)
+  assert.match(html, /working-set-actions/)
+  assert.match(html, /Dismiss Page 1 from working set/)
+  const dismissClassMatch = html.match(/<button[^>]*class="([^"]*\bworking-set-dismiss\b[^"]*)"/)
+  assert.ok(dismissClassMatch, 'working set dismiss should render as an icon button')
+  assert.match(dismissClassMatch[1], /\brounded-full\b/)
+  assert.match(dismissClassMatch[1], /\bborder-0\b/)
+  assert.match(dismissClassMatch[1], /transition-\[opacity,color,background\]/)
+  assert.doesNotMatch(dismissClassMatch[1], /\[corner-shape:squircle\]/)
+  assert.match(html, /lucide-eye-off/)
+  assert.doesNotMatch(html, /lucide-x/)
   assert.doesNotMatch(html, /Close this tab/)
 })
 
@@ -233,7 +303,7 @@ test('WorkingSetPanel matches chip hover against raw tab URLs', () => {
 test('WorkingSetPanel active item hover keeps one border layer with stronger contrast', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
   const activeMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item\s*\{([^}]*)\}/)
-  const activeHoverMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item:hover\s*\{([^}]*)\}/)
+  const activeHoverMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item:hover,\n\.working-set-item-shell:hover > \.working-set-item\.is-active-working-set-item,\n\.working-set-item-shell:focus-within > \.working-set-item\.is-active-working-set-item\s*\{([^}]*)\}/)
 
   assert.ok(activeMatch, 'active working set item rule should exist')
   assert.ok(activeHoverMatch, 'active working set item hover rule should exist')

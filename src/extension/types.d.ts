@@ -226,6 +226,8 @@ export interface WorkingSetActivityRecord {
   lastSeenAt: number
   lastActivatedAt?: number
   lastNavigatedAt?: number
+  dismissedAt?: number
+  dismissedUntil?: number
   events: WorkingSetActivityEvent[]
 }
 

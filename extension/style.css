@@ -13,7 +13,9 @@
   border-color: color-mix(in srgb, var(--accent-slate) 45%, var(--warm-gray));
 }
 
-.working-set-item.is-active-working-set-item:hover {
+.working-set-item.is-active-working-set-item:hover,
+.working-set-item-shell:hover > .working-set-item.is-active-working-set-item,
+.working-set-item-shell:focus-within > .working-set-item.is-active-working-set-item {
   border-color: var(--accent-amber);
   background: color-mix(in srgb, var(--card-bg) 88%, var(--accent-amber));
 }

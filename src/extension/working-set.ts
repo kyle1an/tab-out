@@ -9,6 +9,7 @@ import type {
 } from './types'
 
 export const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
+export const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
 export const WORKING_SET_DEFAULT_LIMIT = 8
 export const WORKING_SET_EXPANDED_LIMIT = 16
 export const WORKING_SET_MIN_ITEMS = 3
@@ -53,6 +54,8 @@ function cloneStore(store: WorkingSetActivityStore): WorkingSetActivityStore {
         key,
         {
           ...record,
+          dismissedAt: record.dismissedAt,
+          dismissedUntil: record.dismissedUntil,
           events: record.events.map((event) => ({ ...event }))
         }
       ])
@@ -87,14 +90,24 @@ export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivitySto
           .slice(-MAX_EVENTS_PER_RECORD)
       : []
     if (events.length === 0) continue
+    const latestEvent = Math.max(...events.map((event) => event.at))
+    const dismissedAt = typeof record.dismissedAt === 'number' && Number.isFinite(record.dismissedAt) ? record.dismissedAt : undefined
+    const dismissedUntil = typeof record.dismissedUntil === 'number' && Number.isFinite(record.dismissedUntil) ? record.dismissedUntil : undefined
+    const dismissalIsActive = (
+      dismissedAt !== undefined &&
+      dismissedUntil !== undefined &&
+      dismissedUntil > now &&
+      latestEvent <= dismissedAt
+    )
     records[key] = {
       key,
       url: normalizedKey,
       title: String(record.title || ''),
       domain: record.domain || domainForPageIdentity(normalizedKey),
-      lastSeenAt: Math.max(...events.map((event) => event.at)),
+      lastSeenAt: latestEvent,
       lastActivatedAt: latestEventAt(events, 'activation'),
       lastNavigatedAt: latestEventAt(events, 'navigation'),
+      ...(dismissalIsActive ? { dismissedAt, dismissedUntil } : {}),
       events
     }
   }
@@ -176,6 +189,24 @@ export function recordWorkingSetActivity(
   return next
 }
 
+export function dismissWorkingSetActivity(
+  store: Partial<WorkingSetActivityStore> | null | undefined,
+  keyOrUrl: string,
+  at = Date.now()
+): WorkingSetActivityStore {
+  const key = pageIdentityForWorkingSet(keyOrUrl)
+  const next = cloneStore(normalizeWorkingSetActivity(store, at))
+  const record = next.records[key]
+  if (!record || !Number.isFinite(at)) return next
+
+  next.records[key] = {
+    ...record,
+    dismissedAt: at,
+    dismissedUntil: nextLocalDayBoundaryAt(at)
+  }
+  return next
+}
+
 export function buildWorkingSetSnapshot({
   tabs,
   activity,
@@ -206,6 +237,7 @@ export function buildWorkingSetSnapshot({
   for (const [key, groupedTabs] of openByKey) {
     const record = normalizedActivity.records[key]
     if (!record) continue
+    if (isWorkingSetRecordDismissed(record, now)) continue
     const score = scoreWorkingSetRecord(record, now, domainActivity.get(record.domain) || 0)
     if (score <= 0) continue
 
@@ -237,6 +269,27 @@ export function buildWorkingSetSnapshot({
     expandedLimit,
     items: rankedItems.length >= minItems ? rankedItems : []
   }
+}
+
+function isWorkingSetRecordDismissed(record: WorkingSetActivityRecord, now: number): boolean {
+  if (
+    typeof record.dismissedAt !== 'number' ||
+    typeof record.dismissedUntil !== 'number' ||
+    !Number.isFinite(record.dismissedAt) ||
+    !Number.isFinite(record.dismissedUntil) ||
+    record.dismissedUntil <= now
+  ) {
+    return false
+  }
+
+  const latestStrongAt = Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)
+  return latestStrongAt <= record.dismissedAt
+}
+
+function nextLocalDayBoundaryAt(at: number): number {
+  const nextDay = new Date(at)
+  nextDay.setHours(24, 0, 0, 0)
+  return nextDay.getTime()
 }
 
 function pickRepresentativeTab(tabs: DashboardTab[], currentWindowId: number | null): DashboardTab | null {
