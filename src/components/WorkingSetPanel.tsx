@@ -159,7 +159,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, onSnapshotChange, onTabs
       <button
         type="button"
         className={cn(
-          'working-set-item group/working-set-item relative flex min-h-12 min-w-0 cursor-pointer items-center gap-2 rounded-xl border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] transition-[border-color,background,box-shadow] duration-100 hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]',
+          'working-set-item group/working-set-item relative flex min-h-12 min-w-0 cursor-default items-center gap-2 rounded-xl border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]',
           item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)]'
         )}
         aria-label={`Switch to ${item.title}`}
@@ -202,24 +202,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, onSnapshotChange, 
   const hasMore = items.length > defaultLimit
 
   return (
-    <section className="working-set-panel mb-4 min-w-0" aria-label="Working set">
-      <div className="working-set-panel-header mb-2 flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h2 className="m-0 text-xs font-semibold tracking-[0.6px] text-tab-muted uppercase">Working set</h2>
-          <span className="text-[11px] tabular-nums text-tab-muted opacity-70">{items.length}</span>
-        </div>
-        {hasMore && (
-          <button
-            type="button"
-            className="working-set-toggle inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-[var(--warm-gray)] bg-transparent px-2 text-xs font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:outline-none"
-            onClick={() => setExpanded((current) => !current)}
-            aria-expanded={expanded}
-          >
-            {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
-            {expanded ? 'Show less' : 'Show more'}
-          </button>
-        )}
-      </div>
+    <section className="working-set-panel mb-4 min-w-0" aria-label="Recent workset">
       <div className="working-set-grid grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
         {visibleItems.map((item) => (
           <WorkingSetItemButton
@@ -230,6 +213,17 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, onSnapshotChange, 
             onTabsChange={onTabsChange}
           />
         ))}
+        {hasMore && (
+          <button
+            type="button"
+            className="working-set-item working-set-toggle relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-xl border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
+            onClick={() => setExpanded((current) => !current)}
+            aria-expanded={expanded}
+          >
+            {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
+            {expanded ? 'Show less' : 'Show more'}
+          </button>
+        )}
       </div>
     </section>
   )

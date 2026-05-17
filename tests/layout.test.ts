@@ -61,6 +61,15 @@ test('masonry card motion uses transform instead of layout-property transitions'
   assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })
 
+test('domain card mission names use the heaviest title weight', () => {
+  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
+  const missionNameMatch = domainCardSource.match(/mission-name[^"]*/)
+
+  assert.ok(missionNameMatch, 'mission-name class should exist')
+  assert.match(missionNameMatch[0], /\bfont-black\b/)
+  assert.doesNotMatch(missionNameMatch[0], /\bfont-semibold\b/)
+})
+
 test('source switch keeps one primed card-move refresh', () => {
   const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
 

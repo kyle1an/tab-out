@@ -254,7 +254,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
         data-domain-id={vm.stableId}
       >
         <header className="domain-header flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1 p-0">
-          <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-semibold tracking-[0.1px] text-tab-ink">
+          <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-tab-ink">
             {displayName}
           </span>
           {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
