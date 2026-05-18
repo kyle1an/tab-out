@@ -178,6 +178,8 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
       ? 'color-mix(in srgb, var(--card-bg) 88%, var(--accent-amber))'
       : 'color-mix(in srgb, var(--card-bg) 92%, rgb(82 82 82))'
   } as CSSProperties
+  const duplicateLabel = item.dupeCount > 1 ? `${item.dupeCount} open copies` : ''
+  const itemLabel = [`Switch to ${item.title}`, duplicateLabel].filter(Boolean).join(', ')
 
   return (
     <div
@@ -200,11 +202,22 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
             hoverMatched && 'working-set-item-hover-match'
           )}
           style={itemStyle}
-          aria-label={`Switch to ${item.title}`}
+          aria-label={itemLabel}
           onClick={onClick}
         >
-          <span className={cn('grid h-4 w-4 flex-none place-items-center', !item.faviconUrl && 'invisible')}>
+          <span className={cn('relative grid h-4 w-4 flex-none place-items-center', !item.faviconUrl && item.dupeCount <= 1 && 'invisible')}>
             {item.faviconUrl && <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" />}
+            {item.dupeCount > 1 && (
+              <span
+                className={cn(
+                  'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)]',
+                  item.dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
+                )}
+                aria-hidden="true"
+              >
+                {item.dupeCount}
+              </span>
+            )}
           </span>
           <span className="flex min-w-0 flex-auto items-center">
             <span
@@ -214,11 +227,6 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
               {item.title}
             </span>
           </span>
-          {item.dupeCount > 1 && (
-            <span className="working-set-dupe-badge inline-flex h-4 min-w-5 flex-none items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] px-1 text-[10px] font-semibold tabular-nums text-tab-muted">
-              ×{item.dupeCount}
-            </span>
-          )}
         </button>
       </TooltipAnchor>
       <div className="working-set-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
