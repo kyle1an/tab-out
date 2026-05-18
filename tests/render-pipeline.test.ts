@@ -986,6 +986,34 @@ test('computeDomainCardViewModel marks active tabs from other windows', () => {
   assert.equal(otherWindowChip?.activeInOtherWindow, true)
 })
 
+test('computeDomainCardViewModel keeps live tab favicons aligned with Chrome tab state', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({ url: 'https://example.test/glasses-lenses', title: 'Example Lenses', favIconUrl: '' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chip = vm.sections[0].flatVisibleChips[0]
+
+  assert.equal(chip.faviconUrl, '')
+})
+
+test('computeDomainCardViewModel can use Chrome favicon cache for read-only source chips', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ id: 'h1', url: 'https://example.com/docs', title: 'Example Docs', favIconUrl: '', sourceType: 'history' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chip = vm.sections[0].flatVisibleChips[0]
+
+  assert.equal(chip.faviconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fexample.com%2Fdocs&size=32')
+})
+
 test('computeDomainCardViewModel frames a duplicate URL when the active copy is not the displayed representative', () => {
   const group = {
     domain: 'example.com',

@@ -4,6 +4,7 @@ import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
+import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -443,6 +444,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
   } as CSSProperties
   const dupeCount = chip.dupeCount || 1
+  const showDefaultFavicon = !chip.faviconUrl && !isReadOnlySource
+  const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
@@ -714,14 +717,18 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           aria-hidden="true"
         />
       )}
-      {chip.faviconUrl && (
+      {showFaviconFrame && (
         <span
           className={cn(
             'chip-favicon-frame relative grid h-4 w-4 shrink-0 place-items-center',
             chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
           )}
         >
-          <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
+          {chip.faviconUrl ? (
+            <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
+          ) : showDefaultFavicon ? (
+            <DefaultFavicon />
+          ) : null}
           {!chip.iconOnly && dupeCount > 1 && (
             <span
               className={cn(

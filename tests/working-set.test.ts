@@ -105,6 +105,33 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
   assert.equal(snapshot.items.some((item) => item.title === 'Mail app'), false)
 })
 
+test('buildWorkingSetSnapshot keeps live tab favicons aligned with Chrome tab state', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const tabs = [
+    makeTab({ id: 1, url: 'https://example.com/issues/alpha', title: 'Alpha issue' }),
+    makeTab({
+      id: 2,
+      url: 'https://example.com/issues/bravo',
+      title: 'Bravo issue',
+      favIconUrl: 'data:image/png;base64,abc'
+    })
+  ]
+
+  let store = emptyWorkingSetActivity()
+  store = record(store, tabs[0], 'activation', now - 60_000)
+  store = record(store, tabs[1], 'activation', now - 120_000)
+
+  const snapshot = buildWorkingSetSnapshot({
+    tabs,
+    activity: store,
+    now,
+    minItems: 1
+  })
+
+  assert.equal(snapshot.items[0].faviconUrl, '')
+  assert.equal(snapshot.items[1].faviconUrl, 'data:image/png;base64,abc')
+})
+
 test('buildWorkingSetSnapshot excludes Google Search result pages from working set items', () => {
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [
@@ -257,6 +284,7 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.match(html, /Page 1/)
   assert.match(html, /Page 8/)
   assert.doesNotMatch(html, /Page 9/)
+  assert.match(html, /default-favicon-image/)
   assert.match(html, />Show more</)
   assert.doesNotMatch(html, /title="Page 1"/)
   assert.doesNotMatch(html, /working-set-url/)

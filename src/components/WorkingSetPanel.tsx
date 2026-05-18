@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent as ReactFocusEvent, MouseEvent as ReactMouseEvent, SetStateAction } from 'react'
 import { ChevronDown, ChevronUp, EyeOff } from 'lucide-react'
 import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
+import { DefaultFavicon } from './DefaultFavicon'
 import type { HoverUrlChangeHandler, HoverUrlSource, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import { TooltipAnchor } from './ui/tooltip'
@@ -205,8 +206,12 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           aria-label={itemLabel}
           onClick={onClick}
         >
-          <span className={cn('relative grid h-4 w-4 flex-none place-items-center', !item.faviconUrl && item.dupeCount <= 1 && 'invisible')}>
-            {item.faviconUrl && <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" />}
+          <span className="relative grid h-4 w-4 flex-none place-items-center">
+            {item.faviconUrl ? (
+              <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" />
+            ) : (
+              <DefaultFavicon />
+            )}
             {item.dupeCount > 1 && (
               <span
                 className={cn(

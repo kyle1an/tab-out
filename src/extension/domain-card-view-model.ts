@@ -65,6 +65,11 @@ const TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS = [' — ', ' – ', ' - ', ' · '
 const TITLE_BOUNDARY_SEPARATOR_RE = /^[-\u2013\u2014\u00b7|:]/
 const TITLE_BOUNDARY_TRAILING_SEPARATOR_RE = /[-\u2013\u2014\u00b7|:]$/
 
+function pickDashboardChipFavicon(tab: DashboardTab): string {
+  if ((tab.sourceType || 'tab') === 'tab') return tab.favIconUrl || ''
+  return pickFavicon(tab)
+}
+
 /**
  * injectBreakPoints(str) — insert U+200B (zero-width space) into
  * long unbreakable tokens so the browser can wrap them without us
@@ -1020,7 +1025,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       pathSuffix: pathSuffix || '',
       tooltip,
       dupeCount: urlCounts[tab.url] || 1,
-      faviconUrl: pickFavicon(tab),
+      faviconUrl: pickDashboardChipFavicon(tab),
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
       isApp: !!tab.isApp,
@@ -1267,7 +1272,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       pathSuffix: '',
       tooltip,
       dupeCount: 1,
-      faviconUrl: pickFavicon(primary),
+      faviconUrl: pickDashboardChipFavicon(primary),
       isGrouped: false,
       groupDotColor: null,
       // Folded chip reads as "app" only when every env tab behind it

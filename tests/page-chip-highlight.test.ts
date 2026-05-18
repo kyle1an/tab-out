@@ -174,6 +174,29 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
 })
 
+test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'tab', faviconUrl: '' })
+    })
+  )
+
+  assert.match(html, /chip-favicon-frame/)
+  assert.match(html, /default-favicon-image/)
+  assert.match(html, /src="icons\/chrome-default-favicon-16\.png"/)
+  assert.doesNotMatch(html, /<img class="chip-favicon\b/)
+})
+
+test('PageChip does not invent live-tab favicons for read-only chips', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'bookmark', faviconUrl: '' })
+    })
+  )
+
+  assert.doesNotMatch(html, /default-favicon-image/)
+})
+
 test('PageChip close animation collapses the measured row height', () => {
   const classNames = new Set<string>()
   const appendedNodes: Array<{ classList: { classes: string[] }; style: Record<string, string>; ariaHidden?: string }> = []
