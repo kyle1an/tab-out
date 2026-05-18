@@ -215,12 +215,14 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
             {item.dupeCount > 1 && (
               <span
                 className={cn(
-                  'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)]',
+                  'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-center justify-center rounded-full bg-[rgba(254,243,199,0.98)] px-0 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)] shadow-[0_1px_2px_rgba(10,10,10,0.14)]',
                   item.dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
                 )}
                 aria-hidden="true"
               >
-                {item.dupeCount}
+                <span className="-translate-y-[1px]">
+                  {item.dupeCount}
+                </span>
               </span>
             )}
           </span>
