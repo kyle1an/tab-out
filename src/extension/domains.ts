@@ -78,6 +78,23 @@ export function registrableDomain(hostname: string): string {
   return parts.slice(-2).join('.')
 }
 
+export function splitDomainForDisplay(domain: string): { name: string; suffix: string } {
+  if (!domain || IPV4_RE.test(domain)) return { name: domain, suffix: '' }
+  const parts = domain.split('.')
+  if (parts.length < 2) return { name: domain, suffix: '' }
+
+  const lastTwo = parts.slice(-2).join('.')
+  const suffix = parts.length >= 3 && PUBLIC_SUFFIXES.has(lastTwo)
+    ? lastTwo
+    : parts[parts.length - 1]
+  const suffixWithDot = `.${suffix}`
+  if (!domain.endsWith(suffixWithDot)) return { name: domain, suffix: '' }
+
+  const name = domain.slice(0, -suffixWithDot.length)
+  if (!name) return { name: domain, suffix: '' }
+  return { name, suffix: suffixWithDot }
+}
+
 /**
  * subdomainPrefix(hostname, registrable) — the part of `hostname`
  * above `registrable`. Returns "" when there's nothing meaningful

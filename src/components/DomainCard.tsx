@@ -1,4 +1,5 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
+import { splitDomainForDisplay } from '../extension/domains.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { DomainCardProvider } from './DomainCardContext'
 import { SubdomainSection } from './SubdomainSection'
@@ -100,6 +101,19 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
   )
 }
 
+function DomainTitle({ displayName, subdomainKey = '' }: { displayName: string; subdomainKey?: string }) {
+  const { name, suffix } = splitDomainForDisplay(displayName)
+  if (!suffix && !subdomainKey) return displayName
+
+  return (
+    <>
+      {subdomainKey && <span className="domain-title-subdomain font-semibold text-tab-muted opacity-85">{subdomainKey}.</span>}
+      <span className="domain-title-name">{suffix ? name : displayName}</span>
+      {suffix && <span className="domain-title-suffix font-semibold text-tab-muted opacity-75">{suffix}</span>}
+    </>
+  )
+}
+
 type RenderClusterVM = DashboardClusterVM & {
   titleSuppressionToneScope: TitleSuppressionToneScope
   suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
@@ -141,6 +155,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
+  const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
   let nextTitleSuppressionToneIndex = 0
 
   function allocateTitleSuppressionToneScope(parts: readonly { text: string; spansRenderedChildGroups?: boolean }[]) {
@@ -257,10 +272,10 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
       >
         <header className="domain-header flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1 p-0">
           <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-tab-ink">
-            {displayName}
+            <DomainTitle displayName={displayName} subdomainKey={inlineSubdomainKey} />
           </span>
           {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
-          {vm.singleSubdomainKey && (
+          {vm.singleSubdomainKey && !inlineSubdomainKey && (
             <span
               className={cn(
                 'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',

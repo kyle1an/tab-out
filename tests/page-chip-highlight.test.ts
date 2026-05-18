@@ -1227,6 +1227,90 @@ test('DomainCard shows common suppressed title text above the chips without a su
   assert.doesNotMatch(html, /title-suppression-summary-label\b/)
 })
 
+test('DomainCard renders the public suffix as less prominent title text', () => {
+  const group: DomainGroup = {
+    domain: 'example.co.uk',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-example-co-uk',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '1',
+    sections: []
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+
+  assert.match(html, /<span class="domain-title-name">example<\/span>/)
+  assert.match(html, /<span class="domain-title-suffix[^"]*\bfont-semibold\b[^"]*\btext-tab-muted\b[^"]*\bopacity-75\b[^"]*">\.co\.uk<\/span>/)
+  assert.match(html, /<span class="mission-name[^"]*font-black[^"]*"/)
+  assert.doesNotMatch(html, /domain-title-subdomain/)
+})
+
+test('DomainCard inlines a single non-port subdomain into the title', () => {
+  const group: DomainGroup = {
+    domain: 'example.com',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-example-com',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '1',
+    singleSubdomainKey: 'docs',
+    singleSubdomainIsPort: false,
+    sections: []
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+
+  assert.match(html, /<span class="domain-title-subdomain[^"]*\bfont-semibold\b[^"]*\btext-tab-muted\b[^"]*\bopacity-85\b[^"]*">docs\.<\/span>/)
+  assert.match(html, /<span class="domain-title-name">example<\/span>/)
+  assert.match(html, /<span class="domain-title-suffix[^"]*">\.com<\/span>/)
+  assert.doesNotMatch(html, /\bmission-subdomain\b/)
+})
+
+test('DomainCard keeps a single localhost port in the subdomain pill', () => {
+  const group: DomainGroup = {
+    domain: 'localhost',
+    tabs: []
+  }
+  const vm: DashboardCardVM = {
+    stableId: 'domain-localhost',
+    isHidden: false,
+    displayMode: 'normal',
+    filtering: false,
+    tabCountLabel: '1',
+    singleSubdomainKey: '3001',
+    singleSubdomainIsPort: true,
+    sections: []
+  }
+
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm
+    })
+  )
+
+  assert.doesNotMatch(html, /domain-title-subdomain/)
+  assert.match(html, /<span class="mission-name[^"]*">localhost<\/span>/)
+  assert.match(html, /<span class="[^"]*\bmission-subdomain\b[^"]*before:content-\[[^"]*:[^"]*\][^"]*">3001<\/span>/)
+})
+
 test('DomainCard renders utility cards as explicitly pinnable instead of fixed', () => {
   const vm: DashboardCardVM = {
     stableId: 'domain---tab-out--',
