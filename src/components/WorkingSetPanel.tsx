@@ -4,9 +4,9 @@ import { ChevronDown, ChevronUp, EyeOff } from 'lucide-react'
 import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
-import type { HoverUrlChangeHandler, HoverUrlSource, TabsChangeHandler } from './types'
+import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
-import type { WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
+import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -21,6 +21,11 @@ type WorkingSetTitleMetrics = {
   width: number
 }
 
+type WorkingSetExitItem = {
+  item: WorkingSetItem
+  position: WorkingSetItemPosition
+}
+
 interface WorkingSetPanelProps {
   snapshot: WorkingSetSnapshot | null
   onHoverUrlChange?: HoverUrlChangeHandler
@@ -29,6 +34,8 @@ interface WorkingSetPanelProps {
   activeHoverSource?: HoverUrlSource | null
   onSnapshotChange?: (snapshot: WorkingSetSnapshot) => void
   onTabsChange?: TabsChangeHandler
+  onBeforeLayoutChange?: LayoutChangeHandler | null
+  onAfterLayoutChange?: LayoutChangeHandler | null
 }
 
 function isWorkingSetTitleTruncated(titleEl: HTMLElement | null) {
@@ -90,6 +97,51 @@ function hashWorkingSetLayoutKey(value: string) {
 
 function workingSetItemLayoutKey(item: WorkingSetItem) {
   return `ws-${hashWorkingSetLayoutKey(item.key || `${item.windowId}:${item.tabId}`)}`
+}
+
+function workingSetVisibleLayoutSignature(items: WorkingSetItem[], hasMore: boolean, expanded: boolean) {
+  const itemKeys = items.map(workingSetItemLayoutKey)
+  if (hasMore) itemKeys.push(`__working-set-toggle__:${expanded ? 'expanded' : 'collapsed'}`)
+  return itemKeys.join('\n')
+}
+
+function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem; position: WorkingSetItemPosition; exiting: boolean }) {
+  const style = {
+    left: `${position.left}px`,
+    top: `${position.top}px`,
+    width: `${position.width}px`,
+    height: `${position.height}px`
+  } satisfies CSSProperties
+
+  return (
+    <div
+      aria-hidden="true"
+      className={cn(
+        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle]',
+        exiting && 'is-exiting'
+      )}
+      style={style}
+    >
+      <span className="relative grid h-4 w-4 flex-none place-items-center">
+        {item.faviconUrl ? <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" /> : <DefaultFavicon />}
+        {item.dupeCount > 1 && (
+          <span
+            className={cn(
+              'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-center justify-center rounded-full bg-[rgba(254,243,199,0.98)] px-0 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)] shadow-[0_1px_2px_rgba(10,10,10,0.14)]',
+              item.dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
+            )}
+          >
+            <span className="-translate-y-[1px]">{item.dupeCount}</span>
+          </span>
+        )}
+      </span>
+      <span className="flex min-w-0 flex-auto items-center">
+        <span className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere]">
+          {item.title}
+        </span>
+      </span>
+    </div>
+  )
 }
 
 function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: {
@@ -268,36 +320,92 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   )
 }
 
-export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: WorkingSetPanelProps) {
+export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange, onBeforeLayoutChange = null, onAfterLayoutChange = null }: WorkingSetPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const gridRef = useRef<HTMLDivElement | null>(null)
   const animatedGridRef = useRef<HTMLDivElement | null>(null)
   const itemPositionsRef = useRef<WorkingSetItemPositionMap | null>(null)
+  const pendingLayoutChangeRef = useRef(false)
+  const exitFrameRef = useRef(0)
+  const exitTimeoutRef = useRef(0)
+  const [exitingItems, setExitingItems] = useState<WorkingSetExitItem[]>([])
+  const [exitActive, setExitActive] = useState(false)
   const items = snapshot?.items || []
-
-  useLayoutEffect(() => {
-    const grid = gridRef.current
-    if (animatedGridRef.current && animatedGridRef.current !== grid) cancelWorkingSetItemMoves(animatedGridRef.current)
-    animatedGridRef.current = grid
-    animateWorkingSetItemMoves(grid, itemPositionsRef.current)
-    itemPositionsRef.current = snapshotWorkingSetItemPositions(grid)
-  })
-
-  useEffect(() => {
-    return () => cancelWorkingSetItemMoves(animatedGridRef.current)
-  }, [])
-
-  if (items.length === 0) return null
-
   const defaultLimit = snapshot?.defaultLimit || 8
   const expandedLimit = snapshot?.expandedLimit || 16
   const visibleLimit = expanded ? expandedLimit : defaultLimit
   const visibleItems = items.slice(0, visibleLimit)
   const hasMore = items.length > defaultLimit
+  const layoutSignature = workingSetVisibleLayoutSignature(visibleItems, hasMore, expanded)
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    if (animatedGridRef.current && animatedGridRef.current !== grid) cancelWorkingSetItemMoves(animatedGridRef.current)
+    animatedGridRef.current = grid
+    const nextPositions = snapshotWorkingSetItemPositions(grid)
+    animateWorkingSetItemMoves(grid, itemPositionsRef.current)
+    itemPositionsRef.current = nextPositions
+    if (pendingLayoutChangeRef.current) {
+      pendingLayoutChangeRef.current = false
+      onAfterLayoutChange?.({ animate: true })
+    }
+  }, [layoutSignature, onAfterLayoutChange])
+
+  useEffect(() => {
+    return () => {
+      cancelWorkingSetItemMoves(animatedGridRef.current)
+      cancelAnimationFrame(exitFrameRef.current)
+      window.clearTimeout(exitTimeoutRef.current)
+    }
+  }, [])
+
+  if (items.length === 0) return null
+
+  function clearExitingItems() {
+    cancelAnimationFrame(exitFrameRef.current)
+    window.clearTimeout(exitTimeoutRef.current)
+    setExitActive(false)
+    setExitingItems([])
+  }
+
+  function startCollapseExitAnimation() {
+    const positions = itemPositionsRef.current || snapshotWorkingSetItemPositions(gridRef.current)
+    const outgoingItems = items
+      .slice(defaultLimit, visibleLimit)
+      .map((item) => {
+        const position = positions.get(workingSetItemLayoutKey(item))
+        return position ? { item, position } : null
+      })
+      .filter((item): item is WorkingSetExitItem => !!item)
+
+    if (outgoingItems.length === 0) {
+      clearExitingItems()
+      return
+    }
+
+    cancelAnimationFrame(exitFrameRef.current)
+    window.clearTimeout(exitTimeoutRef.current)
+    setExitActive(false)
+    setExitingItems(outgoingItems)
+    exitFrameRef.current = requestAnimationFrame(() => setExitActive(true))
+    exitTimeoutRef.current = window.setTimeout(() => {
+      setExitActive(false)
+      setExitingItems([])
+    }, 260)
+  }
+
+  function onToggleExpanded() {
+    const nextExpanded = !expanded
+    pendingLayoutChangeRef.current = true
+    onBeforeLayoutChange?.({ animate: true })
+    if (nextExpanded) clearExitingItems()
+    else startCollapseExitAnimation()
+    setExpanded(nextExpanded)
+  }
 
   return (
     <section className="working-set-panel mb-4 min-w-0" aria-label="Recent workset">
-      <div ref={gridRef} className="working-set-grid grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
+      <div ref={gridRef} className="working-set-grid relative grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
         {visibleItems.map((item) => (
           <WorkingSetItemButton
             key={item.key}
@@ -310,12 +418,15 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
             onTabsChange={onTabsChange}
           />
         ))}
+        {exitingItems.map(({ item, position }) => (
+          <WorkingSetItemGhost key={`exit-${item.key}`} item={item} position={position} exiting={exitActive} />
+        ))}
         {hasMore && (
           <button
             type="button"
             className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
             data-working-set-layout-key="__working-set-toggle__"
-            onClick={() => setExpanded((current) => !current)}
+            onClick={onToggleExpanded}
             aria-expanded={expanded}
           >
             {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}

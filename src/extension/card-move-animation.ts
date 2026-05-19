@@ -1,6 +1,9 @@
 export type MissionContainer = HTMLDivElement | null
 export type CardPosition = { left: number; top: number }
 export type CardPositionMap = Map<string, CardPosition[]>
+export type CardMoveAnimationOptions = {
+  allowBleed?: boolean
+}
 
 type CardMoveAnimation = {
   frameId: number
@@ -109,7 +112,7 @@ function enableCardMoveBleed(containers: MissionContainer[]) {
   })
 }
 
-export function animateDomainCardMoves(containers: MissionContainer[], previousRects: CardPositionMap | null) {
+export function animateDomainCardMoves(containers: MissionContainer[], previousRects: CardPositionMap | null, { allowBleed = true }: CardMoveAnimationOptions = {}) {
   if (!previousRects || previousRects.size === 0 || shouldReduceMotion()) return
 
   const moving: HTMLElement[] = []
@@ -135,7 +138,7 @@ export function animateDomainCardMoves(containers: MissionContainer[], previousR
 
   if (moving.length === 0) return
 
-  enableCardMoveBleed(containers)
+  if (allowBleed) enableCardMoveBleed(containers)
   document.body.getBoundingClientRect()
 
   moving.forEach((block) => {

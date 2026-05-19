@@ -40,7 +40,26 @@
             active: false,
             activeInOtherWindow: false,
             score: 10
-          }
+          },
+          ...Array.from({ length: 11 }, (_, index) => {
+            const itemNumber = index + 2
+            const tabId = itemNumber + 2
+            const domain = `tab-out-smoke-${String(tabId).padStart(2, '0')}.com`
+            return {
+              key: `working-set-smoke-${itemNumber}`,
+              tabId,
+              windowId: 1,
+              tabUrl: `https://${domain}/docs/${tabId}`,
+              rawUrl: `https://${domain}/docs/${tabId}`,
+              title: `Working set smoke item ${itemNumber}`,
+              displayUrl: `${domain}/docs/${tabId}`,
+              faviconUrl: '',
+              dupeCount: 1,
+              active: false,
+              activeInOtherWindow: false,
+              score: 10 - itemNumber
+            }
+          })
         ]
       }
       const tabs = [

@@ -23,12 +23,36 @@
 }
 
 .working-set-toggle.working-set-layout-moving,
+.working-set-toggle.working-set-layout-settling,
 .working-set-toggle.working-set-layout-moving:hover,
+.working-set-toggle.working-set-layout-settling:hover,
 .working-set-toggle.working-set-layout-moving:active,
+.working-set-toggle.working-set-layout-settling:active,
 .working-set-toggle.working-set-layout-moving:focus,
-.working-set-toggle.working-set-layout-moving:focus-visible {
+.working-set-toggle.working-set-layout-settling:focus,
+.working-set-toggle.working-set-layout-moving:focus-visible,
+.working-set-toggle.working-set-layout-settling:focus-visible {
   border-color: var(--warm-gray);
   background: var(--card-bg);
   color: var(--muted);
   box-shadow: none;
+}
+
+.working-set-exit-ghost {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 220ms cubic-bezier(0.2, 0, 0, 1), transform 220ms cubic-bezier(0.2, 0, 0, 1);
+  will-change: opacity, transform;
+}
+
+.working-set-exit-ghost.is-exiting {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working-set-exit-ghost {
+    transition: none;
+    transform: none;
+  }
 }

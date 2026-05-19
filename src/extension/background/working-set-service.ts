@@ -109,7 +109,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
 
   async function recordTabNavigation(_tabId: number, changeInfo: { url?: string; title?: string }, tab: chrome.tabs.Tab): Promise<void> {
     if (!tab?.active) return
-    if (!changeInfo?.url && !changeInfo?.title) return
+    if (!changeInfo?.url) return
     await recordTabActivity('navigation', tab)
   }
 

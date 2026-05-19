@@ -872,6 +872,86 @@ test('working set snapshot ranks activated and actively navigated open tabs', as
   }
 })
 
+test('working set ignores title-only updates so idle tabs do not reshuffle', async () => {
+  const originalDateNow = Date.now
+  let now = Date.UTC(2026, 4, 17, 12)
+  Date.now = () => now
+  const mock = await loadBackground([
+    {
+      id: 601,
+      windowId: 1,
+      url: 'https://alpha.example/docs',
+      title: 'Alpha docs',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 602,
+      windowId: 2,
+      url: 'https://bravo.example/home',
+      title: 'Bravo home',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 603,
+      windowId: 1,
+      url: 'https://charlie.example/report',
+      title: 'Charlie report',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  const onUpdated = mock.listeners.tabsOnUpdated[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  assert.equal(typeof onActivated, 'function')
+  assert.equal(typeof onUpdated, 'function')
+
+  try {
+    onFocusChanged(2)
+    await flushBackgroundWork()
+
+    now += 60_000
+    onFocusChanged(1)
+    await flushBackgroundWork()
+
+    now += 60_000
+    await mock.chrome.tabs.update(603, { active: true })
+    onActivated({ tabId: 603, windowId: 1 })
+    await flushBackgroundWork()
+
+    const before = await sendRuntimeMessage(mock, { type: 'tab-out:get-working-set' })
+    assert.equal(before.ok, true)
+    assert.deepEqual(
+      before.snapshot.items.map((item) => item.tabId),
+      [603, 601, 602]
+    )
+
+    now += 60_000
+    mock.state.tabsById[602].title = 'Bravo home (1)'
+    onUpdated(602, { title: mock.state.tabsById[602].title }, clone(mock.state.tabsById[602]))
+    await flushBackgroundWork()
+
+    const after = await sendRuntimeMessage(mock, { type: 'tab-out:get-working-set' })
+    assert.equal(after.ok, true)
+    assert.deepEqual(
+      after.snapshot.items.map((item) => item.tabId),
+      before.snapshot.items.map((item) => item.tabId)
+    )
+  } finally {
+    Date.now = originalDateNow
+  }
+})
+
 test('working set dismiss hides an item until it is activated again', async () => {
   const originalDateNow = Date.now
   let now = Date.UTC(2026, 4, 17, 12)

@@ -71,6 +71,8 @@ test('card move animation preserves previous rect starts while allowing temporar
   assert.match(animationSource, /CARD_MOVE_BLEED_CLASS = 'card-motion-bleed'/)
   assert.match(animationSource, /scrollRegion\.classList\.add\(CARD_MOVE_BLEED_CLASS\)/)
   assert.match(animationSource, /scrollRegion\.classList\.remove\(CARD_MOVE_BLEED_CLASS\)/)
+  assert.match(animationSource, /export type CardMoveAnimationOptions = \{[\s\S]*allowBleed\?: boolean[\s\S]*\}/)
+  assert.match(animationSource, /if \(allowBleed\) enableCardMoveBleed\(containers\)/)
   assert.match(baseCss, /\.dashboard-shell\.has-history \.dashboard-main > \.scroll-region\.card-motion-bleed\s*\{/)
   assert.match(baseCss, /--dashboard-card-motion-left-bleed:\s*calc\(260px \+ var\(--dashboard-history-edge-gutter\) \+ 16px\)/)
   assert.match(baseCss, /margin-left:\s*calc\(0px - var\(--dashboard-card-motion-left-bleed\) - var\(--dashboard-card-shadow-bleed\)\)/)
@@ -92,6 +94,20 @@ test('source switch keeps one primed card-move refresh', () => {
   assert.match(source, /const previousRects = prepareDomainCardMoveAnimation\(currentMissionContainers\(\)\)/)
   assert.match(source, /layoutMoveRectsRef\.current = previousRects/)
   assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
+})
+
+test('working set height changes keep domain card move animation primed', () => {
+  const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /const primeWorkingSetLayoutChange = useCallback\(function primeWorkingSetLayoutChange\(\{ animate = true \}: \{ animate\?: boolean \} = \{\}\) \{/)
+  assert.match(source, /workingSetLayoutRectsRef\.current = animate \? prepareDomainCardMoveAnimation\(currentMissionContainers\(\)\) : null/)
+  assert.match(source, /const animateWorkingSetLayoutChange = useCallback\(function animateWorkingSetLayoutChange\(\{ animate = true \}: \{ animate\?: boolean \} = \{\}\) \{/)
+  assert.match(source, /const previousRects = workingSetLayoutRectsRef\.current/)
+  assert.match(source, /packMissionsMasonryNow\(\{ animate: false \}\)/)
+  assert.match(source, /animateDomainCardMoves\(currentMissionContainers\(\), previousRects, \{ allowBleed: false \}\)/)
+  assert.match(source, /onBeforeLayoutChange=\{primeWorkingSetLayoutChange\}/)
+  assert.match(source, /onAfterLayoutChange=\{animateWorkingSetLayoutChange\}/)
+  assert.doesNotMatch(source, /workingSetLayoutFrameRef|requestAnimationFrame\(\(\) => \{[\s\S]*animateDomainCardMoves\(nextContainers, previousRects\)/)
 })
 
 test('source switch indicator keeps transform-based transition', () => {

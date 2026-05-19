@@ -1,4 +1,4 @@
-export type WorkingSetItemPosition = { left: number; top: number }
+export type WorkingSetItemPosition = { left: number; top: number; width: number; height: number }
 export type WorkingSetItemPositionMap = Map<string, WorkingSetItemPosition>
 
 type WorkingSetItemMoveAnimation = {
@@ -8,8 +8,12 @@ type WorkingSetItemMoveAnimation = {
 }
 
 const WORKING_SET_ITEM_MOVE_MS = 220
+const WORKING_SET_ITEM_SETTLE_MS = 80
 const WORKING_SET_LAYOUT_SELECTOR = '.working-set-layout-item[data-working-set-layout-key]'
+const WORKING_SET_TOGGLE_SELECTOR = '.working-set-toggle'
+const WORKING_SET_ITEM_SETTLING_CLASS = 'working-set-layout-settling'
 const activeWorkingSetItemMoves = new WeakMap<HTMLElement, WorkingSetItemMoveAnimation>()
+const activeWorkingSetItemSettles = new WeakMap<HTMLElement, number>()
 
 function shouldReduceMotion() {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -24,6 +28,7 @@ function workingSetLayoutKey(item: HTMLElement) {
 }
 
 function roundLayoutPosition(value: number) {
+  if (!Number.isFinite(value)) return 0
   return Math.round(value * 100) / 100
 }
 
@@ -31,7 +36,9 @@ function workingSetLayoutPosition(item: HTMLElement, gridRect: DOMRect): Working
   const itemRect = item.getBoundingClientRect()
   return {
     left: roundLayoutPosition(itemRect.left - gridRect.left),
-    top: roundLayoutPosition(itemRect.top - gridRect.top)
+    top: roundLayoutPosition(itemRect.top - gridRect.top),
+    width: roundLayoutPosition(itemRect.width),
+    height: roundLayoutPosition(itemRect.height)
   }
 }
 
@@ -50,6 +57,12 @@ export function snapshotWorkingSetItemPositions(grid: HTMLElement | null): Worki
 }
 
 function cancelWorkingSetItemMove(item: HTMLElement) {
+  const settleTimeout = activeWorkingSetItemSettles.get(item)
+  if (settleTimeout) {
+    clearTimeout(settleTimeout)
+    activeWorkingSetItemSettles.delete(item)
+  }
+
   const active = activeWorkingSetItemMoves.get(item)
   if (active) {
     cancelAnimationFrame(active.frameId)
@@ -58,11 +71,24 @@ function cancelWorkingSetItemMove(item: HTMLElement) {
     activeWorkingSetItemMoves.delete(item)
   }
 
-  item.classList.remove('working-set-layout-moving', 'working-set-layout-moving-active')
+  item.classList.remove('working-set-layout-moving', 'working-set-layout-moving-active', WORKING_SET_ITEM_SETTLING_CLASS)
   item.style.transform = ''
   item.style.transition = ''
   item.style.willChange = ''
   item.style.zIndex = ''
+}
+
+function settleWorkingSetItemMove(item: HTMLElement) {
+  if (!item.matches(WORKING_SET_TOGGLE_SELECTOR)) return
+
+  const activeSettle = activeWorkingSetItemSettles.get(item)
+  if (activeSettle) clearTimeout(activeSettle)
+
+  item.classList.add(WORKING_SET_ITEM_SETTLING_CLASS)
+  activeWorkingSetItemSettles.set(item, window.setTimeout(() => {
+    activeWorkingSetItemSettles.delete(item)
+    item.classList.remove(WORKING_SET_ITEM_SETTLING_CLASS)
+  }, WORKING_SET_ITEM_SETTLE_MS))
 }
 
 export function cancelWorkingSetItemMoves(grid: HTMLElement | null) {
@@ -107,6 +133,7 @@ export function animateWorkingSetItemMoves(grid: HTMLElement | null, previousPos
       item.style.transition = ''
       item.style.willChange = ''
       item.style.zIndex = ''
+      settleWorkingSetItemMove(item)
     }
     function onTransitionEnd(e: TransitionEvent) {
       if (e.target === item && e.propertyName === 'transform') cleanup()

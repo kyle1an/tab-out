@@ -402,16 +402,23 @@ test('WorkingSetPanel active item hover keeps one border layer with stronger con
   assert.doesNotMatch(activeHoverMatch[1], /\boutline\b/)
 })
 
-test('WorkingSetPanel keeps the moving show toggle visually neutral', () => {
+test('WorkingSetPanel keeps the moving show toggle visually neutral through cleanup', () => {
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const toggleMoveMatch = styleSource.match(/\.working-set-toggle\.working-set-layout-moving,\n\.working-set-toggle\.working-set-layout-moving:hover,\n\.working-set-toggle\.working-set-layout-moving:active,\n\.working-set-toggle\.working-set-layout-moving:focus,\n\.working-set-toggle\.working-set-layout-moving:focus-visible\s*\{([^}]*)\}/)
+  const animationSource = readFileSync(new URL('../src/extension/working-set-move-animation.ts', import.meta.url), 'utf8')
+  const toggleMoveMatch = styleSource.match(/\.working-set-toggle\.working-set-layout-moving,[\s\S]*?\.working-set-toggle\.working-set-layout-settling:focus-visible\s*\{([^}]*)\}/)
 
-  assert.ok(toggleMoveMatch, 'moving working set toggle rule should exist')
+  assert.ok(toggleMoveMatch, 'moving and settling working set toggle rule should exist')
+  assert.match(toggleMoveMatch[0], /\.working-set-toggle\.working-set-layout-settling/)
+  assert.match(toggleMoveMatch[0], /\.working-set-toggle\.working-set-layout-settling:hover/)
   assert.match(toggleMoveMatch[1], /border-color:\s*var\(--warm-gray\);/)
   assert.match(toggleMoveMatch[1], /background:\s*var\(--card-bg\);/)
   assert.match(toggleMoveMatch[1], /color:\s*var\(--muted\);/)
   assert.match(toggleMoveMatch[1], /box-shadow:\s*none;/)
   assert.doesNotMatch(toggleMoveMatch[1], /\btransition\b/)
+  assert.match(animationSource, /const WORKING_SET_ITEM_SETTLE_MS = 80/)
+  assert.match(animationSource, /const WORKING_SET_ITEM_SETTLING_CLASS = 'working-set-layout-settling'/)
+  assert.match(animationSource, /function settleWorkingSetItemMove\(item: HTMLElement\)/)
+  assert.match(animationSource, /settleWorkingSetItemMove\(item\)/)
 })
 
 test('WorkingSetPanel emits an external hover source for matching open tab chips', () => {
@@ -425,8 +432,19 @@ test('WorkingSetPanel uses transform snapshots for item move animation', () => {
   const panelSource = readFileSync(new URL('../src/components/WorkingSetPanel.tsx', import.meta.url), 'utf8')
   const animationSource = readFileSync(new URL('../src/extension/working-set-move-animation.ts', import.meta.url), 'utf8')
 
-  assert.match(panelSource, /snapshotWorkingSetItemPositions\(grid\)/)
-  assert.match(panelSource, /animateWorkingSetItemMoves\(grid, itemPositionsRef\.current\)/)
+  assert.match(panelSource, /const nextPositions = snapshotWorkingSetItemPositions\(grid\)[\s\S]*animateWorkingSetItemMoves\(grid, itemPositionsRef\.current\)[\s\S]*itemPositionsRef\.current = nextPositions/)
+  assert.match(panelSource, /function workingSetVisibleLayoutSignature\(items: WorkingSetItem\[\], hasMore: boolean, expanded: boolean\)/)
+  assert.match(panelSource, /const layoutSignature = workingSetVisibleLayoutSignature\(visibleItems, hasMore, expanded\)/)
+  assert.match(panelSource, /useLayoutEffect\(\(\) => \{[\s\S]*animateWorkingSetItemMoves\(grid, itemPositionsRef\.current\)[\s\S]*onAfterLayoutChange\?\.\(\{ animate: true \}\)[\s\S]*\}, \[layoutSignature, onAfterLayoutChange\]\)/)
+  assert.match(panelSource, /onBeforeLayoutChange\?: LayoutChangeHandler \| null/)
+  assert.match(panelSource, /onAfterLayoutChange\?: LayoutChangeHandler \| null/)
+  assert.match(panelSource, /const pendingLayoutChangeRef = useRef\(false\)/)
+  assert.match(panelSource, /type WorkingSetExitItem = \{[\s\S]*position: WorkingSetItemPosition[\s\S]*\}/)
+  assert.match(panelSource, /function WorkingSetItemGhost\(/)
+  assert.match(panelSource, /const \[exitingItems, setExitingItems\] = useState<WorkingSetExitItem\[\]>\(\[\]\)/)
+  assert.match(panelSource, /function startCollapseExitAnimation\(\) \{[\s\S]*items[\s\S]*\.slice\(defaultLimit, visibleLimit\)[\s\S]*setExitingItems\(outgoingItems\)[\s\S]*\}/)
+  assert.match(panelSource, /function onToggleExpanded\(\) \{[\s\S]*const nextExpanded = !expanded[\s\S]*pendingLayoutChangeRef\.current = true[\s\S]*onBeforeLayoutChange\?\.\(\{ animate: true \}\)[\s\S]*startCollapseExitAnimation\(\)[\s\S]*setExpanded\(nextExpanded\)[\s\S]*\}/)
+  assert.match(panelSource, /onClick=\{onToggleExpanded\}/)
   assert.match(animationSource, /item\.style\.transform = `translate\(\$\{dx\}px, \$\{dy\}px\)`/)
   assert.match(animationSource, /item\.style\.transition = `transform \$\{WORKING_SET_ITEM_MOVE_MS\}ms cubic-bezier\(0\.2, 0, 0, 1\)`/)
   assert.match(animationSource, /item\.getBoundingClientRect\(\)/)
@@ -468,8 +486,8 @@ test('snapshotWorkingSetItemPositions reads stable grid-local rects by layout ke
   assert.deepEqual(
     Array.from(snapshotWorkingSetItemPositions(grid).entries()),
     [
-      ['first', { left: 12, top: 34 }],
-      ['second', { left: 56, top: 78 }]
+      ['first', { left: 12, top: 34, width: 0, height: 0 }],
+      ['second', { left: 56, top: 78, width: 0, height: 0 }]
     ]
   )
 })

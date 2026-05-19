@@ -71,6 +71,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const [workingSet, setWorkingSet] = useState<WorkingSetSnapshot | null>(null)
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
+  const workingSetLayoutRectsRef = useRef<CardPositionMap | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
     tabs: new Map(),
     bookmarks: new Map(),
@@ -88,13 +89,24 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     onAfterPack: animateDomainCardMoves
   })
 
-  function currentMissionContainers() {
+  const currentMissionContainers = useCallback(function currentMissionContainers() {
     return readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
-  }
+  }, [])
 
-  function primeCardMoveAnimation() {
+  const primeCardMoveAnimation = useCallback(function primeCardMoveAnimation() {
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
-  }
+  }, [currentMissionContainers])
+
+  const primeWorkingSetLayoutChange = useCallback(function primeWorkingSetLayoutChange({ animate = true }: { animate?: boolean } = {}) {
+    workingSetLayoutRectsRef.current = animate ? prepareDomainCardMoveAnimation(currentMissionContainers()) : null
+  }, [currentMissionContainers])
+
+  const animateWorkingSetLayoutChange = useCallback(function animateWorkingSetLayoutChange({ animate = true }: { animate?: boolean } = {}) {
+    const previousRects = workingSetLayoutRectsRef.current
+    workingSetLayoutRectsRef.current = null
+    packMissionsMasonryNow({ animate: false })
+    if (animate) animateDomainCardMoves(currentMissionContainers(), previousRects, { allowBleed: false })
+  }, [currentMissionContainers, packMissionsMasonryNow])
 
   function sameHoverUrls(a: readonly string[], b: readonly string[]) {
     return a.length === b.length && a.every((url, index) => url === b[index])
@@ -299,6 +311,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
                     activeHoverSource={hoverMatch.source}
                     onSnapshotChange={setWorkingSet}
                     onTabsChange={() => refreshDashboard({ animateCards: true })}
+                    onBeforeLayoutChange={primeWorkingSetLayoutChange}
+                    onAfterLayoutChange={animateWorkingSetLayoutChange}
                   />
                 )}
 
