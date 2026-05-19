@@ -429,28 +429,37 @@ test('WorkingSetPanel uses transform snapshots for item move animation', () => {
   assert.match(panelSource, /animateWorkingSetItemMoves\(grid, itemPositionsRef\.current\)/)
   assert.match(animationSource, /item\.style\.transform = `translate\(\$\{dx\}px, \$\{dy\}px\)`/)
   assert.match(animationSource, /item\.style\.transition = `transform \$\{WORKING_SET_ITEM_MOVE_MS\}ms cubic-bezier\(0\.2, 0, 0, 1\)`/)
+  assert.match(animationSource, /item\.getBoundingClientRect\(\)/)
+  assert.match(animationSource, /grid\.getBoundingClientRect\(\)/)
+  assert.doesNotMatch(animationSource, /\.offsetLeft|\.offsetTop/)
   assert.match(animationSource, /prefers-reduced-motion: reduce/)
   assert.doesNotMatch(animationSource, /transition[^=]*=.*\b(?:top|left|width)\b/)
 })
 
-test('snapshotWorkingSetItemPositions reads stable grid offsets by layout key', () => {
+test('snapshotWorkingSetItemPositions reads stable grid-local rects by layout key', () => {
   const grid = {
+    getBoundingClientRect() {
+      return { left: 300, top: 200 }
+    },
     querySelectorAll() {
       return [
         {
           dataset: { workingSetLayoutKey: 'first' },
-          offsetLeft: 12,
-          offsetTop: 34
+          getBoundingClientRect() {
+            return { left: 312, top: 234 }
+          }
         },
         {
           dataset: { workingSetLayoutKey: 'second' },
-          offsetLeft: 56,
-          offsetTop: 78
+          getBoundingClientRect() {
+            return { left: 356, top: 278 }
+          }
         },
         {
           dataset: {},
-          offsetLeft: 90,
-          offsetTop: 12
+          getBoundingClientRect() {
+            return { left: 390, top: 212 }
+          }
         }
       ]
     }

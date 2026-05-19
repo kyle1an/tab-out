@@ -23,17 +23,27 @@ function workingSetLayoutKey(item: HTMLElement) {
   return item.dataset.workingSetLayoutKey || ''
 }
 
+function roundLayoutPosition(value: number) {
+  return Math.round(value * 100) / 100
+}
+
+function workingSetLayoutPosition(item: HTMLElement, gridRect: DOMRect): WorkingSetItemPosition {
+  const itemRect = item.getBoundingClientRect()
+  return {
+    left: roundLayoutPosition(itemRect.left - gridRect.left),
+    top: roundLayoutPosition(itemRect.top - gridRect.top)
+  }
+}
+
 export function snapshotWorkingSetItemPositions(grid: HTMLElement | null): WorkingSetItemPositionMap {
   const positions: WorkingSetItemPositionMap = new Map()
   if (!grid || shouldReduceMotion()) return positions
 
+  const gridRect = grid.getBoundingClientRect()
   workingSetLayoutItems(grid).forEach((item) => {
     const key = workingSetLayoutKey(item)
     if (!key) return
-    positions.set(key, {
-      left: item.offsetLeft,
-      top: item.offsetTop
-    })
+    positions.set(key, workingSetLayoutPosition(item, gridRect))
   })
 
   return positions
@@ -64,12 +74,14 @@ export function animateWorkingSetItemMoves(grid: HTMLElement | null, previousPos
   if (!grid || !previousPositions || previousPositions.size === 0 || shouldReduceMotion()) return
 
   const moving: HTMLElement[] = []
+  const gridRect = grid.getBoundingClientRect()
   workingSetLayoutItems(grid).forEach((item) => {
     const previous = previousPositions.get(workingSetLayoutKey(item))
     if (!previous) return
 
-    const dx = previous.left - item.offsetLeft
-    const dy = previous.top - item.offsetTop
+    const current = workingSetLayoutPosition(item, gridRect)
+    const dx = previous.left - current.left
+    const dy = previous.top - current.top
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
 
     cancelWorkingSetItemMove(item)

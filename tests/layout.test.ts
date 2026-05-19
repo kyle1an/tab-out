@@ -61,6 +61,22 @@ test('masonry card motion uses transform instead of layout-property transitions'
   assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })
 
+test('card move animation preserves previous rect starts while allowing temporary history-pane bleed', () => {
+  const animationSource = readFileSync(new URL('../src/extension/card-move-animation.ts', import.meta.url), 'utf8')
+  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
+
+  assert.match(animationSource, /const dx = previous\.left - next\.left/)
+  assert.match(animationSource, /const dy = previous\.top - next\.top/)
+  assert.doesNotMatch(animationSource, /constrainCardMoveStart/)
+  assert.match(animationSource, /CARD_MOVE_BLEED_CLASS = 'card-motion-bleed'/)
+  assert.match(animationSource, /scrollRegion\.classList\.add\(CARD_MOVE_BLEED_CLASS\)/)
+  assert.match(animationSource, /scrollRegion\.classList\.remove\(CARD_MOVE_BLEED_CLASS\)/)
+  assert.match(baseCss, /\.dashboard-shell\.has-history \.dashboard-main > \.scroll-region\.card-motion-bleed\s*\{/)
+  assert.match(baseCss, /--dashboard-card-motion-left-bleed:\s*calc\(260px \+ var\(--dashboard-history-edge-gutter\) \+ 16px\)/)
+  assert.match(baseCss, /margin-left:\s*calc\(0px - var\(--dashboard-card-motion-left-bleed\) - var\(--dashboard-card-shadow-bleed\)\)/)
+  assert.match(baseCss, /padding-left:\s*calc\(var\(--dashboard-card-motion-left-bleed\) \+ var\(--dashboard-card-shadow-bleed\)\)/)
+})
+
 test('domain card mission names use the heaviest title weight', () => {
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
   const missionNameMatch = domainCardSource.match(/mission-name[^"]*/)

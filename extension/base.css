@@ -197,6 +197,15 @@ body {
   padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter) + var(--dashboard-card-shadow-bleed));
 }
 
+@media (min-width: 901px) {
+  .dashboard-shell.has-history .dashboard-main > .scroll-region.card-motion-bleed {
+    --dashboard-card-motion-left-bleed: calc(260px + var(--dashboard-history-edge-gutter) + 16px);
+    margin-left: calc(0px - var(--dashboard-card-motion-left-bleed) - var(--dashboard-card-shadow-bleed));
+    padding-left: calc(var(--dashboard-card-motion-left-bleed) + var(--dashboard-card-shadow-bleed));
+    z-index: 20;
+  }
+}
+
 .pinned-top.is-scrolled {
   box-shadow: none;
 }

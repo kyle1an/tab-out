@@ -9,7 +9,9 @@ type CardMoveAnimation = {
 }
 
 const CARD_MOVE_MS = 280
+const CARD_MOVE_BLEED_CLASS = 'card-motion-bleed'
 const activeCardMoveAnimations = new WeakMap<HTMLElement, CardMoveAnimation>()
+const activeCardMoveBleedTimeouts = new WeakMap<HTMLElement, number>()
 
 function shouldReduceMotion() {
   return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -88,6 +90,25 @@ function takeClosestPreviousRect(previousRects: CardPositionMap, id: string | un
   return closest
 }
 
+function enableCardMoveBleed(containers: MissionContainer[]) {
+  const scrollRegions = new Set<HTMLElement>()
+  containers.forEach((container) => {
+    const scrollRegion = container?.closest<HTMLElement>('.scroll-region')
+    if (scrollRegion) scrollRegions.add(scrollRegion)
+  })
+
+  scrollRegions.forEach((scrollRegion) => {
+    const activeTimeout = activeCardMoveBleedTimeouts.get(scrollRegion)
+    if (activeTimeout) clearTimeout(activeTimeout)
+
+    scrollRegion.classList.add(CARD_MOVE_BLEED_CLASS)
+    activeCardMoveBleedTimeouts.set(scrollRegion, window.setTimeout(() => {
+      activeCardMoveBleedTimeouts.delete(scrollRegion)
+      scrollRegion.classList.remove(CARD_MOVE_BLEED_CLASS)
+    }, CARD_MOVE_MS + 100))
+  })
+}
+
 export function animateDomainCardMoves(containers: MissionContainer[], previousRects: CardPositionMap | null) {
   if (!previousRects || previousRects.size === 0 || shouldReduceMotion()) return
 
@@ -114,6 +135,7 @@ export function animateDomainCardMoves(containers: MissionContainer[], previousR
 
   if (moving.length === 0) return
 
+  enableCardMoveBleed(containers)
   document.body.getBoundingClientRect()
 
   moving.forEach((block) => {
