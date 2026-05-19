@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent as ReactFocusEvent, MouseEvent as ReactMouseEvent, SetStateAction } from 'react'
 import { ChevronDown, ChevronUp, EyeOff } from 'lucide-react'
 import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
+import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import type { HoverUrlChangeHandler, HoverUrlSource, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
+import type { WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -75,6 +77,19 @@ function getWorkingSetTitleResizeObserver() {
     })
   }
   return workingSetTitleResizeObserver
+}
+
+function hashWorkingSetLayoutKey(value: string) {
+  let hash = 2166136261
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(36)
+}
+
+function workingSetItemLayoutKey(item: WorkingSetItem) {
+  return `ws-${hashWorkingSetLayoutKey(item.key || `${item.windowId}:${item.tabId}`)}`
 }
 
 function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: {
@@ -184,7 +199,8 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
 
   return (
     <div
-      className="working-set-item-shell group/working-set-item relative min-w-0"
+      className="working-set-item-shell working-set-layout-item group/working-set-item relative min-w-0"
+      data-working-set-layout-key={workingSetItemLayoutKey(item)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onFocus={onMouseEnter}
@@ -254,7 +270,23 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
 
 export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: WorkingSetPanelProps) {
   const [expanded, setExpanded] = useState(false)
+  const gridRef = useRef<HTMLDivElement | null>(null)
+  const animatedGridRef = useRef<HTMLDivElement | null>(null)
+  const itemPositionsRef = useRef<WorkingSetItemPositionMap | null>(null)
   const items = snapshot?.items || []
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    if (animatedGridRef.current && animatedGridRef.current !== grid) cancelWorkingSetItemMoves(animatedGridRef.current)
+    animatedGridRef.current = grid
+    animateWorkingSetItemMoves(grid, itemPositionsRef.current)
+    itemPositionsRef.current = snapshotWorkingSetItemPositions(grid)
+  })
+
+  useEffect(() => {
+    return () => cancelWorkingSetItemMoves(animatedGridRef.current)
+  }, [])
+
   if (items.length === 0) return null
 
   const defaultLimit = snapshot?.defaultLimit || 8
@@ -265,7 +297,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
 
   return (
     <section className="working-set-panel mb-4 min-w-0" aria-label="Recent workset">
-      <div className="working-set-grid grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
+      <div ref={gridRef} className="working-set-grid grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
         {visibleItems.map((item) => (
           <WorkingSetItemButton
             key={item.key}
@@ -281,7 +313,8 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
         {hasMore && (
           <button
             type="button"
-            className="working-set-item working-set-toggle relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
+            className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
+            data-working-set-layout-key="__working-set-toggle__"
             onClick={() => setExpanded((current) => !current)}
             aria-expanded={expanded}
           >

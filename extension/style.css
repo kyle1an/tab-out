@@ -21,3 +21,14 @@
   border-color: var(--accent-amber);
   background: color-mix(in srgb, var(--card-bg) 88%, var(--accent-amber));
 }
+
+.working-set-toggle.working-set-layout-moving,
+.working-set-toggle.working-set-layout-moving:hover,
+.working-set-toggle.working-set-layout-moving:active,
+.working-set-toggle.working-set-layout-moving:focus,
+.working-set-toggle.working-set-layout-moving:focus-visible {
+  border-color: var(--warm-gray);
+  background: var(--card-bg);
+  color: var(--muted);
+  box-shadow: none;
+}

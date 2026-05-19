@@ -5,6 +5,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { WorkingSetPanel } from '../src/components/WorkingSetPanel.js'
+import { snapshotWorkingSetItemPositions } from '../src/extension/working-set-move-animation.js'
 import {
   buildWorkingSetSnapshot,
   dismissWorkingSetActivity,
@@ -253,6 +254,9 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.match(html, /working-set-panel/)
   assert.doesNotMatch(html, /working-set-panel-header/)
   assert.doesNotMatch(html, />Working set</)
+  assert.match(html, /working-set-grid/)
+  assert.match(html, /working-set-layout-item/)
+  assert.match(html, /data-working-set-layout-key="ws-[a-z0-9]+"/)
   assert.match(html, /rounded-\[18px\]/)
   assert.match(html, /min-h-12/)
   assert.match(html, /max-h-\[calc\(2lh\)\]/)
@@ -272,9 +276,11 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   const toggleClassMatch = html.match(/<button[^>]*class="([^"]*\bworking-set-toggle\b[^"]*)"/)
   assert.ok(toggleClassMatch, 'working set toggle should render as a button')
   assert.match(toggleClassMatch[1], /\bworking-set-item\b/)
+  assert.match(toggleClassMatch[1], /\bworking-set-layout-item\b/)
   assert.match(toggleClassMatch[1], /\bcursor-default\b/)
   assert.match(toggleClassMatch[1], /\bmin-h-12\b/)
   assert.match(toggleClassMatch[1], /rounded-\[18px\]/)
+  assert.match(html, /data-working-set-layout-key="__working-set-toggle__"/)
   assert.doesNotMatch(toggleClassMatch[1], /\bh-6\b/)
   assert.doesNotMatch(toggleClassMatch[1], /\bcursor-pointer\b/)
   assert.doesNotMatch(toggleClassMatch[1], /\btransition-/)
@@ -396,9 +402,65 @@ test('WorkingSetPanel active item hover keeps one border layer with stronger con
   assert.doesNotMatch(activeHoverMatch[1], /\boutline\b/)
 })
 
+test('WorkingSetPanel keeps the moving show toggle visually neutral', () => {
+  const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  const toggleMoveMatch = styleSource.match(/\.working-set-toggle\.working-set-layout-moving,\n\.working-set-toggle\.working-set-layout-moving:hover,\n\.working-set-toggle\.working-set-layout-moving:active,\n\.working-set-toggle\.working-set-layout-moving:focus,\n\.working-set-toggle\.working-set-layout-moving:focus-visible\s*\{([^}]*)\}/)
+
+  assert.ok(toggleMoveMatch, 'moving working set toggle rule should exist')
+  assert.match(toggleMoveMatch[1], /border-color:\s*var\(--warm-gray\);/)
+  assert.match(toggleMoveMatch[1], /background:\s*var\(--card-bg\);/)
+  assert.match(toggleMoveMatch[1], /color:\s*var\(--muted\);/)
+  assert.match(toggleMoveMatch[1], /box-shadow:\s*none;/)
+  assert.doesNotMatch(toggleMoveMatch[1], /\btransition\b/)
+})
+
 test('WorkingSetPanel emits an external hover source for matching open tab chips', () => {
   const source = readFileSync(new URL('../src/components/WorkingSetPanel.tsx', import.meta.url), 'utf8')
 
   assert.match(source, /onHoverUrlChange\?\.\(item\.tabUrl, 'working-set', \[item\.tabUrl, item\.rawUrl\]\)/)
   assert.doesNotMatch(source, /onHoverUrlChange\?\.\(item\.tabUrl, 'chip', \[item\.tabUrl, item\.rawUrl\]\)/)
+})
+
+test('WorkingSetPanel uses transform snapshots for item move animation', () => {
+  const panelSource = readFileSync(new URL('../src/components/WorkingSetPanel.tsx', import.meta.url), 'utf8')
+  const animationSource = readFileSync(new URL('../src/extension/working-set-move-animation.ts', import.meta.url), 'utf8')
+
+  assert.match(panelSource, /snapshotWorkingSetItemPositions\(grid\)/)
+  assert.match(panelSource, /animateWorkingSetItemMoves\(grid, itemPositionsRef\.current\)/)
+  assert.match(animationSource, /item\.style\.transform = `translate\(\$\{dx\}px, \$\{dy\}px\)`/)
+  assert.match(animationSource, /item\.style\.transition = `transform \$\{WORKING_SET_ITEM_MOVE_MS\}ms cubic-bezier\(0\.2, 0, 0, 1\)`/)
+  assert.match(animationSource, /prefers-reduced-motion: reduce/)
+  assert.doesNotMatch(animationSource, /transition[^=]*=.*\b(?:top|left|width)\b/)
+})
+
+test('snapshotWorkingSetItemPositions reads stable grid offsets by layout key', () => {
+  const grid = {
+    querySelectorAll() {
+      return [
+        {
+          dataset: { workingSetLayoutKey: 'first' },
+          offsetLeft: 12,
+          offsetTop: 34
+        },
+        {
+          dataset: { workingSetLayoutKey: 'second' },
+          offsetLeft: 56,
+          offsetTop: 78
+        },
+        {
+          dataset: {},
+          offsetLeft: 90,
+          offsetTop: 12
+        }
+      ]
+    }
+  } as unknown as HTMLElement
+
+  assert.deepEqual(
+    Array.from(snapshotWorkingSetItemPositions(grid).entries()),
+    [
+      ['first', { left: 12, top: 34 }],
+      ['second', { left: 56, top: 78 }]
+    ]
+  )
 })
