@@ -85,6 +85,106 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
   }
 }
 
+test('PageChip applies bionic reading emphasis to title text only', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Example Article'],
+        pathGroupLabel: 'openai/docs',
+        pathSuffix: '/reference'
+      })
+    })
+  )
+
+  assert.match(html, /<span class="chip-title-fixation\b[^"]*\bfont-semibold\b[^"]*">Exa<\/span>mple <span class="chip-title-fixation\b[^"]*\bfont-semibold\b[^"]*">Art<\/span>icle/)
+  const pathGroupMatch = html.match(/<span class="([^"]*\bchip-pathgroup\b[^"]*)"[^>]*>[\s\S]*?<\/span>/)
+  const pathMatch = html.match(/<span class="([^"]*\bchip-path\b[^"]*)"[^>]*>[\s\S]*?<\/span>/)
+  assert.ok(pathGroupMatch, 'path group should render')
+  assert.ok(pathMatch, 'path suffix should render')
+  assert.doesNotMatch(pathGroupMatch[0], /chip-title-fixation/)
+  assert.doesNotMatch(pathMatch[0], /chip-title-fixation/)
+})
+
+test('PageChip skips bionic reading when title text is a URL', () => {
+  const protocolUrlHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['https://example.com/docs/reference'],
+        tooltip: 'https://example.com/docs/reference'
+      }),
+      filter: 'example'
+    })
+  )
+  const hostUrlHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['example.com/docs/reference'],
+        tooltip: 'example.com/docs/reference'
+      })
+    })
+  )
+
+  assert.match(protocolUrlHtml, /https:\/\/<mark class="chip-filter-match\b[^"]*">example<\/mark>\.com\/docs\/reference/)
+  assert.doesNotMatch(protocolUrlHtml, /chip-title-fixation/)
+  assert.match(hostUrlHtml, /example\.com\/docs\/reference/)
+  assert.doesNotMatch(hostUrlHtml, /chip-title-fixation/)
+})
+
+test('PageChip skips bionic reading inside Jira ticket references', () => {
+  const ticketOnlyHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['ICS2-308'],
+        tooltip: 'ICS2-308'
+      })
+    })
+  )
+  const ticketTitleHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['CT-1569 Example Article'],
+        tooltip: 'CT-1569 Example Article'
+      })
+    })
+  )
+  const filteredTicketTitleHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['CT-1569 Example Article'],
+        tooltip: 'CT-1569 Example Article'
+      }),
+      filter: '1569'
+    })
+  )
+
+  assert.match(ticketOnlyHtml, /ICS2-308/)
+  assert.doesNotMatch(ticketOnlyHtml, /chip-title-fixation/)
+  assert.match(ticketTitleHtml, /CT-1569 <span class="chip-title-fixation\b[^"]*">Exa<\/span>mple <span class="chip-title-fixation\b[^"]*">Art<\/span>icle/)
+  assert.doesNotMatch(ticketTitleHtml, /chip-title-fixation\b[^>]*>CT</)
+  assert.doesNotMatch(ticketTitleHtml, /chip-title-fixation\b[^>]*>1569</)
+  assert.match(filteredTicketTitleHtml, /CT-<mark class="chip-filter-match\b[^"]*">1569<\/mark> <span class="chip-title-fixation\b[^"]*">Exa<\/span>mple/)
+  assert.doesNotMatch(filteredTicketTitleHtml, /chip-title-fixation\b[^>]*>CT</)
+})
+
+test('PageChip skips bionic reading for short function words and acronyms', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['The API and UX of New Checkout Flow'],
+        tooltip: 'The API and UX of New Checkout Flow'
+      })
+    })
+  )
+
+  assert.match(html, /The API and UX of New <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>The</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>API</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>and</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>UX</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>of</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>New</)
+})
+
 test('PageChip highlights matched filter keywords inside visible chip text', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
@@ -93,7 +193,7 @@ test('PageChip highlights matched filter keywords inside visible chip text', () 
     })
   )
 
-  assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> Docs/)
+  assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> <span class="chip-title-fixation\b[^"]*">Do<\/span>cs/)
   assert.match(html, /chip-filter-match\b[^"]*bg-\[rgba\(234,179,8,0\.42\)\][^"]*text-tab-ink[^"]*\[font:inherit\]/)
   assert.match(html, /chip-text\b[^"]*text-\[color-mix\(in_srgb,var\(--ink\)_72%,var\(--muted\)\)\]/)
   assert.doesNotMatch(html, /\bpx-0\.5\b/)
@@ -450,6 +550,29 @@ test('TabHistoryPanel keeps the history entry surface on the default cursor', ()
   assert.doesNotMatch(entryButtonMatch[1], /\bcursor-pointer\b/)
 })
 
+test('TabHistoryPanel applies bionic title emphasis with protected title tokens', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        entries: [
+          {
+            ...baseEntry,
+            title: 'The API and UX of Checkout Flow',
+            url: 'https://example.com/checkout',
+            displayUrl: 'example.com/checkout'
+          }
+        ]
+      })
+    })
+  )
+
+  assert.match(html, /history-entry-title[\s\S]*The API and UX of <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>The</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>API</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>UX</)
+})
+
 test('TabHistoryPanel borrows current PageChip surface styling for the current entry', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(
@@ -658,7 +781,7 @@ test('PageChip highlights token aliases in visible chip text', () => {
     })
   )
 
-  assert.match(html, /<mark class="chip-filter-match\b[^"]*">Pull Request<\/mark> review/)
+  assert.match(html, /<mark class="chip-filter-match\b[^"]*">Pull Request<\/mark> <span class="chip-title-fixation\b[^"]*">rev<\/span>iew/)
 })
 
 test('PageChip keeps history highlighting on legacy raw filter text for this pass', () => {
@@ -753,7 +876,7 @@ test('PageChip can render a title suppression marker inline before structural pl
   const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
 
   assert.equal(markerClasses.length, 1)
-  assert.match(html, /Alpha channel — [\s\S]*chip-title-suppression-marker[\s\S]*>˷<\/span>[\s\S]* — [\s\S]*chip-strip-indicator[\s\S]*>\/<\/span>/)
+  assert.match(html, /<span class="chip-title-fixation\b[^"]*">Alp<\/span>ha <span class="chip-title-fixation\b[^"]*">cha<\/span>nnel — [\s\S]*chip-title-suppression-marker[\s\S]*>˷<\/span>[\s\S]* — [\s\S]*chip-strip-indicator[\s\S]*>\/<\/span>/)
 })
 
 test('PageChip uses a path-style placeholder for stripped structural labels', () => {
@@ -850,7 +973,7 @@ test('PageChip renders path suffixes without a left margin utility', () => {
   const pathMatch = html.match(/<span class="([^"]*\bchip-path\b[^"]*)">/)
   assert.ok(pathMatch, 'chip path suffix should render')
   assert.doesNotMatch(pathMatch[1], /\bml-/)
-  assert.match(html, /OpenAI Docs\s+<span class="[^"]*\bchip-path\b[^"]*">\/docs\/reference<\/span>/)
+  assert.match(html, /<span class="chip-title-fixation\b[^"]*">Ope<\/span>nAI <span class="chip-title-fixation\b[^"]*">Do<\/span>cs\s+<span class="[^"]*\bchip-path\b[^"]*">\/docs\/reference<\/span>/)
 })
 
 test('PageChip renders folded titles before env controls', () => {
@@ -869,7 +992,7 @@ test('PageChip renders folded titles before env controls', () => {
 
   assert.match(html, /page-chip-folded\b/)
   assert.match(html, /chip-folded-content\b/)
-  assert.match(html, /chip-title-row\b[^>]*>Deployment History[\s\S]*chip-env-row\b[^>]*>[\s\S]*dev1us[\s\S]*dev2us/)
+  assert.match(html, /chip-title-row\b[^>]*>[\s\S]*<span class="chip-title-fixation\b[^"]*">Deplo<\/span>yment <span class="chip-title-fixation\b[^"]*">His<\/span>tory[\s\S]*chip-env-row\b[^>]*>[\s\S]*dev1us[\s\S]*dev2us/)
   assert.equal([...html.matchAll(/chip-title-suppression-marker/g)].length, 2)
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'folded page chip should render')
@@ -1042,8 +1165,8 @@ test('DomainCard renders docs.google.com website path sections through WebsitePa
     })
   )
 
-  assert.match(html, /website-path-section-label\b[^>]*>\/document<\/span>[\s\S]*Example Spec/)
-  assert.match(html, /website-path-section-label\b[^>]*>\/spreadsheets<\/span>[\s\S]*Example Budget/)
+  assert.match(html, /website-path-section-label\b[^>]*>\/document<\/span>[\s\S]*<span class="chip-title-fixation\b[^"]*">Exa<\/span>mple <span class="chip-title-fixation\b[^"]*">Sp<\/span>ec/)
+  assert.match(html, /website-path-section-label\b[^>]*>\/spreadsheets<\/span>[\s\S]*<span class="chip-title-fixation\b[^"]*">Exa<\/span>mple <span class="chip-title-fixation\b[^"]*">Bud<\/span>get/)
   assert.equal([...html.matchAll(/website-path-section\b/g)].length > 0, true)
 })
 

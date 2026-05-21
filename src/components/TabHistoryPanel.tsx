@@ -3,6 +3,7 @@ import type { CSSProperties, Dispatch, MouseEvent, ReactNode, SetStateAction } f
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { renderBionicTitleText } from './bionic-title-text'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -214,7 +215,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
         titleTooltipWidth && 'w-[var(--history-entry-title-tooltip-width)]'
       )}
     >
-      {entryLabel}
+      {renderBionicTitleText(entryLabel, 'history-entry-tooltip')}
     </span>
   ) : undefined
 
@@ -263,7 +264,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
             </span>
             <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
               <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
-                {entry.title}
+                {renderBionicTitleText(entry.title, 'history-entry-title')}
               </span>
               {badges.length > 0 && (
                 <span className="inline-flex flex-none items-center gap-1">

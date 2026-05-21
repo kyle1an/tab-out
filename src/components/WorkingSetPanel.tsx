@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, EyeOff } from 'lucide-react'
 import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
+import { renderBionicTitleText } from './bionic-title-text'
 import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
@@ -137,7 +138,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
       </span>
       <span className="flex min-w-0 flex-auto items-center">
         <span className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere]">
-          {item.title}
+          {renderBionicTitleText(item.title, `working-set-ghost-${item.key}`)}
         </span>
       </span>
     </div>
@@ -238,7 +239,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
         titleTooltipWidth && 'w-[var(--working-set-title-tooltip-width)]'
       )}
     >
-      {item.title}
+      {renderBionicTitleText(item.title, `working-set-tooltip-${item.key}`)}
     </span>
   ) : undefined
   const itemStyle = {
@@ -299,7 +300,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
               ref={titleRef}
               className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]"
             >
-              {item.title}
+              {renderBionicTitleText(item.title, `working-set-title-${item.key}`)}
             </span>
           </span>
         </button>

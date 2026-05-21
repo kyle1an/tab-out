@@ -8,6 +8,8 @@ import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
+import type { InlineTextRenderer } from './bionic-title-text'
 import { TITLE_SUPPRESSION_MARKER_SYMBOL, titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, LayoutChangeHandler } from './types'
@@ -157,8 +159,15 @@ function highlightTermsForFilter(filter: string, mode: HighlightMode): string[] 
   return [...new Set(parseFilterQuery(query).terms.flatMap((term) => matchValuesForFilterTerm(term)))]
 }
 
-function renderHighlightedText(text: string, highlightTerms: readonly string[], keyPrefix: string): ReactNode {
-  if (!text || highlightTerms.length === 0) return text
+function appendRenderedText(nodes: ReactNode[], text: string, keyPrefix: string, textOffset: number, renderText: InlineTextRenderer) {
+  const rendered = renderText(text, keyPrefix, textOffset)
+  if (Array.isArray(rendered)) nodes.push(...rendered)
+  else nodes.push(rendered)
+}
+
+function renderHighlightedText(text: string, highlightTerms: readonly string[], keyPrefix: string, renderText: InlineTextRenderer = (value) => value): ReactNode {
+  if (!text) return text
+  if (highlightTerms.length === 0) return renderText(text, keyPrefix, 0)
 
   const normalizedChars: string[] = []
   const originalIndexes: number[] = []
@@ -183,7 +192,7 @@ function renderHighlightedText(text: string, highlightTerms: readonly string[], 
     }
   }
 
-  if (ranges.length === 0) return text
+  if (ranges.length === 0) return renderText(text, keyPrefix, 0)
 
   ranges.sort((a, b) => a.start - b.start || b.end - a.end)
   const mergedRanges: Array<{ start: number; end: number }> = []
@@ -202,7 +211,7 @@ function renderHighlightedText(text: string, highlightTerms: readonly string[], 
   for (const range of mergedRanges) {
     const originalStart = originalIndexes[range.start]
     const originalEnd = range.end < originalIndexes.length ? originalIndexes[range.end] : text.length
-    if (originalStart > cursor) nodes.push(text.slice(cursor, originalStart))
+    if (originalStart > cursor) appendRenderedText(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
     nodes.push(
       <mark
         key={`${keyPrefix}-${originalStart}-${originalEnd}`}
@@ -214,7 +223,7 @@ function renderHighlightedText(text: string, highlightTerms: readonly string[], 
     cursor = originalEnd
   }
 
-  if (cursor < text.length) nodes.push(text.slice(cursor))
+  if (cursor < text.length) appendRenderedText(nodes, text.slice(cursor), `${keyPrefix}:${cursor}:tail`, cursor, renderText)
   return nodes
 }
 
@@ -612,7 +621,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           </span>
         )}
         {chip.displaySegments.map((seg, index) => {
-          if (typeof seg === 'string') return renderHighlightedText(seg, highlightTerms, `${mode}-segment-${index}`)
+          if (typeof seg === 'string') {
+            return isUrlLikeTitle(seg)
+              ? renderHighlightedText(seg, highlightTerms, `${mode}-segment-${index}`)
+              : renderHighlightedText(seg, highlightTerms, `${mode}-segment-${index}`, createBionicTitleTextRenderer(seg))
+          }
           if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `inline-title-suppression-${index}`)
           if (isStructuralPlaceholderSegment(seg)) return renderStructuralPlaceholder(seg, mode, `structural-placeholder-${index}`)
           return null

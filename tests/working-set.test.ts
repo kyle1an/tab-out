@@ -326,6 +326,28 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.doesNotMatch(html, /Close this tab/)
 })
 
+test('WorkingSetPanel applies bionic title emphasis with protected title tokens', () => {
+  const snapshot = {
+    defaultLimit: 8,
+    expandedLimit: 16,
+    items: [
+      makeWorkingSetItem(1, {
+        title: 'The API and UX of Checkout Flow'
+      })
+    ]
+  }
+  const html = renderToStaticMarkup(
+    React.createElement(WorkingSetPanel, {
+      snapshot
+    })
+  )
+
+  assert.match(html, /working-set-title[\s\S]*The API and UX of <span class="chip-title-fixation\b[^"]*">Chec<\/span>kout <span class="chip-title-fixation\b[^"]*">Fl<\/span>ow/)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>The</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>API</)
+  assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>UX</)
+})
+
 test('WorkingSetPanel outlines matching items when another source owns the match', () => {
   const snapshot = {
     defaultLimit: 8,
