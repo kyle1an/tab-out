@@ -31,6 +31,9 @@ interface PageChipProps {
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
 type HighlightMode = 'parsed' | 'legacy'
+type RenderTitleContentOptions = {
+  includePathSuffix?: boolean
+}
 type PageChipCloseAnimationStyle = Partial<Pick<CSSStyleDeclaration, 'height' | 'left' | 'margin' | 'maxHeight' | 'opacity' | 'overflow' | 'paddingBottom' | 'paddingTop' | 'pointerEvents' | 'position' | 'top' | 'transform' | 'transformOrigin' | 'transition' | 'width' | 'zIndex'>>
 type PageChipCloseAnimationGhost = {
   classList: Pick<DOMTokenList, 'add'>
@@ -276,6 +279,9 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
+  const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []
+  const isTitleVariantGroup = titleVariantChips.length > 1
+  const parentInteractive = !isFolded && !isTitleVariantGroup
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
   const highlightTerms = highlightTermsForFilter(filter, isHistorySource ? 'legacy' : 'parsed')
@@ -329,9 +335,9 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     return e.key === 'Enter' || e.key === ' '
   }
 
-  async function focusChipUrl(targetUrl: string | undefined) {
+  async function focusChipUrl(targetUrl: string | undefined, sourceType = chip.sourceType) {
     if (!targetUrl) return
-    if (isReadOnlySource) {
+    if (isReadOnlyDashboardSourceType(sourceType)) {
       const focused = await focusExactTab(targetUrl)
       if (!focused) await openTabUrl(targetUrl)
       return
@@ -367,9 +373,13 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     if (onHoverUrlChange) onHoverUrlChange(url || '', 'chip', matchUrls)
   }
 
+  function previewUrlsForChip(target: DashboardChipData): string[] {
+    return [target.tabUrl, target.rawUrl].filter(Boolean)
+  }
+
   function onChipMouseEnter() {
     if (isFolded) return
-    setPreview(primaryPreviewUrl, [chip.tabUrl, chip.rawUrl])
+    setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
   }
 
   function onChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
@@ -379,7 +389,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
   function onChipFocus() {
     if (isFolded) return
-    setPreview(primaryPreviewUrl, [chip.tabUrl, chip.rawUrl])
+    setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
   }
 
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
@@ -444,6 +454,47 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     })
   }
 
+  async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
+    e.stopPropagation()
+    await focusChipUrl(variant.tabUrl, variant.sourceType)
+  }
+
+  function onTitleVariantMouseEnter(variant: DashboardChipData) {
+    setPreview(variant.tabUrl, previewUrlsForChip(variant))
+  }
+
+  function onTitleVariantMouseLeave(e: MouseEvent<HTMLElement>) {
+    const chipEl = e.currentTarget.closest('.page-chip')
+    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) return
+    setPreview('')
+  }
+
+  function onTitleVariantFocusIn(variant: DashboardChipData) {
+    setPreview(variant.tabUrl, previewUrlsForChip(variant))
+  }
+
+  function onTitleVariantBlur(e: FocusEvent<HTMLElement>) {
+    const chipEl = e.currentTarget.closest('.page-chip')
+    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) return
+    setPreview('')
+  }
+
+  async function onCloseTitleVariant(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
+    e.stopPropagation()
+    if (variant.sourceType === 'history') {
+      await deleteHistoryUrls({
+        urls: [variant.tabUrl].filter(Boolean),
+        onAfterDelete: async () => setPreview('')
+      })
+      return
+    }
+
+    await closeChipTarget({
+      tabUrl: variant.tabUrl,
+      onAfterClose: async () => setPreview('')
+    })
+  }
+
   const hasActiveChipFrame = !!(chip.activeChipFrame || chip.activeInOtherWindow)
   const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow
   const style = {
@@ -458,7 +509,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
-  const chipLabel = [chip.tooltip, hiddenTitleLabel, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
+  const titleVariantLabel = isTitleVariantGroup ? `${titleVariantChips.length} URL variants: ${titleVariantChips.map((variant) => variant.pathSuffix || variant.tabUrl).join(' · ')}` : ''
+  const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
@@ -467,17 +519,25 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const chipTooltipStyle = chipTooltipTextWidth ? {
     '--page-chip-tooltip-text-width': chipTooltipTextWidth
   } as CSSProperties : undefined
-  const hoverMatched = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl && (
-    chip.tabUrl === activeHoverUrl ||
-    chip.rawUrl === activeHoverUrl ||
-    activeHoverUrls.includes(chip.tabUrl) ||
-    activeHoverUrls.includes(chip.rawUrl) ||
-    envs.some((env) => (
-      env.tabUrl === activeHoverUrl ||
-      env.rawUrl === activeHoverUrl ||
-      activeHoverUrls.includes(env.tabUrl) ||
-      activeHoverUrls.includes(env.rawUrl)
-    ))
+  function chipMatchesActiveHover(target: DashboardChipData) {
+    return (
+      target.tabUrl === activeHoverUrl ||
+      target.rawUrl === activeHoverUrl ||
+      activeHoverUrls.includes(target.tabUrl) ||
+      activeHoverUrls.includes(target.rawUrl) ||
+      !!target.envs?.some((env) => (
+        env.tabUrl === activeHoverUrl ||
+        env.rawUrl === activeHoverUrl ||
+        activeHoverUrls.includes(env.tabUrl) ||
+        activeHoverUrls.includes(env.rawUrl)
+      ))
+    )
+  }
+
+  const externalHoverActive = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl
+  const hoverMatched = externalHoverActive && (
+    chipMatchesActiveHover(chip) ||
+    titleVariantChips.some((variant) => chipMatchesActiveHover(variant))
   )
 
   function renderSuppressionMarker(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
@@ -517,28 +577,29 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     return marker
   }
 
-  function renderTrailingSuppressionMarkers(mode: ChipTextRenderMode) {
-    if (suppressedTitleParts.length === 0) return null
+  function renderTrailingSuppressionMarkers(mode: ChipTextRenderMode, target: DashboardChipData = chip, keyPrefix: string = mode) {
+    const targetSuppressedTitleParts = target.suppressedTitleParts || []
+    if (targetSuppressedTitleParts.length === 0) return null
 
     const inlineSuppressedTitleKeys = new Set(
-      chip.displaySegments
+      target.displaySegments
         .filter(isTitleSuppressionSegment)
         .map((segment) => segment.titleSuppression.trim().toLowerCase())
     )
-    const trailingParts = suppressedTitleParts.filter((part) => !inlineSuppressedTitleKeys.has(part.trim().toLowerCase()))
+    const trailingParts = targetSuppressedTitleParts.filter((part) => !inlineSuppressedTitleKeys.has(part.trim().toLowerCase()))
 
     return trailingParts.map((part, index) => {
       const markerSpacingClass = mode === 'chip' ? (index === 0 ? 'ml-1' : 'ml-0.5') : ''
       const marker = renderSuppressionMarker(
         part,
         mode,
-        `trailing-title-suppression-marker-${part}`,
+        `${keyPrefix}-trailing-title-suppression-marker-${part}`,
         markerSpacingClass
       )
 
       if (mode === 'tooltip') {
         return (
-          <span key={`trailing-title-suppression-${part}-${index}`}>
+          <span key={`${keyPrefix}-trailing-title-suppression-${part}-${index}`}>
             {' '}
             {marker}
           </span>
@@ -549,8 +610,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     })
   }
 
-  function renderStructuralPlaceholder(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string) {
-    const hiddenLabel = segment.label || chip.pathGroupLabel
+  function renderStructuralPlaceholder(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string, fallbackLabel = chip.pathGroupLabel) {
+    const hiddenLabel = segment.label || fallbackLabel
     const marker = (
       <span
         key={key}
@@ -612,26 +673,28 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
-  function renderTitleContent(mode: ChipTextRenderMode) {
+  function renderTitleContent(mode: ChipTextRenderMode, target: DashboardChipData = chip, keyPrefix: string = mode, options: RenderTitleContentOptions = {}) {
+    const includePathSuffix = options.includePathSuffix ?? true
+
     return (
       <>
-        {chip.pathGroupLabel && (
+        {target.pathGroupLabel && (
           <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-            {renderHighlightedText(pathGroupDisplayLabel(chip.pathGroupLabel), highlightTerms, `${mode}-pathgroup`)}
+            {renderHighlightedText(pathGroupDisplayLabel(target.pathGroupLabel), highlightTerms, `${keyPrefix}-pathgroup`)}
           </span>
         )}
-        {chip.displaySegments.map((seg, index) => {
+        {target.displaySegments.map((seg, index) => {
           if (typeof seg === 'string') {
             return isUrlLikeTitle(seg)
-              ? renderHighlightedText(seg, highlightTerms, `${mode}-segment-${index}`)
-              : renderHighlightedText(seg, highlightTerms, `${mode}-segment-${index}`, createBionicTitleTextRenderer(seg))
+              ? renderHighlightedText(seg, highlightTerms, `${keyPrefix}-segment-${index}`)
+              : renderHighlightedText(seg, highlightTerms, `${keyPrefix}-segment-${index}`, createBionicTitleTextRenderer(seg))
           }
-          if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `inline-title-suppression-${index}`)
-          if (isStructuralPlaceholderSegment(seg)) return renderStructuralPlaceholder(seg, mode, `structural-placeholder-${index}`)
+          if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `${keyPrefix}-inline-title-suppression-${index}`)
+          if (isStructuralPlaceholderSegment(seg)) return renderStructuralPlaceholder(seg, mode, `${keyPrefix}-structural-placeholder-${index}`, target.pathGroupLabel)
           return null
         })}
-        {renderTrailingSuppressionMarkers(mode)}
-        {chip.pathSuffix && (
+        {renderTrailingSuppressionMarkers(mode, target, keyPrefix)}
+        {includePathSuffix && target.pathSuffix && (
           <>
             {' '}
             <span
@@ -642,11 +705,140 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal [width:max-content] [overflow-wrap:break-word]'
               )}
             >
-              {renderHighlightedText(chip.pathSuffix, highlightTerms, `${mode}-path`)}
+              {renderHighlightedText(target.pathSuffix, highlightTerms, `${keyPrefix}-path`)}
             </span>
           </>
         )}
       </>
+    )
+  }
+
+  function titleVariantActionLabel(variant: DashboardChipData) {
+    return `${variant.sourceType === 'history' ? 'Delete from history' : 'Close this tab'}: ${variant.pathSuffix || variant.tabUrl}`
+  }
+
+  function renderTitleVariantTooltipContent(variant: DashboardChipData, index: number) {
+    const variantUrlLabel = variant.pathSuffix || variant.tabUrl
+
+    return (
+      <span
+        className={cn(
+          "chip-text block min-w-0 max-w-[calc(100vw-32px)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]",
+          chipTooltipTextWidth && 'w-[var(--page-chip-tooltip-text-width)]',
+          hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
+        )}
+      >
+        <span className="chip-title-variant-tooltip-content flex min-w-0 max-w-full flex-col items-start gap-0.5 whitespace-normal">
+          <span className="chip-title-row block min-w-0 max-w-full">
+            {variant.leadPrefix && (
+              <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
+                {renderHighlightedText(variant.leadPrefix, highlightTerms, `tooltip-title-variant-${index}-lead`)}
+              </span>
+            )}
+            {renderTitleContent('tooltip', variant, `tooltip-title-variant-${index}`, { includePathSuffix: false })}
+          </span>
+          {variantUrlLabel && (
+            <span className="chip-title-variant-tooltip-url block min-w-0 max-w-full whitespace-normal break-normal text-xs font-normal text-tab-muted opacity-75 [overflow-wrap:break-word]">
+              {renderHighlightedText(variantUrlLabel, highlightTerms, `tooltip-title-variant-${index}-url`)}
+            </span>
+          )}
+        </span>
+      </span>
+    )
+  }
+
+  function renderTitleVariant(variant: DashboardChipData, index: number, mode: ChipTextRenderMode) {
+    const label = variant.pathSuffix || variant.tabUrl || '/'
+    const variantActive = !!(variant.activeChipFrame || variant.activeInOtherWindow)
+    const variantCurrent = !!variant.activeChipFrame && !variant.activeInOtherWindow
+    const variantHoverMatched = externalHoverActive && chipMatchesActiveHover(variant)
+    const variantDupeCount = variant.dupeCount || 1
+    const variantIsHistorySource = variant.sourceType === 'history'
+    const variantCanClose = !isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource
+    const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : ''].filter(Boolean).join(' · ')
+    const labelContent = (
+      <>
+        <span className="chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+          {renderHighlightedText(label, highlightTerms, `${mode}-title-variant-${index}`)}
+        </span>
+        {variantDupeCount > 1 && (
+          <span className="chip-title-variant-dupe inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[rgba(254,243,199,0.95)] px-1 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)]">
+            {variantDupeCount}
+          </span>
+        )}
+      </>
+    )
+
+    if (mode === 'tooltip') {
+      return (
+        <span
+          key={variant.rawUrl || variant.tabUrl}
+          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]"
+        >
+          {labelContent}
+        </span>
+      )
+    }
+
+    return (
+      <span
+        key={variant.rawUrl || variant.tabUrl}
+        className={cn(
+          'chip-title-variant-shell group/title-variant relative inline-flex max-w-full min-w-0 items-center',
+          variantCanClose && 'pr-5'
+        )}
+      >
+        <TooltipAnchor
+          content={renderTitleVariantTooltipContent(variant, index)}
+          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+          style={chipTooltipStyle}
+        >
+          <button
+            type="button"
+            className={cn(
+              'chip-title-variant clickable inline-flex max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+              variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
+              variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
+              variantHoverMatched && 'shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]'
+            )}
+            aria-label={variantLabel}
+            onClick={(e) => onTitleVariantFocus(e, variant)}
+            onMouseEnter={() => onTitleVariantMouseEnter(variant)}
+            onMouseLeave={onTitleVariantMouseLeave}
+            onFocus={() => onTitleVariantFocusIn(variant)}
+            onBlur={onTitleVariantBlur}
+          >
+            {labelContent}
+          </button>
+        </TooltipAnchor>
+        {variantCanClose && (
+          <TooltipAnchor content={titleVariantActionLabel(variant)}>
+            <button
+              type="button"
+              className="chip-title-variant-action absolute top-1/2 right-0 z-[2] inline-flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+              aria-label={titleVariantActionLabel(variant)}
+              onClick={(e) => onCloseTitleVariant(e, variant)}
+              onMouseEnter={() => onTitleVariantMouseEnter(variant)}
+              onMouseLeave={onTitleVariantMouseLeave}
+              onFocus={() => onTitleVariantFocusIn(variant)}
+              onBlur={onTitleVariantBlur}
+            >
+              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </TooltipAnchor>
+        )}
+      </span>
+    )
+  }
+
+  function renderTitleVariantList(mode: ChipTextRenderMode) {
+    if (!isTitleVariantGroup) return null
+    return (
+      <span className="chip-title-variant-list mt-0.5 flex max-w-full flex-col items-start gap-0.5">
+        {titleVariantChips.map((variant, index) => renderTitleVariant(variant, index, mode))}
+      </span>
     )
   }
 
@@ -664,6 +856,22 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       )
     }
 
+    if (isTitleVariantGroup) {
+      return (
+        <span className="chip-title-variant-content flex min-w-0 flex-col items-start">
+          <span className="chip-title-row block min-w-0 max-w-full">
+            {chip.leadPrefix && (
+              <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
+                {renderHighlightedText(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
+              </span>
+            )}
+            {renderTitleContent(mode)}
+          </span>
+          {renderTitleVariantList(mode)}
+        </span>
+      )
+    }
+
     return (
       <>
         {chip.leadPrefix && (
@@ -676,7 +884,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
-  const chipTooltipContent = shouldShowChipTooltip ? (
+  const chipTooltipContent = !isTitleVariantGroup && shouldShowChipTooltip ? (
     <span
       className={cn(
         "chip-text block min-w-0 max-w-[calc(100vw-32px)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]",
@@ -697,11 +905,12 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <div
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
-          !isFolded && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
-          !isFolded && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
+          parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
+          !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
           hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isFolded && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
+          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
+          isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)]',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
@@ -711,13 +920,13 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         )}
         aria-label={chipLabel}
         style={style}
-        tabIndex={isFolded ? undefined : 0}
-        onClick={isFolded ? undefined : onFocus}
-        onKeyDown={isFolded ? undefined : onChipKeyDown}
-        onMouseEnter={isFolded ? undefined : onChipMouseEnter}
+        tabIndex={parentInteractive ? 0 : undefined}
+        onClick={parentInteractive ? onFocus : undefined}
+        onKeyDown={parentInteractive ? onChipKeyDown : undefined}
+        onMouseEnter={parentInteractive ? onChipMouseEnter : undefined}
         onMouseLeave={isFolded ? undefined : onChipMouseLeave}
-        onFocus={isFolded ? undefined : onChipFocus}
-        onBlur={isFolded ? undefined : onChipBlur}
+        onFocus={parentInteractive ? onChipFocus : undefined}
+        onBlur={parentInteractive ? onChipBlur : undefined}
       >
       {hasActiveChipFrame && !chip.iconOnly && (
         <span
@@ -762,6 +971,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
             "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
             hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
             chip.pathSuffix && 'max-h-[calc(3lh)]',
+            isTitleVariantGroup && 'max-h-none',
             isFolded && 'max-h-none'
           )}
           ref={chipTextRef}
@@ -769,7 +979,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           {renderChipTextContent('chip')}
         </span>
       )}
-      {!chip.iconOnly && !isFolded && (!isReadOnlySource || isHistorySource) && (
+      {!chip.iconOnly && parentInteractive && (!isReadOnlySource || isHistorySource) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
           <TooltipAnchor content={closeActionLabel}>
             <button

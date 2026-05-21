@@ -106,6 +106,7 @@ export interface DashboardChipData {
   activeChipFrame?: boolean
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
+  titleVariantChips?: DashboardChipData[]
 }
 
 export interface DashboardClusterVM {

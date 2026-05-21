@@ -27,12 +27,13 @@ function resolveClassName(className: OverflowContainerClassName | undefined, exp
   return typeof className === 'function' ? className({ expanded }) : className
 }
 
-function chipMatchesActiveHover(chip: DashboardChipData, activeHoverUrl: string, activeHoverUrls: readonly string[]) {
+function chipMatchesActiveHover(chip: DashboardChipData, activeHoverUrl: string, activeHoverUrls: readonly string[]): boolean {
   return (
     chip.tabUrl === activeHoverUrl ||
     chip.rawUrl === activeHoverUrl ||
     activeHoverUrls.includes(chip.tabUrl) ||
     activeHoverUrls.includes(chip.rawUrl) ||
+    !!chip.titleVariantChips?.some((variant) => chipMatchesActiveHover(variant, activeHoverUrl, activeHoverUrls)) ||
     !!chip.envs?.some((env) => (
       env.tabUrl === activeHoverUrl ||
       env.rawUrl === activeHoverUrl ||

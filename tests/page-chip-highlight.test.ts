@@ -439,6 +439,104 @@ test('PageChip outlines matching live chips when an external row owns the match'
   assert.doesNotMatch(selfHoverMatch[1], /\bpage-chip-hover-match\b/)
 })
 
+test('PageChip renders same-title URL variants below one visible title', () => {
+  const chip = makeChip({
+    sourceType: 'tab',
+    tabUrl: 'https://example.com/content/item?search_id=alpha',
+    rawUrl: 'https://example.com/content/item?search_id=alpha',
+    displaySegments: ['Example content item'],
+    tooltip: 'Example content item',
+    titleVariantChips: [
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=alpha',
+        rawUrl: 'https://example.com/content/item?search_id=alpha',
+        pathSuffix: '…?search_id=alpha',
+        tooltip: '…?search_id=alpha'
+      }),
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=bravo',
+        rawUrl: 'https://example.com/content/item?search_id=bravo',
+        pathSuffix: '…?search_id=bravo',
+        tooltip: '…?search_id=bravo'
+      })
+    ]
+  })
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"([^>]*)>/)
+  const chipTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)"/)
+  const titleVariantButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant\b[^"]*)"/)
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(chipTextMatch, 'chip text should render')
+  assert.ok(titleVariantButtonMatch, 'title variant button should render')
+  assert.doesNotMatch(chipMatch[2], /tabIndex|tabindex/)
+  assert.match(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
+  assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.13\)\]/)
+  assert.match(chipTextMatch[1], /\bmax-h-none\b/)
+  assert.doesNotMatch(chipTextMatch[1], /max-h-\[calc\(4lh\)\]/)
+  assert.match(html, /\bchip-title-variant-list\b/)
+  assert.match(html, /\bchip-title-variant-list\b[^"]*\bflex-col\b/)
+  assert.doesNotMatch(html, /\bchip-title-variant-list\b[^"]*\bflex-wrap\b/)
+  assert.match(titleVariantButtonMatch[1], /\bcursor-default\b/)
+  assert.doesNotMatch(titleVariantButtonMatch[1], /\bcursor-pointer\b/)
+  assert.doesNotMatch(html, /\bpage-chip-tooltip\b/)
+  assert.match(html, /…\?search_id=alpha/)
+  assert.match(html, /…\?search_id=bravo/)
+  assert.equal((html.match(/\bchip-title-row\b/g) || []).length, 1)
+})
+
+test('PageChip uses structured PageChip-style tooltips for same-title URL variants', () => {
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+
+  assert.match(pageChipSource, /function renderTitleVariantTooltipContent/)
+  assert.match(pageChipSource, /content=\{renderTitleVariantTooltipContent\(variant, index\)\}/)
+  assert.match(pageChipSource, /\bchip-title-variant-tooltip-content\b/)
+  assert.match(pageChipSource, /\bchip-title-variant-tooltip-url\b/)
+  assert.match(pageChipSource, /includePathSuffix:\s*false/)
+  assert.match(pageChipSource, /chipTooltipTextWidth\s*&&\s*'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
+  assert.match(pageChipSource, /content=\{renderTitleVariantTooltipContent\(variant, index\)\}[\s\S]*style=\{chipTooltipStyle\}/)
+  assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{variantLabel\}>/)
+})
+
+test('PageChip outlines same-title variant groups when external hover matches a variant URL', () => {
+  const chip = makeChip({
+    sourceType: 'tab',
+    tabUrl: 'https://example.com/content/item?search_id=alpha',
+    rawUrl: 'https://example.com/content/item?search_id=alpha',
+    displaySegments: ['Example content item'],
+    tooltip: 'Example content item',
+    titleVariantChips: [
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=alpha',
+        rawUrl: 'https://example.com/content/item?search_id=alpha',
+        pathSuffix: '…?search_id=alpha',
+        tooltip: '…?search_id=alpha'
+      }),
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=bravo',
+        rawUrl: 'https://example.com/content/item?search_id=bravo',
+        pathSuffix: '…?search_id=bravo',
+        tooltip: '…?search_id=bravo'
+      })
+    ]
+  })
+
+  const html = renderWithDomainCardContext(
+    React.createElement(PageChip, { chip }),
+    {
+      activeHoverUrl: 'https://example.com/content/item?search_id=bravo',
+      activeHoverSource: 'history'
+    } as Partial<DomainCardContextValue>
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  assert.ok(chipMatch, 'page chip should render')
+  assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
+})
+
 test('PageChip matches working set hover against raw tab URLs', () => {
   const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fdocs'
   const chip = makeChip({

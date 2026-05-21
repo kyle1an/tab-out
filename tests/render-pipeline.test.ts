@@ -260,7 +260,7 @@ test('computeDomainCardViewModel keeps pinned new tabs out of close and dedupe c
   assert.equal(vm.closableExtras, 2)
 })
 
-test('computeDomainCardViewModel disambiguates collisions by rendered title', () => {
+test('computeDomainCardViewModel groups same-title URL variants in one rendered section', () => {
   const group = {
     domain: 'example.com',
     tabs: [
@@ -273,8 +273,25 @@ test('computeDomainCardViewModel disambiguates collisions by rendered title', ()
   assert.equal(vm.isHidden, false)
 
   const chips = vm.sections[0].flatVisibleChips
-  assert.equal(chips.length, 2)
-  assert.deepEqual(new Set(chips.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
+  assert.equal(chips.length, 1)
+  assert.equal(chips[0].pathSuffix, '')
+  assert.deepEqual(new Set(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
+})
+
+test('computeDomainCardViewModel uses query crumbs for same-title URL variants on the same path', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item' }),
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections[0].flatVisibleChips
+
+  assert.equal(chips.length, 1)
+  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…?search_id=alpha', '…?search_id=bravo'])
 })
 
 test('computeDomainCardViewModel skips path suffixes for duplicate titles in different rendered path groups', () => {
@@ -293,7 +310,7 @@ test('computeDomainCardViewModel skips path suffixes for duplicate titles in dif
   assert.deepEqual(clusters.flatMap((cluster) => cluster.visibleChips.map((chip) => chip.pathSuffix)), ['', ''])
 })
 
-test('computeDomainCardViewModel keeps path suffixes for duplicate titles inside the same rendered path group', () => {
+test('computeDomainCardViewModel groups duplicate titles inside the same rendered path group', () => {
   const group = {
     domain: 'atlassian.net',
     tabs: [
@@ -305,7 +322,9 @@ test('computeDomainCardViewModel keeps path suffixes for duplicate titles inside
   const vm = computeDomainCardViewModel(group)
   const chips = vm.sections[0].clusters[0].visibleChips
 
-  assert.deepEqual(chips.map((chip) => chip.pathSuffix), ['…/APP-1001', '…/APP-1002'])
+  assert.equal(chips.length, 1)
+  assert.equal(chips[0].pathSuffix, '')
+  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…/APP-1001', '…/APP-1002'])
 })
 
 test('computeDomainCardViewModel hides repeated trailing title suffixes in normal mode', () => {

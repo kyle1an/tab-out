@@ -59,6 +59,11 @@ type SectionContentVM = {
 type WebsitePathSectionBucket = WebsitePathSectionResult & {
   tabs: DashboardTab[]
 }
+type ChipBuildEntry = {
+  tab: DashboardTab
+  chip: DashboardChipData
+  titleKey: string
+}
 
 const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
 const TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
@@ -1081,6 +1086,72 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return pathByUrl
   }
 
+  function titleVariantLabelForUrl(url: string): string {
+    try {
+      const parsed = new URL(url)
+      return `${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || '/'
+    } catch {
+      return url || '/'
+    }
+  }
+
+  function titleVariantGroupChip(variants: DashboardChipData[]): DashboardChipData {
+    const representative = variants[0]
+    const activeInCurrentWindow = variants.some((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
+    const activeInOtherWindow = !activeInCurrentWindow && variants.some((variant) => !!variant.activeInOtherWindow)
+    return {
+      ...representative,
+      pathSuffix: '',
+      tooltip: `${representative.tooltip} · ${variants.length} URL variants`,
+      dupeCount: 1,
+      activeChipFrame: activeInCurrentWindow || activeInOtherWindow,
+      activeInOtherWindow,
+      titleVariantChips: variants
+    }
+  }
+
+  function buildChipDataList(contentTabs: DashboardTab[], showChipPrefix: boolean, pathByUrl: Map<string, string>, pathGroupLabel: string, stripLabel = ''): DashboardChipData[] {
+    const entries: ChipBuildEntry[] = contentTabs.map((tab) => {
+      const pathSuffix = pathByUrl.get(tab.url) || ''
+      return {
+        tab,
+        chip: buildChipData(tab, showChipPrefix, pathSuffix, pathGroupLabel, stripLabel),
+        titleKey: displayTitle(tab).trim().toLowerCase()
+      }
+    })
+    const entriesByTitle = new Map<string, ChipBuildEntry[]>()
+    for (const entry of entries) {
+      if (!entry.titleKey) continue
+      if (!entriesByTitle.has(entry.titleKey)) entriesByTitle.set(entry.titleKey, [])
+      entriesByTitle.get(entry.titleKey)?.push(entry)
+    }
+    const groupedTitleKeys = new Set(
+      [...entriesByTitle.entries()]
+        .filter(([, groupEntries]) => groupEntries.length > 1 && new Set(groupEntries.map((entry) => entry.tab.url)).size > 1)
+        .map(([titleKey]) => titleKey)
+    )
+    const emittedTitleKeys = new Set<string>()
+    const result: DashboardChipData[] = []
+    for (const entry of entries) {
+      if (!groupedTitleKeys.has(entry.titleKey)) {
+        result.push(entry.chip)
+        continue
+      }
+      if (emittedTitleKeys.has(entry.titleKey)) continue
+      emittedTitleKeys.add(entry.titleKey)
+      const variants = (entriesByTitle.get(entry.titleKey) || []).map((variantEntry) => {
+        const variant = variantEntry.chip
+        return {
+          ...variant,
+          pathSuffix: variant.pathSuffix || titleVariantLabelForUrl(variant.tabUrl),
+          titleVariantChips: undefined
+        }
+      })
+      result.push(titleVariantGroupChip(variants))
+    }
+    return result
+  }
+
   function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>): SectionContentVM {
     // Path-group pills: resolve each tab's path group (github repo,
     // jira project, contentful env, etc.) and only keep labels whose
@@ -1156,32 +1227,30 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       // group. If path-group headers already separate same-title
       // chips, URL crumbs would duplicate that structural signal.
       const pathByUrl = titleCollisionPathByUrl(orderedTabs)
-      const { vis, hid } = splitForOverflow(orderedTabs)
+      const chipData = buildChipDataList(orderedTabs, showChipPrefix, pathByUrl, '', label)
+      const { vis, hid } = splitForOverflow(chipData)
       const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
-      const visibleChips = vis.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
-      const hiddenChips = hid.map((t) => buildChipData(t, showChipPrefix, pathByUrl.get(t.url) || '', '', label))
       return {
         key,
         label,
         isPR,
         count: tabs.length,
         closableUrls: clusterClosable.map((t) => t.url),
-        visibleChips,
-        hiddenChips,
+        visibleChips: vis,
+        hiddenChips: hid,
         hiddenCount: hid.length
       }
     })
 
     const flatPathByUrl = titleCollisionPathByUrl(singletonTabs)
-    const { vis: flatVis, hid: flatHid } = splitForOverflow(singletonTabs)
-    const flatVisibleChips = flatVis.map((t) => buildChipData(t, showChipPrefix, flatPathByUrl.get(t.url) || '', ''))
-    const flatHiddenChips = flatHid.map((t) => buildChipData(t, showChipPrefix, flatPathByUrl.get(t.url) || '', ''))
+    const flatChipData = buildChipDataList(singletonTabs, showChipPrefix, flatPathByUrl, '')
+    const { vis: flatVisibleChips, hid: flatHiddenChips } = splitForOverflow(flatChipData)
 
     return {
       hasFlat: singletonTabs.length > 0,
       flatVisibleChips,
       flatHiddenChips,
-      flatHiddenCount: flatHid.length,
+      flatHiddenCount: flatHiddenChips.length,
       clusters
     }
   }
