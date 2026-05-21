@@ -12,7 +12,7 @@ import { PathgroupSection } from '../src/components/PathgroupSection.js'
 import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
-import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistorySnapshot } from '../src/extension/types'
+import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistorySnapshot, WorkingSetSnapshot } from '../src/extension/types'
 
 function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData {
   return {
@@ -79,6 +79,30 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
         url: 'https://example.com/docs',
         displayUrl: 'example.com/docs',
         favIconUrl: ''
+      }
+    ],
+    ...overrides
+  }
+}
+
+function makeWorkingSetSnapshot(overrides: Partial<WorkingSetSnapshot> = {}): WorkingSetSnapshot {
+  return {
+    defaultLimit: 8,
+    expandedLimit: 16,
+    items: [
+      {
+        key: 'https://example.com/docs',
+        tabId: 101,
+        windowId: 1,
+        tabUrl: 'https://example.com/docs',
+        rawUrl: 'https://example.com/docs',
+        title: 'Example Docs',
+        displayUrl: 'example.com/docs',
+        faviconUrl: '',
+        dupeCount: 1,
+        active: true,
+        activeInOtherWindow: false,
+        score: 100
       }
     ],
     ...overrides
@@ -571,6 +595,149 @@ test('TabHistoryPanel applies bionic title emphasis with protected title tokens'
   assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>The</)
   assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>API</)
   assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>UX</)
+})
+
+test('TabHistoryPanel marks working-set history matches and dims low-score history rows', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        activeTabId: 101,
+        currentIndex: 0,
+        entries: [
+          baseEntry,
+          {
+            ...baseEntry,
+            index: 1,
+            tabId: 202,
+            active: false,
+            cursor: false,
+            current: false,
+            title: 'Older Entry',
+            url: 'https://example.com/older',
+            displayUrl: 'example.com/older'
+          }
+        ]
+      }),
+      workingSet: makeWorkingSetSnapshot()
+    })
+  )
+
+  assert.match(html, /history-entry-working-set-match/)
+  assert.doesNotMatch(html, /history-working-set-rail/)
+  assert.match(html, /history-entry-low-score/)
+  assert.doesNotMatch(html, /history-working-set-extra-list/)
+})
+
+test('TabHistoryPanel always dims browser utility history rows', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        stackSize: 4,
+        activeTabId: 301,
+        currentIndex: 0,
+        entries: [
+          {
+            ...baseEntry,
+            title: 'Chrome Settings',
+            url: 'chrome://settings/',
+            displayUrl: 'chrome://settings/'
+          },
+          {
+            ...baseEntry,
+            index: 1,
+            tabId: 302,
+            active: false,
+            cursor: false,
+            current: false,
+            title: 'New Tab',
+            url: 'chrome://newtab/',
+            displayUrl: 'chrome://newtab/'
+          },
+          {
+            ...baseEntry,
+            index: 2,
+            tabId: 303,
+            active: false,
+            cursor: false,
+            current: false,
+            title: 'Tab Out',
+            url: 'chrome-extension://tab-out/index.html?filter=docs',
+            displayUrl: 'Tab Out'
+          },
+          {
+            ...baseEntry,
+            index: 3,
+            tabId: 304,
+            active: false,
+            cursor: false,
+            current: false,
+            title: 'Chrome New Tab Frame',
+            url: 'chrome-search://local-ntp/local-ntp.html',
+            displayUrl: 'chrome-search://local-ntp/local-ntp.html'
+          }
+        ]
+      })
+    })
+  )
+  const lowScoreRows = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-entry-low-score\b[^"]*)"/g))
+
+  assert.equal(lowScoreRows.length, 4)
+})
+
+test('TabHistoryPanel does not dim suspended real pages as extension utility rows', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        entries: [
+          {
+            ...baseEntry,
+            title: 'Suspended Docs',
+            url: 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs',
+            displayUrl: 'example.com/docs'
+          }
+        ]
+      })
+    })
+  )
+
+  assert.doesNotMatch(html, /history-entry-low-score/)
+})
+
+test('TabHistoryPanel appends only non-overlapping working-set items below history', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot(),
+      workingSet: makeWorkingSetSnapshot({
+        items: [
+          makeWorkingSetSnapshot().items[0],
+          {
+            key: 'https://example.com/extra',
+            tabId: 202,
+            windowId: 1,
+            tabUrl: 'https://example.com/extra',
+            rawUrl: 'https://example.com/extra',
+            title: 'Extra Candidate',
+            displayUrl: 'example.com/extra',
+            faviconUrl: '',
+            dupeCount: 1,
+            active: false,
+            activeInOtherWindow: false,
+            score: 80
+          }
+        ]
+      })
+    })
+  )
+  const extraRows = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-working-set-extra\b[^"]*)"/g))
+
+  assert.match(html, /history-working-set-extra-list/)
+  assert.equal(extraRows.length, 1)
+  assert.match(html, /Ext<\/span>ra[\s\S]*Cand<\/span>idate/)
+  assert.match(html, /default-favicon-image/)
+  assert.doesNotMatch(html, /Close Extra Candidate/)
 })
 
 test('TabHistoryPanel borrows current PageChip surface styling for the current entry', () => {

@@ -1,16 +1,36 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, MouseEvent, ReactNode, SetStateAction } from 'react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
+import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { DefaultFavicon } from './DefaultFavicon'
 import { renderBionicTitleText } from './bionic-title-text'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
-import type { TabHistoryEntry } from '../extension/types'
+import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
 const HISTORY_TITLE_TOOLTIP_WRAP_EXTRA_PX = 24
+const HISTORY_WORKING_SET_NOISY_QUERY_PARAMS = new Set([
+  'fbclid',
+  'gclid',
+  'igshid',
+  'mc_cid',
+  'mc_eid',
+  'ref',
+  'source'
+])
+const LOW_SCORE_HISTORY_PROTOCOLS = new Set([
+  'about:',
+  'brave:',
+  'chrome:',
+  'chrome-extension:',
+  'chrome-search:',
+  'devtools:',
+  'edge:'
+])
 const historyTitleTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: HistoryTitleMetrics) => void
@@ -21,10 +41,17 @@ type HistoryTitleMetrics = {
   width: number
 }
 
+type HistoryWorkingSetMatch = {
+  item: WorkingSetItem
+}
+
 interface HistoryEntryProps {
   entry: TabHistoryEntry
   indexLabel: ReactNode
   snapshot: TabHistorySnapshot | null
+  workingSetMatch?: HistoryWorkingSetMatch | null
+  workingSetItem?: WorkingSetItem | null
+  dimmed?: boolean
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl?: string
@@ -35,6 +62,7 @@ interface HistoryEntryProps {
 
 interface TabHistoryPanelProps {
   snapshot: TabHistorySnapshot | null
+  workingSet?: WorkingSetSnapshot | null
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl?: string
@@ -112,7 +140,128 @@ function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnap
   return String(fallback)
 }
 
-function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+function workingSetUrls(item: WorkingSetItem | null | undefined) {
+  return item ? [item.tabUrl, item.rawUrl, item.key].filter(Boolean) : []
+}
+
+function uniqueUrls(urls: readonly string[]) {
+  return [...new Set(urls.filter(Boolean))]
+}
+
+function historyEntryWorkingSetKey(entry: TabHistoryEntry) {
+  return pageIdentityForHistoryWorkingSet(entry.url || entry.displayUrl || '')
+}
+
+function pageIdentityForHistoryWorkingSet(url = ''): string {
+  const effectiveUrl = unwrapHistoryWorkingSetSuspenderUrl(url || '')
+  if (!effectiveUrl) return ''
+
+  try {
+    const parsed = new URL(effectiveUrl)
+    if (LOW_SCORE_HISTORY_PROTOCOLS.has(parsed.protocol)) {
+      return ''
+    }
+    if (
+      (parsed.hostname === 'www.google.com' || parsed.hostname === 'google.com') &&
+      parsed.pathname === '/search'
+    ) {
+      return ''
+    }
+
+    parsed.hash = ''
+    const cleanParams = new URLSearchParams()
+    const paramEntries = Array.from(parsed.searchParams.entries())
+      .filter(([name]) => !name.toLowerCase().startsWith('utm_') && !HISTORY_WORKING_SET_NOISY_QUERY_PARAMS.has(name.toLowerCase()))
+      .sort(([a], [b]) => a.localeCompare(b))
+    for (const [name, value] of paramEntries) cleanParams.append(name, value)
+    parsed.search = cleanParams.toString()
+
+    if (parsed.protocol === 'file:') return parsed.href
+
+    const pathname = parsed.pathname || '/'
+    const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+    const query = parsed.search ? parsed.search : ''
+    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${query}`
+  } catch {
+    return ''
+  }
+}
+
+function unwrapHistoryWorkingSetSuspenderUrl(url?: string): string {
+  if (!url || !url.startsWith('chrome-extension://')) return url || ''
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.endsWith('/suspended.html')) return url
+    const fragment = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+    const marker = '&uri='
+    const markerIndex = fragment.indexOf(marker)
+    const encoded = markerIndex >= 0 ? fragment.slice(markerIndex + marker.length) : fragment.startsWith('uri=') ? fragment.slice(4) : ''
+    return encoded ? decodeURIComponent(encoded) || url : url
+  } catch {
+    return url
+  }
+}
+
+function isLowScoreHistoryUrl(url = '') {
+  const effectiveUrl = unwrapHistoryWorkingSetSuspenderUrl(url || '')
+  if (!effectiveUrl) return false
+
+  try {
+    return LOW_SCORE_HISTORY_PROTOCOLS.has(new URL(effectiveUrl).protocol)
+  } catch {
+    return false
+  }
+}
+
+function isLowScoreHistoryEntry(entry: TabHistoryEntry) {
+  return isLowScoreHistoryUrl(entry.url || entry.displayUrl || '')
+}
+
+function makeWorkingSetMatches(items: readonly WorkingSetItem[]) {
+  const matches = new Map<string, HistoryWorkingSetMatch>()
+  items.forEach((item) => {
+    if (!item.key || matches.has(item.key)) return
+    matches.set(item.key, { item })
+  })
+  return matches
+}
+
+function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
+  return {
+    index: -1,
+    tabId: item.tabId,
+    windowId: item.windowId,
+    exists: true,
+    active: item.active,
+    activeInOtherWindow: item.activeInOtherWindow,
+    pinned: false,
+    discarded: false,
+    cursor: false,
+    current: item.active && !item.activeInOtherWindow,
+    previousTarget: false,
+    nextTarget: false,
+    title: item.title,
+    url: item.tabUrl,
+    displayUrl: item.displayUrl,
+    favIconUrl: item.faviconUrl
+  }
+}
+
+function shouldDimHistoryEntry(entry: TabHistoryEntry, workingSetMatch: HistoryWorkingSetMatch | null, hasWorkingSetSignals: boolean) {
+  if (isLowScoreHistoryEntry(entry)) return true
+
+  return (
+    hasWorkingSetSignals &&
+    !workingSetMatch &&
+    !entry.current &&
+    !entry.active &&
+    !entry.activeInOtherWindow &&
+    !entry.previousTarget &&
+    !entry.nextTarget
+  )
+}
+
+function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, workingSetItem = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     isTruncated: false,
@@ -163,6 +312,17 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   }
 
   async function onFocusEntry() {
+    if (workingSetItem) {
+      const focused = await focusWorkingSetItem(workingSetItem)
+      if (!focused) return
+      if (onTabsChange) {
+        await onTabsChange()
+        return
+      }
+      onSnapshotChange?.(await fetchTabHistorySnapshot())
+      return
+    }
+
     const focused = await focusHistoryEntry(entry)
     if (!focused) return
     onSnapshotChange?.(await fetchTabHistorySnapshot())
@@ -190,18 +350,32 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
   }
 
   function onMouseEnter() {
-    onHoverUrlChange?.(entry.url || '', 'history', [entry.url || ''])
+    const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
+    const hoverUrl = workingSetItem?.tabUrl || entry.url || ''
+    const hoverUrls = uniqueUrls([
+      entry.url || '',
+      ...(workingSetItem ? workingSetUrls(workingSetItem) : workingSetUrls(workingSetMatch?.item))
+    ])
+    onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls)
   }
 
   function onMouseLeave() {
     onHoverUrlChange?.('')
   }
 
-  const badges = entryBadges(entry, snapshot)
+  const isWorkingSetExtra = !!workingSetItem
+  const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
-  const hoverMatched = !!activeHoverSource && activeHoverSource !== 'history' && !!entry.url && (entry.url === activeHoverUrl || activeHoverUrls.includes(entry.url))
+  const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
+  const matchUrls = uniqueUrls([
+    entry.url || '',
+    ...(workingSetItem ? workingSetUrls(workingSetItem) : workingSetUrls(workingSetMatch?.item))
+  ])
+  const hoverMatched = !!activeHoverSource && activeHoverSource !== hoverSource && matchUrls.some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
+  const isWorkingSetPriority = !!workingSetMatch || !!workingSetItem
   const entryLabel = entry.title || entry.displayUrl || entry.url
+  const faviconUrl = entry.favIconUrl || workingSetMatch?.item.faviconUrl || workingSetItem?.faviconUrl || ''
   const titleTooltipWidth = titleMetrics.width > 0
     ? `min(calc(100vw - 32px), ${Math.round((titleMetrics.width + HISTORY_TITLE_TOOLTIP_WRAP_EXTRA_PX) * 100) / 100}px)`
     : ''
@@ -221,13 +395,21 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
 
   return (
     <div
-      className="history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-center gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]"
+      className={cn(
+        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-center gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
+        dimmed && 'history-entry-low-score opacity-60 hover:opacity-100 focus-within:opacity-100',
+        isWorkingSetExtra && 'history-working-set-extra'
+      )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onFocus={onMouseEnter}
       onBlur={onMouseLeave}
     >
-      <span className="inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.72)] group-hover/history-row:text-tab-muted group-focus-within/history-row:text-tab-muted">
+      <span className={cn(
+        'inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.72)] group-hover/history-row:text-tab-muted group-focus-within/history-row:text-tab-muted',
+        isWorkingSetPriority && 'text-[color-mix(in_srgb,var(--accent-amber)_82%,var(--muted))]',
+        dimmed && 'text-[rgba(115,115,115,0.46)]'
+      )}>
         {indexLabel}
       </span>
       <div
@@ -239,6 +421,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
           activeInOtherWindow && 'active-in-other-window-history-entry border-[rgba(115,115,115,0.2)] bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
           entry.previousTarget && 'is-previous-target',
           entry.nextTarget && 'is-next-target',
+          isWorkingSetPriority && 'history-entry-working-set-match',
           hoverMatched && 'history-entry-hover-match'
         )}
       >
@@ -259,8 +442,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
             disabled={!entry.exists}
             onClick={onFocusEntry}
           >
-            <span className={cn('grid h-4 w-4 flex-none place-items-center', !entry.favIconUrl && 'invisible')}>
-              {entry.favIconUrl && <img className="block h-full w-full object-contain" src={entry.favIconUrl} alt="" />}
+            <span className={cn('grid h-4 w-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && 'invisible')}>
+              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
             </span>
             <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
               <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
@@ -278,29 +461,43 @@ function HistoryEntry({ entry, indexLabel, snapshot, onSnapshotChange, onHoverUr
             </span>
           </button>
         </TooltipAnchor>
-        <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
-          <TooltipAnchor content="Close this tab">
-            <button
-              type="button"
-              className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger focus-visible:outline-none disabled:hidden"
-              disabled={!entry.exists}
-              aria-label={`Close ${entry.title}`}
-              onClick={onCloseEntry}
-            >
-              <svg className="block h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </TooltipAnchor>
-        </div>
+        {!isWorkingSetExtra && (
+          <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
+            <TooltipAnchor content="Close this tab">
+              <button
+                type="button"
+                className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger focus-visible:outline-none disabled:hidden"
+                disabled={!entry.exists}
+                aria-label={`Close ${entry.title}`}
+                onClick={onCloseEntry}
+              >
+                <svg className="block h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </TooltipAnchor>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
+export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
+  const workingSetLimit = workingSet?.defaultLimit || 0
+  const visibleWorkingSetItems = workingSetLimit > 0 ? (workingSet?.items || []).slice(0, workingSetLimit) : []
+  const workingSetMatches = makeWorkingSetMatches(visibleWorkingSetItems)
+  const historyRows = displayEntries.map((entry, index) => ({
+    entry,
+    index,
+    workingSetMatch: workingSetMatches.get(historyEntryWorkingSetKey(entry)) || null
+  }))
+  const historyWorkingSetKeys = new Set(displayEntries.map(historyEntryWorkingSetKey).filter(Boolean))
+  const extraWorkingSetItems = visibleWorkingSetItems.filter((item) => !historyWorkingSetKeys.has(item.key))
+  const hasWorkingSetSignals = visibleWorkingSetItems.length > 0
+  const hasRows = displayEntries.length > 0 || extraWorkingSetItems.length > 0
 
   return (
     <section
@@ -308,21 +505,45 @@ export function TabHistoryPanel({ snapshot, onSnapshotChange, onHoverUrlChange, 
       aria-label="Activation history"
     >
       <div className="history-entry-list flex min-h-0 min-w-0 flex-auto flex-col gap-1.5 overflow-y-auto pt-3 pr-3.5 pb-7.5 [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(115,115,115,0.28)] [&::-webkit-scrollbar-thumb:hover]:bg-[rgba(115,115,115,0.4)] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1">
-        {displayEntries.length > 0 ? (
-          displayEntries.map((entry, index) => (
-            <HistoryEntry
-              key={`${entry.windowId}:${entry.tabId}:${entry.index}`}
-              entry={entry}
-              indexLabel={historyEntryIndexLabel(entry, snapshot, index + 1)}
-              snapshot={snapshot}
-              onSnapshotChange={onSnapshotChange}
-              onHoverUrlChange={onHoverUrlChange}
-              activeHoverUrl={activeHoverUrl}
-              activeHoverUrls={activeHoverUrls}
-              activeHoverSource={activeHoverSource}
-              onTabsChange={onTabsChange}
-            />
-          ))
+        {hasRows ? (
+          <>
+            {historyRows.map(({ entry, index, workingSetMatch }) => (
+              <HistoryEntry
+                key={`${entry.windowId}:${entry.tabId}:${entry.index}`}
+                entry={entry}
+                indexLabel={historyEntryIndexLabel(entry, snapshot, index + 1)}
+                snapshot={snapshot}
+                workingSetMatch={workingSetMatch}
+                dimmed={shouldDimHistoryEntry(entry, workingSetMatch, hasWorkingSetSignals)}
+                onSnapshotChange={onSnapshotChange}
+                onHoverUrlChange={onHoverUrlChange}
+                activeHoverUrl={activeHoverUrl}
+                activeHoverUrls={activeHoverUrls}
+                activeHoverSource={activeHoverSource}
+                onTabsChange={onTabsChange}
+              />
+            ))}
+            {extraWorkingSetItems.length > 0 && (
+              <div className="history-working-set-extra-list mt-1 flex min-w-0 flex-col gap-1.5 border-t border-[rgba(115,115,115,0.14)] pt-1.5">
+                {extraWorkingSetItems.map((item) => (
+                  <HistoryEntry
+                    key={`working-set:${item.key}`}
+                    entry={historyEntryFromWorkingSetItem(item)}
+                    indexLabel={<span className="block h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" aria-hidden="true" />}
+                    snapshot={snapshot}
+                    workingSetMatch={{ item }}
+                    workingSetItem={item}
+                    onSnapshotChange={onSnapshotChange}
+                    onHoverUrlChange={onHoverUrlChange}
+                    activeHoverUrl={activeHoverUrl}
+                    activeHoverUrls={activeHoverUrls}
+                    activeHoverSource={activeHoverSource}
+                    onTabsChange={onTabsChange}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         ) : (
           <div className="flex min-h-13.5 items-center text-[12px] text-tab-muted">No activation history yet.</div>
         )}

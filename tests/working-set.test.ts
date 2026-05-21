@@ -66,6 +66,7 @@ test('pageIdentityForWorkingSet distinguishes meaningful paths and ignores noisy
     'https://example.com/issues/456'
   )
   assert.equal(pageIdentityForWorkingSet('chrome-extension://tab-out/index.html'), '')
+  assert.equal(pageIdentityForWorkingSet('chrome-search://local-ntp/local-ntp.html'), '')
   assert.equal(pageIdentityForWorkingSet('https://www.google.com/search?q=example'), '')
 })
 
@@ -77,7 +78,8 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
     makeTab({ id: 3, url: 'https://example.com/issues/charlie', title: 'Charlie issue' }),
     makeTab({ id: 4, url: 'https://example.com/issues/bravo?utm_source=mail', title: 'Bravo duplicate' }),
     makeTab({ id: 5, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', isTabOut: true }),
-    makeTab({ id: 6, url: 'https://mail.example.com/', title: 'Mail app', isApp: true })
+    makeTab({ id: 6, url: 'https://mail.example.com/', title: 'Mail app', isApp: true }),
+    makeTab({ id: 7, url: 'chrome-search://local-ntp/local-ntp.html', title: 'Chrome New Tab Frame' })
   ]
 
   let store = emptyWorkingSetActivity()
@@ -103,6 +105,7 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
   )
   assert.equal(snapshot.items[1].dupeCount, 2)
   assert.equal(snapshot.items.some((item) => item.title === 'Tab Out'), false)
+  assert.equal(snapshot.items.some((item) => item.title === 'Chrome New Tab Frame'), false)
   assert.equal(snapshot.items.some((item) => item.title === 'Mail app'), false)
 })
 

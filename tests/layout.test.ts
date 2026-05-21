@@ -96,18 +96,13 @@ test('source switch keeps one primed card-move refresh', () => {
   assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
 })
 
-test('working set height changes keep domain card move animation primed', () => {
+test('working set is merged into the history panel instead of rendering a top strip', () => {
   const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /const primeWorkingSetLayoutChange = useCallback\(function primeWorkingSetLayoutChange\(\{ animate = true \}: \{ animate\?: boolean \} = \{\}\) \{/)
-  assert.match(source, /workingSetLayoutRectsRef\.current = animate \? prepareDomainCardMoveAnimation\(currentMissionContainers\(\)\) : null/)
-  assert.match(source, /const animateWorkingSetLayoutChange = useCallback\(function animateWorkingSetLayoutChange\(\{ animate = true \}: \{ animate\?: boolean \} = \{\}\) \{/)
-  assert.match(source, /const previousRects = workingSetLayoutRectsRef\.current/)
-  assert.match(source, /packMissionsMasonryNow\(\{ animate: false \}\)/)
-  assert.match(source, /animateDomainCardMoves\(currentMissionContainers\(\), previousRects, \{ allowBleed: false \}\)/)
-  assert.match(source, /onBeforeLayoutChange=\{primeWorkingSetLayoutChange\}/)
-  assert.match(source, /onAfterLayoutChange=\{animateWorkingSetLayoutChange\}/)
-  assert.doesNotMatch(source, /workingSetLayoutFrameRef|requestAnimationFrame\(\(\) => \{[\s\S]*animateDomainCardMoves\(nextContainers, previousRects\)/)
+  assert.match(source, /const historyWorkingSet = source === 'tabs' && filter\.trim\(\) === '' \? workingSet : null/)
+  assert.match(source, /workingSet=\{historyWorkingSet\}/)
+  assert.doesNotMatch(source, /<WorkingSetPanel\b/)
+  assert.doesNotMatch(source, /workingSetLayoutRectsRef|primeWorkingSetLayoutChange|animateWorkingSetLayoutChange/)
 })
 
 test('source switch indicator keeps transform-based transition', () => {

@@ -29,6 +29,15 @@ const NOISY_QUERY_PARAMS = new Set([
   'ref',
   'source'
 ])
+const WORKING_SET_UTILITY_PROTOCOLS = new Set([
+  'about:',
+  'brave:',
+  'chrome:',
+  'chrome-extension:',
+  'chrome-search:',
+  'devtools:',
+  'edge:'
+])
 
 type WorkingSetActivityInput = {
   kind: WorkingSetActivityKind
@@ -120,13 +129,7 @@ export function pageIdentityForWorkingSet(url = ''): string {
 
   try {
     const parsed = new URL(effectiveUrl)
-    if (
-      parsed.protocol === 'chrome:' ||
-      parsed.protocol === 'chrome-extension:' ||
-      parsed.protocol === 'about:' ||
-      parsed.protocol === 'edge:' ||
-      parsed.protocol === 'brave:'
-    ) {
+    if (WORKING_SET_UTILITY_PROTOCOLS.has(parsed.protocol)) {
       return ''
     }
     if (isGoogleSearchResultPage(parsed)) return ''
