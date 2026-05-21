@@ -615,7 +615,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const marker = (
       <span
         key={key}
-        className="chip-strip-indicator inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]"
+        className="chip-strip-indicator inline-flex h-4 w-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-tab-muted align-baseline"
         aria-hidden={hiddenLabel ? undefined : true}
         aria-label={hiddenLabel || undefined}
       >
