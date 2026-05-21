@@ -294,6 +294,54 @@ test('computeDomainCardViewModel uses query crumbs for same-title URL variants o
   assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…?search_id=alpha', '…?search_id=bravo'])
 })
 
+test('computeDomainCardViewModel inlines title suppression when same-title URL variants are the only occurrence', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections[0].flatVisibleChips
+
+  assert.deepEqual(vm.allSuppressedTitleParts, [])
+  assert.deepEqual(vm.sections[0].suppressedTitleParts, [])
+  assert.equal(chips.length, 1)
+  assert.deepEqual(chips[0].displaySegments, ['Example content item - Example Workspace'])
+  assert.deepEqual(chips[0].suppressedTitleParts, [])
+  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.suppressedTitleParts), [[], []])
+  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.displaySegments), [
+    ['Example content item - Example Workspace'],
+    ['Example content item - Example Workspace']
+  ])
+})
+
+test('computeDomainCardViewModel counts same-title URL variants as one title suppression occurrence', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' }),
+      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const section = vm.sections[0]
+  const mergedChip = section.websitePathSections?.[0]?.flatVisibleChips.find((chip) => chip.titleVariantChips)
+  const settingsChip = section.flatVisibleChips.find((chip) => chip.tabUrl === 'https://example.com/settings')
+
+  assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example Workspace', count: 2 }])
+  assert.deepEqual(section.suppressedTitleParts, [{ text: '- Example Workspace', count: 2 }])
+  assert.ok(mergedChip)
+  assert.ok(settingsChip)
+  assert.deepEqual(mergedChip.suppressedTitleParts, ['- Example Workspace'])
+  assert.deepEqual(settingsChip.suppressedTitleParts, ['- Example Workspace'])
+  assert.equal(mergedChip.titleVariantChips?.length, 2)
+})
+
 test('computeDomainCardViewModel skips path suffixes for duplicate titles in different rendered path groups', () => {
   const group = {
     domain: 'atlassian.net',

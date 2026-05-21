@@ -857,7 +857,6 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
 
   const suppressedTitleParts = titleSuppressionSummary()
   const suppressedTitlePartOrder = new Map(suppressedTitleParts.map((part, index) => [part.text.toLowerCase(), index]))
-  const hasMultipleVisibleSuppressionMeanings = suppressedTitleParts.length > 1
 
   function titleSuppressionKey(text: string): string {
     return text.trim().toLowerCase()
@@ -1471,6 +1470,157 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // same across your envs, you probably want to see them grouped."
   if (sharedSectionData) sectionsData.unshift(sharedSectionData)
 
+  function renderedChipsInSections(sectionsToScan: DashboardSectionVM[]): DashboardChipData[] {
+    return sectionsToScan.flatMap((section) => [
+      ...section.flatVisibleChips,
+      ...section.flatHiddenChips,
+      ...section.clusters.flatMap((cluster) => [...cluster.visibleChips, ...cluster.hiddenChips]),
+      ...(section.websitePathSections ?? []).flatMap((websitePathSection) => [
+        ...websitePathSection.flatVisibleChips,
+        ...websitePathSection.flatHiddenChips,
+        ...websitePathSection.clusters.flatMap((cluster) => [...cluster.visibleChips, ...cluster.hiddenChips])
+      ])
+    ])
+  }
+
+  function renderedSuppressionCountsByKey(sectionsToScan: DashboardSectionVM[]): Map<string, { count: number; titleVariantCount: number }> {
+    const countsByKey = new Map<string, { count: number; titleVariantCount: number }>()
+    for (const chip of renderedChipsInSections(sectionsToScan)) {
+      const chipKeys = new Set((chip.suppressedTitleParts || []).map(titleSuppressionKey))
+      for (const key of chipKeys) {
+        const current = countsByKey.get(key) || { count: 0, titleVariantCount: 0 }
+        current.count += 1
+        if ((chip.titleVariantChips?.length || 0) > 1) current.titleVariantCount += 1
+        countsByKey.set(key, current)
+      }
+    }
+    return countsByKey
+  }
+
+  function mergeAdjacentTextSegments(segments: DashboardSegment[]): DashboardSegment[] {
+    return segments.reduce<DashboardSegment[]>((merged, segment) => {
+      const previous = merged[merged.length - 1]
+      if (typeof previous === 'string' && typeof segment === 'string') {
+        merged[merged.length - 1] = previous + segment
+        return merged
+      }
+      merged.push(segment)
+      return merged
+    }, [])
+  }
+
+  function inlineSuppressionTextAfterSegments(segments: DashboardSegment[], part: string): DashboardSegment[] {
+    const last = segments[segments.length - 1]
+    const needsSpace = typeof last === 'string' && last.length > 0 && !/\s$/.test(last) && !/^\s/.test(part)
+    return mergeAdjacentTextSegments([...segments, `${needsSpace ? ' ' : ''}${injectBreakPoints(part)}`])
+  }
+
+  function inlineSingletonSuppressionsInSegments(
+    segments: DashboardSegment[],
+    partsToInline: string[]
+  ): DashboardSegment[] {
+    const partKeysToInline = new Set(partsToInline.map(titleSuppressionKey))
+    const inlinedKeys = new Set<string>()
+    const nextSegments = segments.map((segment) => {
+      if (typeof segment === 'string') return segment
+      if ('titleSuppression' in segment && partKeysToInline.has(titleSuppressionKey(segment.titleSuppression))) {
+        inlinedKeys.add(titleSuppressionKey(segment.titleSuppression))
+        return injectBreakPoints(segment.titleSuppression)
+      }
+      return segment
+    })
+
+    return mergeAdjacentTextSegments(partsToInline.reduce(
+      (currentSegments, part) => (
+        inlinedKeys.has(titleSuppressionKey(part))
+          ? currentSegments
+          : inlineSuppressionTextAfterSegments(currentSegments, part)
+      ),
+      nextSegments
+    ))
+  }
+
+  function titleTextFromSegments(segments: DashboardSegment[]): string {
+    return segments.map((segment) => {
+      if (typeof segment === 'string') return segment
+      if ('titleSuppression' in segment) return segment.titleSuppression
+      if ('placeholder' in segment) return segment.label || ''
+      return ''
+    }).join('').replace(/\u200B/g, '')
+  }
+
+  function tooltipForChipTitle(chip: DashboardChipData, title: string): string {
+    const titlePart = title.trim()
+    if (chip.envs?.length) {
+      return [chip.envs.map((env) => env.prefix).join(' · '), titlePart].filter(Boolean).join(' · ')
+    }
+    const tooltip = [chip.leadPrefix, titlePart, chip.pathSuffix].filter(Boolean).join(' · ')
+    return chip.titleVariantChips?.length ? `${tooltip} · ${chip.titleVariantChips.length} URL variants` : tooltip
+  }
+
+  function inlineSingletonSuppressionsInChip(chip: DashboardChipData, singletonKeys: Set<string>): DashboardChipData {
+    const partsToInline = (chip.suppressedTitleParts || []).filter((part) => singletonKeys.has(titleSuppressionKey(part)))
+    const titleVariantChips = chip.titleVariantChips?.map((variant) => inlineSingletonSuppressionsInChip(variant, singletonKeys))
+    if (partsToInline.length === 0) {
+      return titleVariantChips ? { ...chip, titleVariantChips } : chip
+    }
+
+    const displaySegments = inlineSingletonSuppressionsInSegments(chip.displaySegments, partsToInline)
+    const suppressedTitleParts = chip.suppressedTitleParts.filter((part) => !singletonKeys.has(titleSuppressionKey(part)))
+    return {
+      ...chip,
+      displaySegments,
+      suppressedTitleParts,
+      tooltip: tooltipForChipTitle({ ...chip, titleVariantChips }, titleTextFromSegments(displaySegments)),
+      titleVariantChips
+    }
+  }
+
+  function inlineSingletonSuppressionsInSections(
+    sectionsToNormalize: DashboardSectionVM[],
+    singletonKeys: Set<string>
+  ): DashboardSectionVM[] {
+    if (singletonKeys.size === 0) return sectionsToNormalize
+    return sectionsToNormalize.map((section) => ({
+      ...section,
+      flatVisibleChips: section.flatVisibleChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys)),
+      flatHiddenChips: section.flatHiddenChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys)),
+      clusters: section.clusters.map((cluster) => ({
+        ...cluster,
+        visibleChips: cluster.visibleChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys)),
+        hiddenChips: cluster.hiddenChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys))
+      })),
+      websitePathSections: (section.websitePathSections ?? []).map((websitePathSection) => ({
+        ...websitePathSection,
+        flatVisibleChips: websitePathSection.flatVisibleChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys)),
+        flatHiddenChips: websitePathSection.flatHiddenChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys)),
+        clusters: websitePathSection.clusters.map((cluster) => ({
+          ...cluster,
+          visibleChips: cluster.visibleChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys)),
+          hiddenChips: cluster.hiddenChips.map((chip) => inlineSingletonSuppressionsInChip(chip, singletonKeys))
+        }))
+      }))
+    }))
+  }
+
+  const renderedSuppressionCounts = renderedSuppressionCountsByKey(sectionsData)
+  const singletonSuppressionKeys = new Set(
+    [...renderedSuppressionCounts.entries()]
+      .filter(([, counts]) => counts.count <= 1 && counts.titleVariantCount === counts.count)
+      .map(([key]) => key)
+  )
+  const visibleSuppressedTitleParts = suppressedTitleParts
+    .filter((part) => !singletonSuppressionKeys.has(titleSuppressionKey(part.text)))
+    .map((part) => {
+      const renderedCounts = renderedSuppressionCounts.get(titleSuppressionKey(part.text))
+      return {
+        ...part,
+        count: renderedCounts?.titleVariantCount ? renderedCounts.count : part.count
+      }
+    })
+  const sectionsDataWithInlineSingletonSuppressions = inlineSingletonSuppressionsInSections(sectionsData, singletonSuppressionKeys)
+  const hasMultipleVisibleSuppressionMeaningsAfterMerge = visibleSuppressedTitleParts.length > 1
+
   function scopeSuppressedTitleParts(sectionsToScope: DashboardSectionVM[]) {
     type ScopeTracker = {
       part: DashboardTitleSuppression
@@ -1483,7 +1633,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
 
     const trackers = new Map<string, ScopeTracker>()
-    for (const part of suppressedTitleParts) {
+    for (const part of visibleSuppressedTitleParts) {
       trackers.set(titleSuppressionKey(part.text), {
         part,
         sectionIndexes: new Set(),
@@ -1496,7 +1646,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
 
     function childGroupScopedPart(part: DashboardTitleSuppression, spansRenderedChildGroups: boolean): DashboardTitleSuppression {
-      return hasMultipleVisibleSuppressionMeanings && spansRenderedChildGroups ? { ...part, spansRenderedChildGroups: true } : part
+      return hasMultipleVisibleSuppressionMeaningsAfterMerge && spansRenderedChildGroups ? { ...part, spansRenderedChildGroups: true } : part
     }
 
     function clusterRef(sectionIndex: number, clusterIndex: number): string {
@@ -1585,7 +1735,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const websitePathSectionPartsByRef = new Map<string, DashboardTitleSuppression[]>()
     const websitePathClusterPartsByRef = new Map<string, DashboardTitleSuppression[]>()
 
-    for (const part of suppressedTitleParts) {
+    for (const part of visibleSuppressedTitleParts) {
       const tracker = trackers.get(titleSuppressionKey(part.text))
       if (!tracker || tracker.sectionIndexes.size === 0) {
         cardParts.push(part)
@@ -1661,7 +1811,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return { cardParts, scopedSections }
   }
 
-  const { cardParts: cardSuppressedTitleParts, scopedSections: scopedSectionsData } = scopeSuppressedTitleParts(sectionsData)
+  const { cardParts: cardSuppressedTitleParts, scopedSections: scopedSectionsData } = scopeSuppressedTitleParts(sectionsDataWithInlineSingletonSuppressions)
 
   // Labels derived for the React component to consume directly.
   // closableCountLabel mirrors the original "Close all N tabs" vs
@@ -1711,7 +1861,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     singleSubdomainIsPort,
     displayName,
     suppressedTitleParts: cardSuppressedTitleParts,
-    allSuppressedTitleParts: suppressedTitleParts,
+    allSuppressedTitleParts: visibleSuppressedTitleParts,
     sections: vmSections
   }
 }
