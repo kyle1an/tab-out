@@ -732,8 +732,12 @@ test('TabHistoryPanel appends only non-overlapping working-set items below histo
     })
   )
   const extraRows = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-working-set-extra\b[^"]*)"/g))
+  const extraListMatch = html.match(/<div class="([^"]*\bhistory-working-set-extra-list\b[^"]*)"/)
 
-  assert.match(html, /history-working-set-extra-list/)
+  assert.ok(extraListMatch, 'supplemental working set list should render')
+  assert.doesNotMatch(extraListMatch[1], /\bmt-1\b/)
+  assert.match(extraListMatch[1], /\bborder-t\b/)
+  assert.match(extraListMatch[1], /\bpt-1\.5\b/)
   assert.equal(extraRows.length, 1)
   assert.match(html, /Ext<\/span>ra[\s\S]*Cand<\/span>idate/)
   assert.match(html, /default-favicon-image/)

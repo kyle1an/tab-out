@@ -524,7 +524,7 @@ export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange,
               />
             ))}
             {extraWorkingSetItems.length > 0 && (
-              <div className="history-working-set-extra-list mt-1 flex min-w-0 flex-col gap-1.5 border-t border-[rgba(115,115,115,0.14)] pt-1.5">
+              <div className="history-working-set-extra-list flex min-w-0 flex-col gap-1.5 border-t border-[rgba(115,115,115,0.14)] pt-1.5">
                 {extraWorkingSetItems.map((item) => (
                   <HistoryEntry
                     key={`working-set:${item.key}`}
