@@ -797,6 +797,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
             type="button"
             className={cn(
               'chip-title-variant clickable inline-flex max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+              !variantActive && !variantCurrent && 'group-hover/page-chip:bg-[rgba(115,115,115,0.1)]',
               variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
               variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
               variantHoverMatched && 'shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]'
@@ -911,6 +912,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           isCurrentActiveFrame && 'current-active-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
           isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)]',
+          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)]',
+          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.11)]',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
