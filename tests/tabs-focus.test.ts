@@ -11,13 +11,20 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
   const calls: any = {
     create: [],
     remove: [],
+    runtimeMessages: [],
     tabsUpdate: [],
     windowsUpdate: []
   }
 
   ;(globalThis as any).chrome = {
     runtime: {
-      id: 'tab-out'
+      id: 'tab-out',
+      async sendMessage(extensionId, message) {
+        calls.runtimeMessages.push({ extensionId, message: { ...message } })
+        if (extensionId === 'blocked') throw new Error('Cannot message extension')
+        if (extensionId === 'rejects') return 'Error: tab is not suspended'
+        return undefined
+      }
     },
     tabs: {
       async query() {
@@ -116,6 +123,68 @@ test('focusTab does not create a pinned Tab Out tab when focusing a chip target 
   assert.deepEqual(calls.create, [])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+})
+
+test('focusTab asks the owning suspender extension to unsuspend an exact suspended match', async () => {
+  const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+  ])
+
+  const focused = await focusTab('https://example.com/docs')
+
+  assert.equal(focused, true)
+  assert.deepEqual(calls.runtimeMessages, [
+    {
+      extensionId: 'marvellous',
+      message: { action: 'unsuspend', tabId: 2 }
+    }
+  ])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+})
+
+test('focusTab unsuspends directly when the owning suspender extension cannot be messaged', async () => {
+  const suspendedUrl = 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+  ])
+
+  const focused = await focusTab('https://example.com/docs')
+
+  assert.equal(focused, true)
+  assert.deepEqual(calls.runtimeMessages, [
+    {
+      extensionId: 'blocked',
+      message: { action: 'unsuspend', tabId: 2 }
+    }
+  ])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true, url: 'https://example.com/docs' } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+  assert.equal(tabs.find((tab) => tab.id === 2).url, 'https://example.com/docs')
+})
+
+test('focusTab unsuspends directly when the owning suspender extension rejects the request', async () => {
+  const suspendedUrl = 'chrome-extension://rejects/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+  ])
+
+  const focused = await focusTab('https://example.com/docs')
+
+  assert.equal(focused, true)
+  assert.deepEqual(calls.runtimeMessages, [
+    {
+      extensionId: 'rejects',
+      message: { action: 'unsuspend', tabId: 2 }
+    }
+  ])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true, url: 'https://example.com/docs' } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+  assert.equal(tabs.find((tab) => tab.id === 2).url, 'https://example.com/docs')
 })
 
 test('closeHistoryEntry removes the exact history tab and returns an undo snapshot', async () => {

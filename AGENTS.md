@@ -26,6 +26,7 @@ Update this section in the same patch when a change intentionally alters one of 
 - History companion results are controlled by the history range menu: off, last day, last week, last month, or last 3 months.
 - A page open at the same path across two or more named subdomains folds into one headerless shared chip at the top of the card. Env pills focus the exact tab for that subdomain, and closing the folded chip closes every env copy.
 - Chip hover/focus updates the bottom-left URL preview for the exact target URL, including env pills.
+- Activating a suspended page from Tab Out asks the owning suspender extension to unsuspend that exact tab first, then falls back to navigating the same tab to the unwrapped target URL if the extension cannot be messaged.
 - Undo for close/dedupe actions restores tabs with `chrome.tabs.create({ active: false })` so the dashboard does not lose focus. Do not switch to `chrome.sessions.restore()` unless intentionally changing that UX contract.
 - Source-specific behavior and terminology live in `CONTEXT.md`; consult it before changing grouping, filtering, title suppression, website path sections, path groups, or source composition.
 

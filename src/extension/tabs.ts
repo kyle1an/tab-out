@@ -31,6 +31,47 @@ function tabIds(tabs: chrome.tabs.Tab[]): number[] {
   return tabs.map((tab) => tab.id).filter((id): id is number => typeof id === 'number')
 }
 
+function suspenderExtensionId(url?: string): string {
+  if (!url || !url.startsWith('chrome-extension://')) return ''
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.endsWith('/suspended.html')) return ''
+    return parsed.hostname
+  } catch {
+    return ''
+  }
+}
+
+function isSuspendedUrlForTarget(tabUrl: string | undefined, targetEffective: string): boolean {
+  if (!tabUrl || tabUrl === targetEffective) return false
+  return unwrapSuspenderUrl(tabUrl) === targetEffective
+}
+
+async function requestSuspenderUnsuspend(tab: chrome.tabs.Tab, targetEffective: string): Promise<boolean> {
+  if (typeof tab.id !== 'number') return false
+  if (!isSuspendedUrlForTarget(tab.url, targetEffective)) return false
+  const extensionId = suspenderExtensionId(tab.url)
+  if (!extensionId || extensionId === globalThis.chrome?.runtime?.id || !globalThis.chrome?.runtime?.sendMessage) return false
+  try {
+    const response = await chrome.runtime.sendMessage(extensionId, { action: 'unsuspend', tabId: tab.id })
+    return !(typeof response === 'string' && response.startsWith('Error:'))
+  } catch {
+    return false
+  }
+}
+
+async function focusMatchedTab(match: chrome.tabs.Tab, targetEffective: string): Promise<boolean> {
+  if (typeof match.id !== 'number') return false
+  const didRequestUnsuspend = await requestSuspenderUnsuspend(match, targetEffective)
+  const updateProperties: chrome.tabs.UpdateProperties = { active: true }
+  if (!didRequestUnsuspend && isSuspendedUrlForTarget(match.url, targetEffective)) {
+    updateProperties.url = targetEffective
+  }
+  await chrome.tabs.update(match.id, updateProperties)
+  await chrome.windows.update(match.windowId, { focused: true })
+  return true
+}
+
 /**
  * snapshotChromeTabs(chromeTabs) — captures enough info per tab to
  * recreate it later via chrome.tabs.create() (used by undo). `url` is
@@ -242,11 +283,8 @@ export async function focusTab(url: string): Promise<boolean> {
   if (matches.length === 0) return false
 
   const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
-  if (!match || typeof match.id !== 'number') return false
-
-  await chrome.tabs.update(match.id, { active: true })
-  await chrome.windows.update(match.windowId, { focused: true })
-  return true
+  if (!match) return false
+  return focusMatchedTab(match, targetEffective)
 }
 
 /**
@@ -269,10 +307,8 @@ export async function focusExactTab(url: string): Promise<boolean> {
   } catch {}
 
   const match = matches.find((t) => t.windowId === currentWindowId) || matches[0]
-  if (!match || typeof match.id !== 'number') return false
-  await chrome.tabs.update(match.id, { active: true })
-  await chrome.windows.update(match.windowId, { focused: true })
-  return true
+  if (!match) return false
+  return focusMatchedTab(match, targetEffective)
 }
 
 /**
