@@ -39,6 +39,7 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     exists: !!entry?.exists,
     active: !!entry?.active,
     activeInOtherWindow: !!entry?.activeInOtherWindow,
+    isApp: !!entry?.isApp,
     pinned: !!entry?.pinned,
     discarded: !!entry?.discarded,
     cursor: !!entry?.cursor,

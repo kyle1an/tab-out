@@ -272,6 +272,7 @@ export interface TabHistoryEntry {
   exists: boolean
   active: boolean
   activeInOtherWindow: boolean
+  isApp: boolean
   pinned: boolean
   discarded: boolean
   cursor: boolean

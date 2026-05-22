@@ -16,7 +16,7 @@ Update this section in the same patch when a change intentionally alters one of 
 
 - The dashboard groups open tab-like items by registrable domain. Homepage-like routes stay inside their site's normal domain card instead of being split into special homepage groups.
 - The tab source shows real web tabs plus Tab Out/new-tab pages. Chrome internal pages and unrelated extension pages are otherwise excluded from normal dashboard cards.
-- Standalone app/PWA windows are shown in the `Apps` utility card and do not receive active-tab highlighting.
+- Standalone app/PWA windows are shown in the `Apps` utility card, do not receive active-tab highlighting, and are treated as low-score activation-history entries.
 - `New tabs` (`__tab-out__`) and `Apps` (`__standalone-apps__`) are utility cards. They are unpinned by default, but the user can explicitly pin them like other pinnable cards.
 - Domain-card pins are user-facing dashboard ordering state stored in `chrome.storage.local`; they are separate from Chrome's native `tab.pinned` flag.
 - Duplicate handling renders one chip per effective URL with a count badge and keeps one copy according to the shared dedupe policy. Bulk close and dedupe preserve Chrome tab groups; Tab Out dedupe preserves pinned Tab Out tabs.

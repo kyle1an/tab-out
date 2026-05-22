@@ -786,6 +786,46 @@ test('tab history snapshot exposes previous and next command targets', async () 
   assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
 })
 
+test('tab history snapshot marks standalone app entries', async () => {
+  const mock = await loadBackground([
+    {
+      id: 84,
+      windowId: 1,
+      url: 'https://example.com/',
+      title: 'Normal',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 85,
+      windowId: 2,
+      windowType: 'popup',
+      url: 'https://app.example.com/',
+      title: 'Standalone App',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  assert.equal(typeof onFocusChanged, 'function')
+
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  mock.activateTab(85)
+  onFocusChanged(2)
+  await flushBackgroundWork()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.equal(response.ok, true)
+  assert.equal(response.snapshot.entries.find((entry) => entry.tabId === 84)?.isApp, false)
+  assert.equal(response.snapshot.entries.find((entry) => entry.tabId === 85)?.isApp, true)
+})
+
 test('working set snapshot ranks activated and actively navigated open tabs', async () => {
   const originalDateNow = Date.now
   let now = Date.UTC(2026, 4, 17, 12)

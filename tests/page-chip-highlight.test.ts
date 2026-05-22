@@ -69,6 +69,7 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
         exists: true,
         active: true,
         activeInOtherWindow: false,
+        isApp: false,
         pinned: false,
         discarded: false,
         cursor: true,
@@ -729,6 +730,38 @@ test('TabHistoryPanel marks working-set history matches and dims low-score histo
   assert.doesNotMatch(html, /history-working-set-extra-list/)
 })
 
+test('TabHistoryPanel gives highlighted history indexes stronger contrast', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        activeTabId: 101,
+        currentIndex: 0,
+        entries: [
+          baseEntry,
+          {
+            ...baseEntry,
+            index: 1,
+            tabId: 202,
+            active: false,
+            cursor: false,
+            current: false,
+            title: 'Older Entry',
+            url: 'https://example.com/older',
+            displayUrl: 'example.com/older'
+          }
+        ]
+      })
+    })
+  )
+  const indexClasses = Array.from(html.matchAll(/<span class="([^"]*\bhistory-entry-index-(?:highlight|muted)\b[^"]*)"/g)).map((match) => match[1])
+
+  assert.equal(indexClasses.filter((className) => className.includes('history-entry-index-highlight')).length, 1)
+  assert.equal(indexClasses.filter((className) => className.includes('history-entry-index-muted')).length, 1)
+  assert.match(indexClasses.find((className) => className.includes('history-entry-index-highlight')) || '', /font-semibold/)
+  assert.match(indexClasses.find((className) => className.includes('history-entry-index-muted')) || '', /text-\[rgba\(115,115,115,0\.42\)\]/)
+})
+
 test('TabHistoryPanel always dims browser utility history rows', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(
@@ -784,6 +817,27 @@ test('TabHistoryPanel always dims browser utility history rows', () => {
   const lowScoreRows = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-entry-low-score\b[^"]*)"/g))
 
   assert.equal(lowScoreRows.length, 4)
+})
+
+test('TabHistoryPanel always dims standalone app history rows', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        entries: [
+          {
+            ...baseEntry,
+            title: 'Standalone App',
+            url: 'https://app.example.com/',
+            displayUrl: 'app.example.com',
+            isApp: true
+          }
+        ]
+      })
+    })
+  )
+
+  assert.match(html, /history-entry-low-score/)
 })
 
 test('TabHistoryPanel does not dim suspended real pages as extension utility rows', () => {

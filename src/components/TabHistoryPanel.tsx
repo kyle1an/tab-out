@@ -214,7 +214,7 @@ function isLowScoreHistoryUrl(url = '') {
 }
 
 function isLowScoreHistoryEntry(entry: TabHistoryEntry) {
-  return isLowScoreHistoryUrl(entry.url || entry.displayUrl || '')
+  return !!entry.isApp || isLowScoreHistoryUrl(entry.url || entry.displayUrl || '')
 }
 
 function makeWorkingSetMatches(items: readonly WorkingSetItem[]) {
@@ -234,6 +234,7 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
     exists: true,
     active: item.active,
     activeInOtherWindow: item.activeInOtherWindow,
+    isApp: false,
     pinned: false,
     discarded: false,
     cursor: false,
@@ -374,6 +375,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   ])
   const hoverMatched = !!activeHoverSource && activeHoverSource !== hoverSource && matchUrls.some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
   const isWorkingSetPriority = !!workingSetMatch || !!workingSetItem
+  const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || isWorkingSetPriority || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetMatch?.item.faviconUrl || workingSetItem?.faviconUrl || ''
   const titleTooltipWidth = titleMetrics.width > 0
@@ -406,9 +408,11 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
       onBlur={onMouseLeave}
     >
       <span className={cn(
-        'inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.72)] group-hover/history-row:text-tab-muted group-focus-within/history-row:text-tab-muted',
-        isWorkingSetPriority && 'text-[color-mix(in_srgb,var(--accent-amber)_82%,var(--muted))]',
-        dimmed && 'text-[rgba(115,115,115,0.46)]'
+        'inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        isIndexHighlighted && 'history-entry-index-highlight font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
+        isWorkingSetPriority && !dimmed && 'text-[color-mix(in_srgb,var(--accent-amber)_88%,var(--ink))]',
+        !isIndexHighlighted && 'history-entry-index-muted',
+        dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)]'
       )}>
         {indexLabel}
       </span>

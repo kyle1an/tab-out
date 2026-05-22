@@ -51,6 +51,14 @@ function mapTabsById(tabs: chrome.tabs.Tab[]): Map<number, chrome.tabs.Tab> {
   return new Map(tabs.filter((tab) => typeof tab.id === 'number').map((tab) => [tab.id as number, tab]))
 }
 
+function mapWindowTypesById(windows: chrome.windows.Window[]): Map<number, string | undefined> {
+  return new Map(windows.filter((win) => typeof win.id === 'number').map((win) => [win.id as number, win.type]))
+}
+
+function isStandaloneAppWindow(windowType?: string) {
+  return windowType === 'app' || windowType === 'popup'
+}
+
 export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(chrome)): TabHistoryService {
   let tabHistoryCache: GlobalTabHistory | null = null
   let tabHistoryQueue: Promise<void> = Promise.resolve()
@@ -364,6 +372,10 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
   async function getTabHistorySnapshot(): Promise<TabHistorySnapshot> {
     const { value: snapshot } = await enqueueTabHistoryMutation(async (storedHistory) => {
       const tabs = await chromeApi.tabs.query({})
+      let windowTypeById = new Map<number, string | undefined>()
+      try {
+        windowTypeById = mapWindowTypesById(await chromeApi.windows.getAll())
+      } catch {}
       const { tab: activeTab } = await findActiveTabForHistory(tabs, storedHistory)
       const existingTabs = mapTabsById(tabs)
       const repairedHistory = repairHistoryCursorForActiveTab(storedHistory, activeTab)
@@ -397,6 +409,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               exists: !!tab,
               active: tab?.id === activeTab?.id,
               activeInOtherWindow: !!(tab?.active && activeTab && tab.windowId !== activeTab.windowId),
+              isApp: isStandaloneAppWindow(tab ? windowTypeById.get(tab.windowId) : undefined),
               pinned: !!tab?.pinned,
               discarded: !!tab?.discarded,
               cursor: index === cleanHistory.index,
