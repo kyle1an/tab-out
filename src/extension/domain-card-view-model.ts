@@ -16,6 +16,7 @@ type ComputeCardOptions = {
   mode?: CardMode
   allowMutations?: boolean
   currentWindowId?: number | null
+  chipOrder?: Map<string, number>
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
 type TitlePresentation = {
@@ -69,6 +70,24 @@ const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
 const TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
 const TITLE_BOUNDARY_SEPARATOR_RE = /^[-\u2013\u2014\u00b7|:]/
 const TITLE_BOUNDARY_TRAILING_SEPARATOR_RE = /[-\u2013\u2014\u00b7|:]$/
+
+function dashboardChipOrderKey(sourceType: DashboardTab['sourceType'] | undefined, kind: 'url' | 'fold', value: string): string {
+  return `${sourceType || 'tab'}:${kind}:${value}`
+}
+
+function dashboardFoldChipOrderKey(sourceType: DashboardTab['sourceType'] | undefined, urls: readonly string[]): string {
+  return dashboardChipOrderKey(sourceType, 'fold', urls.slice().sort().join('\u0000'))
+}
+
+export function dashboardChipOrderKeyForTab(tab: Pick<DashboardTab, 'sourceType' | 'url'>): string {
+  return dashboardChipOrderKey(tab.sourceType, 'url', tab.url)
+}
+
+export function dashboardChipOrderKeyForChip(chip: Pick<DashboardChipData, 'sourceType' | 'tabUrl' | 'envs'>): string {
+  const envUrls = chip.envs?.map((env) => env.tabUrl).filter(Boolean)
+  if (envUrls?.length) return dashboardFoldChipOrderKey(chip.sourceType, envUrls)
+  return dashboardChipOrderKey(chip.sourceType, 'url', chip.tabUrl)
+}
 
 function pickDashboardChipFavicon(tab: DashboardTab): string {
   if ((tab.sourceType || 'tab') === 'tab') return tab.favIconUrl || ''
@@ -551,7 +570,7 @@ function disambiguatingPaths(urls: string[]): string[] {
  * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null, chipOrder }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
   const filtering = filter.trim() !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -890,7 +909,19 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   function sortLabel(tab: DashboardTab): string {
     return displayTitle(tab).toLowerCase()
   }
-  uniqueTabs.sort((a, b) => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }))
+  function compareWithRememberedChipOrder(aKey: string, bKey: string, fallback: () => number): number {
+    const aOrder = chipOrder?.get(aKey)
+    const bOrder = chipOrder?.get(bKey)
+    if (aOrder !== undefined && bOrder !== undefined && aOrder !== bOrder) return aOrder - bOrder
+    if (aOrder !== undefined && bOrder === undefined) return -1
+    if (aOrder === undefined && bOrder !== undefined) return 1
+    return fallback()
+  }
+  uniqueTabs.sort((a, b) => compareWithRememberedChipOrder(
+    dashboardChipOrderKeyForTab(a),
+    dashboardChipOrderKeyForTab(b),
+    () => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true })
+  ))
 
   // Detect cross-subdomain shared paths — the "same page in dev2us +
   // dev11us + qaus" pattern that floods multi-env cards with near-
@@ -1359,7 +1390,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // tab across every env in every fold group.
   let sharedSectionData: DashboardSectionVM | null = null
   if (foldGroups.length > 0) {
-    const sortedFolds = foldGroups.slice().sort((a, b) => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true }))
+    const sortedFolds = foldGroups.slice().sort((a, b) => compareWithRememberedChipOrder(
+      dashboardFoldChipOrderKey(a[0]?.sourceType, a.map((tab) => tab.url)),
+      dashboardFoldChipOrderKey(b[0]?.sourceType, b.map((tab) => tab.url)),
+      () => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true })
+    ))
     const foldedChipData = sortedFolds.map((tabs) => buildFoldedChipData(tabs))
     const { vis, hid } = splitForOverflow(foldedChipData)
     const sharedClosableUrls = allowMutations ? sortedFolds.flatMap((tabs) => tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url)) : []

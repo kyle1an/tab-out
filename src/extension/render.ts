@@ -24,13 +24,14 @@ import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
+import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
-import type { CustomGroupRule, DashboardCardEntry, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
+import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 
 export { pickFavicon } from './favicons.js'
 export { buildDomainGroups } from './domain-groups.js'
-export { computeDomainCardViewModel } from './domain-card-view-model.js'
+export { computeDomainCardViewModel, dashboardChipOrderKeyForChip, dashboardChipOrderKeyForTab } from './domain-card-view-model.js'
 export { getFilteredCloseableUrls, tabMatchesFilter, tabMatchesLegacyFilter, tabMatchesSourceFilter } from './filter-match.js'
 
 /**
@@ -52,9 +53,10 @@ type DashboardViewModelOptions = {
   filter?: string
   source?: DashboardSource
   currentWindowId?: number | null
+  chipOrder?: DashboardChipOrderByCard
 }
 
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null }: DashboardViewModelOptions = {}): DashboardViewModel {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.trim().length > 0
   const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
@@ -66,7 +68,8 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   const globalDedupeUrls: string[] = []
   let dedupCount = 0
   for (const group of groups) {
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId })
+    const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId, chipOrder: groupChipOrder })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -77,7 +80,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId, chipOrder: groupChipOrder })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 

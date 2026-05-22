@@ -72,6 +72,8 @@ export interface DomainGroupBuildOptions {
   pinnedDomains?: string[]
 }
 
+export type DashboardChipOrderByCard = Map<string, Map<string, number>>
+
 export type DashboardSegment = string | { placeholder: true; label?: string } | { titleSuppression: string }
 
 export interface DashboardTitleSuppression {

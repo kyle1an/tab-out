@@ -6,7 +6,7 @@ import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/hist
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboardRefresh'
-import { useDashboardViewModels, useMissionOrderMemory } from '../hooks/useDashboardViewModels'
+import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
 import { useUrlPreview } from '../hooks/useUrlPreview'
@@ -75,6 +75,11 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     bookmarks: new Map(),
     history: new Map()
   })
+  const chipOrderRef = useRef<DashboardChipOrderMemoryMap>({
+    tabs: new Map(),
+    bookmarks: new Map(),
+    history: new Map()
+  })
   const scrollRegionRef = useRef<HTMLDivElement | null>(null)
   const primaryMissionsRef = useRef<HTMLDivElement | null>(null)
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
@@ -121,6 +126,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
   function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+    chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   }
   const { pinnedDomains, pinsLoaded, togglePinnedDomain } = usePinnedDomains({
     onBeforeApplyPinnedDomains: resetMissionOrder,
@@ -186,7 +192,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     filter,
     historyRange,
     historyFilterEnabled,
-    isReady
+    isReady,
+    chipOrder: chipOrderRef.current
   })
 
   async function onCloseFiltered() {
@@ -227,7 +234,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
   useMissionOrderMemory({
     previousOrderRef,
+    chipOrderRef,
     source,
+    filter,
     matchedCards,
     bookmarkMatchedCards,
     historyMatchedCards

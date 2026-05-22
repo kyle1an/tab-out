@@ -16,7 +16,7 @@ import {
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
-import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
+import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
@@ -1228,6 +1228,34 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(unmatchedAlphaCard.vm.tabCount, 1)
   assert.equal(unmatchedAlphaCard.vm.totalTabCount, 2)
   assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
+})
+
+test('buildDashboardViewModel keeps known chip URLs in their previous card order when titles change', () => {
+  const tabs = [
+    makeTab({ url: 'https://example.test/?page=alpha', title: 'Alpha loading title' }),
+    makeTab({ id: 2, url: 'https://example.test/?page=bravo', title: 'Bravo final title' })
+  ]
+  const groups = buildDomainGroups(tabs)
+  const previousChipOrder = new Map([
+    [
+      domainCardId('example.test'),
+      new Map([
+        [dashboardChipOrderKeyForTab(tabs[1]), 0],
+        [dashboardChipOrderKeyForTab(tabs[0]), 1]
+      ])
+    ]
+  ])
+
+  const vm = buildDashboardViewModel({
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    chipOrder: previousChipOrder
+  })
+
+  assert.deepEqual(
+    vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://example.test/?page=bravo', 'https://example.test/?page=alpha']
+  )
 })
 
 test('parseFilterQuery separates tokens, quoted phrases, and open-ended phrases', () => {
