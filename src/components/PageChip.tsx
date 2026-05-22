@@ -784,8 +784,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <span
         key={variant.rawUrl || variant.tabUrl}
         className={cn(
-          'chip-title-variant-shell group/title-variant relative inline-flex max-w-full min-w-0 items-center',
-          variantCanClose && 'pr-5'
+          'chip-title-variant-shell group/title-variant relative flex w-full max-w-full min-w-0 items-center',
+          variantCanClose && 'pr-[22px]'
         )}
       >
         <TooltipAnchor
@@ -796,7 +796,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           <button
             type="button"
             className={cn(
-              'chip-title-variant clickable inline-flex max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+              'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
               !variantActive && !variantCurrent && 'group-hover/page-chip:bg-[rgba(115,115,115,0.1)]',
               variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
               variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
@@ -816,7 +816,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           <TooltipAnchor content={titleVariantActionLabel(variant)}>
             <button
               type="button"
-              className="chip-title-variant-action absolute top-1/2 right-0 z-[2] inline-flex h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+              className="chip-title-variant-action absolute top-0 right-0 bottom-0 z-[2] my-auto inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
               aria-label={titleVariantActionLabel(variant)}
               onClick={(e) => onCloseTitleVariant(e, variant)}
               onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -837,7 +837,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   function renderTitleVariantList(mode: ChipTextRenderMode) {
     if (!isTitleVariantGroup) return null
     return (
-      <span className="chip-title-variant-list mt-0.5 flex max-w-full flex-col items-start gap-0.5">
+      <span className="chip-title-variant-list mt-0.5 flex w-full max-w-full flex-col items-stretch gap-0.5">
         {titleVariantChips.map((variant, index) => renderTitleVariant(variant, index, mode))}
       </span>
     )
@@ -859,7 +859,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
     if (isTitleVariantGroup) {
       return (
-        <span className="chip-title-variant-content flex min-w-0 flex-col items-start">
+        <span className="chip-title-variant-content flex w-full min-w-0 flex-col items-start">
           <span className="chip-title-row block min-w-0 max-w-full">
             {chip.leadPrefix && (
               <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
