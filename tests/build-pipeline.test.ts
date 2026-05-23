@@ -196,6 +196,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /getBoundingClientRect\(\)\.height/)
   assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_ALIGN_OFFSET_PX = -8/)
   assert.match(pageChipSource, /anchorToCursor=\{false\}/)
+  assert.match(pageChipSource, /anchor=\{\(\) => chipTextRef\.current\}/)
+  assert.match(pageChipSource, /chip-text-tooltip-hit-area -my-\[5px\][\s\S]*py-\[5px\]/)
   assert.match(pageChipSource, /<TooltipAnchor[\s\S]*\binstant[\s\S]*content=\{renderTitleVariantTooltipContent\(variant, index\)\}/)
   assert.match(pageChipSource, /<TooltipAnchor[\s\S]*anchorToCursor=\{false\}[\s\S]*\binstant[\s\S]*sideOffset=\{chipTooltipSideOffset\}/)
   assert.match(pageChipSource, /sideOffset=\{chipTooltipSideOffset\}/)

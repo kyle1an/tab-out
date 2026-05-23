@@ -462,6 +462,96 @@ async function measureTooltipFreeze(session: CdpSession) {
   return { target, first, second, afterScrollTooltipCount, closing: null }
 }
 
+async function measureTooltipTextPaddingHitArea(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const hitArea = Array.from(document.querySelectorAll('.chip-text-tooltip-hit-area'))
+          .find((candidate) =>
+            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+          )
+        const chipText = hitArea?.querySelector('.chip-text-truncated')
+        const hitRect = hitArea?.getBoundingClientRect()
+        const textRect = chipText?.getBoundingClientRect()
+        if (
+          hitRect &&
+          textRect &&
+          hitRect.width > 120 &&
+          textRect.width > 120 &&
+          hitRect.top < textRect.top &&
+          hitRect.bottom > textRect.bottom
+        ) {
+          const topGap = textRect.top - hitRect.top
+          const bottomGap = hitRect.bottom - textRect.bottom
+          resolve({
+            x: Math.round(textRect.left + Math.min(24, textRect.width / 2)),
+            aboveY: Math.round(textRect.top - Math.max(1, topGap / 2)),
+            belowY: Math.round(textRect.bottom + Math.max(1, bottomGap / 2)),
+            hitTop: Math.round(hitRect.top),
+            hitBottom: Math.round(hitRect.bottom),
+            textLeft: Math.round(textRect.left),
+            textTop: Math.round(textRect.top),
+            textBottom: Math.round(textRect.bottom)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a page chip tooltip hit area for padding hover smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.aboveY
+  })
+  await wait(650)
+  const above = await waitForTooltipRect(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(260)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.belowY
+  })
+  await wait(650)
+  const below = await waitForTooltipRect(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(260)
+
+  return { target, above, below }
+}
+
 async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: string) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -1305,6 +1395,14 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
     assert.ok(Math.abs(tooltip.first.top - tooltip.closing.top) <= 1, `tooltip top should stay frozen while closing: ${JSON.stringify(tooltip)}`)
   }
+
+  const tooltipHitArea = await measureTooltipTextPaddingHitArea(session)
+  assert.ok(tooltipHitArea.target.hitTop < tooltipHitArea.target.textTop, `tooltip hit area should include space above chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.target.hitBottom > tooltipHitArea.target.textBottom, `tooltip hit area should include space below chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.above?.text.includes('enough tooltip text'), `tooltip should open from the vertical space above chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.below?.text.includes('enough tooltip text'), `tooltip should open from the vertical space below chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs(tooltipHitArea.above.left - (tooltipHitArea.target.textLeft - 8)) <= 1, `tooltip should stay anchored to chip text when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.top + 4) - tooltipHitArea.target.textTop) <= 2, `tooltip should remain in text position when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
 
   const suppressionMarkerLines = []
   for (const markerLabel of ['Marker line one', 'Marker line two', 'Marker line three']) {

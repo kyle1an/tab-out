@@ -428,6 +428,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     updateChipTextTruncation(e.currentTarget, setIsTextTruncated, setChipTextWidth, setChipTextHeight, setChipTooltipMaxWidth)
   }
 
+  function onChipTextTooltipHitAreaPointerEnter() {
+    const textEl = chipTextRef.current
+    if (textEl) updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth, setChipTextHeight, setChipTooltipMaxWidth)
+  }
+
   function onChipFocus() {
     if (isFolded) return
     setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
@@ -1102,6 +1107,15 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     </span>
   )
 
+  const chipTextTooltipTriggerElement = (
+    <span
+      className="chip-text-tooltip-hit-area -my-[5px] flex min-w-0 flex-1 py-[5px]"
+      onPointerEnter={onChipTextTooltipHitAreaPointerEnter}
+    >
+      {chipTextElement}
+    </span>
+  )
+
   const chipElement = (
       <div
         className={cn(
@@ -1174,6 +1188,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         chipTooltipContent ? (
           <TooltipAnchor
             alignOffset={PAGE_CHIP_TOOLTIP_ALIGN_OFFSET_PX}
+            anchor={() => chipTextRef.current}
             anchorToCursor={false}
             content={chipTooltipContent}
             className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
@@ -1181,7 +1196,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
             sideOffset={chipTooltipSideOffset}
             style={chipTooltipStyle}
           >
-            {chipTextElement}
+            {chipTextTooltipTriggerElement}
           </TooltipAnchor>
         ) : chipTextElement
       )}
