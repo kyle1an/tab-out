@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   addSavedPageToStore,
+  annotateSavedPageHints,
   emptySavedPagesStore,
   isSavedPageEligible,
   mergeSavedPagesWithTabs,
@@ -119,4 +120,23 @@ test('mergeSavedPagesWithTabs does not rewrite unchanged open saved page metadat
   assert.equal(tabs[0].saved, true)
   assert.equal(savedPagesStoresEqual(savedStore, store), true)
   assert.equal(store.pages['https://example.test/open'].lastSeenOpenAt, 100)
+})
+
+test('annotateSavedPageHints marks matching bookmark items without adding closed saved rows', () => {
+  const savedStore = addSavedPageToStore(
+    emptySavedPagesStore(),
+    makeTab({ url: 'https://example.test/saved', title: 'Saved reference', favIconUrl: 'saved.ico' }),
+    100
+  )
+  const matchingBookmark = makeTab({ id: 'bookmark-1', sourceType: 'bookmark', url: 'https://example.test/saved', title: 'Saved bookmark' })
+  const otherBookmark = makeTab({ id: 'bookmark-2', sourceType: 'bookmark', url: 'https://example.test/other', title: 'Other bookmark' })
+
+  const annotated = annotateSavedPageHints([matchingBookmark, otherBookmark], savedStore)
+
+  assert.equal(annotated.length, 2)
+  assert.equal(annotated[0].sourceType, 'bookmark')
+  assert.equal(annotated[0].saved, true)
+  assert.equal(annotated[0].closedSaved, false)
+  assert.equal(annotated[0].savedPageKey, 'https://example.test/saved')
+  assert.equal(annotated[1], otherBookmark)
 })

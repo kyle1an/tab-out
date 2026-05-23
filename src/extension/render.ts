@@ -22,7 +22,7 @@
 import { fetchOpenTabs, getDashboardTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
-import { loadSavedPagesStore, mergeSavedPagesWithTabs, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
@@ -161,7 +161,11 @@ export async function fetchDashboardData(
 ): Promise<Required<DashboardData>> {
   const groupingConfig = getDashboardGroupingConfig()
   if (source === 'bookmarks') {
-    const realTabs = await fetchBookmarksSourceItems()
+    const [bookmarkTabs, savedPagesStore] = await Promise.all([
+      fetchBookmarksSourceItems(),
+      loadSavedPagesStore()
+    ])
+    const realTabs = annotateSavedPageHints(bookmarkTabs, savedPagesStore)
     const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
     return {
       realTabs,
@@ -190,14 +194,15 @@ export async function fetchDashboardData(
     void saveSavedPagesStore(savedPagesMerge.store).catch(() => {})
   }
   const realTabs = savedPagesMerge.tabs
+  const annotatedBookmarkTabs = annotateSavedPageHints(bookmarkTabs, savedPagesMerge.store)
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
-  const bookmarkDomainGroups = buildDomainGroups(bookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
+  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
   const historyDomainGroups = buildDomainGroups(historyTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
   return {
     realTabs,
     domainGroups,
     currentWindowId,
-    bookmarkTabs,
+    bookmarkTabs: annotatedBookmarkTabs,
     bookmarkDomainGroups,
     bookmarkSearchReady: includeBookmarkMatches,
     historyTabs,

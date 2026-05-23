@@ -161,6 +161,20 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
   }
 }
 
+export function annotateSavedPageHints(tabs: DashboardTab[], store: Partial<SavedPagesStore> | null | undefined): DashboardTab[] {
+  const normalized = normalizeSavedPagesStore(store)
+  return tabs.map((tab) => {
+    const key = savedPageKeyForUrl(tab.url || tab.rawUrl || '')
+    if (!key || !normalized.pages[key]) return tab
+    return {
+      ...tab,
+      saved: true,
+      closedSaved: false,
+      savedPageKey: key
+    }
+  })
+}
+
 export function savedPagesStoresEqual(a: Partial<SavedPagesStore> | null | undefined, b: Partial<SavedPagesStore> | null | undefined): boolean {
   const left = normalizeSavedPagesStore(a)
   const right = normalizeSavedPagesStore(b)

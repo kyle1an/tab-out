@@ -569,6 +569,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
+  const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
@@ -699,6 +700,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
     const envSavedActionLabel = env.saved ? 'Remove saved page' : 'Save page'
     const canToggleSavedEnv = (env.sourceType === 'tab' || env.sourceType === 'saved-page') && !env.isApp
+    const showSavedEnvHint = !!env.saved && !canToggleSavedEnv
     const envKey = env.rawUrl || env.tabUrl
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
@@ -733,29 +735,41 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       </TooltipAnchor>
     )
 
-    if (!canToggleSavedEnv) return <span key={envKey} className="chip-env-shell relative inline-flex items-center">{envFocusButton}</span>
+    if (!canToggleSavedEnv && !showSavedEnvHint) return <span key={envKey} className="chip-env-shell relative inline-flex items-center">{envFocusButton}</span>
 
     return (
       <span key={envKey} className="chip-env-shell group/env relative inline-flex items-center">
         {envFocusButton}
-        <TooltipAnchor content={envSavedActionLabel}>
-          <button
-            type="button"
-            className={cn(
-              'chip-env-save pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] transition-[opacity,color,background] duration-150 group-hover/env:pointer-events-auto group-hover/env:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-              env.saved && 'text-[var(--accent-amber)]'
-            )}
-            aria-label={envSavedActionLabel}
-            aria-pressed={env.saved ? 'true' : 'false'}
-            onClick={(e) => onToggleSavedEnv(e, env)}
-            onMouseEnter={() => onEnvMouseEnter(env)}
-            onMouseLeave={onEnvMouseLeave}
-            onFocus={() => onEnvFocus(env)}
-            onBlur={onEnvBlur}
-          >
-            {env.saved ? <BookmarkCheck className="h-2.5 w-2.5" strokeWidth={2.4} /> : <Bookmark className="h-2.5 w-2.5" strokeWidth={2.4} />}
-          </button>
-        </TooltipAnchor>
+        {canToggleSavedEnv ? (
+          <TooltipAnchor content={envSavedActionLabel}>
+            <button
+              type="button"
+              className={cn(
+                'chip-env-save pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+                env.saved && 'text-[var(--accent-amber)]'
+              )}
+              aria-label={envSavedActionLabel}
+              aria-pressed={env.saved ? 'true' : 'false'}
+              onClick={(e) => onToggleSavedEnv(e, env)}
+              onMouseEnter={() => onEnvMouseEnter(env)}
+              onMouseLeave={onEnvMouseLeave}
+              onFocus={() => onEnvFocus(env)}
+              onBlur={onEnvBlur}
+            >
+              {env.saved ? <BookmarkCheck className="h-2.5 w-2.5" strokeWidth={2.4} /> : <Bookmark className="h-2.5 w-2.5" strokeWidth={2.4} />}
+            </button>
+          </TooltipAnchor>
+        ) : (
+          <TooltipAnchor content="Saved page">
+            <span
+              className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex h-4 w-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-[var(--accent-amber)] opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
+              role="img"
+              aria-label="Saved page"
+            >
+              <BookmarkCheck className="h-2.5 w-2.5" strokeWidth={2.4} />
+            </span>
+          </TooltipAnchor>
+        )}
       </span>
     )
   }
@@ -843,8 +857,9 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const variantIsHistorySource = variant.sourceType === 'history'
     const variantClosedSaved = variant.sourceType === 'saved-page' || !!variant.closedSaved
     const variantCanToggleSaved = (variant.sourceType === 'tab' || variant.sourceType === 'saved-page') && !variant.isApp
+    const variantShowSavedHint = !!variant.saved && !variantCanToggleSaved
     const variantCanClose = !variantClosedSaved && (!isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource)
-    const variantActionCount = (variantCanToggleSaved ? 1 : 0) + (variantCanClose ? 1 : 0)
+    const variantActionCount = (variantCanToggleSaved || variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
     const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
     const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     const labelContent = (
@@ -911,7 +926,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 <button
                   type="button"
                   className={cn(
-                    'chip-title-variant-save inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+                    'chip-title-variant-save inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
                     variant.saved && 'text-[var(--accent-amber)]'
                   )}
                   aria-label={variantSavedActionLabel}
@@ -926,11 +941,22 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 </button>
               </TooltipAnchor>
             )}
+            {variantShowSavedHint && (
+              <TooltipAnchor content="Saved page">
+                <span
+                  className="chip-title-variant-saved-hint pointer-events-none inline-flex h-[19px] w-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-[var(--accent-amber)] opacity-0 group-hover/title-variant:pointer-events-auto group-hover/title-variant:opacity-100"
+                  role="img"
+                  aria-label="Saved page"
+                >
+                  <BookmarkCheck className="h-3.5 w-3.5" strokeWidth={2.3} />
+                </span>
+              </TooltipAnchor>
+            )}
             {variantCanClose && (
               <TooltipAnchor content={titleVariantActionLabel(variant)}>
                 <button
                   type="button"
-                  className="chip-title-variant-action inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                  className="chip-title-variant-action inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                   aria-label={titleVariantActionLabel(variant)}
                   onClick={(e) => onCloseTitleVariant(e, variant)}
                   onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -1100,14 +1126,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           {renderChipTextContent('chip')}
         </span>
       )}
-      {!chip.iconOnly && (canToggleSavedPage || canCloseChip) && (
+      {!chip.iconOnly && (showSavedHint || canToggleSavedPage || canCloseChip) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
           {canToggleSavedPage && (
             <TooltipAnchor content={savedActionLabel}>
               <button
                 type="button"
                 className={cn(
-                  'chip-action chip-save pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100',
+                  'chip-action chip-save pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100',
                   chip.saved && 'text-[var(--accent-amber)]'
                 )}
                 aria-label={savedActionLabel}
@@ -1118,11 +1144,22 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
               </button>
             </TooltipAnchor>
           )}
+          {showSavedHint && (
+            <TooltipAnchor content="Saved page">
+              <span
+                className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-[var(--accent-amber)] opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100"
+                role="img"
+                aria-label="Saved page"
+              >
+                <BookmarkCheck className="h-[14px] w-[14px]" strokeWidth={2.3} />
+              </span>
+            </TooltipAnchor>
+          )}
           {canCloseChip && (
             <TooltipAnchor content={closeActionLabel}>
             <button
               type="button"
-              className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
+              className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
               aria-label={closeActionLabel}
               onClick={isHistorySource ? onDeleteHistory : onClose}
             >

@@ -50,6 +50,10 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Par
   return renderToStaticMarkup(React.createElement(DomainCardProvider, { value }, element))
 }
 
+function assertInstantActionClass(className: string) {
+  assert.doesNotMatch(className, /(?:^|\s)(?:transition(?:-\S+)?|duration-\S+|delay-\S+|ease-\S+)(?:\s|$)/)
+}
+
 function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHistorySnapshot {
   return {
     stackSize: 1,
@@ -345,16 +349,41 @@ test('PageChip renders saved open tabs with separate remove-saved and close acti
   )
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
   const saveActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-save\b[^"]*)"/)
+  const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(saveActionMatch, 'saved action should render')
+  assert.ok(closeActionMatch, 'close action should render')
   assert.match(html, /\bpage-chip-saved\b/)
   assert.match(saveActionMatch[1], /group-hover\/page-chip:opacity-100/)
+  assertInstantActionClass(saveActionMatch[1])
+  assertInstantActionClass(closeActionMatch[1])
   assert.doesNotMatch(saveActionMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
   assert.doesNotMatch(saveActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
   assert.match(html, /aria-label="Remove saved page"/)
   assert.match(html, /aria-pressed="true"/)
   assert.match(html, /aria-label="Close this tab"/)
+})
+
+test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'bookmark', saved: true, savedPageKey: 'https://openai.com/docs' })
+    })
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const savedHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-saved-hint\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(savedHintMatch, 'read-only saved hint should render')
+  assert.match(chipMatch[1], /\bpage-chip-saved\b/)
+  assert.match(savedHintMatch[1], /group-hover\/page-chip:opacity-100/)
+  assertInstantActionClass(savedHintMatch[1])
+  assert.doesNotMatch(savedHintMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
+  assert.doesNotMatch(savedHintMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
+  assert.doesNotMatch(html, /\bchip-save\b/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /aria-label="Close this tab"/)
 })
 
 test('PageChip renders closed saved pages muted with no close action', () => {
@@ -640,15 +669,57 @@ test('PageChip renders save controls for same-title URL variants independently',
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
   const savedVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-save\b[^"]*)"/)
+  const closeVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-action\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(savedVariantActionMatch, 'saved title variant action should render')
+  assert.ok(closeVariantActionMatch, 'close title variant action should render')
   assert.doesNotMatch(chipMatch[1], /\bpage-chip-saved\b/)
   assert.equal((html.match(/\bchip-title-variant-save\b/g) || []).length, 2)
+  assertInstantActionClass(savedVariantActionMatch[1])
+  assertInstantActionClass(closeVariantActionMatch[1])
   assert.doesNotMatch(savedVariantActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
   assert.match(html, /aria-label="Remove saved page"/)
   assert.match(html, /aria-label="Save page"/)
   assert.equal((html.match(/\bchip-title-variant-action\b/g) || []).length, 2)
+})
+
+test('PageChip renders saved bookmark URL variants as read-only hints', () => {
+  const chip = makeChip({
+    sourceType: 'bookmark',
+    tabUrl: 'https://example.com/content/item?search_id=alpha',
+    rawUrl: 'https://example.com/content/item?search_id=alpha',
+    displaySegments: ['Example content item'],
+    tooltip: 'Example content item',
+    titleVariantChips: [
+      makeChip({
+        sourceType: 'bookmark',
+        tabUrl: 'https://example.com/content/item?search_id=alpha',
+        rawUrl: 'https://example.com/content/item?search_id=alpha',
+        pathSuffix: '…?search_id=alpha',
+        tooltip: '…?search_id=alpha',
+        saved: true,
+        savedPageKey: 'https://example.com/content/item?search_id=alpha'
+      }),
+      makeChip({
+        sourceType: 'bookmark',
+        tabUrl: 'https://example.com/content/item?search_id=bravo',
+        rawUrl: 'https://example.com/content/item?search_id=bravo',
+        pathSuffix: '…?search_id=bravo',
+        tooltip: '…?search_id=bravo'
+      })
+    ]
+  })
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const savedVariantHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-title-variant-saved-hint\b[^"]*)"/)
+
+  assert.ok(savedVariantHintMatch, 'read-only saved title variant hint should render')
+  assertInstantActionClass(savedVariantHintMatch[1])
+  assert.equal((html.match(/\bchip-title-variant-saved-hint\b/g) || []).length, 1)
+  assert.doesNotMatch(html, /\bchip-title-variant-save\b/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /\bchip-title-variant-action\b/)
 })
 
 test('PageChip renders save controls for folded env pills independently', () => {
@@ -686,10 +757,51 @@ test('PageChip renders save controls for folded env pills independently', () => 
   assert.ok(savedEnvActionMatch, 'saved env action should render')
   assert.equal((html.match(/\bchip-env-save\b/g) || []).length, 2)
   assert.match(html, /\bchip-env-shell\b/)
+  assertInstantActionClass(savedEnvActionMatch[1])
   assert.doesNotMatch(savedEnvActionMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
   assert.doesNotMatch(savedEnvActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
   assert.match(html, /aria-label="Remove saved page"/)
   assert.match(html, /aria-label="Save page"/)
+  assert.doesNotMatch(html, /\bchip-save\b/)
+})
+
+test('PageChip renders saved bookmark folded env pills as read-only hints', () => {
+  const chip = makeChip({
+    sourceType: 'bookmark',
+    tabUrl: 'https://env-alpha.example.test/docs',
+    rawUrl: 'https://env-alpha.example.test/docs',
+    displaySegments: ['Example Docs'],
+    tooltip: 'env-alpha · env-bravo · Example Docs',
+    envs: [
+      {
+        prefix: 'env-alpha',
+        tabUrl: 'https://env-alpha.example.test/docs',
+        rawUrl: 'https://env-alpha.example.test/docs',
+        sourceType: 'bookmark',
+        saved: true,
+        savedPageKey: 'https://env-alpha.example.test/docs',
+        title: 'Example Docs',
+        faviconUrl: ''
+      },
+      {
+        prefix: 'env-bravo',
+        tabUrl: 'https://env-bravo.example.test/docs',
+        rawUrl: 'https://env-bravo.example.test/docs',
+        sourceType: 'bookmark',
+        title: 'Example Docs',
+        faviconUrl: ''
+      }
+    ]
+  })
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const savedEnvHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-env-saved-hint\b[^"]*)"/)
+
+  assert.ok(savedEnvHintMatch, 'read-only saved env hint should render')
+  assertInstantActionClass(savedEnvHintMatch[1])
+  assert.equal((html.match(/\bchip-env-saved-hint\b/g) || []).length, 1)
+  assert.doesNotMatch(html, /\bchip-env-save\b/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /\bchip-save\b/)
 })
 
