@@ -22,10 +22,11 @@
 import { fetchOpenTabs, getDashboardTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
+import { loadSavedPagesStore, mergeSavedPagesWithTabs, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
-import { dashboardSourceAllowsTabActions } from './dashboard-source.js'
+import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 
@@ -59,8 +60,9 @@ type DashboardViewModelOptions = {
 
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.trim().length > 0
-  const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : realTabs
-  const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
+  const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))
+  const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : openTabs
+  const totalWindows = new Set(openTabs.map((t) => t.windowId)).size
   const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
   const allowMutations = dashboardSourceAllowsTabActions(source)
 
@@ -90,7 +92,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   return {
     source,
     stats: {
-      totalTabs: realTabs.length,
+      totalTabs: openTabs.length,
       visibleTabs: visibleTabs.length,
       totalWindows,
       visibleWindows,
@@ -176,13 +178,18 @@ export async function fetchDashboardData(
   }
 
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
-  const [, currentWindowId, bookmarkTabs, historyTabs] = await Promise.all([
+  const [, currentWindowId, savedPagesStore, bookmarkTabs, historyTabs] = await Promise.all([
     fetchOpenTabs(),
     getCurrentWindowId(),
+    loadSavedPagesStore(),
     includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([]),
     includeHistoryMatches ? fetchHistorySourceItems(searchQuery, historyRange) : Promise.resolve([])
   ])
-  const realTabs = getDashboardTabs()
+  const savedPagesMerge = mergeSavedPagesWithTabs(getDashboardTabs(), savedPagesStore)
+  if (!savedPagesStoresEqual(savedPagesStore, savedPagesMerge.store)) {
+    void saveSavedPagesStore(savedPagesMerge.store).catch(() => {})
+  }
+  const realTabs = savedPagesMerge.tabs
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
   const bookmarkDomainGroups = buildDomainGroups(bookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
   const historyDomainGroups = buildDomainGroups(historyTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })

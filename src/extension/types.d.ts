@@ -11,7 +11,10 @@ export interface DashboardTab {
   groupId: number
   isTabOut: boolean
   isApp: boolean
-  sourceType?: 'tab' | 'bookmark' | 'history'
+  sourceType?: 'tab' | 'bookmark' | 'history' | 'saved-page'
+  saved?: boolean
+  closedSaved?: boolean
+  savedPageKey?: string
   index?: number
 }
 
@@ -87,15 +90,26 @@ export interface DashboardChipEnv {
   prefix: string
   tabUrl: string
   rawUrl: string
+  sourceType?: DashboardTab['sourceType']
+  saved?: boolean
+  closedSaved?: boolean
+  savedPageKey?: string
+  title?: string
+  faviconUrl?: string
+  isApp?: boolean
   activeInOtherWindow?: boolean
 }
 
 export interface DashboardChipData {
   tabUrl: string
   rawUrl: string
-  sourceType?: 'tab' | 'bookmark' | 'history'
+  sourceType?: 'tab' | 'bookmark' | 'history' | 'saved-page'
+  saved?: boolean
+  closedSaved?: boolean
+  savedPageKey?: string
   leadPrefix: string
   pathGroupLabel: string
+  title?: string
   displaySegments: DashboardSegment[]
   suppressedTitleParts: string[]
   pathSuffix: string

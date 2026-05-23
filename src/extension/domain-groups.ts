@@ -1,6 +1,7 @@
 import { domainGroupCardId } from './domain-card-id.js'
 import { registrableDomain } from './domains.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
+import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import type { CustomGroupRule, DashboardTab, DomainGroup, DomainGroupBuildOptions } from './types'
 
 /**
@@ -85,7 +86,12 @@ export function buildDomainGroups(
 
   function orderTier(group: DomainGroup): number {
     if (group.pinned) return 0
-    return 1
+    if (orderCount(group) > 0) return 1
+    return 2
+  }
+
+  function orderCount(group: DomainGroup): number {
+    return group.tabs.filter((tab) => !isClosedSavedDashboardTab(tab)).length
   }
 
   const groupedDomains = Object.values(groupMap)
@@ -99,7 +105,7 @@ export function buildDomainGroups(
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta
     if (a.pinned && b.pinned) return (pinnedOrder.get(a.domain) ?? 0) - (pinnedOrder.get(b.domain) ?? 0)
-    return b.tabs.length - a.tabs.length
+    return orderCount(b) - orderCount(a)
   })
 
   // Stable re-sort: previously-seen cards keep their prior order; new

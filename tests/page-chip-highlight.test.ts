@@ -294,6 +294,8 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bhover:bg-\[rgba\(82,82,82,0\.13\)\]/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
+  assert.match(chipMatch[1], /after:w-\[88px\]/)
+  assert.match(chipMatch[1], /var\(--chip-hover-fade-bg\)_34%/)
   assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
@@ -320,6 +322,55 @@ test('PageChip does not invent live-tab favicons for read-only chips', () => {
   )
 
   assert.doesNotMatch(html, /default-favicon-image/)
+})
+
+test('PageChip renders a save action for unsaved live tabs', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'tab' })
+    })
+  )
+
+  assert.match(html, /chip-save/)
+  assert.match(html, /aria-label="Save page"/)
+  assert.match(html, /aria-pressed="false"/)
+  assert.match(html, /aria-label="Close this tab"/)
+})
+
+test('PageChip renders saved open tabs with separate remove-saved and close actions', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'tab', saved: true, savedPageKey: 'https://openai.com/docs' })
+    })
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const saveActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-save\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(saveActionMatch, 'saved action should render')
+  assert.match(html, /\bpage-chip-saved\b/)
+  assert.match(saveActionMatch[1], /group-hover\/page-chip:opacity-100/)
+  assert.doesNotMatch(saveActionMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
+  assert.doesNotMatch(saveActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
+  assert.match(html, /aria-label="Remove saved page"/)
+  assert.match(html, /aria-pressed="true"/)
+  assert.match(html, /aria-label="Close this tab"/)
+})
+
+test('PageChip renders closed saved pages muted with no close action', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'saved-page', saved: true, closedSaved: true, savedPageKey: 'https://openai.com/docs' })
+    })
+  )
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.match(chipMatch[1], /\bpage-chip-saved\b/)
+  assert.match(chipMatch[1], /\bpage-chip-saved-closed\b/)
+  assert.match(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /aria-label="Close this tab"/)
+  assert.match(html, /default-favicon-image/)
 })
 
 test('PageChip close animation collapses the measured row height', () => {
@@ -470,11 +521,13 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   const chipTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)"/)
   const titleVariantShellMatch = html.match(/<span class="([^"]*\bchip-title-variant-shell\b[^"]*)"/)
   const titleVariantButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant\b[^"]*)"/)
+  const titleVariantActionsMatch = html.match(/<span class="([^"]*\bchip-title-variant-actions\b[^"]*)"/)
   const titleVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-action\b[^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(chipTextMatch, 'chip text should render')
   assert.ok(titleVariantShellMatch, 'title variant shell should render')
   assert.ok(titleVariantButtonMatch, 'title variant button should render')
+  assert.ok(titleVariantActionsMatch, 'title variant actions should render')
   assert.ok(titleVariantActionMatch, 'title variant action should render')
   assert.doesNotMatch(chipMatch[2], /tabIndex|tabindex/)
   assert.match(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
@@ -487,11 +540,11 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bitems-stretch\b/)
   assert.doesNotMatch(html, /\bchip-title-variant-list\b[^"]*\bflex-wrap\b/)
   assert.match(titleVariantShellMatch[1], /\bw-full\b/)
-  assert.match(titleVariantShellMatch[1], /pr-\[22px\]/)
+  assert.match(titleVariantShellMatch[1], /pr-\[42px\]/)
   assert.match(titleVariantButtonMatch[1], /\bw-full\b/)
-  assert.match(titleVariantActionMatch[1], /\btop-0\b/)
-  assert.match(titleVariantActionMatch[1], /\bbottom-0\b/)
-  assert.match(titleVariantActionMatch[1], /\bmy-auto\b/)
+  assert.match(titleVariantActionsMatch[1], /\btop-0\b/)
+  assert.match(titleVariantActionsMatch[1], /\bbottom-0\b/)
+  assert.match(titleVariantActionsMatch[1], /\bmy-auto\b/)
   assert.match(titleVariantActionMatch[1], /h-\[19px\]/)
   assert.match(titleVariantActionMatch[1], /w-\[19px\]/)
   assert.doesNotMatch(titleVariantActionMatch[1], /\bh-5\b/)
@@ -555,6 +608,89 @@ test('PageChip outlines same-title variant groups when external hover matches a 
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
+})
+
+test('PageChip renders save controls for same-title URL variants independently', () => {
+  const chip = makeChip({
+    sourceType: 'tab',
+    tabUrl: 'https://example.com/content/item?search_id=alpha',
+    rawUrl: 'https://example.com/content/item?search_id=alpha',
+    displaySegments: ['Example content item'],
+    tooltip: 'Example content item',
+    titleVariantChips: [
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=alpha',
+        rawUrl: 'https://example.com/content/item?search_id=alpha',
+        pathSuffix: '…?search_id=alpha',
+        tooltip: '…?search_id=alpha',
+        saved: true,
+        savedPageKey: 'https://example.com/content/item?search_id=alpha'
+      }),
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=bravo',
+        rawUrl: 'https://example.com/content/item?search_id=bravo',
+        pathSuffix: '…?search_id=bravo',
+        tooltip: '…?search_id=bravo'
+      })
+    ]
+  })
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const savedVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-save\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(savedVariantActionMatch, 'saved title variant action should render')
+  assert.doesNotMatch(chipMatch[1], /\bpage-chip-saved\b/)
+  assert.equal((html.match(/\bchip-title-variant-save\b/g) || []).length, 2)
+  assert.doesNotMatch(savedVariantActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
+  assert.match(html, /aria-label="Remove saved page"/)
+  assert.match(html, /aria-label="Save page"/)
+  assert.equal((html.match(/\bchip-title-variant-action\b/g) || []).length, 2)
+})
+
+test('PageChip renders save controls for folded env pills independently', () => {
+  const chip = makeChip({
+    sourceType: 'tab',
+    tabUrl: 'https://env-alpha.example.test/docs',
+    rawUrl: 'https://env-alpha.example.test/docs',
+    displaySegments: ['Example Docs'],
+    tooltip: 'env-alpha · env-bravo · Example Docs',
+    envs: [
+      {
+        prefix: 'env-alpha',
+        tabUrl: 'https://env-alpha.example.test/docs',
+        rawUrl: 'https://env-alpha.example.test/docs',
+        sourceType: 'tab',
+        saved: true,
+        savedPageKey: 'https://env-alpha.example.test/docs',
+        title: 'Example Docs',
+        faviconUrl: ''
+      },
+      {
+        prefix: 'env-bravo',
+        tabUrl: 'https://env-bravo.example.test/docs',
+        rawUrl: 'https://env-bravo.example.test/docs',
+        sourceType: 'tab',
+        title: 'Example Docs',
+        faviconUrl: ''
+      }
+    ]
+  })
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const savedEnvActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-env-save\b[^"]*)"/)
+
+  assert.ok(savedEnvActionMatch, 'saved env action should render')
+  assert.equal((html.match(/\bchip-env-save\b/g) || []).length, 2)
+  assert.match(html, /\bchip-env-shell\b/)
+  assert.doesNotMatch(savedEnvActionMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
+  assert.doesNotMatch(savedEnvActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
+  assert.match(html, /aria-label="Remove saved page"/)
+  assert.match(html, /aria-label="Save page"/)
+  assert.doesNotMatch(html, /\bchip-save\b/)
 })
 
 test('PageChip matches working set hover against raw tab URLs', () => {

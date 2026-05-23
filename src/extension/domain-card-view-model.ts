@@ -7,7 +7,7 @@ import { resolvePathGroup } from './path-groups.js'
 import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './website-path-sections.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
-import { dashboardItemNameForTabs } from './dashboard-source.js'
+import { dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
@@ -601,24 +601,40 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return { stableId, isHidden: true, displayMode, filtering }
   }
 
-  const tabCount = tabs.length
-  const totalTabCount = allTabs.length
-  const itemLabel = dashboardItemNameForTabs(allTabs, 'open tab')
-  const tabCountLabel = filtering && tabCount !== totalTabCount ? `${tabCount}/${totalTabCount}` : `${tabCount}`
-  const tabCountTitle = filtering
-    ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`
-    : `${tabCount} ${itemLabel}${tabCount !== 1 ? 's' : ''}`
+  const openTabs = tabs.filter((tab) => !isClosedSavedDashboardTab(tab))
+  const totalOpenTabs = allTabs.filter((tab) => !isClosedSavedDashboardTab(tab))
+  const closedSavedTabs = tabs.filter(isClosedSavedDashboardTab)
+  const totalClosedSavedTabs = allTabs.filter(isClosedSavedDashboardTab)
+  const tabCount = openTabs.length
+  const totalTabCount = totalOpenTabs.length
+  const closedSavedCount = closedSavedTabs.length
+  const totalClosedSavedCount = totalClosedSavedTabs.length
+  const itemLabel = dashboardItemNameForTabs(totalOpenTabs, 'open tab')
+  const openCountLabel = filtering && tabCount !== totalTabCount && tabCount > 0 ? `${tabCount}/${totalTabCount}` : `${tabCount}`
+  const savedCountLabel = closedSavedCount > 0 ? ` +${closedSavedCount} saved` : ''
+  const tabCountLabel = `${openCountLabel}${savedCountLabel}`
+  const tabCountTitleParts = [
+    filtering
+      ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`
+      : `${tabCount} ${itemLabel}${tabCount !== 1 ? 's' : ''}`,
+    closedSavedCount > 0
+      ? filtering
+        ? `${closedSavedCount} of ${totalClosedSavedCount} saved page${totalClosedSavedCount !== 1 ? 's' : ''} shown while filtering`
+        : `${closedSavedCount} saved page${closedSavedCount !== 1 ? 's' : ''}`
+      : ''
+  ].filter(Boolean)
+  const tabCountTitle = tabCountTitleParts.join(', ')
   const isTabOutGroup = group.domain === '__tab-out__'
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
-  const closableTabs = tabs.filter((t) => !isGroupedTab(t) && !(isTabOutGroup && t.pinned))
+  const closableTabs = openTabs.filter((t) => !isGroupedTab(t) && !(isTabOutGroup && t.pinned))
   const closableCount = closableTabs.length
 
   // Count duplicates per URL and delegate the closeability rules to the
   // shared dedupe policy so dashboard counts mirror tab mutation behavior.
   const urlCounts: Record<string, number> = {}
   const tabsByUrl = new Map<string, DashboardTab[]>()
-  for (const tab of tabs) {
+  for (const tab of openTabs) {
     urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1
     if (!tabsByUrl.has(tab.url)) tabsByUrl.set(tab.url, [])
     tabsByUrl.get(tab.url)?.push(tab)
@@ -937,12 +953,15 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     if (aOrder === undefined && bOrder !== undefined) return 1
     return fallback()
   }
+  function tabOpenStateRank(tab: DashboardTab): number {
+    return isClosedSavedDashboardTab(tab) ? 1 : 0
+  }
   uniqueTabs.sort((a, b) => compareWithPriorityThenRememberedChipOrder(
     dashboardChipOrderKeyForTab(a),
     dashboardChipOrderKeyForTab(b),
     chipPriorityScore(a),
     chipPriorityScore(b),
-    () => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true })
+    () => tabOpenStateRank(a) - tabOpenStateRank(b) || sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true })
   ))
 
   // Detect cross-subdomain shared paths — the "same page in dev2us +
@@ -1079,8 +1098,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
       sourceType: tab.sourceType || 'tab',
+      saved: !!tab.saved,
+      closedSaved: isClosedSavedDashboardTab(tab),
+      savedPageKey: tab.savedPageKey,
       leadPrefix,
       pathGroupLabel: pgLabel,
+      title: label,
       displaySegments,
       suppressedTitleParts: presentation.suppressedTitleParts,
       pathSuffix: pathSuffix || '',
@@ -1155,8 +1178,13 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const representative = variants[0]
     const activeInCurrentWindow = variants.some((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
     const activeInOtherWindow = !activeInCurrentWindow && variants.some((variant) => !!variant.activeInOtherWindow)
+    const allVariantsSaved = variants.length > 0 && variants.every((variant) => !!variant.saved)
+    const allVariantsClosedSaved = variants.length > 0 && variants.every((variant) => isClosedSavedDashboardTab(variant))
     return {
       ...representative,
+      saved: allVariantsSaved,
+      closedSaved: allVariantsClosedSaved,
+      savedPageKey: undefined,
       pathSuffix: '',
       tooltip: `${representative.tooltip} · ${variants.length} URL variants`,
       dupeCount: 1,
@@ -1385,6 +1413,13 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           prefix: sub || '?',
           tabUrl: t.url,
           rawUrl: t.rawUrl || t.url,
+          sourceType: t.sourceType || 'tab',
+          saved: !!t.saved,
+          closedSaved: isClosedSavedDashboardTab(t),
+          savedPageKey: t.savedPageKey,
+          title: displayTitle(t),
+          faviconUrl: pickDashboardChipFavicon(t),
+          isApp: !!t.isApp,
           activeInOtherWindow: isActiveInOtherWindow(t, currentWindowId)
         }
       })

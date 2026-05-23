@@ -5,6 +5,7 @@
 - **Dashboard**: The Tab Out new-tab surface that shows open tabs and related sources grouped for cleanup.
 - **Source**: The selected dashboard input: open tabs, bookmarks, or history.
 - **Dashboard Item**: A tab-shaped page from any Source that can be grouped and rendered on the Dashboard.
+- **Saved Page**: A user-kept Dashboard Item that stays visible in the Tabs source after its matching open tab is closed.
 - **Domain Card**: A dashboard group for one registrable domain or fixed system group.
 - **Domain Card Identity**: The stable `domain-*` key shared by card order memory, Domain Card view data, React keys, and card move animation DOM hooks.
 - **Page Chip**: A clickable row or icon inside a Domain Card that represents one page, duplicate set, app, or folded cross-subdomain page.
@@ -42,6 +43,21 @@
 - Filter highlighting marks each parsed term or quoted phrase that contributes to an app-owned **Filter Match**.
 - **Companion Results** are loaded only while open tabs are the selected **Source**, so they do not replace the selected source view.
 - Bookmark **Filter Matches** and history **Companion Results** remain read-only **Dashboard Items** even though they render as Page Chips.
+- A **Saved Page** belongs to the Tabs source, not the Bookmarks source, and saving one does not create a Chrome bookmark.
+- A **Saved Page** is created only by explicit user action; closing an unsaved tab does not create a visible closed-tab item.
+- A **Saved Page** preserves the exact page URL for reopening.
+- A **Saved Page** belongs to one exact page target; saving a same-title URL variant or folded environment target saves that target, not the whole visual group.
+- A **Saved Page** merges with its matching open-tab **Dashboard Item** while the page is open, so one **Page Chip** represents the page and saved state annotates it.
+- A closed **Saved Page** stays in its normal **Domain Card** and can reopen its URL from the Tabs source.
+- A **Saved Page** does not follow later navigation of a matching open tab; navigation away leaves the saved exact page as a closed **Saved Page** unless the new page is saved separately.
+- A matching open tab may refresh a **Saved Page's** title or favicon metadata without changing its exact page URL.
+- Closing a matching open tab does not remove its **Saved Page**; removing saved state does not close a matching open tab.
+- Closed **Saved Pages** may match a **Filter Query**, but they do not count as open tabs, close targets, or duplicate extras.
+- Closed **Saved Pages** render after open-tab **Page Chips** within their matching **Domain Card** scope.
+- A **Domain Card** with only closed **Saved Pages** stays visible in the Tabs source but has no close or dedupe actions.
+- Activating a closed **Saved Page** opens its URL in a new active tab in the current window.
+- Removing a **Saved Page** removes saved state only and should offer undo.
+- **Saved Pages** exclude browser utility pages such as Tab Out, new-tab, settings, internal Chrome, extension pages, and standalone apps.
 - A **Working Set** is merged into **Activation History**: overlapping items mark their history rows, and high-ranked items missing from history appear as supplemental history-panel rows.
 - A **Working Set** is not a **Source** and does not include bookmark or history **Dashboard Items**.
 - A **Working Set** crosses **Domain Card** boundaries because it is optimized for return switching rather than domain cleanup.

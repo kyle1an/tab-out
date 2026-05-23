@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
+import { Bookmark, BookmarkCheck } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
+import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { DefaultFavicon } from './DefaultFavicon'
@@ -284,6 +286,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const parentInteractive = !isFolded && !isTitleVariantGroup
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
+  const isClosedSavedPage = chip.sourceType === 'saved-page' || !!chip.closedSaved
   const highlightTerms = highlightTermsForFilter(filter, isHistorySource ? 'legacy' : 'parsed')
   const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
   const primaryPreviewUrl = chip.tabUrl || ''
@@ -359,14 +362,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     e.stopPropagation()
-    await focusChipUrl(env.tabUrl)
+    await focusChipUrl(env.tabUrl, env.sourceType || chip.sourceType)
   }
 
   async function onEnvKeyDown(e: KeyboardEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
-    await focusChipUrl(env.tabUrl)
+    await focusChipUrl(env.tabUrl, env.sourceType || chip.sourceType)
   }
 
   function setPreview(url: string, matchUrls: readonly string[] = [url]) {
@@ -401,7 +404,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
   }
 
-  function onEnvMouseLeave(e: MouseEvent<HTMLButtonElement>) {
+  function onEnvMouseLeave(e: MouseEvent<HTMLElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (!isFolded && chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
@@ -414,7 +417,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
   }
 
-  function onEnvBlur(e: FocusEvent<HTMLButtonElement>) {
+  function onEnvBlur(e: FocusEvent<HTMLElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (!isFolded && chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       setPreview(primaryPreviewUrl)
@@ -452,6 +455,23 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         setPreview('')
       }
     })
+  }
+
+  async function onToggleSavedPage(e: MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation()
+    if (chip.saved) {
+      await removeSavedPageTarget(chip.savedPageKey || chip.tabUrl)
+    } else {
+      await savePageTarget({
+        url: chip.tabUrl,
+        rawUrl: chip.rawUrl,
+        title: chip.title || chip.tooltip,
+        favIconUrl: chip.faviconUrl,
+        isTabOut: false,
+        isApp: chip.isApp
+      })
+    }
+    setPreview('')
   }
 
   async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
@@ -495,6 +515,40 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     })
   }
 
+  async function onToggleSavedTitleVariant(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
+    e.stopPropagation()
+    if (variant.saved) {
+      await removeSavedPageTarget(variant.savedPageKey || variant.tabUrl)
+    } else {
+      await savePageTarget({
+        url: variant.tabUrl,
+        rawUrl: variant.rawUrl,
+        title: variant.title || variant.tooltip,
+        favIconUrl: variant.faviconUrl,
+        isTabOut: false,
+        isApp: variant.isApp
+      })
+    }
+    setPreview('')
+  }
+
+  async function onToggleSavedEnv(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
+    e.stopPropagation()
+    if (env.saved) {
+      await removeSavedPageTarget(env.savedPageKey || env.tabUrl)
+    } else {
+      await savePageTarget({
+        url: env.tabUrl,
+        rawUrl: env.rawUrl,
+        title: env.title || chip.title || chip.tooltip,
+        favIconUrl: env.faviconUrl || chip.faviconUrl,
+        isTabOut: false,
+        isApp: !!env.isApp
+      })
+    }
+    setPreview('')
+  }
+
   const hasActiveChipFrame = !!(chip.activeChipFrame || chip.activeInOtherWindow)
   const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow
   const style = {
@@ -504,14 +558,18 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
   } as CSSProperties
   const dupeCount = chip.dupeCount || 1
-  const showDefaultFavicon = !chip.faviconUrl && !isReadOnlySource
+  const showDefaultFavicon = !chip.faviconUrl && (!isReadOnlySource || chip.sourceType === 'saved-page')
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
+  const savedLabel = chip.saved ? (isClosedSavedPage ? 'Closed saved page' : 'Saved page') : ''
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const titleVariantLabel = isTitleVariantGroup ? `${titleVariantChips.length} URL variants: ${titleVariantChips.map((variant) => variant.pathSuffix || variant.tabUrl).join(' · ')}` : ''
-  const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel].filter(Boolean).join(' · ')
+  const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
+  const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
+  const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
+  const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldShowChipTooltip = chip.iconOnly || isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders
@@ -639,6 +697,9 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
   function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
+    const envSavedActionLabel = env.saved ? 'Remove saved page' : 'Save page'
+    const canToggleSavedEnv = (env.sourceType === 'tab' || env.sourceType === 'saved-page') && !env.isApp
+    const envKey = env.rawUrl || env.tabUrl
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
@@ -648,14 +709,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
     if (mode === 'tooltip') {
       return (
-        <span key={env.rawUrl || env.tabUrl} className={envClassName}>
+        <span key={envKey} className={envClassName}>
           {renderHighlightedText(env.prefix, highlightTerms, `tooltip-env-${env.prefix}`)}
         </span>
       )
     }
 
-    return (
-      <TooltipAnchor key={env.rawUrl || env.tabUrl} content={envLabel}>
+    const envFocusButton = (
+      <TooltipAnchor content={envLabel}>
         <button
           type="button"
           className={envClassName}
@@ -670,6 +731,32 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           {renderHighlightedText(env.prefix, highlightTerms, `env-${env.prefix}`)}
         </button>
       </TooltipAnchor>
+    )
+
+    if (!canToggleSavedEnv) return <span key={envKey} className="chip-env-shell relative inline-flex items-center">{envFocusButton}</span>
+
+    return (
+      <span key={envKey} className="chip-env-shell group/env relative inline-flex items-center">
+        {envFocusButton}
+        <TooltipAnchor content={envSavedActionLabel}>
+          <button
+            type="button"
+            className={cn(
+              'chip-env-save pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] transition-[opacity,color,background] duration-150 group-hover/env:pointer-events-auto group-hover/env:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+              env.saved && 'text-[var(--accent-amber)]'
+            )}
+            aria-label={envSavedActionLabel}
+            aria-pressed={env.saved ? 'true' : 'false'}
+            onClick={(e) => onToggleSavedEnv(e, env)}
+            onMouseEnter={() => onEnvMouseEnter(env)}
+            onMouseLeave={onEnvMouseLeave}
+            onFocus={() => onEnvFocus(env)}
+            onBlur={onEnvBlur}
+          >
+            {env.saved ? <BookmarkCheck className="h-2.5 w-2.5" strokeWidth={2.4} /> : <Bookmark className="h-2.5 w-2.5" strokeWidth={2.4} />}
+          </button>
+        </TooltipAnchor>
+      </span>
     )
   }
 
@@ -754,8 +841,12 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const variantHoverMatched = externalHoverActive && chipMatchesActiveHover(variant)
     const variantDupeCount = variant.dupeCount || 1
     const variantIsHistorySource = variant.sourceType === 'history'
-    const variantCanClose = !isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource
-    const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : ''].filter(Boolean).join(' · ')
+    const variantClosedSaved = variant.sourceType === 'saved-page' || !!variant.closedSaved
+    const variantCanToggleSaved = (variant.sourceType === 'tab' || variant.sourceType === 'saved-page') && !variant.isApp
+    const variantCanClose = !variantClosedSaved && (!isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource)
+    const variantActionCount = (variantCanToggleSaved ? 1 : 0) + (variantCanClose ? 1 : 0)
+    const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
+    const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     const labelContent = (
       <>
         <span className="chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
@@ -785,7 +876,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         key={variant.rawUrl || variant.tabUrl}
         className={cn(
           'chip-title-variant-shell group/title-variant relative flex w-full max-w-full min-w-0 items-center',
-          variantCanClose && 'pr-[22px]'
+          variantActionCount === 1 && 'pr-[22px]',
+          variantActionCount > 1 && 'pr-[42px]'
         )}
       >
         <TooltipAnchor
@@ -812,23 +904,47 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
             {labelContent}
           </button>
         </TooltipAnchor>
-        {variantCanClose && (
-          <TooltipAnchor content={titleVariantActionLabel(variant)}>
-            <button
-              type="button"
-              className="chip-title-variant-action absolute top-0 right-0 bottom-0 z-[2] my-auto inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
-              aria-label={titleVariantActionLabel(variant)}
-              onClick={(e) => onCloseTitleVariant(e, variant)}
-              onMouseEnter={() => onTitleVariantMouseEnter(variant)}
-              onMouseLeave={onTitleVariantMouseLeave}
-              onFocus={() => onTitleVariantFocusIn(variant)}
-              onBlur={onTitleVariantBlur}
-            >
-              <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </TooltipAnchor>
+        {variantActionCount > 0 && (
+          <span className="chip-title-variant-actions absolute top-0 right-0 bottom-0 z-[2] my-auto flex h-[19px] items-center gap-0.5">
+            {variantCanToggleSaved && (
+              <TooltipAnchor content={variantSavedActionLabel}>
+                <button
+                  type="button"
+                  className={cn(
+                    'chip-title-variant-save inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+                    variant.saved && 'text-[var(--accent-amber)]'
+                  )}
+                  aria-label={variantSavedActionLabel}
+                  aria-pressed={variant.saved ? 'true' : 'false'}
+                  onClick={(e) => onToggleSavedTitleVariant(e, variant)}
+                  onMouseEnter={() => onTitleVariantMouseEnter(variant)}
+                  onMouseLeave={onTitleVariantMouseLeave}
+                  onFocus={() => onTitleVariantFocusIn(variant)}
+                  onBlur={onTitleVariantBlur}
+                >
+                  {variant.saved ? <BookmarkCheck className="h-3.5 w-3.5" strokeWidth={2.3} /> : <Bookmark className="h-3.5 w-3.5" strokeWidth={2.3} />}
+                </button>
+              </TooltipAnchor>
+            )}
+            {variantCanClose && (
+              <TooltipAnchor content={titleVariantActionLabel(variant)}>
+                <button
+                  type="button"
+                  className="chip-title-variant-action inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                  aria-label={titleVariantActionLabel(variant)}
+                  onClick={(e) => onCloseTitleVariant(e, variant)}
+                  onMouseEnter={() => onTitleVariantMouseEnter(variant)}
+                  onMouseLeave={onTitleVariantMouseLeave}
+                  onFocus={() => onTitleVariantFocusIn(variant)}
+                  onBlur={onTitleVariantBlur}
+                >
+                  <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </TooltipAnchor>
+            )}
+          </span>
         )}
       </span>
     )
@@ -905,9 +1021,10 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     >
       <div
         className={cn(
-          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
+          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[88px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
-          !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 hover:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100',
           hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
@@ -915,6 +1032,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)]',
           isFolded && hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.11)]',
           isFolded && 'page-chip-folded cursor-default after:hidden',
+          chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
@@ -982,9 +1100,26 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           {renderChipTextContent('chip')}
         </span>
       )}
-      {!chip.iconOnly && parentInteractive && (!isReadOnlySource || isHistorySource) && (
+      {!chip.iconOnly && (canToggleSavedPage || canCloseChip) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
-          <TooltipAnchor content={closeActionLabel}>
+          {canToggleSavedPage && (
+            <TooltipAnchor content={savedActionLabel}>
+              <button
+                type="button"
+                className={cn(
+                  'chip-action chip-save pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100',
+                  chip.saved && 'text-[var(--accent-amber)]'
+                )}
+                aria-label={savedActionLabel}
+                aria-pressed={chip.saved ? 'true' : 'false'}
+                onClick={onToggleSavedPage}
+              >
+                {chip.saved ? <BookmarkCheck className="h-[14px] w-[14px]" strokeWidth={2.3} /> : <Bookmark className="h-[14px] w-[14px]" strokeWidth={2.3} />}
+              </button>
+            </TooltipAnchor>
+          )}
+          {canCloseChip && (
+            <TooltipAnchor content={closeActionLabel}>
             <button
               type="button"
               className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 transition-[opacity,color,background] duration-150 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
@@ -995,7 +1130,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </button>
-          </TooltipAnchor>
+            </TooltipAnchor>
+          )}
         </div>
       )}
       </div>

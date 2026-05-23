@@ -1,5 +1,6 @@
 import { getRealTabs } from './tabs.js'
 import { isGroupedTab } from './groups.js'
+import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery, searchablePartsForDashboardItem, searchableTextForDashboardItem } from './filter-query.js'
 
 import type { DashboardTab } from './types'
@@ -35,6 +36,7 @@ export function getFilteredCloseableUrls(realTabs: DashboardTab[] = getRealTabs(
   if (!filter.trim()) return []
   return realTabs
     .filter((t) => !t.isApp)
+    .filter((t) => !isClosedSavedDashboardTab(t))
     .filter((t) => !isGroupedTab(t))
     .filter((t) => t.url && !t.url.startsWith('chrome') && !t.url.startsWith('about:'))
     .filter((t) => tabMatchesSourceFilter(t, filter))

@@ -294,6 +294,30 @@ test('computeDomainCardViewModel uses query crumbs for same-title URL variants o
   assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…?search_id=alpha', '…?search_id=bravo'])
 })
 
+test('computeDomainCardViewModel keeps saved state scoped to same-title URL variants', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({
+        url: 'https://example.com/content/item?search_id=alpha',
+        title: 'Example content item',
+        saved: true,
+        savedPageKey: 'https://example.com/content/item?search_id=alpha'
+      }),
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const [chip] = vm.sections[0].flatVisibleChips
+  const variants = chip.titleVariantChips || []
+
+  assert.equal(chip.saved, false)
+  assert.equal(chip.savedPageKey, undefined)
+  assert.equal(variants.find((variant) => variant.tabUrl.endsWith('search_id=alpha'))?.saved, true)
+  assert.equal(variants.find((variant) => variant.tabUrl.endsWith('search_id=bravo'))?.saved, false)
+})
+
 test('computeDomainCardViewModel inlines title suppression when same-title URL variants are the only occurrence', () => {
   const group = {
     domain: 'example.com',
@@ -1836,6 +1860,77 @@ test('history search matches are not tab-closable dashboard results', () => {
   assert.equal(vm.matchedCards[0].vm.closableCount, 0)
   assert.equal(vm.matchedCards[0].vm.tabCountTitle, '1 of 1 history result shown while filtering')
   assert.equal(vm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'history')
+})
+
+test('closed saved pages stay searchable without counting as open tabs or close targets', () => {
+  const groups = buildDomainGroups([
+    makeTab({ id: 1, url: 'https://example.test/open', title: 'Open tab' }),
+    makeTab({
+      id: 'saved-1',
+      url: 'https://example.test/saved',
+      title: 'Saved reference',
+      sourceType: 'saved-page' as DashboardTab['sourceType'],
+      saved: true,
+      closedSaved: true
+    } as Partial<DashboardTab> & { url: string })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const unfiltered = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    source: 'tabs'
+  })
+  assert.equal(unfiltered.stats.totalTabs, 1)
+  assert.equal(unfiltered.stats.visibleTabs, 1)
+  assert.equal(unfiltered.matchedCards[0].vm.tabCountLabel, '1 +1 saved')
+  assert.equal(unfiltered.matchedCards[0].vm.closableCount, 1)
+  assert.deepEqual(unfiltered.globalDedupeUrls, [])
+
+  const filtered = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: 'reference',
+    source: 'tabs'
+  })
+  assert.equal(filtered.stats.visibleTabs, 0)
+  assert.equal(filtered.matchedCards.length, 1)
+  assert.equal(filtered.matchedCards[0].vm.tabCountLabel, '0 +1 saved')
+  assert.deepEqual(filtered.filteredCloseUrls, [])
+  assert.equal(filtered.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'saved-page')
+})
+
+test('closed saved pages render after open tabs within their domain card scope', () => {
+  const groups = buildDomainGroups([
+    makeTab({ id: 'saved-1', url: 'https://example.test/a-saved', title: 'Alpha Saved', sourceType: 'saved-page' as DashboardTab['sourceType'], saved: true, closedSaved: true } as Partial<DashboardTab> & { url: string }),
+    makeTab({ id: 2, url: 'https://example.test/z-open', title: 'Zulu Open' })
+  ])
+
+  const vm = computeDomainCardViewModel(groups[0])
+  assert.deepEqual(
+    vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://example.test/z-open', 'https://example.test/a-saved']
+  )
+})
+
+test('buildDomainGroups keeps saved-only cards after cards with open tabs despite previous order', () => {
+  const groups = buildDomainGroups(
+    [
+      makeTab({ id: 'saved-1', url: 'https://saved-only.test/a', title: 'Saved only', sourceType: 'saved-page' as DashboardTab['sourceType'], saved: true, closedSaved: true } as Partial<DashboardTab> & { url: string }),
+      makeTab({ id: 2, url: 'https://open-tabs.test/z', title: 'Open tab' })
+    ],
+    {
+      previousOrder: new Map([
+        ['domain-saved-only-test', 0],
+        ['domain-open-tabs-test', 1]
+      ])
+    }
+  )
+
+  assert.deepEqual(
+    groups.map((group) => group.domain),
+    ['open-tabs.test', 'saved-only.test']
+  )
 })
 
 test('manifest keeps only the permissions used by the extension', () => {
