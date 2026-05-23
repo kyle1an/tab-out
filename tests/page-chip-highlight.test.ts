@@ -336,6 +336,7 @@ test('PageChip renders a save action for unsaved live tabs', () => {
   )
 
   assert.match(html, /chip-save/)
+  assert.match(html, /icon-\[mingcute--star-line\]/)
   assert.match(html, /aria-label="Save page"/)
   assert.match(html, /aria-pressed="false"/)
   assert.match(html, /aria-label="Close this tab"/)
@@ -355,6 +356,7 @@ test('PageChip renders saved open tabs with separate remove-saved and close acti
   assert.ok(saveActionMatch, 'saved action should render')
   assert.ok(closeActionMatch, 'close action should render')
   assert.match(html, /\bpage-chip-saved\b/)
+  assert.match(html, /icon-\[mingcute--star-fill\]/)
   assert.match(saveActionMatch[1], /group-hover\/page-chip:opacity-100/)
   assertInstantActionClass(saveActionMatch[1])
   assertInstantActionClass(closeActionMatch[1])
@@ -377,6 +379,7 @@ test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(savedHintMatch, 'read-only saved hint should render')
   assert.match(chipMatch[1], /\bpage-chip-saved\b/)
+  assert.match(html, /icon-\[mingcute--star-fill\]/)
   assert.match(savedHintMatch[1], /group-hover\/page-chip:opacity-100/)
   assertInstantActionClass(savedHintMatch[1])
   assert.doesNotMatch(savedHintMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)

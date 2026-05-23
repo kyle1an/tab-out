@@ -6,6 +6,10 @@
 
 @source "../";
 
+@plugin "@iconify/tailwind4" {
+  scale: 1;
+}
+
 @tailwind utilities source(none);
 
 @theme {

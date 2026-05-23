@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
-import { Bookmark, BookmarkCheck } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
@@ -147,6 +146,10 @@ async function waitForPageChipCloseAnimation() {
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
+}
+
+function SavedPageIcon({ saved, className }: { saved: boolean; className: string }) {
+  return <span aria-hidden="true" className={cn(saved ? 'icon-[mingcute--star-fill]' : 'icon-[mingcute--star-line]', className)} />
 }
 
 function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titleSuppression: string } {
@@ -756,7 +759,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
               onFocus={() => onEnvFocus(env)}
               onBlur={onEnvBlur}
             >
-              {env.saved ? <BookmarkCheck className="h-2.5 w-2.5" strokeWidth={2.4} /> : <Bookmark className="h-2.5 w-2.5" strokeWidth={2.4} />}
+              <SavedPageIcon saved={!!env.saved} className="h-2.5 w-2.5" />
             </button>
           </TooltipAnchor>
         ) : (
@@ -766,7 +769,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
               role="img"
               aria-label="Saved page"
             >
-              <BookmarkCheck className="h-2.5 w-2.5" strokeWidth={2.4} />
+              <SavedPageIcon saved className="h-2.5 w-2.5" />
             </span>
           </TooltipAnchor>
         )}
@@ -937,7 +940,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   onFocus={() => onTitleVariantFocusIn(variant)}
                   onBlur={onTitleVariantBlur}
                 >
-                  {variant.saved ? <BookmarkCheck className="h-3.5 w-3.5" strokeWidth={2.3} /> : <Bookmark className="h-3.5 w-3.5" strokeWidth={2.3} />}
+                  <SavedPageIcon saved={!!variant.saved} className="h-3.5 w-3.5" />
                 </button>
               </TooltipAnchor>
             )}
@@ -948,7 +951,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   role="img"
                   aria-label="Saved page"
                 >
-                  <BookmarkCheck className="h-3.5 w-3.5" strokeWidth={2.3} />
+                  <SavedPageIcon saved className="h-3.5 w-3.5" />
                 </span>
               </TooltipAnchor>
             )}
@@ -1140,7 +1143,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 aria-pressed={chip.saved ? 'true' : 'false'}
                 onClick={onToggleSavedPage}
               >
-                {chip.saved ? <BookmarkCheck className="h-[14px] w-[14px]" strokeWidth={2.3} /> : <Bookmark className="h-[14px] w-[14px]" strokeWidth={2.3} />}
+                <SavedPageIcon saved={!!chip.saved} className="h-[14px] w-[14px]" />
               </button>
             </TooltipAnchor>
           )}
@@ -1151,7 +1154,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 role="img"
                 aria-label="Saved page"
               >
-                <BookmarkCheck className="h-[14px] w-[14px]" strokeWidth={2.3} />
+                <SavedPageIcon saved className="h-[14px] w-[14px]" />
               </span>
             </TooltipAnchor>
           )}
