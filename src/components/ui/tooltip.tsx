@@ -16,6 +16,7 @@ import type {
   ReactElement,
   ReactNode
 } from 'react'
+import { flushSync } from 'react-dom'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
 import { mergeRefs } from 'foxact/merge-refs'
 import { useRetimer } from 'foxact/use-retimer'
@@ -28,6 +29,7 @@ const TOOLTIP_ADJACENT_REST_DELAY_MS = 180
 const TOOLTIP_ADJACENT_REST_WINDOW_MS = 700
 const TOOLTIP_HOVERABLE_CLOSE_DELAY_MS = 160
 const TOOLTIP_HOVER_WATCH_INTERVAL_MS = 80
+const TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS = 320
 const TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX = 1
 const TOOLTIP_COLLISION_AVOIDANCE: NonNullable<
   TooltipPrimitive.Positioner.Props['collisionAvoidance']
@@ -93,6 +95,7 @@ function TooltipContent({
   collisionAvoidance = TOOLTIP_COLLISION_AVOIDANCE,
   collisionPadding = 0,
   positionMethod,
+  instant = false,
   children,
   onClick,
   onPointerDown,
@@ -110,6 +113,7 @@ function TooltipContent({
     | 'side'
     | 'sideOffset'
   > & {
+    instant?: boolean
     popupRef?: Ref<HTMLDivElement>
   }) {
   return (
@@ -130,7 +134,10 @@ function TooltipContent({
           ref={popupRef}
           data-slot="tooltip-content"
           className={cn(
-            'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-[10px] bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-tab-ink shadow-lg shadow-[var(--warm-gray)] outline-1 outline-[var(--warm-gray)] transition-[transform,opacity] duration-150 [corner-shape:squircle] [overflow-wrap:anywhere] data-[align=end]:data-[side=bottom]:rounded-tr-none data-[align=end]:data-[side=top]:rounded-br-none data-[align=start]:data-[side=bottom]:rounded-tl-none data-[align=start]:data-[side=top]:rounded-bl-none data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-instant:transition-none data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',
+            'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-[10px] bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-tab-ink shadow-lg shadow-[var(--warm-gray)] outline-1 outline-[var(--warm-gray)] [corner-shape:squircle] [overflow-wrap:anywhere] data-[align=end]:data-[side=bottom]:rounded-tr-none data-[align=end]:data-[side=top]:rounded-br-none data-[align=start]:data-[side=bottom]:rounded-tl-none data-[align=start]:data-[side=top]:rounded-bl-none',
+            instant
+              ? 'transition-none'
+              : 'transition-[transform,opacity] duration-150 data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',
             className
           )}
           onClick={(event) => {
@@ -169,16 +176,19 @@ type TooltipAnchorProps = Omit<
   ComponentProps<typeof TooltipContent>,
   'children' | 'content'
 > & {
+  anchorToCursor?: boolean
   content?: ReactNode
   children: TooltipTriggerElement
 }
 
 function TooltipAnchor({
+  anchorToCursor = true,
   content,
   children,
   ...contentProps
 }: TooltipAnchorProps) {
   const anchorId = useId()
+  const tooltipActionsRef = useRef<TooltipPrimitive.Root.Actions | null>(null)
   const triggerElementRef = useRef<HTMLElement | null>(null)
   const popupElementRef = useRef<HTMLDivElement | null>(null)
   const latestPointerPointRef = useRef<CursorPoint | null>(null)
@@ -186,6 +196,7 @@ function TooltipAnchor({
   const pointerInsideRef = useRef(false)
   const pointerFocusedRef = useRef(false)
   const popupPointerInsideRef = useRef(false)
+  const hoverOpenBlockedUntilRef = useRef(0)
   const hoverCloseScheduledRef = useRef(false)
   const retimeFrozenPointerClear = useRetimer()
   const retimeHoverOpen = useRetimer()
@@ -193,6 +204,7 @@ function TooltipAnchor({
   const [frozenPointerPoint, setFrozenPointerPoint] =
     useState<CursorPoint | null>(null)
   const [tooltipOpen, setTooltipOpen] = useState(false)
+  const closeInstantly = contentProps.instant === true
 
   const clearHoverCloseTimer = useCallback(() => {
     hoverCloseScheduledRef.current = false
@@ -223,17 +235,23 @@ function TooltipAnchor({
   const closeTooltip = useCallback(() => {
     retimeHoverOpen()
     clearHoverCloseTimer()
-    setTooltipOpen(false)
+    if (closeInstantly) {
+      flushSync(() => setTooltipOpen(false))
+      tooltipActionsRef.current?.unmount()
+    } else {
+      setTooltipOpen(false)
+    }
     if (activeTooltipAnchorId === anchorId) {
       activeTooltipAnchorId = null
       latestTooltipActivityAt = now()
     }
     clearFrozenPointerPointAfterClose()
-  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, retimeHoverOpen])
+  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, closeInstantly, retimeHoverOpen])
 
   const openTooltip = useCallback((point: CursorPoint | null) => {
     retimeHoverOpen()
     clearHoverCloseTimer()
+    if (point !== null && now() < hoverOpenBlockedUntilRef.current) return
     if (!pointerInsideRef.current && point !== null) return
 
     activeTooltipAnchorId = anchorId
@@ -281,10 +299,16 @@ function TooltipAnchor({
   useEffect(() => {
     if (!tooltipOpen) return
 
-    const handleScroll = () => closeTooltip()
-    const handleWindowBlur = () => closeTooltip()
+    const closeFromGlobalEvent = () => {
+      pointerInsideRef.current = false
+      popupPointerInsideRef.current = false
+      hoverOpenBlockedUntilRef.current = now() + TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS
+      closeTooltip()
+    }
+    const handleScroll = () => closeFromGlobalEvent()
+    const handleWindowBlur = () => closeFromGlobalEvent()
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible') closeTooltip()
+      if (document.visibilityState !== 'visible') closeFromGlobalEvent()
     }
     const isTooltipRegionActive = () => {
       const triggerElement = triggerElementRef.current
@@ -327,6 +351,7 @@ function TooltipAnchor({
     }, TOOLTIP_HOVER_WATCH_INTERVAL_MS)
 
     window.addEventListener('scroll', handleScroll, true)
+    document.addEventListener('scroll', handleScroll, true)
     window.addEventListener('blur', handleWindowBlur)
     window.addEventListener('pointermove', handlePointerOrMouseMove, true)
     window.addEventListener('mousemove', handlePointerOrMouseMove, true)
@@ -336,6 +361,7 @@ function TooltipAnchor({
     return () => {
       window.clearInterval(hoverWatchId)
       window.removeEventListener('scroll', handleScroll, true)
+      document.removeEventListener('scroll', handleScroll, true)
       window.removeEventListener('blur', handleWindowBlur)
       window.removeEventListener('pointermove', handlePointerOrMouseMove, true)
       window.removeEventListener('mousemove', handlePointerOrMouseMove, true)
@@ -348,6 +374,7 @@ function TooltipAnchor({
   const handlePointerEnter = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       children.props.onPointerEnter?.(event)
+      if (now() < hoverOpenBlockedUntilRef.current) return
       pointerInsideRef.current = true
       clearHoverCloseTimer()
       hoverDelayRef.current = shouldUseAdjacentTooltipDelay(anchorId)
@@ -370,7 +397,10 @@ function TooltipAnchor({
   const handlePointerMove = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       children.props.onPointerMove?.(event)
-      if (!pointerInsideRef.current) return
+      if (now() < hoverOpenBlockedUntilRef.current) return
+      if (!pointerInsideRef.current) {
+        pointerInsideRef.current = true
+      }
       if (tooltipOpen) {
         updateLatestPointerPoint(event)
         return
@@ -479,16 +509,17 @@ function TooltipAnchor({
         new DOMRect(frozenPointerPoint.x, frozenPointerPoint.y, 0, 0)
     }
   }, [frozenPointerPoint])
+  const tooltipAnchor = anchorToCursor ? cursorAnchor : undefined
 
   if (content === null || content === undefined || content === '') return children
 
   return (
-    <Tooltip open={tooltipOpen}>
+    <Tooltip actionsRef={tooltipActionsRef} open={tooltipOpen}>
       <TooltipTrigger render={trigger} disabled />
       <TooltipContent
-        anchor={cursorAnchor}
+        anchor={tooltipAnchor}
         popupRef={popupElementRef}
-        positionMethod={cursorAnchor ? 'fixed' : undefined}
+        positionMethod={tooltipAnchor ? 'fixed' : undefined}
         onMouseEnter={handleContentMouseEnter}
         onMouseLeave={handleContentMouseLeave}
         onPointerEnter={handleContentPointerEnter}

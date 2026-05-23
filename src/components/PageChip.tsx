@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
+import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction } from 'react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
@@ -11,7 +11,7 @@ import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
 import type { InlineTextRenderer } from './bionic-title-text'
-import { TITLE_SUPPRESSION_MARKER_SYMBOL, titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
+import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import type { DashboardChipData, LayoutChangeHandler } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
@@ -19,9 +19,12 @@ import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 let chipTextResizeObserver: ResizeObserver | null = null
 const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
-  (metrics: { isTruncated: boolean; width: number }) => void
+  (metrics: { height: number; isTruncated: boolean; maxWidth: number; width: number }) => void
 >()
 export const PAGE_CHIP_CLOSE_ANIMATION_MS = 200
+const PAGE_CHIP_TOOLTIP_ALIGN_OFFSET_PX = -8
+const PAGE_CHIP_TOOLTIP_MAX_WIDTH_OFFSET_PX = 6
+const PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX = 4
 const PAGE_CHIP_CLOSE_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 
 interface PageChipProps {
@@ -248,24 +251,48 @@ function getChipTextWidth(textEl: HTMLElement | null) {
   return Math.round(textEl.getBoundingClientRect().width * 100) / 100
 }
 
+function getChipTextHeight(textEl: HTMLElement | null) {
+  if (!textEl) return 0
+  return Math.round(textEl.getBoundingClientRect().height * 100) / 100
+}
+
+function getChipTooltipMaxWidth(textEl: HTMLElement | null) {
+  if (!textEl || typeof window === 'undefined') return 0
+
+  const textRect = textEl.getBoundingClientRect()
+  const scrollRegion = textEl.closest('.scroll-region')
+  const scrollRegionRect = scrollRegion instanceof HTMLElement ? scrollRegion.getBoundingClientRect() : null
+  const boundaryRight = scrollRegionRect && scrollRegionRect.width > 0 && scrollRegionRect.right > textRect.left
+    ? Math.min(window.innerWidth, scrollRegionRect.right)
+    : window.innerWidth
+  const maxWidth = boundaryRight - textRect.left + PAGE_CHIP_TOOLTIP_MAX_WIDTH_OFFSET_PX
+  return Math.max(0, Math.round(maxWidth * 100) / 100)
+}
+
 function syncChipTextFade(textEl: HTMLElement | null) {
-  if (!textEl) return { isTruncated: false, width: 0 }
+  if (!textEl) return { height: 0, isTruncated: false, width: 0, maxWidth: 0 }
 
   const isTruncated = isChipTextTruncated(textEl)
   const width = getChipTextWidth(textEl)
+  const height = getChipTextHeight(textEl)
+  const maxWidth = getChipTooltipMaxWidth(textEl)
   textEl.classList.toggle('chip-text-truncated', isTruncated)
-  chipTextTruncationCallbacks.get(textEl)?.({ isTruncated, width })
-  return { isTruncated, width }
+  chipTextTruncationCallbacks.get(textEl)?.({ height, isTruncated, maxWidth, width })
+  return { height, isTruncated, width, maxWidth }
 }
 
 function updateChipTextTruncation(
   textEl: HTMLElement | null,
   setIsTextTruncated: Dispatch<SetStateAction<boolean>>,
-  setChipTextWidth: Dispatch<SetStateAction<number>>
+  setChipTextWidth: Dispatch<SetStateAction<number>>,
+  setChipTextHeight: Dispatch<SetStateAction<number>>,
+  setChipTooltipMaxWidth: Dispatch<SetStateAction<number>>
 ) {
-  const { isTruncated, width } = syncChipTextFade(textEl)
+  const { height, isTruncated, width, maxWidth } = syncChipTextFade(textEl)
   setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
   setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
+  setChipTextHeight((current) => Math.abs(current - height) < 0.1 ? current : height)
+  setChipTooltipMaxWidth((current) => Math.abs(current - maxWidth) < 0.1 ? current : maxWidth)
 }
 
 function getChipTextResizeObserver() {
@@ -300,12 +327,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const [isTextTruncated, setIsTextTruncated] = useState(false)
   const [chipTextWidth, setChipTextWidth] = useState(0)
+  const [chipTextHeight, setChipTextHeight] = useState(0)
+  const [chipTooltipMaxWidth, setChipTooltipMaxWidth] = useState(0)
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl) return
 
-    const frameId = requestAnimationFrame(() => updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth))
+    const frameId = requestAnimationFrame(() => updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth, setChipTextHeight, setChipTooltipMaxWidth))
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -315,16 +344,18 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
     let disposed = false
     const observer = getChipTextResizeObserver()
-    chipTextTruncationCallbacks.set(textEl, ({ isTruncated, width }) => {
+    chipTextTruncationCallbacks.set(textEl, ({ height, isTruncated, maxWidth, width }) => {
       if (disposed) return
       setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
       setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
+      setChipTextHeight((current) => Math.abs(current - height) < 0.1 ? current : height)
+      setChipTooltipMaxWidth((current) => Math.abs(current - maxWidth) < 0.1 ? current : maxWidth)
     })
     observer?.observe(textEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
-      if (!disposed) updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth)
+      if (!disposed) updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth, setChipTextHeight, setChipTooltipMaxWidth)
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -391,6 +422,10 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   function onChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     setPreview('')
+  }
+
+  function onChipTextPointerEnter(e: PointerEvent<HTMLSpanElement>) {
+    updateChipTextTruncation(e.currentTarget, setIsTextTruncated, setChipTextWidth, setChipTextHeight, setChipTooltipMaxWidth)
   }
 
   function onChipFocus() {
@@ -578,9 +613,15 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldShowChipTooltip = chip.iconOnly || isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders
   const chipTooltipTextWidth = !chip.iconOnly && chipTextWidth > 0 ? `${chipTextWidth}px` : ''
-  const chipTooltipStyle = chipTooltipTextWidth ? {
-    '--page-chip-tooltip-text-width': chipTooltipTextWidth
-  } as CSSProperties : undefined
+  const chipTooltipSideOffset = chipTextHeight > 0
+    ? -(chipTextHeight + PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX)
+    : -22
+  const chipTooltipMaxWidthValue = chipTooltipMaxWidth > 0 ? `${chipTooltipMaxWidth}px` : 'calc(100vw - 16px)'
+  const chipTooltipStyle = {
+    ...(chipTooltipTextWidth ? { '--page-chip-tooltip-text-width': chipTooltipTextWidth } : {}),
+    '--page-chip-tooltip-max-width': chipTooltipMaxWidthValue,
+    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))'
+  } as CSSProperties
   function chipMatchesActiveHover(target: DashboardChipData) {
     return (
       target.tabUrl === activeHoverUrl ||
@@ -611,13 +652,15 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <span
         key={key}
         className={cn(
-          'chip-title-suppression-marker inline-flex h-4 min-w-4 items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.08)] px-1 text-xs leading-none font-medium text-tab-muted align-baseline [corner-shape:squircle]',
+          'chip-title-suppression-marker inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center rounded-[7px] border border-transparent bg-[rgba(115,115,115,0.08)] px-[3px] text-[12px] leading-[12px] text-tab-muted align-middle [corner-shape:squircle]',
           markerClassName,
           titleSuppressionMarkerClass(tone, active)
         )}
         aria-label={label}
       >
-        {TITLE_SUPPRESSION_MARKER_SYMBOL}
+        <svg className="chip-title-suppression-glyph h-[7px] w-2" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+          <path d="M1.25 5.4c1.25-1.45 2.5-1.45 3.75 0s2.5 1.45 3.75 0" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+        </svg>
       </span>
     )
 
@@ -626,7 +669,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         <span
           key={key}
           className={cn(
-            'chip-title-suppression-marker inline-flex min-h-4 max-w-full items-center justify-center rounded-lg border border-transparent bg-[rgba(115,115,115,0.08)] px-1 text-xs leading-4 font-medium text-tab-muted align-baseline [corner-shape:squircle] [overflow-wrap:anywhere]',
+            'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium text-tab-muted align-baseline [corner-shape:squircle] [overflow-wrap:anywhere] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]',
             markerClassName,
             titleSuppressionMarkerClass(tone, active)
           )}
@@ -899,6 +942,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         )}
       >
         <TooltipAnchor
+          instant
           content={renderTitleVariantTooltipContent(variant, index)}
           className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
           style={chipTooltipStyle}
@@ -1042,12 +1086,23 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     </span>
   ) : undefined
 
-  return (
-    <TooltipAnchor
-      content={chipTooltipContent}
-      className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
-      style={chipTooltipStyle}
+  const chipTextElement = (
+    <span
+      className={cn(
+        "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+        hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
+        chip.pathSuffix && 'max-h-[calc(3lh)]',
+        isTitleVariantGroup && 'max-h-none',
+        isFolded && 'max-h-none'
+      )}
+      ref={chipTextRef}
+      onPointerEnter={onChipTextPointerEnter}
     >
+      {renderChipTextContent('chip')}
+    </span>
+  )
+
+  const chipElement = (
       <div
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[88px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
@@ -1116,18 +1171,19 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         </span>
       )}
       {!chip.iconOnly && (
-        <span
-          className={cn(
-            "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
-            hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
-            chip.pathSuffix && 'max-h-[calc(3lh)]',
-            isTitleVariantGroup && 'max-h-none',
-            isFolded && 'max-h-none'
-          )}
-          ref={chipTextRef}
-        >
-          {renderChipTextContent('chip')}
-        </span>
+        chipTooltipContent ? (
+          <TooltipAnchor
+            alignOffset={PAGE_CHIP_TOOLTIP_ALIGN_OFFSET_PX}
+            anchorToCursor={false}
+            content={chipTooltipContent}
+            className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+            instant
+            sideOffset={chipTooltipSideOffset}
+            style={chipTooltipStyle}
+          >
+            {chipTextElement}
+          </TooltipAnchor>
+        ) : chipTextElement
       )}
       {!chip.iconOnly && (showSavedHint || canToggleSavedPage || canCloseChip) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
@@ -1175,6 +1231,20 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         </div>
       )}
       </div>
-    </TooltipAnchor>
   )
+
+  if (chip.iconOnly && chipTooltipContent) {
+    return (
+      <TooltipAnchor
+        content={chipTooltipContent}
+        className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+        instant
+        style={chipTooltipStyle}
+      >
+        {chipElement}
+      </TooltipAnchor>
+    )
+  }
+
+  return chipElement
 }
