@@ -8,7 +8,7 @@ import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './w
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { dashboardItemNameForTabs } from './dashboard-source.js'
-import type { DashboardCardVM, DashboardChipData, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
+import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
@@ -17,6 +17,7 @@ type ComputeCardOptions = {
   allowMutations?: boolean
   currentWindowId?: number | null
   chipOrder?: Map<string, number>
+  chipPriority?: DashboardChipPriorityMap
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
 type TitlePresentation = {
@@ -570,7 +571,7 @@ function disambiguatingPaths(urls: string[]): string[] {
  * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null, chipOrder }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null, chipOrder, chipPriority }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
   const filtering = filter.trim() !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -909,7 +910,26 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   function sortLabel(tab: DashboardTab): string {
     return displayTitle(tab).toLowerCase()
   }
-  function compareWithRememberedChipOrder(aKey: string, bKey: string, fallback: () => number): number {
+  function chipPriorityScore(tab: DashboardTab): number {
+    const score = chipPriority?.get(tab.url || '') ?? chipPriority?.get(tab.rawUrl || '')
+    return typeof score === 'number' && Number.isFinite(score) ? score : 0
+  }
+
+  function chipPriorityScoreForTabs(priorityTabs: DashboardTab[]): number {
+    return priorityTabs.reduce((max, tab) => Math.max(max, chipPriorityScore(tab)), 0)
+  }
+
+  function comparePriorityScores(aPriority: number, bPriority: number): number {
+    return aPriority === bPriority ? 0 : bPriority - aPriority
+  }
+
+  function compareWithPriority(aPriority: number, bPriority: number, fallback: () => number): number {
+    return comparePriorityScores(aPriority, bPriority) || fallback()
+  }
+
+  function compareWithPriorityThenRememberedChipOrder(aKey: string, bKey: string, aPriority: number, bPriority: number, fallback: () => number): number {
+    const priorityDelta = comparePriorityScores(aPriority, bPriority)
+    if (priorityDelta !== 0) return priorityDelta
     const aOrder = chipOrder?.get(aKey)
     const bOrder = chipOrder?.get(bKey)
     if (aOrder !== undefined && bOrder !== undefined && aOrder !== bOrder) return aOrder - bOrder
@@ -917,9 +937,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     if (aOrder === undefined && bOrder !== undefined) return 1
     return fallback()
   }
-  uniqueTabs.sort((a, b) => compareWithRememberedChipOrder(
+  uniqueTabs.sort((a, b) => compareWithPriorityThenRememberedChipOrder(
     dashboardChipOrderKeyForTab(a),
     dashboardChipOrderKeyForTab(b),
+    chipPriorityScore(a),
+    chipPriorityScore(b),
     () => sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true })
   ))
 
@@ -977,15 +999,19 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     bySubdomain.get(key)?.push(tab)
   }
 
-  // Sort policy: root tabs (empty key) first, then the rest
-  // alphabetically by subdomain. Alphabetical is predictable — the
-  // same subdomain always lands in the same spot across refreshes,
-  // regardless of tab counts or Chrome tab-strip order.
+  // Sort policy: high-priority sections surface first; ties fall back to
+  // root tabs (empty key) first, then alphabetically by subdomain.
   const sections = [...bySubdomain.entries()].sort((a, b) => {
-    if (a[0] === b[0]) return 0
-    if (a[0] === '') return -1
-    if (b[0] === '') return 1
-    return a[0].localeCompare(b[0])
+    return compareWithPriority(
+      chipPriorityScoreForTabs(a[1]),
+      chipPriorityScoreForTabs(b[1]),
+      () => {
+        if (a[0] === b[0]) return 0
+        if (a[0] === '') return -1
+        if (b[0] === '') return 1
+        return a[0].localeCompare(b[0])
+      }
+    )
   })
   const multipleSections = sections.length > 1
   // Single-subdomain card: hoist the subdomain up to a pill next to
@@ -1227,7 +1253,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, [])
       clusterByLabel.get(lbl)?.push(t)
     }
-    const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+    const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => compareWithPriority(
+      chipPriorityScoreForTabs(a[1]),
+      chipPriorityScoreForTabs(b[1]),
+      () => a[0].localeCompare(b[0], undefined, { numeric: true })
+    ))
 
     // Pull requests deserve their own section under a repo: they're
     // action items ("review me"), not browsing state ("I'm reading
@@ -1390,9 +1420,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // tab across every env in every fold group.
   let sharedSectionData: DashboardSectionVM | null = null
   if (foldGroups.length > 0) {
-    const sortedFolds = foldGroups.slice().sort((a, b) => compareWithRememberedChipOrder(
+    const sortedFolds = foldGroups.slice().sort((a, b) => compareWithPriorityThenRememberedChipOrder(
       dashboardFoldChipOrderKey(a[0]?.sourceType, a.map((tab) => tab.url)),
       dashboardFoldChipOrderKey(b[0]?.sourceType, b.map((tab) => tab.url)),
+      chipPriorityScoreForTabs(a),
+      chipPriorityScoreForTabs(b),
       () => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true })
     ))
     const foldedChipData = sortedFolds.map((tabs) => buildFoldedChipData(tabs))
@@ -1456,7 +1488,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         tabsWithoutWebsitePathSection.push(...bucket.tabs)
       }
     }
-    const websitePathBucketList = [...websitePathBuckets.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
+    const websitePathBucketList = [...websitePathBuckets.values()].sort((a, b) => compareWithPriority(
+      chipPriorityScoreForTabs(a.tabs),
+      chipPriorityScoreForTabs(b.tabs),
+      () => a.label.localeCompare(b.label, undefined, { numeric: true })
+    ))
     const showWebsitePathSections =
       websitePathBucketList.length > 1 ||
       (websitePathBucketList.length === 1 && websitePathBucketList[0].tabs.length >= 2 && tabsWithoutWebsitePathSection.length > 0)

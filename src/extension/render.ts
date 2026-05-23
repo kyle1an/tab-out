@@ -27,7 +27,7 @@ import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
-import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
+import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 
 export { pickFavicon } from './favicons.js'
 export { buildDomainGroups } from './domain-groups.js'
@@ -54,9 +54,10 @@ type DashboardViewModelOptions = {
   source?: DashboardSource
   currentWindowId?: number | null
   chipOrder?: DashboardChipOrderByCard
+  chipPriority?: DashboardChipPriorityMap
 }
 
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder }: DashboardViewModelOptions = {}): DashboardViewModel {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.trim().length > 0
   const visibleTabs = filtering ? realTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : realTabs
   const totalWindows = new Set(realTabs.map((t) => t.windowId)).size
@@ -69,7 +70,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   let dedupCount = 0
   for (const group of groups) {
     const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId, chipOrder: groupChipOrder })
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -80,7 +81,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId, chipOrder: groupChipOrder })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 

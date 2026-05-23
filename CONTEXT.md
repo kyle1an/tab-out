@@ -49,7 +49,7 @@
 - A **Working Set** may use historical activity signals to rank items, but every visible item must focus an existing open tab.
 - A **Working Set** treats active tab activation and active meaningful navigation as strong activity signals.
 - A **Working Set** treats repeated same-day exact page/path use as a medium activity signal, repeated current-week exact page/path use and same-domain habit as weak activity signals, and passive open duration or background tab churn as non-signals.
-- A **Working Set** ranks items by recency-dominant frecency and exposes a bounded top set as history hints or supplemental rows.
+- A **Working Set** ranks items by recency-dominant frecency and exposes a bounded top set as history hints, supplemental rows, and open-tab priority inside existing Domain Card scopes.
 - A **Working Set** excludes Tab Out pages, folds duplicate effective URLs, and does not treat Domain Card pins as a primary ranking signal.
 - A **Working Set** does not render as a standalone strip before **Domain Cards**; the fallback flow is **Activation History**, stable **Domain Cards**, then **Filter Query**.
 - A **Working Set** is for switching: its items support focus and URL preview, while cleanup actions remain in owning **Domain Cards**.
@@ -58,7 +58,7 @@
 - **Working Set** page identity should distinguish meaningful path changes while avoiding noisy query, hash, redirect, or background-update churn.
 - **Activation History** and **Working Set** may use overlapping activity evidence, but **Activation History** is chronological switching state while **Working Set** is ranked shortcut discovery.
 - **Activation History** treats browser utility pages such as Tab Out, new-tab, settings, internal Chrome, and extension pages as low-score rows even when they are current or active; suspended extension URLs unwrap to their real page before this decision.
-- A **Working Set** does not change **Domain Card** ordering by default, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
+- A **Working Set** does not change **Domain Card** ordering; it may prioritize sibling subdomain sections, Website Path Sections, Path Groups, and Page Chips within a Domain Card, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
 - A **Working Set** excludes utility pages such as Tab Out pages and should drop non-open pages from the visible set while retaining recent activity only as historical ranking evidence.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.
 - Repeated title noise inside a visible **Website Path Section** is scoped to that section when no narrower **Path Group** owns it.

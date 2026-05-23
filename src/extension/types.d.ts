@@ -73,6 +73,7 @@ export interface DomainGroupBuildOptions {
 }
 
 export type DashboardChipOrderByCard = Map<string, Map<string, number>>
+export type DashboardChipPriorityMap = Map<string, number>
 
 export type DashboardSegment = string | { placeholder: true; label?: string } | { titleSuppression: string }
 

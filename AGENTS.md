@@ -19,7 +19,7 @@ Update this section in the same patch when a change intentionally alters one of 
 - Standalone app/PWA windows are shown in the `Apps` utility card, do not receive active-tab highlighting, and are treated as low-score activation-history entries.
 - `New tabs` (`__tab-out__`) and `Apps` (`__standalone-apps__`) are utility cards. They are unpinned by default, but the user can explicitly pin them like other pinnable cards.
 - Domain-card pins are user-facing dashboard ordering state stored in `chrome.storage.local`; they are separate from Chrome's native `tab.pinned` flag.
-- Within each rendered domain card, known chips keep their effective-URL order across refreshes; title/loading/favIcon changes update the chip in place instead of re-sorting existing chips.
+- Within each rendered domain card, open-tab subdomain sections, Website Path Sections, Path Groups, and Page Chips may rank by Working Set priority so frequently used pages stay visible; non-prioritized chips keep their remembered effective-URL order across refreshes, and title/loading/favIcon changes update the chip in place instead of re-sorting existing chips.
 - Duplicate handling renders one chip per effective URL with a count badge and keeps one copy according to the shared dedupe policy. Bulk close and dedupe preserve Chrome tab groups; Tab Out dedupe preserves pinned Tab Out tabs.
 - Same-title pages with different effective URLs inside one rendered group merge visually into one title row with per-URL distinguishers. They are not URL duplicates; focus and close/delete actions stay scoped to the selected distinguisher.
 - Filtering keeps matching open tabs in their normal cards and moves non-matching open tabs into the secondary "Other tabs" grid so every open tab remains accounted for.

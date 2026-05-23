@@ -193,7 +193,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyRange,
     historyFilterEnabled,
     isReady,
-    chipOrder: chipOrderRef.current
+    chipOrder: chipOrderRef.current,
+    workingSet
   })
 
   async function onCloseFiltered() {

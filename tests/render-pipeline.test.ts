@@ -1258,6 +1258,123 @@ test('buildDashboardViewModel keeps known chip URLs in their previous card order
   )
 })
 
+test('buildDashboardViewModel ranks working-set-priority chips before remembered order within a domain card', () => {
+  const tabs = [
+    makeTab({ url: 'https://example.test/?page=alpha', title: 'Alpha page' }),
+    makeTab({ id: 2, url: 'https://example.test/?page=bravo', title: 'Bravo page' }),
+    makeTab({ id: 3, url: 'https://example.test/?page=charlie', title: 'Charlie page' })
+  ]
+  const groups = buildDomainGroups(tabs)
+  const previousChipOrder = new Map([
+    [
+      domainCardId('example.test'),
+      new Map([
+        [dashboardChipOrderKeyForTab(tabs[0]), 0],
+        [dashboardChipOrderKeyForTab(tabs[1]), 1],
+        [dashboardChipOrderKeyForTab(tabs[2]), 2]
+      ])
+    ]
+  ])
+
+  const vm = buildDashboardViewModel({
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    chipOrder: previousChipOrder,
+    chipPriority: new Map([
+      ['https://example.test/?page=charlie', 100]
+    ])
+  })
+
+  assert.deepEqual(
+    vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://example.test/?page=charlie', 'https://example.test/?page=alpha', 'https://example.test/?page=bravo']
+  )
+})
+
+test('computeDomainCardViewModel applies chip priority before the overflow split', () => {
+  const tabs = [
+    makeTab({ url: 'https://example.test/pages/alpha', title: 'Alpha page' }),
+    makeTab({ id: 2, url: 'https://example.test/pages/bravo', title: 'Bravo page' }),
+    makeTab({ id: 3, url: 'https://example.test/pages/charlie', title: 'Charlie page' }),
+    makeTab({ id: 4, url: 'https://example.test/pages/delta', title: 'Delta page' }),
+    makeTab({ id: 5, url: 'https://example.test/pages/echo', title: 'Echo page' }),
+    makeTab({ id: 6, url: 'https://example.test/pages/foxtrot', title: 'Foxtrot page' }),
+    makeTab({ id: 7, url: 'https://example.test/pages/golf', title: 'Golf page' })
+  ]
+
+  const vm = computeDomainCardViewModel(
+    { domain: 'example.test', tabs },
+    {
+      chipPriority: new Map([
+        ['https://example.test/pages/golf', 100]
+      ])
+    }
+  )
+  const section = vm.sections[0]
+
+  assert.equal(section.flatHiddenCount, 2)
+  assert.equal(section.flatVisibleChips[0].tabUrl, 'https://example.test/pages/golf')
+  assert.equal(section.flatHiddenChips.some((chip) => chip.tabUrl === 'https://example.test/pages/golf'), false)
+})
+
+test('computeDomainCardViewModel ranks subdomain sections by their strongest chip priority', () => {
+  const tabs = [
+    makeTab({ url: 'https://alpha.example.test/one', title: 'Alpha page' }),
+    makeTab({ id: 2, url: 'https://beta.example.test/two', title: 'Beta page' })
+  ]
+
+  const vm = computeDomainCardViewModel(
+    { domain: 'example.test', tabs },
+    {
+      chipPriority: new Map([
+        ['https://beta.example.test/two', 100]
+      ])
+    }
+  )
+
+  assert.deepEqual(vm.sections.map((section) => section.key), ['beta', 'alpha'])
+})
+
+test('computeDomainCardViewModel ranks website path sections by their strongest chip priority', () => {
+  const tabs = [
+    makeTab({ url: 'https://example.test/docs/alpha', title: 'Docs alpha' }),
+    makeTab({ id: 2, url: 'https://example.test/docs/bravo', title: 'Docs bravo' }),
+    makeTab({ id: 3, url: 'https://example.test/shop/alpha', title: 'Shop alpha' }),
+    makeTab({ id: 4, url: 'https://example.test/shop/bravo', title: 'Shop bravo' })
+  ]
+
+  const vm = computeDomainCardViewModel(
+    { domain: 'example.test', tabs },
+    {
+      chipPriority: new Map([
+        ['https://example.test/shop/bravo', 100]
+      ])
+    }
+  )
+
+  assert.deepEqual(vm.sections[0].websitePathSections.map((section) => section.label), ['/shop', '/docs'])
+})
+
+test('computeDomainCardViewModel ranks path groups by their strongest chip priority', () => {
+  const tabs = [
+    makeTab({ url: 'https://github.com/example/alpha/pull/1', title: 'Alpha pull request' }),
+    makeTab({ id: 2, url: 'https://github.com/example/alpha/issues/2', title: 'Alpha issue' }),
+    makeTab({ id: 3, url: 'https://github.com/example/bravo/pull/1', title: 'Bravo pull request' }),
+    makeTab({ id: 4, url: 'https://github.com/example/bravo/issues/2', title: 'Bravo issue' })
+  ]
+
+  const vm = computeDomainCardViewModel(
+    { domain: 'github.com', tabs },
+    {
+      chipPriority: new Map([
+        ['https://github.com/example/bravo/issues/2', 100]
+      ])
+    }
+  )
+
+  assert.deepEqual(vm.sections[0].clusters.map((cluster) => cluster.label), ['example/bravo', 'example/alpha'])
+})
+
 test('parseFilterQuery separates tokens, quoted phrases, and open-ended phrases', () => {
   assert.deepEqual(parseFilterQuery(' github "pull request" 4706 "open ended ').terms, [
     { kind: 'token', value: 'github' },

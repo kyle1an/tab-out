@@ -3,13 +3,14 @@ import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
 import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { buildDashboardViewModel } from '../extension/render.js'
-import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DomainGroup } from '../extension/types'
+import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DomainGroup, WorkingSetSnapshot } from '../extension/types'
 import type { MissionOrderMap } from './useDashboardRefresh'
 
 const EMPTY_TABS: DashboardData['realTabs'] = []
 const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []
 const EMPTY_CARD_ENTRIES: DashboardCardEntry[] = []
 const EMPTY_CHIP_ORDER_BY_CARD: DashboardChipOrderByCard = new Map()
+const EMPTY_CHIP_PRIORITY: DashboardChipPriorityMap = new Map()
 
 export type DashboardChipOrderMemoryMap = Record<DashboardSource, DashboardChipOrderByCard>
 
@@ -21,9 +22,26 @@ type DashboardViewModelOptions = {
   historyFilterEnabled: boolean
   isReady: boolean
   chipOrder: DashboardChipOrderMemoryMap
+  workingSet?: WorkingSetSnapshot | null
 }
 
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder }: DashboardViewModelOptions) {
+function chipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | undefined): DashboardChipPriorityMap {
+  if (!workingSet?.items?.length) return EMPTY_CHIP_PRIORITY
+  const priority = new Map<string, number>()
+  function addPriorityKey(key: string, score: number) {
+    if (!key) return
+    priority.set(key, Math.max(priority.get(key) || 0, score))
+  }
+  for (const item of workingSet.items) {
+    if (!Number.isFinite(item.score) || item.score <= 0) continue
+    addPriorityKey(item.key, item.score)
+    addPriorityKey(item.tabUrl, item.score)
+    addPriorityKey(item.rawUrl, item.score)
+  }
+  return priority
+}
+
+export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
@@ -32,6 +50,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || EMPTY_DOMAIN_GROUPS
   const historyTabs = dashboard?.historyTabs || EMPTY_TABS
   const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
+  const chipPriority = source === 'tabs' ? chipPriorityFromWorkingSet(workingSet) : EMPTY_CHIP_PRIORITY
 
   const dashboardVm = buildDashboardViewModel({
     realTabs,
@@ -39,7 +58,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     filter,
     source,
     currentWindowId,
-    chipOrder: chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD
+    chipOrder: chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD,
+    chipPriority
   })
 
   const bookmarkSearchVm =
