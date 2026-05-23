@@ -86,7 +86,7 @@ function TooltipContent({
   anchor,
   popupRef,
   side = 'bottom',
-  sideOffset = 10,
+  sideOffset = 16,
   align = 'start',
   alignOffset = TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX,
   arrowPadding = 0,

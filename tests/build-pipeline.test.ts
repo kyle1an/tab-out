@@ -171,7 +171,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tooltipSource, /align = 'start'/)
   assert.match(tooltipSource, /TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX = 1/)
   assert.match(tooltipSource, /alignOffset = TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX/)
-  assert.match(tooltipSource, /sideOffset = 10/)
+  assert.match(tooltipSource, /sideOffset = 16/)
   assert.match(tooltipSource, /arrowPadding = 0/)
   assert.match(tooltipSource, /collisionPadding = 0/)
   assert.match(tooltipSource, /TOOLTIP_COLLISION_AVOIDANCE/)
