@@ -582,8 +582,7 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
-// react-doctor-disable-next-line react-doctor/no-giant-component -- dense chip interaction split needs a dedicated behavior-preserving refactor.
-export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
+function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
   const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
@@ -1699,4 +1698,8 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   }
 
   return chipElement
+}
+
+export function PageChip(props: PageChipProps) {
+  return usePageChipElement(props)
 }
