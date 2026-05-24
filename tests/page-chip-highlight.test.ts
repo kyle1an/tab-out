@@ -358,17 +358,21 @@ test('PageChip renders the close action in the favicon slot', () => {
   assert.ok(faviconFrameMatch, 'favicon frame should render')
   assert.ok(closeActionMatch, 'close action should render')
   assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
+  assert.match(faviconFrameMatch[1], /group\/favicon-frame/)
   assert.match(closeActionMatch[1], /\bchip-close-favicon\b/)
   assert.match(closeActionMatch[1], /\babsolute\b/)
   assert.match(closeActionMatch[1], /\bleft-1\/2\b/)
-  assert.match(closeActionMatch[1], /group-hover\/page-chip:opacity-100/)
-  assert.ok(closeActionMatch[1].includes('group-[.page-chip-context-menu-open]/page-chip:pointer-events-auto'))
-  assert.ok(closeActionMatch[1].includes('group-[.page-chip-context-menu-open]/page-chip:opacity-100'))
-  assert.ok(closeActionMatch[1].includes('group-[.page-chip-tooltip-open]/page-chip:pointer-events-auto'))
-  assert.ok(closeActionMatch[1].includes('group-[.page-chip-tooltip-open]/page-chip:opacity-100'))
-  assert.match(html, /chip-favicon-content\b[^"]*group-hover\/page-chip:opacity-0/)
-  assert.ok(html.includes('chip-favicon-content grid h-full w-full place-items-center group-hover/page-chip:opacity-0 group-[.page-chip-context-menu-open]/page-chip:opacity-0 group-[.page-chip-tooltip-open]/page-chip:opacity-0'))
+  assert.match(closeActionMatch[1], /group-hover\/favicon-frame:pointer-events-auto/)
+  assert.match(closeActionMatch[1], /group-hover\/favicon-frame:opacity-100/)
+  assert.doesNotMatch(closeActionMatch[1], /group-hover\/page-chip:opacity-100/)
+  assert.doesNotMatch(closeActionMatch[1], /page-chip-context-menu-open/)
+  assert.doesNotMatch(closeActionMatch[1], /page-chip-tooltip-open/)
+  assert.match(html, /chip-favicon-content\b[^"]*group-hover\/favicon-frame:opacity-0/)
+  assert.doesNotMatch(html, /chip-favicon-content\b[^"]*group-hover\/page-chip:opacity-0/)
   assert.doesNotMatch(html, /<div class="chip-actions\b/)
+
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{closeActionLabel\}>/)
 })
 
 test('PageChip renders a favicon-slot close action without right-side actions', () => {
@@ -1295,6 +1299,9 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
   assert.doesNotMatch(currentEntry, /inset_0_0_0_1px_rgba\(82,82,82,0\.48\)/)
   assert.match(currentEntry, /\[--history-entry-fade-bg:var\(--color-neutral-100\)\]/)
   assert.match(html, /current-active-history-entry-frame\b[^"]*shadow-\[inset_0_0_0_1px_rgba\(82,82,82,0\.48\)\]/)
+
+  const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(tabHistoryPanelSource, /<TooltipAnchor content="Close this tab">/)
 })
 
 test('TabHistoryPanel borrows other-window PageChip surface styling for active non-current entries', () => {

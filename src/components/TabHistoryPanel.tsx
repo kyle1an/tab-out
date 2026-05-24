@@ -468,19 +468,17 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
         </TooltipAnchor>
         {!isWorkingSetExtra && (
           <div className="pointer-events-none absolute top-1/2 right-1.5 z-2 flex -translate-y-1/2 items-center gap-0.5">
-            <TooltipAnchor content="Close this tab">
-              <button
-                type="button"
-                className="pointer-events-none inline-flex size-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger focus-visible:outline-none disabled:hidden"
-                disabled={!entry.exists}
-                aria-label={`Close ${entry.title}`}
-                onClick={onCloseEntry}
-              >
-                <svg className="block size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </TooltipAnchor>
+            <button
+              type="button"
+              className="pointer-events-none inline-flex size-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger focus-visible:outline-none disabled:hidden"
+              disabled={!entry.exists}
+              aria-label={`Close ${entry.title}`}
+              onClick={onCloseEntry}
+            >
+              <svg className="block size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         )}
       </div>

@@ -1503,11 +1503,41 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     }).then((result: any) => result.result.value)
   }
 
+  async function findPageChipFaviconTarget(label: string) {
+    return evaluateWithNavigationRetry(session, {
+      awaitPromise: true,
+      returnByValue: true,
+      expression: `new Promise((resolve) => {
+        const start = Date.now()
+        const wait = () => {
+          const chip = Array.from(document.querySelectorAll('.page-chip'))
+            .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
+          const faviconFrame = chip?.querySelector('.chip-favicon-frame')
+          const rect = faviconFrame?.getBoundingClientRect()
+          if (rect && rect.width > 4 && rect.height > 4) {
+            resolve({
+              label: ${JSON.stringify(label)},
+              x: Math.round(rect.left + rect.width / 2),
+              y: Math.round(rect.top + rect.height / 2)
+            })
+          } else if (Date.now() - start > 5000) {
+            resolve(null)
+          } else {
+            setTimeout(wait, 50)
+          }
+        }
+        wait()
+      })`
+    }).then((result: any) => result.result.value)
+  }
+
   const target = await findPageChipTarget('Short title')
+  const targetFavicon = await findPageChipFaviconTarget('Short title')
   const replacementTarget = await findPageChipTarget('Example 2 with enough tooltip text', 140)
   const historyMatchTarget = await findPageChipTarget('Example 3 with enough tooltip text', 16)
 
   assert.ok(target, 'expected a live page chip for context menu save smoke test')
+  assert.ok(targetFavicon, 'expected a live page chip favicon target for close-hover smoke test')
   assert.ok(replacementTarget, 'expected a second live page chip for context menu replacement smoke test')
   assert.ok(historyMatchTarget, 'expected a live page chip with a matching history entry for context menu hover smoke test')
 
@@ -1675,21 +1705,32 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   })
   await wait(180)
   const hoverChipState = await readPageChipVisualState(target)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: targetFavicon.x,
+    y: targetFavicon.y
+  })
+  await wait(180)
+  const hoverFaviconState = await readPageChipVisualState(target)
   await openContextMenuAt(target)
   const contextMenuOpenChipState = await readPageChipVisualState(target)
   const firstOpenState = await readContextMenuState()
   assert.ok(restingChipState, `expected chip visual state before context menu: ${JSON.stringify({ target, restingChipState })}`)
   assert.ok(hoverChipState, `expected chip hover visual state before context menu: ${JSON.stringify({ target, hoverChipState })}`)
+  assert.ok(hoverFaviconState, `expected chip favicon hover visual state before context menu: ${JSON.stringify({ targetFavicon, hoverFaviconState })}`)
   assert.ok(contextMenuOpenChipState, `expected chip visual state while context menu is open: ${JSON.stringify({ target, contextMenuOpenChipState })}`)
   assert.notEqual(hoverChipState.backgroundColor, restingChipState.backgroundColor, `hover should visibly change the page chip background before the context menu opens: ${JSON.stringify({ restingChipState, hoverChipState })}`)
-  assert.equal(hoverChipState.closeButton?.opacity, '1', `hover should show the favicon-slot close button before the context menu opens: ${JSON.stringify({ hoverChipState })}`)
-  assert.equal(hoverChipState.closeButton?.pointerEvents, 'auto', `hover should make the favicon-slot close button interactive before the context menu opens: ${JSON.stringify({ hoverChipState })}`)
-  assert.equal(hoverChipState.faviconContent?.opacity, '0', `hover should hide the favicon beneath the close button before the context menu opens: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(hoverChipState.closeButton?.opacity, '0', `hovering the page chip away from its favicon should keep the favicon-slot close button hidden: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(hoverChipState.closeButton?.pointerEvents, 'none', `hovering the page chip away from its favicon should keep the close button non-interactive: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(hoverChipState.faviconContent?.opacity, '1', `hovering the page chip away from its favicon should keep the favicon visible: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(hoverFaviconState.closeButton?.opacity, '1', `hovering the favicon should show the favicon-slot close button: ${JSON.stringify({ hoverFaviconState })}`)
+  assert.equal(hoverFaviconState.closeButton?.pointerEvents, 'auto', `hovering the favicon should make the close button interactive: ${JSON.stringify({ hoverFaviconState })}`)
+  assert.equal(hoverFaviconState.faviconContent?.opacity, '0', `hovering the favicon should hide the favicon beneath the close button: ${JSON.stringify({ hoverFaviconState })}`)
   assert.equal(contextMenuOpenChipState.contextMenuOpen, true, `context menu trigger should carry an explicit menu-open class: ${JSON.stringify({ contextMenuOpenChipState })}`)
   assert.equal(contextMenuOpenChipState.backgroundColor, hoverChipState.backgroundColor, `page chip should keep its hover-like background while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
-  assert.equal(contextMenuOpenChipState.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip should keep its favicon-slot close button visible while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
-  assert.equal(contextMenuOpenChipState.closeButton?.pointerEvents, hoverChipState.closeButton?.pointerEvents, `page chip should keep the same close-button affordance while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
-  assert.equal(contextMenuOpenChipState.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip should keep its favicon hidden while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.closeButton?.opacity, hoverChipState.closeButton?.opacity, `opening the context menu from the page chip should not reveal the favicon-slot close button: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.closeButton?.pointerEvents, hoverChipState.closeButton?.pointerEvents, `opening the context menu from the page chip should keep the close button non-interactive: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `opening the context menu from the page chip should keep the favicon visible: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
   await openContextMenuAt(replacementTarget)
   const replacementState = await readContextMenuState()
   assert.equal(firstOpenState.visibleMenuCount, 1, `first right-click should open one visible context menu: ${JSON.stringify(firstOpenState)}`)
@@ -1724,8 +1765,8 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   const tooltipOpenChipState = await readPageChipVisualState(replacementTarget)
   assert.equal(tooltipOpenChipState?.tooltipOpen, true, `page chip should keep an explicit tooltip-open class while its tooltip is visible: ${JSON.stringify({ tooltipOpenChipState })}`)
   assert.equal(tooltipOpenChipState?.backgroundColor, hoverChipState.backgroundColor, `page chip should keep the same hover background after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip should keep the same hover affordance after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip should keep the favicon hidden after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip tooltip visibility should not reveal the favicon-slot close button: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip tooltip visibility should keep the favicon visible away from favicon hover: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
   await openContextMenuAt(replacementTarget)
   const contextTooltipAfterMenu = await waitForTooltipContaining(session, 'Example 2 with enough tooltip text', 500)
   assert.ok(contextTooltipAfterMenu.found, `right-clicking to open a page chip context menu should not hide a visible tooltip: ${JSON.stringify({ contextTooltip, contextTooltipAfterMenu })}`)

@@ -1768,14 +1768,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       {showFaviconFrame && (
         <span
           className={cn(
-            'chip-favicon-frame relative grid size-4 shrink-0 place-items-center',
+            'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center',
             chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
           )}
         >
           <span
             className={cn(
               'chip-favicon-content grid h-full w-full place-items-center',
-              showFaviconCloseAction && 'group-hover/page-chip:opacity-0 group-[.page-chip-context-menu-open]/page-chip:opacity-0 group-[.page-chip-tooltip-open]/page-chip:opacity-0'
+              showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
             )}
             aria-hidden="true"
           >
@@ -1789,7 +1789,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             <span
               className={cn(
                 'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-                showFaviconCloseAction && 'group-hover/page-chip:opacity-0 group-[.page-chip-context-menu-open]/page-chip:opacity-0 group-[.page-chip-tooltip-open]/page-chip:opacity-0',
+                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
                 dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]',
                 dedupeBadgesClosing && 'closing'
               )}
@@ -1799,16 +1799,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             </span>
           )}
           {showFaviconCloseAction && (
-            <TooltipAnchor content={closeActionLabel}>
-              <button
-                type="button"
-                className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:pointer-events-auto group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:pointer-events-auto group-[.page-chip-tooltip-open]/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
-                aria-label={closeActionLabel}
-                onClick={isHistorySource ? onDeleteHistory : onClose}
-              >
-                <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
-              </button>
-            </TooltipAnchor>
+            <button
+              type="button"
+              className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+              aria-label={closeActionLabel}
+              onClick={isHistorySource ? onDeleteHistory : onClose}
+            >
+              <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+            </button>
           )}
         </span>
       )}
