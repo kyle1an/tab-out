@@ -471,6 +471,7 @@ function historyTitleTooltipLayoutCacheKey(titleEl: HTMLElement) {
   return JSON.stringify([
     titleEl.innerHTML,
     Math.round(rect.left * 100) / 100,
+    Math.round(rect.top * 100) / 100,
     getHistoryTitleWidth(titleEl),
     getHistoryTitleVisibleLineCount(titleEl),
     win ? Math.max(1, win.innerWidth - Math.max(0, rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX) - HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX - 8) : 0,

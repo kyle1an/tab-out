@@ -206,20 +206,18 @@ function useProgressiveCards(
   const visibleCount = state.resetKey === resetKey ? Math.min(state.count, cards.length) : initialVisibleCount
 
   useEffect(() => {
-    setState({ resetKey, count: initialVisibleCount })
-  }, [initialVisibleCount, resetKey])
-
-  useEffect(() => {
     if (!progressive || visibleCount >= cards.length) return
 
     let disposed = false
     const appendNextChunk = () => {
       if (disposed) return
       setState((current) => {
-        if (current.resetKey !== resetKey) return current
+        const currentCount = current.resetKey === resetKey ? current.count : initialVisibleCount
+        const nextCount = Math.min(cards.length, currentCount + chunkSize)
+        if (current.resetKey === resetKey && current.count === nextCount) return current
         return {
           resetKey,
-          count: Math.min(cards.length, current.count + chunkSize)
+          count: nextCount
         }
       })
     }
@@ -237,11 +235,10 @@ function useProgressiveCards(
       disposed = true
       window.clearTimeout(timeoutId)
     }
-  }, [cards.length, chunkSize, progressive, resetKey, visibleCount])
+  }, [cards.length, chunkSize, initialVisibleCount, progressive, resetKey, visibleCount])
 
   return {
-    cards: progressive ? cards.slice(0, visibleCount) : cards,
-    pending: progressive && visibleCount < cards.length
+    cards: progressive ? cards.slice(0, visibleCount) : cards
   }
 }
 
@@ -272,7 +269,7 @@ function MissionBlock({
     resetKey: `${source}:${filter}:${progressiveCardListKey(cards)}`
   })
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!progressiveEnabled) return
     onLayoutChange({ animate: false })
   }, [cards.length, onLayoutChange, progressiveCards.cards.length, progressiveEnabled])

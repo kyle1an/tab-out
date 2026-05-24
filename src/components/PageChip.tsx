@@ -760,16 +760,20 @@ function chipTooltipLayoutCacheKey({
   titleTextEl: HTMLElement | null
 }) {
   const win = textEl.ownerDocument.defaultView
-  const styles = win?.getComputedStyle(titleTextEl || textEl)
+  const layoutEl = titleTextEl || textEl
+  const styles = win?.getComputedStyle(layoutEl)
+  const rect = layoutEl.getBoundingClientRect()
   return JSON.stringify([
     isRegularTitleTooltip,
     isSplitTitleTooltip,
     textEl.innerHTML,
     titleTextEl?.innerHTML || '',
-    getChipTextWidth(textEl),
-    getChipTextHeight(textEl),
-    getVisibleChipTextLineCount(titleTextEl || textEl),
-    getChipTooltipMaxWidth(textEl),
+    Math.round(rect.left * 100) / 100,
+    Math.round(rect.top * 100) / 100,
+    getChipTextWidth(layoutEl),
+    getChipTextHeight(layoutEl),
+    getVisibleChipTextLineCount(layoutEl),
+    getChipTooltipMaxWidth(layoutEl),
     styles?.font || '',
     styles?.letterSpacing || '',
     styles?.lineHeight || '',
