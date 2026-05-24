@@ -28,8 +28,9 @@ const chipTextTruncationCallbacks = new WeakMap<
 
 const PAGE_CHIP_TOOLTIP_MAX_WIDTH_OFFSET_PX = 6
 const PAGE_CHIP_TOOLTIP_VIEWPORT_MARGIN_PX = 8
-const PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX = 16
-const PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX = 8
+const PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX = 6
+const PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX = 8
+const PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX = PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX + PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX
 const PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX = 4
 const PAGE_CHIP_TOOLTIP_SUBPIXEL_TOLERANCE_PX = 0.01
 const PAGE_CHIP_TOOLTIP_WIDTH_SEARCH_STEPS = 12
@@ -1099,7 +1100,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     ...(chipTooltipTextWidth ? { '--page-chip-tooltip-text-width': chipTooltipTextWidth } : {}),
     ...(regularChipTooltipWidth ? { '--page-chip-tooltip-width': regularChipTooltipWidth } : {}),
     '--page-chip-tooltip-max-width': chipTooltipMaxWidthValue,
-    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))'
+    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))',
+    paddingLeft: `${PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX}px`,
+    paddingRight: `${PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX}px`
   } as CSSProperties
   const chipTooltipSubpixelTransform = chipTooltipSubpixelOffsetsEqual(chipTooltipSubpixelOffset, { x: 0, y: 0 })
     ? ''
