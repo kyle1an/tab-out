@@ -299,11 +299,12 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bhover:bg-\[rgba\(82,82,82,0\.13\)\]/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
-  assert.match(chipMatch[1], /after:w-\[88px\]/)
+  assert.match(chipMatch[1], /after:w-\[var\(--chip-hover-fade-width\)\]/)
   assert.match(chipMatch[1], /var\(--chip-hover-fade-bg\)_34%/)
   assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
+  assert.match(html, /--chip-hover-fade-width:56px/)
 })
 
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
@@ -341,6 +342,41 @@ test('PageChip renders a save action for unsaved live tabs', () => {
   assert.match(html, /aria-label="Save page"/)
   assert.match(html, /aria-pressed="false"/)
   assert.match(html, /aria-label="Close this tab"/)
+})
+
+test('PageChip renders the close action in the favicon slot', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'tab', faviconUrl: 'https://example.com/favicon.ico' })
+    })
+  )
+  const faviconFrameMatch = html.match(/<span class="([^"]*\bchip-favicon-frame\b[^"]*)"/)
+  const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
+  const actionsMatch = html.match(/<div class="chip-actions\b[^"]*"[\s\S]*?<\/div>/)
+
+  assert.ok(faviconFrameMatch, 'favicon frame should render')
+  assert.ok(closeActionMatch, 'close action should render')
+  assert.ok(actionsMatch, 'saved action group should still render')
+  assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
+  assert.match(closeActionMatch[1], /\bchip-close-favicon\b/)
+  assert.match(closeActionMatch[1], /\babsolute\b/)
+  assert.match(closeActionMatch[1], /\bleft-1\/2\b/)
+  assert.match(closeActionMatch[1], /group-hover\/page-chip:opacity-100/)
+  assert.match(html, /chip-favicon-content\b[^"]*group-hover\/page-chip:opacity-0/)
+  assert.doesNotMatch(actionsMatch[0], /\bchip-close\b/)
+})
+
+test('PageChip renders a favicon-slot close action without right-side actions', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ sourceType: 'history', faviconUrl: '' })
+    })
+  )
+
+  assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
+  assert.match(html, /aria-label="Delete from history"/)
+  assert.match(html, /--chip-hover-fade-width:0px/)
+  assert.doesNotMatch(html, /<div class="chip-actions\b/)
 })
 
 test('PageChip renders saved open tabs with separate remove-saved and close actions', () => {

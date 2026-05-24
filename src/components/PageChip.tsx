@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
+import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
@@ -905,15 +906,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   const hasActiveChipFrame = !!(chip.activeChipFrame || chip.activeInOtherWindow)
   const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow
-  const style = {
-    '--chip-hover-fade-bg': hasActiveChipFrame
-      ? 'color-mix(in srgb, var(--card-bg) 82%, rgb(82 82 82))'
-      : 'color-mix(in srgb, var(--card-bg) 87%, rgb(82 82 82))',
-    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
-  } as CSSProperties
   const dupeCount = chip.dupeCount || 1
-  const showDefaultFavicon = !chip.faviconUrl && (!isReadOnlySource || chip.sourceType === 'saved-page')
-  const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const savedLabel = chip.saved ? (isClosedSavedPage ? 'Closed saved page' : 'Saved page') : ''
@@ -925,6 +918,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
   const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
+  const showFaviconCloseAction = !chip.iconOnly && canCloseChip
+  const showDefaultFavicon = !chip.faviconUrl && (!isReadOnlySource || chip.sourceType === 'saved-page')
+  const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
+  const rightActionCount = (canToggleSavedPage ? 1 : 0) + (showSavedHint ? 1 : 0)
+  const chipHoverFadeWidth = rightActionCount === 0 ? '0px' : rightActionCount === 1 ? '56px' : '88px'
+  const style = {
+    '--chip-hover-fade-bg': hasActiveChipFrame
+      ? 'color-mix(in srgb, var(--card-bg) 82%, rgb(82 82 82))'
+      : 'color-mix(in srgb, var(--card-bg) 87%, rgb(82 82 82))',
+    '--chip-hover-fade-width': chipHoverFadeWidth,
+    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
+  } as CSSProperties
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldShowChipTooltip = chip.iconOnly || isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders
@@ -1561,7 +1566,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipElement = (
       <div
         className={cn(
-          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[88px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
+          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[var(--chip-hover-fade-width)] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
           !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
           isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 hover:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100',
@@ -1601,15 +1606,24 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
           )}
         >
-          {chip.faviconUrl ? (
-            <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
-          ) : showDefaultFavicon ? (
-            <DefaultFavicon />
-          ) : null}
+          <span
+            className={cn(
+              'chip-favicon-content grid h-full w-full place-items-center',
+              showFaviconCloseAction && 'group-hover/page-chip:opacity-0'
+            )}
+            aria-hidden="true"
+          >
+            {chip.faviconUrl ? (
+              <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
+            ) : showDefaultFavicon ? (
+              <DefaultFavicon />
+            ) : null}
+          </span>
           {!chip.iconOnly && dupeCount > 1 && (
             <span
               className={cn(
                 'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+                showFaviconCloseAction && 'group-hover/page-chip:opacity-0',
                 dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]',
                 dedupeBadgesClosing && 'closing'
               )}
@@ -1617,6 +1631,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             >
               {dupeCount}
             </span>
+          )}
+          {showFaviconCloseAction && (
+            <TooltipAnchor content={closeActionLabel}>
+              <button
+                type="button"
+                className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                aria-label={closeActionLabel}
+                onClick={isHistorySource ? onDeleteHistory : onClose}
+              >
+                <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            </TooltipAnchor>
           )}
         </span>
       )}
@@ -1637,7 +1663,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         ) : chipTextElement
       )}
       {chipTooltipMeasureElement}
-      {!chip.iconOnly && (showSavedHint || canToggleSavedPage || canCloseChip) && (
+      {!chip.iconOnly && (showSavedHint || canToggleSavedPage) && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
           {canToggleSavedPage && (
             <TooltipAnchor content={savedActionLabel}>
@@ -1663,20 +1689,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
               >
                 <SavedPageIcon saved className="size-[14px]" />
               </span>
-            </TooltipAnchor>
-          )}
-          {canCloseChip && (
-            <TooltipAnchor content={closeActionLabel}>
-            <button
-              type="button"
-              className="chip-action chip-close pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:opacity-100"
-              aria-label={closeActionLabel}
-              onClick={isHistorySource ? onDeleteHistory : onClose}
-            >
-              <svg className="size-[15px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
-            </button>
             </TooltipAnchor>
           )}
         </div>
