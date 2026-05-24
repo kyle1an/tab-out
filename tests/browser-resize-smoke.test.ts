@@ -318,6 +318,8 @@ async function waitForTooltipRect(session: CdpSession) {
         const tooltip = document.querySelector('[data-slot="tooltip-content"]')
         const rect = tooltip?.getBoundingClientRect()
         if (rect && rect.width > 0 && rect.height > 0) {
+          const tooltipText = tooltip.querySelector('.chip-text')
+          const textRect = tooltipText?.getBoundingClientRect()
           const styles = window.getComputedStyle(tooltip)
           const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0
           resolve({
@@ -329,6 +331,8 @@ async function waitForTooltipRect(session: CdpSession) {
             bottom: Math.round(rect.bottom),
             width: Math.round(rect.width),
             height: Math.round(rect.height),
+            textLeft: textRect ? Math.round(textRect.left * 100) / 100 : null,
+            textTop: textRect ? Math.round(textRect.top * 100) / 100 : null,
             text: tooltip.textContent || '',
             outlineWidth,
             side: tooltip.getAttribute('data-side'),
@@ -396,7 +400,7 @@ async function measureTooltipFreeze(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
     height: 900,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 2,
     mobile: false
   })
 
@@ -418,8 +422,10 @@ async function measureTooltipFreeze(session: CdpSession) {
             startX,
             moveX: Math.round(Math.min(rect.right - 8, startX + 80)),
             textLeft: Math.round(rect.left),
+            textLeftExact: Math.round(rect.left * 100) / 100,
             textRight: Math.round(rect.right),
             textTop: Math.round(rect.top),
+            textTopExact: Math.round(rect.top * 100) / 100,
             y
           })
         } else if (Date.now() - start > 5000) {
@@ -466,7 +472,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
     height: 900,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 2,
     mobile: false
   })
   await evaluateWithNavigationRetry(session, {
@@ -504,7 +510,9 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
             hitTop: Math.round(hitRect.top),
             hitBottom: Math.round(hitRect.bottom),
             textLeft: Math.round(textRect.left),
+            textLeftExact: Math.round(textRect.left * 100) / 100,
             textTop: Math.round(textRect.top),
+            textTopExact: Math.round(textRect.top * 100) / 100,
             textBottom: Math.round(textRect.bottom)
           })
         } else if (Date.now() - start > 5000) {
@@ -550,6 +558,88 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
   await wait(260)
 
   return { target, above, below }
+}
+
+async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 2,
+    mobile: false
+  })
+
+  async function setActiveTab(tabId: number, windowId = 1) {
+    await evaluateWithNavigationRetry(session, {
+      awaitPromise: true,
+      expression: `window.__tabOutSmokeSetActiveTab?.(${tabId}, ${windowId})`
+    })
+    await evaluateWithNavigationRetry(session, {
+      expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+    })
+    await wait(250)
+  }
+
+  async function findTarget() {
+    return evaluateWithNavigationRetry(session, {
+      awaitPromise: true,
+      returnByValue: true,
+      expression: `new Promise((resolve) => {
+        const start = Date.now()
+        const wait = () => {
+          const chip = Array.from(document.querySelectorAll('.page-chip'))
+            .find((candidate) =>
+              candidate.textContent?.includes('Example 2 with enough tooltip text')
+            )
+          const chipText = chip?.querySelector('.chip-text-truncated')
+          const rect = chipText?.getBoundingClientRect()
+          if (chip && rect && rect.width > 120 && rect.height > 8) {
+            resolve({
+              activeFrame: !!chip.querySelector('.active-chip-frame'),
+              currentActive: chip.classList.contains('current-active-chip'),
+              x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+              y: Math.round(rect.top + Math.min(rect.height / 2, 10)),
+              textLeftExact: Math.round(rect.left * 100) / 100,
+              textTopExact: Math.round(rect.top * 100) / 100
+            })
+          } else if (Date.now() - start > 5000) {
+            resolve(null)
+          } else {
+            setTimeout(wait, 50)
+          }
+        }
+        wait()
+      })`
+    }).then((result: any) => result.result.value)
+  }
+
+  async function hoverTarget(target: { x: number; y: number }) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: target.x,
+      y: target.y
+    })
+    await wait(650)
+    const tooltip = await waitForTooltipRect(session)
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 8,
+      y: 8
+    })
+    await wait(250)
+    return tooltip
+  }
+
+  await setActiveTab(2, 2)
+  const activeTarget = await findTarget()
+  assert.ok(activeTarget, 'expected active-state tooltip target')
+  const activeTooltip = await hoverTarget(activeTarget)
+
+  await setActiveTab(1)
+  const inactiveTarget = await findTarget()
+  assert.ok(inactiveTarget, 'expected inactive-state tooltip target')
+  const inactiveTooltip = await hoverTarget(inactiveTarget)
+
+  return { activeTarget, activeTooltip, inactiveTarget, inactiveTooltip }
 }
 
 async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: string) {
@@ -719,7 +809,7 @@ async function measurePageChipTooltipLineCount(
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: options.viewportWidth || 1000,
     height: 900,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 2,
     mobile: false
   })
   await evaluateWithNavigationRetry(session, {
@@ -783,7 +873,9 @@ async function measurePageChipTooltipLineCount(
             chipText: chipText.textContent || '',
             chipLineTexts: collectLineTexts(chipText, chipLineCount),
             chipLeft: Math.round(rect.left),
+            chipLeftExact: Math.round(rect.left * 100) / 100,
             chipTop: Math.round(rect.top),
+            chipTopExact: Math.round(rect.top * 100) / 100,
             chipWidth: Math.round(rect.width),
             chipHeight: Math.round(rect.height),
             chipLineHeight: Math.round(lineHeight * 100) / 100,
@@ -855,6 +947,8 @@ async function measurePageChipTooltipLineCount(
         width: Math.round(tooltipRect.width),
         textWidth: Math.round(textRect.width),
         textHeight: Math.round(textRect.height),
+        textLeft: Math.round(textRect.left * 100) / 100,
+        textTop: Math.round(textRect.top * 100) / 100,
         textLineHeight: Math.round(lineHeight * 100) / 100,
         tooltipLineCount: Math.max(1, Math.round(textRect.height / lineHeight)),
         viewportRight: window.innerWidth
@@ -1944,7 +2038,9 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)
   assert.ok(tooltip.second, `tooltip should stay open during an in-chip pointer move: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs(tooltip.first.left - (tooltip.target.textLeft - 8)) <= 1, `tooltip should start over the original chip text: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs((tooltip.first.top + 4) - tooltip.target.textTop) <= 2, `tooltip text should sit in place of the original chip text: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs((tooltip.first.top + 4) - tooltip.target.textTop) <= 1, `tooltip popup should place its text over the original chip text: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs((tooltip.first.textLeft || 0) - tooltip.target.textLeftExact) <= 0.1, `tooltip text should keep the original chip text x-origin: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs((tooltip.first.textTop || 0) - tooltip.target.textTopExact) <= 0.1, `tooltip text should keep the original chip text y-origin: ${JSON.stringify(tooltip)}`)
   assert.equal(tooltip.first.align, 'start', `tooltip should use start alignment away from viewport edges: ${JSON.stringify(tooltip)}`)
   assert.equal(tooltip.first.topLeftRadius, '0px', `tooltip anchor corner should be square: ${JSON.stringify(tooltip)}`)
   assert.equal(tooltip.first.transitionProperty, 'none', `page chip tooltip should not animate on open or close: ${JSON.stringify(tooltip)}`)
@@ -1964,7 +2060,31 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(tooltipHitArea.above?.text.includes('enough tooltip text'), `tooltip should open from the vertical space above chip text: ${JSON.stringify(tooltipHitArea)}`)
   assert.ok(tooltipHitArea.below?.text.includes('enough tooltip text'), `tooltip should open from the vertical space below chip text: ${JSON.stringify(tooltipHitArea)}`)
   assert.ok(Math.abs(tooltipHitArea.above.left - (tooltipHitArea.target.textLeft - 8)) <= 1, `tooltip should stay anchored to chip text when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(Math.abs((tooltipHitArea.above.top + 4) - tooltipHitArea.target.textTop) <= 2, `tooltip should remain in text position when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.top + 4) - tooltipHitArea.target.textTop) <= 1, `tooltip should remain in text position when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.textLeft || 0) - tooltipHitArea.target.textLeftExact) <= 0.1, `tooltip text x-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.textTop || 0) - tooltipHitArea.target.textTopExact) <= 0.1, `tooltip text y-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
+
+  const activeStateTooltip = await measureTooltipAfterActiveStateChanges(session)
+  assert.equal(activeStateTooltip.activeTarget.activeFrame, true, `active-state smoke target should start with an active chip frame: ${JSON.stringify(activeStateTooltip)}`)
+  assert.equal(activeStateTooltip.inactiveTarget.activeFrame, false, `active-state smoke target should lose the active chip frame: ${JSON.stringify(activeStateTooltip)}`)
+  assert.ok(activeStateTooltip.activeTooltip, `tooltip should open after the chip becomes active: ${JSON.stringify(activeStateTooltip)}`)
+  assert.ok(activeStateTooltip.inactiveTooltip, `tooltip should open after the chip stops being active: ${JSON.stringify(activeStateTooltip)}`)
+  assert.ok(
+    Math.abs((activeStateTooltip.activeTooltip.textLeft || 0) - activeStateTooltip.activeTarget.textLeftExact) <= 0.1,
+    `tooltip x-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
+  )
+  assert.ok(
+    Math.abs((activeStateTooltip.activeTooltip.textTop || 0) - activeStateTooltip.activeTarget.textTopExact) <= 0.1,
+    `tooltip y-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
+  )
+  assert.ok(
+    Math.abs((activeStateTooltip.inactiveTooltip.textLeft || 0) - activeStateTooltip.inactiveTarget.textLeftExact) <= 0.1,
+    `tooltip x-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
+  )
+  assert.ok(
+    Math.abs((activeStateTooltip.inactiveTooltip.textTop || 0) - activeStateTooltip.inactiveTarget.textTopExact) <= 0.1,
+    `tooltip y-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
+  )
 
   const suppressionMarkerLines = []
   for (const markerLabel of ['Marker line one', 'Marker line two', 'Marker line three']) {
@@ -2032,6 +2152,14 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     assert.ok(
       lineCount.tooltip.right <= lineCount.tooltip.viewportRight + 1,
       `regular page chip tooltip should stay within the browser viewport: ${JSON.stringify(lineCount)}`
+    )
+    assert.ok(
+      Math.abs(lineCount.tooltip.textLeft - lineCount.target.chipLeftExact) <= 0.1,
+      `regular page chip tooltip text should keep the visible chip x-origin: ${JSON.stringify(lineCount)}`
+    )
+    assert.ok(
+      Math.abs(lineCount.tooltip.textTop - lineCount.target.chipTopExact) <= 0.1,
+      `regular page chip tooltip text should keep the visible chip y-origin: ${JSON.stringify(lineCount)}`
     )
     const normalizeLineText = (value: string) => value.replace(/\s+/g, ' ').trim()
     const chipLines = lineCount.target.chipLineTexts.map(normalizeLineText).filter(Boolean)

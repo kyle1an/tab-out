@@ -19,10 +19,23 @@
         window.__tabOutSmokeErrors.push(String(event.reason?.message || event.reason))
       })
 
-      const listeners = {
-        addListener() {},
-        removeListener() {}
+      function createListeners() {
+        const handlers = []
+        return {
+          addListener(handler) {
+            handlers.push(handler)
+          },
+          removeListener(handler) {
+            const index = handlers.indexOf(handler)
+            if (index >= 0) handlers.splice(index, 1)
+          },
+          dispatch(...args) {
+            for (const handler of handlers.slice()) handler(...args)
+          }
+        }
       }
+      const listeners = createListeners()
+      const tabActivatedListeners = createListeners()
       const workingSetSnapshot = {
         defaultLimit: 8,
         expandedLimit: 16,
@@ -266,7 +279,7 @@
           remove: async () => {},
           update: async () => {},
           onCreated: listeners,
-          onActivated: listeners,
+          onActivated: tabActivatedListeners,
           onRemoved: listeners,
           onMoved: listeners,
           onAttached: listeners,
@@ -279,6 +292,17 @@
           update: async () => {},
           onFocusChanged: listeners
         }
+      }
+      const originalWindowIds = new Map(tabs.map((tab) => [tab.id, tab.windowId]))
+      window.__tabOutSmokeSetActiveTab = async (tabId, windowId = 1) => {
+        for (const tab of tabs) {
+          tab.windowId = originalWindowIds.get(tab.id) ?? tab.windowId
+          tab.active = tab.id === tabId
+        }
+        const activeTab = tabs.find((tab) => tab.id === tabId)
+        if (activeTab) activeTab.windowId = windowId
+        tabActivatedListeners.dispatch({ tabId, windowId: 1 })
+        await new Promise((resolve) => setTimeout(resolve, 350))
       }
     </script>
     <script type="module" src="/extension/dist/app.js"></script>
