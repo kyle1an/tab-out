@@ -1,0 +1,9 @@
+{
+  "offline": true,
+  "failOn": "none",
+  "deadCode": false,
+  "verbose": true,
+  "ignore": {
+    "files": ["extension/dist/**", "extension/vendor/**"]
+  }
+}

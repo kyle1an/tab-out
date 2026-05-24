@@ -12,6 +12,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint . --max-warnings=0",
     "deps:nolyfill": "pnpm dlx nolyfill --pm pnpm",
+    "react-doctor": "pnpm dlx react-doctor@0.2.3 .",
+    "react-doctor:diff": "pnpm dlx react-doctor@0.2.3 . --diff",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:browser": "RUN_BROWSER_SMOKE=1 node --import tsx --test tests/browser-resize-smoke.test.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
