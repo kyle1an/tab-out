@@ -42,6 +42,8 @@ const historyTitleTruncationCallbacks = new WeakMap<
   (metrics: HistoryTitleMetrics) => void
 >()
 const EMPTY_HOVER_URLS: readonly string[] = []
+const HISTORY_TITLE_TOOLTIP_LAYOUT_CACHE_LIMIT = 240
+const historyTitleTooltipLayoutCache = new Map<string, HistoryTitleTooltipLayoutMetrics>()
 
 type HistoryTitleTooltipSubpixelOffset = {
   x: number
@@ -59,6 +61,7 @@ type HistoryTitleMetrics = {
   visibleLineCount: number
   width: number
 }
+type HistoryTitleTooltipLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'>
 
 type HistoryTitleTooltipDomPosition = {
   node: Text
@@ -454,26 +457,46 @@ function sameHistoryTitleMetrics(a: HistoryTitleMetrics, b: HistoryTitleMetrics)
   )
 }
 
+function rememberHistoryTitleTooltipLayout(key: string, metrics: HistoryTitleTooltipLayoutMetrics) {
+  historyTitleTooltipLayoutCache.set(key, metrics)
+  if (historyTitleTooltipLayoutCache.size <= HISTORY_TITLE_TOOLTIP_LAYOUT_CACHE_LIMIT) return
+  const oldestKey = historyTitleTooltipLayoutCache.keys().next().value
+  if (oldestKey) historyTitleTooltipLayoutCache.delete(oldestKey)
+}
+
+function historyTitleTooltipLayoutCacheKey(titleEl: HTMLElement) {
+  const win = titleEl.ownerDocument.defaultView
+  const styles = win?.getComputedStyle(titleEl)
+  const rect = titleEl.getBoundingClientRect()
+  return JSON.stringify([
+    titleEl.innerHTML,
+    Math.round(rect.left * 100) / 100,
+    getHistoryTitleWidth(titleEl),
+    getHistoryTitleVisibleLineCount(titleEl),
+    win ? Math.max(1, win.innerWidth - Math.max(0, rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX) - HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX - 8) : 0,
+    styles?.font || '',
+    styles?.letterSpacing || '',
+    styles?.lineHeight || '',
+    win?.devicePixelRatio || 1
+  ])
+}
+
 function syncHistoryTitleFade(titleEl: HTMLElement | null) {
   if (!titleEl) return { contentWidth: 0, isTruncated: false, left: 0, tooltipLineHtml: [], tooltipSubpixelOffset: { x: 0, y: 0 }, tooltipTextWidth: 0, tooltipViewportConstrained: false, visibleLineCount: 1, width: 0 }
 
   const isTruncated = isHistoryTitleTruncated(titleEl)
   const rect = titleEl.getBoundingClientRect()
-  const contentWidth = getHistoryTitleContentWidth(titleEl)
   const left = Math.round(rect.left * 100) / 100
   const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
   const width = getHistoryTitleWidth(titleEl)
-  const tooltipLineHtml = getHistoryTitleTooltipLineHtml(titleEl)
-  const tooltipMetrics = getHistoryTitleTooltipTextWidth(titleEl, tooltipLineHtml, contentWidth, left, visibleLineCount, width)
-  const tooltipSubpixelOffset = getHistoryTitleTooltipSubpixelOffset(titleEl)
   const metrics = {
-    contentWidth,
+    contentWidth: 0,
     isTruncated,
     left,
-    tooltipLineHtml,
-    tooltipSubpixelOffset,
-    tooltipTextWidth: tooltipMetrics.width,
-    tooltipViewportConstrained: tooltipMetrics.viewportConstrained,
+    tooltipLineHtml: [],
+    tooltipSubpixelOffset: { x: 0, y: 0 },
+    tooltipTextWidth: 0,
+    tooltipViewportConstrained: false,
     visibleLineCount,
     width
   }
@@ -482,11 +505,49 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null) {
   return metrics
 }
 
+function measureHistoryTitleTooltipLayout(titleEl: HTMLElement | null): HistoryTitleMetrics {
+  if (!titleEl) return { contentWidth: 0, isTruncated: false, left: 0, tooltipLineHtml: [], tooltipSubpixelOffset: { x: 0, y: 0 }, tooltipTextWidth: 0, tooltipViewportConstrained: false, visibleLineCount: 1, width: 0 }
+
+  const cacheKey = historyTitleTooltipLayoutCacheKey(titleEl)
+  const cachedLayout = historyTitleTooltipLayoutCache.get(cacheKey)
+  const isTruncated = isHistoryTitleTruncated(titleEl)
+  if (cachedLayout) return { ...cachedLayout, isTruncated }
+
+  const rect = titleEl.getBoundingClientRect()
+  const contentWidth = getHistoryTitleContentWidth(titleEl)
+  const left = Math.round(rect.left * 100) / 100
+  const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
+  const width = getHistoryTitleWidth(titleEl)
+  const tooltipLineHtml = getHistoryTitleTooltipLineHtml(titleEl)
+  const tooltipMetrics = getHistoryTitleTooltipTextWidth(titleEl, tooltipLineHtml, contentWidth, left, visibleLineCount, width)
+  const tooltipSubpixelOffset = getHistoryTitleTooltipSubpixelOffset(titleEl)
+  const layout = {
+    contentWidth,
+    left,
+    tooltipLineHtml,
+    tooltipSubpixelOffset,
+    tooltipTextWidth: tooltipMetrics.width,
+    tooltipViewportConstrained: tooltipMetrics.viewportConstrained,
+    visibleLineCount,
+    width
+  }
+  rememberHistoryTitleTooltipLayout(cacheKey, layout)
+  return { ...layout, isTruncated }
+}
+
 function updateTitleTruncation(
   titleEl: HTMLElement | null,
   setTitleMetrics: Dispatch<SetStateAction<HistoryTitleMetrics>>
 ) {
   const metrics = syncHistoryTitleFade(titleEl)
+  setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
+}
+
+function updateTitleTooltipLayout(
+  titleEl: HTMLElement | null,
+  setTitleMetrics: Dispatch<SetStateAction<HistoryTitleMetrics>>
+) {
+  const metrics = measureHistoryTitleTooltipLayout(titleEl)
   setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
 }
 
@@ -601,6 +662,7 @@ function shouldDimHistoryEntry(entry: TabHistoryEntry, workingSetMatch: HistoryW
 
 function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, workingSetItem = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null)
+  const titleTooltipOpenRef = useRef(false)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     contentWidth: 0,
     isTruncated: false,
@@ -614,11 +676,24 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   })
   const [titleTooltipOpen, setTitleTooltipOpen] = useState(false)
 
+  function ensureTitleTooltipLayout() {
+    updateTitleTooltipLayout(titleRef.current, setTitleMetrics)
+  }
+
+  function onTitleTooltipOpenChange(open: boolean) {
+    titleTooltipOpenRef.current = open
+    if (open) ensureTitleTooltipLayout()
+    setTitleTooltipOpen(open)
+  }
+
   useLayoutEffect(() => {
     const titleEl = titleRef.current
     if (!titleEl) return
 
-    const frameId = requestAnimationFrame(() => updateTitleTruncation(titleEl, setTitleMetrics))
+    const frameId = requestAnimationFrame(() => {
+      if (titleTooltipOpenRef.current) updateTitleTooltipLayout(titleEl, setTitleMetrics)
+      else updateTitleTruncation(titleEl, setTitleMetrics)
+    })
     return () => cancelAnimationFrame(frameId)
   })
 
@@ -631,12 +706,15 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     historyTitleTruncationCallbacks.set(titleEl, (metrics) => {
       if (disposed) return
       setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
+      if (titleTooltipOpenRef.current) updateTitleTooltipLayout(titleEl, setTitleMetrics)
     })
     observer?.observe(titleEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
-      if (!disposed) updateTitleTruncation(titleEl, setTitleMetrics)
+      if (disposed) return
+      updateTitleTruncation(titleEl, setTitleMetrics)
+      if (titleTooltipOpenRef.current) updateTitleTooltipLayout(titleEl, setTitleMetrics)
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -797,7 +875,10 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     </span>
   ) : undefined
   const titleTooltipTriggerElement = (
-    <span className="history-entry-title-tooltip-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]">
+    <span
+      className="history-entry-title-tooltip-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]"
+      onPointerEnter={ensureTitleTooltipLayout}
+    >
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
         <span className="history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]" ref={titleRef}>
           {bionicTitleTextNodes(entry.title, 'history-entry-title')}
@@ -902,7 +983,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
             className="history-entry-title-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
             instant
             onClick={onHistoryTitleTooltipClick}
-            onOpenChange={setTitleTooltipOpen}
+            onOpenChange={onTitleTooltipOpenChange}
             sideOffset={0}
             style={titleTooltipStyle}
           >

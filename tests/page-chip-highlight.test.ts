@@ -143,6 +143,29 @@ test('PageChip applies bionic reading emphasis to title text only', () => {
   assert.doesNotMatch(pathMatch[0], /chip-title-fixation/)
 })
 
+test('PageChip does not pre-render hidden tooltip measure nodes before hover', () => {
+  const previousWindow = (globalThis as typeof globalThis & { window?: unknown }).window
+  ;(globalThis as typeof globalThis & { window?: unknown }).window = {} as Window & typeof globalThis
+  try {
+    const html = renderWithDomainCardContext(
+      React.createElement(PageChip, {
+        chip: makeChip({
+          displaySegments: ['Example Article with enough text to need tooltip layout later'],
+          tooltip: 'Example Article with enough text to need tooltip layout later'
+        })
+      })
+    )
+
+    assert.doesNotMatch(html, /page-chip-tooltip-measure/)
+  } finally {
+    if (typeof previousWindow === 'undefined') {
+      delete (globalThis as typeof globalThis & { window?: unknown }).window
+    } else {
+      ;(globalThis as typeof globalThis & { window?: unknown }).window = previousWindow
+    }
+  }
+})
+
 test('PageChip skips bionic reading when title text is a URL', () => {
   const protocolUrlHtml = renderToStaticMarkup(
     React.createElement(PageChip, {
@@ -646,6 +669,8 @@ test('PageChip uses structured PageChip-style tooltips for same-title URL varian
   assert.match(pageChipSource, /function titleVariantChipTooltipContentNode\(\)/)
   assert.match(pageChipSource, /const titleVariantTitleTooltipTriggerElement = \(/)
   assert.match(pageChipSource, /const titleVariantChipTextContent = \(/)
+  assert.match(pageChipSource, /const tooltipMetrics = isSplitTitleTooltip[\s\S]*getRegularChipTooltipWidth\(titleTextEl \|\| textEl, lineHtml\)/)
+  assert.match(pageChipSource, /const regularChipTooltipWidth = isSplitTitleTooltip && chipTooltipWidth > 0/)
   assert.match(pageChipSource, /isTitleVariantGroup\s*\?\s*titleVariantChipTooltipContentNode\(\)/)
   assert.match(pageChipSource, /if \(!isFolded && !isTitleVariantGroup\) return textEl/)
   assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && !isTitleVariantGroup && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
@@ -731,7 +756,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /if \(contextMenuOpenRef\.current\) return/)
   assert.match(pageChipSource, /\[\&\.page-chip-context-menu-open\]:bg-\[rgba\(82,82,82,0\.13\)\]/)
   assert.match(pageChipSource, /\[\&\.page-chip-tooltip-open\]:bg-\[rgba\(82,82,82,0\.13\)\]/)
-  assert.match(pageChipSource, /onOpenChange=\{setChipTooltipOpen\}/)
+  assert.match(pageChipSource, /onOpenChange=\{onChipTooltipOpenChange\}/)
   assert.match(pageChipSource, /group-\[\.page-chip-context-menu-open\]\/page-chip:opacity-100/)
   assert.match(pageChipSource, /group-\[\.page-chip-tooltip-open\]\/page-chip:opacity-100/)
   assert.match(pageChipSource, /className="page-chip-save-menu-item"/)
@@ -1169,7 +1194,7 @@ test('TabHistoryPanel uses PageChip-style fade truncation and expanded title too
   assert.match(tabHistoryPanelSource, /history-entry-title-tooltip-hit-area/)
   assert.match(tabHistoryPanelSource, /\[\&\.history-entry-tooltip-open\]:bg-\[rgba\(82,82,82,0\.13\)\]/)
   assert.match(tabHistoryPanelSource, /\[\&\.history-entry-tooltip-open\]:bg-\[rgba\(82,82,82,0\.18\)\]/)
-  assert.match(tabHistoryPanelSource, /onOpenChange=\{setTitleTooltipOpen\}/)
+  assert.match(tabHistoryPanelSource, /onOpenChange=\{onTitleTooltipOpenChange\}/)
   assert.match(tabHistoryPanelSource, /history-entry-title-tooltip-line-tail/)
   assert.doesNotMatch(tabHistoryPanelSource, /\[text-wrap:balance\]/)
   assert.doesNotMatch(tabHistoryPanelSource, /\[width:max-content\]/)
@@ -1892,6 +1917,7 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(envButtonMatch[1], /\bfocus-visible:outline/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && !isTitleVariantGroup && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
+  assert.match(pageChipSource, /const contentWidth = isSplitTitleTooltip && chipTooltipWidth > 0/)
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{envLabel\}>/)
   const foldedTooltipSource = pageChipSource.match(/function foldedChipTooltipContentNode\(\) \{[\s\S]*?\n  \}\n\n  const chipTooltipContent/)
   assert.ok(foldedTooltipSource, 'folded tooltip content renderer should exist')

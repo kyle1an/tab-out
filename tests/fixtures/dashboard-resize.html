@@ -108,6 +108,7 @@
           }
         ]
       }
+      let bookmarkTree = []
       const tabs = [
         {
           id: 9001,
@@ -282,7 +283,7 @@
 
       window.chrome = {
         bookmarks: {
-          getTree: async () => [],
+          getTree: async () => bookmarkTree,
           onCreated: listeners,
           onRemoved: listeners,
           onChanged: listeners,
@@ -341,6 +342,53 @@
         }
       }
       const originalWindowIds = new Map(tabs.map((tab) => [tab.id, tab.windowId]))
+      window.__tabOutSmokeSetBookmarks = (count = 0) => {
+        bookmarkTree = [{
+          id: 'root',
+          title: '',
+          children: [{
+            id: 'bar',
+            title: 'Bookmarks Bar',
+            children: Array.from({ length: count }, (_, index) => {
+              const domain = `bookmark-smoke-${String(index + 1).padStart(4, '0')}.test`
+              return {
+                id: `bookmark-${index + 1}`,
+                title: `Bookmark ${index + 1} with enough tooltip text to exercise progressive rendering`,
+                url: `https://${domain}/docs/${index + 1}`
+              }
+            })
+          }]
+        }]
+      }
+      window.__tabOutSmokeAddPathGroupPlaceholderTabs = async () => {
+        if (tabs.some((tab) => tab.id === 1223 || tab.id === 1224)) return
+        tabs.push(
+          {
+            id: 1223,
+            url: 'https://github.com/example-owner/example-long-repository/tree/story/ABC-123_2',
+            title: 'example-owner/example-long-repository at story/ABC-123_2',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1223
+          },
+          {
+            id: 1224,
+            url: 'https://github.com/example-owner/example-long-repository/releases/tag/2026.05.24.1',
+            title: 'example-owner/example-long-repository at release/2026.05.24.1',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1224
+          }
+        )
+        listeners.dispatch()
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
       window.__tabOutSmokeSetActiveTab = async (tabId, windowId = 1) => {
         for (const tab of tabs) {
           tab.windowId = originalWindowIds.get(tab.id) ?? tab.windowId

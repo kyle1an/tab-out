@@ -235,6 +235,70 @@ async function measureDashboard(session: CdpSession, width: number) {
   }).then((result: any) => result.result.value)
 }
 
+async function measureInitialTooltipMeasureNodes(session: CdpSession) {
+  return evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => ({
+      pageChipMeasureNodes: document.querySelectorAll('.page-chip-tooltip-measure').length,
+      historyMeasureNodes: document.querySelectorAll('.history-entry-title-tooltip-measure').length,
+      visibleTooltipNodes: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
+        const rect = tooltip.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+      }).length
+    }))()`
+  }).then((result: any) => result.result.value)
+}
+
+async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      window.__tabOutSmokeSetBookmarks?.(1008)
+      const trigger = Array.from(document.querySelectorAll('[data-tabout-part="source-option"]'))
+        .find((candidate) => candidate.textContent?.trim() === 'Bookmarks')
+      trigger?.click()
+      const start = performance.now()
+      let initial = null
+      const wait = () => {
+        const activeSource = document.querySelector('[data-tabout-part="source-option"][data-active]')?.textContent?.trim() || ''
+        const count = document.querySelectorAll('.domain-block').length
+        if (activeSource === 'Bookmarks' && count > 0 && !initial) {
+          initial = {
+            count,
+            elapsedMs: Math.round(performance.now() - start),
+            measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
+          }
+        }
+        if (initial && count >= 1008) {
+          resolve({
+            initial,
+            final: {
+              count,
+              elapsedMs: Math.round(performance.now() - start),
+              measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
+            }
+          })
+          return
+        }
+        if (performance.now() - start > 12000) {
+          resolve({
+            initial,
+            final: {
+              count,
+              elapsedMs: Math.round(performance.now() - start),
+              measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
+            }
+          })
+          return
+        }
+        setTimeout(wait, 16)
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+}
+
 async function measureHorizontalScrollLock(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 760,
@@ -817,7 +881,7 @@ async function measureSuppressionMarkerChipLine(session: CdpSession, label: stri
 async function measurePageChipTooltipLineCount(
   session: CdpSession,
   label: string,
-  options: { forcedTextWidth?: number; forcedMaxLines?: number; viewportWidth?: number } = {}
+  options: { forcedTextWidth?: number; forcedMaxLines?: number; hoverWaitMs?: number; viewportWidth?: number } = {}
 ) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: options.viewportWidth || 1000,
@@ -911,7 +975,7 @@ async function measurePageChipTooltipLineCount(
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await wait(options.hoverWaitMs ?? 650)
 
   const tooltip = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3018,10 +3082,14 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
 
   const wide = await measureDashboard(session, 1420)
   const narrow = await measureDashboard(session, 760)
+  const initialTooltipMeasureNodes = await measureInitialTooltipMeasureNodes(session)
 
   assert.ok(wide.cardCount >= 12, `dashboard should render enough cards for a column smoke test: ${JSON.stringify(wide)}`)
   assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
+  assert.equal(initialTooltipMeasureNodes.pageChipMeasureNodes, 0, `page chips should not mount hidden tooltip measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
+  assert.equal(initialTooltipMeasureNodes.historyMeasureNodes, 0, `history rows should not mount hidden tooltip measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
+  assert.equal(initialTooltipMeasureNodes.visibleTooltipNodes, 0, `dashboard should not show tooltip popups before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
 
   const horizontalScroll = await measureHorizontalScrollLock(session)
   assert.equal(horizontalScroll.overflowX, 'hidden', `scroll region should hide horizontal overflow: ${JSON.stringify(horizontalScroll)}`)
@@ -3215,6 +3283,22 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     structuralTailTooltip.tooltip.width > structuralTailTooltip.target.chipWidth + 20,
     `structural-tail tooltip should grow wider than the compact chip when non-tail markers expand: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  const oneLineStructuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Boundary Alpha', {
+    forcedTextWidth: 130,
+    forcedMaxLines: 1,
+    viewportWidth: 1600
+  })
+  assert.ok(oneLineStructuralTailTooltip.tooltip, `one-line structural-tail tooltip should open: ${JSON.stringify(oneLineStructuralTailTooltip)}`)
+  assert.equal(
+    oneLineStructuralTailTooltip.target.chipLineCount,
+    1,
+    `one-line structural-tail smoke target should render as one visible chip line: ${JSON.stringify(oneLineStructuralTailTooltip)}`
+  )
+  assert.equal(
+    oneLineStructuralTailTooltip.tooltip.tooltipLineCount,
+    1,
+    `one-line structural-tail tooltip should widen enough to stay on one line: ${JSON.stringify(oneLineStructuralTailTooltip)}`
   )
   const splitStructuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Line Alpha', {
     forcedTextWidth: 310,
@@ -3581,4 +3665,33 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(Math.abs(edgeTooltip.first.left - (edgeTooltip.target.textLeft - 6)) <= 1, `tooltip should preserve the original text origin near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
   const edgeAnchorRadius = edgeTooltip.first.align === 'end' ? edgeTooltip.first.topRightRadius : edgeTooltip.first.topLeftRadius
   assert.equal(edgeAnchorRadius, '0px', `tooltip anchor corner should be square near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddPathGroupPlaceholderTabs?.()`
+  })
+  const oneLinePathGroupPlaceholderTooltip = await measurePageChipTooltipLineCount(session, 'at story/ABC-123_2', {
+    forcedTextWidth: 130,
+    forcedMaxLines: 1,
+    hoverWaitMs: 40,
+    viewportWidth: 2200
+  })
+  assert.ok(oneLinePathGroupPlaceholderTooltip.tooltip, `one-line path-group placeholder tooltip should open: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`)
+  assert.equal(
+    oneLinePathGroupPlaceholderTooltip.target.chipLineCount,
+    1,
+    `one-line path-group placeholder smoke target should render as one visible chip line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`
+  )
+  assert.equal(
+    oneLinePathGroupPlaceholderTooltip.tooltip.tooltipLineCount,
+    1,
+    `one-line path-group placeholder tooltip should widen enough to stay on one line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`
+  )
+
+  const largeBookmarks = await measureLargeBookmarkProgressiveRender(session)
+  assert.ok(largeBookmarks.initial, `bookmark source should render an initial progressive chunk: ${JSON.stringify(largeBookmarks)}`)
+  assert.ok(largeBookmarks.initial.count <= 24, `bookmark source should not mount all large-list cards in the first chunk: ${JSON.stringify(largeBookmarks)}`)
+  assert.equal(largeBookmarks.initial.measureNodeCount, 0, `large bookmark switch should not create hidden page-chip measure nodes initially: ${JSON.stringify(largeBookmarks)}`)
+  assert.equal(largeBookmarks.final.count, 1008, `large bookmark source should eventually render every synthetic bookmark card: ${JSON.stringify(largeBookmarks)}`)
+  assert.equal(largeBookmarks.final.measureNodeCount, 0, `large bookmark source should not create hidden page-chip measure nodes after all chunks render: ${JSON.stringify(largeBookmarks)}`)
 })

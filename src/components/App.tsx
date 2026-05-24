@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ComponentPropsWithoutRef, type Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useMissionsMasonry } from '../extension/layout.js'
+import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
@@ -33,6 +34,10 @@ import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 type MissionContainerRef = {
   current: HTMLDivElement | null
 }
+
+const PROGRESSIVE_CARD_THRESHOLD = 80
+const PROGRESSIVE_CARD_INITIAL_COUNT = 24
+const PROGRESSIVE_CARD_CHUNK_SIZE = 24
 
 type HoverMatchState = {
   url: string
@@ -95,6 +100,13 @@ type DashboardMissionsListProps = {
   onLayoutChange: LayoutChangeHandler
   onTogglePinnedDomain: TogglePinnedDomainHandler
   sections: DashboardMissionSection[]
+}
+type ProgressiveCardsOptions = {
+  chunkSize?: number
+  enabled?: boolean
+  initialCount?: number
+  resetKey: string
+  threshold?: number
 }
 type AppDashboardState = {
   dashboard: DashboardData | null
@@ -178,6 +190,67 @@ function MissionsGrid({ className, empty = false, ref, ...props }: ComponentProp
   )
 }
 
+function useProgressiveCards(
+  cards: DashboardCardEntry[],
+  {
+    chunkSize = PROGRESSIVE_CARD_CHUNK_SIZE,
+    enabled = false,
+    initialCount = PROGRESSIVE_CARD_INITIAL_COUNT,
+    resetKey,
+    threshold = PROGRESSIVE_CARD_THRESHOLD
+  }: ProgressiveCardsOptions
+) {
+  const progressive = enabled && cards.length > threshold
+  const initialVisibleCount = progressive ? Math.min(initialCount, cards.length) : cards.length
+  const [state, setState] = useState({ resetKey, count: initialVisibleCount })
+  const visibleCount = state.resetKey === resetKey ? Math.min(state.count, cards.length) : initialVisibleCount
+
+  useEffect(() => {
+    setState({ resetKey, count: initialVisibleCount })
+  }, [initialVisibleCount, resetKey])
+
+  useEffect(() => {
+    if (!progressive || visibleCount >= cards.length) return
+
+    let disposed = false
+    const appendNextChunk = () => {
+      if (disposed) return
+      setState((current) => {
+        if (current.resetKey !== resetKey) return current
+        return {
+          resetKey,
+          count: Math.min(cards.length, current.count + chunkSize)
+        }
+      })
+    }
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(appendNextChunk, { timeout: 160 })
+      return () => {
+        disposed = true
+        window.cancelIdleCallback(idleId)
+      }
+    }
+
+    const timeoutId = window.setTimeout(appendNextChunk, 16)
+    return () => {
+      disposed = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [cards.length, chunkSize, progressive, resetKey, visibleCount])
+
+  return {
+    cards: progressive ? cards.slice(0, visibleCount) : cards,
+    pending: progressive && visibleCount < cards.length
+  }
+}
+
+function progressiveCardListKey(cards: DashboardCardEntry[]) {
+  const first = cards[0]?.group
+  const last = cards[cards.length - 1]?.group
+  return `${cards.length}:${first ? domainGroupCardId(first) : ''}:${last ? domainGroupCardId(last) : ''}`
+}
+
 function MissionBlock({
   activeHoverSource,
   activeHoverUrl,
@@ -193,10 +266,21 @@ function MissionBlock({
   showEmptyState,
   source
 }: MissionBlockProps) {
+  const progressiveEnabled = source !== 'tabs'
+  const progressiveCards = useProgressiveCards(cards, {
+    enabled: progressiveEnabled,
+    resetKey: `${source}:${filter}:${progressiveCardListKey(cards)}`
+  })
+
+  useEffect(() => {
+    if (!progressiveEnabled) return
+    onLayoutChange({ animate: false })
+  }, [cards.length, onLayoutChange, progressiveCards.cards.length, progressiveEnabled])
+
   return (
     <MissionsGrid empty={gridEmpty} id={gridId} ref={gridRef}>
       <Missions
-        cards={cards}
+        cards={progressiveCards.cards}
         filter={filter}
         source={source}
         showEmptyState={showEmptyState}
@@ -335,6 +419,7 @@ function DashboardMissionsList({
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialDashboard, initialAppDashboardState)
   const { dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
+  const [, startSourceTransition] = useTransition()
   const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
   const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
   const [isScrolled, setIsScrolled] = useState(false)
@@ -506,12 +591,14 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     }).then(({ dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet }) => {
       if (requestId !== sourceSwitchSeqRef.current) return
       layoutMoveRectsRef.current = previousRects
-      dispatchAppDashboard({
-        type: 'sourceSnapshot',
-        dashboard: nextDashboard,
-        source: nextSource,
-        tabHistory: nextTabHistory,
-        workingSet: nextWorkingSet
+      startSourceTransition(() => {
+        dispatchAppDashboard({
+          type: 'sourceSnapshot',
+          dashboard: nextDashboard,
+          source: nextSource,
+          tabHistory: nextTabHistory,
+          workingSet: nextWorkingSet
+        })
       })
     })
   }
