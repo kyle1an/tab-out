@@ -291,7 +291,7 @@ test('PageChip keeps the other-window active chip style separate from the curren
 test('PageChip hover fade appears and clears without its own transition lag', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
-      chip: makeChip({ sourceType: 'tab' })
+      chip: makeChip({ sourceType: 'bookmark', saved: true })
     })
   )
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
@@ -330,17 +330,19 @@ test('PageChip does not invent live-tab favicons for read-only chips', () => {
   assert.doesNotMatch(html, /default-favicon-image/)
 })
 
-test('PageChip renders a save action for unsaved live tabs', () => {
+test('PageChip exposes save action through a context menu for unsaved live tabs', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({ sourceType: 'tab' })
     })
   )
 
-  assert.match(html, /chip-save/)
-  assert.match(html, /icon-\[mingcute--star-line\]/)
-  assert.match(html, /aria-label="Save page"/)
-  assert.match(html, /aria-pressed="false"/)
+  assert.doesNotMatch(html, /chip-save/)
+  assert.doesNotMatch(html, /icon-\[mingcute--star-line\]/)
+  assert.doesNotMatch(html, /aria-label="Save page"/)
+  assert.doesNotMatch(html, /aria-pressed="false"/)
+  assert.doesNotMatch(html, /<div class="chip-actions\b/)
+  assert.match(html, /--chip-hover-fade-width:0px/)
   assert.match(html, /aria-label="Close this tab"/)
 })
 
@@ -352,18 +354,16 @@ test('PageChip renders the close action in the favicon slot', () => {
   )
   const faviconFrameMatch = html.match(/<span class="([^"]*\bchip-favicon-frame\b[^"]*)"/)
   const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
-  const actionsMatch = html.match(/<div class="chip-actions\b[^"]*"[\s\S]*?<\/div>/)
 
   assert.ok(faviconFrameMatch, 'favicon frame should render')
   assert.ok(closeActionMatch, 'close action should render')
-  assert.ok(actionsMatch, 'saved action group should still render')
   assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
   assert.match(closeActionMatch[1], /\bchip-close-favicon\b/)
   assert.match(closeActionMatch[1], /\babsolute\b/)
   assert.match(closeActionMatch[1], /\bleft-1\/2\b/)
   assert.match(closeActionMatch[1], /group-hover\/page-chip:opacity-100/)
   assert.match(html, /chip-favicon-content\b[^"]*group-hover\/page-chip:opacity-0/)
-  assert.doesNotMatch(actionsMatch[0], /\bchip-close\b/)
+  assert.doesNotMatch(html, /<div class="chip-actions\b/)
 })
 
 test('PageChip renders a favicon-slot close action without right-side actions', () => {
@@ -379,28 +379,22 @@ test('PageChip renders a favicon-slot close action without right-side actions', 
   assert.doesNotMatch(html, /<div class="chip-actions\b/)
 })
 
-test('PageChip renders saved open tabs with separate remove-saved and close actions', () => {
+test('PageChip renders saved open tabs with remove-saved in the context menu and close in the favicon slot', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({ sourceType: 'tab', saved: true, savedPageKey: 'https://openai.com/docs' })
     })
   )
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
-  const saveActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-save\b[^"]*)"/)
   const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
-  assert.ok(saveActionMatch, 'saved action should render')
   assert.ok(closeActionMatch, 'close action should render')
   assert.match(html, /\bpage-chip-saved\b/)
-  assert.match(html, /icon-\[mingcute--star-fill\]/)
-  assert.match(saveActionMatch[1], /group-hover\/page-chip:opacity-100/)
-  assertInstantActionClass(saveActionMatch[1])
   assertInstantActionClass(closeActionMatch[1])
-  assert.doesNotMatch(saveActionMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
-  assert.doesNotMatch(saveActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
-  assert.match(html, /aria-label="Remove saved page"/)
-  assert.match(html, /aria-pressed="true"/)
+  assert.doesNotMatch(html, /\bchip-save\b/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /aria-pressed="true"/)
   assert.match(html, /aria-label="Close this tab"/)
 })
 
@@ -437,7 +431,7 @@ test('PageChip renders closed saved pages muted with no close action', () => {
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-saved\b/)
   assert.match(chipMatch[1], /\bpage-chip-saved-closed\b/)
-  assert.match(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /aria-label="Close this tab"/)
   assert.match(html, /default-favicon-image/)
 })
@@ -609,7 +603,8 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bitems-stretch\b/)
   assert.doesNotMatch(html, /\bchip-title-variant-list\b[^"]*\bflex-wrap\b/)
   assert.match(titleVariantShellMatch[1], /\bw-full\b/)
-  assert.match(titleVariantShellMatch[1], /pr-\[42px\]/)
+  assert.match(titleVariantShellMatch[1], /pr-\[22px\]/)
+  assert.doesNotMatch(titleVariantShellMatch[1], /pr-\[42px\]/)
   assert.match(titleVariantButtonMatch[1], /\bw-full\b/)
   assert.match(titleVariantActionsMatch[1], /\btop-0\b/)
   assert.match(titleVariantActionsMatch[1], /\bbottom-0\b/)
@@ -652,6 +647,23 @@ test('PageChip tooltip popups click through to the matching chip target', () => 
   assert.match(pageChipSource, /page-chip-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight \[overflow-wrap:break-word\] cursor-default select-none/)
 })
 
+test('PageChip routes saved-page mutation actions through Base UI context menus', () => {
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+
+  assert.match(pageChipSource, /import \{\s*ContextMenu,\s*ContextMenuContent,\s*ContextMenuItem,\s*ContextMenuTrigger\s*\} from '\.\/ui\/context-menu'/)
+  assert.match(pageChipSource, /function PageChipContextMenu\(/)
+  assert.match(pageChipSource, /<ContextMenuTrigger render=\{children\} \/>/)
+  assert.match(pageChipSource, /className="page-chip-save-menu-item"/)
+  assert.match(pageChipSource, /className="page-chip-copy-title-menu-item"/)
+  assert.match(pageChipSource, /Copy page title text/)
+  assert.match(pageChipSource, /navigator\.clipboard\.writeText\(titleText\)/)
+  assert.match(pageChipSource, /onClick=\{onSavedSelect\}/)
+  assert.match(pageChipSource, /onClick=\{onCopyTitle\}/)
+  assert.match(pageChipSource, /canToggleSavedEnv \? \([\s\S]*<PageChipContextMenu[\s\S]*onSavedSelect=\{\(e\) => onToggleSavedEnv\(e, env\)\}[\s\S]*titleText=\{envTitleText\}/)
+  assert.match(pageChipSource, /variantCanToggleSaved \? \([\s\S]*<ContextMenu>[\s\S]*onSavedSelect=\{\(e\) => onToggleSavedTitleVariant\(e, variant\)\}[\s\S]*titleText=\{variantTitleText\}/)
+  assert.match(pageChipSource, /canToggleSavedPage[\s\S]*<PageChipContextMenu[\s\S]*onSavedSelect=\{onToggleSavedPage\}[\s\S]*titleText=\{chipTitleText\}/)
+})
+
 test('PageChip outlines same-title variant groups when external hover matches a variant URL', () => {
   const chip = makeChip({
     sourceType: 'tab',
@@ -689,7 +701,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
   assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
 })
 
-test('PageChip renders save controls for same-title URL variants independently', () => {
+test('PageChip keeps same-title URL variant saved-page actions in the context menu', () => {
   const chip = makeChip({
     sourceType: 'tab',
     tabUrl: 'https://example.com/content/item?search_id=alpha',
@@ -718,19 +730,15 @@ test('PageChip renders save controls for same-title URL variants independently',
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
   const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
-  const savedVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-save\b[^"]*)"/)
   const closeVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-action\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
-  assert.ok(savedVariantActionMatch, 'saved title variant action should render')
   assert.ok(closeVariantActionMatch, 'close title variant action should render')
   assert.doesNotMatch(chipMatch[1], /\bpage-chip-saved\b/)
-  assert.equal((html.match(/\bchip-title-variant-save\b/g) || []).length, 2)
-  assertInstantActionClass(savedVariantActionMatch[1])
+  assert.equal((html.match(/\bchip-title-variant-save\b/g) || []).length, 0)
   assertInstantActionClass(closeVariantActionMatch[1])
-  assert.doesNotMatch(savedVariantActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
-  assert.match(html, /aria-label="Remove saved page"/)
-  assert.match(html, /aria-label="Save page"/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /aria-label="Save page"/)
   assert.equal((html.match(/\bchip-title-variant-action\b/g) || []).length, 2)
 })
 
@@ -772,7 +780,7 @@ test('PageChip renders saved bookmark URL variants as read-only hints', () => {
   assert.doesNotMatch(html, /\bchip-title-variant-action\b/)
 })
 
-test('PageChip renders save controls for folded env pills independently', () => {
+test('PageChip keeps folded env saved-page actions in the context menu', () => {
   const chip = makeChip({
     sourceType: 'tab',
     tabUrl: 'https://env-alpha.example.test/docs',
@@ -802,16 +810,11 @@ test('PageChip renders save controls for folded env pills independently', () => 
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
-  const savedEnvActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-env-save\b[^"]*)"/)
 
-  assert.ok(savedEnvActionMatch, 'saved env action should render')
-  assert.equal((html.match(/\bchip-env-save\b/g) || []).length, 2)
+  assert.equal((html.match(/\bchip-env-save\b/g) || []).length, 0)
   assert.match(html, /\bchip-env-shell\b/)
-  assertInstantActionClass(savedEnvActionMatch[1])
-  assert.doesNotMatch(savedEnvActionMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
-  assert.doesNotMatch(savedEnvActionMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
-  assert.match(html, /aria-label="Remove saved page"/)
-  assert.match(html, /aria-label="Save page"/)
+  assert.doesNotMatch(html, /aria-label="Remove saved page"/)
+  assert.doesNotMatch(html, /aria-label="Save page"/)
   assert.doesNotMatch(html, /\bchip-save\b/)
 })
 

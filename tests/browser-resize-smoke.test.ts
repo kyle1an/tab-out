@@ -1435,6 +1435,159 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
   return { target, first, popupPoint, popupStyle, updates }
 }
 
+async function measurePageChipContextMenuSave(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `(() => {
+      document.querySelector('.scroll-region')?.scrollTo(0, 0)
+      window.__tabOutSmokeSavedStore = {}
+      window.__tabOutSmokeSavedSets = []
+      window.__tabOutSmokeCopiedText = null
+      chrome.storage.local.get = async () => window.__tabOutSmokeSavedStore
+      chrome.storage.local.set = async (next) => {
+        window.__tabOutSmokeSavedStore = { ...window.__tabOutSmokeSavedStore, ...next }
+        window.__tabOutSmokeSavedSets.push(next)
+      }
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async (text) => {
+            window.__tabOutSmokeCopiedText = text
+          }
+        }
+      })
+    })()`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) => candidate.textContent?.includes('Short title'))
+        const rect = chip?.getBoundingClientRect()
+        if (rect && rect.width > 120 && rect.height > 8) {
+          resolve({
+            x: Math.round(rect.left + Math.min(96, rect.width - 8)),
+            y: Math.round(rect.top + rect.height / 2)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a live page chip for context menu save smoke test')
+
+  async function clickMenuItem(label: string) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: target.x,
+      y: target.y
+    })
+    await wait(80)
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      button: 'right',
+      buttons: 2,
+      clickCount: 1,
+      x: target.x,
+      y: target.y
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      button: 'right',
+      buttons: 0,
+      clickCount: 1,
+      x: target.x,
+      y: target.y
+    })
+    await wait(220)
+
+    const item = await evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const item = Array.from(document.querySelectorAll('[data-slot="context-menu-item"]'))
+          .find((candidate) => candidate.textContent?.trim() === ${JSON.stringify(label)})
+        const rect = item?.getBoundingClientRect()
+        if (!rect) return null
+        return {
+          text: item.textContent?.trim() || '',
+          x: Math.round(rect.left + rect.width / 2),
+          y: Math.round(rect.top + rect.height / 2)
+        }
+      })()`
+    }).then((result: any) => result.result.value)
+
+    assert.ok(item, `expected ${label} context menu item after right-click: ${JSON.stringify({ target })}`)
+
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: item.x,
+      y: item.y
+    })
+    await wait(80)
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+      x: item.x,
+      y: item.y
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+      x: item.x,
+      y: item.y
+    })
+    await wait(220)
+
+    return item
+  }
+
+  const copyItem = await clickMenuItem('Copy page title text')
+  const copyResult = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `({
+      copiedText: window.__tabOutSmokeCopiedText,
+      menuOpen: !!document.querySelector('[data-slot="context-menu-content"]')
+    })`
+  }).then((result: any) => result.result.value)
+
+  const saveItem = await clickMenuItem('Save page')
+
+  const saveResult = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const store = window.__tabOutSmokeSavedStore?.tabOutSavedPagesV1
+      const pageKeys = store?.pages ? Object.keys(store.pages) : []
+      return {
+        itemText: ${JSON.stringify('Save page')},
+        menuOpen: !!document.querySelector('[data-slot="context-menu-content"]'),
+        pageKeys,
+        setCount: window.__tabOutSmokeSavedSets?.length || 0
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  return { target, copyItem, copyResult, saveItem, saveResult }
+}
+
 async function measureTooltipPopupWheelScroll(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -2169,6 +2322,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   const shortTooltip = await measureShortChipTooltipAbsence(session)
   assert.equal(shortTooltip.target.isTruncated, false, `short chip text should fit for tooltip absence smoke test: ${JSON.stringify(shortTooltip)}`)
   assert.equal(shortTooltip.tooltipCount, 0, `page chip should not show a tooltip when its text fits: ${JSON.stringify(shortTooltip)}`)
+
+  const contextMenuSave = await measurePageChipContextMenuSave(session)
+  assert.equal(contextMenuSave.copyItem.text, 'Copy page title text', `right-clicking a live page chip should show the copy-title action: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.copyResult.copiedText, 'Short title', `Copy page title text should copy the chip title: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.copyResult.menuOpen, false, `context menu should close after choosing Copy page title text: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.saveItem.text, 'Save page', `right-clicking a live page chip should show the save action: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.saveResult.menuOpen, false, `context menu should close after choosing Save page: ${JSON.stringify(contextMenuSave)}`)
+  assert.ok(contextMenuSave.saveResult.pageKeys.includes('https://tab-out-smoke-01.com/docs/1'), `Save page should persist the chip URL: ${JSON.stringify(contextMenuSave)}`)
+  assert.ok(contextMenuSave.saveResult.setCount > 0, `Save page should write through chrome.storage.local: ${JSON.stringify(contextMenuSave)}`)
 
   const tooltip = await measureTooltipFreeze(session)
   assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)

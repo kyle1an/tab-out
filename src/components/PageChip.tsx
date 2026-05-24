@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
-import { X } from 'lucide-react'
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
+import { Copy, X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
+import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
 import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu'
 import { cn } from '@/lib/utils'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
 import type { InlineTextRenderer } from './bionic-title-text'
@@ -51,6 +53,19 @@ type HighlightMode = 'parsed' | 'legacy'
 type RenderTitleContentOptions = {
   includePathSuffix?: boolean
 }
+type StopPropagationEvent = {
+  stopPropagation: () => void
+}
+type PageChipContextMenuContentProps = {
+  savedActionLabel: string
+  saved: boolean
+  titleText: string
+  onSavedSelect: (event: StopPropagationEvent) => void | Promise<void>
+  onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
+}
+type PageChipContextMenuProps = PageChipContextMenuContentProps & {
+  children: ReactElement
+}
 type TooltipSubpixelOffset = {
   x: number
   y: number
@@ -91,6 +106,66 @@ function pathGroupDisplayLabel(label: string): string {
 
 function SavedPageIcon({ saved, className }: { saved: boolean; className: string }) {
   return <span aria-hidden="true" className={cn(saved ? 'icon-[mingcute--star-fill]' : 'icon-[mingcute--star-line]', className)} />
+}
+
+function titleTextForChip(target: Pick<DashboardChipData, 'title' | 'tooltip' | 'tabUrl'>): string {
+  return (target.title || target.tooltip || target.tabUrl).trim()
+}
+
+function titleTextForEnv(env: DashboardChipEnv, parent: Pick<DashboardChipData, 'title' | 'tooltip'>): string {
+  return (env.title || parent.title || parent.tooltip || env.tabUrl).trim()
+}
+
+function PageChipContextMenuContent({
+  savedActionLabel,
+  saved,
+  titleText,
+  onSavedSelect,
+  onCopyTitle
+}: PageChipContextMenuContentProps) {
+  return (
+    <ContextMenuContent>
+      <ContextMenuItem
+        className="page-chip-save-menu-item"
+        label={savedActionLabel}
+        onClick={onSavedSelect}
+      >
+        <SavedPageIcon saved={saved} className="size-4" />
+        <span className="min-w-0 flex-1">{savedActionLabel}</span>
+      </ContextMenuItem>
+      <ContextMenuItem
+        className="page-chip-copy-title-menu-item"
+        disabled={!titleText}
+        label="Copy page title text"
+        onClick={onCopyTitle}
+      >
+        <Copy className="size-4" aria-hidden="true" />
+        <span className="min-w-0 flex-1">Copy page title text</span>
+      </ContextMenuItem>
+    </ContextMenuContent>
+  )
+}
+
+function PageChipContextMenu({
+  children,
+  savedActionLabel,
+  saved,
+  titleText,
+  onSavedSelect,
+  onCopyTitle
+}: PageChipContextMenuProps) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={children} />
+      <PageChipContextMenuContent
+        savedActionLabel={savedActionLabel}
+        saved={saved}
+        onSavedSelect={onSavedSelect}
+        titleText={titleText}
+        onCopyTitle={onCopyTitle}
+      />
+    </ContextMenu>
+  )
 }
 
 function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titleSuppression: string } {
@@ -818,7 +893,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     })
   }
 
-  async function onToggleSavedPage(e: MouseEvent<HTMLButtonElement>) {
+  async function onToggleSavedPage(e: StopPropagationEvent) {
     e.stopPropagation()
     if (chip.saved) {
       await removeSavedPageTarget(chip.savedPageKey || chip.tabUrl)
@@ -833,6 +908,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       })
     }
     setPreview('')
+  }
+
+  async function onCopyTitleText(e: StopPropagationEvent, titleText: string) {
+    e.stopPropagation()
+    if (!titleText) return
+
+    try {
+      await navigator.clipboard.writeText(titleText)
+      showToast('Page title copied')
+    } catch {
+      showToast('Could not copy page title')
+    }
   }
 
   async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
@@ -881,7 +968,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     })
   }
 
-  async function onToggleSavedTitleVariant(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
+  async function onToggleSavedTitleVariant(e: StopPropagationEvent, variant: DashboardChipData) {
     e.stopPropagation()
     if (variant.saved) {
       await removeSavedPageTarget(variant.savedPageKey || variant.tabUrl)
@@ -898,7 +985,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
-  async function onToggleSavedEnv(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
+  async function onToggleSavedEnv(e: StopPropagationEvent, env: DashboardChipEnv) {
     e.stopPropagation()
     if (env.saved) {
       await removeSavedPageTarget(env.savedPageKey || env.tabUrl)
@@ -926,13 +1013,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
+  const chipTitleText = titleTextForChip(chip)
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
   const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const showFaviconCloseAction = !chip.iconOnly && canCloseChip
   const showDefaultFavicon = !chip.faviconUrl && (!isReadOnlySource || chip.sourceType === 'saved-page')
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
-  const rightActionCount = (canToggleSavedPage ? 1 : 0) + (showSavedHint ? 1 : 0)
+  const rightActionCount = showSavedHint ? 1 : 0
   const chipHoverFadeWidth = rightActionCount === 0 ? '0px' : rightActionCount === 1 ? '56px' : '88px'
   const style = {
     '--chip-hover-fade-bg': hasActiveChipFrame
@@ -1117,6 +1205,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const envSavedActionLabel = env.saved ? 'Remove saved page' : 'Save page'
     const canToggleSavedEnv = (env.sourceType === 'tab' || env.sourceType === 'saved-page') && !env.isApp
     const showSavedEnvHint = !!env.saved && !canToggleSavedEnv
+    const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
@@ -1148,41 +1237,31 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         {highlightedTextNodes(env.prefix, highlightTerms, `env-${env.prefix}`)}
       </button>
     )
+    const envFocusTarget = canToggleSavedEnv ? (
+      <PageChipContextMenu
+        savedActionLabel={envSavedActionLabel}
+        saved={!!env.saved}
+        onSavedSelect={(e) => onToggleSavedEnv(e, env)}
+        titleText={envTitleText}
+        onCopyTitle={(e) => onCopyTitleText(e, envTitleText)}
+      >
+        {envFocusButton}
+      </PageChipContextMenu>
+    ) : envFocusButton
 
-    if (!canToggleSavedEnv && !showSavedEnvHint) return <span key={envKey} className="chip-env-shell relative inline-flex items-center">{envFocusButton}</span>
+    if (!showSavedEnvHint) return <span key={envKey} className="chip-env-shell relative inline-flex items-center">{envFocusTarget}</span>
 
     return (
       <span key={envKey} className="chip-env-shell group/env relative inline-flex items-center">
-        {envFocusButton}
-        {canToggleSavedEnv ? (
-          <TooltipAnchor content={envSavedActionLabel}>
-            <button
-              type="button"
-              className={cn(
-                'chip-env-save pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex size-4 cursor-pointer items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-                env.saved && 'text-[var(--accent-amber)]'
-              )}
-              aria-label={envSavedActionLabel}
-              aria-pressed={env.saved ? 'true' : 'false'}
-              onClick={(e) => onToggleSavedEnv(e, env)}
-              onMouseEnter={() => onEnvMouseEnter(env)}
-              onMouseLeave={onEnvMouseLeave}
-              onFocus={() => onEnvFocus(env)}
-              onBlur={onEnvBlur}
-            >
-              <SavedPageIcon saved={!!env.saved} className="size-2.5" />
-            </button>
-          </TooltipAnchor>
-        ) : (
-          <TooltipAnchor content="Saved page">
-            <span
-              className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex size-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-[var(--accent-amber)] opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
-              aria-hidden="true"
-            >
-              <SavedPageIcon saved className="size-2.5" />
-            </span>
-          </TooltipAnchor>
-        )}
+        {envFocusTarget}
+        <TooltipAnchor content="Saved page">
+          <span
+            className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex size-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-[var(--accent-amber)] opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
+            aria-hidden="true"
+          >
+            <SavedPageIcon saved className="size-2.5" />
+          </span>
+        </TooltipAnchor>
       </span>
     )
   }
@@ -1272,8 +1351,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantCanToggleSaved = (variant.sourceType === 'tab' || variant.sourceType === 'saved-page') && !variant.isApp
     const variantShowSavedHint = !!variant.saved && !variantCanToggleSaved
     const variantCanClose = !variantClosedSaved && (!isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource)
-    const variantActionCount = (variantCanToggleSaved || variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
+    const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
     const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
+    const variantTitleText = titleTextForChip(variant)
     const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     const labelContent = (
       <>
@@ -1286,6 +1366,56 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           </span>
         )}
       </>
+    )
+    const variantFocusButton = (
+      <button
+        type="button"
+        className={cn(
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+          !variantActive && !variantCurrent && 'group-hover/page-chip:bg-[rgba(115,115,115,0.1)]',
+          variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
+          variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
+          variantHoverMatched && 'shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]'
+        )}
+        aria-label={variantLabel}
+        onClick={(e) => onTitleVariantFocus(e, variant)}
+        onMouseEnter={() => onTitleVariantMouseEnter(variant)}
+        onMouseLeave={onTitleVariantMouseLeave}
+        onFocus={() => onTitleVariantFocusIn(variant)}
+        onBlur={onTitleVariantBlur}
+      >
+        {labelContent}
+      </button>
+    )
+    const variantFocusTarget = variantCanToggleSaved ? (
+      <ContextMenu>
+        <TooltipAnchor
+          instant
+          content={titleVariantTooltipContentNode(variant, index)}
+          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
+          onClick={(e) => onTitleVariantTooltipClick(e, variant)}
+          style={chipTooltipStyle}
+        >
+          <ContextMenuTrigger render={variantFocusButton} />
+        </TooltipAnchor>
+        <PageChipContextMenuContent
+          savedActionLabel={variantSavedActionLabel}
+          saved={!!variant.saved}
+          onSavedSelect={(e) => onToggleSavedTitleVariant(e, variant)}
+          titleText={variantTitleText}
+          onCopyTitle={(e) => onCopyTitleText(e, variantTitleText)}
+        />
+      </ContextMenu>
+    ) : (
+      <TooltipAnchor
+        instant
+        content={titleVariantTooltipContentNode(variant, index)}
+        className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
+        onClick={(e) => onTitleVariantTooltipClick(e, variant)}
+        style={chipTooltipStyle}
+      >
+        {variantFocusButton}
+      </TooltipAnchor>
     )
 
     if (mode === 'tooltip') {
@@ -1308,54 +1438,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           variantActionCount > 1 && 'pr-[42px]'
         )}
       >
-        <TooltipAnchor
-          instant
-          content={titleVariantTooltipContentNode(variant, index)}
-          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
-          onClick={(e) => onTitleVariantTooltipClick(e, variant)}
-          style={chipTooltipStyle}
-        >
-          <button
-            type="button"
-            className={cn(
-              'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-              !variantActive && !variantCurrent && 'group-hover/page-chip:bg-[rgba(115,115,115,0.1)]',
-              variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
-              variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
-              variantHoverMatched && 'shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]'
-            )}
-            aria-label={variantLabel}
-            onClick={(e) => onTitleVariantFocus(e, variant)}
-            onMouseEnter={() => onTitleVariantMouseEnter(variant)}
-            onMouseLeave={onTitleVariantMouseLeave}
-            onFocus={() => onTitleVariantFocusIn(variant)}
-            onBlur={onTitleVariantBlur}
-          >
-            {labelContent}
-          </button>
-        </TooltipAnchor>
+        {variantFocusTarget}
         {variantActionCount > 0 && (
           <span className="chip-title-variant-actions absolute top-0 right-0 bottom-0 z-[2] my-auto flex h-[19px] items-center gap-0.5">
-            {variantCanToggleSaved && (
-              <TooltipAnchor content={variantSavedActionLabel}>
-                <button
-                  type="button"
-                  className={cn(
-                    'chip-title-variant-save inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-                    variant.saved && 'text-[var(--accent-amber)]'
-                  )}
-                  aria-label={variantSavedActionLabel}
-                  aria-pressed={variant.saved ? 'true' : 'false'}
-                  onClick={(e) => onToggleSavedTitleVariant(e, variant)}
-                  onMouseEnter={() => onTitleVariantMouseEnter(variant)}
-                  onMouseLeave={onTitleVariantMouseLeave}
-                  onFocus={() => onTitleVariantFocusIn(variant)}
-                  onBlur={onTitleVariantBlur}
-                >
-                  <SavedPageIcon saved={!!variant.saved} className="size-3.5" />
-                </button>
-              </TooltipAnchor>
-            )}
             {variantShowSavedHint && (
               <TooltipAnchor content="Saved page">
                 <span
@@ -1676,38 +1761,31 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         ) : chipTextElement
       )}
       {chipTooltipMeasureElement}
-      {!chip.iconOnly && (showSavedHint || canToggleSavedPage) && (
+      {!chip.iconOnly && showSavedHint && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
-          {canToggleSavedPage && (
-            <TooltipAnchor content={savedActionLabel}>
-              <button
-                type="button"
-                className={cn(
-                  'chip-action chip-save pointer-events-none inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100',
-                  chip.saved && 'text-[var(--accent-amber)]'
-                )}
-                aria-label={savedActionLabel}
-                aria-pressed={chip.saved ? 'true' : 'false'}
-                onClick={onToggleSavedPage}
-              >
-                <SavedPageIcon saved={!!chip.saved} className="size-[14px]" />
-              </button>
-            </TooltipAnchor>
-          )}
-          {showSavedHint && (
-            <TooltipAnchor content="Saved page">
-              <span
-                className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-[var(--accent-amber)] opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100"
-                aria-hidden="true"
-              >
-                <SavedPageIcon saved className="size-[14px]" />
-              </span>
-            </TooltipAnchor>
-          )}
+          <TooltipAnchor content="Saved page">
+            <span
+              className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-[var(--accent-amber)] opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100"
+              aria-hidden="true"
+            >
+              <SavedPageIcon saved className="size-[14px]" />
+            </span>
+          </TooltipAnchor>
         </div>
       )}
       </div>
   )
+  const chipElementWithContextMenu = !chip.iconOnly && canToggleSavedPage ? (
+    <PageChipContextMenu
+      savedActionLabel={savedActionLabel}
+      saved={!!chip.saved}
+      onSavedSelect={onToggleSavedPage}
+      titleText={chipTitleText}
+      onCopyTitle={(e) => onCopyTitleText(e, chipTitleText)}
+    >
+      {chipElement}
+    </PageChipContextMenu>
+  ) : chipElement
 
   if (chip.iconOnly && chipTooltipContent) {
     return (
@@ -1723,7 +1801,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     )
   }
 
-  return chipElement
+  return chipElementWithContextMenu
 }
 
 export function PageChip(props: PageChipProps) {

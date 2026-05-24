@@ -322,7 +322,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(headerBarSource, /<SelectGroup>/)
   assert.match(headerBarSource, /<SelectItem[\s\S]*key=\{option\.value\}[\s\S]*value=\{option\.value\}[\s\S]*label=\{option\.label\}/)
   assert.doesNotMatch(headerBarSource, /SelectControl|TextInput|SegmentedTabs/)
-  assert.deepEqual(uiFiles, ['button-variants.ts', 'button.tsx', 'input.tsx', 'select.tsx', 'tabs-variants.ts', 'tabs.tsx', 'tooltip.tsx'])
+  assert.deepEqual(uiFiles, ['button-variants.ts', 'button.tsx', 'context-menu.tsx', 'input.tsx', 'select.tsx', 'tabs-variants.ts', 'tabs.tsx', 'tooltip.tsx'])
   assert.match(toastSource, /p-4!/)
   assert.match(toastSource, /mt-2!/)
   assert.match(toastSource, /px-3!/)
