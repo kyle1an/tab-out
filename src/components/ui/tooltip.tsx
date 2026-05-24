@@ -278,6 +278,12 @@ function setTooltipWheelPassthrough(
   }
 }
 
+function releaseActiveTooltipAnchor(anchorId: string) {
+  if (activeTooltipAnchorId !== anchorId) return
+  activeTooltipAnchorId = null
+  latestTooltipActivityAt = now()
+}
+
 function TooltipProvider({ children }: TooltipProviderProps) {
   return <>{children}</>
 }
@@ -400,15 +406,21 @@ type TooltipAnchorProps = Omit<
   onWheel?: (event: WheelEvent) => void
 }
 
-// react-doctor-disable-next-line react-doctor/no-giant-component -- hover, focus, and wheel state stay coupled until a tooltip-controller refactor.
-function TooltipAnchor({
-  anchorToCursor = true,
-  content,
+type TooltipAnchorControllerOptions = {
+  anchorId: string
+  anchorToCursor: boolean
+  children: TooltipTriggerElement
+  contentOnWheel?: (event: WheelEvent) => void
+  openInstantly: boolean
+}
+
+function useTooltipAnchorController({
+  anchorId,
+  anchorToCursor,
   children,
-  onWheel: contentOnWheel,
-  ...contentProps
-}: TooltipAnchorProps) {
-  const anchorId = useId()
+  contentOnWheel,
+  openInstantly
+}: TooltipAnchorControllerOptions) {
   const tooltipActionsRef = useRef<TooltipPrimitive.Root.Actions | null>(null)
   const triggerElementRef = useRef<HTMLElement | null>(null)
   const popupElementRef = useRef<HTMLDivElement | null>(null)
@@ -430,7 +442,6 @@ function TooltipAnchor({
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const [tooltipWheelClosing, setTooltipWheelClosing] = useState(false)
   const [popupElement, setPopupElement] = useState<HTMLDivElement | null>(null)
-  const openInstantly = contentProps.instant === true
   const closeInstantly = openInstantly
 
   const clearHoverCloseTimer = useCallback(() => {
@@ -471,10 +482,7 @@ function TooltipAnchor({
       retimeHoverOpen()
       retimeWheelClose()
       clearTooltipWheelForwarding(anchorId)
-      if (activeTooltipAnchorId === anchorId) {
-        activeTooltipAnchorId = null
-        latestTooltipActivityAt = now()
-      }
+      releaseActiveTooltipAnchor(anchorId)
     },
     [anchorId, clearHoverCloseTimer, retimeFrozenPointerClear, retimeHoverOpen, retimeWheelClose]
   )
@@ -491,10 +499,7 @@ function TooltipAnchor({
     } else {
       setTooltipOpen(false)
     }
-    if (activeTooltipAnchorId === anchorId) {
-      activeTooltipAnchorId = null
-      latestTooltipActivityAt = now()
-    }
+    releaseActiveTooltipAnchor(anchorId)
     clearFrozenPointerPointAfterClose()
   }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, closeInstantly, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
 
@@ -558,10 +563,7 @@ function TooltipAnchor({
         now() + TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS
       retimeHoverOpen()
       clearHoverCloseTimer()
-      if (activeTooltipAnchorId === anchorId) {
-        activeTooltipAnchorId = null
-        latestTooltipActivityAt = now()
-      }
+      releaseActiveTooltipAnchor(anchorId)
       flushSync(() => {
         scheduleTooltipWheelTargetRelease()
       })
@@ -871,6 +873,47 @@ function TooltipAnchor({
     }
   }, [frozenPointerPoint])
   const tooltipAnchor = anchorToCursor ? cursorAnchor : undefined
+
+  return {
+    handleContentMouseEnter,
+    handleContentMouseLeave,
+    handleContentPointerEnter,
+    handleContentPointerLeave,
+    popupRef,
+    tooltipActionsRef,
+    tooltipAnchor,
+    tooltipOpen,
+    tooltipWheelClosing,
+    trigger
+  }
+}
+
+function TooltipAnchor({
+  anchorToCursor = true,
+  content,
+  children,
+  onWheel: contentOnWheel,
+  ...contentProps
+}: TooltipAnchorProps) {
+  const anchorId = useId()
+  const {
+    handleContentMouseEnter,
+    handleContentMouseLeave,
+    handleContentPointerEnter,
+    handleContentPointerLeave,
+    popupRef,
+    tooltipActionsRef,
+    tooltipAnchor,
+    tooltipOpen,
+    tooltipWheelClosing,
+    trigger
+  } = useTooltipAnchorController({
+    anchorId,
+    anchorToCursor,
+    children,
+    contentOnWheel,
+    openInstantly: contentProps.instant === true
+  })
 
   if (content === null || content === undefined || content === '') return children
 

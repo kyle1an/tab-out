@@ -184,7 +184,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tooltipSource, /side = 'bottom'/)
   assert.match(tooltipSource, /align = 'start'/)
   assert.match(tooltipSource, /instant = false/)
-  assert.match(tooltipSource, /const openInstantly = contentProps\.instant === true/)
+  assert.match(tooltipSource, /openInstantly: contentProps\.instant === true/)
   assert.match(tooltipSource, /if \(openInstantly\) \{[\s\S]*openTooltip\(point\)[\s\S]*return[\s\S]*\}/)
   assert.match(tooltipSource, /if \(closeInstantly\) \{[\s\S]*closeTooltip\(\)[\s\S]*return[\s\S]*\}/)
   assert.match(tooltipSource, /document\.elementFromPoint\(point\.x, point\.y\)/)
