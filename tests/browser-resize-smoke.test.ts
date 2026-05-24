@@ -943,17 +943,15 @@ async function measureFoldedPageChipTooltipTitleLineCount(
       const tooltip = document.querySelector('[data-slot="tooltip-content"]')
       const tooltipText = tooltip?.querySelector('.chip-text')
       const titleRow = tooltip?.querySelector('.chip-title-row')
-      const envRow = tooltip?.querySelector('.chip-env-row')
       const tooltipRect = tooltip?.getBoundingClientRect()
       const titleRect = titleRow?.getBoundingClientRect()
-      const envRect = envRow?.getBoundingClientRect()
-      if (!tooltip || !tooltipText || !titleRow || !envRow || !tooltipRect || !titleRect || !envRect) return null
+      if (!tooltip || !tooltipText || !titleRow || !tooltipRect || !titleRect) return null
       const styles = window.getComputedStyle(titleRow)
       const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
       return {
         text: tooltip.textContent || '',
         titleText: titleRow.textContent || '',
-        envText: envRow.textContent || '',
+        envCount: tooltip.querySelectorAll('.chip-env').length,
         titleLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
         titleWidth: Math.round(titleRect.width),
         textWidth: Math.round(tooltipText.getBoundingClientRect().width),
@@ -972,6 +970,73 @@ async function measureFoldedPageChipTooltipTitleLineCount(
   await wait(240)
 
   return { target, tooltip }
+}
+
+async function measureFoldedEnvHoverTooltips(
+  session: CdpSession,
+  label: string
+) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1600,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(650)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip-folded'))
+          .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
+        const envButton = chip?.querySelector('.chip-env')
+        const rect = envButton?.getBoundingClientRect()
+        if (envButton && rect && rect.width > 10 && rect.height > 10) {
+          resolve({
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2),
+            text: envButton.textContent || ''
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, `expected a folded env button for tooltip check: ${label}`)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const tooltipTexts = await getVisibleTooltipTexts(session)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(240)
+
+  return { target, tooltipTexts }
 }
 
 async function measureInteractiveTooltipClickReturnFocus(
@@ -2076,9 +2141,10 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     foldedTooltip.tooltip.titleText.includes('Example Optical'),
     `folded chip tooltip should expand the hidden title marker inline: ${JSON.stringify(foldedTooltip)}`
   )
-  assert.ok(
-    foldedTooltip.tooltip.envText.includes('dev2us') && foldedTooltip.tooltip.envText.includes('dev4us'),
-    `folded chip tooltip should keep env pills visible below the title row: ${JSON.stringify(foldedTooltip)}`
+  assert.equal(
+    foldedTooltip.tooltip.envCount,
+    0,
+    `folded chip tooltip should not render env buttons: ${JSON.stringify(foldedTooltip)}`
   )
   assert.ok(
     foldedTooltip.tooltip.textWidth > foldedTooltip.target.chipTextWidth,
@@ -2100,6 +2166,17 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     foldedWrappedTooltip.tooltip.titleText.includes('Example Optical'),
     `wrapped folded chip tooltip should still expand the hidden title marker: ${JSON.stringify(foldedWrappedTooltip)}`
+  )
+  assert.equal(
+    foldedWrappedTooltip.tooltip.envCount,
+    0,
+    `wrapped folded chip tooltip should not render env buttons: ${JSON.stringify(foldedWrappedTooltip)}`
+  )
+  const foldedEnvHover = await measureFoldedEnvHoverTooltips(session, 'Folded Tooltip Lenses')
+  assert.deepEqual(
+    foldedEnvHover.tooltipTexts,
+    [],
+    `hovering a folded env button should not open a tooltip: ${JSON.stringify(foldedEnvHover)}`
   )
 
   const popupHover = await measureTooltipPopupHover(session)

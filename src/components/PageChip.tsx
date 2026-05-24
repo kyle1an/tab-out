@@ -1069,21 +1069,19 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     }
 
     const envFocusButton = (
-      <TooltipAnchor content={envLabel}>
-        <button
-          type="button"
-          className={envClassName}
-          aria-label={envLabel}
-          onClick={(e) => onEnvClick(e, env)}
-          onKeyDown={(e) => onEnvKeyDown(e, env)}
-          onMouseEnter={() => onEnvMouseEnter(env)}
-          onMouseLeave={onEnvMouseLeave}
-          onFocus={() => onEnvFocus(env)}
-          onBlur={onEnvBlur}
-        >
-          {renderHighlightedText(env.prefix, highlightTerms, `env-${env.prefix}`)}
-        </button>
-      </TooltipAnchor>
+      <button
+        type="button"
+        className={envClassName}
+        aria-label={envLabel}
+        onClick={(e) => onEnvClick(e, env)}
+        onKeyDown={(e) => onEnvKeyDown(e, env)}
+        onMouseEnter={() => onEnvMouseEnter(env)}
+        onMouseLeave={onEnvMouseLeave}
+        onFocus={() => onEnvFocus(env)}
+        onBlur={onEnvBlur}
+      >
+        {renderHighlightedText(env.prefix, highlightTerms, `env-${env.prefix}`)}
+      </button>
     )
 
     if (!canToggleSavedEnv && !showSavedEnvHint) return <span key={envKey} className="chip-env-shell relative inline-flex items-center">{envFocusButton}</span>
@@ -1405,9 +1403,6 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         <span className="chip-title-row block min-w-0 max-w-full">
           {chipTooltipLineHtml.length > 0 ? renderSplitChipTooltipLines() : renderTitleContent('tooltip')}
         </span>
-        <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
-          {envs.map((env) => renderEnvLabel(env, 'tooltip'))}
-        </span>
       </span>
     )
   }
@@ -1439,6 +1434,43 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     </span>
   ) : null
 
+  const foldedTitleTooltipTriggerElement = (
+    <span
+      className="chip-text-tooltip-hit-area -my-[5px] flex min-w-0 py-[5px]"
+      onPointerEnter={onChipTextTooltipHitAreaPointerEnter}
+    >
+      <span className="chip-title-row block min-w-0 max-w-full">
+        {renderTitleContent('chip')}
+      </span>
+    </span>
+  )
+
+  const foldedChipTextContent = (
+    <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
+      {chipTooltipContent ? (
+        <TooltipAnchor
+          alignOffset={PAGE_CHIP_TOOLTIP_ALIGN_OFFSET_PX}
+          anchor={() => chipTextRef.current}
+          anchorToCursor={false}
+          content={chipTooltipContent}
+          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+          instant
+          sideOffset={chipTooltipSideOffset}
+          style={chipTooltipStyle}
+        >
+          {foldedTitleTooltipTriggerElement}
+        </TooltipAnchor>
+      ) : (
+        <span className="chip-title-row block min-w-0 max-w-full">
+          {renderTitleContent('chip')}
+        </span>
+      )}
+      <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
+        {envs.map((env) => renderEnvLabel(env, 'chip'))}
+      </span>
+    </span>
+  )
+
   const chipTextElement = (
     <span
       className={cn(
@@ -1451,7 +1483,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       ref={chipTextRef}
       onPointerEnter={onChipTextPointerEnter}
     >
-      {renderChipTextContent('chip')}
+      {isFolded ? foldedChipTextContent : renderChipTextContent('chip')}
     </span>
   )
 
@@ -1533,7 +1565,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         </span>
       )}
       {!chip.iconOnly && (
-        chipTooltipContent ? (
+        isFolded ? chipTextElement : chipTooltipContent ? (
           <TooltipAnchor
             alignOffset={PAGE_CHIP_TOOLTIP_ALIGN_OFFSET_PX}
             anchor={() => chipTextRef.current}

@@ -1639,6 +1639,10 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(envButtonMatch[1], /\bfocus-visible:outline/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
+  assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{envLabel\}>/)
+  const foldedTooltipSource = pageChipSource.match(/function renderFoldedChipTooltipContent\(\) \{[\s\S]*?\n  \}\n\n  const chipTooltipContent/)
+  assert.ok(foldedTooltipSource, 'folded tooltip content renderer should exist')
+  assert.doesNotMatch(foldedTooltipSource[0], /chip-env-row/)
 })
 
 test('PathgroupSection renders header path-group pills with a slash prefix', () => {
