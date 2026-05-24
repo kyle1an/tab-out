@@ -303,7 +303,8 @@ function TooltipAnchor({
   const [frozenPointerPoint, setFrozenPointerPoint] =
     useState<CursorPoint | null>(null)
   const [tooltipOpen, setTooltipOpen] = useState(false)
-  const closeInstantly = contentProps.instant === true
+  const openInstantly = contentProps.instant === true
+  const closeInstantly = openInstantly
 
   const clearHoverCloseTimer = useCallback(() => {
     hoverCloseScheduledRef.current = false
@@ -317,6 +318,19 @@ function TooltipAnchor({
       }, TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS)
     )
   }, [retimeFrozenPointerClear])
+
+  const isLatestPointerInsideTooltipRegion = useCallback(() => {
+    const point = latestPointerPointRef.current
+    if (!point) return false
+
+    const target = document.elementFromPoint(point.x, point.y)
+    if (!(target instanceof Node)) return false
+
+    return !!(
+      triggerElementRef.current?.contains(target) ||
+      popupElementRef.current?.contains(target)
+    )
+  }, [])
 
   useEffect(
     () => () => {
@@ -365,6 +379,12 @@ function TooltipAnchor({
     retimeHoverOpen()
     clearHoverCloseTimer()
 
+    if (closeInstantly) {
+      if (isLatestPointerInsideTooltipRegion()) return
+      closeTooltip()
+      return
+    }
+
     hoverCloseScheduledRef.current = true
     retimeHoverClose(window.setTimeout(() => {
       hoverCloseScheduledRef.current = false
@@ -372,7 +392,7 @@ function TooltipAnchor({
 
       closeTooltip()
     }, TOOLTIP_HOVERABLE_CLOSE_DELAY_MS))
-  }, [clearHoverCloseTimer, closeTooltip, retimeHoverClose, retimeHoverOpen])
+  }, [clearHoverCloseTimer, closeInstantly, closeTooltip, isLatestPointerInsideTooltipRegion, retimeHoverClose, retimeHoverOpen])
 
   const updateLatestPointerPoint = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -390,11 +410,16 @@ function TooltipAnchor({
       retimeHoverOpen()
 
       const point = latestPointerPointRef.current
+      if (openInstantly) {
+        openTooltip(point)
+        return
+      }
+
       retimeHoverOpen(window.setTimeout(() => {
         openTooltip(point)
       }, hoverDelayRef.current))
     },
-    [openTooltip, retimeHoverOpen, updateLatestPointerPoint]
+    [openInstantly, openTooltip, retimeHoverOpen, updateLatestPointerPoint]
   )
 
   useEffect(() => {
@@ -427,6 +452,10 @@ function TooltipAnchor({
       )
     }
     const handlePointerOrMouseMove = (event: PointerEvent | MouseEvent) => {
+      latestPointerPointRef.current = {
+        x: event.clientX,
+        y: event.clientY
+      }
       const target = event.target instanceof Node ? event.target : null
       const isInsideTooltipRegion =
         target !== null &&
@@ -514,6 +543,7 @@ function TooltipAnchor({
   const handlePointerLeave = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       children.props.onPointerLeave?.(event)
+      updateLatestPointerPoint(event)
       pointerInsideRef.current = false
       if (tooltipOpen) {
         scheduleHoverClose()
@@ -521,7 +551,7 @@ function TooltipAnchor({
         closeTooltip()
       }
     },
-    [children.props, closeTooltip, scheduleHoverClose, tooltipOpen]
+    [children.props, closeTooltip, scheduleHoverClose, tooltipOpen, updateLatestPointerPoint]
   )
 
   const handleFocus = useCallback(
