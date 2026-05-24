@@ -33,6 +33,7 @@ const TOOLTIP_HOVER_WATCH_INTERVAL_MS = 80
 const TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS = 320
 const TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX = 1
 const TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS = 900
+const TOOLTIP_WHEEL_TARGET_RELEASE_DELAY_MS = 320
 const TOOLTIP_WHEEL_DELTA_LINE = 1
 const TOOLTIP_WHEEL_DELTA_PAGE = 2
 const TOOLTIP_WHEEL_LINE_HEIGHT_PX = 16
@@ -51,6 +52,12 @@ type TooltipProviderProps = {
 let activeTooltipAnchorId: string | null = null
 let latestTooltipActivityAt = 0
 let wheelClosedTooltipBlockedUntil = 0
+let tooltipWheelForwardContainer: HTMLElement | null = null
+let tooltipWheelForwardUntil = 0
+let tooltipWheelForwardClearTimer: number | null = null
+let tooltipWheelForwardListenerInstalled = false
+let tooltipWheelForwardRefresh: (() => void) | null = null
+let tooltipWheelForwardOwnerId: string | null = null
 
 function now() {
   return typeof performance === 'undefined' ? Date.now() : performance.now()
@@ -105,6 +112,51 @@ function tooltipScrollableAncestors(element: HTMLElement | null) {
   return ancestors
 }
 
+function uniqueTooltipScrollableAncestors(
+  scrollContainers: readonly HTMLElement[]
+) {
+  const uniqueAncestors: HTMLElement[] = []
+  for (const scrollContainer of scrollContainers) {
+    if (!uniqueAncestors.includes(scrollContainer)) {
+      uniqueAncestors.push(scrollContainer)
+    }
+  }
+  return uniqueAncestors
+}
+
+function tooltipScrollableAncestorsUnderPoint(
+  x: number,
+  y: number,
+  popupElement: HTMLElement | null
+) {
+  const passthroughTargets = [popupElement, popupElement?.parentElement].filter(
+    (target): target is HTMLElement => !!target
+  )
+  const previousPointerEvents = passthroughTargets.map((target) =>
+    target.style.getPropertyValue('pointer-events')
+  )
+
+  for (const target of passthroughTargets) {
+    target.style.setProperty('pointer-events', 'none')
+  }
+
+  try {
+    const element = document.elementFromPoint(x, y)
+    return tooltipScrollableAncestors(
+      element instanceof HTMLElement ? element : null
+    )
+  } finally {
+    passthroughTargets.forEach((target, index) => {
+      const previousValue = previousPointerEvents[index]
+      if (previousValue) {
+        target.style.setProperty('pointer-events', previousValue)
+      } else {
+        target.style.removeProperty('pointer-events')
+      }
+    })
+  }
+}
+
 function tooltipWheelDeltaToPixels(
   delta: number,
   deltaMode: number,
@@ -119,9 +171,11 @@ function tooltipWheelDeltaToPixels(
   return delta
 }
 
+type TooltipWheelLike = Pick<WheelEvent, 'deltaMode' | 'deltaX' | 'deltaY'>
+
 function tooltipScrollElementByWheel(
   element: HTMLElement,
-  event: ReactWheelEvent<HTMLElement>
+  event: TooltipWheelLike
 ) {
   const deltaX = tooltipWheelDeltaToPixels(
     event.deltaX,
@@ -144,6 +198,69 @@ function tooltipScrollElementByWheel(
   }
 
   return element.scrollLeft !== previousLeft || element.scrollTop !== previousTop
+}
+
+function clearTooltipWheelForwarding(ownerId?: string) {
+  if (ownerId && tooltipWheelForwardOwnerId !== ownerId) return
+  tooltipWheelForwardContainer = null
+  tooltipWheelForwardUntil = 0
+  tooltipWheelForwardRefresh = null
+  tooltipWheelForwardOwnerId = null
+  if (tooltipWheelForwardClearTimer !== null) {
+    window.clearTimeout(tooltipWheelForwardClearTimer)
+    tooltipWheelForwardClearTimer = null
+  }
+  if (tooltipWheelForwardListenerInstalled) {
+    window.removeEventListener('wheel', handleTooltipWheelForward, true)
+    tooltipWheelForwardListenerInstalled = false
+  }
+}
+
+function handleTooltipWheelForward(event: WheelEvent) {
+  const scrollContainer = tooltipWheelForwardContainer
+  if (
+    !scrollContainer ||
+    now() > tooltipWheelForwardUntil ||
+    !document.contains(scrollContainer)
+  ) {
+    clearTooltipWheelForwarding()
+    return
+  }
+
+  if (!tooltipScrollElementByWheel(scrollContainer, event)) {
+    clearTooltipWheelForwarding()
+    return
+  }
+
+  tooltipWheelForwardUntil = now() + TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
+  tooltipWheelForwardRefresh?.()
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+function startTooltipWheelForwarding(
+  scrollContainer: HTMLElement,
+  ownerId: string,
+  refreshWheelTarget: () => void
+) {
+  tooltipWheelForwardContainer = scrollContainer
+  tooltipWheelForwardOwnerId = ownerId
+  tooltipWheelForwardRefresh = refreshWheelTarget
+  tooltipWheelForwardUntil = now() + TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
+  if (!tooltipWheelForwardListenerInstalled) {
+    window.addEventListener('wheel', handleTooltipWheelForward, {
+      capture: true,
+      passive: false
+    })
+    tooltipWheelForwardListenerInstalled = true
+  }
+  if (tooltipWheelForwardClearTimer !== null) {
+    window.clearTimeout(tooltipWheelForwardClearTimer)
+  }
+  tooltipWheelForwardClearTimer = window.setTimeout(
+    clearTooltipWheelForwarding,
+    TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
+  )
 }
 
 function setTooltipWheelPassthrough(
@@ -297,12 +414,15 @@ function TooltipAnchor({
   const popupPointerInsideRef = useRef(false)
   const hoverOpenBlockedUntilRef = useRef(0)
   const hoverCloseScheduledRef = useRef(false)
+  const tooltipWheelClosingRef = useRef(false)
   const retimeFrozenPointerClear = useRetimer()
   const retimeHoverOpen = useRetimer()
   const retimeHoverClose = useRetimer()
+  const retimeWheelClose = useRetimer()
   const [frozenPointerPoint, setFrozenPointerPoint] =
     useState<CursorPoint | null>(null)
   const [tooltipOpen, setTooltipOpen] = useState(false)
+  const [tooltipWheelClosing, setTooltipWheelClosing] = useState(false)
   const openInstantly = contentProps.instant === true
   const closeInstantly = openInstantly
 
@@ -318,6 +438,11 @@ function TooltipAnchor({
       }, TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS)
     )
   }, [retimeFrozenPointerClear])
+
+  const setTooltipWheelClosingState = useCallback((closing: boolean) => {
+    tooltipWheelClosingRef.current = closing
+    setTooltipWheelClosing(closing)
+  }, [])
 
   const isLatestPointerInsideTooltipRegion = useCallback(() => {
     const point = latestPointerPointRef.current
@@ -337,15 +462,20 @@ function TooltipAnchor({
       retimeFrozenPointerClear()
       clearHoverCloseTimer()
       retimeHoverOpen()
+      retimeWheelClose()
+      clearTooltipWheelForwarding(anchorId)
       if (activeTooltipAnchorId === anchorId) {
         activeTooltipAnchorId = null
         latestTooltipActivityAt = now()
       }
     },
-    [anchorId, clearHoverCloseTimer, retimeFrozenPointerClear, retimeHoverOpen]
+    [anchorId, clearHoverCloseTimer, retimeFrozenPointerClear, retimeHoverOpen, retimeWheelClose]
   )
 
   const closeTooltip = useCallback(() => {
+    retimeWheelClose()
+    clearTooltipWheelForwarding(anchorId)
+    setTooltipWheelClosingState(false)
     retimeHoverOpen()
     clearHoverCloseTimer()
     if (closeInstantly) {
@@ -359,23 +489,27 @@ function TooltipAnchor({
       latestTooltipActivityAt = now()
     }
     clearFrozenPointerPointAfterClose()
-  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, closeInstantly, retimeHoverOpen])
+  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, closeInstantly, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
 
   const openTooltip = useCallback((point: CursorPoint | null) => {
     retimeHoverOpen()
+    retimeWheelClose()
     clearHoverCloseTimer()
     if (point !== null && now() < wheelClosedTooltipBlockedUntil) return
     if (point !== null && now() < hoverOpenBlockedUntilRef.current) return
     if (!pointerInsideRef.current && point !== null) return
 
+    clearTooltipWheelForwarding(anchorId)
+    setTooltipWheelClosingState(false)
     setTooltipWheelPassthrough(popupElementRef.current, false)
     activeTooltipAnchorId = anchorId
     latestTooltipActivityAt = now()
     setFrozenPointerPoint(point)
     setTooltipOpen(true)
-  }, [anchorId, clearHoverCloseTimer, retimeHoverOpen])
+  }, [anchorId, clearHoverCloseTimer, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
 
   const scheduleHoverClose = useCallback(() => {
+    if (tooltipWheelClosingRef.current) return
     retimeHoverOpen()
     clearHoverCloseTimer()
 
@@ -393,6 +527,40 @@ function TooltipAnchor({
       closeTooltip()
     }, TOOLTIP_HOVERABLE_CLOSE_DELAY_MS))
   }, [clearHoverCloseTimer, closeInstantly, closeTooltip, isLatestPointerInsideTooltipRegion, retimeHoverClose, retimeHoverOpen])
+
+  const scheduleTooltipWheelTargetRelease = useCallback(() => {
+    setTooltipWheelClosingState(true)
+    retimeWheelClose(window.setTimeout(() => {
+      closeTooltip()
+    }, TOOLTIP_WHEEL_TARGET_RELEASE_DELAY_MS))
+  }, [closeTooltip, retimeWheelClose, setTooltipWheelClosingState])
+
+  const beginTooltipWheelClose = useCallback(
+    (scrollContainer: HTMLElement) => {
+      startTooltipWheelForwarding(
+        scrollContainer,
+        anchorId,
+        scheduleTooltipWheelTargetRelease
+      )
+      setTooltipWheelPassthrough(popupElementRef.current, true)
+      pointerInsideRef.current = false
+      popupPointerInsideRef.current = false
+      wheelClosedTooltipBlockedUntil =
+        now() + TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
+      hoverOpenBlockedUntilRef.current =
+        now() + TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS
+      retimeHoverOpen()
+      clearHoverCloseTimer()
+      if (activeTooltipAnchorId === anchorId) {
+        activeTooltipAnchorId = null
+        latestTooltipActivityAt = now()
+      }
+      flushSync(() => {
+        scheduleTooltipWheelTargetRelease()
+      })
+    },
+    [anchorId, clearHoverCloseTimer, retimeHoverOpen, scheduleTooltipWheelTargetRelease]
+  )
 
   const updateLatestPointerPoint = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -431,7 +599,10 @@ function TooltipAnchor({
       hoverOpenBlockedUntilRef.current = now() + TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS
       closeTooltip()
     }
-    const handleScroll = () => closeFromGlobalEvent()
+    const handleScroll = () => {
+      if (tooltipWheelClosingRef.current) return
+      closeFromGlobalEvent()
+    }
     const handleWindowBlur = () => closeFromGlobalEvent()
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') closeFromGlobalEvent()
@@ -452,6 +623,7 @@ function TooltipAnchor({
       )
     }
     const handlePointerOrMouseMove = (event: PointerEvent | MouseEvent) => {
+      if (tooltipWheelClosingRef.current) return
       latestPointerPointRef.current = {
         x: event.clientX,
         y: event.clientY
@@ -471,6 +643,7 @@ function TooltipAnchor({
       }
     }
     const hoverWatchId = window.setInterval(() => {
+      if (tooltipWheelClosingRef.current) return
       if (isTooltipRegionActive()) {
         clearHoverCloseTimer()
         return
@@ -621,26 +794,26 @@ function TooltipAnchor({
       )
       if (event.defaultPrevented) return
 
-      const scrollContainers = tooltipScrollableAncestors(
-        triggerElementRef.current
+      const scrollContainers = uniqueTooltipScrollableAncestors(
+        [
+          ...tooltipScrollableAncestorsUnderPoint(
+            event.clientX,
+            event.clientY,
+            popupElementRef.current
+          ),
+          ...tooltipScrollableAncestors(triggerElementRef.current)
+        ]
       )
       for (const scrollContainer of scrollContainers) {
         if (tooltipScrollElementByWheel(scrollContainer, event)) {
-          setTooltipWheelPassthrough(popupElementRef.current, true)
-          pointerInsideRef.current = false
-          popupPointerInsideRef.current = false
-          wheelClosedTooltipBlockedUntil =
-            now() + TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
-          hoverOpenBlockedUntilRef.current =
-            now() + TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS
-          closeTooltip()
+          beginTooltipWheelClose(scrollContainer)
           event.preventDefault()
           event.stopPropagation()
           return
         }
       }
     },
-    [closeTooltip, contentOnWheel]
+    [beginTooltipWheelClose, contentOnWheel]
   )
 
   const triggerRef = useMemo(
@@ -681,12 +854,14 @@ function TooltipAnchor({
         anchor={tooltipAnchor}
         popupRef={popupElementRef}
         positionMethod={tooltipAnchor ? 'fixed' : undefined}
+        data-tooltip-wheel-closing={tooltipWheelClosing ? '' : undefined}
         onMouseEnter={handleContentMouseEnter}
         onMouseLeave={handleContentMouseLeave}
         onPointerEnter={handleContentPointerEnter}
         onPointerLeave={handleContentPointerLeave}
         onWheel={handleContentWheel}
         {...contentProps}
+        className={cn(contentProps.className, tooltipWheelClosing && 'opacity-0')}
       >
         {content}
       </TooltipContent>

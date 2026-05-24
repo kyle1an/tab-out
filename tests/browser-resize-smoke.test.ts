@@ -1412,6 +1412,31 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
       })()`
     }).then((result: any) => result.result.value))
   }
+  const beforeForwardedWheelTop = wheelSteps.at(-1)?.scrollTop ?? beforeScrollTop
+  const forwardedWheelSteps = []
+  for (let index = 0; index < 3; index += 1) {
+    forwardedWheelSteps.push(await evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const event = new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          clientX: ${popupPoint.x},
+          clientY: ${popupPoint.y},
+          deltaX: 0,
+          deltaY: 36
+        })
+        window.dispatchEvent(event)
+        const scrollRegion = document.querySelector('.scroll-region')
+        return {
+          defaultPrevented: event.defaultPrevented,
+          scrollTop: scrollRegion?.scrollTop ?? 0,
+          tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
+        }
+      })()`
+    }).then((result: any) => result.result.value))
+    await wait(60)
+  }
   await wait(620)
 
   const after = await evaluateWithNavigationRetry(session, {
@@ -1437,7 +1462,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
     expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
   }).then((result: any) => result.result.value)
 
-  return { target, first, popupPoint, beforeScrollTop, wheelSteps, after, afterLeaveTooltipCount }
+  return { target, first, popupPoint, beforeScrollTop, wheelSteps, beforeForwardedWheelTop, forwardedWheelSteps, after, afterLeaveTooltipCount }
 }
 
 async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
@@ -2319,6 +2344,16 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     popupWheelScroll.after.scrollTop - popupWheelScroll.beforeScrollTop > 72,
     `repeated wheel input over a closing tooltip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
+  )
+  assert.ok(
+    popupWheelScroll.forwardedWheelSteps.every((step: { defaultPrevented: boolean }) => step.defaultPrevented),
+    `synthetic continuation wheel events should be captured while the closing tooltip preserves the wheel target: ${JSON.stringify(popupWheelScroll)}`
+  )
+  assert.ok(
+    (popupWheelScroll.forwardedWheelSteps.at(-1)?.scrollTop ?? 0) -
+      popupWheelScroll.beforeForwardedWheelTop >
+      72,
+    `continued wheel input after the tooltip visually closes should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
   )
   assert.equal(
     popupWheelScroll.after.tooltipCount,
