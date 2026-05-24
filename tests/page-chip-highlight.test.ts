@@ -7,7 +7,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { DomainCard } from '../src/components/DomainCard.js'
 import { DomainCardProvider, type DomainCardContextValue } from '../src/components/DomainCardContext.js'
 import { FlatSection } from '../src/components/FlatSection.js'
-import { PAGE_CHIP_CLOSE_ANIMATION_MS, PageChip, startPageChipCloseAnimation } from '../src/components/PageChip.js'
+import { PageChip } from '../src/components/PageChip.js'
+import { PAGE_CHIP_CLOSE_ANIMATION_MS, startPageChipCloseAnimation } from '../src/components/PageChipCloseAnimation.js'
 import { PathgroupSection } from '../src/components/PathgroupSection.js'
 import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
@@ -577,8 +578,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(titleVariantActionsMatch[1], /\btop-0\b/)
   assert.match(titleVariantActionsMatch[1], /\bbottom-0\b/)
   assert.match(titleVariantActionsMatch[1], /\bmy-auto\b/)
-  assert.match(titleVariantActionMatch[1], /h-\[19px\]/)
-  assert.match(titleVariantActionMatch[1], /w-\[19px\]/)
+  assert.match(titleVariantActionMatch[1], /size-\[19px\]/)
   assert.doesNotMatch(titleVariantActionMatch[1], /\bh-5\b/)
   assert.doesNotMatch(titleVariantActionMatch[1], /\bw-5\b/)
   assert.doesNotMatch(titleVariantActionMatch[1], /-translate-y-1\/2/)
@@ -1503,8 +1503,7 @@ test('PageChip uses a path-style placeholder for stripped structural labels', ()
   assert.ok(stripMatch, 'structural strip indicator should render')
   assert.equal(stripMatch[2], '/')
   assert.match(stripMatch[1], /\binline-flex\b/)
-  assert.match(stripMatch[1], /\bh-4\b/)
-  assert.match(stripMatch[1], /\bw-4\b/)
+  assert.match(stripMatch[1], /\bsize-4\b/)
   assert.match(stripMatch[1], /\brounded-full\b/)
   assert.doesNotMatch(stripMatch[1], /\[corner-shape:squircle\]/)
   assert.doesNotMatch(html, /chip-title-suppression-marker\b/)

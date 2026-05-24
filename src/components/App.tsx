@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
@@ -37,15 +37,15 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
 
 function MissionsDivider({ label }: { label: string }) {
   return (
-    <div className="missions-divider pointer-events-none mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase" role="separator">
-      <span className="missions-divider-rule h-px flex-1 bg-(--warm-gray)" />
+    <div className="missions-divider pointer-events-none mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase">
+      <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
       <span className="missions-divider-label shrink-0 whitespace-nowrap">{label}</span>
-      <span className="missions-divider-rule h-px flex-1 bg-(--warm-gray)" />
+      <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
     </div>
   )
 }
 
-const MissionsGrid = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'> & { empty?: boolean }>(function MissionsGrid({ className, empty = false, ...props }, ref) {
+function MissionsGrid({ className, empty = false, ref, ...props }: ComponentPropsWithoutRef<'div'> & { empty?: boolean; ref?: Ref<HTMLDivElement> }) {
   return (
     <div
       ref={ref}
@@ -57,7 +57,7 @@ const MissionsGrid = forwardRef<HTMLDivElement, ComponentPropsWithoutRef<'div'> 
       {...props}
     />
   )
-})
+}
 
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)

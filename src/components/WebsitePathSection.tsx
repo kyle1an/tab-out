@@ -36,6 +36,9 @@ interface WebsitePathSectionProps {
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
 }
 
+const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []
+const EMPTY_SUPPRESSION_TONE_INDEX = new Map<string, number>()
+
 function WebsitePathSectionCloseButton({ count, isFirstContent = false, onClick }: WebsitePathSectionCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
@@ -43,13 +46,13 @@ function WebsitePathSectionCloseButton({ count, isFirstContent = false, onClick 
       <button
         type="button"
         className={cn(
-          'website-path-section-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/website-path-section:opacity-100 hover:bg-[#ededed]',
+          'website-path-section-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/website-path-section:opacity-100 hover:bg-[#ededed]',
           isFirstContent && 'top-[calc(50%_-_1px)]'
         )}
         aria-label={title}
         onClick={onClick}
       >
-        <svg className="block h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+        <svg className="block size-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
       </button>
@@ -65,13 +68,13 @@ export function WebsitePathSection({
   flatVisibleChips,
   flatHiddenChips,
   flatHiddenCount,
-  suppressedTitleParts = [],
+  suppressedTitleParts = EMPTY_SUPPRESSED_TITLE_PARTS,
   clusters,
   className,
   isFirstContent = false,
   filter = '',
   useSuppressionTokenTones = false,
-  suppressedTitleToneIndexByText = new Map<string, number>(),
+  suppressedTitleToneIndexByText = EMPTY_SUPPRESSION_TONE_INDEX,
   suppressedTitleToneByText
 }: WebsitePathSectionProps) {
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()

@@ -1,5 +1,5 @@
 import './styles/app.css'
-import { mountToast } from './components/Toast'
+import { mountToast } from './components/mountToast'
 import { mountApp } from './components/App'
 import { requestDashboardRefresh } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'

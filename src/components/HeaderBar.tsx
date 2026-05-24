@@ -203,7 +203,7 @@ export function HeaderBar({
             <TooltipAnchor content="Clear filter">
               <button
                 type="button"
-                className="tab-filter-clear absolute top-1/2 right-1.5 hidden h-5 w-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-tab-ink [&_svg]:h-3 [&_svg]:w-3"
+                className="tab-filter-clear absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-tab-ink [&_svg]:h-3 [&_svg]:w-3"
                 aria-label="Clear filter"
                 onClick={onClear}
               >

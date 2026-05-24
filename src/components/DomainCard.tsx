@@ -34,7 +34,7 @@ function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: Mous
       <span className="card-close-btn-text inline-block max-w-0 overflow-hidden text-right tabular-nums opacity-0 transition-[max-width,opacity] duration-200 ease-out group-hover/card-close:max-w-[200px] group-hover/card-close:opacity-100">
         {label}
       </span>
-      <svg className="absolute top-1/2 right-[5px] h-[13px] w-[13px] -translate-y-1/2 opacity-100 transition-opacity duration-200 ease-out group-hover/card-close:opacity-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+      <svg className="absolute top-1/2 right-[5px] size-[13px] -translate-y-1/2 opacity-100 transition-opacity duration-200 ease-out group-hover/card-close:opacity-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
       </svg>
     </button>
@@ -84,7 +84,7 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
       <button
         type="button"
         className={cn(
-          'domain-pin-btn inline-flex h-[22px] w-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
+          'domain-pin-btn inline-flex size-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
           pinned
             ? 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
             : 'border-transparent bg-transparent text-tab-muted opacity-[0.35] hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100'
@@ -93,7 +93,7 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
         aria-pressed={pinned ? 'true' : 'false'}
         onClick={onClick}
       >
-        <svg className="h-[13px] w-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+        <svg className="size-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
         </svg>
       </button>
@@ -132,7 +132,9 @@ type RenderSectionVM = DashboardSectionVM & {
   websitePathSections: RenderWebsitePathSectionVM[]
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
+const EMPTY_HOVER_URLS: readonly string[] = []
+
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const cardContext = {

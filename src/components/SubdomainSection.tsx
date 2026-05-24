@@ -45,17 +45,20 @@ interface SubdomainSectionProps {
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
 }
 
+const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []
+const EMPTY_SUPPRESSION_TONE_INDEX = new Map<string, number>()
+
 function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
   return (
     <TooltipAnchor content={title}>
       <button
         type="button"
-        className="subdomain-close-btn grid h-[18px] w-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed]"
+        className="subdomain-close-btn grid size-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed]"
         aria-label={title}
         onClick={onClick}
       >
-        <svg className="block h-3 w-3 flex-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+        <svg className="block size-3 flex-none" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
       </button>
@@ -74,12 +77,12 @@ export function SubdomainSection({
   flatVisibleChips,
   flatHiddenChips,
   flatHiddenCount,
-  suppressedTitleParts = [],
+  suppressedTitleParts = EMPTY_SUPPRESSED_TITLE_PARTS,
   websitePathSections,
   clusters,
   filter = '',
   useSuppressionTokenTones = false,
-  suppressedTitleToneIndexByText = new Map<string, number>(),
+  suppressedTitleToneIndexByText = EMPTY_SUPPRESSION_TONE_INDEX,
   suppressedTitleToneByText
 }: SubdomainSectionProps) {
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()

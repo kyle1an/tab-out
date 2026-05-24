@@ -17,6 +17,8 @@ interface MissionsProps {
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
 }
 
+const EMPTY_HOVER_URLS: readonly string[] = []
+
 function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
   const noun = dashboardSourceEmptyNoun(source)
   return (
@@ -34,7 +36,7 @@ function NoResultsState({ query = '' }: { query?: string }) {
   )
 }
 
-export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: MissionsProps) {
+export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: MissionsProps) {
   if (!cards || cards.length === 0) {
     if (!showEmptyState) return null
     return filter ? <NoResultsState query={filter} /> : <EmptyState source={source} />

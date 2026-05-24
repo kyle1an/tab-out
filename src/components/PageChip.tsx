@@ -7,13 +7,14 @@ import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
+import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
 import type { InlineTextRenderer } from './bionic-title-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, LayoutChangeHandler } from './types'
+import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 
 let chipTextResizeObserver: ResizeObserver | null = null
@@ -21,7 +22,7 @@ const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: { height: number; isTruncated: boolean; maxWidth: number; width: number }) => void
 >()
-export const PAGE_CHIP_CLOSE_ANIMATION_MS = 200
+
 const PAGE_CHIP_TOOLTIP_MAX_WIDTH_OFFSET_PX = 6
 const PAGE_CHIP_TOOLTIP_VIEWPORT_MARGIN_PX = 8
 const PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX = 16
@@ -37,7 +38,6 @@ const PAGE_CHIP_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME = 'page-chip-tooltip-line pa
 const PAGE_CHIP_TOOLTIP_TAIL_LINE_CLASS_NAME = 'page-chip-tooltip-line page-chip-tooltip-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
-const PAGE_CHIP_CLOSE_EASING = 'cubic-bezier(0.2, 0, 0, 1)'
 
 interface PageChipProps {
   chip: DashboardChipData
@@ -53,114 +53,6 @@ type RenderTitleContentOptions = {
 type TooltipSubpixelOffset = {
   x: number
   y: number
-}
-type PageChipCloseAnimationStyle = Partial<Pick<CSSStyleDeclaration, 'height' | 'left' | 'margin' | 'maxHeight' | 'opacity' | 'overflow' | 'paddingBottom' | 'paddingTop' | 'pointerEvents' | 'position' | 'top' | 'transform' | 'transformOrigin' | 'transition' | 'width' | 'zIndex'>>
-type PageChipCloseAnimationGhost = {
-  classList: Pick<DOMTokenList, 'add'>
-  style: PageChipCloseAnimationStyle
-  getBoundingClientRect?: () => unknown
-  setAttribute?: (name: string, value: string) => void
-  remove?: () => void
-}
-type PageChipCloseAnimationElement = {
-  classList: Pick<DOMTokenList, 'add'> & Partial<Pick<DOMTokenList, 'remove'>>
-  style: PageChipCloseAnimationStyle
-  getBoundingClientRect: () => Pick<DOMRect, 'height' | 'left' | 'top' | 'width'>
-  cloneNode?: (deep?: boolean) => PageChipCloseAnimationGhost
-  ownerDocument?: {
-    body?: {
-      appendChild: (node: PageChipCloseAnimationGhost) => unknown
-    }
-  }
-}
-type PageChipCloseAnimationScheduler = (handler: () => void, delay: number) => unknown
-
-function isPageChipCloseAnimationElement(value: unknown): value is PageChipCloseAnimationElement {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<PageChipCloseAnimationElement>
-  return (
-    !!candidate.classList &&
-    typeof candidate.classList.add === 'function' &&
-    !!candidate.style &&
-    typeof candidate.getBoundingClientRect === 'function'
-  )
-}
-
-function shouldReduceCloseMotion() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-}
-
-function pageChipCloseAnimationWaitMs() {
-  return shouldReduceCloseMotion() ? 0 : PAGE_CHIP_CLOSE_ANIMATION_MS
-}
-
-function schedulePageChipCloseAnimationCleanup(handler: () => void, delay: number) {
-  return window.setTimeout(handler, delay)
-}
-
-function createClosingGhost(chipEl: PageChipCloseAnimationElement, rect: Pick<DOMRect, 'height' | 'left' | 'top' | 'width'>, duration: number, scheduleCleanup: PageChipCloseAnimationScheduler) {
-  const ghost = chipEl.cloneNode?.(true)
-  const body = chipEl.ownerDocument?.body
-  if (!ghost || !body) return
-
-  ghost.classList.add('page-chip-closing-ghost')
-  ghost.setAttribute?.('aria-hidden', 'true')
-  ghost.style.position = 'fixed'
-  ghost.style.left = `${rect.left}px`
-  ghost.style.top = `${rect.top}px`
-  ghost.style.width = `${rect.width}px`
-  ghost.style.height = `${rect.height}px`
-  ghost.style.margin = '0'
-  ghost.style.maxHeight = `${rect.height}px`
-  ghost.style.overflow = 'hidden'
-  ghost.style.pointerEvents = 'none'
-  ghost.style.zIndex = '50'
-  ghost.style.opacity = '1'
-  ghost.style.transform = 'scale(1)'
-  ghost.style.transformOrigin = 'top left'
-  ghost.style.transition = duration > 0
-    ? [
-        `opacity ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`,
-        `transform ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`
-      ].join(', ')
-    : 'none'
-
-  body.appendChild(ghost)
-  ghost.getBoundingClientRect?.()
-  ghost.style.opacity = '0'
-  ghost.style.transform = 'scale(0.96)'
-  scheduleCleanup(() => ghost.remove?.(), duration + 80)
-}
-
-export function startPageChipCloseAnimation(chipEl: unknown, onLayoutChange: LayoutChangeHandler | null = null, scheduleCleanup: PageChipCloseAnimationScheduler = schedulePageChipCloseAnimationCleanup): boolean {
-  if (!isPageChipCloseAnimationElement(chipEl)) return false
-
-  const duration = shouldReduceCloseMotion() ? 0 : PAGE_CHIP_CLOSE_ANIMATION_MS
-  const rect = chipEl.getBoundingClientRect()
-  const height = Math.max(0, Math.ceil(rect.height))
-  createClosingGhost(chipEl, rect, duration, scheduleCleanup)
-  chipEl.style.maxHeight = `${height}px`
-  chipEl.style.overflow = 'hidden'
-  chipEl.style.opacity = '0'
-  chipEl.style.transition = duration > 0
-    ? [
-        `max-height ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`,
-        `padding ${duration}ms ${PAGE_CHIP_CLOSE_EASING}`
-      ].join(', ')
-    : 'none'
-
-  chipEl.getBoundingClientRect()
-  chipEl.classList.add('closing')
-  chipEl.style.maxHeight = '0px'
-  chipEl.style.paddingTop = '0px'
-  chipEl.style.paddingBottom = '0px'
-  onLayoutChange?.({ animate: duration > 0 })
-  return true
-}
-
-async function waitForPageChipCloseAnimation() {
-  const duration = pageChipCloseAnimationWaitMs()
-  if (duration > 0) await new Promise((resolve) => setTimeout(resolve, duration))
 }
 
 function pathGroupDisplayLabel(label: string): string {
@@ -817,7 +709,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   async function onDeleteHistory(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
-    const urls: string[] = Array.from(new Set(isFolded ? envs.map((env) => env.tabUrl).filter(Boolean) : [chip.tabUrl].filter(Boolean)))
+    const urls = Array.from(new Set(isFolded ? envs.flatMap((env) => env.tabUrl ? [env.tabUrl] : []) : chip.tabUrl ? [chip.tabUrl] : []))
     if (urls.length === 0) return
 
     await deleteHistoryUrls({
@@ -1057,9 +949,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     if (targetSuppressedTitleParts.length === 0) return null
 
     const inlineSuppressedTitleKeys = new Set(
-      target.displaySegments
-        .filter(isTitleSuppressionSegment)
-        .map((segment) => segment.titleSuppression.trim().toLowerCase())
+      target.displaySegments.flatMap((segment) => (
+        isTitleSuppressionSegment(segment)
+          ? [segment.titleSuppression.trim().toLowerCase()]
+          : []
+      ))
     )
     const trailingParts = targetSuppressedTitleParts.filter((part) => !inlineSuppressedTitleKeys.has(part.trim().toLowerCase()))
 
@@ -1090,7 +984,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const marker = (
       <span
         key={key}
-        className="chip-strip-indicator inline-flex h-4 w-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-tab-muted align-baseline"
+        className="chip-strip-indicator inline-flex size-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-tab-muted align-baseline"
         aria-hidden={hiddenLabel ? undefined : true}
         aria-label={hiddenLabel || undefined}
       >
@@ -1159,7 +1053,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
             <button
               type="button"
               className={cn(
-                'chip-env-save pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+                'chip-env-save pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex size-4 cursor-pointer items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
                 env.saved && 'text-[var(--accent-amber)]'
               )}
               aria-label={envSavedActionLabel}
@@ -1170,17 +1064,16 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
               onFocus={() => onEnvFocus(env)}
               onBlur={onEnvBlur}
             >
-              <SavedPageIcon saved={!!env.saved} className="h-2.5 w-2.5" />
+              <SavedPageIcon saved={!!env.saved} className="size-2.5" />
             </button>
           </TooltipAnchor>
         ) : (
           <TooltipAnchor content="Saved page">
             <span
-              className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex h-4 w-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-[var(--accent-amber)] opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
-              role="img"
-              aria-label="Saved page"
+              className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-[2] inline-flex size-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-[var(--card-bg)] p-0 text-[var(--accent-amber)] opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
+              aria-hidden="true"
             >
-              <SavedPageIcon saved className="h-2.5 w-2.5" />
+              <SavedPageIcon saved className="size-2.5" />
             </span>
           </TooltipAnchor>
         )}
@@ -1341,7 +1234,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 <button
                   type="button"
                   className={cn(
-                    'chip-title-variant-save inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+                    'chip-title-variant-save inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
                     variant.saved && 'text-[var(--accent-amber)]'
                   )}
                   aria-label={variantSavedActionLabel}
@@ -1352,18 +1245,17 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   onFocus={() => onTitleVariantFocusIn(variant)}
                   onBlur={onTitleVariantBlur}
                 >
-                  <SavedPageIcon saved={!!variant.saved} className="h-3.5 w-3.5" />
+                  <SavedPageIcon saved={!!variant.saved} className="size-3.5" />
                 </button>
               </TooltipAnchor>
             )}
             {variantShowSavedHint && (
               <TooltipAnchor content="Saved page">
                 <span
-                  className="chip-title-variant-saved-hint pointer-events-none inline-flex h-[19px] w-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-[var(--accent-amber)] opacity-0 group-hover/title-variant:pointer-events-auto group-hover/title-variant:opacity-100"
-                  role="img"
-                  aria-label="Saved page"
+                  className="chip-title-variant-saved-hint pointer-events-none inline-flex size-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-[var(--accent-amber)] opacity-0 group-hover/title-variant:pointer-events-auto group-hover/title-variant:opacity-100"
+                  aria-hidden="true"
                 >
-                  <SavedPageIcon saved className="h-3.5 w-3.5" />
+                  <SavedPageIcon saved className="size-3.5" />
                 </span>
               </TooltipAnchor>
             )}
@@ -1371,7 +1263,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
               <TooltipAnchor content={titleVariantActionLabel(variant)}>
                 <button
                   type="button"
-                  className="chip-title-variant-action inline-flex h-[19px] w-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                  className="chip-title-variant-action inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                   aria-label={titleVariantActionLabel(variant)}
                   onClick={(e) => onCloseTitleVariant(e, variant)}
                   onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -1379,7 +1271,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   onFocus={() => onTitleVariantFocusIn(variant)}
                   onBlur={onTitleVariantBlur}
                 >
-                  <svg className="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                  <svg className="size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1562,6 +1454,19 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     </span>
   )
 
+  const chipInteractionProps = parentInteractive
+    ? {
+        role: 'button',
+        tabIndex: 0,
+        onClick: onFocus,
+        onKeyDown: onChipKeyDown,
+        onMouseEnter: onChipMouseEnter,
+        onMouseLeave: onChipMouseLeave,
+        onFocus: onChipFocus,
+        onBlur: onChipBlur
+      } as const
+    : {}
+
   const chipElement = (
       <div
         className={cn(
@@ -1585,13 +1490,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         )}
         aria-label={chipLabel}
         style={style}
-        tabIndex={parentInteractive ? 0 : undefined}
-        onClick={parentInteractive ? onFocus : undefined}
-        onKeyDown={parentInteractive ? onChipKeyDown : undefined}
-        onMouseEnter={parentInteractive ? onChipMouseEnter : undefined}
-        onMouseLeave={isFolded ? undefined : onChipMouseLeave}
-        onFocus={parentInteractive ? onChipFocus : undefined}
-        onBlur={parentInteractive ? onChipBlur : undefined}
+        {...chipInteractionProps}
       >
       {hasActiveChipFrame && !chip.iconOnly && (
         <span
@@ -1607,7 +1506,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       {showFaviconFrame && (
         <span
           className={cn(
-            'chip-favicon-frame relative grid h-4 w-4 shrink-0 place-items-center',
+            'chip-favicon-frame relative grid size-4 shrink-0 place-items-center',
             chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
           )}
         >
@@ -1619,7 +1518,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           {!chip.iconOnly && dupeCount > 1 && (
             <span
               className={cn(
-                'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+                'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
                 dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]',
                 dedupeBadgesClosing && 'closing'
               )}
@@ -1661,7 +1560,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                 aria-pressed={chip.saved ? 'true' : 'false'}
                 onClick={onToggleSavedPage}
               >
-                <SavedPageIcon saved={!!chip.saved} className="h-[14px] w-[14px]" />
+                <SavedPageIcon saved={!!chip.saved} className="size-[14px]" />
               </button>
             </TooltipAnchor>
           )}
@@ -1669,10 +1568,9 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
             <TooltipAnchor content="Saved page">
               <span
                 className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-[var(--accent-amber)] opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100"
-                role="img"
-                aria-label="Saved page"
+                aria-hidden="true"
               >
-                <SavedPageIcon saved className="h-[14px] w-[14px]" />
+                <SavedPageIcon saved className="size-[14px]" />
               </span>
             </TooltipAnchor>
           )}
@@ -1684,7 +1582,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
               aria-label={closeActionLabel}
               onClick={isHistorySource ? onDeleteHistory : onClose}
             >
-              <svg className="h-[15px] w-[15px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+              <svg className="size-[15px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>
             </button>

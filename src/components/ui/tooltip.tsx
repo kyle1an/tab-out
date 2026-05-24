@@ -99,7 +99,7 @@ function tooltipScrollableAncestors(element: HTMLElement | null) {
 
   const scrollingElement = document.scrollingElement
   if (scrollingElement instanceof HTMLElement) {
-    const alreadyIncluded = ancestors.includes(scrollingElement)
+    const alreadyIncluded = new Set(ancestors).has(scrollingElement)
     const canScrollPage =
       scrollingElement.scrollHeight > scrollingElement.clientHeight ||
       scrollingElement.scrollWidth > scrollingElement.clientWidth
@@ -115,8 +115,10 @@ function uniqueTooltipScrollableAncestors(
   scrollContainers: readonly HTMLElement[]
 ) {
   const uniqueAncestors: HTMLElement[] = []
+  const seenAncestors = new Set<HTMLElement>()
   for (const scrollContainer of scrollContainers) {
-    if (!uniqueAncestors.includes(scrollContainer)) {
+    if (!seenAncestors.has(scrollContainer)) {
+      seenAncestors.add(scrollContainer)
       uniqueAncestors.push(scrollContainer)
     }
   }

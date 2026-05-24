@@ -39,6 +39,8 @@ interface WorkingSetPanelProps {
   onAfterLayoutChange?: LayoutChangeHandler | null
 }
 
+const EMPTY_HOVER_URLS: readonly string[] = []
+
 function isWorkingSetTitleTruncated(titleEl: HTMLElement | null) {
   if (!titleEl) return false
   return (
@@ -123,12 +125,12 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
       )}
       style={style}
     >
-      <span className="relative grid h-4 w-4 flex-none place-items-center">
+      <span className="relative grid size-4 flex-none place-items-center">
         {item.faviconUrl ? <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" /> : <DefaultFavicon />}
         {item.dupeCount > 1 && (
           <span
             className={cn(
-              'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-center justify-center rounded-full bg-[rgba(254,243,199,0.98)] px-0 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)] shadow-[0_1px_2px_rgba(10,10,10,0.14)]',
+              'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-center justify-center rounded-full bg-[rgba(254,243,199,0.98)] px-0 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)] shadow-[0_1px_2px_rgba(10,10,10,0.14)]',
               item.dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
             )}
           >
@@ -145,7 +147,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
   )
 }
 
-function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange }: {
+function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onSnapshotChange, onTabsChange }: {
   item: WorkingSetItem
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl?: string
@@ -275,7 +277,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           aria-label={itemLabel}
           onClick={onClick}
         >
-          <span className="relative grid h-4 w-4 flex-none place-items-center">
+          <span className="relative grid size-4 flex-none place-items-center">
             {item.faviconUrl ? (
               <img className="block h-full w-full object-contain" src={item.faviconUrl} alt="" />
             ) : (
@@ -284,7 +286,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
             {item.dupeCount > 1 && (
               <span
                 className={cn(
-                  'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex h-4 w-4 min-w-4 items-center justify-center rounded-full bg-[rgba(254,243,199,0.98)] px-0 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)] shadow-[0_1px_2px_rgba(10,10,10,0.14)]',
+                  'working-set-dupe-badge chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-center justify-center rounded-full bg-[rgba(254,243,199,0.98)] px-0 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)] shadow-[0_1px_2px_rgba(10,10,10,0.14)]',
                   item.dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]'
                 )}
                 aria-hidden="true"
@@ -313,7 +315,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
             aria-label={`Dismiss ${item.title} from working set`}
             onClick={onDismiss}
           >
-            <EyeOff className="h-[15px] w-[15px]" aria-hidden="true" />
+            <EyeOff className="size-[15px]" aria-hidden="true" />
           </button>
         </TooltipAnchor>
       </div>
@@ -321,7 +323,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   )
 }
 
-export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onSnapshotChange, onTabsChange, onBeforeLayoutChange = null, onAfterLayoutChange = null }: WorkingSetPanelProps) {
+export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onSnapshotChange, onTabsChange, onBeforeLayoutChange = null, onAfterLayoutChange = null }: WorkingSetPanelProps) {
   const [expanded, setExpanded] = useState(false)
   const gridRef = useRef<HTMLDivElement | null>(null)
   const animatedGridRef = useRef<HTMLDivElement | null>(null)
@@ -430,7 +432,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
             onClick={onToggleExpanded}
             aria-expanded={expanded}
           >
-            {expanded ? <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />}
+            {expanded ? <ChevronUp className="size-3.5" aria-hidden="true" /> : <ChevronDown className="size-3.5" aria-hidden="true" />}
             {expanded ? 'Show less' : 'Show more'}
           </button>
         )}

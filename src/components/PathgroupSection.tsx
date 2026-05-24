@@ -38,6 +38,9 @@ interface PathgroupSectionProps {
   suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
 }
 
+const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []
+const EMPTY_SUPPRESSION_TONE_INDEX = new Map<string, number>()
+
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
 }
@@ -80,13 +83,13 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
       <button
         type="button"
         className={cn(
-          'pathgroup-close-btn absolute top-1/2 right-0 grid h-5 w-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
+          'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
           isFirstContent && 'top-[calc(50%_-_1px)]'
         )}
         aria-label={title}
         onClick={onClick}
       >
-        <svg className="block h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+        <svg className="block size-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
         </svg>
       </button>
@@ -94,7 +97,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', suppressedTitleParts = [], useSuppressionTokenTones = false, suppressedTitleToneIndexByText = new Map<string, number>(), suppressedTitleToneByText }: PathgroupSectionProps) {
+export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', suppressedTitleParts = EMPTY_SUPPRESSED_TITLE_PARTS, useSuppressionTokenTones = false, suppressedTitleToneIndexByText = EMPTY_SUPPRESSION_TONE_INDEX, suppressedTitleToneByText }: PathgroupSectionProps) {
   const labelRef = useRef<HTMLSpanElement | null>(null)
   const [pathgroupLabelTruncated, setPathgroupLabelTruncated] = useState(false)
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()

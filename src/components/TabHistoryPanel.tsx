@@ -35,6 +35,7 @@ const historyTitleTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: HistoryTitleMetrics) => void
 >()
+const EMPTY_HOVER_URLS: readonly string[] = []
 
 type HistoryTitleMetrics = {
   isTruncated: boolean
@@ -262,7 +263,7 @@ function shouldDimHistoryEntry(entry: TabHistoryEntry, workingSetMatch: HistoryW
   )
 }
 
-function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, workingSetItem = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, workingSetItem = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     isTruncated: false,
@@ -446,7 +447,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
             disabled={!entry.exists}
             onClick={onFocusEntry}
           >
-            <span className={cn('grid h-4 w-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && 'invisible')}>
+            <span className={cn('grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && 'invisible')}>
               {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
             </span>
             <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
@@ -470,12 +471,12 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
             <TooltipAnchor content="Close this tab">
               <button
                 type="button"
-                className="pointer-events-none inline-flex h-5.5 w-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger focus-visible:outline-none disabled:hidden"
+                className="pointer-events-none inline-flex size-5.5 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-row:pointer-events-auto group-hover/history-row:opacity-100 group-focus-within/history-entry:pointer-events-auto group-focus-within/history-entry:opacity-100 hover:border-tab-danger hover:bg-tab-card hover:text-tab-danger focus-visible:border-tab-danger focus-visible:bg-tab-card focus-visible:text-tab-danger focus-visible:outline-none disabled:hidden"
                 disabled={!entry.exists}
                 aria-label={`Close ${entry.title}`}
                 onClick={onCloseEntry}
               >
-                <svg className="block h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                <svg className="block size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -487,7 +488,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   )
 }
 
-export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = [], activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
+export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
   const entries = snapshot?.entries || []
   const displayEntries = entries.slice().reverse()
   const workingSetLimit = workingSet?.defaultLimit || 0
@@ -498,7 +499,10 @@ export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange,
     index,
     workingSetMatch: workingSetMatches.get(historyEntryWorkingSetKey(entry)) || null
   }))
-  const historyWorkingSetKeys = new Set(displayEntries.map(historyEntryWorkingSetKey).filter(Boolean))
+  const historyWorkingSetKeys = new Set(displayEntries.flatMap((entry) => {
+    const key = historyEntryWorkingSetKey(entry)
+    return key ? [key] : []
+  }))
   const extraWorkingSetItems = visibleWorkingSetItems.filter((item) => !historyWorkingSetKeys.has(item.key))
   const hasWorkingSetSignals = visibleWorkingSetItems.length > 0
   const hasRows = displayEntries.length > 0 || extraWorkingSetItems.length > 0
@@ -533,7 +537,7 @@ export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange,
                   <HistoryEntry
                     key={`working-set:${item.key}`}
                     entry={historyEntryFromWorkingSetItem(item)}
-                    indexLabel={<span className="block h-1.5 w-1.5 rounded-full bg-[var(--accent-amber)]" aria-hidden="true" />}
+                    indexLabel={<span className="block size-1.5 rounded-full bg-[var(--accent-amber)]" aria-hidden="true" />}
                     snapshot={snapshot}
                     workingSetMatch={{ item }}
                     workingSetItem={item}

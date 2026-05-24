@@ -1,6 +1,5 @@
 import type { ComponentProps } from 'react'
 import { Toast as BaseToast } from '@base-ui/react/toast'
-import { createRoot } from 'react-dom/client'
 import { cn } from '@/lib/utils'
 import { toastManager } from '../extension/toast.js'
 
@@ -43,20 +42,14 @@ function ToastList() {
         <BaseToast.Description className="m-0 text-[0.925rem] leading-5" />
         <BaseToast.Action className="mt-2! inline-flex h-8 items-center justify-center rounded-xl [corner-shape:squircle] border-0 bg-[oklch(12%_0.02_264deg/90%)] px-3! text-[0.875rem] leading-5 font-normal text-[oklch(98%_0.001_264deg)] focus-visible:outline-2! focus-visible:-outline-offset-1! focus-visible:outline-[oklch(45%_0.2_264deg)]!" />
         <BaseToast.Close
-          className="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full border-0 bg-transparent p-0 text-[oklch(12%_0.02_264deg/90%)] hover:bg-[oklch(12%_0.038_264deg/5%)]"
+          className="absolute top-2 right-2 flex size-5 items-center justify-center rounded-full border-0 bg-transparent p-0 text-[oklch(12%_0.02_264deg/90%)] hover:bg-[oklch(12%_0.038_264deg/5%)]"
           aria-label="Close"
         >
-          <XIcon className="h-3 w-3" />
+          <XIcon className="size-3" />
         </BaseToast.Close>
       </BaseToast.Content>
     </BaseToast.Root>
   ))
-}
-
-export function mountToast() {
-  const el = document.getElementById('toastRoot')
-  if (!el) return
-  createRoot(el).render(<Toast />)
 }
 
 function XIcon(props: ComponentProps<'svg'>) {

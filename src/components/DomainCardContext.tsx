@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { createContext, use, type ReactNode } from 'react'
 import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler } from './types'
 
 export type DomainCardContextValue = {
@@ -30,5 +30,5 @@ export function DomainCardProvider({ value, children }: { value: DomainCardConte
 }
 
 export function useDomainCardContext() {
-  return useContext(DomainCardContext)
+  return use(DomainCardContext)
 }
