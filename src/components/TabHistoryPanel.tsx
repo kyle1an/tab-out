@@ -13,11 +13,18 @@ import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabH
 import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
-const HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX = 8
+const HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX = 6
 const HISTORY_TITLE_TOOLTIP_TEXT_RIGHT_INSET_PX = 8
+const HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX =
+  HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX + HISTORY_TITLE_TOOLTIP_TEXT_RIGHT_INSET_PX
 const HISTORY_TITLE_TOOLTIP_TEXT_TOP_INSET_PX = 4
-const HISTORY_TITLE_TOOLTIP_SINGLE_LINE_EXTRA_PX = 96
-const HISTORY_TITLE_TOOLTIP_SINGLE_LINE_RATIO = 1.45
+const HISTORY_TITLE_TOOLTIP_SUBPIXEL_TOLERANCE_PX = 0.01
+const HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX = 1
+const HISTORY_TITLE_TOOLTIP_WIDTH_SEARCH_STEPS = 12
+const HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME = 'history-entry-title-tooltip-lines block min-w-0 max-w-full'
+const HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME = 'history-entry-title-tooltip-line block min-w-0 max-w-full whitespace-nowrap'
+const HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-title-tooltip-line history-entry-title-tooltip-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME = 'history-entry-title-tooltip-line history-entry-title-tooltip-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
 const HISTORY_WORKING_SET_NOISY_QUERY_PARAMS = new Set([
   'fbclid',
   'gclid',
@@ -42,12 +49,26 @@ const historyTitleTruncationCallbacks = new WeakMap<
 >()
 const EMPTY_HOVER_URLS: readonly string[] = []
 
+type HistoryTitleTooltipSubpixelOffset = {
+  x: number
+  y: number
+}
+
 type HistoryTitleMetrics = {
   contentWidth: number
   isTruncated: boolean
   left: number
-  mainWidth: number
+  tooltipLineHtml: string[]
+  tooltipSubpixelOffset: HistoryTitleTooltipSubpixelOffset
+  tooltipTextWidth: number
+  tooltipViewportConstrained: boolean
+  visibleLineCount: number
   width: number
+}
+
+type HistoryTitleTooltipDomPosition = {
+  node: Text
+  offset: number
 }
 
 type HistoryWorkingSetMatch = {
@@ -82,7 +103,10 @@ interface TabHistoryPanelProps {
 
 function isHistoryTitleTruncated(titleEl: HTMLElement | null) {
   if (!titleEl) return false
-  return titleEl.scrollWidth - titleEl.clientWidth > 1
+  return (
+    titleEl.scrollHeight - titleEl.clientHeight > 1 ||
+    titleEl.scrollWidth - titleEl.clientWidth > 1
+  )
 }
 
 function getHistoryTitleWidth(titleEl: HTMLElement | null) {
@@ -90,27 +114,375 @@ function getHistoryTitleWidth(titleEl: HTMLElement | null) {
   return Math.round(titleEl.getBoundingClientRect().width * 100) / 100
 }
 
+function roundHistoryTitleTooltipToDevicePixel(
+  value: number,
+  win: Window | null = typeof window === 'undefined' ? null : window
+) {
+  const scale = win?.devicePixelRatio || 1
+  return Math.round(value * scale) / scale
+}
+
+function getHistoryTitleTooltipSubpixelOffset(titleEl: HTMLElement | null): HistoryTitleTooltipSubpixelOffset {
+  if (!titleEl) return { x: 0, y: 0 }
+
+  const rect = titleEl.getBoundingClientRect()
+  const win = titleEl.ownerDocument.defaultView || (typeof window === 'undefined' ? null : window)
+  const left = rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX
+  const top = rect.top - HISTORY_TITLE_TOOLTIP_TEXT_TOP_INSET_PX
+
+  return {
+    x: left - roundHistoryTitleTooltipToDevicePixel(left, win),
+    y: top - roundHistoryTitleTooltipToDevicePixel(top, win)
+  }
+}
+
+function historyTitleTooltipSubpixelOffsetsEqual(
+  left: HistoryTitleTooltipSubpixelOffset,
+  right: HistoryTitleTooltipSubpixelOffset
+) {
+  return (
+    Math.abs(left.x - right.x) < HISTORY_TITLE_TOOLTIP_SUBPIXEL_TOLERANCE_PX &&
+    Math.abs(left.y - right.y) < HISTORY_TITLE_TOOLTIP_SUBPIXEL_TOLERANCE_PX
+  )
+}
+
+function getHistoryTitleVisibleLineCount(titleEl: HTMLElement | null) {
+  if (!titleEl) return 1
+
+  const styles = window.getComputedStyle(titleEl)
+  const lineHeight = Number.parseFloat(styles.lineHeight)
+  const height = titleEl.getBoundingClientRect().height
+  if (!lineHeight || !Number.isFinite(lineHeight)) return 1
+  return Math.max(1, Math.round(height / lineHeight))
+}
+
+function getHistoryTitleContentWidth(titleEl: HTMLElement | null) {
+  if (!titleEl) return 0
+
+  const ownerDocument = titleEl.ownerDocument
+  if (!ownerDocument.body) return 0
+
+  const styles = window.getComputedStyle(titleEl)
+  const clone = titleEl.cloneNode(true) as HTMLElement
+  clone.classList.remove('history-entry-title-truncated')
+  Object.assign(clone.style, {
+    display: 'inline-block',
+    font: styles.font,
+    left: '0',
+    letterSpacing: styles.letterSpacing,
+    lineHeight: styles.lineHeight,
+    maxHeight: 'none',
+    maxWidth: 'none',
+    overflow: 'visible',
+    pointerEvents: 'none',
+    position: 'fixed',
+    top: '0',
+    visibility: 'hidden',
+    whiteSpace: 'nowrap',
+    width: 'max-content'
+  })
+  clone.style.setProperty('-webkit-mask-image', 'none')
+  clone.style.setProperty('mask-image', 'none')
+  ownerDocument.body.append(clone)
+  const width = Math.round(clone.getBoundingClientRect().width * 100) / 100
+  clone.remove()
+  return width
+}
+
+function historyTitleTooltipLineHtmlEquals(left: readonly string[], right: readonly string[]) {
+  return left.length === right.length && left.every((line, index) => line === right[index])
+}
+
+function historyTitlePaintedRangeRect(range: Range) {
+  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0)
+  return rects[rects.length - 1] || null
+}
+
+function historyTitleFragmentHtml(document: Document, fragment: DocumentFragment) {
+  const container = document.createElement('span')
+  container.append(fragment)
+  return container.innerHTML
+}
+
+function getHistoryTitleTooltipLineHtml(titleEl: HTMLElement | null) {
+  if (!titleEl || typeof document === 'undefined') return []
+
+  const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
+  if (visibleLineCount <= 1) return []
+
+  const ownerDocument = titleEl.ownerDocument
+  const win = ownerDocument.defaultView
+  if (!win) return []
+
+  const titleRect = titleEl.getBoundingClientRect()
+  const styles = win.getComputedStyle(titleEl)
+  const lineHeight = Number.parseFloat(styles.lineHeight)
+  if (titleRect.height <= 0 || !lineHeight || !Number.isFinite(lineHeight)) return []
+
+  const walker = ownerDocument.createTreeWalker(
+    titleEl,
+    win.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        return node.textContent
+          ? win.NodeFilter.FILTER_ACCEPT
+          : win.NodeFilter.FILTER_REJECT
+      }
+    }
+  )
+  const range = ownerDocument.createRange()
+  const lineStarts: HistoryTitleTooltipDomPosition[] = []
+  let lastLineIndex = -1
+
+  while (lineStarts.length < visibleLineCount) {
+    const node = walker.nextNode()
+    if (!(node instanceof win.Text)) break
+
+    const text = node.data
+    for (let offset = 0; offset < text.length && lineStarts.length < visibleLineCount; offset += 1) {
+      range.setStart(node, offset)
+      range.setEnd(node, offset + 1)
+      const rect = historyTitlePaintedRangeRect(range)
+      if (!rect) continue
+
+      const lineIndex = Math.max(0, Math.round((rect.top - titleRect.top) / lineHeight))
+      if (lineIndex >= visibleLineCount) break
+      if (lineIndex > lastLineIndex) {
+        lineStarts.push({ node, offset })
+        lastLineIndex = lineIndex
+      }
+    }
+  }
+
+  range.detach()
+  if (lineStarts.length <= 1) return []
+
+  const lines: string[] = []
+  for (let index = 0; index < lineStarts.length; index += 1) {
+    const lineRange = ownerDocument.createRange()
+    const start = lineStarts[index]
+    lineRange.setStart(start.node, start.offset)
+    const next = lineStarts[index + 1]
+    if (next) {
+      lineRange.setEnd(next.node, next.offset)
+    } else {
+      lineRange.selectNodeContents(titleEl)
+      lineRange.setStart(start.node, start.offset)
+    }
+    lines.push(historyTitleFragmentHtml(ownerDocument, lineRange.cloneContents()))
+    lineRange.detach()
+  }
+
+  return lines
+}
+
+function historyTitleTooltipLineContentOverflows(line: HTMLElement) {
+  if (line.scrollWidth - line.clientWidth > HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX) return true
+
+  const lineRect = line.getBoundingClientRect()
+  const win = line.ownerDocument.defaultView
+  if (!win || lineRect.width <= 0) return false
+
+  const walker = line.ownerDocument.createTreeWalker(
+    line,
+    win.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        return node.textContent
+          ? win.NodeFilter.FILTER_ACCEPT
+          : win.NodeFilter.FILTER_REJECT
+      }
+    }
+  )
+  const range = line.ownerDocument.createRange()
+
+  try {
+    while (true) {
+      const node = walker.nextNode()
+      if (!(node instanceof win.Text)) break
+      range.selectNodeContents(node)
+      for (const rect of range.getClientRects()) {
+        if (
+          rect.width > 0 &&
+          rect.right - lineRect.right > HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX
+        ) {
+          return true
+        }
+      }
+    }
+  } finally {
+    range.detach()
+  }
+
+  return false
+}
+
+function historyTitleTooltipLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
+  const lastIndex = lineHtml.length - 1
+  return `<span class="${HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
+    `<span class="${index === lastIndex ? HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME : viewportConstrained ? HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME}">${html}</span>`
+  )).join('')}</span>`
+}
+
+function historyTitleTooltipLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
+  if (!html || typeof document === 'undefined') return html
+
+  const template = document.createElement('template')
+  template.innerHTML = html
+
+  function nodeFromDom(node: ChildNode, key: string): ReactNode {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+    if (node.nodeType !== Node.ELEMENT_NODE) return null
+
+    const element = node as Element
+    const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
+    const className = element.getAttribute('class') || undefined
+    const ariaLabel = element.getAttribute('aria-label') || undefined
+
+    if (element.tagName.toLowerCase() === 'span') {
+      return <span key={key} className={className} aria-label={ariaLabel}>{children}</span>
+    }
+    if (element.tagName.toLowerCase() === 'mark') {
+      return <mark key={key} className={className} aria-label={ariaLabel}>{children}</mark>
+    }
+    return element.textContent || ''
+  }
+
+  return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
+}
+
+function historyTitleTooltipMeasureFitsLineCount(
+  measureEl: HTMLElement,
+  width: number,
+  targetLineCount: number
+) {
+  measureEl.style.width = `${Math.max(1, width)}px`
+  const styles = window.getComputedStyle(measureEl)
+  const lineHeight = Number.parseFloat(styles.lineHeight)
+  if (!lineHeight || !Number.isFinite(lineHeight)) return true
+  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.history-entry-title-tooltip-line:not(.history-entry-title-tooltip-line-tail)'))
+    .some(historyTitleTooltipLineContentOverflows)
+  return !fixedLineOverflows && measureEl.getBoundingClientRect().height <=
+    targetLineCount * lineHeight + HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX
+}
+
+function createHistoryTitleTooltipMeasureElement(titleEl: HTMLElement, lineHtml: readonly string[]) {
+  const ownerDocument = titleEl.ownerDocument
+  if (!ownerDocument.body) return null
+
+  const styles = window.getComputedStyle(titleEl)
+  const measureEl = ownerDocument.createElement('span')
+  measureEl.className = 'history-entry-title-tooltip-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] [overflow-wrap:break-word]'
+  measureEl.setAttribute('aria-hidden', 'true')
+  Object.assign(measureEl.style, {
+    display: 'block',
+    font: styles.font,
+    left: '0',
+    letterSpacing: styles.letterSpacing,
+    lineHeight: styles.lineHeight,
+    maxHeight: 'none',
+    maxWidth: 'none',
+    overflow: 'visible',
+    pointerEvents: 'none',
+    position: 'fixed',
+    top: '0',
+    visibility: 'hidden',
+    whiteSpace: 'normal',
+    width: 'max-content'
+  })
+  measureEl.style.setProperty('-webkit-mask-image', 'none')
+  measureEl.style.setProperty('hyphenate-character', '')
+  measureEl.style.setProperty('mask-image', 'none')
+  measureEl.style.setProperty('overflow-wrap', 'break-word')
+  measureEl.innerHTML = lineHtml.length > 0 ? historyTitleTooltipLineMarkup(lineHtml) : titleEl.innerHTML
+  ownerDocument.body.append(measureEl)
+  return measureEl
+}
+
+function getHistoryTitleTooltipTextWidth(
+  titleEl: HTMLElement | null,
+  lineHtml: readonly string[],
+  contentWidth: number,
+  left: number,
+  visibleLineCount: number,
+  visibleWidth: number
+) {
+  if (!titleEl) return { viewportConstrained: false, width: 0 }
+
+  const popupLeft = Math.max(0, left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX)
+  const availableWidth = typeof window === 'undefined'
+    ? Math.max(1, contentWidth || visibleWidth)
+    : Math.max(1, window.innerWidth - popupLeft - HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX - 8)
+  const naturalWidth = Math.max(1, contentWidth || visibleWidth)
+  const maxContentWidth = Math.min(availableWidth, naturalWidth)
+  const targetLineCount = Math.max(1, visibleLineCount || 1)
+
+  const measureEl = createHistoryTitleTooltipMeasureElement(titleEl, lineHtml)
+  if (!measureEl) return { viewportConstrained: false, width: Math.round(Math.min(availableWidth, Math.max(visibleWidth, naturalWidth / targetLineCount)) * 100) / 100 }
+
+  try {
+    const lowerBound = Math.min(Math.max(1, visibleWidth), maxContentWidth)
+    if (historyTitleTooltipMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
+      return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
+    }
+
+    if (!historyTitleTooltipMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
+      return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
+    }
+
+    let low = lowerBound
+    let high = maxContentWidth
+    for (let i = 0; i < HISTORY_TITLE_TOOLTIP_WIDTH_SEARCH_STEPS; i += 1) {
+      const mid = (low + high) / 2
+      if (historyTitleTooltipMeasureFitsLineCount(measureEl, mid, targetLineCount)) {
+        high = mid
+      } else {
+        low = mid
+      }
+    }
+    return { viewportConstrained: false, width: Math.round(high * 100) / 100 }
+  } finally {
+    measureEl.remove()
+  }
+}
+
 function sameHistoryTitleMetrics(a: HistoryTitleMetrics, b: HistoryTitleMetrics) {
   return (
     Math.abs(a.contentWidth - b.contentWidth) < 0.1 &&
     a.isTruncated === b.isTruncated &&
     Math.abs(a.left - b.left) < 0.1 &&
-    Math.abs(a.mainWidth - b.mainWidth) < 0.1 &&
+    historyTitleTooltipLineHtmlEquals(a.tooltipLineHtml, b.tooltipLineHtml) &&
+    historyTitleTooltipSubpixelOffsetsEqual(a.tooltipSubpixelOffset, b.tooltipSubpixelOffset) &&
+    Math.abs(a.tooltipTextWidth - b.tooltipTextWidth) < 0.1 &&
+    a.tooltipViewportConstrained === b.tooltipViewportConstrained &&
+    a.visibleLineCount === b.visibleLineCount &&
     Math.abs(a.width - b.width) < 0.1
   )
 }
 
 function syncHistoryTitleFade(titleEl: HTMLElement | null) {
-  if (!titleEl) return { contentWidth: 0, isTruncated: false, left: 0, mainWidth: 0, width: 0 }
+  if (!titleEl) return { contentWidth: 0, isTruncated: false, left: 0, tooltipLineHtml: [], tooltipSubpixelOffset: { x: 0, y: 0 }, tooltipTextWidth: 0, tooltipViewportConstrained: false, visibleLineCount: 1, width: 0 }
 
   const isTruncated = isHistoryTitleTruncated(titleEl)
   const rect = titleEl.getBoundingClientRect()
-  const mainEl = titleEl.closest('.history-entry-main')
+  const contentWidth = getHistoryTitleContentWidth(titleEl)
   const left = Math.round(rect.left * 100) / 100
-  const mainWidth = mainEl instanceof HTMLElement ? Math.round(mainEl.getBoundingClientRect().width * 100) / 100 : 0
-  const contentWidth = Math.round(titleEl.scrollWidth * 100) / 100
+  const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
   const width = getHistoryTitleWidth(titleEl)
-  const metrics = { contentWidth, isTruncated, left, mainWidth, width }
+  const tooltipLineHtml = getHistoryTitleTooltipLineHtml(titleEl)
+  const tooltipMetrics = getHistoryTitleTooltipTextWidth(titleEl, tooltipLineHtml, contentWidth, left, visibleLineCount, width)
+  const tooltipSubpixelOffset = getHistoryTitleTooltipSubpixelOffset(titleEl)
+  const metrics = {
+    contentWidth,
+    isTruncated,
+    left,
+    tooltipLineHtml,
+    tooltipSubpixelOffset,
+    tooltipTextWidth: tooltipMetrics.width,
+    tooltipViewportConstrained: tooltipMetrics.viewportConstrained,
+    visibleLineCount,
+    width
+  }
   titleEl.classList.toggle('history-entry-title-truncated', isTruncated)
   historyTitleTruncationCallbacks.get(titleEl)?.(metrics)
   return metrics
@@ -288,9 +660,14 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     contentWidth: 0,
     isTruncated: false,
     left: 0,
-    mainWidth: 0,
+    tooltipLineHtml: [],
+    tooltipSubpixelOffset: { x: 0, y: 0 },
+    tooltipTextWidth: 0,
+    tooltipViewportConstrained: false,
+    visibleLineCount: 1,
     width: 0
   })
+  const [titleTooltipOpen, setTitleTooltipOpen] = useState(false)
 
   useLayoutEffect(() => {
     const titleEl = titleRef.current
@@ -360,6 +737,12 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     void onFocusEntry()
   }
 
+  async function onHistoryTitleTooltipClick(e: MouseEvent<HTMLDivElement>) {
+    e.stopPropagation()
+    if (!entry.exists) return
+    await onFocusEntry()
+  }
+
   async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const row = e.currentTarget.closest('.history-entry-row')
@@ -411,57 +794,85 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetMatch?.item.faviconUrl || workingSetItem?.faviconUrl || ''
   const titleTooltipPopupLeft = Math.max(0, titleMetrics.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX)
-  const titleTooltipAvailableTextWidth = typeof window === 'undefined'
-    ? Math.max(1, titleMetrics.contentWidth || titleMetrics.mainWidth || titleMetrics.width)
-    : Math.max(1, window.innerWidth - Math.max(0, titleMetrics.left) - 16)
-  const titleTooltipSingleLineLimit = Math.max(
-    titleMetrics.mainWidth * HISTORY_TITLE_TOOLTIP_SINGLE_LINE_RATIO,
-    titleMetrics.mainWidth + HISTORY_TITLE_TOOLTIP_SINGLE_LINE_EXTRA_PX
-  )
-  const titleTooltipShouldWrap = titleMetrics.contentWidth > titleTooltipSingleLineLimit
-  const titleTooltipBalancedWidth = Math.max(
-    titleMetrics.mainWidth + HISTORY_TITLE_TOOLTIP_SINGLE_LINE_EXTRA_PX,
-    titleMetrics.contentWidth / 2
-  )
-  const titleTooltipTargetTextWidth = Math.min(
-    titleTooltipAvailableTextWidth,
-    titleTooltipShouldWrap ? titleTooltipBalancedWidth : titleMetrics.contentWidth || titleTooltipAvailableTextWidth
-  )
+  const titleTooltipTargetTextWidth = titleMetrics.tooltipTextWidth || titleMetrics.width
+  const titleTooltipTextWidth = Math.max(1, titleTooltipTargetTextWidth)
   const titleTooltipStyle = {
-    '--history-entry-title-tooltip-text-max-width': `${Math.round(Math.max(1, titleTooltipTargetTextWidth) * 100) / 100}px`,
+    '--history-entry-title-tooltip-text-width': `${Math.round(titleTooltipTextWidth * 100) / 100}px`,
     maxWidth: `calc(100vw - ${titleTooltipPopupLeft}px - 8px)`,
     paddingLeft: `${HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX}px`,
     paddingRight: `${HISTORY_TITLE_TOOLTIP_TEXT_RIGHT_INSET_PX}px`
   } as CSSProperties
-  const titleTooltipTextStyle = {
-    maxWidth: 'var(--history-entry-title-tooltip-text-max-width)'
-  } as CSSProperties
+  const titleTooltipSubpixelTransform = historyTitleTooltipSubpixelOffsetsEqual(titleMetrics.tooltipSubpixelOffset, { x: 0, y: 0 })
+    ? ''
+    : `translate3d(${titleMetrics.tooltipSubpixelOffset.x}px, ${titleMetrics.tooltipSubpixelOffset.y}px, 0)`
+  const titleTooltipTextStyle = titleTooltipSubpixelTransform
+    ? { transform: titleTooltipSubpixelTransform } as CSSProperties
+    : undefined
   function getHistoryTitleTooltipAnchor() {
     const titleEl = titleRef.current
     if (!titleEl) return null
 
     const rect = titleEl.getBoundingClientRect()
+    const viewportWidth = typeof window === 'undefined' ? rect.width : window.innerWidth
+    const popupWidth = Math.min(
+      Math.max(1, titleTooltipTextWidth + HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX),
+      Math.max(1, viewportWidth - Math.max(0, rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX) - 8)
+    )
     const left = rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX
     const top = rect.top - HISTORY_TITLE_TOOLTIP_TEXT_TOP_INSET_PX
 
     return {
-      getBoundingClientRect: () => new DOMRect(left, top, 0, 0)
+      getBoundingClientRect: () => new DOMRect(left, top, popupWidth, 0)
     }
+  }
+  function historyTitleTooltipLinesNode() {
+    const lastIndex = titleMetrics.tooltipLineHtml.length - 1
+    return (
+      <span className={HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME}>
+        {titleMetrics.tooltipLineHtml.map((html, index) => (
+          <span
+            key={`${index}:${html}`}
+            className={index === lastIndex ? HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME : titleMetrics.tooltipViewportConstrained ? HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME}
+          >
+            {historyTitleTooltipLineNodesFromHtml(html, `history-title-line-${index}`)}
+          </span>
+        ))}
+      </span>
+    )
   }
   const titleTooltipContent = titleMetrics.isTruncated && entryLabel ? (
     <span
-      className="history-entry-title-tooltip line-clamp-2 max-w-[calc(100vw-32px)] whitespace-normal break-normal text-[13px] leading-tight font-normal text-tab-ink [font-family:inherit] [overflow-wrap:break-word] [text-wrap:balance] [width:max-content]"
+      className="history-entry-title-tooltip block min-w-0 max-w-[calc(100vw-32px)] w-[var(--history-entry-title-tooltip-text-width)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight font-normal text-tab-ink [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]"
       style={titleTooltipTextStyle}
     >
-      {bionicTitleTextNodes(entryLabel, 'history-entry-tooltip')}
+      {titleMetrics.tooltipLineHtml.length > 0 ? historyTitleTooltipLinesNode() : bionicTitleTextNodes(entryLabel, 'history-entry-tooltip')}
     </span>
   ) : undefined
+  const titleTooltipTriggerElement = (
+    <span className="history-entry-title-tooltip-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]">
+      <span className="flex min-w-0 flex-auto items-start gap-1.5">
+        <span className="history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]" ref={titleRef}>
+          {bionicTitleTextNodes(entry.title, 'history-entry-title')}
+        </span>
+        {badges.length > 0 && (
+          <span className="inline-flex flex-none items-center gap-1">
+            {badges.map((badge) => (
+              <span key={badge} className="whitespace-nowrap rounded-full bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
+                {badge}
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
+    </span>
+  )
 
   return (
     <div
       className={cn(
-        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-center gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
-        dimmed && 'history-entry-low-score opacity-60 hover:opacity-100 focus-within:opacity-100',
+        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
+        titleTooltipOpen && 'history-entry-row-tooltip-open',
+        dimmed && 'history-entry-low-score opacity-60 hover:opacity-100 focus-within:opacity-100 [&.history-entry-row-tooltip-open]:opacity-100',
         isWorkingSetExtra && 'history-working-set-extra'
       )}
       onMouseEnter={onMouseEnter}
@@ -470,21 +881,22 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
       onBlur={onMouseLeave}
     >
       <span className={cn(
-        'inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
         isIndexHighlighted && 'history-entry-index-highlight font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
         isWorkingSetPriority && !dimmed && 'text-[color-mix(in_srgb,var(--accent-amber)_88%,var(--ink))]',
         !isIndexHighlighted && 'history-entry-index-muted',
-        dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)]'
+        dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-tooltip-open]/history-row:text-[rgba(115,115,115,0.54)]'
       )}>
         {indexLabel}
       </span>
       <div
         className={cn(
-          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[18px] border border-[var(--warm-gray)] bg-tab-card text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:border-[var(--accent-amber)] focus-within:bg-tab-card focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
-          entry.current && 'is-current current-active-history-entry border-transparent bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
-          !entry.current && 'group-hover/history-row:border-[var(--accent-amber)] group-hover/history-row:bg-tab-card group-hover/history-row:after:opacity-100',
+          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:bg-[rgba(82,82,82,0.13)] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+          entry.current && 'is-current current-active-history-entry bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
+          titleTooltipOpen && 'history-entry-tooltip-open',
+          !entry.current && 'group-hover/history-row:bg-[rgba(82,82,82,0.13)] group-hover/history-row:after:opacity-100 [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.13)] [&.history-entry-tooltip-open]:after:opacity-100',
           isActiveEntry && 'is-active',
-          activeInOtherWindow && 'active-in-other-window-history-entry border-[rgba(115,115,115,0.2)] bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
+          activeInOtherWindow && 'active-in-other-window-history-entry bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
           entry.previousTarget && 'is-previous-target',
           entry.nextTarget && 'is-next-target',
           isWorkingSetPriority && 'history-entry-working-set-match',
@@ -497,61 +909,50 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
             aria-hidden="true"
           />
         )}
-        <TooltipAnchor
-          alignOffset={0}
-          anchor={getHistoryTitleTooltipAnchor}
-          anchorToCursor={false}
-          content={titleTooltipContent}
-          className="history-entry-title-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
-          instant
-          sideOffset={0}
-          style={titleTooltipStyle}
+        <div
+          role="button"
+          tabIndex={entry.exists ? 0 : -1}
+          aria-disabled={!entry.exists}
+          className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
+          onClick={entry.exists ? onFocusEntry : undefined}
+          onKeyDown={onEntryKeyDown}
         >
-          <div
-            role="button"
-            tabIndex={entry.exists ? 0 : -1}
-            aria-disabled={!entry.exists}
-            className="history-entry-main flex min-h-8.5 w-full cursor-default items-center gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
-            onClick={entry.exists ? onFocusEntry : undefined}
-            onKeyDown={onEntryKeyDown}
-          >
-            <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
-              <span
-                className={cn(
-                  'history-entry-favicon-content grid h-full w-full place-items-center',
-                  canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
-                )}
-                aria-hidden="true"
+          <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
+            <span
+              className={cn(
+                'history-entry-favicon-content grid h-full w-full place-items-center',
+                canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
+              )}
+              aria-hidden="true"
+            >
+              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
+            </span>
+            {canCloseEntry && (
+              <button
+                type="button"
+                className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                aria-label={`Close ${entryLabel}`}
+                onClick={onCloseEntry}
               >
-                {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
-              </span>
-              {canCloseEntry && (
-                <button
-                  type="button"
-                  className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
-                  aria-label={`Close ${entryLabel}`}
-                  onClick={onCloseEntry}
-                >
-                  <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
-                </button>
-              )}
-            </span>
-            <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
-              <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
-                {bionicTitleTextNodes(entry.title, 'history-entry-title')}
-              </span>
-              {badges.length > 0 && (
-                <span className="inline-flex flex-none items-center gap-1">
-                  {badges.map((badge) => (
-                    <span key={badge} className="whitespace-nowrap rounded-full bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
-                      {badge}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </span>
-          </div>
-        </TooltipAnchor>
+                <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            )}
+          </span>
+          <TooltipAnchor
+            alignOffset={0}
+            anchor={getHistoryTitleTooltipAnchor}
+            anchorToCursor={false}
+            content={titleTooltipContent}
+            className="history-entry-title-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
+            instant
+            onClick={onHistoryTitleTooltipClick}
+            onOpenChange={setTitleTooltipOpen}
+            sideOffset={0}
+            style={titleTooltipStyle}
+          >
+            {titleTooltipTriggerElement}
+          </TooltipAnchor>
+        </div>
       </div>
     </div>
   )

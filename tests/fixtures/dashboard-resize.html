@@ -75,6 +75,38 @@
           })
         ]
       }
+      const tabHistorySnapshot = {
+        stackSize: 1,
+        maxSize: 24,
+        cursorIndex: -1,
+        currentIndex: -1,
+        previousIndex: -1,
+        nextIndex: -1,
+        activeTabId: 1,
+        activeWindowId: 1,
+        activeWasInserted: false,
+        entries: [
+          {
+            index: 0,
+            tabId: 9001,
+            windowId: 1,
+            exists: true,
+            active: false,
+            activeInOtherWindow: false,
+            isApp: false,
+            pinned: false,
+            discarded: false,
+            cursor: false,
+            current: false,
+            previousTarget: false,
+            nextTarget: false,
+            title: 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup',
+            url: 'chrome://settings/appearance',
+            displayUrl: 'chrome://settings/appearance',
+            favIconUrl: ''
+          }
+        ]
+      }
       const tabs = [
         {
           id: 1001,
@@ -255,6 +287,9 @@
         runtime: {
           getURL: (path) => `${window.location.origin}${path}`,
           sendMessage: async (message) => {
+            if (message?.type === 'tab-out:get-tab-history') {
+              return { ok: true, snapshot: tabHistorySnapshot }
+            }
             if (message?.type === 'tab-out:get-working-set') {
               return { ok: true, snapshot: workingSetSnapshot }
             }
