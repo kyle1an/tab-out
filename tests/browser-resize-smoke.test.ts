@@ -628,6 +628,8 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
         markerLineHeight: markerStyles.lineHeight,
         markerVerticalAlign: markerStyles.verticalAlign,
         textLineHeight: Math.round(lineHeight * 100) / 100,
+        tooltipRight: Math.round(tooltipRect.right),
+        viewportRight: window.innerWidth,
         tooltipTop: Math.round(tooltipRect.top),
         textTop: Math.round(textRect.top),
         markerTop: Math.round(markerRect.top)
@@ -707,6 +709,167 @@ async function measureSuppressionMarkerChipLine(session: CdpSession, label: stri
   }).then((measurement: any) => measurement.result.value)
 
   return { result }
+}
+
+async function measurePageChipTooltipLineCount(
+  session: CdpSession,
+  label: string,
+  options: { forcedTextWidth?: number; forcedMaxLines?: number; viewportWidth?: number } = {}
+) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: options.viewportWidth || 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
+          .find((candidate) =>
+            !candidate.closest('[data-slot="tooltip-content"]') &&
+            candidate.textContent?.includes(${JSON.stringify(label)})
+          )
+        if (${JSON.stringify(!!options.forcedTextWidth)} && chipText instanceof HTMLElement) {
+          chipText.style.flex = '0 0 ${options.forcedTextWidth || 0}px'
+          chipText.style.maxWidth = '${options.forcedTextWidth || 0}px'
+        }
+        if (${JSON.stringify(!!options.forcedMaxLines)} && chipText instanceof HTMLElement) {
+          chipText.style.maxHeight = 'calc(${options.forcedMaxLines || 1}lh)'
+        }
+        const rect = chipText?.getBoundingClientRect()
+        if (chipText && rect && rect.width > 80 && rect.height > 8) {
+          const styles = window.getComputedStyle(chipText)
+          const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+          const chipLineCount = Math.max(1, Math.round(rect.height / lineHeight))
+          const collectLineTexts = (root, limit) => {
+            const rootRect = root.getBoundingClientRect()
+            const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+              acceptNode(node) {
+                return node.textContent ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+              }
+            })
+            const range = document.createRange()
+            const lines = Array.from({ length: limit }, () => '')
+            while (true) {
+              const node = walker.nextNode()
+              if (!node) break
+              const text = node.textContent || ''
+              for (let offset = 0; offset < text.length; offset += 1) {
+                range.setStart(node, offset)
+                range.setEnd(node, offset + 1)
+                const rects = Array.from(range.getClientRects())
+                const paintedRects = rects.filter((candidate) => candidate.width > 0 || candidate.height > 0)
+                const charRect = paintedRects[paintedRects.length - 1]
+                if (!charRect) continue
+                const lineIndex = Math.max(0, Math.round((charRect.top - rootRect.top) / lineHeight))
+                if (lineIndex >= limit) return lines
+                lines[lineIndex] += text[offset]
+              }
+            }
+            return lines
+          }
+          resolve({
+            x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+            y: Math.round(rect.top + Math.min(rect.height / 2, 10)),
+            chipText: chipText.textContent || '',
+            chipLineTexts: collectLineTexts(chipText, chipLineCount),
+            chipLeft: Math.round(rect.left),
+            chipTop: Math.round(rect.top),
+            chipWidth: Math.round(rect.width),
+            chipHeight: Math.round(rect.height),
+            chipLineHeight: Math.round(lineHeight * 100) / 100,
+            chipLineCount
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, `expected a page chip for tooltip line-count check: ${label}`)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const tooltip = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const tooltip = document.querySelector('[data-slot="tooltip-content"]')
+      const tooltipText = tooltip?.querySelector('.chip-text')
+      const tooltipRect = tooltip?.getBoundingClientRect()
+      const textRect = tooltipText?.getBoundingClientRect()
+      if (!tooltip || !tooltipText || !tooltipRect || !textRect) return null
+      const styles = window.getComputedStyle(tooltipText)
+      const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+      const lineNodes = Array.from(tooltipText.querySelectorAll('.page-chip-tooltip-line'))
+      const tooltipLineTexts = lineNodes.length > 0
+        ? lineNodes.map((node) => node.textContent || '')
+        : [tooltipText.textContent || '']
+      const tooltipLineOverflows = lineNodes.map((node) => {
+        const nodeRect = node.getBoundingClientRect()
+        const range = document.createRange()
+        const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, {
+          acceptNode(textNode) {
+            return textNode.textContent ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+          }
+        })
+        try {
+          if (node.scrollWidth - node.clientWidth > 1) return true
+          while (true) {
+            const textNode = walker.nextNode()
+            if (!textNode) break
+            range.selectNodeContents(textNode)
+            for (const rect of range.getClientRects()) {
+              if (rect.width > 0 && rect.right - nodeRect.right > 1) return true
+            }
+          }
+          return false
+        } finally {
+          range.detach()
+        }
+      })
+      return {
+        text: tooltip.textContent || '',
+        tooltipLineTexts,
+        tooltipLineOverflows,
+        left: Math.round(tooltipRect.left),
+        right: Math.round(tooltipRect.right),
+        top: Math.round(tooltipRect.top),
+        width: Math.round(tooltipRect.width),
+        textWidth: Math.round(textRect.width),
+        textHeight: Math.round(textRect.height),
+        textLineHeight: Math.round(lineHeight * 100) / 100,
+        tooltipLineCount: Math.max(1, Math.round(textRect.height / lineHeight)),
+        viewportRight: window.innerWidth
+      }
+    })()`
+  }).then((measurement: any) => measurement.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(240)
+
+  return { target, tooltip }
 }
 
 async function measureInteractiveTooltipClickReturnFocus(
@@ -1513,6 +1676,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
         if (target) {
           resolve({
             startX: Math.round(target.rect.right - 4),
+            textLeft: Math.round(target.rect.left),
             textRight: Math.round(target.rect.right),
             y: Math.round(target.rect.top + target.rect.height / 2),
             viewportRight: window.innerWidth
@@ -1639,13 +1803,22 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   for (const markerLabel of ['Marker line one', 'Marker line two', 'Marker line three']) {
     suppressionMarkerLines.push(await measureSuppressionMarkerTooltipLine(session, markerLabel))
   }
+  const suppressionMarkerLineNumbers = suppressionMarkerLines.map(({ result }) => result?.markerLine)
   assert.deepEqual(
-    suppressionMarkerLines.map(({ result }) => result?.markerLine),
-    [1, 2, 3],
-    `suppression marker tooltip pills should be checked on the first three wrapped lines: ${JSON.stringify(suppressionMarkerLines)}`
+    suppressionMarkerLineNumbers.slice(0, 2),
+    [1, 2],
+    `suppression marker tooltip pills should stay on their widened tooltip lines before viewport-edge fallback: ${JSON.stringify(suppressionMarkerLines)}`
+  )
+  assert.ok(
+    suppressionMarkerLineNumbers[2] === 2 || (
+      (suppressionMarkerLineNumbers[2] || 0) > 2 &&
+      (suppressionMarkerLines[2].result?.tooltipRight || 0) >= (suppressionMarkerLines[2].result?.viewportRight || 0) - 12
+    ),
+    `suppression marker tooltip may add a row only when it reaches the browser viewport edge: ${JSON.stringify(suppressionMarkerLines)}`
   )
   for (const line of suppressionMarkerLines) {
     assert.ok(line.result, `suppression marker tooltip should open and expose marker geometry: ${JSON.stringify(line)}`)
+    assert.ok(line.result.text.includes('Shared Workspace'), `suppression marker tooltip should show the hidden title text after line splitting: ${JSON.stringify(line)}`)
     assert.ok(line.result.markerHeight <= 16, `suppression marker should not make wrapped tooltip lines taller: ${JSON.stringify(line)}`)
     assert.ok(Math.abs(line.result.markerCenterDelta) <= 0.75, `suppression marker should sit centered in its tooltip line: ${JSON.stringify(line)}`)
   }
@@ -1660,6 +1833,129 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     assert.ok(Math.abs(line.result.glyphCenterDelta) <= 0.75, `compact suppression marker glyph should sit centered inside its badge: ${JSON.stringify(line)}`)
     assert.ok(Math.abs(line.result.markerCenterDelta) <= 0.75, `compact suppression marker should sit centered in its chip line: ${JSON.stringify(line)}`)
   }
+
+  const tooltipLineCounts = [
+    await measurePageChipTooltipLineCount(session, 'Marker line one'),
+    await measurePageChipTooltipLineCount(session, 'Marker line two'),
+    await measurePageChipTooltipLineCount(session, 'Marker line three', {
+      forcedTextWidth: 168,
+      forcedMaxLines: 3
+    })
+  ]
+  assert.deepEqual(
+    tooltipLineCounts.map(({ target }) => target.chipLineCount),
+    [1, 2, 3],
+    `line-count smoke should cover one-, two-, and three-line chips: ${JSON.stringify(tooltipLineCounts)}`
+  )
+  for (const lineCount of tooltipLineCounts) {
+    assert.ok(lineCount.tooltip, `tooltip should open for line-count check: ${JSON.stringify(lineCount)}`)
+    const isViewportConstrained = lineCount.tooltip.right >= lineCount.tooltip.viewportRight - 12
+    if (isViewportConstrained) {
+      assert.ok(
+        lineCount.tooltip.tooltipLineCount >= lineCount.target.chipLineCount,
+        `regular page chip tooltip may add rows only when constrained by the browser viewport edge: ${JSON.stringify(lineCount)}`
+      )
+    } else {
+      assert.equal(
+        lineCount.tooltip.tooltipLineCount,
+        lineCount.target.chipLineCount,
+        `regular page chip tooltip should match the visible chip line count when viewport width allows it: ${JSON.stringify(lineCount)}`
+      )
+    }
+    assert.ok(
+      lineCount.tooltip.right <= lineCount.tooltip.viewportRight + 1,
+      `regular page chip tooltip should stay within the browser viewport: ${JSON.stringify(lineCount)}`
+    )
+    const normalizeLineText = (value: string) => value.replace(/\s+/g, ' ').trim()
+    const chipLines = lineCount.target.chipLineTexts.map(normalizeLineText).filter(Boolean)
+    const tooltipLines = lineCount.tooltip.tooltipLineTexts.map(normalizeLineText).filter(Boolean)
+    assert.ok(
+      tooltipLines.length >= chipLines.length,
+      `regular page chip tooltip should keep at least the visible chip line rows: ${JSON.stringify(lineCount)}`
+    )
+    for (let index = 0; index < chipLines.length - 1; index += 1) {
+      assert.equal(
+        tooltipLines[index],
+        chipLines[index],
+        `regular page chip tooltip should preserve visible line breaks before the tail row: ${JSON.stringify(lineCount)}`
+      )
+    }
+    const lastChipLine = chipLines[chipLines.length - 1]
+    const lastTooltipLine = tooltipLines[chipLines.length - 1]
+    assert.ok(
+      lastTooltipLine?.startsWith(lastChipLine),
+      `regular page chip tooltip tail row should start with the same visible text before revealing more: ${JSON.stringify(lineCount)}`
+    )
+  }
+  const structuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Boundary Alpha', {
+    forcedTextWidth: 170,
+    forcedMaxLines: 2
+  })
+  assert.ok(structuralTailTooltip.tooltip, `structural-tail tooltip should open: ${JSON.stringify(structuralTailTooltip)}`)
+  assert.equal(
+    structuralTailTooltip.tooltip.tooltipLineCount,
+    structuralTailTooltip.target.chipLineCount,
+    `structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  assert.ok(
+    structuralTailTooltip.tooltip.text.includes('Example Website') && structuralTailTooltip.tooltip.text.includes('Contentful'),
+    `structural-tail tooltip should expand compact suppression markers into text: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  assert.ok(
+    structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Example Website'),
+    `structural-tail tooltip should widen enough for expanded non-tail suppression text instead of clipping it: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  assert.ok(
+    structuralTailTooltip.tooltip.width > structuralTailTooltip.target.chipWidth + 20,
+    `structural-tail tooltip should grow wider than the compact chip when non-tail markers expand: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  const splitStructuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Line Alpha', {
+    forcedTextWidth: 310,
+    forcedMaxLines: 2
+  })
+  assert.ok(splitStructuralTailTooltip.tooltip, `split structural-tail tooltip should open: ${JSON.stringify(splitStructuralTailTooltip)}`)
+  assert.equal(
+    splitStructuralTailTooltip.tooltip.tooltipLineCount,
+    splitStructuralTailTooltip.target.chipLineCount,
+    `split structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(splitStructuralTailTooltip)}`
+  )
+  assert.ok(
+    splitStructuralTailTooltip.tooltip.text.includes('Shared Website') && splitStructuralTailTooltip.tooltip.text.includes('Contentful'),
+    `split structural-tail tooltip should expand hidden website and source markers: ${JSON.stringify(splitStructuralTailTooltip)}`
+  )
+  assert.ok(
+    splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Shared Website'),
+    `split structural-tail tooltip should keep the expanded website marker on the first visible line: ${JSON.stringify(splitStructuralTailTooltip)}`
+  )
+  assert.ok(
+    splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-beta') && splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `split structural-tail tooltip should keep the structural label and trailing marker on the second visible line: ${JSON.stringify(splitStructuralTailTooltip)}`
+  )
+  assert.ok(
+    splitStructuralTailTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
+    `split structural-tail tooltip lines should not visually overflow: ${JSON.stringify(splitStructuralTailTooltip)}`
+  )
+  const edgeConstrainedTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Edge Alpha', {
+    forcedTextWidth: 310,
+    forcedMaxLines: 2
+  })
+  assert.ok(edgeConstrainedTooltip.tooltip, `edge-constrained tooltip should open: ${JSON.stringify(edgeConstrainedTooltip)}`)
+  assert.ok(
+    edgeConstrainedTooltip.tooltip.right >= edgeConstrainedTooltip.tooltip.viewportRight - 12,
+    `edge-constrained tooltip should exercise the browser viewport limit: ${JSON.stringify(edgeConstrainedTooltip)}`
+  )
+  assert.ok(
+    edgeConstrainedTooltip.tooltip.tooltipLineCount >= edgeConstrainedTooltip.target.chipLineCount,
+    `edge-constrained tooltip may add rows after it reaches the browser viewport edge: ${JSON.stringify(edgeConstrainedTooltip)}`
+  )
+  assert.ok(
+    edgeConstrainedTooltip.tooltip.text.includes('Shared Website With Long Workspace Label For Tooltip Boundary') && edgeConstrainedTooltip.tooltip.text.includes('Contentful'),
+    `edge-constrained tooltip should still expose the expanded hidden markers: ${JSON.stringify(edgeConstrainedTooltip)}`
+  )
+  assert.ok(
+    edgeConstrainedTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
+    `edge-constrained tooltip lines should wrap instead of overflowing: ${JSON.stringify(edgeConstrainedTooltip)}`
+  )
 
   const popupHover = await measureTooltipPopupHover(session)
   assert.ok(popupHover.whileHovered, `tooltip should remain open when the pointer moves into the popup: ${JSON.stringify(popupHover)}`)
@@ -1752,7 +2048,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(edgeTooltip.first, `tooltip should open near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
   assert.ok(['start', 'end'].includes(edgeTooltip.first.align), `tooltip should keep a valid text-edge alignment near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
   assert.ok(edgeTooltip.first.visualRight <= edgeTooltip.target.viewportRight + 1, `tooltip should stay within the viewport near the text edge: ${JSON.stringify(edgeTooltip)}`)
-  assert.ok(Math.abs(edgeTooltip.first.right - edgeTooltip.target.textRight) <= 12, `tooltip should stay visually attached to the original text near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+  assert.ok(Math.abs(edgeTooltip.first.left - (edgeTooltip.target.textLeft - 8)) <= 1, `tooltip should preserve the original text origin near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
   const edgeAnchorRadius = edgeTooltip.first.align === 'end' ? edgeTooltip.first.topRightRadius : edgeTooltip.first.topLeftRadius
   assert.equal(edgeAnchorRadius, '0px', `tooltip anchor corner should be square near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
 })
