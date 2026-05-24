@@ -11,6 +11,7 @@
 import { unwrapSuspenderUrl, unwrapSuspenderTitle } from './suspender.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
+import { focusExactTabTarget, focusTabTarget } from './tab-focus.js'
 import type { DashboardTab, TabSnapshot } from './types'
 
 type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'title' | 'pinned' | 'groupId' | 'windowId' | 'index'>
@@ -29,47 +30,6 @@ export let openTabs: DashboardTab[] = []
 
 function tabIds(tabs: chrome.tabs.Tab[]): number[] {
   return tabs.map((tab) => tab.id).filter((id): id is number => typeof id === 'number')
-}
-
-function suspenderExtensionId(url?: string): string {
-  if (!url || !url.startsWith('chrome-extension://')) return ''
-  try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith('/suspended.html')) return ''
-    return parsed.hostname
-  } catch {
-    return ''
-  }
-}
-
-function isSuspendedUrlForTarget(tabUrl: string | undefined, targetEffective: string): boolean {
-  if (!tabUrl || tabUrl === targetEffective) return false
-  return unwrapSuspenderUrl(tabUrl) === targetEffective
-}
-
-async function requestSuspenderUnsuspend(tab: chrome.tabs.Tab, targetEffective: string): Promise<boolean> {
-  if (typeof tab.id !== 'number') return false
-  if (!isSuspendedUrlForTarget(tab.url, targetEffective)) return false
-  const extensionId = suspenderExtensionId(tab.url)
-  if (!extensionId || extensionId === globalThis.chrome?.runtime?.id || !globalThis.chrome?.runtime?.sendMessage) return false
-  try {
-    const response = await chrome.runtime.sendMessage(extensionId, { action: 'unsuspend', tabId: tab.id })
-    return !(typeof response === 'string' && response.startsWith('Error:'))
-  } catch {
-    return false
-  }
-}
-
-async function focusMatchedTab(match: chrome.tabs.Tab, targetEffective: string): Promise<boolean> {
-  if (typeof match.id !== 'number') return false
-  const didRequestUnsuspend = await requestSuspenderUnsuspend(match, targetEffective)
-  const updateProperties: chrome.tabs.UpdateProperties = { active: true }
-  if (!didRequestUnsuspend && isSuspendedUrlForTarget(match.url, targetEffective)) {
-    updateProperties.url = targetEffective
-  }
-  await chrome.tabs.update(match.id, updateProperties)
-  await chrome.windows.update(match.windowId, { focused: true })
-  return true
 }
 
 /**
@@ -259,32 +219,7 @@ export async function closeTabsExact(urls: string[], opts: CloseOptions = {}): P
  * @returns {Promise<boolean>}
  */
 export async function focusTab(url: string): Promise<boolean> {
-  if (!url) return false
-  const allTabs = await chrome.tabs.query({})
-  const currentWindow = await chrome.windows.getCurrent()
-
-  const targetEffective = unwrapSuspenderUrl(url)
-
-  let matches = allTabs.filter((t) => t.url === url || unwrapSuspenderUrl(t.url) === targetEffective)
-
-  if (matches.length === 0) {
-    try {
-      const targetHost = new URL(targetEffective).hostname
-      matches = allTabs.filter((t) => {
-        try {
-          return new URL(unwrapSuspenderUrl(t.url)).hostname === targetHost
-        } catch {
-          return false
-        }
-      })
-    } catch {}
-  }
-
-  if (matches.length === 0) return false
-
-  const match = matches.find((t) => t.windowId !== currentWindow.id) || matches[0]
-  if (!match) return false
-  return focusMatchedTab(match, targetEffective)
+  return focusTabTarget(url)
 }
 
 /**
@@ -295,20 +230,7 @@ export async function focusTab(url: string): Promise<boolean> {
  * @returns {Promise<boolean>}
  */
 export async function focusExactTab(url: string): Promise<boolean> {
-  if (!url) return false
-  const allTabs = await chrome.tabs.query({})
-  const targetEffective = unwrapSuspenderUrl(url)
-  const matches = allTabs.filter((t) => t.url === url || unwrapSuspenderUrl(t.url) === targetEffective)
-  if (matches.length === 0) return false
-
-  let currentWindowId = -1
-  try {
-    currentWindowId = (await chrome.windows.getCurrent()).id ?? -1
-  } catch {}
-
-  const match = matches.find((t) => t.windowId === currentWindowId) || matches[0]
-  if (!match) return false
-  return focusMatchedTab(match, targetEffective)
+  return focusExactTabTarget(url)
 }
 
 /**

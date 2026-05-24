@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { pageTargetMatchesHover } from '../extension/page-target.js'
 import { useDomainCardContext } from './DomainCardContext'
 import { PageChip } from './PageChip'
 import { cn } from '@/lib/utils'
@@ -29,16 +30,10 @@ function resolveClassName(className: OverflowContainerClassName | undefined, exp
 
 function chipMatchesActiveHover(chip: DashboardChipData, activeHoverUrl: string, activeHoverUrls: readonly string[]): boolean {
   return (
-    chip.tabUrl === activeHoverUrl ||
-    chip.rawUrl === activeHoverUrl ||
-    activeHoverUrls.includes(chip.tabUrl) ||
-    activeHoverUrls.includes(chip.rawUrl) ||
+    pageTargetMatchesHover(chip, activeHoverUrl, activeHoverUrls) ||
     !!chip.titleVariantChips?.some((variant) => chipMatchesActiveHover(variant, activeHoverUrl, activeHoverUrls)) ||
     !!chip.envs?.some((env) => (
-      env.tabUrl === activeHoverUrl ||
-      env.rawUrl === activeHoverUrl ||
-      activeHoverUrls.includes(env.tabUrl) ||
-      activeHoverUrls.includes(env.rawUrl)
+      pageTargetMatchesHover(env, activeHoverUrl, activeHoverUrls)
     ))
   )
 }

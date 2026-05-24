@@ -83,6 +83,7 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
         nextTarget: false,
         title: 'Example Docs',
         url: 'https://example.com/docs',
+        rawUrl: 'https://example.com/docs',
         displayUrl: 'example.com/docs',
         favIconUrl: ''
       }
@@ -1037,7 +1038,8 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
     entries: [
       {
         ...makeHistorySnapshot().entries[0],
-        url: rawUrl,
+        url: 'https://example.com/docs',
+        rawUrl,
         displayUrl: 'example.com/docs'
       }
     ]
@@ -1047,6 +1049,32 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
       snapshot,
       activeHoverUrl: 'https://example.com/docs',
       activeHoverUrls: ['https://example.com/docs', rawUrl],
+      activeHoverSource: 'chip'
+    })
+  )
+  const entryMatch = html.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+
+  assert.ok(entryMatch, 'history entry should render')
+  assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
+})
+
+test('TabHistoryPanel reuses shared page-target matching for suspended history rows', () => {
+  const rawUrl = 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const snapshot = makeHistorySnapshot({
+    entries: [
+      {
+        ...makeHistorySnapshot().entries[0],
+        url: 'https://example.com/docs',
+        rawUrl,
+        displayUrl: 'example.com/docs'
+      }
+    ]
+  })
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      activeHoverUrl: rawUrl,
+      activeHoverUrls: [rawUrl],
       activeHoverSource: 'chip'
     })
   )

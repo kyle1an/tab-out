@@ -3,6 +3,9 @@ import type { CSSProperties, Dispatch, KeyboardEvent, MouseEvent, ReactNode, Set
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
+import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
+import { pageIdentityForWorkingSet } from '../extension/working-set.js'
+import { unwrapSuspenderUrl } from '../extension/suspender.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
@@ -25,15 +28,6 @@ const HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME = 'history-entry-title-tooltip-line
 const HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME = 'history-entry-title-tooltip-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-title-tooltip-line history-entry-title-tooltip-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
 const HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME = 'history-entry-title-tooltip-line history-entry-title-tooltip-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
-const HISTORY_WORKING_SET_NOISY_QUERY_PARAMS = new Set([
-  'fbclid',
-  'gclid',
-  'igshid',
-  'mc_cid',
-  'mc_eid',
-  'ref',
-  'source'
-])
 const LOW_SCORE_HISTORY_PROTOCOLS = new Set([
   'about:',
   'brave:',
@@ -533,7 +527,7 @@ function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnap
 }
 
 function workingSetUrls(item: WorkingSetItem | null | undefined) {
-  return item ? [item.tabUrl, item.rawUrl, item.key].filter(Boolean) : []
+  return item ? [...new Set([...pageTargetMatchUrls(item), item.key].filter(Boolean))] : []
 }
 
 function uniqueUrls(urls: readonly string[]) {
@@ -541,61 +535,11 @@ function uniqueUrls(urls: readonly string[]) {
 }
 
 function historyEntryWorkingSetKey(entry: TabHistoryEntry) {
-  return pageIdentityForHistoryWorkingSet(entry.url || entry.displayUrl || '')
-}
-
-function pageIdentityForHistoryWorkingSet(url = ''): string {
-  const effectiveUrl = unwrapHistoryWorkingSetSuspenderUrl(url || '')
-  if (!effectiveUrl) return ''
-
-  try {
-    const parsed = new URL(effectiveUrl)
-    if (LOW_SCORE_HISTORY_PROTOCOLS.has(parsed.protocol)) {
-      return ''
-    }
-    if (
-      (parsed.hostname === 'www.google.com' || parsed.hostname === 'google.com') &&
-      parsed.pathname === '/search'
-    ) {
-      return ''
-    }
-
-    parsed.hash = ''
-    const cleanParams = new URLSearchParams()
-    const paramEntries = Array.from(parsed.searchParams.entries())
-      .filter(([name]) => !name.toLowerCase().startsWith('utm_') && !HISTORY_WORKING_SET_NOISY_QUERY_PARAMS.has(name.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b))
-    for (const [name, value] of paramEntries) cleanParams.append(name, value)
-    parsed.search = cleanParams.toString()
-
-    if (parsed.protocol === 'file:') return parsed.href
-
-    const pathname = parsed.pathname || '/'
-    const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
-    const query = parsed.search ? parsed.search : ''
-    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${query}`
-  } catch {
-    return ''
-  }
-}
-
-function unwrapHistoryWorkingSetSuspenderUrl(url?: string): string {
-  if (!url || !url.startsWith('chrome-extension://')) return url || ''
-  try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith('/suspended.html')) return url
-    const fragment = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
-    const marker = '&uri='
-    const markerIndex = fragment.indexOf(marker)
-    const encoded = markerIndex >= 0 ? fragment.slice(markerIndex + marker.length) : fragment.startsWith('uri=') ? fragment.slice(4) : ''
-    return encoded ? decodeURIComponent(encoded) || url : url
-  } catch {
-    return url
-  }
+  return pageIdentityForWorkingSet(entry.url || entry.rawUrl || entry.displayUrl || '')
 }
 
 function isLowScoreHistoryUrl(url = '') {
-  const effectiveUrl = unwrapHistoryWorkingSetSuspenderUrl(url || '')
+  const effectiveUrl = unwrapSuspenderUrl(url || '')
   if (!effectiveUrl) return false
 
   try {
@@ -635,6 +579,7 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
     nextTarget: false,
     title: item.title,
     url: item.tabUrl,
+    rawUrl: item.rawUrl,
     displayUrl: item.displayUrl,
     favIconUrl: item.faviconUrl
   }
@@ -766,9 +711,9 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
 
   function onMouseEnter() {
     const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
-    const hoverUrl = workingSetItem?.tabUrl || entry.url || ''
+    const hoverUrl = workingSetItem ? pageTargetUrl(workingSetItem) : pageTargetUrl(entry)
     const hoverUrls = uniqueUrls([
-      entry.url || '',
+      ...pageTargetMatchUrls(entry),
       ...(workingSetItem ? workingSetUrls(workingSetItem) : workingSetUrls(workingSetMatch?.item))
     ])
     onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls)
@@ -785,10 +730,13 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   const isActiveEntry = entry.active || entry.activeInOtherWindow
   const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
   const matchUrls = uniqueUrls([
-    entry.url || '',
+    ...pageTargetMatchUrls(entry),
     ...(workingSetItem ? workingSetUrls(workingSetItem) : workingSetUrls(workingSetMatch?.item))
   ])
-  const hoverMatched = !!activeHoverSource && activeHoverSource !== hoverSource && matchUrls.some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
+  const hoverMatched = !!activeHoverSource && activeHoverSource !== hoverSource && (
+    pageTargetMatchesHover(entry, activeHoverUrl, activeHoverUrls) ||
+    matchUrls.some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
+  )
   const isWorkingSetPriority = !!workingSetMatch || !!workingSetItem
   const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || isWorkingSetPriority || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url

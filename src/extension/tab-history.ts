@@ -1,5 +1,6 @@
 import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon } from './favicons.js'
+import { focusExistingTabTarget } from './tab-focus.js'
 import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot } from './types'
 
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
@@ -48,6 +49,7 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     nextTarget: !!entry?.nextTarget,
     title: String(entry?.title || (tabId === -1 ? 'Unknown tab' : `Tab ${tabId}`)),
     url,
+    rawUrl: String(entry?.rawUrl || url),
     displayUrl: String(entry?.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
     favIconUrl: pickFavicon({ favIconUrl: String(entry?.favIconUrl || ''), url })
   }
@@ -93,14 +95,13 @@ export function switchTabHistoryFromDashboard(direction: number): Promise<TabHis
 }
 
 export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean> {
-  if (!entry?.exists || !Number.isInteger(entry.tabId)) return false
-  try {
-    await chrome.tabs.update(entry.tabId, { active: true })
-    await chrome.windows.update(entry.windowId, { focused: true })
-    return true
-  } catch {
-    return false
-  }
+  if (!entry?.exists) return false
+  return focusExistingTabTarget({
+    tabId: entry.tabId,
+    windowId: entry.windowId,
+    url: entry.url,
+    rawUrl: entry.rawUrl
+  })
 }
 
 export async function closeHistoryEntry(entry: TabHistoryEntry): Promise<{ closed: boolean; snapshot: TabSnapshot[] }> {

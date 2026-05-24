@@ -7,6 +7,7 @@ import type {
   WorkingSetItem,
   WorkingSetSnapshot
 } from './types'
+import { unwrapSuspenderUrl } from './suspender.js'
 
 export const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
 export const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
@@ -124,7 +125,7 @@ export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivitySto
 }
 
 export function pageIdentityForWorkingSet(url = ''): string {
-  const effectiveUrl = unwrapWorkingSetSuspenderUrl(url || '')
+  const effectiveUrl = unwrapSuspenderUrl(url || '')
   if (!effectiveUrl) return ''
 
   try {
@@ -158,21 +159,6 @@ function isGoogleSearchResultPage(parsed: URL): boolean {
     (parsed.hostname === 'www.google.com' || parsed.hostname === 'google.com') &&
     parsed.pathname === '/search'
   )
-}
-
-function unwrapWorkingSetSuspenderUrl(url?: string): string {
-  if (!url || !url.startsWith('chrome-extension://')) return url || ''
-  try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith('/suspended.html')) return url
-    const fragment = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
-    const marker = '&uri='
-    const markerIndex = fragment.indexOf(marker)
-    const encoded = markerIndex >= 0 ? fragment.slice(markerIndex + marker.length) : fragment.startsWith('uri=') ? fragment.slice(4) : ''
-    return encoded ? decodeURIComponent(encoded) || url : url
-  } catch {
-    return url
-  }
 }
 
 export function recordWorkingSetActivity(

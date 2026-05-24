@@ -298,6 +298,7 @@ export interface TabHistoryEntry {
   nextTarget: boolean
   title: string
   url: string
+  rawUrl: string
   displayUrl: string
   favIconUrl: string
 }

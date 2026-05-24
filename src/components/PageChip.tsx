@@ -3,6 +3,7 @@ import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent
 import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
+import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
@@ -712,7 +713,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const isClosedSavedPage = chip.sourceType === 'saved-page' || !!chip.closedSaved
   const highlightTerms = highlightTermsForFilter(filter, isHistorySource ? 'legacy' : 'parsed')
   const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
-  const primaryPreviewUrl = chip.tabUrl || ''
+  const primaryPreviewUrl = pageTargetUrl(chip)
   const suppressedTitleParts = chip.suppressedTitleParts || []
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
@@ -848,7 +849,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function previewUrlsForChip(target: DashboardChipData): string[] {
-    return [target.tabUrl, target.rawUrl].filter(Boolean)
+    return pageTargetMatchUrls(target)
   }
 
   function onChipContextMenuOpenChange(open: boolean) {
@@ -1112,15 +1113,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     : undefined
   function chipMatchesActiveHover(target: DashboardChipData) {
     return (
-      target.tabUrl === activeHoverUrl ||
-      target.rawUrl === activeHoverUrl ||
-      activeHoverUrls.includes(target.tabUrl) ||
-      activeHoverUrls.includes(target.rawUrl) ||
+      pageTargetMatchesHover(target, activeHoverUrl, activeHoverUrls) ||
       !!target.envs?.some((env) => (
-        env.tabUrl === activeHoverUrl ||
-        env.rawUrl === activeHoverUrl ||
-        activeHoverUrls.includes(env.tabUrl) ||
-        activeHoverUrls.includes(env.rawUrl)
+        pageTargetMatchesHover(env, activeHoverUrl, activeHoverUrls)
       ))
     )
   }

@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
-import { closeHistoryEntry } from '../src/extension/tab-history.js'
+import { closeHistoryEntry, focusHistoryEntry } from '../src/extension/tab-history.js'
 import { focusTab, snapshotChromeTabs } from '../src/extension/tabs.js'
 import { markClosure, undoLastClose } from '../src/extension/undo.js'
+import { focusWorkingSetItem } from '../src/extension/working-set-client.js'
 
 function createChromeMock(initialTabs: any[], currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
@@ -179,6 +180,58 @@ test('focusTab unsuspends directly when the owning suspender extension rejects t
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'rejects',
+      message: { action: 'unsuspend', tabId: 2 }
+    }
+  ])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true, url: 'https://example.com/docs' } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+  assert.equal(tabs.find((tab) => tab.id === 2).url, 'https://example.com/docs')
+})
+
+test('focusHistoryEntry uses the same suspended-tab activation path as page chips', async () => {
+  const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+  ])
+
+  const focused = await focusHistoryEntry({
+    exists: true,
+    tabId: 2,
+    windowId: 2,
+    url: 'https://example.com/docs',
+    rawUrl: suspendedUrl
+  } as any)
+
+  assert.equal(focused, true)
+  assert.deepEqual(calls.runtimeMessages, [
+    {
+      extensionId: 'marvellous',
+      message: { action: 'unsuspend', tabId: 2 }
+    }
+  ])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+})
+
+test('focusWorkingSetItem falls back to the effective URL for blocked suspended tabs', async () => {
+  const suspendedUrl = 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+  ])
+
+  const focused = await focusWorkingSetItem({
+    tabId: 2,
+    windowId: 2,
+    tabUrl: 'https://example.com/docs',
+    rawUrl: suspendedUrl
+  })
+
+  assert.equal(focused, true)
+  assert.deepEqual(calls.runtimeMessages, [
+    {
+      extensionId: 'blocked',
       message: { action: 'unsuspend', tabId: 2 }
     }
   ])

@@ -22,7 +22,7 @@ function runBuild(reason = 'initial') {
   pending = false
   console.log(`\n[watch] build started (${reason})`)
 
-  buildProcess = spawn('pnpm', ['exec', 'vite', 'build'], {
+  buildProcess = spawn('pnpm', ['build'], {
     stdio: 'inherit',
     env: process.env
   })

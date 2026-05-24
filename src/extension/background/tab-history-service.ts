@@ -15,6 +15,8 @@ import {
 } from './tab-history-state.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
+import { focusExistingTabTarget } from '../tab-focus.js'
+import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspender.js'
 import type { TabHistorySnapshot } from '../types'
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
@@ -181,14 +183,16 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
   async function focusExistingTab(tab: chrome.tabs.Tab | null): Promise<boolean> {
     if (typeof tab?.id !== 'number') return false
 
-    try {
-      await chromeApi.tabs.update(tab.id, { active: true })
-      await chromeApi.windows.update(tab.windowId, { focused: true })
-      return true
-    } catch {
+    const focused = await focusExistingTabTarget({
+      tabId: tab.id,
+      windowId: tab.windowId,
+      url: unwrapSuspenderUrl(tab.url || ''),
+      rawUrl: tab.url || ''
+    }, chromeApi)
+    if (!focused) {
       await removeTabFromHistory(tab.id)
-      return false
     }
+    return focused
   }
 
   async function findPreviousSurvivingTabInWindow(
@@ -306,9 +310,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     })
 
     if (!restoreAction?.targetId) return
-    try {
-      await chromeApi.tabs.update(restoreAction.targetId, { active: true })
-    } catch {
+    const focused = await focusExistingTabTarget({ tabId: restoreAction.targetId }, chromeApi)
+    if (!focused) {
       await removeTabFromHistory(restoreAction.targetId)
     }
   }
@@ -398,10 +401,11 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
           activeWasInserted: repairedHistory.activeWasInserted,
           entries: cleanHistory.stack.map((entry, index) => {
             const tab = existingTabs.get(entry.tabId)
-            const url = tab?.url || ''
+            const rawUrl = tab?.url || ''
+            const url = unwrapSuspenderUrl(rawUrl)
             const displayUrl = displayUrlForHistory(url)
             const cleanTitle = (tab?.title || '').replace(/\u200e/g, '').trim()
-            const title = cleanTitle ? cleanTitle : displayUrl
+            const title = unwrapSuspenderTitle(rawUrl) || (cleanTitle ? cleanTitle : displayUrl)
             return {
               index,
               tabId: entry.tabId,
@@ -418,6 +422,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               nextTarget: index === nextIndex,
               title: title || `Tab ${entry.tabId}`,
               url,
+              rawUrl,
               displayUrl,
               favIconUrl: tab?.favIconUrl || ''
             }

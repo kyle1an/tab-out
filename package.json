@@ -7,8 +7,8 @@
   "scripts": {
     "setup:hooks": "git config core.hooksPath .githooks",
     "dev": "node scripts/watch-build.mjs",
-    "build": "vite build",
-    "build:debug": "vite build --sourcemap",
+    "build": "node scripts/build-extension.mjs",
+    "build:debug": "node scripts/build-extension.mjs --sourcemap",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint . --max-warnings=0",
     "deps:nolyfill": "pnpm dlx nolyfill --pm pnpm",

@@ -7,6 +7,7 @@ import {
 } from '../working-set.js'
 import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspender.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore, WorkingSetSnapshot } from '../types'
 
 const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
@@ -147,9 +148,9 @@ function isDashboardTab(tab: chrome.tabs.Tab | DashboardTab): tab is DashboardTa
 
 function toDashboardTab(tab: chrome.tabs.Tab, windowType?: string): DashboardTab {
   const rawUrl = tab.url || ''
-  const effectiveUrl = unwrapWorkingSetSuspenderUrl(rawUrl)
+  const effectiveUrl = unwrapSuspenderUrl(rawUrl)
   const suspended = rawUrl !== effectiveUrl
-  const title = tab.title || ''
+  const title = suspended ? unwrapSuspenderTitle(rawUrl) || tab.title || '' : tab.title || ''
   return {
     id: tab.id,
     url: effectiveUrl,
@@ -164,20 +165,5 @@ function toDashboardTab(tab: chrome.tabs.Tab, windowType?: string): DashboardTab
     isTabOut: rawUrl === 'chrome://newtab/' || rawUrl.startsWith(`chrome-extension://${globalThis.chrome?.runtime?.id}/index.html`),
     isApp: windowType === 'app' || windowType === 'popup',
     index: tab.index
-  }
-}
-
-function unwrapWorkingSetSuspenderUrl(url?: string): string {
-  if (!url || !url.startsWith('chrome-extension://')) return url || ''
-  try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith('/suspended.html')) return url
-    const fragment = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
-    const marker = '&uri='
-    const markerIndex = fragment.indexOf(marker)
-    const encoded = markerIndex >= 0 ? fragment.slice(markerIndex + marker.length) : fragment.startsWith('uri=') ? fragment.slice(4) : ''
-    return encoded ? decodeURIComponent(encoded) || url : url
-  } catch {
-    return url
   }
 }

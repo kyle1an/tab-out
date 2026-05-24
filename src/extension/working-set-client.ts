@@ -1,4 +1,5 @@
 import type { WorkingSetItem, WorkingSetSnapshot } from './types'
+import { focusExistingTabTarget } from './tab-focus.js'
 
 const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
 const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
@@ -53,15 +54,13 @@ export async function fetchWorkingSetSnapshot(): Promise<WorkingSetSnapshot> {
   }
 }
 
-export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | 'windowId'>): Promise<boolean> {
-  if (!Number.isInteger(item.tabId) || !Number.isInteger(item.windowId)) return false
-  try {
-    await chrome.tabs.update(item.tabId, { active: true })
-    await chrome.windows.update(item.windowId, { focused: true })
-    return true
-  } catch {
-    return false
-  }
+export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | 'windowId' | 'tabUrl' | 'rawUrl'>): Promise<boolean> {
+  return focusExistingTabTarget({
+    tabId: item.tabId,
+    windowId: item.windowId,
+    url: item.tabUrl,
+    rawUrl: item.rawUrl
+  })
 }
 
 export async function dismissWorkingSetItem(item: Pick<WorkingSetItem, 'key' | 'tabUrl'>): Promise<WorkingSetSnapshot> {

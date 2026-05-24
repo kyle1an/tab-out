@@ -104,6 +104,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     remove: [],
     update: [],
     windowUpdate: [],
+    runtimeMessages: [],
     badgeText: [],
     badgeColor: []
   }
@@ -117,7 +118,13 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       id: 'tab-out',
       onMessage: runtimeOnMessage.api,
       onInstalled: runtimeOnInstalled.api,
-      onStartup: runtimeOnStartup.api
+      onStartup: runtimeOnStartup.api,
+      async sendMessage(extensionId: string, message: any) {
+        calls.runtimeMessages.push({ extensionId, message: clone(message) })
+        if (extensionId === 'blocked') throw new Error('Cannot message extension')
+        if (extensionId === 'rejects') return 'Error: tab is not suspended'
+        return undefined
+      }
     },
     storage: {
       local: createStorageArea(storageValues.local),
@@ -786,6 +793,70 @@ test('tab history snapshot exposes previous and next command targets', async () 
   assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
 })
 
+test('tab history command unsuspends the selected history target', async () => {
+  const suspendedUrl = 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const mock = await loadBackground([
+    {
+      id: 86,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 87,
+      windowId: 1,
+      url: suspendedUrl,
+      title: 'Suspended Docs',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 88,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(87, { active: true })
+  onActivated({ tabId: 87, windowId: 1 })
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(88, { active: true })
+  onActivated({ tabId: 88, windowId: 1 })
+  await flushBackgroundWork()
+
+  const switchedResponse = await sendRuntimeMessage(mock, { type: 'tab-out:switch-tab-history', direction: -1 })
+  await flushBackgroundWork()
+
+  assert.equal(switchedResponse.ok, true)
+  assert.deepEqual(mock.calls.runtimeMessages, [
+    {
+      extensionId: 'blocked',
+      message: { action: 'unsuspend', tabId: 87 }
+    }
+  ])
+  assert.deepEqual(mock.calls.update.at(-1), {
+    tabId: 87,
+    updateProperties: { active: true, url: 'https://example.com/docs' }
+  })
+  assert.equal(mock.state.tabsById[87].url, 'https://example.com/docs')
+  assert.equal(mock.state.tabsById[87].active, true)
+})
+
 test('tab history snapshot marks standalone app entries', async () => {
   const mock = await loadBackground([
     {
@@ -824,6 +895,34 @@ test('tab history snapshot marks standalone app entries', async () => {
   assert.equal(response.ok, true)
   assert.equal(response.snapshot.entries.find((entry) => entry.tabId === 84)?.isApp, false)
   assert.equal(response.snapshot.entries.find((entry) => entry.tabId === 85)?.isApp, true)
+})
+
+test('tab history snapshot exposes effective and raw URLs for suspended tabs', async () => {
+  const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const mock = await loadBackground([
+    {
+      id: 89,
+      windowId: 1,
+      url: suspendedUrl,
+      title: 'chrome-extension://marvellous/suspended.html',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  onFocusChanged(1)
+  await flushBackgroundWork()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+
+  assert.equal(response.ok, true)
+  assert.equal(response.snapshot.entries[0].title, 'Docs')
+  assert.equal(response.snapshot.entries[0].url, 'https://example.com/docs')
+  assert.equal(response.snapshot.entries[0].rawUrl, suspendedUrl)
+  assert.equal(response.snapshot.entries[0].displayUrl, 'example.com/docs')
 })
 
 test('working set snapshot ranks activated and actively navigated open tabs', async () => {

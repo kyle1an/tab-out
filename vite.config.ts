@@ -4,6 +4,18 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 
+const buildEntry = process.env.TAB_OUT_BUILD_ENTRY
+const buildInputs: Record<string, string> =
+  buildEntry === 'app'
+    ? { app: resolve(__dirname, 'src/app.tsx') }
+    : buildEntry === 'background'
+      ? { background: resolve(__dirname, 'src/extension/background.ts') }
+      : {
+          app: resolve(__dirname, 'src/app.tsx'),
+          background: resolve(__dirname, 'src/extension/background.ts')
+        }
+const isSingleEntryBuild = buildEntry === 'app' || buildEntry === 'background'
+
 export default defineConfig({
   plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
@@ -14,16 +26,14 @@ export default defineConfig({
   build: {
     target: 'esnext',
     outDir: 'extension/dist',
-    emptyOutDir: true,
+    emptyOutDir: buildEntry !== 'background',
     sourcemap: false,
     modulePreload: false,
     rolldownOptions: {
-      input: {
-        app: resolve(__dirname, 'src/app.tsx'),
-        background: resolve(__dirname, 'src/extension/background.ts')
-      },
+      input: buildInputs,
       output: {
         entryFileNames: '[name].js',
+        ...(isSingleEntryBuild ? { codeSplitting: false } : {}),
         assetFileNames: 'assets/[name][extname]'
       }
     }

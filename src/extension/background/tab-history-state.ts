@@ -1,3 +1,5 @@
+import { unwrapSuspenderUrl } from '../suspender.js'
+
 export const MAX_TAB_HISTORY = 24
 
 export type GlobalTabHistoryEntry = {
@@ -202,13 +204,14 @@ export function pruneMissingHistoryEntries(history: GlobalTabHistoryInput, exist
 }
 
 export function displayUrlForHistory(url = ''): string {
-  if (!url) return ''
+  const effectiveUrl = unwrapSuspenderUrl(url)
+  if (!effectiveUrl) return ''
   try {
-    const parsed = new URL(url)
+    const parsed = new URL(effectiveUrl)
     if (parsed.protocol === 'chrome-extension:' && parsed.pathname.endsWith('/index.html')) return 'Tab Out'
     if (parsed.protocol === 'chrome:') return parsed.href
     return parsed.hostname + parsed.pathname
   } catch {
-    return url
+    return effectiveUrl
   }
 }
