@@ -641,6 +641,17 @@ test('PageChip uses structured PageChip-style tooltips for same-title URL varian
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{variantLabel\}>/)
 })
 
+test('PageChip tooltip popups click through to the matching chip target', () => {
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+
+  assert.match(pageChipSource, /async function onPageChipTooltipClick\(e: MouseEvent<HTMLDivElement>\) \{[\s\S]*await onFocus\(\)/)
+  assert.match(pageChipSource, /async function onTitleVariantTooltipClick\(e: MouseEvent<HTMLDivElement>, variant: DashboardChipData\) \{[\s\S]*await focusChipUrl\(variant\.tabUrl, variant\.sourceType\)/)
+  assert.match(pageChipSource, /onClick=\{parentInteractive \? onPageChipTooltipClick : undefined\}/)
+  assert.match(pageChipSource, /onClick=\{onPageChipTooltipClick\}/)
+  assert.match(pageChipSource, /onClick=\{\(e\) => onTitleVariantTooltipClick\(e, variant\)\}/)
+  assert.match(pageChipSource, /page-chip-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight \[overflow-wrap:break-word\] cursor-default select-none/)
+})
+
 test('PageChip outlines same-title variant groups when external hover matches a variant URL', () => {
   const chip = makeChip({
     sourceType: 'tab',
@@ -1474,7 +1485,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)
 })
 
-test('PageChip tooltip keeps selectable whitespace before trailing suppression labels', () => {
+test('PageChip tooltip keeps whitespace before trailing suppression labels', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
   assert.match(pageChipSource, /const markerSpacingClass = mode === 'chip' \? \(index === 0 \? 'ml-1' : 'ml-0\.5'\) : ''/)

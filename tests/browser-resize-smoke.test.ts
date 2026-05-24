@@ -1324,6 +1324,117 @@ async function measureTooltipPopupHover(session: CdpSession) {
   return { target, first, whileHovered, afterLeaveTooltips }
 }
 
+async function measureTooltipPopupClickFocus(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `(() => {
+      document.querySelector('.scroll-region')?.scrollTo(0, 0)
+      window.__tabOutSmokeFocusUpdates = []
+      const originalTabsUpdate = chrome.tabs.update
+      const originalWindowsUpdate = chrome.windows.update
+      chrome.tabs.update = async (...args) => {
+        window.__tabOutSmokeFocusUpdates.push({ kind: 'tab', args })
+        return originalTabsUpdate(...args)
+      }
+      chrome.windows.update = async (...args) => {
+        window.__tabOutSmokeFocusUpdates.push({ kind: 'window', args })
+        return originalWindowsUpdate(...args)
+      }
+    })()`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+          .find((candidate) =>
+            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+          )
+        const rect = chipText?.getBoundingClientRect()
+        if (rect && rect.width > 120 && rect.height > 8) {
+          resolve({
+            x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+            y: Math.round(rect.top + rect.height / 2)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a page chip to hover for popup click smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+  assert.ok(first, `tooltip should open before popup click check: ${JSON.stringify({ target, first })}`)
+
+  const popupPoint = {
+    x: Math.round(first.left + first.width / 2),
+    y: Math.round(first.top + first.height / 2)
+  }
+  const popupStyle = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const tooltip = document.querySelector('[data-slot="tooltip-content"].page-chip-tooltip')
+      if (!tooltip) return null
+      const styles = window.getComputedStyle(tooltip)
+      return {
+        cursor: styles.cursor,
+        userSelect: styles.userSelect
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: popupPoint.x,
+    y: popupPoint.y
+  })
+  await wait(80)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: popupPoint.x,
+    y: popupPoint.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: popupPoint.x,
+    y: popupPoint.y
+  })
+  await wait(220)
+
+  const updates = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `window.__tabOutSmokeFocusUpdates || []`
+  }).then((result: any) => result.result.value)
+
+  return { target, first, popupPoint, popupStyle, updates }
+}
+
 async function measureTooltipPopupWheelScroll(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -2337,6 +2448,22 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     !popupHover.afterLeaveTooltips.some((text: string) => text === popupHover.first.text),
     `original tooltip should close after the pointer leaves the popup: ${JSON.stringify(popupHover)}`
+  )
+
+  const popupClickFocus = await measureTooltipPopupClickFocus(session)
+  assert.equal(popupClickFocus.popupStyle?.cursor, 'default', `page chip tooltip popup should keep the default cursor: ${JSON.stringify(popupClickFocus)}`)
+  assert.equal(popupClickFocus.popupStyle?.userSelect, 'none', `page chip tooltip popup should not select text when it is used as a click target: ${JSON.stringify(popupClickFocus)}`)
+  assert.ok(
+    popupClickFocus.updates.some((update: { kind: string; args: [number, { active?: boolean }] }) => (
+      update.kind === 'tab' && update.args[1]?.active === true
+    )),
+    `clicking the page chip tooltip popup should focus the matching tab: ${JSON.stringify(popupClickFocus)}`
+  )
+  assert.ok(
+    popupClickFocus.updates.some((update: { kind: string; args: [number, { focused?: boolean }] }) => (
+      update.kind === 'window' && update.args[1]?.focused === true
+    )),
+    `clicking the page chip tooltip popup should focus the matching window: ${JSON.stringify(popupClickFocus)}`
   )
 
   const popupWheelScroll = await measureTooltipPopupWheelScroll(session)

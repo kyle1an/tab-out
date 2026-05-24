@@ -699,6 +699,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     await focusChipUrl(chip.tabUrl)
   }
 
+  async function onPageChipTooltipClick(e: MouseEvent<HTMLDivElement>) {
+    e.stopPropagation()
+    if (!parentInteractive) return
+    await onFocus()
+  }
+
   async function onChipKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return
     if (!isKeyboardActivation(e)) return
@@ -830,6 +836,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
+    e.stopPropagation()
+    await focusChipUrl(variant.tabUrl, variant.sourceType)
+  }
+
+  async function onTitleVariantTooltipClick(e: MouseEvent<HTMLDivElement>, variant: DashboardChipData) {
     e.stopPropagation()
     await focusChipUrl(variant.tabUrl, variant.sourceType)
   }
@@ -1300,7 +1311,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         <TooltipAnchor
           instant
           content={titleVariantTooltipContentNode(variant, index)}
-          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
+          onClick={(e) => onTitleVariantTooltipClick(e, variant)}
           style={chipTooltipStyle}
         >
           <button
@@ -1653,8 +1665,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             anchor={getChipTooltipAnchor}
             anchorToCursor={false}
             content={chipTooltipContent}
-            className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+            className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
             instant
+            onClick={parentInteractive ? onPageChipTooltipClick : undefined}
             sideOffset={0}
             style={chipTooltipStyle}
           >
@@ -1700,8 +1713,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return (
       <TooltipAnchor
         content={chipTooltipContent}
-        className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
+        className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
         instant
+        onClick={onPageChipTooltipClick}
         style={chipTooltipStyle}
       >
         {chipElement}
