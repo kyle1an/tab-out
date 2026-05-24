@@ -55,6 +55,13 @@ function assertInstantActionClass(className: string) {
   assert.doesNotMatch(className, /(?:^|\s)(?:transition(?:-\S+)?|duration-\S+|delay-\S+|ease-\S+)(?:\s|$)/)
 }
 
+function historyEntryElements(html: string) {
+  return Array.from(
+    html.matchAll(/<div\b(?=[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)")[^>]*>/g),
+    (match) => ({ className: match[1], tag: match[0] })
+  )
+}
+
 function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHistorySnapshot {
   return {
     stackSize: 1,
@@ -1154,7 +1161,7 @@ test('TabHistoryPanel uses PageChip-style fade truncation and expanded title too
   assert.match(tabHistoryPanelSource, /const \[titleTooltipOpen, setTitleTooltipOpen\] = useState\(false\)/)
   assert.match(tabHistoryPanelSource, /titleTooltipOpen && 'history-entry-tooltip-open'/)
   assert.match(tabHistoryPanelSource, /titleTooltipOpen && 'history-entry-row-tooltip-open'/)
-  assert.match(tabHistoryPanelSource, /history-entry-low-score opacity-60 hover:opacity-100 focus-within:opacity-100 \[\&\.history-entry-row-tooltip-open\]:opacity-100/)
+  assert.match(tabHistoryPanelSource, /dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 \[\&\.history-entry-row-tooltip-open\]:opacity-100'/)
   assert.match(tabHistoryPanelSource, /group-\[\.history-entry-row-tooltip-open\]\/history-row:text-\[rgba\(115,115,115,0\.54\)\]/)
   assert.match(tabHistoryPanelSource, /function onHistoryTitleTooltipClick\(e: MouseEvent<HTMLDivElement>\)/)
   assert.match(tabHistoryPanelSource, /className="history-entry-title-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight \[overflow-wrap:break-word\] cursor-default select-none"/)
@@ -1223,10 +1230,10 @@ test('TabHistoryPanel marks working-set history matches and dims low-score histo
     })
   )
 
-  assert.match(html, /history-entry-working-set-match/)
+  assert.match(html, /data-working-set-priority="true"/)
   assert.doesNotMatch(html, /history-working-set-rail/)
-  assert.match(html, /history-entry-low-score/)
-  assert.doesNotMatch(html, /history-working-set-extra-list/)
+  assert.match(html, /data-low-score="true"/)
+  assert.doesNotMatch(html, /data-tabout-part="working-set-extra-list"/)
 })
 
 test('TabHistoryPanel gives highlighted history indexes stronger contrast', () => {
@@ -1253,12 +1260,14 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
       })
     })
   )
-  const indexClasses = Array.from(html.matchAll(/<span class="([^"]*\bhistory-entry-index-(?:highlight|muted)\b[^"]*)"/g)).map((match) => match[1])
+  const indexMatches = Array.from(html.matchAll(/<span data-history-index-tone="(highlighted|muted)" class="([^"]*)"/g))
+  const highlightedIndex = indexMatches.find((match) => match[1] === 'highlighted')?.[2] || ''
+  const mutedIndex = indexMatches.find((match) => match[1] === 'muted')?.[2] || ''
 
-  assert.equal(indexClasses.filter((className) => className.includes('history-entry-index-highlight')).length, 1)
-  assert.equal(indexClasses.filter((className) => className.includes('history-entry-index-muted')).length, 1)
-  assert.match(indexClasses.find((className) => className.includes('history-entry-index-highlight')) || '', /font-semibold/)
-  assert.match(indexClasses.find((className) => className.includes('history-entry-index-muted')) || '', /text-\[rgba\(115,115,115,0\.42\)\]/)
+  assert.equal(indexMatches.filter((match) => match[1] === 'highlighted').length, 1)
+  assert.equal(indexMatches.filter((match) => match[1] === 'muted').length, 1)
+  assert.match(highlightedIndex, /font-semibold/)
+  assert.match(mutedIndex, /text-\[rgba\(115,115,115,0\.42\)\]/)
 })
 
 test('TabHistoryPanel always dims browser utility history rows', () => {
@@ -1313,7 +1322,7 @@ test('TabHistoryPanel always dims browser utility history rows', () => {
       })
     })
   )
-  const lowScoreRows = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-entry-low-score\b[^"]*)"/g))
+  const lowScoreRows = Array.from(html.matchAll(/<div\b(?=[^>]*data-low-score="true")(?=[^>]*class="[^"]*\bhistory-entry-row\b[^"]*")[^>]*>/g))
 
   assert.equal(lowScoreRows.length, 4)
 })
@@ -1336,7 +1345,7 @@ test('TabHistoryPanel always dims standalone app history rows', () => {
     })
   )
 
-  assert.match(html, /history-entry-low-score/)
+  assert.match(html, /data-low-score="true"/)
 })
 
 test('TabHistoryPanel does not dim suspended real pages as extension utility rows', () => {
@@ -1356,7 +1365,7 @@ test('TabHistoryPanel does not dim suspended real pages as extension utility row
     })
   )
 
-  assert.doesNotMatch(html, /history-entry-low-score/)
+  assert.doesNotMatch(html, /data-low-score="true"/)
 })
 
 test('TabHistoryPanel appends only non-overlapping working-set items below history', () => {
@@ -1384,8 +1393,8 @@ test('TabHistoryPanel appends only non-overlapping working-set items below histo
       })
     })
   )
-  const extraRows = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-working-set-extra\b[^"]*)"/g))
-  const extraListMatch = html.match(/<div[^>]*class="([^"]*\bhistory-working-set-extra-list\b[^"]*)"/)
+  const extraRows = Array.from(html.matchAll(/<div\b(?=[^>]*data-working-set-extra="true")(?=[^>]*class="[^"]*\bhistory-entry-row\b[^"]*")[^>]*>/g))
+  const extraListMatch = html.match(/<div data-tabout-part="working-set-extra-list" class="([^"]*)"/)
 
   assert.ok(extraListMatch, 'supplemental working set list should render')
   assert.doesNotMatch(extraListMatch[1], /\bmt-1\b/)
@@ -1430,9 +1439,9 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
       })
     })
   )
-  const entryClasses = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
-  const currentEntry = entryClasses.find((className) => /\bis-current\b/.test(className))
-  const defaultEntry = entryClasses.find((className) => !/\bis-current\b/.test(className))
+  const entries = historyEntryElements(html)
+  const currentEntry = entries.find((entry) => entry.tag.includes('data-current="true"'))?.className
+  const defaultEntry = entries.find((entry) => !entry.tag.includes('data-current="true"'))?.className
 
   assert.ok(currentEntry, 'current history entry should render')
   assert.ok(defaultEntry, 'default history entry should render')
@@ -1444,7 +1453,6 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
   assert.doesNotMatch(defaultEntry, /group-hover\/history-row:border-\[var\(--accent-amber\)\]/)
   assert.doesNotMatch(defaultEntry, /\bbg-tab-card\b/)
   assert.doesNotMatch(defaultEntry, /bg-\[rgba\(115,115,115,0\.04\)\]/)
-  assert.match(currentEntry, /\bcurrent-active-history-entry\b/)
   assert.match(currentEntry, /\bborder-0\b/)
   assert.doesNotMatch(currentEntry, /\bborder-transparent\b/)
   assert.match(currentEntry, /\bbg-neutral-100\b/)
@@ -1455,7 +1463,7 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
   assert.match(currentEntry, /shadow-\[0_1px_2px_rgba\(10,10,10,0\.07\)\]/)
   assert.doesNotMatch(currentEntry, /inset_0_0_0_1px_rgba\(82,82,82,0\.48\)/)
   assert.match(currentEntry, /\[--history-entry-fade-bg:var\(--color-neutral-100\)\]/)
-  assert.match(html, /current-active-history-entry-frame\b[^"]*shadow-\[inset_0_0_0_1px_rgba\(82,82,82,0\.48\)\]/)
+  assert.match(html, /active-history-entry-frame\b[^"]*shadow-\[inset_0_0_0_1px_rgba\(82,82,82,0\.48\)\]/)
 
   const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(tabHistoryPanelSource, /<TooltipAnchor content="Close this tab">/)
@@ -1497,12 +1505,17 @@ test('TabHistoryPanel borrows other-window PageChip surface styling for active n
       })
     })
   )
-  const entryClasses = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
-  const activeOtherEntry = entryClasses.find((className) => /\bis-active\b/.test(className) && !/\bis-current\b/.test(className))
+  const entries = historyEntryElements(html)
+  const activeOther = entries.find(
+    (entry) =>
+      entry.tag.includes('data-active="true"') &&
+      entry.tag.includes('data-active-in-other-window="true"') &&
+      !entry.tag.includes('data-current="true"')
+  )
+  const activeOtherEntry = activeOther?.className
 
   assert.ok(activeOtherEntry, 'active non-current history entry should render')
   assert.doesNotMatch(html, />Active<\/span>/)
-  assert.match(activeOtherEntry, /\bactive-in-other-window-history-entry\b/)
   assert.match(activeOtherEntry, /\bborder-0\b/)
   assert.doesNotMatch(activeOtherEntry, /\bborder-\[rgba\(115,115,115,0\.2\)\]/)
   assert.doesNotMatch(activeOtherEntry, /\bborder-transparent\b/)
@@ -1510,9 +1523,10 @@ test('TabHistoryPanel borrows other-window PageChip surface styling for active n
   assert.match(activeOtherEntry, /shadow-\[0_1px_2px_rgba\(10,10,10,0\.04\)\]/)
   assert.match(activeOtherEntry, /group-hover\/history-row:bg-\[rgba\(82,82,82,0\.18\)\]/)
   assert.match(activeOtherEntry, /\[--history-entry-fade-bg:color-mix\(in_srgb,var\(--card-bg\)_82%,rgb\(82_82_82\)\)\]/)
-  assert.doesNotMatch(activeOtherEntry, /\bcurrent-active-history-entry\b/)
+  assert.ok(activeOther, 'active other-window history entry should have state data')
+  assert.doesNotMatch(activeOther.tag, /data-current="true"/)
   assert.doesNotMatch(activeOtherEntry, /\bring-neutral-400\b/)
-  assert.doesNotMatch(html, /active-in-other-window-history-entry-frame/)
+  assert.equal([...html.matchAll(/active-history-entry-frame/g)].length, 1)
 })
 
 test('TabHistoryPanel keeps previous and next history targets visually neutral', () => {
@@ -1560,9 +1574,9 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
       })
     })
   )
-  const entryClasses = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
-  const previousEntry = entryClasses.find((className) => /\bis-previous-target\b/.test(className))
-  const nextEntry = entryClasses.find((className) => /\bis-next-target\b/.test(className))
+  const entries = historyEntryElements(html)
+  const previousEntry = entries.find((entry) => entry.tag.includes('data-previous-target="true"'))?.className
+  const nextEntry = entries.find((entry) => entry.tag.includes('data-next-target="true"'))?.className
 
   assert.ok(previousEntry, 'previous target history entry should render')
   assert.ok(nextEntry, 'next target history entry should render')

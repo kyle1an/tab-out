@@ -818,43 +818,48 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   return (
     <div
       data-tabout="activation-history-entry"
+      data-low-score={dimmed ? 'true' : undefined}
+      data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
         titleTooltipOpen && 'history-entry-row-tooltip-open',
-        dimmed && 'history-entry-low-score opacity-60 hover:opacity-100 focus-within:opacity-100 [&.history-entry-row-tooltip-open]:opacity-100',
-        isWorkingSetExtra && 'history-working-set-extra'
+        dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 [&.history-entry-row-tooltip-open]:opacity-100'
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onFocus={onMouseEnter}
       onBlur={onMouseLeave}
     >
-      <span className={cn(
-        'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-        isIndexHighlighted && 'history-entry-index-highlight font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
-        isWorkingSetPriority && !dimmed && 'text-[color-mix(in_srgb,var(--accent-amber)_88%,var(--ink))]',
-        !isIndexHighlighted && 'history-entry-index-muted',
-        dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-tooltip-open]/history-row:text-[rgba(115,115,115,0.54)]'
-      )}>
+      <span
+        data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
+        className={cn(
+          'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+          isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
+          isWorkingSetPriority && !dimmed && 'text-[color-mix(in_srgb,var(--accent-amber)_88%,var(--ink))]',
+          dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-tooltip-open]/history-row:text-[rgba(115,115,115,0.54)]'
+        )}
+      >
         {indexLabel}
       </span>
       <div
+        data-current={entry.current ? 'true' : undefined}
+        data-active={isActiveEntry ? 'true' : undefined}
+        data-active-in-other-window={activeInOtherWindow ? 'true' : undefined}
+        data-previous-target={entry.previousTarget ? 'true' : undefined}
+        data-next-target={entry.nextTarget ? 'true' : undefined}
+        data-working-set-priority={isWorkingSetPriority ? 'true' : undefined}
         className={cn(
           "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:bg-[rgba(82,82,82,0.13)] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
-          entry.current && 'is-current current-active-history-entry bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
+          entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
           titleTooltipOpen && 'history-entry-tooltip-open',
           !entry.current && 'group-hover/history-row:bg-[rgba(82,82,82,0.13)] group-hover/history-row:after:opacity-100 [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.13)] [&.history-entry-tooltip-open]:after:opacity-100',
-          isActiveEntry && 'is-active',
-          activeInOtherWindow && 'active-in-other-window-history-entry bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
-          entry.previousTarget && 'is-previous-target',
-          entry.nextTarget && 'is-next-target',
-          isWorkingSetPriority && 'history-entry-working-set-match',
+          activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
           hoverMatched && 'history-entry-hover-match'
         )}
       >
         {entry.current && (
           <span
-            className="active-history-entry-frame current-active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
+            className="active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
             aria-hidden="true"
           />
         )}
@@ -954,7 +959,7 @@ export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange,
               />
             ))}
             {extraWorkingSetItems.length > 0 && (
-              <div className="history-working-set-extra-list flex min-w-0 flex-col gap-1.5 border-t border-[rgba(115,115,115,0.14)] pt-1.5">
+              <div data-tabout-part="working-set-extra-list" className="flex min-w-0 flex-col gap-1.5 border-t border-[rgba(115,115,115,0.14)] pt-1.5">
                 {extraWorkingSetItems.map((item) => (
                   <HistoryEntry
                     key={`working-set:${item.key}`}

@@ -344,7 +344,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /const \[titleTooltipOpen, setTitleTooltipOpen\] = useState\(false\)/)
   assert.match(tabHistoryPanelSource, /titleTooltipOpen && 'history-entry-tooltip-open'/)
   assert.match(tabHistoryPanelSource, /titleTooltipOpen && 'history-entry-row-tooltip-open'/)
-  assert.match(tabHistoryPanelSource, /history-entry-low-score opacity-60 hover:opacity-100 focus-within:opacity-100 \[\&\.history-entry-row-tooltip-open\]:opacity-100/)
+  assert.match(tabHistoryPanelSource, /dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 \[\&\.history-entry-row-tooltip-open\]:opacity-100'/)
   assert.match(tabHistoryPanelSource, /group-\[\.history-entry-row-tooltip-open\]\/history-row:text-\[rgba\(115,115,115,0\.54\)\]/)
   assert.match(tabHistoryPanelSource, /function onHistoryTitleTooltipClick\(e: MouseEvent<HTMLDivElement>\)/)
   assert.match(tabHistoryPanelSource, /className="history-entry-title-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight \[overflow-wrap:break-word\] cursor-default select-none"/)
