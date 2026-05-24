@@ -262,6 +262,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
 
   return (
     <div
+      data-tabout="working-set-item"
       className="working-set-item-shell working-set-layout-item group/working-set-item relative min-w-0"
       data-working-set-layout-key={workingSetItemLayoutKey(item)}
       onMouseEnter={onMouseEnter}
@@ -319,6 +320,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
         <TooltipAnchor content="Dismiss from working set">
           <button
             type="button"
+            data-tabout-part="dismiss-button"
             className="working-set-dismiss pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 outline-none transition-[opacity,color,background] duration-150 group-hover/working-set-item:pointer-events-auto group-hover/working-set-item:opacity-100 group-focus-within/working-set-item:pointer-events-auto group-focus-within/working-set-item:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:bg-[rgba(82,82,82,0.1)] focus-visible:text-tab-ink focus-visible:opacity-100"
             aria-label={`Dismiss ${item.title} from working set`}
             onClick={onDismiss}
@@ -418,7 +420,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
   }
 
   return (
-    <section className="working-set-panel mb-4 min-w-0" aria-label="Recent workset">
+    <section data-tabout="working-set" className="working-set-panel mb-4 min-w-0" aria-label="Recent workset">
       <div ref={gridRef} className="working-set-grid relative grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-1.5 max-[560px]:grid-cols-1">
         {visibleItems.map((item) => (
           <WorkingSetItemButton
@@ -438,6 +440,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
         {hasMore && (
           <button
             type="button"
+            data-tabout-part="toggle-button"
             className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
             data-working-set-layout-key="__working-set-toggle__"
             onClick={onToggleExpanded}

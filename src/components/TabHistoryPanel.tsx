@@ -817,6 +817,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
 
   return (
     <div
+      data-tabout="activation-history-entry"
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
         titleTooltipOpen && 'history-entry-row-tooltip-open',
@@ -860,6 +861,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
         <div
           role="button"
           tabIndex={entry.exists ? 0 : -1}
+          data-tabout-part="focus-button"
           aria-disabled={!entry.exists}
           className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
           onClick={entry.exists ? onFocusEntry : undefined}
@@ -878,6 +880,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
             {canCloseEntry && (
               <button
                 type="button"
+                data-tabout-part="close-button"
                 className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                 aria-label={`Close ${entryLabel}`}
                 onClick={onCloseEntry}
@@ -927,6 +930,7 @@ export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange,
 
   return (
     <section
+      data-tabout="activation-history"
       className="tab-history-panel sticky top-0 col-start-1 flex h-screen max-h-screen min-w-0 flex-col pl-[var(--dashboard-history-edge-gutter)] max-[900px]:static max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
       aria-label="Activation history"
     >

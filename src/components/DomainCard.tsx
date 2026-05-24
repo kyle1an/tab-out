@@ -28,6 +28,7 @@ function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: Mous
   return (
     <button
       type="button"
+      data-tabout-part="close-button"
       className="card-close-btn group/card-close pointer-events-none absolute top-0 right-0 z-2 box-border flex h-[22px] min-w-[22px] cursor-pointer items-center justify-end gap-0 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 py-0 text-[12px] font-medium text-tab-muted opacity-0 transition-[opacity,background,border-color,color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-[var(--status-abandoned)] hover:bg-tab-card hover:text-[var(--status-abandoned)]"
       onClick={onClick}
     >
@@ -65,6 +66,7 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
   return (
     <button
       type="button"
+      data-tabout-part="dedupe-button"
       className={cn(
         'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
         closing && 'closing'
@@ -83,6 +85,7 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
     <TooltipAnchor content={title}>
       <button
         type="button"
+        data-tabout-part="pin-button"
         className={cn(
           'domain-pin-btn inline-flex size-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
           pinned
@@ -264,6 +267,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
   return (
     <DomainCardProvider value={cardContext}>
       <div
+        data-tabout="domain-card"
         className={cn(
           'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[250ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',

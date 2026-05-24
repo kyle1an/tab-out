@@ -229,7 +229,7 @@ test('PageChip highlights matched filter keywords inside visible chip text', () 
   assert.match(html, /chip-text\b[^"]*text-\[color-mix\(in_srgb,var\(--ink\)_72%,var\(--muted\)\)\]/)
   assert.doesNotMatch(html, /\bpx-0\.5\b/)
   assert.doesNotMatch(html, /chip-filter-match\b[^"]*font-semibold/)
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bclickable\b/)
   assert.match(chipMatch[1], /\bcursor-default\b/)
@@ -253,7 +253,7 @@ test('PageChip renders the current active chip frame without the other-window la
       chip: makeChip({ activeChipFrame: true })
     })
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
@@ -276,7 +276,7 @@ test('PageChip keeps the other-window active chip style separate from the curren
       chip: makeChip({ activeChipFrame: true, activeInOtherWindow: true })
     })
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
@@ -295,7 +295,7 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
       chip: makeChip({ sourceType: 'bookmark', saved: true })
     })
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bhover:bg-\[rgba\(82,82,82,0\.13\)\]/)
@@ -342,7 +342,7 @@ test('PageChip exposes save action through a context menu for unsaved live tabs'
   assert.doesNotMatch(html, /icon-\[mingcute--star-line\]/)
   assert.doesNotMatch(html, /aria-label="Save page"/)
   assert.doesNotMatch(html, /aria-pressed="false"/)
-  assert.doesNotMatch(html, /<div class="chip-actions\b/)
+  assert.doesNotMatch(html, /<div[^>]*class="chip-actions\b/)
   assert.match(html, /--chip-hover-fade-width:0px/)
   assert.match(html, /aria-label="Close this tab"/)
 })
@@ -370,7 +370,7 @@ test('PageChip renders the close action in the favicon slot', () => {
   assert.doesNotMatch(closeActionMatch[1], /page-chip-tooltip-open/)
   assert.match(html, /chip-favicon-content\b[^"]*group-hover\/favicon-frame:opacity-0/)
   assert.doesNotMatch(html, /chip-favicon-content\b[^"]*group-hover\/page-chip:opacity-0/)
-  assert.doesNotMatch(html, /<div class="chip-actions\b/)
+  assert.doesNotMatch(html, /<div[^>]*class="chip-actions\b/)
 
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{closeActionLabel\}>/)
@@ -386,7 +386,7 @@ test('PageChip renders a favicon-slot close action without right-side actions', 
   assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
   assert.match(html, /aria-label="Delete from history"/)
   assert.match(html, /--chip-hover-fade-width:0px/)
-  assert.doesNotMatch(html, /<div class="chip-actions\b/)
+  assert.doesNotMatch(html, /<div[^>]*class="chip-actions\b/)
 })
 
 test('PageChip renders saved open tabs with remove-saved in the context menu and close in the favicon slot', () => {
@@ -395,7 +395,7 @@ test('PageChip renders saved open tabs with remove-saved in the context menu and
       chip: makeChip({ sourceType: 'tab', saved: true, savedPageKey: 'https://openai.com/docs' })
     })
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-close\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
@@ -414,7 +414,7 @@ test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
       chip: makeChip({ sourceType: 'bookmark', saved: true, savedPageKey: 'https://openai.com/docs' })
     })
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   const savedHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-saved-hint\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
@@ -436,7 +436,7 @@ test('PageChip renders closed saved pages muted with no close action', () => {
       chip: makeChip({ sourceType: 'saved-page', saved: true, closedSaved: true, savedPageKey: 'https://openai.com/docs' })
     })
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-saved\b/)
@@ -552,9 +552,9 @@ test('PageChip outlines matching live chips when an external row owns the match'
     React.createElement(PageChip, { chip }),
     { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as Partial<DomainCardContextValue>
   )
-  const historyMatch = historyHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
-  const workingSetMatch = workingSetHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
-  const selfHoverMatch = selfHoverHtml.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const historyMatch = historyHoverHtml.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
+  const workingSetMatch = workingSetHoverHtml.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
+  const selfHoverMatch = selfHoverHtml.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
 
   assert.ok(historyMatch, 'history-hover page chip should render')
   assert.ok(workingSetMatch, 'working-set-hover page chip should render')
@@ -590,7 +590,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"([^>]*)>/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"([^>]*)>/)
   const chipTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)"/)
   const titleVariantShellMatch = html.match(/<span class="([^"]*\bchip-title-variant-shell\b[^"]*)"/)
   const titleVariantButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant\b[^"]*)"/)
@@ -773,7 +773,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
       activeHoverSource: 'history'
     } as Partial<DomainCardContextValue>
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
 })
@@ -806,7 +806,7 @@ test('PageChip keeps same-title URL variant saved-page actions in the context me
   })
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   const closeVariantActionMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant-action\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
@@ -949,7 +949,7 @@ test('PageChip matches working set hover against raw tab URLs', () => {
       activeHoverSource: 'working-set'
     } as Partial<DomainCardContextValue>
   )
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
@@ -1020,9 +1020,9 @@ test('TabHistoryPanel outlines matching history rows when another source owns th
       activeHoverSource: 'history'
     })
   )
-  const chipHoverMatch = chipHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
-  const workingSetHoverMatch = workingSetHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
-  const selfHoverMatch = selfHoverHtml.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const chipHoverMatch = chipHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const workingSetHoverMatch = workingSetHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const selfHoverMatch = selfHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
   assert.ok(chipHoverMatch, 'chip-hover history entry should render')
   assert.ok(workingSetHoverMatch, 'working-set-hover history entry should render')
@@ -1052,7 +1052,7 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
       activeHoverSource: 'chip'
     })
   )
-  const entryMatch = html.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
   assert.ok(entryMatch, 'history entry should render')
   assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
@@ -1078,7 +1078,7 @@ test('TabHistoryPanel reuses shared page-target matching for suspended history r
       activeHoverSource: 'chip'
     })
   )
-  const entryMatch = html.match(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
+  const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
   assert.ok(entryMatch, 'history entry should render')
   assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
@@ -1090,7 +1090,7 @@ test('TabHistoryPanel keeps the history entry surface on the default cursor', ()
       snapshot: makeHistorySnapshot()
     })
   )
-  const entryButtonMatch = html.match(/<div role="button" tabindex="0" aria-disabled="false" class="([^"]*\bhistory-entry-main\b[^"]*)"/)
+  const entryButtonMatch = html.match(/<div role="button" tabindex="0"[^>]*aria-disabled="false"[^>]*class="([^"]*\bhistory-entry-main\b[^"]*)"/)
 
   assert.ok(entryButtonMatch, 'history entry focus target should render')
   assert.match(entryButtonMatch[1], /\bcursor-default\b/)
@@ -1313,7 +1313,7 @@ test('TabHistoryPanel always dims browser utility history rows', () => {
       })
     })
   )
-  const lowScoreRows = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-entry-low-score\b[^"]*)"/g))
+  const lowScoreRows = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-entry-low-score\b[^"]*)"/g))
 
   assert.equal(lowScoreRows.length, 4)
 })
@@ -1384,8 +1384,8 @@ test('TabHistoryPanel appends only non-overlapping working-set items below histo
       })
     })
   )
-  const extraRows = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-working-set-extra\b[^"]*)"/g))
-  const extraListMatch = html.match(/<div class="([^"]*\bhistory-working-set-extra-list\b[^"]*)"/)
+  const extraRows = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry-row\b[^"]*\bhistory-working-set-extra\b[^"]*)"/g))
+  const extraListMatch = html.match(/<div[^>]*class="([^"]*\bhistory-working-set-extra-list\b[^"]*)"/)
 
   assert.ok(extraListMatch, 'supplemental working set list should render')
   assert.doesNotMatch(extraListMatch[1], /\bmt-1\b/)
@@ -1430,7 +1430,7 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
       })
     })
   )
-  const entryClasses = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
+  const entryClasses = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
   const currentEntry = entryClasses.find((className) => /\bis-current\b/.test(className))
   const defaultEntry = entryClasses.find((className) => !/\bis-current\b/.test(className))
 
@@ -1497,7 +1497,7 @@ test('TabHistoryPanel borrows other-window PageChip surface styling for active n
       })
     })
   )
-  const entryClasses = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
+  const entryClasses = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
   const activeOtherEntry = entryClasses.find((className) => /\bis-active\b/.test(className) && !/\bis-current\b/.test(className))
 
   assert.ok(activeOtherEntry, 'active non-current history entry should render')
@@ -1560,7 +1560,7 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
       })
     })
   )
-  const entryClasses = Array.from(html.matchAll(/<div class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
+  const entryClasses = Array.from(html.matchAll(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/g), (match) => match[1])
   const previousEntry = entryClasses.find((className) => /\bis-previous-target\b/.test(className))
   const nextEntry = entryClasses.find((className) => /\bis-next-target\b/.test(className))
 
@@ -1642,7 +1642,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.doesNotMatch(html, />˷<\/span>/)
   assert.match(html, /Suppressed title text: Example Workspace/)
   assert.doesNotMatch(html, /chip-title-suppression-marker[^>]* title=/)
-  const chipMatch = html.match(/<div class="[^"]*\bpage-chip\b[^"]*"[^>]*>/)
+  const chipMatch = html.match(/<div[^>]*class="[^"]*\bpage-chip\b[^"]*"[^>]*>/)
   assert.ok(chipMatch, 'page chip should render')
   assert.doesNotMatch(chipMatch[0], /data-slot="tooltip-trigger"/)
   const chipTextMatch = html.match(/<span class="chip-text(?:\s|")[^>]*>/)
@@ -1761,7 +1761,7 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
   const markerElementMatch = html.match(/<span class="[^"]*\bchip-strip-indicator\b[^"]*"[^>]*>/)
   assert.ok(markerElementMatch, 'strip indicator element should render')
   assert.doesNotMatch(markerElementMatch[0], /data-slot="tooltip-trigger"/)
-  const chipMatch = html.match(/<div class="[^"]*\bpage-chip\b[^"]*"[^>]*>/)
+  const chipMatch = html.match(/<div[^>]*class="[^"]*\bpage-chip\b[^"]*"[^>]*>/)
   assert.ok(chipMatch, 'page chip should render')
   assert.doesNotMatch(chipMatch[0], /data-slot="tooltip-trigger"/)
   const chipTextMatch = html.match(/<span class="chip-text(?:\s|")[^>]*>/)
@@ -1854,7 +1854,7 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(html, /chip-folded-content\b/)
   assert.match(html, /chip-title-row\b[^>]*>[\s\S]*<span class="chip-title-fixation\b[^"]*">Deplo<\/span>yment <span class="chip-title-fixation\b[^"]*">His<\/span>tory[\s\S]*chip-env-row\b[^>]*>[\s\S]*dev1us[\s\S]*dev2us/)
   assert.equal([...html.matchAll(/chip-title-suppression-marker/g)].length, 2)
-  const chipMatch = html.match(/<div class="([^"]*\bpage-chip\b[^"]*)"/)
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'folded page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-folded\b/)
   assert.match(chipMatch[1], /\bcursor-default\b/)
@@ -1952,7 +1952,7 @@ test('WebsitePathSection renders raw path labels and keeps suppression summary o
   assert.match(websitePathLabelMatch[1], /\btracking-wide\b/)
   assert.match(html, /chip-pathgroup\b[^>]*>\/KB<\/span>/)
   assert.doesNotMatch(html, /Confluence space|Jira|Google Docs/)
-  const summaryMatch = html.match(/<div class="([^"]*\btitle-suppression-summary\b[^"]*)">/)
+  const summaryMatch = html.match(/<div[^>]*class="([^"]*\btitle-suppression-summary\b[^"]*)">/)
   assert.ok(summaryMatch, 'website-path suppression summary should render')
   assert.doesNotMatch(summaryMatch[1], /\b(?:pl|ml|px)-/)
   assert.match(html, /Suppressed in 3 titles: - Example-Site - Confluence/)
@@ -2200,7 +2200,7 @@ test('DomainCard shows common suppressed title text above the chips without a su
     })
   )
 
-  const summaryMatch = html.match(/<div class="([^"]*title-suppression-summary[^"]*)">/)
+  const summaryMatch = html.match(/<div[^>]*class="([^"]*title-suppression-summary[^"]*)">/)
   assert.ok(summaryMatch, 'suppression summary row should render')
   assert.doesNotMatch(summaryMatch[1], /\bpx-1\b/)
   assert.doesNotMatch(summaryMatch[1], /\bpy-0\.5\b/)

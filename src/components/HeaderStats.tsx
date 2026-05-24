@@ -49,6 +49,8 @@ export function HeaderStats({
       {canUseTabActions && dedupCount > 0 && (
         <button
           type="button"
+          data-tabout="tab-action"
+          data-tabout-part="dedupe-button"
           className="action-btn inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-[5px] rounded-[var(--header-control-radius)] border border-[var(--warm-gray)] bg-tab-card px-3 py-[5px] font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink"
           onClick={onDedupAll}
         >
@@ -70,6 +72,8 @@ export function HeaderStats({
       {canUseTabActions && filteredCloseCount > 0 && (
         <button
           type="button"
+          data-tabout="tab-action"
+          data-tabout-part="close-filtered-button"
           className="action-btn close-tabs inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-[5px] rounded-[var(--header-control-radius)] border border-[rgba(82,82,82,0.3)] bg-[rgba(82,82,82,0.04)] px-3 py-[5px] font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-[var(--accent-amber)] transition-all duration-200 [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.1)]"
           aria-label={closeFilteredTitle}
           onClick={onCloseFiltered}

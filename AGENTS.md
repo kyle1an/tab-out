@@ -40,6 +40,7 @@ Update this section in the same patch when a change intentionally alters one of 
   - `src/app.tsx` to `extension/dist/app.js`
   - `src/extension/background.ts` to `extension/dist/background.js`
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
+- `pnpm build` intentionally runs entry-specific Vite builds so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
 - `extension/base.css`, `extension/style.css`, and `vite.config.ts` are watched by `pnpm dev`.
 - `extension/index.html` and `extension/manifest.json` are runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
 - Do not hand-edit `extension/dist/*` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
@@ -98,6 +99,11 @@ pnpm dev
 - Preserve the compact dashboard density and existing visual language during narrow fixes.
 - Prefer existing local components and wrappers under `src/components/ui/`.
 - The repo uses Base UI, shadcn configuration, Tailwind v4 utilities, and `lucide-react`. Use those patterns for new UI where they fit, but do not churn existing inline SVGs during unrelated fixes.
+- Add stable UI anchors to user-facing surfaces and actions that agents, tests, or live QA need to identify. Prefer existing semantic classes when they also serve styling, `data-slot` for shared UI primitive parts, `data-tabout="<landmark>"` for stable product-level landmarks, and `data-tabout-part="<part>"` for important sub-actions inside them. Do not use `data-testid` as the default anchor, and do not name every wrapper element; use anchors for meaningful surfaces, actions, and rare repeatedly-debugged layout parts.
+- Use `data-tabout` values that match `CONTEXT.md` domain language for product landmarks, such as `domain-card`, `page-chip`, `activation-history`, `working-set`, or `filter-query` when it maps to the visible filter. Use plain DOM/action part names for `data-tabout-part`, such as `close-button`, `pin-button`, or `source-option`; avoid React component names unless the component name is also the product term.
+- Place `data-tabout` and `data-tabout-part` near the front of JSX props, after element-defining props such as `type`, `role`, `href`, `value`, or `tabIndex`, and before `className`, accessibility props, and event handlers.
+- Tests may use UI anchors for layout surfaces, repeated dashboard items, and extension/browser-smoke checks where role or text selectors are weak. Prefer role, label, or text selectors for true controls when those selectors are stable and user-meaningful.
+- Do not mass-retrofit UI anchors across untouched surfaces. Add or adjust anchors when changing or debugging that surface; a focused pass is acceptable only for frequently referenced top-level landmarks such as the dashboard shell, source switch, filter, Domain Card, Page Chip, Activation History, Working Set, tooltip content, or menu content.
 - Add `corner-shape: squircle` to non-round UI elements that use `border-radius`.
 - Do not add squircle styling to true circles or pills such as `border-radius: 50%` or `999px`.
 - Squircle corners read less rounded than ordinary rounded corners. As a visual rule of thumb, a `4px` squircle looks similar to a `2px` non-squircle corner.
