@@ -635,24 +635,72 @@ test('PageChip renders same-title URL variants below one visible title', () => {
 test('PageChip uses structured PageChip-style tooltips for same-title URL variants', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
-  assert.match(pageChipSource, /function titleVariantTooltipContentNode/)
-  assert.match(pageChipSource, /content=\{titleVariantTooltipContentNode\(variant, index\)\}/)
-  assert.match(pageChipSource, /\bchip-title-variant-tooltip-content\b/)
-  assert.match(pageChipSource, /\bchip-title-variant-tooltip-url\b/)
-  assert.match(pageChipSource, /includePathSuffix:\s*false/)
-  assert.match(pageChipSource, /chipTooltipTextWidth\s*&&\s*'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
-  assert.match(pageChipSource, /content=\{titleVariantTooltipContentNode\(variant, index\)\}[\s\S]*style=\{chipTooltipStyle\}/)
+  assert.match(pageChipSource, /function titleVariantChipTooltipContentNode\(\)/)
+  assert.match(pageChipSource, /const titleVariantTitleTooltipTriggerElement = \(/)
+  assert.match(pageChipSource, /const titleVariantChipTextContent = \(/)
+  assert.match(pageChipSource, /isTitleVariantGroup\s*\?\s*titleVariantChipTooltipContentNode\(\)/)
+  assert.match(pageChipSource, /if \(!isFolded && !isTitleVariantGroup\) return textEl/)
+  assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && !isTitleVariantGroup && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
+  assert.match(pageChipSource, /isTitleVariantGroup \? titleVariantChipTextContent/)
+  assert.doesNotMatch(pageChipSource, /function titleVariantTooltipContentNode/)
+  assert.doesNotMatch(pageChipSource, /content=\{titleVariantTooltipContentNode\(variant, index\)\}/)
+  assert.doesNotMatch(pageChipSource, /\bchip-title-variant-tooltip-url\b/)
+  assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{titleVariantActionLabel\(variant\)\}>/)
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{variantLabel\}>/)
+})
+
+test('PageChip gives same-title URL variant groups a folded-style title tooltip trigger', () => {
+  const chip = makeChip({
+    sourceType: 'tab',
+    tabUrl: 'https://example.com/content/item?search_id=alpha',
+    rawUrl: 'https://example.com/content/item?search_id=alpha',
+    displaySegments: ['Example content item'],
+    tooltip: 'Example content item',
+    suppressedTitleParts: ['Example Workspace'],
+    titleVariantChips: [
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=alpha',
+        rawUrl: 'https://example.com/content/item?search_id=alpha',
+        pathSuffix: '…?search_id=alpha',
+        tooltip: '…?search_id=alpha'
+      }),
+      makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=bravo',
+        rawUrl: 'https://example.com/content/item?search_id=bravo',
+        pathSuffix: '…?search_id=bravo',
+        tooltip: '…?search_id=bravo'
+      })
+    ]
+  })
+
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
+  const chipTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)"[^>]*>/)
+  const titleVariantContentMatch = html.match(/<span class="([^"]*\bchip-title-variant-content\b[^"]*)"/)
+  const titleTooltipHitAreaMatch = html.match(/<span class="[^"]*\bchip-text-tooltip-hit-area\b[^"]*"[^>]*>/)
+  const titleVariantButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant\b[^"]*)"[^>]*>/)
+
+  assert.ok(chipTextMatch, 'chip text should render')
+  assert.ok(titleVariantContentMatch, 'title variant content should render')
+  assert.ok(titleTooltipHitAreaMatch, 'title variant title tooltip trigger should render')
+  assert.ok(titleVariantButtonMatch, 'title variant button should render')
+  assert.doesNotMatch(chipTextMatch[0], /data-slot="tooltip-trigger"/)
+  assert.match(titleVariantContentMatch[1], /\bgap-0\.5\b/)
+  assert.match(titleTooltipHitAreaMatch[0], /data-slot="tooltip-trigger"/)
+  assert.match(titleTooltipHitAreaMatch[0], /-my-\[5px\]/)
+  assert.match(titleTooltipHitAreaMatch[0], /py-\[5px\]/)
+  assert.doesNotMatch(titleVariantButtonMatch[0], /data-slot="tooltip-trigger"/)
+  assert.match(html, /chip-title-variant-content[\s\S]*chip-text-tooltip-hit-area[\s\S]*chip-title-row[\s\S]*chip-title-variant-list/)
 })
 
 test('PageChip tooltip popups click through to the matching chip target', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
   assert.match(pageChipSource, /async function onPageChipTooltipClick\(e: MouseEvent<HTMLDivElement>\) \{[\s\S]*await onFocus\(\)/)
-  assert.match(pageChipSource, /async function onTitleVariantTooltipClick\(e: MouseEvent<HTMLDivElement>, variant: DashboardChipData\) \{[\s\S]*await focusChipUrl\(variant\.tabUrl, variant\.sourceType\)/)
   assert.match(pageChipSource, /onClick=\{parentInteractive \? onPageChipTooltipClick : undefined\}/)
   assert.match(pageChipSource, /onClick=\{onPageChipTooltipClick\}/)
-  assert.match(pageChipSource, /onClick=\{\(e\) => onTitleVariantTooltipClick\(e, variant\)\}/)
+  assert.doesNotMatch(pageChipSource, /onTitleVariantTooltipClick/)
   assert.match(pageChipSource, /page-chip-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight \[overflow-wrap:break-word\] cursor-default select-none/)
 })
 
@@ -1714,11 +1762,12 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(envButtonMatch[1], /\bpx-2\b/)
   assert.match(envButtonMatch[1], /rounded-\[7px\]/)
   assert.match(envButtonMatch[1], /\bclickable\b/)
-  assert.match(envButtonMatch[1], /\bcursor-pointer\b/)
+  assert.match(envButtonMatch[1], /\bcursor-default\b/)
+  assert.doesNotMatch(envButtonMatch[1], /\bcursor-pointer\b/)
   assert.match(envButtonMatch[1], /\bhover:bg/)
   assert.match(envButtonMatch[1], /\bfocus-visible:outline/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
+  assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && !isTitleVariantGroup && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{envLabel\}>/)
   const foldedTooltipSource = pageChipSource.match(/function foldedChipTooltipContentNode\(\) \{[\s\S]*?\n  \}\n\n  const chipTooltipContent/)
   assert.ok(foldedTooltipSource, 'folded tooltip content renderer should exist')
