@@ -318,8 +318,10 @@ async function waitForTooltipRect(session: CdpSession) {
         const tooltip = document.querySelector('[data-slot="tooltip-content"]')
         const rect = tooltip?.getBoundingClientRect()
         if (rect && rect.width > 0 && rect.height > 0) {
-          const tooltipText = tooltip.querySelector('.chip-text')
+          const tooltipText = tooltip.querySelector('.chip-text') || tooltip.querySelector('.history-entry-title-tooltip')
           const textRect = tooltipText?.getBoundingClientRect()
+          const textStyles = tooltipText ? window.getComputedStyle(tooltipText) : null
+          const textLineHeight = Number.parseFloat(textStyles?.lineHeight || '') || null
           const styles = window.getComputedStyle(tooltip)
           const outlineWidth = Number.parseFloat(styles.outlineWidth) || 0
           resolve({
@@ -333,6 +335,8 @@ async function waitForTooltipRect(session: CdpSession) {
             height: Math.round(rect.height),
             textLeft: textRect ? Math.round(textRect.left * 100) / 100 : null,
             textTop: textRect ? Math.round(textRect.top * 100) / 100 : null,
+            textHeight: textRect ? Math.round(textRect.height * 100) / 100 : null,
+            textLineHeight,
             text: tooltip.textContent || '',
             outlineWidth,
             side: tooltip.getAttribute('data-side'),
@@ -341,6 +345,7 @@ async function waitForTooltipRect(session: CdpSession) {
             topRightRadius: styles.borderTopRightRadius,
             transitionDuration: styles.transitionDuration,
             transitionProperty: styles.transitionProperty,
+            webkitLineClamp: textStyles?.webkitLineClamp || null,
             svgCount: tooltip.querySelectorAll('svg').length
           })
         } else if (Date.now() - start > 2000) {
@@ -2139,11 +2144,19 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
             candidate.closest('.history-entry-row')?.textContent?.includes('Working set item with enough tooltip text')
           )
         const rect = title?.getBoundingClientRect()
+        const mainRect = title?.closest('.history-entry-main')?.getBoundingClientRect()
         const list = document.querySelector('.history-entry-list')
         if (rect && list && rect.width > 120 && rect.height > 8) {
           resolve({
             x: Math.round(rect.left + Math.min(24, rect.width / 2)),
             y: Math.round(rect.top + rect.height / 2),
+            titleLeft: Math.round(rect.left),
+            titleLeftExact: Math.round(rect.left * 100) / 100,
+            titleTop: Math.round(rect.top),
+            titleTopExact: Math.round(rect.top * 100) / 100,
+            titleWidth: Math.round(rect.width),
+            titleScrollWidth: Math.round(title.scrollWidth),
+            mainWidth: mainRect ? Math.round(mainRect.width) : 0,
             listScrollHeight: list.scrollHeight,
             listClientHeight: list.clientHeight
           })
@@ -3046,6 +3059,35 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
 
   const historyPopupWheelScroll = await measureHistoryTooltipPopupWheelScroll(session)
+  assert.ok(
+    Math.abs(historyPopupWheelScroll.first.left - (historyPopupWheelScroll.target.titleLeft - 8)) <= 1,
+    `history tooltip should start in place over the title text: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    Math.abs((historyPopupWheelScroll.first.top + 4) - historyPopupWheelScroll.target.titleTop) <= 1,
+    `history tooltip text should align vertically with the title text: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    Math.abs((historyPopupWheelScroll.first.textLeft || 0) - historyPopupWheelScroll.target.titleLeftExact) <= 0.1,
+    `history tooltip text should keep the title text x-origin: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.first.webkitLineClamp,
+    '2',
+    `history tooltip should clamp to two lines: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    historyPopupWheelScroll.first.width > historyPopupWheelScroll.target.titleWidth + 24,
+    `history tooltip width should not be capped to the truncated title width: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    historyPopupWheelScroll.first.width < historyPopupWheelScroll.target.titleScrollWidth,
+    `long history tooltip width should be capped below the one-line title width: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    historyPopupWheelScroll.first.textHeight > (historyPopupWheelScroll.first.textLineHeight || 0) * 1.5,
+    `long history tooltip should actually wrap into two balanced lines: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
   assert.ok(
     historyPopupWheelScroll.target.listScrollHeight > historyPopupWheelScroll.target.listClientHeight,
     `history panel should be scrollable for popup-wheel check: ${JSON.stringify(historyPopupWheelScroll)}`

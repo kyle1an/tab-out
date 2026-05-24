@@ -1062,11 +1062,62 @@ test('TabHistoryPanel keeps the history entry surface on the default cursor', ()
       snapshot: makeHistorySnapshot()
     })
   )
-  const entryButtonMatch = html.match(/<button type="button" class="([^"]*\bw-full\b[^"]*\btext-left\b[^"]*)"/)
+  const entryButtonMatch = html.match(/<div role="button" tabindex="0" aria-disabled="false" class="([^"]*\bhistory-entry-main\b[^"]*)"/)
 
-  assert.ok(entryButtonMatch, 'history entry button should render')
+  assert.ok(entryButtonMatch, 'history entry focus target should render')
   assert.match(entryButtonMatch[1], /\bcursor-default\b/)
   assert.doesNotMatch(entryButtonMatch[1], /\bcursor-pointer\b/)
+})
+
+test('TabHistoryPanel renders the close action in the favicon slot', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        entries: [
+          {
+            ...baseEntry,
+            favIconUrl: 'https://example.com/favicon.ico'
+          }
+        ]
+      })
+    })
+  )
+  const faviconFrameMatch = html.match(/<span class="([^"]*\bhistory-entry-favicon-frame\b[^"]*)"/)
+  const closeActionMatch = html.match(/<button[^>]*class="([^"]*\bhistory-entry-close\b[^"]*)"/)
+
+  assert.ok(faviconFrameMatch, 'history entry favicon frame should render')
+  assert.ok(closeActionMatch, 'history entry close action should render')
+  assert.match(html, /history-entry-favicon-frame[\s\S]*history-entry-close-favicon/)
+  assert.match(faviconFrameMatch[1], /group\/history-favicon-frame/)
+  assert.match(closeActionMatch[1], /\bhistory-entry-close-favicon\b/)
+  assert.match(closeActionMatch[1], /\babsolute\b/)
+  assert.match(closeActionMatch[1], /\bleft-1\/2\b/)
+  assert.match(closeActionMatch[1], /group-hover\/history-favicon-frame:pointer-events-auto/)
+  assert.match(closeActionMatch[1], /group-hover\/history-favicon-frame:opacity-100/)
+  assert.doesNotMatch(closeActionMatch[1], /group-hover\/history-row:opacity-100/)
+  assert.match(html, /history-entry-favicon-content\b[^"]*group-hover\/history-favicon-frame:opacity-0/)
+
+  const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(tabHistoryPanelSource, /<TooltipAnchor content="Close this tab">/)
+})
+
+test('TabHistoryPanel anchors truncated title tooltips in place with two visible lines', () => {
+  const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
+  assert.match(tabHistoryPanelSource, /history-entry-title-tooltip line-clamp-2/)
+  assert.match(tabHistoryPanelSource, /\[text-wrap:balance\]/)
+  assert.match(tabHistoryPanelSource, /\[width:max-content\]/)
+  assert.match(tabHistoryPanelSource, /HISTORY_TITLE_TOOLTIP_SINGLE_LINE_EXTRA_PX = 96/)
+  assert.match(tabHistoryPanelSource, /HISTORY_TITLE_TOOLTIP_SINGLE_LINE_RATIO = 1\.45/)
+  assert.match(tabHistoryPanelSource, /--history-entry-title-tooltip-text-max-width/)
+  assert.match(tabHistoryPanelSource, /titleTooltipShouldWrap/)
+  assert.match(tabHistoryPanelSource, /titleTooltipBalancedWidth/)
+  assert.match(tabHistoryPanelSource, /function getHistoryTitleTooltipAnchor\(\)/)
+  assert.match(tabHistoryPanelSource, /anchorToCursor=\{false\}/)
+  assert.match(tabHistoryPanelSource, /sideOffset=\{0\}/)
+  assert.match(tabHistoryPanelSource, /alignOffset=\{0\}/)
+  assert.match(tabHistoryPanelSource, /after:w-0/)
+  assert.doesNotMatch(tabHistoryPanelSource, /after:w-14/)
 })
 
 test('TabHistoryPanel applies bionic title emphasis with protected title tokens', () => {
