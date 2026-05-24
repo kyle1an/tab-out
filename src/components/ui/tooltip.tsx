@@ -14,8 +14,7 @@ import type {
   PointerEvent as ReactPointerEvent,
   Ref,
   ReactElement,
-  ReactNode,
-  WheelEvent as ReactWheelEvent
+  ReactNode
 } from 'react'
 import { flushSync } from 'react-dom'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
@@ -389,11 +388,12 @@ type TooltipTriggerElement = ReactElement<{
 
 type TooltipAnchorProps = Omit<
   ComponentProps<typeof TooltipContent>,
-  'children' | 'content'
+  'children' | 'content' | 'onWheel'
 > & {
   anchorToCursor?: boolean
   content?: ReactNode
   children: TooltipTriggerElement
+  onWheel?: (event: WheelEvent) => void
 }
 
 function TooltipAnchor({
@@ -423,6 +423,7 @@ function TooltipAnchor({
     useState<CursorPoint | null>(null)
   const [tooltipOpen, setTooltipOpen] = useState(false)
   const [tooltipWheelClosing, setTooltipWheelClosing] = useState(false)
+  const [popupElement, setPopupElement] = useState<HTMLDivElement | null>(null)
   const openInstantly = contentProps.instant === true
   const closeInstantly = openInstantly
 
@@ -788,10 +789,8 @@ function TooltipAnchor({
   )
 
   const handleContentWheel = useCallback(
-    (event: ReactWheelEvent<HTMLDivElement>) => {
-      contentOnWheel?.(
-        event as Parameters<NonNullable<typeof contentOnWheel>>[0]
-      )
+    (event: WheelEvent) => {
+      contentOnWheel?.(event)
       if (event.defaultPrevented) return
 
       const scrollContainers = uniqueTooltipScrollableAncestors(
@@ -816,9 +815,22 @@ function TooltipAnchor({
     [beginTooltipWheelClose, contentOnWheel]
   )
 
+  useEffect(() => {
+    if (!tooltipOpen || !popupElement) return
+
+    popupElement.addEventListener('wheel', handleContentWheel, { passive: false })
+    return () => {
+      popupElement.removeEventListener('wheel', handleContentWheel)
+    }
+  }, [handleContentWheel, popupElement, tooltipOpen])
+
   const triggerRef = useMemo(
     () => mergeRefs<HTMLElement>(children.props.ref, triggerElementRef),
     [children.props.ref]
+  )
+  const popupRef = useMemo(
+    () => mergeRefs<HTMLDivElement>(popupElementRef, setPopupElement),
+    []
   )
 
   const trigger = useMemo(
@@ -852,14 +864,13 @@ function TooltipAnchor({
       <TooltipTrigger render={trigger} disabled />
       <TooltipContent
         anchor={tooltipAnchor}
-        popupRef={popupElementRef}
+        popupRef={popupRef}
         positionMethod={tooltipAnchor ? 'fixed' : undefined}
         data-tooltip-wheel-closing={tooltipWheelClosing ? '' : undefined}
         onMouseEnter={handleContentMouseEnter}
         onMouseLeave={handleContentMouseLeave}
         onPointerEnter={handleContentPointerEnter}
         onPointerLeave={handleContentPointerLeave}
-        onWheel={handleContentWheel}
         {...contentProps}
         className={cn(contentProps.className, tooltipWheelClosing && 'opacity-0')}
       >
