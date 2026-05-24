@@ -14,7 +14,8 @@ import type {
   PointerEvent as ReactPointerEvent,
   Ref,
   ReactElement,
-  ReactNode
+  ReactNode,
+  WheelEvent as ReactWheelEvent
 } from 'react'
 import { flushSync } from 'react-dom'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
@@ -31,6 +32,10 @@ const TOOLTIP_HOVERABLE_CLOSE_DELAY_MS = 160
 const TOOLTIP_HOVER_WATCH_INTERVAL_MS = 80
 const TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS = 320
 const TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX = 1
+const TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS = 900
+const TOOLTIP_WHEEL_DELTA_LINE = 1
+const TOOLTIP_WHEEL_DELTA_PAGE = 2
+const TOOLTIP_WHEEL_LINE_HEIGHT_PX = 16
 const TOOLTIP_COLLISION_AVOIDANCE: NonNullable<
   TooltipPrimitive.Positioner.Props['collisionAvoidance']
 > = {
@@ -45,6 +50,7 @@ type TooltipProviderProps = {
 
 let activeTooltipAnchorId: string | null = null
 let latestTooltipActivityAt = 0
+let wheelClosedTooltipBlockedUntil = 0
 
 function now() {
   return typeof performance === 'undefined' ? Date.now() : performance.now()
@@ -58,6 +64,98 @@ function shouldUseAdjacentTooltipDelay(anchorId: string) {
     latestTooltipActivityAt > 0 &&
     now() - latestTooltipActivityAt <= TOOLTIP_ADJACENT_REST_WINDOW_MS
   return hasActiveOtherTooltip || recentlyClosed
+}
+
+function tooltipOverflowAllowsScroll(value: string) {
+  return value === 'auto' || value === 'scroll' || value === 'overlay'
+}
+
+function tooltipScrollableAncestors(element: HTMLElement | null) {
+  const ancestors: HTMLElement[] = []
+
+  for (
+    let candidate = element?.parentElement ?? null;
+    candidate !== null;
+    candidate = candidate.parentElement
+  ) {
+    const styles = window.getComputedStyle(candidate)
+    const canScrollY =
+      tooltipOverflowAllowsScroll(styles.overflowY) &&
+      candidate.scrollHeight > candidate.clientHeight
+    const canScrollX =
+      tooltipOverflowAllowsScroll(styles.overflowX) &&
+      candidate.scrollWidth > candidate.clientWidth
+
+    if (canScrollY || canScrollX) {
+      ancestors.push(candidate)
+    }
+  }
+
+  const scrollingElement = document.scrollingElement
+  if (scrollingElement instanceof HTMLElement) {
+    const alreadyIncluded = ancestors.includes(scrollingElement)
+    const canScrollPage =
+      scrollingElement.scrollHeight > scrollingElement.clientHeight ||
+      scrollingElement.scrollWidth > scrollingElement.clientWidth
+    if (!alreadyIncluded && canScrollPage) {
+      ancestors.push(scrollingElement)
+    }
+  }
+
+  return ancestors
+}
+
+function tooltipWheelDeltaToPixels(
+  delta: number,
+  deltaMode: number,
+  pageSize: number
+) {
+  if (deltaMode === TOOLTIP_WHEEL_DELTA_LINE) {
+    return delta * TOOLTIP_WHEEL_LINE_HEIGHT_PX
+  }
+  if (deltaMode === TOOLTIP_WHEEL_DELTA_PAGE) {
+    return delta * pageSize
+  }
+  return delta
+}
+
+function tooltipScrollElementByWheel(
+  element: HTMLElement,
+  event: ReactWheelEvent<HTMLElement>
+) {
+  const deltaX = tooltipWheelDeltaToPixels(
+    event.deltaX,
+    event.deltaMode,
+    element.clientWidth
+  )
+  const deltaY = tooltipWheelDeltaToPixels(
+    event.deltaY,
+    event.deltaMode,
+    element.clientHeight
+  )
+  const previousLeft = element.scrollLeft
+  const previousTop = element.scrollTop
+
+  if (deltaX !== 0) {
+    element.scrollLeft += deltaX
+  }
+  if (deltaY !== 0) {
+    element.scrollTop += deltaY
+  }
+
+  return element.scrollLeft !== previousLeft || element.scrollTop !== previousTop
+}
+
+function setTooltipWheelPassthrough(
+  element: HTMLElement | null,
+  enabled: boolean
+) {
+  const targets = [element, element?.parentElement]
+  for (const target of targets) {
+    if (!target) continue
+    if (enabled) target.style.setProperty('pointer-events', 'none')
+    else target.style.removeProperty('pointer-events')
+  }
 }
 
 function TooltipProvider({ children }: TooltipProviderProps) {
@@ -185,6 +283,7 @@ function TooltipAnchor({
   anchorToCursor = true,
   content,
   children,
+  onWheel: contentOnWheel,
   ...contentProps
 }: TooltipAnchorProps) {
   const anchorId = useId()
@@ -251,9 +350,11 @@ function TooltipAnchor({
   const openTooltip = useCallback((point: CursorPoint | null) => {
     retimeHoverOpen()
     clearHoverCloseTimer()
+    if (point !== null && now() < wheelClosedTooltipBlockedUntil) return
     if (point !== null && now() < hoverOpenBlockedUntilRef.current) return
     if (!pointerInsideRef.current && point !== null) return
 
+    setTooltipWheelPassthrough(popupElementRef.current, false)
     activeTooltipAnchorId = anchorId
     latestTooltipActivityAt = now()
     setFrozenPointerPoint(point)
@@ -444,6 +545,7 @@ function TooltipAnchor({
   )
 
   const markContentPointerInside = useCallback(() => {
+    setTooltipWheelPassthrough(popupElementRef.current, false)
     pointerInsideRef.current = false
     popupPointerInsideRef.current = true
     clearHoverCloseTimer()
@@ -480,6 +582,35 @@ function TooltipAnchor({
       markContentPointerOutside()
     },
     [markContentPointerOutside]
+  )
+
+  const handleContentWheel = useCallback(
+    (event: ReactWheelEvent<HTMLDivElement>) => {
+      contentOnWheel?.(
+        event as Parameters<NonNullable<typeof contentOnWheel>>[0]
+      )
+      if (event.defaultPrevented) return
+
+      const scrollContainers = tooltipScrollableAncestors(
+        triggerElementRef.current
+      )
+      for (const scrollContainer of scrollContainers) {
+        if (tooltipScrollElementByWheel(scrollContainer, event)) {
+          setTooltipWheelPassthrough(popupElementRef.current, true)
+          pointerInsideRef.current = false
+          popupPointerInsideRef.current = false
+          wheelClosedTooltipBlockedUntil =
+            now() + TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
+          hoverOpenBlockedUntilRef.current =
+            now() + TOOLTIP_GLOBAL_CLOSE_REOPEN_BLOCK_MS
+          closeTooltip()
+          event.preventDefault()
+          event.stopPropagation()
+          return
+        }
+      }
+    },
+    [closeTooltip, contentOnWheel]
   )
 
   const triggerRef = useMemo(
@@ -524,6 +655,7 @@ function TooltipAnchor({
         onMouseLeave={handleContentMouseLeave}
         onPointerEnter={handleContentPointerEnter}
         onPointerLeave={handleContentPointerLeave}
+        onWheel={handleContentWheel}
         {...contentProps}
       >
         {content}

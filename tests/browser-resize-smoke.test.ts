@@ -900,6 +900,237 @@ async function measureTooltipPopupHover(session: CdpSession) {
   return { target, first, whileHovered, afterLeaveTooltips }
 }
 
+async function measureTooltipPopupWheelScroll(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+          .find((candidate) =>
+            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+          )
+        const rect = chipText?.getBoundingClientRect()
+        if (rect && rect.width > 120 && rect.height > 8) {
+          resolve({
+            x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+            y: Math.round(rect.top + rect.height / 2)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a page chip to hover for popup wheel smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+
+  assert.ok(first, `tooltip should open before popup wheel check: ${JSON.stringify({ target, first })}`)
+
+  const popupPoint = {
+    x: Math.round(first.left + first.width / 2),
+    y: Math.round(first.top + first.height / 2)
+  }
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: popupPoint.x,
+    y: popupPoint.y
+  })
+  await wait(80)
+
+  const beforeScrollTop = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.querySelector('.scroll-region')?.scrollTop ?? 0`
+  }).then((result: any) => result.result.value)
+
+  const wheelSteps = []
+  for (let index = 0; index < 4; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      deltaX: 0,
+      deltaY: 36,
+      x: popupPoint.x,
+      y: popupPoint.y
+    })
+    await wait(60)
+    wheelSteps.push(await evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const scrollRegion = document.querySelector('.scroll-region')
+        return {
+          scrollTop: scrollRegion?.scrollTop ?? 0,
+          tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
+        }
+      })()`
+    }).then((result: any) => result.result.value))
+  }
+  await wait(620)
+
+  const after = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const scrollRegion = document.querySelector('.scroll-region')
+      return {
+        scrollTop: scrollRegion?.scrollTop ?? 0,
+        tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(620)
+
+  const afterLeaveTooltipCount = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+  }).then((result: any) => result.result.value)
+
+  return { target, first, popupPoint, beforeScrollTop, wheelSteps, after, afterLeaveTooltipCount }
+}
+
+async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 260,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const title = Array.from(document.querySelectorAll('.history-entry-title-truncated'))
+          .find((candidate) =>
+            candidate.closest('.history-entry-row')?.textContent?.includes('Working set item with enough tooltip text')
+          )
+        const rect = title?.getBoundingClientRect()
+        const list = document.querySelector('.history-entry-list')
+        if (rect && list && rect.width > 120 && rect.height > 8) {
+          resolve({
+            x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+            y: Math.round(rect.top + rect.height / 2),
+            listScrollHeight: list.scrollHeight,
+            listClientHeight: list.clientHeight
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a history-panel entry to hover for popup wheel smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+  const first = await waitForTooltipRect(session)
+
+  assert.ok(first, `history tooltip should open before popup wheel check: ${JSON.stringify({ target, first })}`)
+
+  const popupPoint = {
+    x: Math.round(first.left + first.width / 2),
+    y: Math.round(first.top + first.height / 2)
+  }
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: popupPoint.x,
+    y: popupPoint.y
+  })
+  await wait(80)
+
+  const beforeScrollTop = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      return {
+        dashboardScrollTop: document.querySelector('.scroll-region')?.scrollTop ?? 0,
+        historyScrollTop: document.querySelector('.history-entry-list')?.scrollTop ?? 0
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  for (let index = 0; index < 4; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      deltaX: 0,
+      deltaY: 18,
+      x: popupPoint.x,
+      y: popupPoint.y
+    })
+    await wait(60)
+  }
+  await wait(620)
+
+  const after = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const historyList = document.querySelector('.history-entry-list')
+      const dashboardScrollRegion = document.querySelector('.scroll-region')
+      return {
+        dashboardScrollTop: dashboardScrollRegion?.scrollTop ?? 0,
+        historyScrollTop: historyList?.scrollTop ?? 0,
+        tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(620)
+
+  const afterLeaveTooltipCount = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+  }).then((result: any) => result.result.value)
+
+  return { target, first, popupPoint, beforeScrollTop, after, afterLeaveTooltipCount }
+}
+
 async function measureTooltipWindowBlurClose(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -1435,6 +1666,48 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     !popupHover.afterLeaveTooltips.some((text: string) => text === popupHover.first.text),
     `original tooltip should close after the pointer leaves the popup: ${JSON.stringify(popupHover)}`
+  )
+
+  const popupWheelScroll = await measureTooltipPopupWheelScroll(session)
+  assert.ok(popupWheelScroll.first, `tooltip should open before popup-wheel check: ${JSON.stringify(popupWheelScroll)}`)
+  assert.ok(
+    popupWheelScroll.after.scrollTop - popupWheelScroll.beforeScrollTop > 72,
+    `repeated wheel input over a closing tooltip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
+  )
+  assert.equal(
+    popupWheelScroll.after.tooltipCount,
+    0,
+    `tooltip should close after popup wheel input scrolls the dashboard: ${JSON.stringify(popupWheelScroll)}`
+  )
+  assert.equal(
+    popupWheelScroll.afterLeaveTooltipCount,
+    0,
+    `tooltip should close after the pointer leaves the wheel-scrolled popup: ${JSON.stringify(popupWheelScroll)}`
+  )
+
+  const historyPopupWheelScroll = await measureHistoryTooltipPopupWheelScroll(session)
+  assert.ok(
+    historyPopupWheelScroll.target.listScrollHeight > historyPopupWheelScroll.target.listClientHeight,
+    `history panel should be scrollable for popup-wheel check: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    historyPopupWheelScroll.after.historyScrollTop > historyPopupWheelScroll.beforeScrollTop.historyScrollTop,
+    `repeated wheel input over a closing history tooltip should keep scrolling the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.after.dashboardScrollTop,
+    historyPopupWheelScroll.beforeScrollTop.dashboardScrollTop,
+    `wheel input over a history tooltip should not scroll the dashboard pane first: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.after.tooltipCount,
+    0,
+    `history tooltip should close after popup wheel input scrolls the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.afterLeaveTooltipCount,
+    0,
+    `history tooltip should close after the pointer leaves the wheel-scrolled popup: ${JSON.stringify(historyPopupWheelScroll)}`
   )
 
   const windowBlurTooltip = await measureTooltipWindowBlurClose(session)
