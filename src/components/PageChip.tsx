@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
+import { cloneElement, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
 import { Copy, X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
@@ -63,8 +63,13 @@ type PageChipContextMenuContentProps = {
   onSavedSelect: (event: StopPropagationEvent) => void | Promise<void>
   onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
 }
+type PageChipContextMenuTriggerElement = ReactElement<{
+  className?: string
+  'data-context-menu-open'?: string
+}>
 type PageChipContextMenuProps = PageChipContextMenuContentProps & {
-  children: ReactElement
+  children: PageChipContextMenuTriggerElement
+  onOpenChange?: (open: boolean) => void
 }
 type TooltipSubpixelOffset = {
   x: number
@@ -152,11 +157,24 @@ function PageChipContextMenu({
   saved,
   titleText,
   onSavedSelect,
-  onCopyTitle
+  onCopyTitle,
+  onOpenChange
 }: PageChipContextMenuProps) {
+  const [open, setOpen] = useState(false)
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
+  const trigger = open
+    ? cloneElement(children, {
+        className: cn(children.props.className, 'page-chip-context-menu-open'),
+        'data-context-menu-open': ''
+      })
+    : children
+
   return (
-    <ContextMenu>
-      <ContextMenuTrigger render={children} />
+    <ContextMenu onOpenChange={handleOpenChange}>
+      <ContextMenuTrigger render={trigger} />
       <PageChipContextMenuContent
         savedActionLabel={savedActionLabel}
         saved={saved}
@@ -680,6 +698,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const chipTooltipMeasureRef = useRef<HTMLSpanElement | null>(null)
   const updateChipTextMeasurementsRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
+  const contextMenuOpenRef = useRef(false)
+  const [chipTooltipOpen, setChipTooltipOpen] = useState(false)
   const [chipLayout, dispatchChipLayout] = useReducer(chipLayoutReducer, DEFAULT_CHIP_LAYOUT_STATE)
   const {
     textMetrics: chipTextMetrics,
@@ -807,6 +827,24 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return [target.tabUrl, target.rawUrl].filter(Boolean)
   }
 
+  function onChipContextMenuOpenChange(open: boolean) {
+    contextMenuOpenRef.current = open
+    if (open) {
+      setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
+      return
+    }
+    setPreview('')
+  }
+
+  function onEnvContextMenuOpenChange(open: boolean, env: DashboardChipEnv) {
+    contextMenuOpenRef.current = open
+    if (open) {
+      setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
+      return
+    }
+    setPreview('')
+  }
+
   function onChipMouseEnter() {
     if (isFolded) return
     setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
@@ -814,6 +852,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   function onChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    if (contextMenuOpenRef.current) return
     setPreview('')
   }
 
@@ -833,6 +872,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    if (contextMenuOpenRef.current) return
     setPreview('')
   }
 
@@ -846,6 +886,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       setPreview(primaryPreviewUrl)
       return
     }
+    if (contextMenuOpenRef.current) return
     setPreview('')
   }
 
@@ -859,6 +900,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       setPreview(primaryPreviewUrl)
       return
     }
+    if (contextMenuOpenRef.current) return
     setPreview('')
   }
 
@@ -1210,7 +1252,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
-      mode === 'chip' && 'clickable cursor-pointer transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+      mode === 'chip' && 'clickable cursor-pointer transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)] [&.page-chip-context-menu-open]:bg-[rgba(10,10,10,0.12)] [&.page-chip-context-menu-open]:text-tab-ink',
       env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 
@@ -1244,6 +1286,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onSavedSelect={(e) => onToggleSavedEnv(e, env)}
         titleText={envTitleText}
         onCopyTitle={(e) => onCopyTitleText(e, envTitleText)}
+        onOpenChange={(open) => onEnvContextMenuOpenChange(open, env)}
       >
         {envFocusButton}
       </PageChipContextMenu>
@@ -1372,6 +1415,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         type="button"
         className={cn(
           'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+          '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.14)] [&.page-chip-context-menu-open]:text-tab-ink',
           !variantActive && !variantCurrent && 'group-hover/page-chip:bg-[rgba(115,115,115,0.1)]',
           variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
           variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
@@ -1606,6 +1650,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           content={chipTooltipContent}
           className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
           instant
+          onOpenChange={setChipTooltipOpen}
           sideOffset={0}
           style={chipTooltipStyle}
         >
@@ -1665,14 +1710,15 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[var(--chip-hover-fade-width)] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100',
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 hover:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100',
+          chipTooltipOpen && 'page-chip-tooltip-open',
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.13)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 hover:bg-[rgba(82,82,82,0.06)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.06)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
           hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)]',
-          isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)]',
-          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)]',
-          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.11)]',
+          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.18)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.18)]',
+          isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
+          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
+          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.11)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.11)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.11)]',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
@@ -1706,7 +1752,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           <span
             className={cn(
               'chip-favicon-content grid h-full w-full place-items-center',
-              showFaviconCloseAction && 'group-hover/page-chip:opacity-0'
+              showFaviconCloseAction && 'group-hover/page-chip:opacity-0 group-[.page-chip-context-menu-open]/page-chip:opacity-0 group-[.page-chip-tooltip-open]/page-chip:opacity-0'
             )}
             aria-hidden="true"
           >
@@ -1720,7 +1766,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             <span
               className={cn(
                 'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-[var(--accent-amber)] px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-                showFaviconCloseAction && 'group-hover/page-chip:opacity-0',
+                showFaviconCloseAction && 'group-hover/page-chip:opacity-0 group-[.page-chip-context-menu-open]/page-chip:opacity-0 group-[.page-chip-tooltip-open]/page-chip:opacity-0',
                 dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]',
                 dedupeBadgesClosing && 'closing'
               )}
@@ -1733,7 +1779,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             <TooltipAnchor content={closeActionLabel}>
               <button
                 type="button"
-                className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:pointer-events-auto group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:pointer-events-auto group-[.page-chip-tooltip-open]/page-chip:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                 aria-label={closeActionLabel}
                 onClick={isHistorySource ? onDeleteHistory : onClose}
               >
@@ -1753,6 +1799,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
             instant
             onClick={parentInteractive ? onPageChipTooltipClick : undefined}
+            onOpenChange={setChipTooltipOpen}
             sideOffset={0}
             style={chipTooltipStyle}
           >
@@ -1765,7 +1812,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
           <TooltipAnchor content="Saved page">
             <span
-              className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-[var(--accent-amber)] opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100"
+              className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-[var(--accent-amber)] opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:pointer-events-auto group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:pointer-events-auto group-[.page-chip-tooltip-open]/page-chip:opacity-100"
               aria-hidden="true"
             >
               <SavedPageIcon saved className="size-[14px]" />
@@ -1782,6 +1829,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       onSavedSelect={onToggleSavedPage}
       titleText={chipTitleText}
       onCopyTitle={(e) => onCopyTitleText(e, chipTitleText)}
+      onOpenChange={onChipContextMenuOpenChange}
     >
       {chipElement}
     </PageChipContextMenu>
@@ -1794,6 +1842,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
         instant
         onClick={onPageChipTooltipClick}
+        onOpenChange={setChipTooltipOpen}
         style={chipTooltipStyle}
       >
         {chipElement}

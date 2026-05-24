@@ -23,6 +23,7 @@ import { mergeRefs } from 'foxact/merge-refs'
 import { useRetimer } from 'foxact/use-retimer'
 
 import { cn } from '@/lib/utils'
+import { isContextMenuOpen } from './context-menu'
 
 const TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS = 200
 const TOOLTIP_INITIAL_REST_DELAY_MS = 500
@@ -403,6 +404,7 @@ type TooltipAnchorProps = Omit<
   anchorToCursor?: boolean
   content?: ReactNode
   children: TooltipTriggerElement
+  onOpenChange?: (open: boolean) => void
   onWheel?: (event: WheelEvent) => void
 }
 
@@ -411,6 +413,7 @@ type TooltipAnchorControllerOptions = {
   anchorToCursor: boolean
   children: TooltipTriggerElement
   contentOnWheel?: (event: WheelEvent) => void
+  onOpenChange?: (open: boolean) => void
   openInstantly: boolean
 }
 
@@ -419,6 +422,7 @@ function useTooltipAnchorController({
   anchorToCursor,
   children,
   contentOnWheel,
+  onOpenChange,
   openInstantly
 }: TooltipAnchorControllerOptions) {
   const tooltipActionsRef = useRef<TooltipPrimitive.Root.Actions | null>(null)
@@ -494,14 +498,18 @@ function useTooltipAnchorController({
     retimeHoverOpen()
     clearHoverCloseTimer()
     if (closeInstantly) {
-      flushSync(() => setTooltipOpen(false))
+      flushSync(() => {
+        setTooltipOpen(false)
+        onOpenChange?.(false)
+      })
       tooltipActionsRef.current?.unmount()
     } else {
       setTooltipOpen(false)
+      onOpenChange?.(false)
     }
     releaseActiveTooltipAnchor(anchorId)
     clearFrozenPointerPointAfterClose()
-  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, closeInstantly, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
+  }, [anchorId, clearFrozenPointerPointAfterClose, clearHoverCloseTimer, closeInstantly, onOpenChange, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
 
   const openTooltip = useCallback((point: CursorPoint | null) => {
     retimeHoverOpen()
@@ -518,10 +526,15 @@ function useTooltipAnchorController({
     latestTooltipActivityAt = now()
     setFrozenPointerPoint(point)
     setTooltipOpen(true)
-  }, [anchorId, clearHoverCloseTimer, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
+    onOpenChange?.(true)
+  }, [anchorId, clearHoverCloseTimer, onOpenChange, retimeHoverOpen, retimeWheelClose, setTooltipWheelClosingState])
 
   const scheduleHoverClose = useCallback(() => {
     if (tooltipWheelClosingRef.current) return
+    if (isContextMenuOpen()) {
+      clearHoverCloseTimer()
+      return
+    }
     retimeHoverOpen()
     clearHoverCloseTimer()
 
@@ -534,6 +547,7 @@ function useTooltipAnchorController({
     hoverCloseScheduledRef.current = true
     retimeHoverClose(window.setTimeout(() => {
       hoverCloseScheduledRef.current = false
+      if (isContextMenuOpen()) return
       if (pointerInsideRef.current || popupPointerInsideRef.current) return
 
       closeTooltip()
@@ -633,6 +647,7 @@ function useTooltipAnchorController({
     }
     const handlePointerOrMouseMove = (event: PointerEvent | MouseEvent) => {
       if (tooltipWheelClosingRef.current) return
+      if (isContextMenuOpen()) return
       latestPointerPointRef.current = {
         x: event.clientX,
         y: event.clientY
@@ -653,6 +668,10 @@ function useTooltipAnchorController({
     }
     const hoverWatchId = window.setInterval(() => {
       if (tooltipWheelClosingRef.current) return
+      if (isContextMenuOpen()) {
+        clearHoverCloseTimer()
+        return
+      }
       if (isTooltipRegionActive()) {
         clearHoverCloseTimer()
         return
@@ -700,6 +719,7 @@ function useTooltipAnchorController({
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       children.props.onPointerDown?.(event)
+      if (event.button !== 0 || event.ctrlKey) return
       pointerFocusedRef.current = true
       closeTooltip()
     },
@@ -892,6 +912,7 @@ function TooltipAnchor({
   anchorToCursor = true,
   content,
   children,
+  onOpenChange,
   onWheel: contentOnWheel,
   ...contentProps
 }: TooltipAnchorProps) {
@@ -912,6 +933,7 @@ function TooltipAnchor({
     anchorToCursor,
     children,
     contentOnWheel,
+    onOpenChange,
     openInstantly: contentProps.instant === true
   })
 

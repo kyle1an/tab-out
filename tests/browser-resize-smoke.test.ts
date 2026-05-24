@@ -1448,10 +1448,21 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       window.__tabOutSmokeSavedStore = {}
       window.__tabOutSmokeSavedSets = []
       window.__tabOutSmokeCopiedText = null
+      window.__tabOutSmokeFocusUpdates = []
+      window.__tabOutSmokeOriginalTabsUpdate = chrome.tabs.update
+      window.__tabOutSmokeOriginalWindowsUpdate = chrome.windows.update
       chrome.storage.local.get = async () => window.__tabOutSmokeSavedStore
       chrome.storage.local.set = async (next) => {
         window.__tabOutSmokeSavedStore = { ...window.__tabOutSmokeSavedStore, ...next }
         window.__tabOutSmokeSavedSets.push(next)
+      }
+      chrome.tabs.update = async (...args) => {
+        window.__tabOutSmokeFocusUpdates.push({ kind: 'tab', args })
+        return window.__tabOutSmokeOriginalTabsUpdate(...args)
+      }
+      chrome.windows.update = async (...args) => {
+        window.__tabOutSmokeFocusUpdates.push({ kind: 'window', args })
+        return window.__tabOutSmokeOriginalWindowsUpdate(...args)
       }
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,
@@ -1465,37 +1476,46 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   })
   await wait(250)
 
-  const target = await evaluateWithNavigationRetry(session, {
-    awaitPromise: true,
-    returnByValue: true,
-    expression: `new Promise((resolve) => {
-      const start = Date.now()
-      const wait = () => {
-        const chip = Array.from(document.querySelectorAll('.page-chip'))
-          .find((candidate) => candidate.textContent?.includes('Short title'))
-        const rect = chip?.getBoundingClientRect()
-        if (rect && rect.width > 120 && rect.height > 8) {
-          resolve({
-            x: Math.round(rect.left + Math.min(96, rect.width - 8)),
-            y: Math.round(rect.top + rect.height / 2)
-          })
-        } else if (Date.now() - start > 5000) {
-          resolve(null)
-        } else {
-          setTimeout(wait, 50)
+  async function findPageChipTarget(label: string, xOffset = 96) {
+    return evaluateWithNavigationRetry(session, {
+      awaitPromise: true,
+      returnByValue: true,
+      expression: `new Promise((resolve) => {
+        const start = Date.now()
+        const wait = () => {
+          const chip = Array.from(document.querySelectorAll('.page-chip'))
+            .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
+          const rect = chip?.getBoundingClientRect()
+          if (rect && rect.width > 120 && rect.height > 8) {
+            resolve({
+              label: ${JSON.stringify(label)},
+              x: Math.round(rect.left + Math.min(${xOffset}, rect.width - 8)),
+              y: Math.round(rect.top + rect.height / 2)
+            })
+          } else if (Date.now() - start > 5000) {
+            resolve(null)
+          } else {
+            setTimeout(wait, 50)
+          }
         }
-      }
-      wait()
-    })`
-  }).then((result: any) => result.result.value)
+        wait()
+      })`
+    }).then((result: any) => result.result.value)
+  }
+
+  const target = await findPageChipTarget('Short title')
+  const replacementTarget = await findPageChipTarget('Example 2 with enough tooltip text', 140)
+  const historyMatchTarget = await findPageChipTarget('Example 3 with enough tooltip text', 16)
 
   assert.ok(target, 'expected a live page chip for context menu save smoke test')
+  assert.ok(replacementTarget, 'expected a second live page chip for context menu replacement smoke test')
+  assert.ok(historyMatchTarget, 'expected a live page chip with a matching history entry for context menu hover smoke test')
 
-  async function clickMenuItem(label: string) {
+  async function openContextMenuAt(menuTarget: { x: number; y: number }) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
-      x: target.x,
-      y: target.y
+      x: menuTarget.x,
+      y: menuTarget.y
     })
     await wait(80)
     await session.send('Input.dispatchMouseEvent', {
@@ -1503,18 +1523,99 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       button: 'right',
       buttons: 2,
       clickCount: 1,
-      x: target.x,
-      y: target.y
+      x: menuTarget.x,
+      y: menuTarget.y
     })
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseReleased',
       button: 'right',
       buttons: 0,
       clickCount: 1,
-      x: target.x,
-      y: target.y
+      x: menuTarget.x,
+      y: menuTarget.y
     })
     await wait(220)
+  }
+
+  async function readContextMenuState() {
+    return evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const visibleMenus = Array.from(document.querySelectorAll('[data-slot="context-menu-content"]'))
+          .filter((menu) => !menu.hidden && menu.getClientRects().length > 0 && window.getComputedStyle(menu).visibility !== 'hidden')
+        return {
+          visibleMenuCount: visibleMenus.length,
+          itemTexts: visibleMenus.flatMap((menu) =>
+            Array.from(menu.querySelectorAll('[data-slot="context-menu-item"]'))
+              .map((item) => item.textContent?.trim() || '')
+          ),
+          backdropCount: document.querySelectorAll('[data-slot="context-menu-backdrop"]:not([hidden])').length
+        }
+      })()`
+    }).then((result: any) => result.result.value)
+  }
+
+  async function readPageChipVisualState(menuTarget: { label: string }) {
+    return evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) => candidate.textContent?.includes(${JSON.stringify(menuTarget.label)}))
+        if (!(chip instanceof HTMLElement)) return null
+        const styles = window.getComputedStyle(chip)
+        const closeButton = chip.querySelector('.chip-close-favicon')
+        const faviconContent = chip.querySelector('.chip-favicon-content')
+        const dupeBadge = chip.querySelector('.chip-dupe-badge')
+        const readPart = (part) => {
+          if (!(part instanceof HTMLElement)) return null
+          const partStyles = window.getComputedStyle(part)
+          return {
+            opacity: partStyles.opacity,
+            pointerEvents: partStyles.pointerEvents
+          }
+        }
+        return {
+          backgroundColor: styles.backgroundColor,
+          className: chip.className,
+          contextMenuOpen: chip.classList.contains('page-chip-context-menu-open'),
+          tooltipOpen: chip.classList.contains('page-chip-tooltip-open'),
+          closeButton: readPart(closeButton),
+          dupeBadge: readPart(dupeBadge),
+          faviconContent: readPart(faviconContent),
+          hover: chip.matches(':hover'),
+          urlPreview: document.querySelector('.url-preview span')?.textContent || ''
+        }
+      })()`
+    }).then((result: any) => result.result.value)
+  }
+
+  async function dismissContextMenuWithPointer() {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 8,
+      y: 8
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+      x: 8,
+      y: 8
+    })
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+      x: 8,
+      y: 8
+    })
+    await wait(220)
+  }
+
+  async function clickMenuItem(label: string) {
+    await openContextMenuAt(target)
 
     const item = await evaluateWithNavigationRetry(session, {
       returnByValue: true,
@@ -1560,6 +1661,160 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     return item
   }
 
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(180)
+  const restingChipState = await readPageChipVisualState(target)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(180)
+  const hoverChipState = await readPageChipVisualState(target)
+  await openContextMenuAt(target)
+  const contextMenuOpenChipState = await readPageChipVisualState(target)
+  const firstOpenState = await readContextMenuState()
+  assert.ok(restingChipState, `expected chip visual state before context menu: ${JSON.stringify({ target, restingChipState })}`)
+  assert.ok(hoverChipState, `expected chip hover visual state before context menu: ${JSON.stringify({ target, hoverChipState })}`)
+  assert.ok(contextMenuOpenChipState, `expected chip visual state while context menu is open: ${JSON.stringify({ target, contextMenuOpenChipState })}`)
+  assert.notEqual(hoverChipState.backgroundColor, restingChipState.backgroundColor, `hover should visibly change the page chip background before the context menu opens: ${JSON.stringify({ restingChipState, hoverChipState })}`)
+  assert.equal(hoverChipState.closeButton?.opacity, '1', `hover should show the favicon-slot close button before the context menu opens: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(hoverChipState.closeButton?.pointerEvents, 'auto', `hover should make the favicon-slot close button interactive before the context menu opens: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(hoverChipState.faviconContent?.opacity, '0', `hover should hide the favicon beneath the close button before the context menu opens: ${JSON.stringify({ hoverChipState })}`)
+  assert.equal(contextMenuOpenChipState.contextMenuOpen, true, `context menu trigger should carry an explicit menu-open class: ${JSON.stringify({ contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.backgroundColor, hoverChipState.backgroundColor, `page chip should keep its hover-like background while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip should keep its favicon-slot close button visible while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.closeButton?.pointerEvents, hoverChipState.closeButton?.pointerEvents, `page chip should keep the same close-button affordance while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  assert.equal(contextMenuOpenChipState.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip should keep its favicon hidden while its context menu is open: ${JSON.stringify({ hoverChipState, contextMenuOpenChipState })}`)
+  await openContextMenuAt(replacementTarget)
+  const replacementState = await readContextMenuState()
+  assert.equal(firstOpenState.visibleMenuCount, 1, `first right-click should open one visible context menu: ${JSON.stringify(firstOpenState)}`)
+  assert.ok(firstOpenState.backdropCount > 0, `an open context menu should render a backdrop to consume outside clicks: ${JSON.stringify(firstOpenState)}`)
+  assert.ok(replacementState.visibleMenuCount <= 1, `right-clicking a second chip should not stack context menus: ${JSON.stringify(replacementState)}`)
+  await dismissContextMenuWithPointer()
+
+  const freshHistoryMatchTarget = await findPageChipTarget('Example 3 with enough tooltip text', 16)
+  assert.ok(freshHistoryMatchTarget, 'expected the matching-history page chip target to remain visible after context-menu replacement smoke')
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: freshHistoryMatchTarget.x,
+    y: freshHistoryMatchTarget.y
+  })
+  await wait(180)
+  const hoveredHistoryChipState = await readPageChipVisualState(freshHistoryMatchTarget)
+  await openContextMenuAt(freshHistoryMatchTarget)
+  const contextMenuHistoryChipState = await readPageChipVisualState(freshHistoryMatchTarget)
+  assert.equal(hoveredHistoryChipState?.urlPreview, 'https://tab-out-smoke-03.com/docs/3', `hovering the matching-history page chip should set the shared hover URL before the context menu opens: ${JSON.stringify({ hoveredHistoryChipState, freshHistoryMatchTarget })}`)
+  assert.equal(contextMenuHistoryChipState?.contextMenuOpen, true, `matching-history page chip should carry the context-menu-open class: ${JSON.stringify({ contextMenuHistoryChipState })}`)
+  assert.equal(contextMenuHistoryChipState?.urlPreview, hoveredHistoryChipState?.urlPreview, `opening the page chip context menu should keep the shared hover URL active for cross-surface matching: ${JSON.stringify({ hoveredHistoryChipState, contextMenuHistoryChipState })}`)
+  await dismissContextMenuWithPointer()
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: replacementTarget.x,
+    y: replacementTarget.y
+  })
+  await wait(650)
+  const contextTooltip = await waitForTooltipRect(session)
+  assert.ok(contextTooltip, `tooltip should open before context-menu shield check: ${JSON.stringify({ replacementTarget, contextTooltip })}`)
+  const tooltipOpenChipState = await readPageChipVisualState(replacementTarget)
+  assert.equal(tooltipOpenChipState?.tooltipOpen, true, `page chip should keep an explicit tooltip-open class while its tooltip is visible: ${JSON.stringify({ tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.backgroundColor, hoverChipState.backgroundColor, `page chip should keep the same hover background after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip should keep the same hover affordance after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip should keep the favicon hidden after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  await openContextMenuAt(replacementTarget)
+  const contextTooltipAfterMenu = await waitForTooltipContaining(session, 'Example 2 with enough tooltip text', 500)
+  assert.ok(contextTooltipAfterMenu.found, `right-clicking to open a page chip context menu should not hide a visible tooltip: ${JSON.stringify({ contextTooltip, contextTooltipAfterMenu })}`)
+  const tooltipShieldPoint = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      document.querySelector('[data-smoke-tooltip-shield]')?.remove()
+      const syntheticTooltip = document.createElement('div')
+      syntheticTooltip.dataset.slot = 'tooltip-content'
+      syntheticTooltip.dataset.smokeTooltipShield = 'true'
+      syntheticTooltip.textContent = 'Synthetic tooltip shield target'
+      syntheticTooltip.style.cssText = [
+        'position:fixed',
+        'left:24px',
+        'top:24px',
+        'width:220px',
+        'height:32px',
+        'z-index:50',
+        'pointer-events:auto',
+        'background:canvas',
+        'color:canvastext'
+      ].join(';')
+      syntheticTooltip.addEventListener('click', () => {
+        chrome.tabs.update(1, { active: true })
+      })
+      document.body.append(syntheticTooltip)
+      const rect = syntheticTooltip.getBoundingClientRect()
+      return {
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2)
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+  const shieldBeforeClick = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      window.__tabOutSmokeFocusUpdates = []
+      const target = document.elementFromPoint(${tooltipShieldPoint.x}, ${tooltipShieldPoint.y})
+      const owner = target?.closest?.('[data-slot]')
+      return {
+        point: ${JSON.stringify(tooltipShieldPoint)},
+        topSlot: owner?.getAttribute('data-slot') || '',
+        topText: owner?.textContent?.trim() || '',
+        menuOpen: !!document.querySelector('[data-slot="context-menu-content"]:not([hidden])'),
+        tooltipOpen: !!document.querySelector('[data-slot="tooltip-content"]:not([hidden])')
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: tooltipShieldPoint.x,
+    y: tooltipShieldPoint.y
+  })
+  await wait(80)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: tooltipShieldPoint.x,
+    y: tooltipShieldPoint.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: tooltipShieldPoint.x,
+    y: tooltipShieldPoint.y
+  })
+  await wait(220)
+  const shieldAfterClick = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const focusUpdates = window.__tabOutSmokeFocusUpdates || []
+      chrome.tabs.update = window.__tabOutSmokeOriginalTabsUpdate
+      chrome.windows.update = window.__tabOutSmokeOriginalWindowsUpdate
+      document.querySelector('[data-smoke-tooltip-shield]')?.remove()
+      return {
+        focusUpdateCount: focusUpdates.length,
+        menuOpen: !!document.querySelector('[data-slot="context-menu-content"]:not([hidden])')
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+  assert.notEqual(shieldBeforeClick.topSlot, 'tooltip-content', `context menu backdrop should cover visible tooltips: ${JSON.stringify({ shieldBeforeClick, shieldAfterClick })}`)
+  assert.equal(shieldAfterClick.focusUpdateCount, 0, `clicking where a tooltip is visible while context menu is open should not focus/open the page: ${JSON.stringify({ shieldBeforeClick, shieldAfterClick })}`)
+  assert.equal(shieldAfterClick.menuOpen, false, `clicking the context menu backdrop over a tooltip should dismiss the menu: ${JSON.stringify({ shieldBeforeClick, shieldAfterClick })}`)
+
   const copyItem = await clickMenuItem('Copy page title text')
   const copyResult = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1585,7 +1840,59 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     })()`
   }).then((result: any) => result.result.value)
 
-  return { target, copyItem, copyResult, saveItem, saveResult }
+  await openContextMenuAt(target)
+  const sourceButtonTarget = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const button = Array.from(document.querySelectorAll('.source-switch-option'))
+        .find((candidate) => candidate.textContent?.trim() === 'Bookmarks')
+      const activeBefore = document.querySelector('.source-switch-option[data-active]')?.textContent?.trim() || ''
+      const rect = button?.getBoundingClientRect()
+      if (!rect) return null
+      return {
+        activeBefore,
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2)
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(sourceButtonTarget, 'expected the Bookmarks source switch button for context menu outside-click smoke test')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: sourceButtonTarget.x,
+    y: sourceButtonTarget.y
+  })
+  await wait(80)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: sourceButtonTarget.x,
+    y: sourceButtonTarget.y
+  })
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: sourceButtonTarget.x,
+    y: sourceButtonTarget.y
+  })
+  await wait(450)
+
+  const outsideClickResult = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `({
+      activeBefore: ${JSON.stringify(sourceButtonTarget.activeBefore)},
+      activeAfter: document.querySelector('.source-switch-option[data-active]')?.textContent?.trim() || '',
+      menuOpen: !!document.querySelector('[data-slot="context-menu-content"]:not([hidden])')
+    })`
+  }).then((result: any) => result.result.value)
+
+  return { target, firstOpenState, replacementState, shieldBeforeClick, shieldAfterClick, copyItem, copyResult, saveItem, saveResult, outsideClickResult }
 }
 
 async function measureTooltipPopupWheelScroll(session: CdpSession) {
@@ -2331,6 +2638,9 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(contextMenuSave.saveResult.menuOpen, false, `context menu should close after choosing Save page: ${JSON.stringify(contextMenuSave)}`)
   assert.ok(contextMenuSave.saveResult.pageKeys.includes('https://tab-out-smoke-01.com/docs/1'), `Save page should persist the chip URL: ${JSON.stringify(contextMenuSave)}`)
   assert.ok(contextMenuSave.saveResult.setCount > 0, `Save page should write through chrome.storage.local: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.outsideClickResult.activeBefore, 'Tabs', `outside-click smoke should start on the Tabs source: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.outsideClickResult.activeAfter, 'Tabs', `clicking outside an open context menu should dismiss it without activating the underlying source button: ${JSON.stringify(contextMenuSave)}`)
+  assert.equal(contextMenuSave.outsideClickResult.menuOpen, false, `outside click should dismiss the context menu: ${JSON.stringify(contextMenuSave)}`)
 
   const tooltip = await measureTooltipFreeze(session)
   assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)
