@@ -595,13 +595,13 @@ test('PageChip renders same-title URL variants below one visible title', () => {
 test('PageChip uses structured PageChip-style tooltips for same-title URL variants', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
-  assert.match(pageChipSource, /function renderTitleVariantTooltipContent/)
-  assert.match(pageChipSource, /content=\{renderTitleVariantTooltipContent\(variant, index\)\}/)
+  assert.match(pageChipSource, /function titleVariantTooltipContentNode/)
+  assert.match(pageChipSource, /content=\{titleVariantTooltipContentNode\(variant, index\)\}/)
   assert.match(pageChipSource, /\bchip-title-variant-tooltip-content\b/)
   assert.match(pageChipSource, /\bchip-title-variant-tooltip-url\b/)
   assert.match(pageChipSource, /includePathSuffix:\s*false/)
   assert.match(pageChipSource, /chipTooltipTextWidth\s*&&\s*'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
-  assert.match(pageChipSource, /content=\{renderTitleVariantTooltipContent\(variant, index\)\}[\s\S]*style=\{chipTooltipStyle\}/)
+  assert.match(pageChipSource, /content=\{titleVariantTooltipContentNode\(variant, index\)\}[\s\S]*style=\{chipTooltipStyle\}/)
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{variantLabel\}>/)
 })
 
@@ -1434,7 +1434,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = [\s\S]*\[box-decoration-break:clone\]/)
   assert.match(pageChipSource, /hydrateClonedChipTooltipFragment\(document, fragment\)/)
   assert.match(pageChipSource, /hiddenTitleText = label\.replace\(\//)
-  assert.match(pageChipSource, /renderHighlightedText\(part, highlightTerms/)
+  assert.match(pageChipSource, /highlightedTextNodes\(part, highlightTerms/)
   assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)
 })
 
@@ -1534,7 +1534,7 @@ test('PageChip labels stripped path-group placeholders with the pathgroup value'
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /mode === 'tooltip' && hiddenLabel/)
   assert.match(pageChipSource, /chip-strip-indicator inline-block max-w-full/)
-  assert.match(pageChipSource, /renderHighlightedText\(hiddenLabel, highlightTerms/)
+  assert.match(pageChipSource, /highlightedTextNodes\(hiddenLabel, highlightTerms/)
   assert.doesNotMatch(pageChipSource, /chip-strip-indicator-tooltip/)
 })
 
@@ -1639,7 +1639,7 @@ test('PageChip renders folded titles before env controls', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
   assert.doesNotMatch(pageChipSource, /<TooltipAnchor content=\{envLabel\}>/)
-  const foldedTooltipSource = pageChipSource.match(/function renderFoldedChipTooltipContent\(\) \{[\s\S]*?\n  \}\n\n  const chipTooltipContent/)
+  const foldedTooltipSource = pageChipSource.match(/function foldedChipTooltipContentNode\(\) \{[\s\S]*?\n  \}\n\n  const chipTooltipContent/)
   assert.ok(foldedTooltipSource, 'folded tooltip content renderer should exist')
   assert.doesNotMatch(foldedTooltipSource[0], /chip-env-row/)
 })

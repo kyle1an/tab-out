@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
+import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
@@ -54,6 +54,35 @@ type TooltipSubpixelOffset = {
   x: number
   y: number
 }
+type ChipTextMetrics = {
+  isTruncated: boolean
+  maxWidth: number
+  width: number
+}
+type ChipLayoutState = {
+  textMetrics: ChipTextMetrics
+  tooltipLineHtml: string[]
+  tooltipSubpixelOffset: TooltipSubpixelOffset
+  tooltipViewportConstrained: boolean
+  tooltipWidth: number
+}
+type ChipLayoutAction =
+  | { type: 'textMetrics'; metrics: ChipTextMetrics }
+  | {
+      type: 'tooltipLayout'
+      lineHtml: string[]
+      subpixelOffset: TooltipSubpixelOffset
+      viewportConstrained: boolean
+      width: number
+    }
+const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { isTruncated: false, maxWidth: 0, width: 0 }
+const DEFAULT_CHIP_LAYOUT_STATE: ChipLayoutState = {
+  textMetrics: DEFAULT_CHIP_TEXT_METRICS,
+  tooltipLineHtml: [],
+  tooltipSubpixelOffset: { x: 0, y: 0 },
+  tooltipViewportConstrained: false,
+  tooltipWidth: 0
+}
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
@@ -78,13 +107,13 @@ function highlightTermsForFilter(filter: string, mode: HighlightMode): string[] 
   return [...new Set(parseFilterQuery(query).terms.flatMap((term) => matchValuesForFilterTerm(term)))]
 }
 
-function appendRenderedText(nodes: ReactNode[], text: string, keyPrefix: string, textOffset: number, renderText: InlineTextRenderer) {
+function appendTextNodes(nodes: ReactNode[], text: string, keyPrefix: string, textOffset: number, renderText: InlineTextRenderer) {
   const rendered = renderText(text, keyPrefix, textOffset)
   if (Array.isArray(rendered)) nodes.push(...rendered)
   else nodes.push(rendered)
 }
 
-function renderHighlightedText(text: string, highlightTerms: readonly string[], keyPrefix: string, renderText: InlineTextRenderer = (value) => value): ReactNode {
+function highlightedTextNodes(text: string, highlightTerms: readonly string[], keyPrefix: string, renderText: InlineTextRenderer = (value) => value): ReactNode {
   if (!text) return text
   if (highlightTerms.length === 0) return renderText(text, keyPrefix, 0)
 
@@ -130,7 +159,7 @@ function renderHighlightedText(text: string, highlightTerms: readonly string[], 
   for (const range of mergedRanges) {
     const originalStart = originalIndexes[range.start]
     const originalEnd = range.end < originalIndexes.length ? originalIndexes[range.end] : text.length
-    if (originalStart > cursor) appendRenderedText(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
+    if (originalStart > cursor) appendTextNodes(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
     nodes.push(
       <mark
         key={`${keyPrefix}-${originalStart}-${originalEnd}`}
@@ -142,7 +171,7 @@ function renderHighlightedText(text: string, highlightTerms: readonly string[], 
     cursor = originalEnd
   }
 
-  if (cursor < text.length) appendRenderedText(nodes, text.slice(cursor), `${keyPrefix}:${cursor}:tail`, cursor, renderText)
+  if (cursor < text.length) appendTextNodes(nodes, text.slice(cursor), `${keyPrefix}:${cursor}:tail`, cursor, renderText)
   return nodes
 }
 
@@ -407,6 +436,33 @@ function chipTooltipLineMarkup(lineHtml: readonly string[], viewportConstrained 
   )).join('')}</span>`
 }
 
+function tooltipLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
+  if (!html || typeof document === 'undefined') return html
+
+  const template = document.createElement('template')
+  template.innerHTML = html
+
+  function nodeFromDom(node: ChildNode, key: string): ReactNode {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
+    if (node.nodeType !== Node.ELEMENT_NODE) return null
+
+    const element = node as Element
+    const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
+    const className = element.getAttribute('class') || undefined
+    const ariaLabel = element.getAttribute('aria-label') || undefined
+
+    if (element.tagName.toLowerCase() === 'span') {
+      return <span key={key} className={className} aria-label={ariaLabel}>{children}</span>
+    }
+    if (element.tagName.toLowerCase() === 'mark') {
+      return <mark key={key} className={className} aria-label={ariaLabel}>{children}</mark>
+    }
+    return element.textContent || ''
+  }
+
+  return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
+}
+
 function createSplitChipTooltipMeasureElement(
   textEl: HTMLElement,
   templateEl: HTMLElement | null,
@@ -477,16 +533,41 @@ function syncChipTextFade(textEl: HTMLElement | null) {
   return { height, isTruncated, width, maxWidth }
 }
 
-function updateChipTextTruncation(
-  textEl: HTMLElement | null,
-  setIsTextTruncated: Dispatch<SetStateAction<boolean>>,
-  setChipTextWidth: Dispatch<SetStateAction<number>>,
-  setChipTooltipMaxWidth: Dispatch<SetStateAction<number>>
-) {
+function getChipTextMetrics(textEl: HTMLElement | null): ChipTextMetrics {
   const { isTruncated, width, maxWidth } = syncChipTextFade(textEl)
-  setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
-  setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
-  setChipTooltipMaxWidth((current) => Math.abs(current - maxWidth) < 0.1 ? current : maxWidth)
+  return { isTruncated, maxWidth, width }
+}
+
+function chipTextMetricsEqual(left: ChipTextMetrics, right: ChipTextMetrics) {
+  return (
+    left.isTruncated === right.isTruncated &&
+    Math.abs(left.width - right.width) < 0.1 &&
+    Math.abs(left.maxWidth - right.maxWidth) < 0.1
+  )
+}
+
+function chipLayoutReducer(state: ChipLayoutState, action: ChipLayoutAction): ChipLayoutState {
+  if (action.type === 'textMetrics') {
+    return chipTextMetricsEqual(state.textMetrics, action.metrics)
+      ? state
+      : { ...state, textMetrics: action.metrics }
+  }
+
+  const tooltipLayoutUnchanged =
+    chipTooltipLineHtmlEquals(state.tooltipLineHtml, action.lineHtml) &&
+    state.tooltipViewportConstrained === action.viewportConstrained &&
+    Math.abs(state.tooltipWidth - action.width) < 0.1 &&
+    chipTooltipSubpixelOffsetsEqual(state.tooltipSubpixelOffset, action.subpixelOffset)
+
+  return tooltipLayoutUnchanged
+    ? state
+    : {
+        ...state,
+        tooltipLineHtml: action.lineHtml,
+        tooltipSubpixelOffset: action.subpixelOffset,
+        tooltipViewportConstrained: action.viewportConstrained,
+        tooltipWidth: action.width
+      }
 }
 
 function getChipTextResizeObserver() {
@@ -501,6 +582,7 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- dense chip interaction split needs a dedicated behavior-preserving refactor.
 export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
   const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
@@ -522,13 +604,16 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const isRegularTitleTooltip = !chip.iconOnly && !isFolded && !isTitleVariantGroup
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const chipTooltipMeasureRef = useRef<HTMLSpanElement | null>(null)
-  const [isTextTruncated, setIsTextTruncated] = useState(false)
-  const [chipTextWidth, setChipTextWidth] = useState(0)
-  const [chipTooltipMaxWidth, setChipTooltipMaxWidth] = useState(0)
-  const [chipTooltipWidth, setChipTooltipWidth] = useState(0)
-  const [chipTooltipViewportConstrained, setChipTooltipViewportConstrained] = useState(false)
-  const [chipTooltipLineHtml, setChipTooltipLineHtml] = useState<string[]>([])
-  const [chipTooltipSubpixelOffset, setChipTooltipSubpixelOffset] = useState<TooltipSubpixelOffset>({ x: 0, y: 0 })
+  const updateChipTextMeasurementsRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
+  const [chipLayout, dispatchChipLayout] = useReducer(chipLayoutReducer, DEFAULT_CHIP_LAYOUT_STATE)
+  const {
+    textMetrics: chipTextMetrics,
+    tooltipLineHtml: chipTooltipLineHtml,
+    tooltipSubpixelOffset: chipTooltipSubpixelOffset,
+    tooltipViewportConstrained: chipTooltipViewportConstrained,
+    tooltipWidth: chipTooltipWidth
+  } = chipLayout
+  const { isTruncated: isTextTruncated, maxWidth: chipTooltipMaxWidth, width: chipTextWidth } = chipTextMetrics
 
   const syncChipTooltipLayout = useCallback((textEl: HTMLElement | null) => {
     const titleTextEl = isFolded
@@ -538,17 +623,25 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const tooltipMetrics = isRegularTitleTooltip
       ? getRegularChipTooltipWidth(textEl, chipTooltipMeasureRef.current, lineHtml)
       : { viewportConstrained: false, width: 0 }
-    setChipTooltipLineHtml((current) => chipTooltipLineHtmlEquals(current, lineHtml) ? current : lineHtml)
-    setChipTooltipViewportConstrained((current) => current === tooltipMetrics.viewportConstrained ? current : tooltipMetrics.viewportConstrained)
-    setChipTooltipWidth((current) => Math.abs(current - tooltipMetrics.width) < 0.1 ? current : tooltipMetrics.width)
     const subpixelOffset = getChipTooltipSubpixelOffset(titleTextEl)
-    setChipTooltipSubpixelOffset((current) => chipTooltipSubpixelOffsetsEqual(current, subpixelOffset) ? current : subpixelOffset)
+    dispatchChipLayout({
+      type: 'tooltipLayout',
+      lineHtml,
+      subpixelOffset,
+      viewportConstrained: tooltipMetrics.viewportConstrained,
+      width: tooltipMetrics.width
+    })
   }, [isFolded, isRegularTitleTooltip, isSplitTitleTooltip])
 
   const updateChipTextMeasurements = useCallback((textEl: HTMLElement | null) => {
-    updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth, setChipTooltipMaxWidth)
+    const nextMetrics = getChipTextMetrics(textEl)
+    dispatchChipLayout({ type: 'textMetrics', metrics: nextMetrics })
     syncChipTooltipLayout(textEl)
   }, [syncChipTooltipLayout])
+
+  useEffect(() => {
+    updateChipTextMeasurementsRef.current = updateChipTextMeasurements
+  }, [updateChipTextMeasurements])
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
@@ -567,16 +660,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const observer = getChipTextResizeObserver()
     chipTextTruncationCallbacks.set(textEl, ({ isTruncated, maxWidth, width }) => {
       if (disposed) return
-      setIsTextTruncated((current) => current === isTruncated ? current : isTruncated)
-      setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
-      setChipTooltipMaxWidth((current) => Math.abs(current - maxWidth) < 0.1 ? current : maxWidth)
+      dispatchChipLayout({ type: 'textMetrics', metrics: { isTruncated, maxWidth, width } })
       syncChipTooltipLayout(textEl)
     })
     observer?.observe(textEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
-      if (!disposed) updateChipTextMeasurements(textEl)
+      if (!disposed) updateChipTextMeasurementsRef.current(textEl)
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -587,7 +678,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       chipTextTruncationCallbacks.delete(textEl)
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
-  }, [syncChipTooltipLayout, updateChipTextMeasurements])
+  }, [syncChipTooltipLayout])
 
   function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
@@ -905,7 +996,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     titleVariantChips.some((variant) => chipMatchesActiveHover(variant))
   )
 
-  function renderSuppressionMarker(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
+  function suppressionMarkerNode(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
     const partKey = part.trim().toLowerCase()
     const active = activeSuppressedTitleKey !== '' && partKey === activeSuppressedTitleKey
     const tone = active ? activeSuppressionTone : suppressedTitleToneByText?.get(partKey) ?? ''
@@ -937,14 +1028,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           )}
           aria-label={label}
         >
-          {renderHighlightedText(part, highlightTerms, `${key}-label`)}
+          {highlightedTextNodes(part, highlightTerms, `${key}-label`)}
         </span>
       )
     }
     return marker
   }
 
-  function renderTrailingSuppressionMarkers(mode: ChipTextRenderMode, target: DashboardChipData = chip, keyPrefix: string = mode) {
+  function trailingSuppressionMarkerNodes(mode: ChipTextRenderMode, target: DashboardChipData = chip, keyPrefix: string = mode) {
     const targetSuppressedTitleParts = target.suppressedTitleParts || []
     if (targetSuppressedTitleParts.length === 0) return null
 
@@ -959,7 +1050,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
 
     return trailingParts.map((part, index) => {
       const markerSpacingClass = mode === 'chip' ? (index === 0 ? 'ml-1' : 'ml-0.5') : ''
-      const marker = renderSuppressionMarker(
+      const marker = suppressionMarkerNode(
         part,
         mode,
         `${keyPrefix}-trailing-title-suppression-marker-${part}`,
@@ -979,7 +1070,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     })
   }
 
-  function renderStructuralPlaceholder(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string, fallbackLabel = chip.pathGroupLabel) {
+  function structuralPlaceholderNode(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string, fallbackLabel = chip.pathGroupLabel) {
     const hiddenLabel = segment.label || fallbackLabel
     const marker = (
       <span
@@ -999,14 +1090,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           className={PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME}
           aria-label={hiddenLabel}
         >
-          {renderHighlightedText(hiddenLabel, highlightTerms, `${key}-label`)}
+          {highlightedTextNodes(hiddenLabel, highlightTerms, `${key}-label`)}
         </span>
       )
     }
     return marker
   }
 
-  function renderEnvLabel(env: DashboardChipEnv, mode: ChipTextRenderMode) {
+  function envLabelNode(env: DashboardChipEnv, mode: ChipTextRenderMode) {
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
     const envSavedActionLabel = env.saved ? 'Remove saved page' : 'Save page'
     const canToggleSavedEnv = (env.sourceType === 'tab' || env.sourceType === 'saved-page') && !env.isApp
@@ -1022,7 +1113,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     if (mode === 'tooltip') {
       return (
         <span key={envKey} className={envClassName}>
-          {renderHighlightedText(env.prefix, highlightTerms, `tooltip-env-${env.prefix}`)}
+          {highlightedTextNodes(env.prefix, highlightTerms, `tooltip-env-${env.prefix}`)}
         </span>
       )
     }
@@ -1039,7 +1130,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         onFocus={() => onEnvFocus(env)}
         onBlur={onEnvBlur}
       >
-        {renderHighlightedText(env.prefix, highlightTerms, `env-${env.prefix}`)}
+        {highlightedTextNodes(env.prefix, highlightTerms, `env-${env.prefix}`)}
       </button>
     )
 
@@ -1081,27 +1172,27 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
-  function renderTitleContent(mode: ChipTextRenderMode, target: DashboardChipData = chip, keyPrefix: string = mode, options: RenderTitleContentOptions = {}) {
+  function titleContentNode(mode: ChipTextRenderMode, target: DashboardChipData = chip, keyPrefix: string = mode, options: RenderTitleContentOptions = {}) {
     const includePathSuffix = options.includePathSuffix ?? true
 
     return (
       <>
         {target.pathGroupLabel && (
           <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
-            {renderHighlightedText(pathGroupDisplayLabel(target.pathGroupLabel), highlightTerms, `${keyPrefix}-pathgroup`)}
+            {highlightedTextNodes(pathGroupDisplayLabel(target.pathGroupLabel), highlightTerms, `${keyPrefix}-pathgroup`)}
           </span>
         )}
         {target.displaySegments.map((seg, index) => {
           if (typeof seg === 'string') {
             return isUrlLikeTitle(seg)
-              ? renderHighlightedText(seg, highlightTerms, `${keyPrefix}-segment-${index}`)
-              : renderHighlightedText(seg, highlightTerms, `${keyPrefix}-segment-${index}`, createBionicTitleTextRenderer(seg))
+              ? highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`)
+              : highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`, createBionicTitleTextRenderer(seg))
           }
-          if (isTitleSuppressionSegment(seg)) return renderSuppressionMarker(seg.titleSuppression, mode, `${keyPrefix}-inline-title-suppression-${index}`)
-          if (isStructuralPlaceholderSegment(seg)) return renderStructuralPlaceholder(seg, mode, `${keyPrefix}-structural-placeholder-${index}`, target.pathGroupLabel)
+          if (isTitleSuppressionSegment(seg)) return suppressionMarkerNode(seg.titleSuppression, mode, `${keyPrefix}-inline-title-suppression-${index}`)
+          if (isStructuralPlaceholderSegment(seg)) return structuralPlaceholderNode(seg, mode, `${keyPrefix}-structural-placeholder-${index}`, target.pathGroupLabel)
           return null
         })}
-        {renderTrailingSuppressionMarkers(mode, target, keyPrefix)}
+        {trailingSuppressionMarkerNodes(mode, target, keyPrefix)}
         {includePathSuffix && target.pathSuffix && (
           <>
             {' '}
@@ -1113,7 +1204,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal [width:max-content] [overflow-wrap:break-word]'
               )}
             >
-              {renderHighlightedText(target.pathSuffix, highlightTerms, `${keyPrefix}-path`)}
+              {highlightedTextNodes(target.pathSuffix, highlightTerms, `${keyPrefix}-path`)}
             </span>
           </>
         )}
@@ -1125,7 +1216,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     return `${variant.sourceType === 'history' ? 'Delete from history' : 'Close this tab'}: ${variant.pathSuffix || variant.tabUrl}`
   }
 
-  function renderTitleVariantTooltipContent(variant: DashboardChipData, index: number) {
+  function titleVariantTooltipContentNode(variant: DashboardChipData, index: number) {
     const variantUrlLabel = variant.pathSuffix || variant.tabUrl
 
     return (
@@ -1140,14 +1231,14 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           <span className="chip-title-row block min-w-0 max-w-full">
             {variant.leadPrefix && (
               <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-                {renderHighlightedText(variant.leadPrefix, highlightTerms, `tooltip-title-variant-${index}-lead`)}
+                {highlightedTextNodes(variant.leadPrefix, highlightTerms, `tooltip-title-variant-${index}-lead`)}
               </span>
             )}
-            {renderTitleContent('tooltip', variant, `tooltip-title-variant-${index}`, { includePathSuffix: false })}
+            {titleContentNode('tooltip', variant, `tooltip-title-variant-${index}`, { includePathSuffix: false })}
           </span>
           {variantUrlLabel && (
             <span className="chip-title-variant-tooltip-url block min-w-0 max-w-full whitespace-normal break-normal text-xs font-normal text-tab-muted opacity-75 [overflow-wrap:break-word]">
-              {renderHighlightedText(variantUrlLabel, highlightTerms, `tooltip-title-variant-${index}-url`)}
+              {highlightedTextNodes(variantUrlLabel, highlightTerms, `tooltip-title-variant-${index}-url`)}
             </span>
           )}
         </span>
@@ -1155,7 +1246,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
-  function renderTitleVariant(variant: DashboardChipData, index: number, mode: ChipTextRenderMode) {
+  function titleVariantNode(variant: DashboardChipData, index: number, mode: ChipTextRenderMode) {
     const label = variant.pathSuffix || variant.tabUrl || '/'
     const variantActive = !!(variant.activeChipFrame || variant.activeInOtherWindow)
     const variantCurrent = !!variant.activeChipFrame && !variant.activeInOtherWindow
@@ -1172,7 +1263,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     const labelContent = (
       <>
         <span className="chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-          {renderHighlightedText(label, highlightTerms, `${mode}-title-variant-${index}`)}
+          {highlightedTextNodes(label, highlightTerms, `${mode}-title-variant-${index}`)}
         </span>
         {variantDupeCount > 1 && (
           <span className="chip-title-variant-dupe inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[rgba(254,243,199,0.95)] px-1 text-[9px] leading-none font-bold tabular-nums text-[rgb(120,53,15)]">
@@ -1204,7 +1295,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       >
         <TooltipAnchor
           instant
-          content={renderTitleVariantTooltipContent(variant, index)}
+          content={titleVariantTooltipContentNode(variant, index)}
           className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
           style={chipTooltipStyle}
         >
@@ -1283,24 +1374,24 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
-  function renderTitleVariantList(mode: ChipTextRenderMode) {
+  function titleVariantListNode(mode: ChipTextRenderMode) {
     if (!isTitleVariantGroup) return null
     return (
       <span className="chip-title-variant-list mt-0.5 flex w-full max-w-full flex-col items-stretch gap-0.5">
-        {titleVariantChips.map((variant, index) => renderTitleVariant(variant, index, mode))}
+        {titleVariantChips.map((variant, index) => titleVariantNode(variant, index, mode))}
       </span>
     )
   }
 
-  function renderChipTextContent(mode: ChipTextRenderMode) {
+  function chipTextContentNode(mode: ChipTextRenderMode) {
     if (isFolded) {
       return (
         <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
           <span className="chip-title-row block min-w-0 max-w-full">
-            {renderTitleContent(mode)}
+            {titleContentNode(mode)}
           </span>
           <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
-            {envs.map((env) => renderEnvLabel(env, mode))}
+            {envs.map((env) => envLabelNode(env, mode))}
           </span>
         </span>
       )
@@ -1312,12 +1403,12 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           <span className="chip-title-row block min-w-0 max-w-full">
             {chip.leadPrefix && (
               <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-                {renderHighlightedText(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
+                {highlightedTextNodes(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
               </span>
             )}
-            {renderTitleContent(mode)}
+            {titleContentNode(mode)}
           </span>
-          {renderTitleVariantList(mode)}
+          {titleVariantListNode(mode)}
         </span>
       )
     }
@@ -1326,15 +1417,15 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       <>
         {chip.leadPrefix && (
           <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-            {renderHighlightedText(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
+            {highlightedTextNodes(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
           </span>
         )}
-        {renderTitleContent(mode)}
+        {titleContentNode(mode)}
       </>
     )
   }
 
-  function renderSplitChipTooltipLines() {
+  function splitChipTooltipLinesNode() {
     const lastIndex = chipTooltipLineHtml.length - 1
     return (
       <span className={PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME}>
@@ -1342,23 +1433,24 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
           <span
             key={`${index}:${html}`}
             className={index === lastIndex ? PAGE_CHIP_TOOLTIP_TAIL_LINE_CLASS_NAME : chipTooltipViewportConstrained ? PAGE_CHIP_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : PAGE_CHIP_TOOLTIP_LINE_CLASS_NAME}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          >
+            {tooltipLineNodesFromHtml(html, `line-${index}`)}
+          </span>
         ))}
       </span>
     )
   }
 
-  function renderRegularChipTooltipContent() {
-    if (chipTooltipLineHtml.length === 0) return renderChipTextContent('tooltip')
-    return renderSplitChipTooltipLines()
+  function regularChipTooltipContentNode() {
+    if (chipTooltipLineHtml.length === 0) return chipTextContentNode('tooltip')
+    return splitChipTooltipLinesNode()
   }
 
-  function renderFoldedChipTooltipContent() {
+  function foldedChipTooltipContentNode() {
     return (
       <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
         <span className="chip-title-row block min-w-0 max-w-full">
-          {chipTooltipLineHtml.length > 0 ? renderSplitChipTooltipLines() : renderTitleContent('tooltip')}
+          {chipTooltipLineHtml.length > 0 ? splitChipTooltipLinesNode() : titleContentNode('tooltip')}
         </span>
       </span>
     )
@@ -1375,7 +1467,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       )}
       style={chipTooltipTextStyle}
     >
-      {isFolded ? renderFoldedChipTooltipContent() : isRegularTitleTooltip ? renderRegularChipTooltipContent() : renderChipTextContent('tooltip')}
+      {isFolded ? foldedChipTooltipContentNode() : isRegularTitleTooltip ? regularChipTooltipContentNode() : chipTextContentNode('tooltip')}
     </span>
   ) : undefined
 
@@ -1388,7 +1480,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       )}
       aria-hidden="true"
     >
-      {renderRegularChipTooltipContent()}
+      {regularChipTooltipContentNode()}
     </span>
   ) : null
 
@@ -1398,7 +1490,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       onPointerEnter={onChipTextTooltipHitAreaPointerEnter}
     >
       <span className="chip-title-row block min-w-0 max-w-full">
-        {renderTitleContent('chip')}
+        {titleContentNode('chip')}
       </span>
     </span>
   )
@@ -1420,11 +1512,11 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
         </TooltipAnchor>
       ) : (
         <span className="chip-title-row block min-w-0 max-w-full">
-          {renderTitleContent('chip')}
+          {titleContentNode('chip')}
         </span>
       )}
       <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
-        {envs.map((env) => renderEnvLabel(env, 'chip'))}
+        {envs.map((env) => envLabelNode(env, 'chip'))}
       </span>
     </span>
   )
@@ -1441,7 +1533,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       ref={chipTextRef}
       onPointerEnter={onChipTextPointerEnter}
     >
-      {isFolded ? foldedChipTextContent : renderChipTextContent('chip')}
+      {isFolded ? foldedChipTextContent : chipTextContentNode('chip')}
     </span>
   )
 

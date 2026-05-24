@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ComponentPropsWithoutRef, type Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type ComponentPropsWithoutRef, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
@@ -16,7 +16,16 @@ import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
 import { cn } from '@/lib/utils'
-import type { DashboardData, DashboardSource, HoverUrlSource, TabHistorySnapshot } from './types'
+import type {
+  DashboardCardEntry,
+  DashboardData,
+  DashboardSource,
+  HoverUrlChangeHandler,
+  HoverUrlSource,
+  LayoutChangeHandler,
+  TabHistorySnapshot,
+  TogglePinnedDomainHandler
+} from './types'
 import type { WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
@@ -29,6 +38,116 @@ type HoverMatchState = {
   url: string
   urls: string[]
   source: HoverUrlSource | null
+}
+type MissionBlockProps = {
+  activeHoverSource: HoverUrlSource | null
+  activeHoverUrl: string
+  activeHoverUrls: readonly string[]
+  cards: DashboardCardEntry[]
+  filter: string
+  gridEmpty?: boolean
+  gridId: string
+  gridRef?: Ref<HTMLDivElement>
+  onHoverUrlChange: HoverUrlChangeHandler
+  onLayoutChange: LayoutChangeHandler
+  onTogglePinnedDomain: TogglePinnedDomainHandler
+  showEmptyState: boolean
+  source: DashboardSource
+}
+type DashboardMissionSection = {
+  cards: DashboardCardEntry[]
+  gridEmpty?: boolean
+  gridId: string
+  gridRef?: Ref<HTMLDivElement>
+  label?: string
+  sectionClassName?: string
+  sectionId?: string
+  showEmptyState: boolean
+  source: DashboardSource
+}
+type DashboardMissionSectionsOptions = {
+  bookmarkMatchedCards: DashboardCardEntry[]
+  bookmarkMatchesFlush: boolean
+  bookmarkMissionsRef: Ref<HTMLDivElement>
+  filter: string
+  historyMatchedCards: DashboardCardEntry[]
+  historyMatchesFlush: boolean
+  historyMissionsRef: Ref<HTMLDivElement>
+  isReady: boolean
+  matchedCards: DashboardCardEntry[]
+  otherTabsFlush: boolean
+  primaryMissionsEmpty: boolean
+  primaryMissionsRef: Ref<HTMLDivElement>
+  showBookmarkMatches: boolean
+  showHistoryMatches: boolean
+  showOtherTabs: boolean
+  showPrimaryEmptyState: boolean
+  source: DashboardSource
+  unmatchedCards: DashboardCardEntry[]
+  unmatchedMissionsRef: Ref<HTMLDivElement>
+}
+type DashboardMissionsListProps = {
+  activeHoverSource: HoverUrlSource | null
+  activeHoverUrl: string
+  activeHoverUrls: readonly string[]
+  filter: string
+  onHoverUrlChange: HoverUrlChangeHandler
+  onLayoutChange: LayoutChangeHandler
+  onTogglePinnedDomain: TogglePinnedDomainHandler
+  sections: DashboardMissionSection[]
+}
+type AppDashboardState = {
+  dashboard: DashboardData | null
+  historyRange: string
+  source: DashboardSource
+  tabHistory: TabHistorySnapshot | null
+  workingSet: WorkingSetSnapshot | null
+}
+type AppDashboardAction =
+  | { type: 'dashboard'; dashboard: DashboardData | null }
+  | { type: 'historyRange'; historyRange: string }
+  | { type: 'source'; source: DashboardSource }
+  | { type: 'tabHistory'; tabHistory: TabHistorySnapshot | null }
+  | { type: 'workingSet'; workingSet: WorkingSetSnapshot | null }
+  | {
+      type: 'sourceSnapshot'
+      dashboard: DashboardData | null
+      source: DashboardSource
+      tabHistory: TabHistorySnapshot | null
+      workingSet: WorkingSetSnapshot | null
+    }
+
+function initialAppDashboardState(dashboard: DashboardData | null): AppDashboardState {
+  return {
+    dashboard,
+    historyRange: DEFAULT_HISTORY_RANGE,
+    source: 'tabs',
+    tabHistory: null,
+    workingSet: null
+  }
+}
+
+function appDashboardReducer(state: AppDashboardState, action: AppDashboardAction): AppDashboardState {
+  switch (action.type) {
+    case 'dashboard':
+      return state.dashboard === action.dashboard ? state : { ...state, dashboard: action.dashboard }
+    case 'historyRange':
+      return state.historyRange === action.historyRange ? state : { ...state, historyRange: action.historyRange }
+    case 'source':
+      return state.source === action.source ? state : { ...state, source: action.source }
+    case 'tabHistory':
+      return state.tabHistory === action.tabHistory ? state : { ...state, tabHistory: action.tabHistory }
+    case 'workingSet':
+      return state.workingSet === action.workingSet ? state : { ...state, workingSet: action.workingSet }
+    case 'sourceSnapshot':
+      return {
+        ...state,
+        dashboard: action.dashboard,
+        source: action.source,
+        tabHistory: action.tabHistory,
+        workingSet: action.workingSet
+      }
+  }
 }
 
 function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer[] {
@@ -59,15 +178,178 @@ function MissionsGrid({ className, empty = false, ref, ...props }: ComponentProp
   )
 }
 
+function MissionBlock({
+  activeHoverSource,
+  activeHoverUrl,
+  activeHoverUrls,
+  cards,
+  filter,
+  gridEmpty = false,
+  gridId,
+  gridRef,
+  onHoverUrlChange,
+  onLayoutChange,
+  onTogglePinnedDomain,
+  showEmptyState,
+  source
+}: MissionBlockProps) {
+  return (
+    <MissionsGrid empty={gridEmpty} id={gridId} ref={gridRef}>
+      <Missions
+        cards={cards}
+        filter={filter}
+        source={source}
+        showEmptyState={showEmptyState}
+        onHoverUrlChange={onHoverUrlChange}
+        activeHoverUrl={activeHoverUrl}
+        activeHoverUrls={activeHoverUrls}
+        activeHoverSource={activeHoverSource}
+        onLayoutChange={onLayoutChange}
+        onTogglePinnedDomain={onTogglePinnedDomain}
+      />
+    </MissionsGrid>
+  )
+}
+
+function dashboardMissionSections({
+  bookmarkMatchedCards,
+  bookmarkMatchesFlush,
+  bookmarkMissionsRef,
+  historyMatchedCards,
+  historyMatchesFlush,
+  historyMissionsRef,
+  isReady,
+  matchedCards,
+  otherTabsFlush,
+  primaryMissionsEmpty,
+  primaryMissionsRef,
+  showBookmarkMatches,
+  showHistoryMatches,
+  showOtherTabs,
+  showPrimaryEmptyState,
+  source,
+  unmatchedCards,
+  unmatchedMissionsRef
+}: DashboardMissionSectionsOptions): DashboardMissionSection[] {
+  if (!isReady) return []
+
+  const sections: DashboardMissionSection[] = [
+    {
+      cards: matchedCards,
+      gridEmpty: primaryMissionsEmpty,
+      gridId: 'openTabsMissions',
+      gridRef: primaryMissionsRef,
+      showEmptyState: showPrimaryEmptyState,
+      source
+    }
+  ]
+
+  if (showBookmarkMatches) {
+    sections.push({
+      cards: bookmarkMatchedCards,
+      gridId: 'bookmarkMatchesMissions',
+      gridRef: bookmarkMissionsRef,
+      label: 'Bookmarks',
+      sectionClassName: cn('missions-other missions-bookmarks mt-6', bookmarkMatchesFlush && 'mt-0'),
+      sectionId: 'bookmarkMatchesSection',
+      showEmptyState: false,
+      source: 'bookmarks'
+    })
+  }
+
+  if (showHistoryMatches) {
+    sections.push({
+      cards: historyMatchedCards,
+      gridId: 'historyMatchesMissions',
+      gridRef: historyMissionsRef,
+      label: 'History',
+      sectionClassName: cn('missions-other missions-history mt-6', historyMatchesFlush && 'mt-0'),
+      sectionId: 'historyMatchesSection',
+      showEmptyState: false,
+      source: 'history'
+    })
+  }
+
+  if (showOtherTabs) {
+    sections.push({
+      cards: unmatchedCards,
+      gridId: 'openTabsMissionsUnmatched',
+      gridRef: unmatchedMissionsRef,
+      label: 'Other tabs',
+      sectionClassName: cn('missions-other mt-6', otherTabsFlush && 'mt-0'),
+      sectionId: 'openTabsMissionsOther',
+      showEmptyState: false,
+      source
+    })
+  }
+
+  return sections
+}
+
+function DashboardMissionsList({
+  activeHoverSource,
+  activeHoverUrl,
+  activeHoverUrls,
+  filter,
+  onHoverUrlChange,
+  onLayoutChange,
+  onTogglePinnedDomain,
+  sections
+}: DashboardMissionsListProps) {
+  if (sections.length === 0) return null
+
+  return (
+    <>
+      {sections.map((section) => {
+        const block = (
+          <MissionBlock
+            key={section.gridId}
+            activeHoverSource={activeHoverSource}
+            activeHoverUrl={activeHoverUrl}
+            activeHoverUrls={activeHoverUrls}
+            cards={section.cards}
+            filter={filter}
+            gridEmpty={section.gridEmpty}
+            gridId={section.gridId}
+            gridRef={section.gridRef}
+            onHoverUrlChange={onHoverUrlChange}
+            onLayoutChange={onLayoutChange}
+            onTogglePinnedDomain={onTogglePinnedDomain}
+            showEmptyState={section.showEmptyState}
+            source={section.source}
+          />
+        )
+
+        if (!section.label) return block
+        return (
+          <div className={section.sectionClassName} id={section.sectionId} key={section.sectionId}>
+            <MissionsDivider label={section.label} />
+            {block}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
-  const [dashboard, setDashboard] = useState<DashboardData | null>(initialDashboard)
-  const [source, setSource] = useState<DashboardSource>('tabs')
-  const [historyRange, setHistoryRange] = useState(DEFAULT_HISTORY_RANGE)
+  const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialDashboard, initialAppDashboardState)
+  const { dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
   const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
   const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
   const [isScrolled, setIsScrolled] = useState(false)
-  const [tabHistory, setTabHistory] = useState<TabHistorySnapshot | null>(null)
-  const [workingSet, setWorkingSet] = useState<WorkingSetSnapshot | null>(null)
+  function setDashboard(nextDashboard: DashboardData | null) {
+    dispatchAppDashboard({ type: 'dashboard', dashboard: nextDashboard })
+  }
+  function setHistoryRange(nextHistoryRange: string) {
+    dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
+  }
+  function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
+    dispatchAppDashboard({ type: 'tabHistory', tabHistory: nextTabHistory })
+  }
+  function setWorkingSet(nextWorkingSet: WorkingSetSnapshot | null) {
+    dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
+  }
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
@@ -85,6 +367,11 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
   const historyMissionsRef = useRef<HTMLDivElement | null>(null)
   const unmatchedMissionsRef = useRef<HTMLDivElement | null>(null)
+  const handleScrollRegionRef = useCallback((node: HTMLDivElement | null) => {
+    scrollRegionRef.current = node
+    const next = (node?.scrollTop || 0) > 0
+    setIsScrolled((prev) => (prev === next ? prev : next))
+  }, [])
   const isReady = !!dashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
@@ -158,7 +445,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
       setIsScrolled((prev) => (prev === next ? prev : next))
     }
 
-    onScroll()
     scrollTarget.addEventListener('scroll', onScroll, { passive: true })
     return () => scrollTarget.removeEventListener('scroll', onScroll)
   }, [])
@@ -205,25 +491,29 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     await dedupeTabs({ urls: dashboardVm.globalDedupeUrls, preservePinnedTabOut: true })
   }
 
-  async function onSourceChange(nextSource: DashboardSource) {
+  function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     clearHoverUrlNow()
-    const { dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet } = await fetchDashboardSnapshot({
+    void fetchDashboardSnapshot({
       source: nextSource,
       filter,
       historyRange,
       historyFilterEnabled,
       pinnedDomains,
       previousOrder: previousOrderRef.current
+    }).then(({ dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet }) => {
+      if (requestId !== sourceSwitchSeqRef.current) return
+      layoutMoveRectsRef.current = previousRects
+      dispatchAppDashboard({
+        type: 'sourceSnapshot',
+        dashboard: nextDashboard,
+        source: nextSource,
+        tabHistory: nextTabHistory,
+        workingSet: nextWorkingSet
+      })
     })
-    if (requestId !== sourceSwitchSeqRef.current) return
-    layoutMoveRectsRef.current = previousRects
-    setDashboard(nextDashboard)
-    setTabHistory(nextTabHistory)
-    setWorkingSet(nextWorkingSet)
-    setSource(nextSource)
   }
 
   const showTabHistory = isReady && source === 'tabs'
@@ -232,6 +522,27 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const bookmarkMatchesFlush = primaryMissionsEmpty
   const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
   const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistoryMatches
+  const missionSections = dashboardMissionSections({
+    bookmarkMatchedCards,
+    bookmarkMatchesFlush,
+    bookmarkMissionsRef,
+    filter,
+    historyMatchedCards,
+    historyMatchesFlush,
+    historyMissionsRef,
+    isReady,
+    matchedCards,
+    otherTabsFlush,
+    primaryMissionsEmpty,
+    primaryMissionsRef,
+    showBookmarkMatches,
+    showHistoryMatches,
+    showOtherTabs,
+    showPrimaryEmptyState,
+    source,
+    unmatchedCards,
+    unmatchedMissionsRef
+  })
 
   useMissionOrderMemory({
     previousOrderRef,
@@ -297,85 +608,17 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
             />
           </div>
 
-          <div className="scroll-region max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1" ref={scrollRegionRef}>
-            {isReady && (
-              <>
-                <MissionsGrid empty={primaryMissionsEmpty} id="openTabsMissions" ref={primaryMissionsRef}>
-                  <Missions
-                    cards={matchedCards}
-                    filter={filter}
-                    source={source}
-                    showEmptyState={showPrimaryEmptyState}
-                    onHoverUrlChange={handleHoverUrlChange}
-                    activeHoverUrl={hoverMatch.url}
-                    activeHoverUrls={hoverMatch.urls}
-                    activeHoverSource={hoverMatch.source}
-                    onLayoutChange={scheduleMissionsMasonry}
-                    onTogglePinnedDomain={togglePinnedDomain}
-                  />
-                </MissionsGrid>
-
-                {showBookmarkMatches && (
-                  <div className={cn('missions-other missions-bookmarks mt-6', bookmarkMatchesFlush && 'mt-0')} id="bookmarkMatchesSection">
-                    <MissionsDivider label="Bookmarks" />
-                    <MissionsGrid id="bookmarkMatchesMissions" ref={bookmarkMissionsRef}>
-                      <Missions
-                        cards={bookmarkMatchedCards}
-                        filter={filter}
-                        source="bookmarks"
-                        showEmptyState={false}
-                        onHoverUrlChange={handleHoverUrlChange}
-                        activeHoverUrl={hoverMatch.url}
-                        activeHoverUrls={hoverMatch.urls}
-                        activeHoverSource={hoverMatch.source}
-                        onLayoutChange={scheduleMissionsMasonry}
-                        onTogglePinnedDomain={togglePinnedDomain}
-                      />
-                    </MissionsGrid>
-                  </div>
-                )}
-
-                {showHistoryMatches && (
-                  <div className={cn('missions-other missions-history mt-6', historyMatchesFlush && 'mt-0')} id="historyMatchesSection">
-                    <MissionsDivider label="History" />
-                    <MissionsGrid id="historyMatchesMissions" ref={historyMissionsRef}>
-                      <Missions
-                        cards={historyMatchedCards}
-                        filter={filter}
-                        source="history"
-                        showEmptyState={false}
-                        onHoverUrlChange={handleHoverUrlChange}
-                        activeHoverUrl={hoverMatch.url}
-                        activeHoverUrls={hoverMatch.urls}
-                        activeHoverSource={hoverMatch.source}
-                        onLayoutChange={scheduleMissionsMasonry}
-                        onTogglePinnedDomain={togglePinnedDomain}
-                      />
-                    </MissionsGrid>
-                  </div>
-                )}
-
-                {showOtherTabs && (
-                  <div className={cn('missions-other mt-6', otherTabsFlush && 'mt-0')} id="openTabsMissionsOther">
-                    <MissionsDivider label="Other tabs" />
-                    <MissionsGrid id="openTabsMissionsUnmatched" ref={unmatchedMissionsRef}>
-                      <Missions
-                        cards={unmatchedCards}
-                        filter={filter}
-                        source={source}
-                        showEmptyState={false}
-                        onHoverUrlChange={handleHoverUrlChange}
-                        activeHoverUrl={hoverMatch.url}
-                        activeHoverUrls={hoverMatch.urls}
-                        activeHoverSource={hoverMatch.source}
-                        onLayoutChange={scheduleMissionsMasonry}
-                        onTogglePinnedDomain={togglePinnedDomain}
-                      />
-                    </MissionsGrid>
-                  </div>
-                )}
-              </>
-            )}
+          <div className="scroll-region max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1" ref={handleScrollRegionRef}>
+            <DashboardMissionsList
+              activeHoverSource={hoverMatch.source}
+              activeHoverUrl={hoverMatch.url}
+              activeHoverUrls={hoverMatch.urls}
+              filter={filter}
+              onHoverUrlChange={handleHoverUrlChange}
+              onLayoutChange={scheduleMissionsMasonry}
+              onTogglePinnedDomain={togglePinnedDomain}
+              sections={missionSections}
+            />
           </div>
         </div>
       </div>

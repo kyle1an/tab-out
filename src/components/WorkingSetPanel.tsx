@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, EyeOff } from 'lucide-react'
 import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
-import { renderBionicTitleText } from './bionic-title-text'
+import { bionicTitleTextNodes } from './bionic-title-text'
 import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
@@ -77,6 +77,14 @@ function updateWorkingSetTitleTruncation(
   setTitleMetrics((current) => sameWorkingSetTitleMetrics(current, metrics) ? current : metrics)
 }
 
+function cancelWorkingSetExitTimers(
+  frameRef: { current: number },
+  timeoutRef: { current: number }
+) {
+  cancelAnimationFrame(frameRef.current)
+  window.clearTimeout(timeoutRef.current)
+}
+
 function getWorkingSetTitleResizeObserver() {
   if (typeof ResizeObserver !== 'function') return null
   if (!workingSetTitleResizeObserver) {
@@ -140,7 +148,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
       </span>
       <span className="flex min-w-0 flex-auto items-center">
         <span className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere]">
-          {renderBionicTitleText(item.title, `working-set-ghost-${item.key}`)}
+          {bionicTitleTextNodes(item.title, `working-set-ghost-${item.key}`)}
         </span>
       </span>
     </div>
@@ -241,7 +249,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
         titleTooltipWidth && 'w-[var(--working-set-title-tooltip-width)]'
       )}
     >
-      {renderBionicTitleText(item.title, `working-set-tooltip-${item.key}`)}
+      {bionicTitleTextNodes(item.title, `working-set-tooltip-${item.key}`)}
     </span>
   ) : undefined
   const itemStyle = {
@@ -302,7 +310,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
               ref={titleRef}
               className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]"
             >
-              {renderBionicTitleText(item.title, `working-set-title-${item.key}`)}
+              {bionicTitleTextNodes(item.title, `working-set-title-${item.key}`)}
             </span>
           </span>
         </button>
@@ -329,6 +337,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
   const animatedGridRef = useRef<HTMLDivElement | null>(null)
   const itemPositionsRef = useRef<WorkingSetItemPositionMap | null>(null)
   const pendingLayoutChangeRef = useRef(false)
+  const onAfterLayoutChangeRef = useRef(onAfterLayoutChange)
   const exitFrameRef = useRef(0)
   const exitTimeoutRef = useRef(0)
   const [exitingItems, setExitingItems] = useState<WorkingSetExitItem[]>([])
@@ -342,6 +351,10 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
   const layoutSignature = workingSetVisibleLayoutSignature(visibleItems, hasMore, expanded)
 
   useLayoutEffect(() => {
+    onAfterLayoutChangeRef.current = onAfterLayoutChange
+  }, [onAfterLayoutChange])
+
+  useLayoutEffect(() => {
     const grid = gridRef.current
     if (animatedGridRef.current && animatedGridRef.current !== grid) cancelWorkingSetItemMoves(animatedGridRef.current)
     animatedGridRef.current = grid
@@ -350,23 +363,22 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
     itemPositionsRef.current = nextPositions
     if (pendingLayoutChangeRef.current) {
       pendingLayoutChangeRef.current = false
-      onAfterLayoutChange?.({ animate: true })
+      onAfterLayoutChangeRef.current?.({ animate: true })
     }
-  }, [layoutSignature, onAfterLayoutChange])
+  }, [layoutSignature])
 
   useEffect(() => {
+    const animatedGrid = animatedGridRef.current
     return () => {
-      cancelWorkingSetItemMoves(animatedGridRef.current)
-      cancelAnimationFrame(exitFrameRef.current)
-      window.clearTimeout(exitTimeoutRef.current)
+      cancelWorkingSetItemMoves(animatedGrid)
+      cancelWorkingSetExitTimers(exitFrameRef, exitTimeoutRef)
     }
   }, [])
 
   if (items.length === 0) return null
 
   function clearExitingItems() {
-    cancelAnimationFrame(exitFrameRef.current)
-    window.clearTimeout(exitTimeoutRef.current)
+    cancelWorkingSetExitTimers(exitFrameRef, exitTimeoutRef)
     setExitActive(false)
     setExitingItems([])
   }
@@ -386,8 +398,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
       return
     }
 
-    cancelAnimationFrame(exitFrameRef.current)
-    window.clearTimeout(exitTimeoutRef.current)
+    cancelWorkingSetExitTimers(exitFrameRef, exitTimeoutRef)
     setExitActive(false)
     setExitingItems(outgoingItems)
     exitFrameRef.current = requestAnimationFrame(() => setExitActive(true))

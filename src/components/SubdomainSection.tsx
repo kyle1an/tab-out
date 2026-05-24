@@ -17,15 +17,15 @@ interface SubdomainCloseButtonProps {
 
 interface SubdomainSectionProps {
   subdomainKey: string
-  isFirst?: boolean
-  isPort?: boolean
+  position?: 'first' | 'later'
+  headerType: 'hidden' | 'subdomain' | 'port'
   sectionCount: number
   sectionClosableUrls: string[]
-  showHeader: boolean
-  hasFlat: boolean
-  flatVisibleChips: DashboardChipData[]
-  flatHiddenChips: DashboardChipData[]
-  flatHiddenCount: number
+  flatSection: {
+    visibleChips: DashboardChipData[]
+    hiddenChips: DashboardChipData[]
+    hiddenCount: number
+  } | null
   suppressedTitleParts?: DashboardTitleSuppression[]
   websitePathSections: Array<DashboardWebsitePathSectionVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
@@ -68,15 +68,11 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
 
 export function SubdomainSection({
   subdomainKey,
-  isFirst = false,
-  isPort,
+  position = 'later',
+  headerType,
   sectionCount,
   sectionClosableUrls,
-  showHeader,
-  hasFlat,
-  flatVisibleChips,
-  flatHiddenChips,
-  flatHiddenCount,
+  flatSection,
   suppressedTitleParts = EMPTY_SUPPRESSED_TITLE_PARTS,
   websitePathSections,
   clusters,
@@ -86,6 +82,10 @@ export function SubdomainSection({
   suppressedTitleToneByText
 }: SubdomainSectionProps) {
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()
+  const isFirst = position === 'first'
+  const isPort = headerType === 'port'
+  const showHeader = headerType !== 'hidden'
+  const hasFlat = flatSection !== null
   const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
   const headerLabel = subdomainKey
 
@@ -133,9 +133,9 @@ export function SubdomainSection({
       />
       {hasFlat && (
         <FlatSection
-          visibleChips={flatVisibleChips}
-          hiddenChips={flatHiddenChips}
-          hiddenCount={flatHiddenCount}
+          visibleChips={flatSection.visibleChips}
+          hiddenChips={flatSection.hiddenChips}
+          hiddenCount={flatSection.hiddenCount}
           afterSeparator={!isFirst && !showHeader}
           filter={filter}
           suppressedTitleToneByText={suppressedTitleToneByText}

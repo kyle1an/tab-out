@@ -5,7 +5,7 @@ import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
-import { renderBionicTitleText } from './bionic-title-text'
+import { bionicTitleTextNodes } from './bionic-title-text'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -392,7 +392,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
         titleTooltipWidth && 'w-[var(--history-entry-title-tooltip-width)]'
       )}
     >
-      {renderBionicTitleText(entryLabel, 'history-entry-tooltip')}
+      {bionicTitleTextNodes(entryLabel, 'history-entry-tooltip')}
     </span>
   ) : undefined
 
@@ -452,7 +452,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
             </span>
             <span className="flex min-w-0 flex-auto items-baseline gap-1.5">
               <span className="history-entry-title min-w-0 flex-auto overflow-hidden text-ellipsis whitespace-nowrap text-tab-ink [font-size:inherit] [font-weight:inherit] [&.history-entry-title-truncated]:text-clip [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_right,black_0,black_calc(100%_-_14px),transparent)]" ref={titleRef}>
-                {renderBionicTitleText(entry.title, 'history-entry-title')}
+                {bionicTitleTextNodes(entry.title, 'history-entry-title')}
               </span>
               {badges.length > 0 && (
                 <span className="inline-flex flex-none items-center gap-1">

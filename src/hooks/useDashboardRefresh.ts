@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { fetchDashboardData } from '../extension/render.js'
@@ -22,9 +21,9 @@ type DashboardSnapshotOptions = {
 type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
   dashboard: DashboardData | null
   pinsLoaded: boolean
-  setDashboard: Dispatch<SetStateAction<DashboardData | null>>
-  setTabHistory: Dispatch<SetStateAction<TabHistorySnapshot | null>>
-  setWorkingSet: Dispatch<SetStateAction<WorkingSetSnapshot | null>>
+  setDashboard: (dashboard: DashboardData | null) => void
+  setTabHistory: (tabHistory: TabHistorySnapshot | null) => void
+  setWorkingSet: (workingSet: WorkingSetSnapshot | null) => void
   onBeforeAnimatedRefresh?: () => void
   onBeforePinnedRefresh?: () => void
 }

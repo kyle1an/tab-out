@@ -313,15 +313,15 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
                 <SubdomainSection
                   key={section.key || '__root__'}
                   subdomainKey={section.key}
-                  isFirst={index === 0}
-                  isPort={section.isPort}
+                  position={index === 0 ? 'first' : 'later'}
+                  headerType={!section.showHeader ? 'hidden' : section.isPort ? 'port' : 'subdomain'}
                   sectionCount={section.sectionCount}
                   sectionClosableUrls={section.sectionClosableUrls}
-                  showHeader={section.showHeader}
-                  hasFlat={section.hasFlat}
-                  flatVisibleChips={section.flatVisibleChips}
-                  flatHiddenChips={section.flatHiddenChips}
-                  flatHiddenCount={section.flatHiddenCount}
+                  flatSection={section.hasFlat ? {
+                    visibleChips: section.flatVisibleChips,
+                    hiddenChips: section.flatHiddenChips,
+                    hiddenCount: section.flatHiddenCount
+                  } : null}
                   suppressedTitleParts={section.suppressedTitleParts ?? []}
                   websitePathSections={section.websitePathSections}
                   clusters={section.clusters}

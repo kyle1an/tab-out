@@ -101,7 +101,7 @@ function splitBionicTitleWord(word: string, fixationLength: number): [string, st
   return [word, '']
 }
 
-export function renderBionicTitleText(
+export function bionicTitleTextNodes(
   text: string,
   keyPrefix: string,
   textOffset = 0,
@@ -142,5 +142,5 @@ export function renderBionicTitleText(
 
 export function createBionicTitleTextRenderer(titleText: string): InlineTextRenderer {
   const protectedRanges = findJiraTicketReferenceRanges(titleText)
-  return (text, keyPrefix, textOffset) => renderBionicTitleText(text, keyPrefix, textOffset, protectedRanges)
+  return (text, keyPrefix, textOffset) => bionicTitleTextNodes(text, keyPrefix, textOffset, protectedRanges)
 }

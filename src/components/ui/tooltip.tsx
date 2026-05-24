@@ -16,6 +16,7 @@ import type {
   ReactElement,
   ReactNode
 } from 'react'
+// react-doctor-disable-next-line react-doctor/no-flush-sync -- instant tooltip close needs synchronous Base UI popup teardown.
 import { flushSync } from 'react-dom'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
 import { mergeRefs } from 'foxact/merge-refs'
@@ -249,6 +250,7 @@ function startTooltipWheelForwarding(
   tooltipWheelForwardRefresh = refreshWheelTarget
   tooltipWheelForwardUntil = now() + TOOLTIP_WHEEL_CLOSE_REOPEN_BLOCK_MS
   if (!tooltipWheelForwardListenerInstalled) {
+    // react-doctor-disable-next-line react-doctor/client-passive-event-listeners -- wheel forwarding consumes the event after manual scroll.
     window.addEventListener('wheel', handleTooltipWheelForward, {
       capture: true,
       passive: false
@@ -398,6 +400,7 @@ type TooltipAnchorProps = Omit<
   onWheel?: (event: WheelEvent) => void
 }
 
+// react-doctor-disable-next-line react-doctor/no-giant-component -- hover, focus, and wheel state stay coupled until a tooltip-controller refactor.
 function TooltipAnchor({
   anchorToCursor = true,
   content,
@@ -417,6 +420,7 @@ function TooltipAnchor({
   const hoverOpenBlockedUntilRef = useRef(0)
   const hoverCloseScheduledRef = useRef(false)
   const tooltipWheelClosingRef = useRef(false)
+  const handleContentWheelRef = useRef<(event: WheelEvent) => void>(() => {})
   const retimeFrozenPointerClear = useRetimer()
   const retimeHoverOpen = useRetimer()
   const retimeHoverClose = useRetimer()
@@ -818,13 +822,22 @@ function TooltipAnchor({
   )
 
   useEffect(() => {
+    handleContentWheelRef.current = handleContentWheel
+  }, [handleContentWheel])
+
+  useEffect(() => {
     if (!tooltipOpen || !popupElement) return
 
-    popupElement.addEventListener('wheel', handleContentWheel, { passive: false })
-    return () => {
-      popupElement.removeEventListener('wheel', handleContentWheel)
+    function handleWheel(event: WheelEvent) {
+      handleContentWheelRef.current(event)
     }
-  }, [handleContentWheel, popupElement, tooltipOpen])
+
+    // react-doctor-disable-next-line react-doctor/client-passive-event-listeners -- nested tooltip scrolling calls preventDefault after manual scroll.
+    popupElement.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      popupElement.removeEventListener('wheel', handleWheel)
+    }
+  }, [popupElement, tooltipOpen])
 
   const triggerRef = useMemo(
     () => mergeRefs<HTMLElement>(children.props.ref, triggerElementRef),
