@@ -1729,6 +1729,45 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   await openContextMenuAt(replacementTarget)
   const contextTooltipAfterMenu = await waitForTooltipContaining(session, 'Example 2 with enough tooltip text', 500)
   assert.ok(contextTooltipAfterMenu.found, `right-clicking to open a page chip context menu should not hide a visible tooltip: ${JSON.stringify({ contextTooltip, contextTooltipAfterMenu })}`)
+  const backdropDismissPoint = await findPageChipTarget('Example 2 with enough tooltip text', 40)
+  assert.ok(backdropDismissPoint, `expected a page-chip point outside the context menu for backdrop-dismiss smoke: ${JSON.stringify({ replacementTarget })}`)
+  const backdropDismissOpenState = await readPageChipVisualState(replacementTarget)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: backdropDismissPoint.x,
+    y: backdropDismissPoint.y
+  })
+  await wait(80)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed',
+    button: 'left',
+    buttons: 1,
+    clickCount: 1,
+    x: backdropDismissPoint.x,
+    y: backdropDismissPoint.y
+  })
+  await wait(30)
+  const backdropDismissPressedState = await readPageChipVisualState(replacementTarget)
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+    x: backdropDismissPoint.x,
+    y: backdropDismissPoint.y
+  })
+  await wait(20)
+  const backdropDismissReleasedState = await readPageChipVisualState(replacementTarget)
+  await wait(140)
+  const backdropDismissAfterState = await readPageChipVisualState(replacementTarget)
+  const backdropDismissMenuState = await readContextMenuState()
+  assert.equal(backdropDismissOpenState?.contextMenuOpen, true, `page chip should carry the context-menu-open class before backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState })}`)
+  assert.equal(backdropDismissPressedState?.contextMenuOpen, true, `page chip should keep the context-menu-open visual class during backdrop dismissal: ${JSON.stringify({ backdropDismissPressedState })}`)
+  assert.equal(backdropDismissPressedState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `clicking the context menu backdrop over the page chip should not flash the chip background: ${JSON.stringify({ backdropDismissOpenState, backdropDismissPressedState })}`)
+  assert.equal(backdropDismissReleasedState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `page chip should bridge the first backdrop dismissal frame without a background flash: ${JSON.stringify({ backdropDismissOpenState, backdropDismissReleasedState })}`)
+  assert.equal(backdropDismissAfterState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `page chip should return to the same hover background after backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState, backdropDismissAfterState })}`)
+  assert.equal(backdropDismissMenuState.visibleMenuCount, 0, `backdrop dismissal over the page chip should close the context menu: ${JSON.stringify({ backdropDismissMenuState })}`)
+  await openContextMenuAt(replacementTarget)
   const tooltipShieldPoint = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {

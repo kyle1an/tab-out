@@ -1,6 +1,6 @@
 import { cloneElement, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
-import { Copy, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
@@ -35,6 +35,7 @@ const PAGE_CHIP_TOOLTIP_SUBPIXEL_TOLERANCE_PX = 0.01
 const PAGE_CHIP_TOOLTIP_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_TOOLTIP_LINE_HEIGHT_FALLBACK_PX = 16
 const PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX = 1.5
+const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 const PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME = 'page-chip-tooltip-lines block min-w-0 max-w-full'
 const PAGE_CHIP_TOOLTIP_LINE_CLASS_NAME = 'page-chip-tooltip-line block min-w-0 max-w-full whitespace-nowrap'
 const PAGE_CHIP_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME = 'page-chip-tooltip-line page-chip-tooltip-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
@@ -135,7 +136,7 @@ function PageChipContextMenuContent({
         label={savedActionLabel}
         onClick={onSavedSelect}
       >
-        <SavedPageIcon saved={saved} className="size-4" />
+        <SavedPageIcon saved={saved} className="size-3.5" />
         <span className="min-w-0 flex-1">{savedActionLabel}</span>
       </ContextMenuItem>
       <ContextMenuItem
@@ -144,7 +145,7 @@ function PageChipContextMenuContent({
         label="Copy page title text"
         onClick={onCopyTitle}
       >
-        <Copy className="size-4" aria-hidden="true" />
+        <svg className="icon-[ooui--copy-ltr] size-3.5" aria-hidden="true" />
         <span className="min-w-0 flex-1">Copy page title text</span>
       </ContextMenuItem>
     </ContextMenuContent>
@@ -160,12 +161,34 @@ function PageChipContextMenu({
   onCopyTitle,
   onOpenChange
 }: PageChipContextMenuProps) {
-  const [open, setOpen] = useState(false)
+  const [visualOpen, setVisualOpen] = useState(false)
+  const visualCloseTimerRef = useRef<number | null>(null)
+
+  function clearVisualCloseTimer() {
+    if (visualCloseTimerRef.current === null) return
+    window.clearTimeout(visualCloseTimerRef.current)
+    visualCloseTimerRef.current = null
+  }
+
+  useEffect(() => () => {
+    if (visualCloseTimerRef.current !== null) {
+      window.clearTimeout(visualCloseTimerRef.current)
+    }
+  }, [])
+
   function handleOpenChange(nextOpen: boolean) {
-    setOpen(nextOpen)
+    clearVisualCloseTimer()
+    if (nextOpen) {
+      setVisualOpen(true)
+    } else {
+      visualCloseTimerRef.current = window.setTimeout(() => {
+        visualCloseTimerRef.current = null
+        setVisualOpen(false)
+      }, PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS)
+    }
     onOpenChange?.(nextOpen)
   }
-  const trigger = open
+  const trigger = visualOpen
     ? cloneElement(children, {
         className: cn(children.props.className, 'page-chip-context-menu-open'),
         'data-context-menu-open': ''

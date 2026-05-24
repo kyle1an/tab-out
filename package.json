@@ -35,6 +35,7 @@
     "@eslint/js": "^10.0.1",
     "@iconify-json/lucide": "^1.2.109",
     "@iconify-json/mingcute": "^1.2.7",
+    "@iconify-json/ooui": "^1.2.14",
     "@iconify-json/tabler": "^1.2.35",
     "@iconify/tailwind4": "^1.2.3",
     "@rolldown/plugin-babel": "^0.2.3",
