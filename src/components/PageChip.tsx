@@ -597,6 +597,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
+  const isSplitTitleTooltip = !chip.iconOnly && !isTitleVariantGroup
   const isRegularTitleTooltip = !chip.iconOnly && !isFolded && !isTitleVariantGroup
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const chipTooltipMeasureRef = useRef<HTMLSpanElement | null>(null)
@@ -608,20 +609,23 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
   const [chipTooltipViewportConstrained, setChipTooltipViewportConstrained] = useState(false)
   const [chipTooltipLineHtml, setChipTooltipLineHtml] = useState<string[]>([])
 
-  const syncRegularChipTooltipWidth = useCallback((textEl: HTMLElement | null) => {
-    const lineHtml = isRegularTitleTooltip ? getRegularChipTooltipLineHtml(textEl) : []
+  const syncChipTooltipLayout = useCallback((textEl: HTMLElement | null) => {
+    const titleTextEl = isFolded
+      ? textEl?.querySelector<HTMLElement>('.chip-title-row') || null
+      : textEl
+    const lineHtml = isSplitTitleTooltip ? getRegularChipTooltipLineHtml(titleTextEl) : []
     const tooltipMetrics = isRegularTitleTooltip
       ? getRegularChipTooltipWidth(textEl, chipTooltipMeasureRef.current, lineHtml)
       : { viewportConstrained: false, width: 0 }
     setChipTooltipLineHtml((current) => chipTooltipLineHtmlEquals(current, lineHtml) ? current : lineHtml)
     setChipTooltipViewportConstrained((current) => current === tooltipMetrics.viewportConstrained ? current : tooltipMetrics.viewportConstrained)
     setChipTooltipWidth((current) => Math.abs(current - tooltipMetrics.width) < 0.1 ? current : tooltipMetrics.width)
-  }, [isRegularTitleTooltip])
+  }, [isFolded, isRegularTitleTooltip, isSplitTitleTooltip])
 
   const updateChipTextMeasurements = useCallback((textEl: HTMLElement | null) => {
     updateChipTextTruncation(textEl, setIsTextTruncated, setChipTextWidth, setChipTextHeight, setChipTooltipMaxWidth)
-    syncRegularChipTooltipWidth(textEl)
-  }, [syncRegularChipTooltipWidth])
+    syncChipTooltipLayout(textEl)
+  }, [syncChipTooltipLayout])
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
@@ -643,7 +647,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       setChipTextWidth((current) => Math.abs(current - width) < 0.1 ? current : width)
       setChipTextHeight((current) => Math.abs(current - height) < 0.1 ? current : height)
       setChipTooltipMaxWidth((current) => Math.abs(current - maxWidth) < 0.1 ? current : maxWidth)
-      syncRegularChipTooltipWidth(textEl)
+      syncChipTooltipLayout(textEl)
     })
     observer?.observe(textEl)
 
@@ -660,7 +664,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
       chipTextTruncationCallbacks.delete(textEl)
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
-  }, [syncRegularChipTooltipWidth, updateChipTextMeasurements])
+  }, [syncChipTooltipLayout, updateChipTextMeasurements])
 
   function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
@@ -1375,9 +1379,7 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
-  function renderRegularChipTooltipContent() {
-    if (chipTooltipLineHtml.length === 0) return renderChipTextContent('tooltip')
-
+  function renderSplitChipTooltipLines() {
     const lastIndex = chipTooltipLineHtml.length - 1
     return (
       <span className={PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME}>
@@ -1392,17 +1394,35 @@ export function PageChip({ chip, filter = '', suppressedTitleToneByText }: PageC
     )
   }
 
+  function renderRegularChipTooltipContent() {
+    if (chipTooltipLineHtml.length === 0) return renderChipTextContent('tooltip')
+    return renderSplitChipTooltipLines()
+  }
+
+  function renderFoldedChipTooltipContent() {
+    return (
+      <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
+        <span className="chip-title-row block min-w-0 max-w-full">
+          {chipTooltipLineHtml.length > 0 ? renderSplitChipTooltipLines() : renderTitleContent('tooltip')}
+        </span>
+        <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
+          {envs.map((env) => renderEnvLabel(env, 'tooltip'))}
+        </span>
+      </span>
+    )
+  }
+
   const chipTooltipContent = !isTitleVariantGroup && shouldShowChipTooltip ? (
     <span
       className={cn(
         "chip-text block min-w-0 max-w-[calc(100vw-32px)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]",
         regularChipTooltipWidth
           ? 'w-[var(--page-chip-tooltip-width)]'
-          : chipTooltipTextWidth && 'w-[var(--page-chip-tooltip-text-width)]',
+          : chipTooltipTextWidth && !isFolded && 'w-[var(--page-chip-tooltip-text-width)]',
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
       )}
     >
-      {isRegularTitleTooltip ? renderRegularChipTooltipContent() : renderChipTextContent('tooltip')}
+      {isFolded ? renderFoldedChipTooltipContent() : isRegularTitleTooltip ? renderRegularChipTooltipContent() : renderChipTextContent('tooltip')}
     </span>
   ) : undefined
 

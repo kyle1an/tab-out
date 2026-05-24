@@ -1637,6 +1637,8 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(envButtonMatch[1], /\bcursor-pointer\b/)
   assert.match(envButtonMatch[1], /\bhover:bg/)
   assert.match(envButtonMatch[1], /\bfocus-visible:outline/)
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /chipTooltipTextWidth && !isFolded && 'w-\[var\(--page-chip-tooltip-text-width\)\]'/)
 })
 
 test('PathgroupSection renders header path-group pills with a slash prefix', () => {

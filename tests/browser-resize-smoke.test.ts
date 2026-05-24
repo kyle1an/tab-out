@@ -872,6 +872,108 @@ async function measurePageChipTooltipLineCount(
   return { target, tooltip }
 }
 
+async function measureFoldedPageChipTooltipTitleLineCount(
+  session: CdpSession,
+  label: string,
+  options: { forcedTextWidth?: number } = {}
+) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1600,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip-folded'))
+          .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
+        const chipText = chip?.querySelector('.chip-text')
+        if (${JSON.stringify(!!options.forcedTextWidth)} && chipText instanceof HTMLElement) {
+          chipText.style.flex = '0 0 ${options.forcedTextWidth || 0}px'
+          chipText.style.maxWidth = '${options.forcedTextWidth || 0}px'
+        }
+        const titleRow = chip?.querySelector('.chip-title-row')
+        const envRow = chip?.querySelector('.chip-env-row')
+        const chipTextRect = chipText?.getBoundingClientRect()
+        const titleRect = titleRow?.getBoundingClientRect()
+        const envRect = envRow?.getBoundingClientRect()
+        if (chipText && titleRow && envRow && chipTextRect && titleRect && envRect && chipTextRect.width > 80 && chipTextRect.height > 8) {
+          const styles = window.getComputedStyle(titleRow)
+          const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+          resolve({
+            x: Math.round(chipTextRect.left + Math.min(24, chipTextRect.width / 2)),
+            y: Math.round(chipTextRect.top + Math.min(titleRect.height / 2, 10)),
+            titleText: titleRow.textContent || '',
+            envText: envRow.textContent || '',
+            titleLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
+            titleWidth: Math.round(titleRect.width),
+            chipTextWidth: Math.round(chipTextRect.width)
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, `expected a folded page chip for tooltip check: ${label}`)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const tooltip = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const tooltip = document.querySelector('[data-slot="tooltip-content"]')
+      const tooltipText = tooltip?.querySelector('.chip-text')
+      const titleRow = tooltip?.querySelector('.chip-title-row')
+      const envRow = tooltip?.querySelector('.chip-env-row')
+      const tooltipRect = tooltip?.getBoundingClientRect()
+      const titleRect = titleRow?.getBoundingClientRect()
+      const envRect = envRow?.getBoundingClientRect()
+      if (!tooltip || !tooltipText || !titleRow || !envRow || !tooltipRect || !titleRect || !envRect) return null
+      const styles = window.getComputedStyle(titleRow)
+      const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+      return {
+        text: tooltip.textContent || '',
+        titleText: titleRow.textContent || '',
+        envText: envRow.textContent || '',
+        titleLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
+        titleWidth: Math.round(titleRect.width),
+        textWidth: Math.round(tooltipText.getBoundingClientRect().width),
+        width: Math.round(tooltipRect.width),
+        right: Math.round(tooltipRect.right),
+        viewportRight: window.innerWidth
+      }
+    })()`
+  }).then((measurement: any) => measurement.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(240)
+
+  return { target, tooltip }
+}
+
 async function measureInteractiveTooltipClickReturnFocus(
   session: CdpSession,
   selector: string,
@@ -1955,6 +2057,49 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     edgeConstrainedTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
     `edge-constrained tooltip lines should wrap instead of overflowing: ${JSON.stringify(edgeConstrainedTooltip)}`
+  )
+  const foldedTooltip = await measureFoldedPageChipTooltipTitleLineCount(session, 'Folded Tooltip Lenses', {
+    forcedTextWidth: 270
+  })
+  assert.ok(foldedTooltip.tooltip, `folded chip tooltip should open: ${JSON.stringify(foldedTooltip)}`)
+  assert.equal(
+    foldedTooltip.target.titleLineCount,
+    1,
+    `folded chip visible title row should fit on one line for this smoke: ${JSON.stringify(foldedTooltip)}`
+  )
+  assert.equal(
+    foldedTooltip.tooltip.titleLineCount,
+    foldedTooltip.target.titleLineCount,
+    `folded chip tooltip title row should match the visible title row line count: ${JSON.stringify(foldedTooltip)}`
+  )
+  assert.ok(
+    foldedTooltip.tooltip.titleText.includes('Example Optical'),
+    `folded chip tooltip should expand the hidden title marker inline: ${JSON.stringify(foldedTooltip)}`
+  )
+  assert.ok(
+    foldedTooltip.tooltip.envText.includes('dev2us') && foldedTooltip.tooltip.envText.includes('dev4us'),
+    `folded chip tooltip should keep env pills visible below the title row: ${JSON.stringify(foldedTooltip)}`
+  )
+  assert.ok(
+    foldedTooltip.tooltip.textWidth > foldedTooltip.target.chipTextWidth,
+    `folded chip tooltip should grow wider than the compact folded chip when hidden title text expands: ${JSON.stringify(foldedTooltip)}`
+  )
+  const foldedWrappedTooltip = await measureFoldedPageChipTooltipTitleLineCount(session, 'Folded Tooltip Lenses', {
+    forcedTextWidth: 160
+  })
+  assert.ok(foldedWrappedTooltip.tooltip, `wrapped folded chip tooltip should open: ${JSON.stringify(foldedWrappedTooltip)}`)
+  assert.ok(
+    foldedWrappedTooltip.target.titleLineCount > 1,
+    `wrapped folded chip visible title row should span multiple lines for this smoke: ${JSON.stringify(foldedWrappedTooltip)}`
+  )
+  assert.equal(
+    foldedWrappedTooltip.tooltip.titleLineCount,
+    foldedWrappedTooltip.target.titleLineCount,
+    `wrapped folded chip tooltip title row should keep the visible title line breaks: ${JSON.stringify(foldedWrappedTooltip)}`
+  )
+  assert.ok(
+    foldedWrappedTooltip.tooltip.titleText.includes('Example Optical'),
+    `wrapped folded chip tooltip should still expand the hidden title marker: ${JSON.stringify(foldedWrappedTooltip)}`
   )
 
   const popupHover = await measureTooltipPopupHover(session)
