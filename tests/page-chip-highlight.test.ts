@@ -289,7 +289,7 @@ test('PageChip renders the current active chip frame without the other-window la
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(frameMatch, 'active chip frame should render')
   assert.match(chipMatch[1], /current-active-chip\b/)
-  assert.match(chipMatch[1], /\bbg-neutral-100\b/)
+  assert.match(chipMatch[1], /\bbg-neutral-50\b/)
   assert.match(chipMatch[1], /\bring-neutral-400\b/)
   assert.doesNotMatch(chipMatch[1], /\bhover:bg/)
   assert.doesNotMatch(chipMatch[1], /hover::after/)
