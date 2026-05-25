@@ -1,4 +1,4 @@
-import { cloneElement, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
+import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
@@ -24,30 +24,30 @@ import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 let chipTextResizeObserver: ResizeObserver | null = null
 const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
-  (metrics: { height: number; isTruncated: boolean; maxWidth: number; width: number }) => void
+  (metrics: { height: number; isTruncated: boolean; width: number }) => void
 >()
 
-const PAGE_CHIP_TOOLTIP_MAX_WIDTH_OFFSET_PX = 6
-const PAGE_CHIP_TOOLTIP_VIEWPORT_MARGIN_PX = 8
-const PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX = 6
-const PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX = 8
-const PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX = PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX + PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX
-// Must equal the tooltip's vertical padding (padding-block in style.css) so the
-// first line re-seats onto the chip text after the box top is lifted by this inset.
-const PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX = 5
-const PAGE_CHIP_TOOLTIP_SUBPIXEL_TOLERANCE_PX = 0.01
-const PAGE_CHIP_TOOLTIP_WIDTH_SEARCH_STEPS = 12
-const PAGE_CHIP_TOOLTIP_LINE_HEIGHT_FALLBACK_PX = 16
-const PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX = 1.5
-const PAGE_CHIP_TOOLTIP_SINGLE_LINE_WIDTH_GUARD_PX = 24
-const PAGE_CHIP_TOOLTIP_SPLIT_LINE_WIDTH_GUARD_PX = 2
+const PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX = 12
+const PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX = 8
+const PAGE_CHIP_EXPANDED_SINGLE_LINE_WIDTH_GUARD_PX = 24
+const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
+const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
+const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
 const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
-const PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME = 'page-chip-tooltip-lines block min-w-0 max-w-full'
-const PAGE_CHIP_TOOLTIP_LINE_CLASS_NAME = 'page-chip-tooltip-line block min-w-0 max-w-full whitespace-nowrap'
-const PAGE_CHIP_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME = 'page-chip-tooltip-line page-chip-tooltip-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
-const PAGE_CHIP_TOOLTIP_TAIL_LINE_CLASS_NAME = 'page-chip-tooltip-line page-chip-tooltip-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const PAGE_CHIP_EXPANDED_LINES_CLASS_NAME = 'page-chip-expanded-lines block min-w-0 max-w-full'
+const PAGE_CHIP_EXPANDED_LINE_CLASS_NAME = 'page-chip-expanded-line block min-w-0 max-w-full whitespace-nowrap'
+const PAGE_CHIP_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'page-chip-expanded-line page-chip-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const PAGE_CHIP_EXPANDED_TAIL_LINE_CLASS_NAME = 'page-chip-expanded-line page-chip-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
+const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
+  lineHtml: [],
+  maxWidth: 0,
+  viewportConstrained: false,
+  width: 0,
+  x: 'start',
+  y: 'down'
+}
 
 interface PageChipProps {
   chip: DashboardChipData
@@ -78,47 +78,48 @@ type PageChipContextMenuProps = PageChipContextMenuContentProps & {
   children: PageChipContextMenuTriggerElement
   onOpenChange?: (open: boolean) => void
 }
-type TooltipSubpixelOffset = {
-  x: number
-  y: number
-}
 type ChipTextMetrics = {
   isTruncated: boolean
-  maxWidth: number
   width: number
 }
-type ChipLayoutState = {
-  textMetrics: ChipTextMetrics
-  tooltipLineHtml: string[]
-  tooltipSubpixelOffset: TooltipSubpixelOffset
-  tooltipViewportConstrained: boolean
-  tooltipWidth: number
+type ChipSlotSize = {
+  height: number
+  width: number
 }
-type ChipLayoutAction =
-  | { type: 'textMetrics'; metrics: ChipTextMetrics }
-  | {
-      type: 'tooltipLayout'
-      lineHtml: string[]
-      subpixelOffset: TooltipSubpixelOffset
-      viewportConstrained: boolean
-      width: number
-    }
-type ChipTooltipLayoutMetrics = {
+type ChipExpansionGeometry = {
   lineHtml: string[]
-  subpixelOffset: TooltipSubpixelOffset
+  maxWidth: number
+  viewportConstrained: boolean
+  width: number
+  x: 'start' | 'end'
+  y: 'down' | 'up'
+}
+type ChipExpansionDomPosition = {
+  node: Text
+  offset: number
+}
+type ExpandedPageChipContentMetrics = {
   viewportConstrained: boolean
   width: number
 }
-const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { isTruncated: false, maxWidth: 0, width: 0 }
-const DEFAULT_CHIP_LAYOUT_STATE: ChipLayoutState = {
-  textMetrics: DEFAULT_CHIP_TEXT_METRICS,
-  tooltipLineHtml: [],
-  tooltipSubpixelOffset: { x: 0, y: 0 },
-  tooltipViewportConstrained: false,
-  tooltipWidth: 0
+const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { isTruncated: false, width: 0 }
+const DEFAULT_CHIP_SLOT_SIZE: ChipSlotSize = { height: 0, width: 0 }
+
+let activeExpandedPageChipId: string | null = null
+const expandedPageChipSubscribers = new Set<(activeId: string | null) => void>()
+
+function setActiveExpandedPageChip(id: string | null) {
+  if (activeExpandedPageChipId === id) return
+  activeExpandedPageChipId = id
+  for (const subscriber of expandedPageChipSubscribers) subscriber(activeExpandedPageChipId)
 }
-const CHIP_TOOLTIP_LAYOUT_CACHE_LIMIT = 400
-const chipTooltipLayoutCache = new Map<string, ChipTooltipLayoutMetrics>()
+
+function subscribeToExpandedPageChip(subscriber: (activeId: string | null) => void) {
+  expandedPageChipSubscribers.add(subscriber)
+  return () => {
+    expandedPageChipSubscribers.delete(subscriber)
+  }
+}
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
@@ -319,147 +320,129 @@ function getChipTextWidth(textEl: HTMLElement | null) {
   return Math.round(textEl.getBoundingClientRect().width * 100) / 100
 }
 
-function getChipTextHeight(textEl: HTMLElement | null) {
+function getChipTextPaintedContentWidth(textEl: HTMLElement | null) {
   if (!textEl) return 0
-  return Math.round(textEl.getBoundingClientRect().height * 100) / 100
-}
 
-function roundToDevicePixel(value: number, win: Window | null = typeof window === 'undefined' ? null : window) {
-  const scale = win?.devicePixelRatio || 1
-  return Math.round(value * scale) / scale
-}
-
-function getChipTooltipSubpixelOffset(anchorEl: HTMLElement | null): TooltipSubpixelOffset {
-  if (!anchorEl) return { x: 0, y: 0 }
-
-  const rect = anchorEl.getBoundingClientRect()
-  const win = anchorEl.ownerDocument.defaultView || window
-  const left = rect.left - PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX
-  const top = rect.top - PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX
-
-  return {
-    x: left - roundToDevicePixel(left, win),
-    y: top - roundToDevicePixel(top, win)
-  }
-}
-
-function chipTooltipSubpixelOffsetsEqual(left: TooltipSubpixelOffset, right: TooltipSubpixelOffset) {
-  return (
-    Math.abs(left.x - right.x) < PAGE_CHIP_TOOLTIP_SUBPIXEL_TOLERANCE_PX &&
-    Math.abs(left.y - right.y) < PAGE_CHIP_TOOLTIP_SUBPIXEL_TOLERANCE_PX
-  )
-}
-
-function getChipTooltipMaxWidth(textEl: HTMLElement | null) {
-  if (!textEl || typeof window === 'undefined') return 0
+  const ownerDocument = textEl.ownerDocument
+  const win = ownerDocument.defaultView
+  if (!win) return 0
 
   const textRect = textEl.getBoundingClientRect()
-  const maxWidth = window.innerWidth - textRect.left - PAGE_CHIP_TOOLTIP_VIEWPORT_MARGIN_PX + PAGE_CHIP_TOOLTIP_MAX_WIDTH_OFFSET_PX
-  return Math.max(0, Math.round(maxWidth * 100) / 100)
-}
+  if (textRect.width <= 0) return 0
 
-function getChipTextLineHeight(textEl: HTMLElement | null) {
-  if (!textEl || typeof window === 'undefined') return PAGE_CHIP_TOOLTIP_LINE_HEIGHT_FALLBACK_PX
-  const lineHeight = Number.parseFloat(window.getComputedStyle(textEl).lineHeight)
-  return Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : PAGE_CHIP_TOOLTIP_LINE_HEIGHT_FALLBACK_PX
-}
-
-function getVisibleChipTextLineCount(textEl: HTMLElement | null) {
-  if (!textEl) return 1
-  const lineHeight = getChipTextLineHeight(textEl)
-  const height = getChipTextHeight(textEl)
-  if (height <= 0 || lineHeight <= 0) return 1
-  return Math.max(1, Math.round(height / lineHeight))
-}
-
-function tooltipLineContentOverflows(line: HTMLElement) {
-  if (line.scrollWidth - line.clientWidth > PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX) return true
-
-  const lineRect = line.getBoundingClientRect()
-  const win = line.ownerDocument.defaultView
-  if (!win || lineRect.width <= 0) return false
-
-  const walker = line.ownerDocument.createTreeWalker(
-    line,
+  const range = ownerDocument.createRange()
+  const walker = ownerDocument.createTreeWalker(
+    textEl,
     win.NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
-        return node.textContent
+        return node.textContent?.trim()
           ? win.NodeFilter.FILTER_ACCEPT
           : win.NodeFilter.FILTER_REJECT
       }
     }
   )
-  const range = line.ownerDocument.createRange()
+  let maxRight = 0
+
+  function includeRect(rect: DOMRect) {
+    if (rect.width <= 0 && rect.height <= 0) return
+    maxRight = Math.max(maxRight, rect.right - textRect.left)
+  }
 
   try {
     while (true) {
       const node = walker.nextNode()
       if (!(node instanceof win.Text)) break
       range.selectNodeContents(node)
-      for (const rect of range.getClientRects()) {
-        if (
-          rect.width > 0 &&
-          rect.right - lineRect.right > PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX
-        ) {
-          return true
-        }
-      }
+      for (const rect of range.getClientRects()) includeRect(rect)
     }
   } finally {
     range.detach()
   }
 
-  return false
-}
-
-function tooltipMeasureFitsLineCount(
-  measureEl: HTMLElement,
-  width: number,
-  targetLineCount: number
-) {
-  measureEl.style.width = `${Math.max(1, width)}px`
-  const lineHeight = getChipTextLineHeight(measureEl)
-  const height = measureEl.getBoundingClientRect().height
-  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.page-chip-tooltip-line:not(.page-chip-tooltip-line-tail)'))
-    .some(tooltipLineContentOverflows)
-  const markerWrapsTaller = Array.from(measureEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator'))
-    .some((marker) => marker.getBoundingClientRect().height > lineHeight + PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX)
-  return !fixedLineOverflows && !markerWrapsTaller && height <= targetLineCount * lineHeight + PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX
-}
-
-function getTooltipSingleLineNaturalWidth(measureEl: HTMLElement) {
-  const elements = [measureEl, ...Array.from(measureEl.querySelectorAll<HTMLElement>('*'))]
-  for (const element of elements) {
-    element.style.whiteSpace = 'nowrap'
+  for (const marker of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator, .chip-dupe-badge'))) {
+    includeRect(marker.getBoundingClientRect())
   }
-  const range = measureEl.ownerDocument.createRange()
-  range.selectNodeContents(measureEl)
-  try {
-    return Math.round(Math.max(
-      measureEl.scrollWidth,
-      measureEl.getBoundingClientRect().width,
-      range.getBoundingClientRect().width
-    ) * 100) / 100
-  } finally {
-    range.detach()
+
+  return Math.round(Math.max(0, maxRight) * 100) / 100
+}
+
+function getChipTextExpansionBaselineWidth(textEl: HTMLElement | null) {
+  const boxWidth = getChipTextWidth(textEl)
+  const contentWidth = getChipTextPaintedContentWidth(textEl)
+  if (boxWidth <= 0 || contentWidth <= 0) return boxWidth
+  return Math.round(Math.min(boxWidth, contentWidth + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX) * 100) / 100
+}
+
+function cssPixelValue(value: string) {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function elementInlinePaddingWidth(element: HTMLElement) {
+  const styles = element.ownerDocument.defaultView?.getComputedStyle(element)
+  if (!styles) return 0
+  return cssPixelValue(styles.paddingLeft) + cssPixelValue(styles.paddingRight)
+}
+
+function elementColumnGap(element: HTMLElement) {
+  const styles = element.ownerDocument.defaultView?.getComputedStyle(element)
+  return styles ? cssPixelValue(styles.columnGap) : 0
+}
+
+function visibleElementChildren(element: HTMLElement) {
+  return Array.from(element.children).filter((child): child is HTMLElement => {
+    if (!(child instanceof HTMLElement)) return false
+    const rect = child.getBoundingClientRect()
+    return rect.width > 0 || child.scrollWidth > 0
+  })
+}
+
+function titleVariantButtonMinimumWidth(button: HTMLElement) {
+  const children = visibleElementChildren(button)
+  const contentWidth = children.reduce((width, child) => {
+    if (child.classList.contains('chip-title-variant-label')) {
+      return width + Math.max(child.scrollWidth, child.getBoundingClientRect().width)
+    }
+    return width + Math.max(child.scrollWidth, child.getBoundingClientRect().width)
+  }, 0)
+  const gapWidth = Math.max(0, children.length - 1) * elementColumnGap(button)
+  return elementInlinePaddingWidth(button) + gapWidth + contentWidth
+}
+
+function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
+  if (!textEl) return 0
+
+  let width = 0
+  for (const shell of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-variant-shell'))) {
+    const button = shell.querySelector<HTMLElement>('.chip-title-variant')
+    if (!button) continue
+    width = Math.max(width, elementInlinePaddingWidth(shell) + titleVariantButtonMinimumWidth(button))
   }
+  return Math.round(width * 100) / 100
 }
 
-function guardedSplitLineTooltipWidth(width: number, maxContentWidth: number, lineHtml: readonly string[]) {
-  const guardedWidth = lineHtml.length > 0
-    ? width + PAGE_CHIP_TOOLTIP_SPLIT_LINE_WIDTH_GUARD_PX
-    : width
-  return Math.round(Math.min(guardedWidth, maxContentWidth) * 100) / 100
+function getChipTextHeight(textEl: HTMLElement | null) {
+  if (!textEl) return 0
+  return Math.round(textEl.getBoundingClientRect().height * 100) / 100
 }
 
-type ChipTooltipDomPosition = {
-  node: Text
-  offset: number
+function getChipTextLineHeight(textEl: HTMLElement | null) {
+  if (!textEl || typeof window === 'undefined') return 16
+  const styles = window.getComputedStyle(textEl)
+  const lineHeight = Number.parseFloat(styles.lineHeight)
+  if (Number.isFinite(lineHeight) && lineHeight > 0) return lineHeight
+
+  const fontSize = Number.parseFloat(styles.fontSize)
+  return Number.isFinite(fontSize) && fontSize > 0 ? fontSize * 1.2 : 16
 }
-type RegularChipTooltipMetrics = {
-  viewportConstrained: boolean
-  width: number
+
+function getVisibleChipTextLineCount(textEl: HTMLElement | null) {
+  if (!textEl) return 1
+  const lineHeight = getChipTextLineHeight(textEl)
+  const textHeight = getChipTextHeight(textEl)
+  if (lineHeight <= 0 || textHeight <= 0) return 1
+  return Math.max(1, Math.round(textHeight / lineHeight))
 }
 
 function paintedRangeRect(range: Range) {
@@ -467,14 +450,7 @@ function paintedRangeRect(range: Range) {
   return rects[rects.length - 1] || null
 }
 
-function fragmentHtml(document: Document, fragment: DocumentFragment) {
-  const container = document.createElement('span')
-  hydrateClonedChipTooltipFragment(document, fragment)
-  container.append(fragment)
-  return container.innerHTML
-}
-
-function carriedTooltipMarkerToneClass(marker: Element) {
+function carriedExpandedMarkerToneClass(marker: Element) {
   return Array.from(marker.classList)
     .filter((className) => (
       className.startsWith('title-suppression-token-tone-') ||
@@ -486,20 +462,36 @@ function carriedTooltipMarkerToneClass(marker: Element) {
     .join(' ')
 }
 
-function ensureLeadingTooltipMarkerSpace(document: Document, marker: Element) {
+function ensureLeadingExpandedMarkerSpace(document: Document, marker: Element) {
   const previous = marker.previousSibling
   if (previous?.textContent && /\s$/.test(previous.textContent)) return
   marker.before(document.createTextNode(' '))
 }
 
-function hydrateClonedChipTooltipFragment(document: Document, fragment: DocumentFragment) {
+function hydrateClonedExpandedChipFragment(document: Document, fragment: DocumentFragment) {
+  for (const content of Array.from(fragment.querySelectorAll('.chip-title-variant-content'))) {
+    content.className = 'chip-title-variant-content inline-flex max-w-full min-w-0 flex-col items-start gap-0.5 align-top'
+  }
+
+  for (const list of Array.from(fragment.querySelectorAll('.chip-title-variant-list'))) {
+    list.className = 'chip-title-variant-list inline-flex max-w-full flex-col items-start gap-0.5 align-top'
+  }
+
+  for (const shell of Array.from(fragment.querySelectorAll('.chip-title-variant-shell'))) {
+    shell.className = 'chip-title-variant-shell inline-flex max-w-full min-w-0 items-center'
+  }
+
+  for (const variant of Array.from(fragment.querySelectorAll('.chip-title-variant'))) {
+    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]'
+  }
+
   for (const marker of Array.from(fragment.querySelectorAll('.chip-title-suppression-marker'))) {
     const label = marker.getAttribute('aria-label') || ''
     const hiddenTitleText = label.replace(/^Suppressed title text:\s*/, '').trim()
     if (!hiddenTitleText) continue
 
-    ensureLeadingTooltipMarkerSpace(document, marker)
-    marker.className = cn(PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME, carriedTooltipMarkerToneClass(marker))
+    ensureLeadingExpandedMarkerSpace(document, marker)
+    marker.className = cn(PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME, carriedExpandedMarkerToneClass(marker))
     marker.replaceChildren(document.createTextNode(hiddenTitleText))
   }
 
@@ -517,7 +509,14 @@ function hydrateClonedChipTooltipFragment(document: Document, fragment: Document
   }
 }
 
-function wrappedMarkerTailTooltipLineHtml(textEl: HTMLElement) {
+function expandedChipFragmentHtml(document: Document, fragment: DocumentFragment) {
+  const container = document.createElement('span')
+  hydrateClonedExpandedChipFragment(document, fragment)
+  container.append(fragment)
+  return container.innerHTML
+}
+
+function wrappedMarkerTailExpandedLineHtml(textEl: HTMLElement) {
   const ownerDocument = textEl.ownerDocument
   const win = ownerDocument.defaultView
   if (!win) return []
@@ -529,7 +528,7 @@ function wrappedMarkerTailTooltipLineHtml(textEl: HTMLElement) {
   const markers = Array.from(textEl.querySelectorAll<HTMLElement>('.chip-strip-indicator, .chip-title-suppression-marker'))
   const wrappedMarker = markers.find((marker) => {
     const rect = marker.getBoundingClientRect()
-    return rect.top - textRect.top >= lineHeight - PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX
+    return rect.top - textRect.top >= lineHeight - PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
   })
   if (!wrappedMarker) return []
 
@@ -542,8 +541,8 @@ function wrappedMarkerTailTooltipLineHtml(textEl: HTMLElement) {
     tailRange.selectNodeContents(textEl)
     tailRange.setStartBefore(wrappedMarker)
 
-    const headHtml = fragmentHtml(ownerDocument, headRange.cloneContents())
-    const tailHtml = fragmentHtml(ownerDocument, tailRange.cloneContents())
+    const headHtml = expandedChipFragmentHtml(ownerDocument, headRange.cloneContents())
+    const tailHtml = expandedChipFragmentHtml(ownerDocument, tailRange.cloneContents())
     return headHtml.trim() && tailHtml.trim() ? [headHtml, tailHtml] : []
   } finally {
     headRange.detach()
@@ -551,7 +550,7 @@ function wrappedMarkerTailTooltipLineHtml(textEl: HTMLElement) {
   }
 }
 
-function getRegularChipTooltipLineHtml(textEl: HTMLElement | null) {
+function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
   if (!textEl || typeof document === 'undefined') return []
 
   const visibleLineCount = getVisibleChipTextLineCount(textEl)
@@ -577,7 +576,7 @@ function getRegularChipTooltipLineHtml(textEl: HTMLElement | null) {
     }
   )
   const range = ownerDocument.createRange()
-  const lineStarts: ChipTooltipDomPosition[] = []
+  const lineStarts: ChipExpansionDomPosition[] = []
   let lastLineIndex = -1
 
   while (lineStarts.length < visibleLineCount) {
@@ -600,7 +599,8 @@ function getRegularChipTooltipLineHtml(textEl: HTMLElement | null) {
     }
   }
 
-  if (lineStarts.length <= 1) return wrappedMarkerTailTooltipLineHtml(textEl)
+  range.detach()
+  if (lineStarts.length <= 1) return wrappedMarkerTailExpandedLineHtml(textEl)
 
   const lines: string[] = []
   for (let index = 0; index < lineStarts.length; index += 1) {
@@ -614,24 +614,25 @@ function getRegularChipTooltipLineHtml(textEl: HTMLElement | null) {
       lineRange.selectNodeContents(textEl)
       lineRange.setStart(start.node, start.offset)
     }
-    lines.push(fragmentHtml(ownerDocument, lineRange.cloneContents()))
+    lines.push(expandedChipFragmentHtml(ownerDocument, lineRange.cloneContents()))
+    lineRange.detach()
   }
 
   return lines
 }
 
-function chipTooltipLineHtmlEquals(left: readonly string[], right: readonly string[]) {
+function chipExpansionLineHtmlEquals(left: readonly string[], right: readonly string[]) {
   return left.length === right.length && left.every((line, index) => line === right[index])
 }
 
-function chipTooltipLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
+function chipExpansionLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
   const lastIndex = lineHtml.length - 1
-  return `<span class="${PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
-    `<span class="${index === lastIndex ? PAGE_CHIP_TOOLTIP_TAIL_LINE_CLASS_NAME : viewportConstrained ? PAGE_CHIP_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : PAGE_CHIP_TOOLTIP_LINE_CLASS_NAME}">${html}</span>`
+  return `<span class="${PAGE_CHIP_EXPANDED_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
+    `<span class="${index === lastIndex ? PAGE_CHIP_EXPANDED_TAIL_LINE_CLASS_NAME : viewportConstrained ? PAGE_CHIP_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : PAGE_CHIP_EXPANDED_LINE_CLASS_NAME}">${html}</span>`
   )).join('')}</span>`
 }
 
-function tooltipLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
+function chipExpansionLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
   if (!html || typeof document === 'undefined') return html
 
   const template = document.createElement('template')
@@ -658,7 +659,88 @@ function tooltipLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
   return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
 }
 
-function createChipTooltipMeasureElement(
+function expandedLineContentOverflows(line: HTMLElement) {
+  if (line.scrollWidth - line.clientWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX) return true
+
+  const lineRect = line.getBoundingClientRect()
+  const win = line.ownerDocument.defaultView
+  if (!win || lineRect.width <= 0) return false
+
+  const walker = line.ownerDocument.createTreeWalker(
+    line,
+    win.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        return node.textContent
+          ? win.NodeFilter.FILTER_ACCEPT
+          : win.NodeFilter.FILTER_REJECT
+      }
+    }
+  )
+  const range = line.ownerDocument.createRange()
+
+  try {
+    while (true) {
+      const node = walker.nextNode()
+      if (!(node instanceof win.Text)) break
+      range.selectNodeContents(node)
+      for (const rect of range.getClientRects()) {
+        if (
+          rect.width > 0 &&
+          rect.right - lineRect.right > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
+        ) {
+          return true
+        }
+      }
+    }
+  } finally {
+    range.detach()
+  }
+
+  return false
+}
+
+function expandedMeasureFitsLineCount(
+  measureEl: HTMLElement,
+  width: number,
+  targetLineCount: number
+) {
+  measureEl.style.width = `${Math.max(1, width)}px`
+  const lineHeight = getChipTextLineHeight(measureEl)
+  const height = measureEl.getBoundingClientRect().height
+  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.page-chip-expanded-line:not(.page-chip-expanded-line-tail)'))
+    .some(expandedLineContentOverflows)
+  const markerWrapsTaller = Array.from(measureEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator'))
+    .some((marker) => marker.getBoundingClientRect().height > lineHeight + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX)
+  return !fixedLineOverflows && !markerWrapsTaller && height <= targetLineCount * lineHeight + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
+}
+
+function getExpandedSingleLineNaturalWidth(measureEl: HTMLElement) {
+  const elements = [measureEl, ...Array.from(measureEl.querySelectorAll<HTMLElement>('*'))]
+  for (const element of elements) {
+    element.style.whiteSpace = 'nowrap'
+  }
+  const range = measureEl.ownerDocument.createRange()
+  range.selectNodeContents(measureEl)
+  try {
+    return Math.round(Math.max(
+      measureEl.scrollWidth,
+      measureEl.getBoundingClientRect().width,
+      range.getBoundingClientRect().width
+    ) * 100) / 100
+  } finally {
+    range.detach()
+  }
+}
+
+function guardedExpandedSplitLineWidth(width: number, maxContentWidth: number, lineHtml: readonly string[]) {
+  const guardedWidth = lineHtml.length > 0
+    ? width + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
+    : width
+  return Math.round(Math.min(guardedWidth, maxContentWidth) * 100) / 100
+}
+
+function createExpandedPageChipMeasureElement(
   textEl: HTMLElement,
   lineHtml: readonly string[]
 ) {
@@ -670,7 +752,7 @@ function createChipTooltipMeasureElement(
 
   const measureEl = ownerDocument.createElement('span')
   const styles = ownerWindow.getComputedStyle(textEl)
-  measureEl.className = 'page-chip-tooltip-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:\'\'] [overflow-wrap:break-word]'
+  measureEl.className = 'page-chip-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:\'\'] [overflow-wrap:break-word]'
   measureEl.setAttribute('aria-hidden', 'true')
   Object.assign(measureEl.style, {
     display: 'block',
@@ -693,13 +775,13 @@ function createChipTooltipMeasureElement(
   measureEl.style.setProperty('mask-image', 'none')
   measureEl.style.setProperty('overflow-wrap', 'break-word')
   if (lineHtml.length > 0) {
-    measureEl.innerHTML = chipTooltipLineMarkup(lineHtml)
+    measureEl.innerHTML = chipExpansionLineMarkup(lineHtml)
   } else {
     const fragment = ownerDocument.createDocumentFragment()
     for (const child of Array.from(textEl.childNodes)) {
       fragment.append(child.cloneNode(true))
     }
-    hydrateClonedChipTooltipFragment(ownerDocument, fragment)
+    hydrateClonedExpandedChipFragment(ownerDocument, fragment)
     const container = ownerDocument.createElement('span')
     container.append(fragment)
     measureEl.innerHTML = container.innerHTML
@@ -708,150 +790,170 @@ function createChipTooltipMeasureElement(
   return measureEl
 }
 
-function getRegularChipTooltipWidth(
-  textEl: HTMLElement | null,
-  lineHtml: readonly string[] = []
-): RegularChipTooltipMetrics {
-  if (!textEl) return { viewportConstrained: false, width: 0 }
+function getExpandedTitleVariantContentWidth(textEl: HTMLElement, visibleWidth: number, maxContentWidth: number) {
+  const titleRow = textEl.querySelector<HTMLElement>('.chip-title-row')
+  if (!titleRow) return null
 
-  const visibleWidth = getChipTextWidth(textEl)
-  const maxPopupWidth = getChipTooltipMaxWidth(textEl)
-  const maxContentWidth = Math.max(0, maxPopupWidth - PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX)
-  const targetLineCount = Math.max(getVisibleChipTextLineCount(textEl), lineHtml.length)
-  if (visibleWidth <= 0 || maxContentWidth <= 0) return { viewportConstrained: false, width: visibleWidth }
-
-  const measureEl = createChipTooltipMeasureElement(textEl, lineHtml)
-  if (!measureEl) return { viewportConstrained: false, width: visibleWidth }
+  const measureEl = createExpandedPageChipMeasureElement(titleRow, [])
+  if (!measureEl) return null
 
   try {
-    if (targetLineCount <= 1) {
-      const naturalWidth = getTooltipSingleLineNaturalWidth(measureEl) + PAGE_CHIP_TOOLTIP_SINGLE_LINE_WIDTH_GUARD_PX
-      const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
-      return {
-        viewportConstrained: naturalWidth - maxContentWidth > PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX,
-        width: Math.round(width * 100) / 100
-      }
+    const naturalTitleWidth = getExpandedSingleLineNaturalWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
+    const width = Math.min(Math.max(visibleWidth, naturalTitleWidth), maxContentWidth)
+    return {
+      viewportConstrained: naturalTitleWidth - maxContentWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX,
+      width: Math.round(width * 100) / 100
     }
-
-    const lowerBound = Math.min(visibleWidth, maxContentWidth)
-    if (tooltipMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
-      return { viewportConstrained: false, width: guardedSplitLineTooltipWidth(lowerBound, maxContentWidth, lineHtml) }
-    }
-
-    if (!tooltipMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
-      return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
-    }
-
-    let low = lowerBound
-    let high = maxContentWidth
-    for (let index = 0; index < PAGE_CHIP_TOOLTIP_WIDTH_SEARCH_STEPS; index += 1) {
-      const mid = (low + high) / 2
-      if (tooltipMeasureFitsLineCount(measureEl, mid, targetLineCount)) high = mid
-      else low = mid
-    }
-
-    return { viewportConstrained: false, width: guardedSplitLineTooltipWidth(high, maxContentWidth, lineHtml) }
   } finally {
     measureEl.remove()
   }
 }
 
+function getExpandedPageChipContentWidth(
+  textEl: HTMLElement | null,
+  lineHtml: readonly string[],
+  maxContentWidth: number,
+  visibleWidthOverride = 0
+): ExpandedPageChipContentMetrics {
+  if (!textEl) return { viewportConstrained: false, width: 0 }
+
+  const visibleWidth = Math.max(getChipTextExpansionBaselineWidth(textEl), visibleWidthOverride)
+  const targetLineCount = Math.max(getVisibleChipTextLineCount(textEl), lineHtml.length)
+  if (visibleWidth <= 0 || maxContentWidth <= 0) return { viewportConstrained: false, width: visibleWidth }
+
+  const titleVariantMetrics = textEl.querySelector('.chip-title-variant-content')
+    ? getExpandedTitleVariantContentWidth(textEl, visibleWidth, maxContentWidth)
+    : null
+  if (titleVariantMetrics) return titleVariantMetrics
+
+  const measureEl = createExpandedPageChipMeasureElement(textEl, lineHtml)
+  if (!measureEl) return { viewportConstrained: false, width: visibleWidth }
+
+  try {
+    if (textEl.classList.contains('chip-title-row')) {
+      const naturalWidth = getChipTextPaintedContentWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
+      const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
+      return {
+        viewportConstrained: naturalWidth - maxContentWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX,
+        width: Math.round(width * 100) / 100
+      }
+    }
+
+    if (targetLineCount <= 1) {
+      const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl) + PAGE_CHIP_EXPANDED_SINGLE_LINE_WIDTH_GUARD_PX
+      const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
+      return {
+        viewportConstrained: naturalWidth - maxContentWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX,
+        width: Math.round(width * 100) / 100
+      }
+    }
+
+    const lowerBound = Math.min(visibleWidth, maxContentWidth)
+    if (expandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
+      return { viewportConstrained: false, width: guardedExpandedSplitLineWidth(lowerBound, maxContentWidth, lineHtml) }
+    }
+
+    if (!expandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
+      return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
+    }
+
+    let low = lowerBound
+    let high = maxContentWidth
+    for (let index = 0; index < PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS; index += 1) {
+      const mid = (low + high) / 2
+      if (expandedMeasureFitsLineCount(measureEl, mid, targetLineCount)) high = mid
+      else low = mid
+    }
+
+    return { viewportConstrained: false, width: guardedExpandedSplitLineWidth(high, maxContentWidth, lineHtml) }
+  } finally {
+    measureEl.remove()
+  }
+}
+
+function getExpandedPageChipHorizontalInset(chipEl: HTMLElement, textEl: HTMLElement | null) {
+  if (!textEl) return 0
+  const chipRect = chipEl.getBoundingClientRect()
+  const textRect = textEl.getBoundingClientRect()
+  return Math.max(0, textRect.left - chipRect.left) + Math.max(0, chipRect.right - textRect.right)
+}
+
 function syncChipTextFade(textEl: HTMLElement | null) {
-  if (!textEl) return { height: 0, isTruncated: false, width: 0, maxWidth: 0 }
+  if (!textEl) return { height: 0, isTruncated: false, width: 0 }
 
   const isTruncated = isChipTextTruncated(textEl)
   const width = getChipTextWidth(textEl)
   const height = getChipTextHeight(textEl)
-  const maxWidth = getChipTooltipMaxWidth(textEl)
   textEl.classList.toggle('chip-text-truncated', isTruncated)
-  chipTextTruncationCallbacks.get(textEl)?.({ height, isTruncated, maxWidth, width })
-  return { height, isTruncated, width, maxWidth }
+  chipTextTruncationCallbacks.get(textEl)?.({ height, isTruncated, width })
+  return { height, isTruncated, width }
 }
 
 function getChipTextMetrics(textEl: HTMLElement | null): ChipTextMetrics {
-  const { isTruncated, width, maxWidth } = syncChipTextFade(textEl)
-  return { isTruncated, maxWidth, width }
+  const { isTruncated, width } = syncChipTextFade(textEl)
+  return { isTruncated, width }
 }
 
 function chipTextMetricsEqual(left: ChipTextMetrics, right: ChipTextMetrics) {
   return (
     left.isTruncated === right.isTruncated &&
-    Math.abs(left.width - right.width) < 0.1 &&
-    Math.abs(left.maxWidth - right.maxWidth) < 0.1
+    Math.abs(left.width - right.width) < 0.1
   )
 }
 
-function chipTooltipLayoutMetricsEqual(left: ChipTooltipLayoutMetrics, right: ChipTooltipLayoutMetrics) {
-  return (
-    chipTooltipLineHtmlEquals(left.lineHtml, right.lineHtml) &&
-    left.viewportConstrained === right.viewportConstrained &&
-    Math.abs(left.width - right.width) < 0.1 &&
-    chipTooltipSubpixelOffsetsEqual(left.subpixelOffset, right.subpixelOffset)
-  )
-}
+function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLElement | null = chipEl?.querySelector<HTMLElement>('.chip-text') || null): ChipExpansionGeometry {
+  if (!chipEl || typeof window === 'undefined') return DEFAULT_CHIP_EXPANSION_GEOMETRY
 
-function rememberChipTooltipLayout(key: string, metrics: ChipTooltipLayoutMetrics) {
-  chipTooltipLayoutCache.set(key, metrics)
-  if (chipTooltipLayoutCache.size <= CHIP_TOOLTIP_LAYOUT_CACHE_LIMIT) return
-  const oldestKey = chipTooltipLayoutCache.keys().next().value
-  if (oldestKey) chipTooltipLayoutCache.delete(oldestKey)
-}
-
-function chipTooltipLayoutCacheKey({
-  isRegularTitleTooltip,
-  isSplitTitleTooltip,
-  textEl,
-  titleTextEl
-}: {
-  isRegularTitleTooltip: boolean
-  isSplitTitleTooltip: boolean
-  textEl: HTMLElement
-  titleTextEl: HTMLElement | null
-}) {
-  const win = textEl.ownerDocument.defaultView
-  const layoutEl = titleTextEl || textEl
-  const styles = win?.getComputedStyle(layoutEl)
-  const rect = layoutEl.getBoundingClientRect()
-  return JSON.stringify([
-    isRegularTitleTooltip,
-    isSplitTitleTooltip,
-    textEl.innerHTML,
-    titleTextEl?.innerHTML || '',
-    Math.round(rect.left * 100) / 100,
-    Math.round(rect.top * 100) / 100,
-    getChipTextWidth(layoutEl),
-    getChipTextHeight(layoutEl),
-    getVisibleChipTextLineCount(layoutEl),
-    getChipTooltipMaxWidth(layoutEl),
-    styles?.font || '',
-    styles?.letterSpacing || '',
-    styles?.lineHeight || '',
-    win?.devicePixelRatio || 1
-  ])
-}
-
-function chipLayoutReducer(state: ChipLayoutState, action: ChipLayoutAction): ChipLayoutState {
-  if (action.type === 'textMetrics') {
-    return chipTextMetricsEqual(state.textMetrics, action.metrics)
-      ? state
-      : { ...state, textMetrics: action.metrics }
+  const rect = chipEl.getBoundingClientRect()
+  const contentBoxEl = chipEl.querySelector<HTMLElement>('.chip-text') || textEl
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+  const roomToRight = Math.max(0, viewportWidth - rect.left - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
+  const roomBelow = Math.max(0, viewportHeight - rect.top - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
+  const roomAbove = Math.max(0, rect.bottom - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
+  const maxWidth = Math.max(rect.width, roomToRight)
+  const horizontalInset = getExpandedPageChipHorizontalInset(chipEl, contentBoxEl)
+  const lineHtml = getExpandedPageChipLineHtml(textEl)
+  const visibleWidthOverride = contentBoxEl && contentBoxEl !== textEl
+    ? Math.max(getChipTextExpansionBaselineWidth(contentBoxEl), getTitleVariantMinimumContentWidth(contentBoxEl))
+    : getTitleVariantMinimumContentWidth(textEl)
+  const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride)
+  const minWidth = Math.max(1, horizontalInset + Math.max(getChipTextExpansionBaselineWidth(textEl), visibleWidthOverride))
+  return {
+    lineHtml,
+    maxWidth,
+    viewportConstrained: contentMetrics.viewportConstrained,
+    width: Math.min(maxWidth, Math.max(minWidth, contentMetrics.width + horizontalInset)),
+    x: 'start',
+    y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
   }
-  const tooltipLayoutUnchanged = chipTooltipLayoutMetricsEqual({
-    lineHtml: state.tooltipLineHtml,
-    subpixelOffset: state.tooltipSubpixelOffset,
-    viewportConstrained: state.tooltipViewportConstrained,
-    width: state.tooltipWidth
-  }, action)
+}
 
-  return tooltipLayoutUnchanged
-    ? state
-    : {
-        ...state,
-        tooltipLineHtml: action.lineHtml,
-        tooltipSubpixelOffset: action.subpixelOffset,
-        tooltipViewportConstrained: action.viewportConstrained,
-        tooltipWidth: action.width
-      }
+function roundedElementSize(element: HTMLElement | null): ChipSlotSize {
+  if (!element) return DEFAULT_CHIP_SLOT_SIZE
+  const rect = element.getBoundingClientRect()
+  return {
+    height: Math.round(rect.height * 100) / 100,
+    width: Math.round(rect.width * 100) / 100
+  }
+}
+
+function chipSlotSizeEqual(left: ChipSlotSize, right: ChipSlotSize) {
+  return (
+    Math.abs(left.height - right.height) < 0.1 &&
+    Math.abs(left.width - right.width) < 0.1
+  )
+}
+
+function chipExpansionGeometryEqual(left: ChipExpansionGeometry, right: ChipExpansionGeometry) {
+  return (
+    chipExpansionLineHtmlEquals(left.lineHtml, right.lineHtml) &&
+    left.x === right.x &&
+    left.y === right.y &&
+    left.viewportConstrained === right.viewportConstrained &&
+    Math.abs(left.maxWidth - right.maxWidth) < 0.1 &&
+    Math.abs(left.width - right.width) < 0.1
+  )
 }
 
 function getChipTextResizeObserver() {
@@ -883,77 +985,57 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
-  const isSplitTitleTooltip = !chip.iconOnly
-  const isRegularTitleTooltip = !chip.iconOnly && !isFolded && !isTitleVariantGroup
+  const chipExpansionId = useId()
+  const chipSlotRef = useRef<HTMLDivElement | null>(null)
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const updateChipTextMeasurementsRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
-  const ensureChipTooltipLayoutRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
   const contextMenuOpenRef = useRef(false)
-  const chipTooltipOpenRef = useRef(false)
+  const chipExpandedRef = useRef(false)
+  const chipExpansionCloseTimerRef = useRef<number | null>(null)
   const [chipTooltipOpen, setChipTooltipOpen] = useState(false)
-  const [chipLayout, dispatchChipLayout] = useReducer(chipLayoutReducer, DEFAULT_CHIP_LAYOUT_STATE)
-  const {
-    textMetrics: chipTextMetrics,
-    tooltipLineHtml: chipTooltipLineHtml,
-    tooltipSubpixelOffset: chipTooltipSubpixelOffset,
-    tooltipViewportConstrained: chipTooltipViewportConstrained,
-    tooltipWidth: chipTooltipWidth
-  } = chipLayout
-  const { isTruncated: isTextTruncated, maxWidth: chipTooltipMaxWidth, width: chipTextWidth } = chipTextMetrics
+  const [chipExpanded, setChipExpandedState] = useState(false)
+  const [chipSlotSize, setChipSlotSize] = useState(DEFAULT_CHIP_SLOT_SIZE)
+  const [chipExpansionGeometry, setChipExpansionGeometry] = useState(DEFAULT_CHIP_EXPANSION_GEOMETRY)
+  const [chipTextMetrics, setChipTextMetrics] = useState(DEFAULT_CHIP_TEXT_METRICS)
+  const { isTruncated: isTextTruncated } = chipTextMetrics
 
-  const ensureChipTooltipLayout = useCallback((textEl: HTMLElement | null) => {
-    if (!textEl) return
-    const titleTextEl = isFolded || isTitleVariantGroup
-      ? textEl?.querySelector<HTMLElement>('.chip-title-row') || null
-      : textEl
-    const cacheKey = chipTooltipLayoutCacheKey({
-      isRegularTitleTooltip,
-      isSplitTitleTooltip,
-      textEl,
-      titleTextEl
-    })
-    const cachedLayout = chipTooltipLayoutCache.get(cacheKey)
-    if (cachedLayout) {
-      dispatchChipLayout({
-        type: 'tooltipLayout',
-        lineHtml: cachedLayout.lineHtml,
-        subpixelOffset: cachedLayout.subpixelOffset,
-        viewportConstrained: cachedLayout.viewportConstrained,
-        width: cachedLayout.width
-      })
-      return
-    }
-
-    const lineHtml = isSplitTitleTooltip ? getRegularChipTooltipLineHtml(titleTextEl) : []
-    const tooltipMetrics = isSplitTitleTooltip
-      ? getRegularChipTooltipWidth(titleTextEl || textEl, lineHtml)
-      : { viewportConstrained: false, width: 0 }
-    const subpixelOffset = getChipTooltipSubpixelOffset(titleTextEl)
-    const layout = {
-      lineHtml,
-      subpixelOffset,
-      viewportConstrained: tooltipMetrics.viewportConstrained,
-      width: tooltipMetrics.width
-    }
-    rememberChipTooltipLayout(cacheKey, layout)
-    dispatchChipLayout({
-      type: 'tooltipLayout',
-      lineHtml: layout.lineHtml,
-      subpixelOffset: layout.subpixelOffset,
-      viewportConstrained: layout.viewportConstrained,
-      width: layout.width
-    })
-  }, [isFolded, isRegularTitleTooltip, isSplitTitleTooltip, isTitleVariantGroup])
+  const setChipExpanded = useCallback((nextExpanded: boolean) => {
+    chipExpandedRef.current = nextExpanded
+    setChipExpandedState(nextExpanded)
+  }, [])
 
   const updateChipTextMeasurements = useCallback((textEl: HTMLElement | null) => {
     const nextMetrics = getChipTextMetrics(textEl)
-    dispatchChipLayout({ type: 'textMetrics', metrics: nextMetrics })
+    setChipTextMetrics((current) => chipTextMetricsEqual(current, nextMetrics) ? current : nextMetrics)
+  }, [])
+
+  const updateChipSlotMeasurements = useCallback((chipEl: HTMLElement | null = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip') || null) => {
+    const nextSize = roundedElementSize(chipEl)
+    const textEl = chipTextRef.current?.querySelector<HTMLElement>('.chip-title-row') || chipTextRef.current
+    const nextGeometry = getPageChipExpansionGeometry(chipEl, textEl)
+    setChipSlotSize((current) => chipSlotSizeEqual(current, nextSize) ? current : nextSize)
+    setChipExpansionGeometry((current) => chipExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }, [])
 
   useEffect(() => {
     updateChipTextMeasurementsRef.current = updateChipTextMeasurements
-    ensureChipTooltipLayoutRef.current = ensureChipTooltipLayout
-  }, [ensureChipTooltipLayout, updateChipTextMeasurements])
+  }, [updateChipTextMeasurements])
+
+  useEffect(() => subscribeToExpandedPageChip((activeId) => {
+    if (activeId === chipExpansionId) return
+    if (contextMenuOpenRef.current) return
+    if (!chipExpandedRef.current) return
+    setChipExpanded(false)
+  }), [chipExpansionId, setChipExpanded])
+
+  useEffect(() => () => {
+    if (chipExpansionCloseTimerRef.current !== null) {
+      window.clearTimeout(chipExpansionCloseTimerRef.current)
+    }
+    if (activeExpandedPageChipId === chipExpansionId) {
+      setActiveExpandedPageChip(null)
+    }
+  }, [chipExpansionId])
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
@@ -970,10 +1052,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
     let disposed = false
     const observer = getChipTextResizeObserver()
-    chipTextTruncationCallbacks.set(textEl, ({ isTruncated, maxWidth, width }) => {
+    chipTextTruncationCallbacks.set(textEl, ({ isTruncated, width }) => {
       if (disposed) return
-      dispatchChipLayout({ type: 'textMetrics', metrics: { isTruncated, maxWidth, width } })
-      if (chipTooltipOpenRef.current) ensureChipTooltipLayoutRef.current(textEl)
+      setChipTextMetrics((current) => {
+        const nextMetrics = { isTruncated, width }
+        return chipTextMetricsEqual(current, nextMetrics) ? current : nextMetrics
+      })
     })
     observer?.observe(textEl)
 
@@ -981,7 +1065,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const onFontsDone = () => {
       if (disposed) return
       updateChipTextMeasurementsRef.current(textEl)
-      if (chipTooltipOpenRef.current) ensureChipTooltipLayoutRef.current(textEl)
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -993,6 +1076,20 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
   }, [])
+
+  useLayoutEffect(() => {
+    const chipEl = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip') || null
+    if (!chipEl) return
+
+    if (!chipExpandedRef.current) updateChipSlotMeasurements(chipEl)
+    if (typeof ResizeObserver !== 'function') return
+
+    const observer = new ResizeObserver(() => {
+      if (!chipExpandedRef.current) updateChipSlotMeasurements(chipEl)
+    })
+    observer.observe(chipEl)
+    return () => observer.disconnect()
+  }, [updateChipSlotMeasurements])
 
   function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
@@ -1049,9 +1146,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   function onChipContextMenuOpenChange(open: boolean) {
     contextMenuOpenRef.current = open
     if (open) {
+      openChipExpansion()
       setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
       return
     }
+    closeChipExpansion()
     setPreview('')
   }
 
@@ -1075,33 +1174,126 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
-  function onChipTextPointerEnter(e: PointerEvent<HTMLSpanElement>) {
-    updateChipTextMeasurements(e.currentTarget)
-    ensureChipTooltipLayout(e.currentTarget)
+  function clearChipExpansionCloseTimer() {
+    if (chipExpansionCloseTimerRef.current === null) return
+    window.clearTimeout(chipExpansionCloseTimerRef.current)
+    chipExpansionCloseTimerRef.current = null
   }
 
-  function onChipTextTooltipHitAreaPointerEnter() {
+  function openChipExpansion() {
+    if (chip.iconOnly) return
     const textEl = chipTextRef.current
-    if (!textEl) return
+    const measuredExpandable = hasTitleSuppressionMarkers || hasStructuralPlaceholders || isChipTextTruncated(textEl)
+    if (!measuredExpandable) return
+    clearChipExpansionCloseTimer()
     updateChipTextMeasurements(textEl)
-    ensureChipTooltipLayout(textEl)
+    updateChipSlotMeasurements()
+    setActiveExpandedPageChip(chipExpansionId)
+    setChipExpanded(true)
+  }
+
+  function closeChipExpansion({ delayed = true } = {}) {
+    clearChipExpansionCloseTimer()
+    if (contextMenuOpenRef.current) return
+    if (!delayed) {
+      if (activeExpandedPageChipId === chipExpansionId) setActiveExpandedPageChip(null)
+      setChipExpanded(false)
+      return
+    }
+    chipExpansionCloseTimerRef.current = window.setTimeout(() => {
+      chipExpansionCloseTimerRef.current = null
+      if (contextMenuOpenRef.current) return
+      if (activeExpandedPageChipId === chipExpansionId) setActiveExpandedPageChip(null)
+      setChipExpanded(false)
+    }, PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS)
+  }
+
+  useEffect(() => {
+    if (!chipExpanded) return
+    const closeNow = () => {
+      clearChipExpansionCloseTimer()
+      if (activeExpandedPageChipId === chipExpansionId) setActiveExpandedPageChip(null)
+      setChipExpanded(false)
+    }
+    const closeOnPointerMove = (event: globalThis.PointerEvent) => {
+      if (contextMenuOpenRef.current) return
+      const slotRect = chipSlotRef.current?.getBoundingClientRect()
+      if (!slotRect) return
+      const insideOriginalSlot =
+        event.clientX >= slotRect.left &&
+        event.clientX <= slotRect.right &&
+        event.clientY >= slotRect.top &&
+        event.clientY <= slotRect.bottom
+      if (!insideOriginalSlot) closeNow()
+    }
+    const closeOnVisibilityChange = () => {
+      if (document.hidden) closeNow()
+    }
+    window.addEventListener('blur', closeNow)
+    window.addEventListener('pointermove', closeOnPointerMove, true)
+    window.addEventListener('scroll', closeNow, true)
+    document.addEventListener('visibilitychange', closeOnVisibilityChange)
+    return () => {
+      window.removeEventListener('blur', closeNow)
+      window.removeEventListener('pointermove', closeOnPointerMove, true)
+      window.removeEventListener('scroll', closeNow, true)
+      document.removeEventListener('visibilitychange', closeOnVisibilityChange)
+    }
+  }, [chipExpanded, chipExpansionId, setChipExpanded])
+
+  function onChipTextPointerEnter(e: PointerEvent<HTMLSpanElement>) {
+    updateChipTextMeasurements(e.currentTarget)
   }
 
   function onChipTooltipOpenChange(open: boolean) {
-    chipTooltipOpenRef.current = open
-    if (open) ensureChipTooltipLayout(chipTextRef.current)
     setChipTooltipOpen(open)
   }
 
-  function onChipFocus() {
+  function onChipFocus(e: FocusEvent<HTMLDivElement>) {
     if (isFolded) return
+    if (e.target === e.currentTarget && e.currentTarget.matches(':focus-visible')) openChipExpansion()
     setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
   }
 
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     if (contextMenuOpenRef.current) return
+    closeChipExpansion({ delayed: false })
     setPreview('')
+  }
+
+  function onChipPointerLeave(e: PointerEvent<HTMLDivElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    closeChipExpansion()
+  }
+
+  function onChipPointerEnter() {
+    openChipExpansion()
+  }
+
+  function isPointerInsideChipSlot(e: PointerEvent<HTMLDivElement>) {
+    const slotRect = chipSlotRef.current?.getBoundingClientRect()
+    if (!slotRect) return true
+    return (
+      e.clientX >= slotRect.left &&
+      e.clientX <= slotRect.right &&
+      e.clientY >= slotRect.top &&
+      e.clientY <= slotRect.bottom
+    )
+  }
+
+  function onChipPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (chipExpandedRef.current) return
+    if (!isPointerInsideChipSlot(e)) return
+    openChipExpansion()
+  }
+
+  function onChipPointerDown(e: PointerEvent<HTMLDivElement>) {
+    if (e.pointerType === 'mouse') return
+    if (chipExpandedRef.current) return
+    openChipExpansion()
+    e.preventDefault()
+    e.stopPropagation()
   }
 
   function onEnvMouseEnter(env: DashboardChipEnv) {
@@ -1290,36 +1482,33 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const style = {
     '--chip-hover-fade-bg': hasActiveChipFrame
       ? 'color-mix(in srgb, var(--card-bg) 82%, rgb(82 82 82))'
-      : 'color-mix(in srgb, var(--card-bg) 87%, rgb(82 82 82))',
+      : 'color-mix(in srgb, var(--card-bg) 92%, rgb(82 82 82))',
     '--chip-hover-fade-width': chipHoverFadeWidth,
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
   } as CSSProperties
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
-  const shouldShowChipTooltip = chip.iconOnly || isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders
-  const chipTooltipTextWidth = !chip.iconOnly && chipTextWidth > 0 ? `${chipTextWidth}px` : ''
-  const regularChipTooltipWidth = isSplitTitleTooltip && chipTooltipWidth > 0 ? `${chipTooltipWidth}px` : ''
-  const shouldKeepSingleLineTooltip = isSplitTitleTooltip && !chipTooltipViewportConstrained && chipTooltipLineHtml.length === 0 && chipTooltipWidth > 0
-  // The tooltip is widened to fit the chip's visible line count, so it renders at the
-  // chip's exact height unless it's viewport-constrained — the one case where it can't
-  // widen enough and wraps to extra lines (taller). When it's a flush same-height overlay,
-  // drop the shadow so it doesn't read as a floating copy of the chip.
-  const chipTooltipSameHeightAsChip = !chipTooltipViewportConstrained
-  const chipTooltipMaxWidthValue = chipTooltipMaxWidth > 0 ? `${chipTooltipMaxWidth}px` : 'calc(100vw - 16px)'
-  // Apply the sub-pixel correction to the popup itself (not the text), so the rounded
-  // box snaps back onto the chip's half-pixel y; the text follows the popup, so its
-  // first line still lands exactly on the chip text.
-  const chipTooltipSubpixelTransform = chipTooltipSubpixelOffsetsEqual(chipTooltipSubpixelOffset, { x: 0, y: 0 })
-    ? ''
-    : `translate3d(${chipTooltipSubpixelOffset.x}px, ${chipTooltipSubpixelOffset.y}px, 0)`
+  const shouldExpandChip = !chip.iconOnly && (isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
+  const chipVisualOpen = chipExpanded || chipTooltipOpen
+  const chipSlotStyle = chipExpanded && chipSlotSize.width > 0 && chipSlotSize.height > 0 ? {
+    height: `${chipSlotSize.height}px`,
+    width: `${chipSlotSize.width}px`
+  } as CSSProperties : undefined
+  const chipExpandedMaxWidth = chipExpansionGeometry.maxWidth > 0 ? `${chipExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
+  const chipExpandedWidth = chipExpansionGeometry.width > 0 ? `${chipExpansionGeometry.width}px` : chipExpandedMaxWidth
+  const chipStyle = {
+    ...style,
+    ...(chipExpanded ? {
+      '--page-chip-expanded-max-width': chipExpandedMaxWidth,
+      '--page-chip-expanded-width': chipExpandedWidth,
+      backgroundColor: 'var(--chip-hover-fade-bg)',
+      maxWidth: chipExpandedMaxWidth,
+      width: chipExpandedWidth
+    } : {})
+  } as CSSProperties
   const chipTooltipStyle = {
-    ...(chipTooltipTextWidth ? { '--page-chip-tooltip-text-width': chipTooltipTextWidth } : {}),
-    ...(regularChipTooltipWidth ? { '--page-chip-tooltip-width': regularChipTooltipWidth } : {}),
-    '--page-chip-tooltip-max-width': chipTooltipMaxWidthValue,
-    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))',
-    paddingLeft: `${PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX}px`,
-    paddingRight: `${PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX}px`,
-    ...(chipTooltipSubpixelTransform ? { transform: chipTooltipSubpixelTransform } : {})
+    '--page-chip-tooltip-max-width': 'calc(100vw - 16px)',
+    maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))'
   } as CSSProperties
   function chipMatchesActiveHover(target: DashboardChipData) {
     return (
@@ -1328,37 +1517,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         pageTargetMatchesHover(env, activeHoverUrl, activeHoverUrls)
       ))
     )
-  }
-
-  function getChipTooltipAnchorElement() {
-    const textEl = chipTextRef.current
-    if (!textEl) return null
-    if (!isFolded && !isTitleVariantGroup) return textEl
-    return textEl.querySelector<HTMLElement>('.chip-title-row') || textEl
-  }
-
-  function getChipTooltipAnchor() {
-    const anchorEl = getChipTooltipAnchorElement()
-    if (!anchorEl) return null
-
-    const rect = anchorEl.getBoundingClientRect()
-    const contentWidth = isSplitTitleTooltip && chipTooltipWidth > 0
-      ? chipTooltipWidth
-      : getChipTextWidth(anchorEl)
-    const maxPopupWidth = Math.max(
-      0,
-      getChipTooltipMaxWidth(anchorEl) + PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX
-    )
-    const popupWidth = Math.min(
-      Math.max(1, contentWidth + PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX),
-      maxPopupWidth || contentWidth + PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX
-    )
-    const left = rect.left - PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX
-    const top = rect.top - PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX
-
-    return {
-      getBoundingClientRect: () => new DOMRect(left, top, popupWidth, 0)
-    }
   }
 
   const externalHoverActive = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl
@@ -1376,15 +1534,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       <span
         key={key}
         className={cn(
-          'chip-title-suppression-marker inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center rounded-[7px] border border-transparent bg-[rgba(115,115,115,0.08)] px-[3px] text-[12px] leading-[12px] text-tab-muted align-middle [corner-shape:squircle]',
+          'chip-title-suppression-marker inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center rounded-[7px] border border-transparent bg-[rgba(115,115,115,0.08)] px-[3px] text-[12px] leading-[12px] text-tab-muted align-middle [corner-shape:squircle] group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:items-baseline group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:border-0 group-[.page-chip-expanded]/page-chip:px-1 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:font-medium group-[.page-chip-expanded]/page-chip:align-baseline group-[.page-chip-expanded]/page-chip:[-webkit-box-decoration-break:clone] group-[.page-chip-expanded]/page-chip:[box-decoration-break:clone]',
           markerClassName,
           titleSuppressionMarkerClass(tone, active)
         )}
         aria-label={label}
       >
-        <svg className="chip-title-suppression-glyph h-[7px] w-2" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+        <svg className="chip-title-suppression-glyph h-[7px] w-2 group-[.page-chip-expanded]/page-chip:hidden" viewBox="0 0 10 10" fill="none" aria-hidden="true">
           <path d="M1.25 5.4c1.25-1.45 2.5-1.45 3.75 0s2.5 1.45 3.75 0" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
         </svg>
+        <span className="chip-title-suppression-label hidden group-[.page-chip-expanded]/page-chip:inline">
+          {highlightedTextNodes(part, highlightTerms, `${key}-label`)}
+        </span>
       </span>
     )
 
@@ -1446,11 +1607,16 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const marker = (
       <span
         key={key}
-        className="chip-strip-indicator inline-flex size-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-tab-muted align-baseline"
+        className="chip-strip-indicator inline-flex size-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-tab-muted align-baseline group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:w-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:px-1.5 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:[corner-shape:squircle]"
         aria-hidden={hiddenLabel ? undefined : true}
         aria-label={hiddenLabel || undefined}
       >
-        /
+        <span className={hiddenLabel ? 'chip-strip-indicator-glyph group-[.page-chip-expanded]/page-chip:hidden' : undefined}>/</span>
+        {hiddenLabel && (
+          <span className="chip-strip-indicator-label hidden group-[.page-chip-expanded]/page-chip:inline">
+            {highlightedTextNodes(hiddenLabel, highlightTerms, `${key}-label`)}
+          </span>
+        )}
       </span>
     )
 
@@ -1478,7 +1644,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
-      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(10,10,10,0.12)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)] [&.page-chip-context-menu-open]:bg-[rgba(10,10,10,0.12)] [&.page-chip-context-menu-open]:text-tab-ink',
+      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(82,82,82,0.13)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.13)] [&.page-chip-context-menu-open]:text-tab-ink',
       env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 
@@ -1706,15 +1872,33 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     )
   }
 
-  function titleVariantTitleRowNode(mode: ChipTextRenderMode) {
+  function expandedTitleContentNode(keyPrefix: string) {
+    if (!chipExpanded || chipExpansionGeometry.lineHtml.length === 0) return null
+    return chipExpansionLineNodesFromHtml(
+      chipExpansionLineMarkup(chipExpansionGeometry.lineHtml, chipExpansionGeometry.viewportConstrained),
+      keyPrefix
+    )
+  }
+
+  function titleRowContentNode(mode: ChipTextRenderMode, keyPrefix: string) {
+    const expandedContent = expandedTitleContentNode(keyPrefix)
+    if (expandedContent) return expandedContent
     return (
-      <span className="chip-title-row block min-w-0 max-w-full">
+      <>
         {chip.leadPrefix && (
           <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
             {highlightedTextNodes(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
           </span>
         )}
         {titleContentNode(mode)}
+      </>
+    )
+  }
+
+  function titleVariantTitleRowNode(mode: ChipTextRenderMode) {
+    return (
+      <span className="chip-title-row block min-w-0 max-w-full">
+        {titleRowContentNode(mode, `${mode}-expanded-title-variant-title`)}
       </span>
     )
   }
@@ -1724,7 +1908,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       return (
         <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
           <span className="chip-title-row block min-w-0 max-w-full">
-            {titleContentNode(mode)}
+            {titleRowContentNode(mode, `${mode}-expanded-folded-title`)}
           </span>
           <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
             {envs.map((env) => envLabelNode(env, mode))}
@@ -1743,107 +1927,39 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     }
 
     return (
-      <>
-        {chip.leadPrefix && (
-          <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
-            {highlightedTextNodes(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
-          </span>
-        )}
-        {titleContentNode(mode)}
-      </>
+      titleRowContentNode(mode, `${mode}-expanded-title`)
     )
   }
 
-  function splitChipTooltipLinesNode() {
-    const lastIndex = chipTooltipLineHtml.length - 1
-    return (
-      <span className={PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME}>
-        {chipTooltipLineHtml.map((html, index) => (
-          <span
-            key={`${index}:${html}`}
-            className={index === lastIndex ? PAGE_CHIP_TOOLTIP_TAIL_LINE_CLASS_NAME : chipTooltipViewportConstrained ? PAGE_CHIP_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : PAGE_CHIP_TOOLTIP_LINE_CLASS_NAME}
-          >
-            {tooltipLineNodesFromHtml(html, `line-${index}`)}
-          </span>
-        ))}
-      </span>
-    )
-  }
-
-  function regularChipTooltipContentNode() {
-    if (chipTooltipLineHtml.length === 0) return chipTextContentNode('tooltip')
-    return splitChipTooltipLinesNode()
-  }
-
-  function foldedChipTooltipContentNode() {
-    return (
-      <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
-        <span className="chip-title-row block min-w-0 max-w-full">
-          {chipTooltipLineHtml.length > 0 ? splitChipTooltipLinesNode() : titleContentNode('tooltip')}
-        </span>
-      </span>
-    )
-  }
-
-  function titleVariantChipTooltipContentNode() {
-    return (
-      <span className="chip-title-variant-content flex min-w-0 flex-col items-start gap-0.5">
-        {chipTooltipLineHtml.length > 0 ? (
-          <span className="chip-title-row block min-w-0 max-w-full">
-            {splitChipTooltipLinesNode()}
-          </span>
-        ) : titleVariantTitleRowNode('tooltip')}
-      </span>
-    )
-  }
-
-  const chipTooltipContent = shouldShowChipTooltip ? (
+  const chipTooltipContent = chip.iconOnly ? (
     <span
       className={cn(
         "chip-text block min-w-0 max-w-[calc(100vw-32px)] hyphens-auto break-normal text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [hyphenate-character:'']",
-        shouldKeepSingleLineTooltip
-          ? 'whitespace-nowrap [overflow-wrap:normal] [&_*]:whitespace-nowrap [&_*]:[overflow-wrap:normal]'
-          : "whitespace-normal [overflow-wrap:break-word]",
-        regularChipTooltipWidth
-          ? 'w-[var(--page-chip-tooltip-width)]'
-          : chipTooltipTextWidth && !isFolded && !isTitleVariantGroup && 'w-[var(--page-chip-tooltip-text-width)]',
+        "whitespace-normal [overflow-wrap:break-word]",
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
       )}
     >
-      {isFolded ? foldedChipTooltipContentNode() : isTitleVariantGroup ? titleVariantChipTooltipContentNode() : isRegularTitleTooltip ? regularChipTooltipContentNode() : chipTextContentNode('tooltip')}
+      {chipTextContentNode('tooltip')}
     </span>
   ) : undefined
 
-  const foldedTitleTooltipTriggerElement = (
+  const foldedTitleExpansionTriggerElement = (
     <span
-      className="chip-text-tooltip-hit-area -my-[5px] flex min-w-0 py-[5px]"
-      onPointerEnter={onChipTextTooltipHitAreaPointerEnter}
+      className="chip-text-expansion-hit-area -my-[5px] flex min-w-0 py-[5px]"
     >
       <span className="chip-title-row block min-w-0 max-w-full">
-        {titleContentNode('chip')}
+        {titleRowContentNode('chip', 'chip-expanded-folded-title-trigger')}
       </span>
     </span>
   )
 
   const foldedChipTextContent = (
     <span className="chip-folded-content flex min-w-0 flex-col items-start gap-0.5">
-      {chipTooltipContent ? (
-        <TooltipAnchor
-          alignOffset={0}
-          anchor={getChipTooltipAnchor}
-          anchorToCursor={false}
-          content={chipTooltipContent}
-          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
-          instant
-          onOpenChange={onChipTooltipOpenChange}
-          sideOffset={0}
-          style={chipTooltipStyle}
-        >
-          {foldedTitleTooltipTriggerElement}
-        </TooltipAnchor>
+      {shouldExpandChip ? (
+        foldedTitleExpansionTriggerElement
       ) : (
         <span className="chip-title-row block min-w-0 max-w-full">
-          {titleContentNode('chip')}
+          {titleRowContentNode('chip', 'chip-expanded-folded-title-rest')}
         </span>
       )}
       <span className="chip-env-row flex max-w-full flex-wrap items-center gap-1">
@@ -1852,10 +1968,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     </span>
   )
 
-  const titleVariantTitleTooltipTriggerElement = (
+  const titleVariantTitleExpansionTriggerElement = (
     <span
-      className="chip-text-tooltip-hit-area -my-[5px] flex min-w-0 py-[5px]"
-      onPointerEnter={onChipTextTooltipHitAreaPointerEnter}
+      className="chip-text-expansion-hit-area -my-[5px] flex min-w-0 py-[5px]"
     >
       {titleVariantTitleRowNode('chip')}
     </span>
@@ -1863,20 +1978,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   const titleVariantChipTextContent = (
     <span className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0.5">
-      {chipTooltipContent ? (
-        <TooltipAnchor
-          alignOffset={0}
-          anchor={getChipTooltipAnchor}
-          anchorToCursor={false}
-          content={chipTooltipContent}
-          className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word]"
-          instant
-          onOpenChange={onChipTooltipOpenChange}
-          sideOffset={0}
-          style={chipTooltipStyle}
-        >
-          {titleVariantTitleTooltipTriggerElement}
-        </TooltipAnchor>
+      {shouldExpandChip ? (
+        titleVariantTitleExpansionTriggerElement
       ) : (
         titleVariantTitleRowNode('chip')
       )}
@@ -1891,7 +1994,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none',
-        isFolded && 'max-h-none'
+        isFolded && 'max-h-none',
+        chipExpanded && '!max-h-none !max-w-none !flex-1 !overflow-visible ![mask-image:none] whitespace-normal [overflow-wrap:break-word]'
       )}
       ref={chipTextRef}
       onPointerEnter={onChipTextPointerEnter}
@@ -1900,10 +2004,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     </span>
   )
 
-  const chipTextTooltipTriggerElement = (
+  const chipTextExpansionTriggerElement = (
     <span
-      className="chip-text-tooltip-hit-area -my-[5px] flex min-w-0 flex-1 py-[5px]"
-      onPointerEnter={onChipTextTooltipHitAreaPointerEnter}
+      className="chip-text-expansion-hit-area -my-[5px] flex min-w-0 flex-1 py-[5px]"
     >
       {chipTextElement}
     </span>
@@ -1917,6 +2020,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onKeyDown: onChipKeyDown,
         onMouseEnter: onChipMouseEnter,
         onMouseLeave: onChipMouseLeave,
+        onPointerDown: onChipPointerDown,
         onFocus: onChipFocus,
         onBlur: onChipBlur
       } as const
@@ -1925,18 +2029,35 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipElement = (
       <div
         data-tabout="page-chip"
+        data-expanded={chipExpanded ? 'true' : undefined}
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-[var(--ink)] [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-[var(--group-color,transparent)] before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[var(--chip-hover-fade-width)] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
+          !chip.iconOnly && 'w-full',
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
-          chipTooltipOpen && 'page-chip-tooltip-open',
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.13)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.13)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.13)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 hover:bg-[rgba(82,82,82,0.06)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.06)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
+          chipVisualOpen && 'page-chip-tooltip-open',
+          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-[var(--page-chip-expanded-max-width)] !overflow-visible !transition-none [width:var(--page-chip-expanded-width)] shadow-[0_4px_14px_rgba(10,10,10,0.1)]',
+          chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
+          chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.08)] [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100',
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.08)] [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.08)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.08)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.06)] [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100',
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.06)] [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.06)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
           hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.18)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.18)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.18)]',
-          isTitleVariantGroup && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
-          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
-          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && 'hover:bg-[rgba(82,82,82,0.11)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.11)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.11)]',
+          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.18)]',
+          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.18)]',
+          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.18)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.18)]',
+          isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)]',
+          isTitleVariantGroup && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
+          isTitleVariantGroup && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
+          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)]',
+          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
+          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
+          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.11)]',
+          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.11)]',
+          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.11)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.11)]',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
@@ -1946,7 +2067,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chip.iconOnly && hasActiveChipFrame && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
         )}
         aria-label={chipLabel}
-        style={style}
+        style={chipStyle}
+        onPointerEnter={onChipPointerEnter}
+        onPointerMove={onChipPointerMove}
+        onPointerLeave={onChipPointerLeave}
         {...chipInteractionProps}
       >
       {hasActiveChipFrame && !chip.iconOnly && (
@@ -2007,25 +2131,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         </span>
       )}
       {!chip.iconOnly && (
-        isFolded || isTitleVariantGroup ? chipTextElement : chipTooltipContent ? (
-          <TooltipAnchor
-            alignOffset={0}
-            anchor={getChipTooltipAnchor}
-            anchorToCursor={false}
-            content={chipTooltipContent}
-            className={cn(
-              'page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none',
-              chipTooltipSameHeightAsChip && 'shadow-none'
-            )}
-            instant
-            onClick={parentInteractive ? onPageChipTooltipClick : undefined}
-            onOpenChange={onChipTooltipOpenChange}
-            sideOffset={0}
-            style={chipTooltipStyle}
-          >
-            {chipTextTooltipTriggerElement}
-          </TooltipAnchor>
-        ) : chipTextElement
+        isFolded || isTitleVariantGroup ? chipTextElement : shouldExpandChip ? chipTextExpansionTriggerElement : chipTextElement
       )}
       {!chip.iconOnly && showSavedHint && (
         <div className="chip-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
@@ -2054,22 +2160,29 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     </PageChipContextMenu>
   ) : chipElement
 
-  if (chip.iconOnly && chipTooltipContent) {
-    return (
-      <TooltipAnchor
-        content={chipTooltipContent}
-        className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
-        instant
-        onClick={onPageChipTooltipClick}
-        onOpenChange={onChipTooltipOpenChange}
-        style={chipTooltipStyle}
-      >
-        {chipElement}
-      </TooltipAnchor>
-    )
-  }
+  const renderedChipElement = chip.iconOnly && chipTooltipContent ? (
+    <TooltipAnchor
+      content={chipTooltipContent}
+      className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
+      instant
+      onClick={onPageChipTooltipClick}
+      onOpenChange={onChipTooltipOpenChange}
+      style={chipTooltipStyle}
+    >
+      {chipElement}
+    </TooltipAnchor>
+  ) : chipElementWithContextMenu
 
-  return chipElementWithContextMenu
+  return (
+    <div
+      data-tabout-part="slot"
+      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : 'flex w-full')}
+      style={chipSlotStyle}
+      ref={chipSlotRef}
+    >
+      {renderedChipElement}
+    </div>
+  )
 }
 
 export function PageChip(props: PageChipProps) {

@@ -444,6 +444,46 @@
         listeners.dispatch()
         await new Promise((resolve) => setTimeout(resolve, 350))
       }
+      window.__tabOutSmokeAddCompactTitleVariantTabs = async () => {
+        if (tabs.some((tab) => tab.id === 1261 || tab.id === 1262 || tab.id === 1263)) return
+        tabs.push(
+          {
+            id: 1261,
+            url: 'https://dev1us.variant-width.test/product?productId=1060&skuId=106021',
+            title: 'Order Page - Example Optical',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1261
+          },
+          {
+            id: 1262,
+            url: 'https://dev1us.variant-width.test/product?productId=9707&skuId=970721',
+            title: 'Order Page - Example Optical',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1262
+          },
+          {
+            id: 1263,
+            url: 'https://dev1us.variant-width.test/settings',
+            title: 'Settings - Example Optical',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1263
+          }
+        )
+        listeners.dispatch()
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
       window.__tabOutSmokeSetActiveTab = async (tabId, windowId = 1) => {
         for (const tab of tabs) {
           tab.windowId = originalWindowIds.get(tab.id) ?? tab.windowId

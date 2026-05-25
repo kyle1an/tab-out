@@ -19,6 +19,7 @@ const CHROME_CANDIDATES = [
   '/usr/bin/chromium-browser'
 ].filter(Boolean)
 const RUN_BROWSER_SMOKE = process.env.RUN_BROWSER_SMOKE === '1' || !!process.env.CI
+const PAGE_CHIP_EXPANSION_SMOKE_LABEL = 'Hover Handoff Title'
 
 function findChrome() {
   for (const candidate of CHROME_CANDIDATES) {
@@ -431,27 +432,43 @@ async function waitForTooltipRect(session: CdpSession) {
   }).then((result: any) => result.result.value)
 }
 
-async function waitForTooltipContaining(session: CdpSession, text: string, timeoutMs = 2000) {
+async function waitForPageChipExpansionRect(session: CdpSession, text: string, timeoutMs = 2000) {
   return evaluateWithNavigationRetry(session, {
     awaitPromise: true,
     returnByValue: true,
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const tooltips = Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
-          .map((tooltip) => {
-            const rect = tooltip.getBoundingClientRect()
-            return {
-              text: tooltip.textContent || '',
-              width: rect.width,
-              height: rect.height,
-              ending: tooltip.hasAttribute('data-ending-style')
-            }
+        const chip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+          .find((candidate) => candidate.textContent?.includes(${JSON.stringify(text)}))
+        const rect = chip?.getBoundingClientRect()
+        const chipText = chip?.querySelector('.chip-text')
+        const textRect = chipText?.getBoundingClientRect()
+        if (chip instanceof HTMLElement && rect && chipText && textRect && rect.width > 0 && rect.height > 0) {
+          const styles = window.getComputedStyle(chipText)
+          const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+          resolve({
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            top: Math.round(rect.top),
+            bottom: Math.round(rect.bottom),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            textLeft: Math.round(textRect.left * 100) / 100,
+            textTop: Math.round(textRect.top * 100) / 100,
+            textWidth: Math.round(textRect.width * 100) / 100,
+            textHeight: Math.round(textRect.height * 100) / 100,
+            textLineHeight: Math.round(lineHeight * 100) / 100,
+            textLineCount: Math.max(1, Math.round(textRect.height / lineHeight)),
+            text: chip.textContent || '',
+            visibleTooltipCount: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
+              const tooltipRect = tooltip.getBoundingClientRect()
+              return tooltipRect.width > 0 && tooltipRect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+            }).length,
+            viewportRight: window.innerWidth
           })
-          .filter((tooltip) => tooltip.width > 0 && tooltip.height > 0 && !tooltip.ending)
-        const found = tooltips.some((tooltip) => tooltip.text.includes(${JSON.stringify(text)}))
-        if (found || Date.now() - start > ${JSON.stringify(timeoutMs)}) {
-          resolve({ found, tooltips })
+        } else if (Date.now() - start > ${JSON.stringify(timeoutMs)}) {
+          resolve(null)
         } else {
           setTimeout(wait, 50)
         }
@@ -487,9 +504,9 @@ async function measureTooltipFreeze(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
-            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+            candidate.closest('.page-chip')?.textContent?.includes(${JSON.stringify(PAGE_CHIP_EXPANSION_SMOKE_LABEL)})
           )
         const rect = chipText?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
@@ -523,7 +540,7 @@ async function measureTooltipFreeze(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -531,18 +548,18 @@ async function measureTooltipFreeze(session: CdpSession) {
     y: target.y
   })
   await wait(150)
-  const second = await waitForTooltipRect(session)
+  const second = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollBy(0, 160)`
   })
   await wait(220)
-  const afterScrollTooltipCount = await evaluateWithNavigationRetry(session, {
+  const afterScrollExpandedCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+    expression: `document.querySelectorAll('.page-chip-expanded').length`
   }).then((result: any) => result.result.value)
 
-  return { target, first, second, afterScrollTooltipCount, closing: null }
+  return { target, first, second, afterScrollExpandedCount, closing: null }
 }
 
 async function measureTooltipTextPaddingHitArea(session: CdpSession) {
@@ -563,16 +580,20 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const hitArea = Array.from(document.querySelectorAll('.chip-text-tooltip-hit-area'))
+        const hitArea = Array.from(document.querySelectorAll('.chip-text-expansion-hit-area'))
           .find((candidate) =>
             candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
           )
+        const chip = hitArea?.closest('.page-chip')
         const chipText = hitArea?.querySelector('.chip-text-truncated')
+        const chipRect = chip?.getBoundingClientRect()
         const hitRect = hitArea?.getBoundingClientRect()
         const textRect = chipText?.getBoundingClientRect()
         if (
+          chipRect &&
           hitRect &&
           textRect &&
+          chipRect.left + 2 < hitRect.left - 1 &&
           hitRect.width > 120 &&
           textRect.width > 120 &&
           hitRect.top < textRect.top &&
@@ -584,8 +605,13 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
             x: Math.round(textRect.left + Math.min(24, textRect.width / 2)),
             aboveY: Math.round(textRect.top - Math.max(1, topGap / 2)),
             belowY: Math.round(textRect.bottom + Math.max(1, bottomGap / 2)),
+            chipSurfaceX: Math.round(chipRect.left + Math.max(2, (hitRect.left - chipRect.left) / 2)),
+            chipSurfaceY: Math.round(textRect.top + Math.min(textRect.height / 2, 10)),
+            chipLeft: Math.round(chipRect.left),
+            chipRight: Math.round(chipRect.right),
             hitTop: Math.round(hitRect.top),
             hitBottom: Math.round(hitRect.bottom),
+            hitLeft: Math.round(hitRect.left),
             textLeft: Math.round(textRect.left),
             textLeftExact: Math.round(textRect.left * 100) / 100,
             textTop: Math.round(textRect.top),
@@ -602,7 +628,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a page chip tooltip hit area for padding hover smoke test')
+  assert.ok(target, 'expected a page chip expansion hit area for padding hover smoke test')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -610,7 +636,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     y: target.aboveY
   })
   await wait(650)
-  const above = await waitForTooltipRect(session)
+  const above = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -625,7 +651,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     y: target.belowY
   })
   await wait(650)
-  const below = await waitForTooltipRect(session)
+  const below = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -634,7 +660,105 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
   })
   await wait(260)
 
-  return { target, above, below }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.chipSurfaceX,
+    y: target.chipSurfaceY
+  })
+  await wait(650)
+  const chipSurface = await waitForPageChipExpansionRect(session, 'enough tooltip text')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(260)
+
+  return { target, above, below, chipSurface }
+}
+
+async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 2,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) => candidate.textContent?.includes('enough tooltip text'))
+        const chipText = chip?.querySelector('.chip-text-truncated')
+        const chipRect = chip?.getBoundingClientRect()
+        const textRect = chipText?.getBoundingClientRect()
+        if (
+          chip instanceof HTMLElement &&
+          chipRect &&
+          textRect &&
+          chipRect.left + 2 < textRect.left - 1 &&
+          textRect.width > 120 &&
+          textRect.height > 8
+        ) {
+          resolve({
+            x: Math.round(chipRect.left + Math.max(2, (textRect.left - chipRect.left) / 2)),
+            y: Math.round(textRect.top + Math.min(textRect.height / 2, 10)),
+            chipLeft: Math.round(chipRect.left),
+            chipRight: Math.round(chipRect.right),
+            textLeft: Math.round(textRect.left),
+            textTopExact: Math.round(textRect.top * 100) / 100
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a page chip with left-side internal hover surface')
+
+  const before = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.querySelectorAll('.page-chip-expanded').length`
+  }).then((result: any) => result.result.value)
+
+  await evaluateWithNavigationRetry(session, {
+    expression: `(() => {
+      const chip = Array.from(document.querySelectorAll('.page-chip'))
+        .find((candidate) => candidate.textContent?.includes('enough tooltip text'))
+      chip?.dispatchEvent(new PointerEvent('pointermove', {
+        bubbles: true,
+        clientX: ${target.x},
+        clientY: ${target.y},
+        pointerId: 1,
+        pointerType: 'mouse'
+      }))
+    })()`
+  })
+  await wait(650)
+
+  const expansion = await waitForPageChipExpansionRect(session, 'enough tooltip text')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(260)
+
+  return { target, before, expansion }
 }
 
 async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
@@ -696,7 +820,7 @@ async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
       y: target.y
     })
     await wait(650)
-    const tooltip = await waitForTooltipRect(session)
+    const tooltip = await waitForPageChipExpansionRect(session, 'Example 2 with enough tooltip text')
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: 8,
@@ -770,15 +894,16 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
   const result = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const tooltip = document.querySelector('[data-slot="tooltip-content"]')
-      const tooltipText = tooltip?.querySelector('.chip-text')
-      const marker = tooltip?.querySelector('.chip-title-suppression-marker')
-      const tooltipRect = tooltip?.getBoundingClientRect()
-      const textRect = tooltipText?.getBoundingClientRect()
+      const expandedChip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
+      const expandedText = expandedChip?.querySelector('.chip-text')
+      const marker = expandedChip?.querySelector('.chip-title-suppression-marker')
+      const tooltipRect = expandedChip?.getBoundingClientRect()
+      const textRect = expandedText?.getBoundingClientRect()
       const markerRect = marker?.getBoundingClientRect()
-      if (!tooltip || !tooltipText || !marker || !tooltipRect || !textRect || !markerRect) return null
+      if (!expandedChip || !expandedText || !marker || !tooltipRect || !textRect || !markerRect) return null
 
-      const textStyles = window.getComputedStyle(tooltipText)
+      const textStyles = window.getComputedStyle(expandedText)
       const markerStyles = window.getComputedStyle(marker)
       const lineHeight = Number.parseFloat(textStyles.lineHeight) || 16.25
       const markerLine = Math.round((markerRect.top - textRect.top) / lineHeight) + 1
@@ -788,7 +913,7 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
 
       return {
         label: ${JSON.stringify(label)},
-        text: tooltip.textContent || '',
+        text: expandedChip.textContent || '',
         markerLine,
         markerCenterDelta: Math.round((markerCenter - lineCenter) * 100) / 100,
         markerHeight: Math.round(markerRect.height * 100) / 100,
@@ -989,14 +1114,15 @@ async function measurePageChipTooltipLineCount(
   const tooltip = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const tooltip = document.querySelector('[data-slot="tooltip-content"]')
+      const tooltip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
       const tooltipText = tooltip?.querySelector('.chip-text')
       const tooltipRect = tooltip?.getBoundingClientRect()
       const textRect = tooltipText?.getBoundingClientRect()
-      if (!tooltip || !tooltipText || !tooltipRect || !textRect) return null
+      if (!(tooltip instanceof HTMLElement) || !(tooltipText instanceof HTMLElement) || !tooltipRect || !textRect) return null
       const styles = window.getComputedStyle(tooltipText)
       const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
-      const lineNodes = Array.from(tooltipText.querySelectorAll('.page-chip-tooltip-line'))
+      const lineNodes = Array.from(tooltipText.querySelectorAll('.page-chip-expanded-line'))
       const tooltipLineTexts = lineNodes.length > 0
         ? lineNodes.map((node) => node.textContent || '')
         : [tooltipText.textContent || '']
@@ -1027,6 +1153,10 @@ async function measurePageChipTooltipLineCount(
         text: tooltip.textContent || '',
         tooltipLineTexts,
         tooltipLineOverflows,
+        visibleTooltipCount: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((candidate) => {
+          const rect = candidate.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0
+        }).length,
         left: Math.round(tooltipRect.left),
         right: Math.round(tooltipRect.right),
         top: Math.round(tooltipRect.top),
@@ -1120,18 +1250,23 @@ async function measureFoldedPageChipTooltipTitleLineCount(
   const tooltip = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const tooltip = document.querySelector('[data-slot="tooltip-content"]')
+      const tooltip = Array.from(document.querySelectorAll('.page-chip-expanded.page-chip-folded'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(label)}))
       const tooltipText = tooltip?.querySelector('.chip-text')
       const titleRow = tooltip?.querySelector('.chip-title-row')
       const tooltipRect = tooltip?.getBoundingClientRect()
       const titleRect = titleRow?.getBoundingClientRect()
-      if (!tooltip || !tooltipText || !titleRow || !tooltipRect || !titleRect) return null
+      if (!(tooltip instanceof HTMLElement) || !(tooltipText instanceof HTMLElement) || !(titleRow instanceof HTMLElement) || !tooltipRect || !titleRect) return null
       const styles = window.getComputedStyle(titleRow)
       const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
       return {
         text: tooltip.textContent || '',
         titleText: titleRow.textContent || '',
         envCount: tooltip.querySelectorAll('.chip-env').length,
+        visibleTooltipCount: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((candidate) => {
+          const rect = candidate.getBoundingClientRect()
+          return rect.width > 0 && rect.height > 0
+        }).length,
         titleLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
         titleWidth: Math.round(titleRect.width),
         textWidth: Math.round(tooltipText.getBoundingClientRect().width),
@@ -1276,7 +1411,8 @@ async function measureInteractiveTooltipClickReturnFocus(
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipContaining(session, marker)
+  const expansion = await waitForPageChipExpansionRect(session, marker)
+  const first = { found: !!expansion, expansion }
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mousePressed',
@@ -1328,9 +1464,10 @@ async function measureInteractiveTooltipClickReturnFocus(
   }
 }
 
-async function measureTooltipPopupHover(session: CdpSession) {
+async function measurePageChipOriginalSlotLeave(session: CdpSession) {
+  const label = 'Tooltip Boundary Alpha'
   await session.send('Emulation.setDeviceMetricsOverride', {
-    width: 1000,
+    width: 1600,
     height: 900,
     deviceScaleFactor: 1,
     mobile: false
@@ -1346,15 +1483,42 @@ async function measureTooltipPopupHover(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
-            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+            !candidate.closest('[data-slot="tooltip-content"]') &&
+            candidate.textContent?.includes(${JSON.stringify(label)})
           )
+        if (chipText instanceof HTMLElement) {
+          chipText.style.flex = '0 0 130px'
+          chipText.style.maxWidth = '130px'
+          chipText.style.maxHeight = 'calc(1lh)'
+        }
+        const chip = chipText?.closest('.page-chip')
+        const slot = chip?.closest('[data-tabout-part="slot"]') || chip
         const rect = chipText?.getBoundingClientRect()
-        if (rect && rect.width > 120 && rect.height > 8) {
+        const slotRect = slot?.getBoundingClientRect()
+        if (
+          chipText instanceof HTMLElement &&
+          chip instanceof HTMLElement &&
+          slot instanceof HTMLElement &&
+          rect &&
+          slotRect &&
+          slotRect.width > 80 &&
+          slotRect.height > 8
+        ) {
           resolve({
             startX: Math.round(rect.left + Math.min(24, rect.width / 2)),
-            y: Math.round(rect.top + rect.height / 2)
+            y: Math.round(rect.top + Math.min(rect.height / 2, 10)),
+            slotLeft: Math.round(slotRect.left),
+            slotRight: Math.round(slotRect.right),
+            slotTop: Math.round(slotRect.top),
+            slotBottom: Math.round(slotRect.bottom),
+            slotWidth: Math.round(slotRect.width),
+            slotHeight: Math.round(slotRect.height),
+            textLeft: Math.round(rect.left),
+            textTop: Math.round(rect.top),
+            chipText: chipText.textContent || '',
+            chipTextWidth: Math.round(rect.width)
           })
         } else if (Date.now() - start > 5000) {
           resolve(null)
@@ -1366,7 +1530,7 @@ async function measureTooltipPopupHover(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a page chip to hover for popup hover smoke test')
+  assert.ok(target, 'expected a page chip to hover for original-slot leave smoke test')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -1374,24 +1538,34 @@ async function measureTooltipPopupHover(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForPageChipExpansionRect(session, label)
 
-  assert.ok(first, `tooltip should open before popup hover check: ${JSON.stringify({ target, first })}`)
+  assert.ok(first, `page chip should expand before original-slot leave check: ${JSON.stringify({ target, first })}`)
+  assert.ok(
+    first.right > target.slotRight + 8,
+    `original-slot leave smoke needs an expanded-only horizontal area: ${JSON.stringify({ target, first })}`
+  )
+
+  const expandedOnlyPoint = {
+    x: Math.round(Math.min(first.right - 4, target.slotRight + 16)),
+    y: Math.round((Math.max(first.top, target.slotTop) + Math.min(first.bottom, target.slotBottom)) / 2)
+  }
+  assert.ok(
+    expandedOnlyPoint.x > target.slotRight + 1 && expandedOnlyPoint.x < first.right,
+    `original-slot leave point should be outside the original slot and inside the expanded chip: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
+  )
+  assert.ok(
+    expandedOnlyPoint.y >= first.top && expandedOnlyPoint.y <= first.bottom,
+    `original-slot leave point should stay vertically inside the expanded chip: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
+  )
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
-    x: Math.round(first.left + first.width / 2),
-    y: Math.round((target.y + first.top) / 2)
-  })
-  await wait(50)
-
-  await session.send('Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x: Math.round(first.left + first.width / 2),
-    y: Math.round(first.top + first.height / 2)
+    x: expandedOnlyPoint.x,
+    y: expandedOnlyPoint.y
   })
   await wait(220)
-  const whileHovered = await waitForTooltipRect(session)
+  const afterOriginalSlotLeave = await waitForPageChipExpansionRect(session, label, 250)
 
   for (let index = 0; index < 8; index += 1) {
     await session.send('Input.dispatchMouseEvent', {
@@ -1403,11 +1577,11 @@ async function measureTooltipPopupHover(session: CdpSession) {
   }
   const afterLeaveTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
-      .map((tooltip) => tooltip.textContent || '')`
+    expression: `Array.from(document.querySelectorAll('.page-chip-expanded'))
+      .map((chip) => chip.textContent || '')`
   }).then((result: any) => result.result.value)
 
-  return { target, first, whileHovered, afterLeaveTooltips }
+  return { target, first, expandedOnlyPoint, afterOriginalSlotLeave, afterLeaveTooltips }
 }
 
 async function measureTooltipPopupClickFocus(session: CdpSession) {
@@ -1421,15 +1595,15 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     expression: `(() => {
       document.querySelector('.scroll-region')?.scrollTo(0, 0)
       window.__tabOutSmokeFocusUpdates = []
-      const originalTabsUpdate = chrome.tabs.update
-      const originalWindowsUpdate = chrome.windows.update
+      window.__tabOutSmokeOriginalTabsUpdate = window.__tabOutSmokeOriginalTabsUpdate || chrome.tabs.update
+      window.__tabOutSmokeOriginalWindowsUpdate = window.__tabOutSmokeOriginalWindowsUpdate || chrome.windows.update
       chrome.tabs.update = async (...args) => {
         window.__tabOutSmokeFocusUpdates.push({ kind: 'tab', args })
-        return originalTabsUpdate(...args)
+        return window.__tabOutSmokeOriginalTabsUpdate(...args)
       }
       chrome.windows.update = async (...args) => {
         window.__tabOutSmokeFocusUpdates.push({ kind: 'window', args })
-        return originalWindowsUpdate(...args)
+        return window.__tabOutSmokeOriginalWindowsUpdate(...args)
       }
     })()`
   })
@@ -1441,9 +1615,9 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
-            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+            candidate.closest('.page-chip')?.textContent?.includes(${JSON.stringify(PAGE_CHIP_EXPANSION_SMOKE_LABEL)})
           )
         const rect = chipText?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
@@ -1469,8 +1643,8 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
-  assert.ok(first, `tooltip should open before popup click check: ${JSON.stringify({ target, first })}`)
+  const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
+  assert.ok(first, `page chip should expand before in-place click check: ${JSON.stringify({ target, first })}`)
 
   const popupPoint = {
     x: Math.round(first.left + first.width / 2),
@@ -1479,9 +1653,10 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
   const popupStyle = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const tooltip = document.querySelector('[data-slot="tooltip-content"].page-chip-tooltip')
-      if (!tooltip) return null
-      const styles = window.getComputedStyle(tooltip)
+      const chip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(PAGE_CHIP_EXPANSION_SMOKE_LABEL)}))
+      if (!(chip instanceof HTMLElement)) return null
+      const styles = window.getComputedStyle(chip)
       return {
         cursor: styles.cursor,
         userSelect: styles.userSelect
@@ -1515,7 +1690,12 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
 
   const updates = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `window.__tabOutSmokeFocusUpdates || []`
+    expression: `(() => {
+      const focusUpdates = window.__tabOutSmokeFocusUpdates || []
+      chrome.tabs.update = window.__tabOutSmokeOriginalTabsUpdate
+      chrome.windows.update = window.__tabOutSmokeOriginalWindowsUpdate
+      return focusUpdates
+    })()`
   }).then((result: any) => result.result.value)
 
   return { target, first, popupPoint, popupStyle, updates }
@@ -1817,7 +1997,10 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           backgroundColor: styles.backgroundColor,
           className: chip.className,
           contextMenuOpen: chip.classList.contains('page-chip-context-menu-open'),
+          expanded: chip.classList.contains('page-chip-expanded'),
           tooltipOpen: chip.classList.contains('page-chip-tooltip-open'),
+          transitionProperty: styles.transitionProperty,
+          width: Math.round(chip.getBoundingClientRect().width),
           closeButton: readPart(closeButton),
           dupeBadge: readPart(dupeBadge),
           faviconContent: readPart(faviconContent),
@@ -1969,16 +2152,25 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     y: replacementTarget.y
   })
   await wait(650)
-  const contextTooltip = await waitForTooltipRect(session)
-  assert.ok(contextTooltip, `tooltip should open before context-menu shield check: ${JSON.stringify({ replacementTarget, contextTooltip })}`)
   const tooltipOpenChipState = await readPageChipVisualState(replacementTarget)
-  assert.equal(tooltipOpenChipState?.tooltipOpen, true, `page chip should keep an explicit tooltip-open class while its tooltip is visible: ${JSON.stringify({ tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.backgroundColor, hoverChipState.backgroundColor, `page chip should keep the same hover background after its tooltip appears: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip tooltip visibility should not reveal the favicon-slot close button: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip tooltip visibility should keep the favicon visible away from favicon hover: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  const visibleTooltipCountBeforeMenu = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
+      const rect = tooltip.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+    }).length`
+  }).then((result: any) => result.result.value)
+  assert.equal(tooltipOpenChipState?.expanded, true, `page chip should expand in place before context-menu shield check: ${JSON.stringify({ replacementTarget, tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.tooltipOpen, true, `page chip should keep the visual-open class while expanded in place: ${JSON.stringify({ tooltipOpenChipState })}`)
+  assert.equal(visibleTooltipCountBeforeMenu, 0, `in-place page chip expansion should not create a tooltip popup before context-menu shield check: ${JSON.stringify({ replacementTarget, tooltipOpenChipState, visibleTooltipCountBeforeMenu })}`)
+  assert.notEqual(tooltipOpenChipState?.backgroundColor, 'rgba(0, 0, 0, 0)', `expanded page chip should paint an opaque background instead of letting content behind it show through: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.doesNotMatch(tooltipOpenChipState?.backgroundColor || '', /rgba\([^)]*,\s*0\.\d+\)/, `expanded page chip background should not be a low-alpha overlay: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.doesNotMatch(tooltipOpenChipState?.transitionProperty || '', /box-shadow/, `expanded page chip shadow should appear in the same frame as the background instead of transitioning later: ${JSON.stringify({ tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip expansion should not reveal the favicon-slot close button: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.equal(tooltipOpenChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip expansion should keep the favicon visible away from favicon hover: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
   await openContextMenuAt(replacementTarget)
-  const contextTooltipAfterMenu = await waitForTooltipContaining(session, 'Example 2 with enough tooltip text', 500)
-  assert.ok(contextTooltipAfterMenu.found, `right-clicking to open a page chip context menu should not hide a visible tooltip: ${JSON.stringify({ contextTooltip, contextTooltipAfterMenu })}`)
+  const expandedAfterMenu = await readPageChipVisualState(replacementTarget)
+  assert.equal(expandedAfterMenu?.expanded, true, `right-clicking to open a page chip context menu should not collapse an in-place expansion: ${JSON.stringify({ tooltipOpenChipState, expandedAfterMenu })}`)
   const backdropDismissPoint = await findPageChipTarget('Example 2 with enough tooltip text', 40)
   assert.ok(backdropDismissPoint, `expected a page-chip point outside the context menu for backdrop-dismiss smoke: ${JSON.stringify({ replacementTarget })}`)
   const backdropDismissOpenState = await readPageChipVisualState(replacementTarget)
@@ -2015,7 +2207,8 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   assert.equal(backdropDismissPressedState?.contextMenuOpen, true, `page chip should keep the context-menu-open visual class during backdrop dismissal: ${JSON.stringify({ backdropDismissPressedState })}`)
   assert.equal(backdropDismissPressedState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `clicking the context menu backdrop over the page chip should not flash the chip background: ${JSON.stringify({ backdropDismissOpenState, backdropDismissPressedState })}`)
   assert.equal(backdropDismissReleasedState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `page chip should bridge the first backdrop dismissal frame without a background flash: ${JSON.stringify({ backdropDismissOpenState, backdropDismissReleasedState })}`)
-  assert.equal(backdropDismissAfterState?.backgroundColor, backdropDismissOpenState?.backgroundColor, `page chip should return to the same hover background after backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState, backdropDismissAfterState })}`)
+  assert.equal(backdropDismissAfterState?.contextMenuOpen, false, `page chip should clear the context-menu-open class after backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState, backdropDismissAfterState })}`)
+  assert.equal(backdropDismissAfterState?.expanded, false, `page chip should close its in-place expansion after backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState, backdropDismissAfterState })}`)
   assert.equal(backdropDismissMenuState.visibleMenuCount, 0, `backdrop dismissal over the page chip should close the context menu: ${JSON.stringify({ backdropDismissMenuState })}`)
   await openContextMenuAt(replacementTarget)
   const tooltipShieldPoint = await evaluateWithNavigationRetry(session, {
@@ -2202,9 +2395,9 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
-            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+            candidate.closest('.page-chip')?.textContent?.includes(${JSON.stringify(PAGE_CHIP_EXPANSION_SMOKE_LABEL)})
           )
         const rect = chipText?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
@@ -2230,9 +2423,9 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
-  assert.ok(first, `tooltip should open before popup wheel check: ${JSON.stringify({ target, first })}`)
+  assert.ok(first, `page chip should expand before in-place wheel check: ${JSON.stringify({ target, first })}`)
 
   const popupPoint = {
     x: Math.round(first.left + first.width / 2),
@@ -2267,35 +2460,11 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
         const scrollRegion = document.querySelector('.scroll-region')
         return {
           scrollTop: scrollRegion?.scrollTop ?? 0,
+          expandedCount: document.querySelectorAll('.page-chip-expanded').length,
           tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
         }
       })()`
     }).then((result: any) => result.result.value))
-  }
-  const beforeForwardedWheelTop = wheelSteps.at(-1)?.scrollTop ?? beforeScrollTop
-  const forwardedWheelSteps = []
-  for (let index = 0; index < 3; index += 1) {
-    forwardedWheelSteps.push(await evaluateWithNavigationRetry(session, {
-      returnByValue: true,
-      expression: `(() => {
-        const event = new WheelEvent('wheel', {
-          bubbles: true,
-          cancelable: true,
-          clientX: ${popupPoint.x},
-          clientY: ${popupPoint.y},
-          deltaX: 0,
-          deltaY: 36
-        })
-        window.dispatchEvent(event)
-        const scrollRegion = document.querySelector('.scroll-region')
-        return {
-          defaultPrevented: event.defaultPrevented,
-          scrollTop: scrollRegion?.scrollTop ?? 0,
-          tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
-        }
-      })()`
-    }).then((result: any) => result.result.value))
-    await wait(60)
   }
   await wait(620)
 
@@ -2305,6 +2474,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
       const scrollRegion = document.querySelector('.scroll-region')
       return {
         scrollTop: scrollRegion?.scrollTop ?? 0,
+        expandedCount: document.querySelectorAll('.page-chip-expanded').length,
         tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
       }
     })()`
@@ -2317,12 +2487,12 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
   })
   await wait(620)
 
-  const afterLeaveTooltipCount = await evaluateWithNavigationRetry(session, {
+  const afterLeaveExpandedCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+    expression: `document.querySelectorAll('.page-chip-expanded').length`
   }).then((result: any) => result.result.value)
 
-  return { target, first, popupPoint, beforeScrollTop, wheelSteps, beforeForwardedWheelTop, forwardedWheelSteps, after, afterLeaveTooltipCount }
+  return { target, first, popupPoint, beforeScrollTop, wheelSteps, after, afterLeaveExpandedCount }
 }
 
 async function measureHistoryTooltipFaviconVerticalHitArea(session: CdpSession) {
@@ -2646,9 +2816,9 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
-            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+            candidate.closest('.page-chip')?.textContent?.includes(${JSON.stringify(PAGE_CHIP_EXPANSION_SMOKE_LABEL)})
           )
         const rect = chipText?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
@@ -2666,7 +2836,7 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a page chip for tooltip window-blur smoke test')
+  assert.ok(target, 'expected a page chip for expansion window-blur smoke test')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -2674,7 +2844,7 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
     expression: `window.dispatchEvent(new Event('blur'))`
@@ -2683,12 +2853,8 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
 
   const afterBlurTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
-      .filter((tooltip) => {
-        const rect = tooltip.getBoundingClientRect()
-        return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
-      })
-      .map((tooltip) => tooltip.textContent || '')`
+    expression: `Array.from(document.querySelectorAll('.page-chip-expanded'))
+      .map((chip) => chip.textContent || '')`
   }).then((result: any) => result.result.value)
 
   return { target, first, afterBlurTooltips }
@@ -2712,9 +2878,9 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const chipText = Array.from(document.querySelectorAll('.chip-text-truncated'))
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
-            candidate.closest('.page-chip')?.textContent?.includes('enough tooltip text')
+            candidate.closest('.page-chip')?.textContent?.includes(${JSON.stringify(PAGE_CHIP_EXPANSION_SMOKE_LABEL)})
           )
         const rect = chipText?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
@@ -2732,15 +2898,21 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a page chip for tooltip visibility-change smoke test')
+  assert.ok(target, 'expected a page chip for expansion visibility-change smoke test')
 
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(180)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
     expression: `(() => {
@@ -2770,12 +2942,8 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
 
   const afterVisibilityChangeTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
-      .filter((tooltip) => {
-        const rect = tooltip.getBoundingClientRect()
-        return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
-      })
-      .map((tooltip) => tooltip.textContent || '')`
+    expression: `Array.from(document.querySelectorAll('.page-chip-expanded'))
+      .map((chip) => chip.textContent || '')`
   }).then((result: any) => result.result.value)
 
   return { target, first, afterVisibilityChangeTooltips }
@@ -2907,7 +3075,7 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a chip with a strip indicator for tooltip handoff smoke test')
+  assert.ok(target, 'expected a chip with a strip indicator for expansion handoff smoke test')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -2915,14 +3083,24 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const markerTooltip = await waitForTooltipContaining(session, 'dev2')
+  const markerTooltipExpansion = await waitForPageChipExpansionRect(session, 'Hover Handoff Title')
+  const markerTooltip = {
+    found: !!markerTooltipExpansion,
+    expansion: markerTooltipExpansion,
+    tooltips: await getVisibleTooltipTexts(session)
+  }
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.textX,
     y: target.y
   })
-  const chipTooltip = await waitForTooltipContaining(session, 'Hover Handoff Title')
+  const chipTooltipExpansion = await waitForPageChipExpansionRect(session, 'Hover Handoff Title')
+  const chipTooltip = {
+    found: !!chipTooltipExpansion,
+    expansion: chipTooltipExpansion,
+    tooltips: await getVisibleTooltipTexts(session)
+  }
 
   return { target, markerTooltip, chipTooltip }
 }
@@ -3025,7 +3203,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a right-edge page chip to hover for tooltip smoke test')
+  assert.ok(target, 'expected a right-edge page chip to hover for expansion smoke test')
 
   await wait(250)
   await session.send('Input.dispatchMouseEvent', {
@@ -3034,9 +3212,115 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForPageChipExpansionRect(session, 'viewport-edge')
 
   return { target, first }
+}
+
+async function measureCompactTitleVariantExpansion(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddCompactTitleVariantTabs?.()`
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) =>
+            candidate.textContent?.includes('Order Page') &&
+            candidate.textContent?.includes('productId=1060') &&
+            candidate.textContent?.includes('productId=9707')
+          )
+        const chipRect = chip?.getBoundingClientRect()
+        const titleRow = chip?.querySelector('.chip-title-row')
+        const variantLabels = Array.from(chip?.querySelectorAll('.chip-title-variant-label') || [])
+        const titleRect = titleRow?.getBoundingClientRect()
+        const labelRects = variantLabels.map((label) => label.getBoundingClientRect())
+        if (
+          chip instanceof HTMLElement &&
+          chipRect &&
+          (chipRect.top < 24 || chipRect.bottom > window.innerHeight - 24)
+        ) {
+          chip.scrollIntoView({ block: 'center', inline: 'nearest' })
+          setTimeout(wait, 120)
+          return
+        }
+        if (
+          chip instanceof HTMLElement &&
+          titleRow instanceof HTMLElement &&
+          chipRect &&
+          titleRect &&
+          labelRects.length === 2 &&
+          labelRects.every((rect) => rect.width > 40 && rect.height > 8)
+        ) {
+          const contentRight = Math.max(titleRect.right, ...labelRects.map((rect) => rect.right)) + 20
+          resolve({
+            x: Math.round(titleRect.left + Math.min(24, titleRect.width / 2)),
+            y: Math.round(titleRect.top + Math.min(titleRect.height / 2, 10)),
+            chipWidth: Math.round(chipRect.width),
+            contentWidth: Math.round(contentRight - chipRect.left),
+            titleWidth: Math.round(titleRect.width),
+            labelWidths: labelRects.map((rect) => Math.round(rect.width))
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected compact same-title URL variant chip for expansion width smoke')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const expansion = await waitForPageChipExpansionRect(session, 'Order Page')
+  const expandedVariantLabels = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const chip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+        .find((candidate) => candidate.textContent?.includes('Order Page'))
+      return Array.from(chip?.querySelectorAll('.chip-title-variant-label') || []).map((label) => {
+        const rect = label.getBoundingClientRect()
+        return {
+          text: label.textContent || '',
+          clientWidth: Math.round((label.clientWidth || 0) * 100) / 100,
+          scrollWidth: Math.round((label.scrollWidth || 0) * 100) / 100,
+          width: Math.round(rect.width * 100) / 100
+        }
+      })
+    })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(260)
+
+  return { target, expansion, expandedVariantLabels }
 }
 
 test('dashboard cards repack when the viewport resizes', async (t) => {
@@ -3123,56 +3407,61 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(contextMenuSave.outsideClickResult.activeAfter, 'Tabs', `clicking outside an open context menu should dismiss it without activating the underlying source button: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.outsideClickResult.menuOpen, false, `outside click should dismiss the context menu: ${JSON.stringify(contextMenuSave)}`)
 
-  const tooltip = await measureTooltipFreeze(session)
-  assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)
-  assert.ok(tooltip.second, `tooltip should stay open during an in-chip pointer move: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs(tooltip.first.left - (tooltip.target.textLeft - 6)) <= 1, `tooltip should start close to the original chip text without covering the favicon: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs((tooltip.first.top + 5) - tooltip.target.textTop) <= 1, `tooltip popup should place its text over the original chip text: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs((tooltip.first.textLeft || 0) - tooltip.target.textLeftExact) <= 0.1, `tooltip text should keep the original chip text x-origin: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs((tooltip.first.textTop || 0) - tooltip.target.textTopExact) <= 0.1, `tooltip text should keep the original chip text y-origin: ${JSON.stringify(tooltip)}`)
-  assert.equal(tooltip.first.align, 'start', `tooltip should use start alignment away from viewport edges: ${JSON.stringify(tooltip)}`)
-  assert.equal(tooltip.first.topLeftRadius, '0px', `tooltip anchor corner should be square: ${JSON.stringify(tooltip)}`)
-  assert.equal(tooltip.first.transitionProperty, 'none', `page chip tooltip should not animate on open or close: ${JSON.stringify(tooltip)}`)
-  assert.equal(tooltip.first.transitionDuration, '0s', `page chip tooltip should not transition on open or close: ${JSON.stringify(tooltip)}`)
-  assert.equal(tooltip.first.svgCount, 0, `tooltip should not render an arrow svg: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs(tooltip.first.left - tooltip.second.left) <= 1, `tooltip left should freeze after open: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs(tooltip.first.top - tooltip.second.top) <= 1, `tooltip top should freeze after open: ${JSON.stringify(tooltip)}`)
-  assert.equal(tooltip.afterScrollTooltipCount, 0, `tooltip should close when the dashboard scrolls: ${JSON.stringify(tooltip)}`)
-  if (tooltip.closing) {
-    assert.ok(Math.abs(tooltip.first.left - tooltip.closing.left) <= 1, `tooltip left should stay frozen while closing: ${JSON.stringify(tooltip)}`)
-    assert.ok(Math.abs(tooltip.first.top - tooltip.closing.top) <= 1, `tooltip top should stay frozen while closing: ${JSON.stringify(tooltip)}`)
-  }
+  const expansion = await measureTooltipFreeze(session)
+  assert.ok(expansion.first, `page chip should expand in place on hover: ${JSON.stringify(expansion)}`)
+  assert.ok(expansion.second, `page chip should stay expanded during an in-chip pointer move: ${JSON.stringify(expansion)}`)
+  assert.ok((expansion.first.width || 0) > expansion.target.textRight - expansion.target.textLeft + 8, `page chip expansion should grow wider than the resting text: ${JSON.stringify(expansion)}`)
+  assert.ok(Math.abs((expansion.first.textLeft || 0) - expansion.target.textLeftExact) <= 0.1, `page chip expanded text should keep the original chip text x-origin: ${JSON.stringify(expansion)}`)
+  assert.ok(Math.abs((expansion.first.textTop || 0) - expansion.target.textTopExact) <= 0.1, `page chip expanded text should keep the original chip text y-origin: ${JSON.stringify(expansion)}`)
+  assert.equal(expansion.first.visibleTooltipCount, 0, `page chip text expansion should not create a tooltip popup: ${JSON.stringify(expansion)}`)
+  assert.ok(Math.abs(expansion.first.left - expansion.second.left) <= 1, `page chip expansion left should freeze after open: ${JSON.stringify(expansion)}`)
+  assert.ok(Math.abs(expansion.first.top - expansion.second.top) <= 1, `page chip expansion top should freeze after open: ${JSON.stringify(expansion)}`)
+  assert.equal(expansion.afterScrollExpandedCount, 0, `page chip expansion should close when the dashboard scrolls: ${JSON.stringify(expansion)}`)
 
   const tooltipHitArea = await measureTooltipTextPaddingHitArea(session)
-  assert.ok(tooltipHitArea.target.hitTop < tooltipHitArea.target.textTop, `tooltip hit area should include space above chip text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(tooltipHitArea.target.hitBottom > tooltipHitArea.target.textBottom, `tooltip hit area should include space below chip text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(tooltipHitArea.above?.text.includes('enough tooltip text'), `tooltip should open from the vertical space above chip text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(tooltipHitArea.below?.text.includes('enough tooltip text'), `tooltip should open from the vertical space below chip text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(Math.abs(tooltipHitArea.above.left - (tooltipHitArea.target.textLeft - 6)) <= 1, `tooltip should stay anchored close to chip text when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(Math.abs((tooltipHitArea.above.top + 5) - tooltipHitArea.target.textTop) <= 1, `tooltip should remain in text position when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(Math.abs((tooltipHitArea.above.textLeft || 0) - tooltipHitArea.target.textLeftExact) <= 0.1, `tooltip text x-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(Math.abs((tooltipHitArea.above.textTop || 0) - tooltipHitArea.target.textTopExact) <= 0.1, `tooltip text y-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.target.hitTop < tooltipHitArea.target.textTop, `expansion hit area should include space above chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.target.hitBottom > tooltipHitArea.target.textBottom, `expansion hit area should include space below chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.target.chipSurfaceX < tooltipHitArea.target.hitLeft, `surface-hover smoke should target chip space outside the text hit area: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.above?.text.includes('enough tooltip text'), `page chip should expand from the vertical space above chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.below?.text.includes('enough tooltip text'), `page chip should expand from the vertical space below chip text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(tooltipHitArea.chipSurface?.text.includes('enough tooltip text'), `page chip should expand from the non-text chip surface: ${JSON.stringify(tooltipHitArea)}`)
+  assert.equal(tooltipHitArea.above?.visibleTooltipCount, 0, `page chip expansion from hit-area padding should not create a tooltip popup: ${JSON.stringify(tooltipHitArea)}`)
+  assert.equal(tooltipHitArea.chipSurface?.visibleTooltipCount, 0, `page chip expansion from the non-text chip surface should not create a tooltip popup: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.textLeft || 0) - tooltipHitArea.target.textLeftExact) <= 0.1, `expanded chip text x-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.textTop || 0) - tooltipHitArea.target.textTopExact) <= 0.1, `expanded chip text y-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
+
+  const internalPointerMoveExpansion = await measurePageChipInternalPointerMoveExpansion(session)
+  assert.equal(internalPointerMoveExpansion.before, 0, `internal pointer-move smoke should start without an expanded chip: ${JSON.stringify(internalPointerMoveExpansion)}`)
+  assert.ok(
+    internalPointerMoveExpansion.expansion?.text.includes('enough tooltip text'),
+    `page chip should expand when pointer movement starts inside the chip surface: ${JSON.stringify(internalPointerMoveExpansion)}`
+  )
+  assert.equal(
+    internalPointerMoveExpansion.expansion?.visibleTooltipCount,
+    0,
+    `internal pointer-move expansion should not create a tooltip popup: ${JSON.stringify(internalPointerMoveExpansion)}`
+  )
 
   const activeStateTooltip = await measureTooltipAfterActiveStateChanges(session)
   assert.equal(activeStateTooltip.activeTarget.activeFrame, true, `active-state smoke target should start with an active chip frame: ${JSON.stringify(activeStateTooltip)}`)
   assert.equal(activeStateTooltip.inactiveTarget.activeFrame, false, `active-state smoke target should lose the active chip frame: ${JSON.stringify(activeStateTooltip)}`)
-  assert.ok(activeStateTooltip.activeTooltip, `tooltip should open after the chip becomes active: ${JSON.stringify(activeStateTooltip)}`)
-  assert.ok(activeStateTooltip.inactiveTooltip, `tooltip should open after the chip stops being active: ${JSON.stringify(activeStateTooltip)}`)
+  assert.ok(activeStateTooltip.activeTooltip, `page chip should expand after the chip becomes active: ${JSON.stringify(activeStateTooltip)}`)
+  assert.ok(activeStateTooltip.inactiveTooltip, `page chip should expand after the chip stops being active: ${JSON.stringify(activeStateTooltip)}`)
   assert.ok(
     Math.abs((activeStateTooltip.activeTooltip.textLeft || 0) - activeStateTooltip.activeTarget.textLeftExact) <= 0.1,
-    `tooltip x-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip x-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
   )
   assert.ok(
     Math.abs((activeStateTooltip.activeTooltip.textTop || 0) - activeStateTooltip.activeTarget.textTopExact) <= 0.1,
-    `tooltip y-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip y-origin should stay precise after active state is applied: ${JSON.stringify(activeStateTooltip)}`
   )
   assert.ok(
     Math.abs((activeStateTooltip.inactiveTooltip.textLeft || 0) - activeStateTooltip.inactiveTarget.textLeftExact) <= 0.1,
-    `tooltip x-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip x-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
   )
   assert.ok(
     Math.abs((activeStateTooltip.inactiveTooltip.textTop || 0) - activeStateTooltip.inactiveTarget.textTopExact) <= 0.1,
-    `tooltip y-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
+    `expanded chip y-origin should stay precise after active state is removed: ${JSON.stringify(activeStateTooltip)}`
   )
 
   const suppressionMarkerLines = []
@@ -3181,22 +3470,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   }
   const suppressionMarkerLineNumbers = suppressionMarkerLines.map(({ result }) => result?.markerLine)
   assert.deepEqual(
-    suppressionMarkerLineNumbers.slice(0, 2),
-    [1, 2],
-    `suppression marker tooltip pills should stay on their widened tooltip lines before viewport-edge fallback: ${JSON.stringify(suppressionMarkerLines)}`
-  )
-  assert.ok(
-    suppressionMarkerLineNumbers[2] === 2 || (
-      (suppressionMarkerLineNumbers[2] || 0) > 2 &&
-      (suppressionMarkerLines[2].result?.tooltipRight || 0) >= (suppressionMarkerLines[2].result?.viewportRight || 0) - 12
-    ),
-    `suppression marker tooltip may add a row only when it reaches the browser viewport edge: ${JSON.stringify(suppressionMarkerLines)}`
+    suppressionMarkerLineNumbers,
+    [1, 2, 3],
+    `suppression marker expansion should keep marker labels on the same visible chip lines: ${JSON.stringify(suppressionMarkerLines)}`
   )
   for (const line of suppressionMarkerLines) {
-    assert.ok(line.result, `suppression marker tooltip should open and expose marker geometry: ${JSON.stringify(line)}`)
-    assert.ok(line.result.text.includes('Shared Workspace'), `suppression marker tooltip should show the hidden title text after line splitting: ${JSON.stringify(line)}`)
-    assert.ok(line.result.markerHeight <= 16, `suppression marker should not make wrapped tooltip lines taller: ${JSON.stringify(line)}`)
-    assert.ok(Math.abs(line.result.markerCenterDelta) <= 0.75, `suppression marker should sit centered in its tooltip line: ${JSON.stringify(line)}`)
+    assert.ok(line.result, `suppression marker expansion should expose marker geometry: ${JSON.stringify(line)}`)
+    assert.ok(line.result.text.includes('Shared Workspace'), `suppression marker expansion should show the hidden title text in place: ${JSON.stringify(line)}`)
+    assert.ok(line.result.markerHeight <= 16, `suppression marker should not make wrapped expanded chip lines taller: ${JSON.stringify(line)}`)
+    assert.ok(Math.abs(line.result.markerCenterDelta) <= 0.75, `suppression marker should sit centered in its expanded chip line: ${JSON.stringify(line)}`)
   }
   const compactSuppressionMarkerLines = []
   for (const markerLabel of ['Marker line one', 'Marker line two', 'Marker line three']) {
@@ -3224,51 +3506,56 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `line-count smoke should cover one-, two-, and three-line chips: ${JSON.stringify(tooltipLineCounts)}`
   )
   for (const lineCount of tooltipLineCounts) {
-    assert.ok(lineCount.tooltip, `tooltip should open for line-count check: ${JSON.stringify(lineCount)}`)
+    assert.ok(lineCount.tooltip, `page chip should expand for line-count check: ${JSON.stringify(lineCount)}`)
+    assert.equal(
+      lineCount.tooltip.visibleTooltipCount,
+      0,
+      `page chip line-count expansion should not create a tooltip popup: ${JSON.stringify(lineCount)}`
+    )
     const isViewportConstrained = lineCount.tooltip.right >= lineCount.tooltip.viewportRight - 12
     if (isViewportConstrained) {
       assert.ok(
         lineCount.tooltip.tooltipLineCount >= lineCount.target.chipLineCount,
-        `regular page chip tooltip may add rows only when constrained by the browser viewport edge: ${JSON.stringify(lineCount)}`
+        `regular page chip expansion may add rows only when constrained by the browser viewport edge: ${JSON.stringify(lineCount)}`
       )
     } else {
       assert.equal(
         lineCount.tooltip.tooltipLineCount,
         lineCount.target.chipLineCount,
-        `regular page chip tooltip should match the visible chip line count when viewport width allows it: ${JSON.stringify(lineCount)}`
+        `regular page chip expansion should match the visible chip line count when viewport width allows it: ${JSON.stringify(lineCount)}`
       )
     }
     assert.ok(
       lineCount.tooltip.right <= lineCount.tooltip.viewportRight + 1,
-      `regular page chip tooltip should stay within the browser viewport: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion should stay within the browser viewport: ${JSON.stringify(lineCount)}`
     )
     assert.ok(
       Math.abs(lineCount.tooltip.textLeft - lineCount.target.chipLeftExact) <= 0.1,
-      `regular page chip tooltip text should keep the visible chip x-origin: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion text should keep the visible chip x-origin: ${JSON.stringify(lineCount)}`
     )
     assert.ok(
       Math.abs(lineCount.tooltip.textTop - lineCount.target.chipTopExact) <= 0.1,
-      `regular page chip tooltip text should keep the visible chip y-origin: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion text should keep the visible chip y-origin: ${JSON.stringify(lineCount)}`
     )
     const normalizeLineText = (value: string) => value.replace(/\s+/g, ' ').trim()
     const chipLines = lineCount.target.chipLineTexts.map(normalizeLineText).filter(Boolean)
     const tooltipLines = lineCount.tooltip.tooltipLineTexts.map(normalizeLineText).filter(Boolean)
     assert.ok(
       tooltipLines.length >= chipLines.length,
-      `regular page chip tooltip should keep at least the visible chip line rows: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion should keep at least the visible chip line rows: ${JSON.stringify(lineCount)}`
     )
     for (let index = 0; index < chipLines.length - 1; index += 1) {
       assert.equal(
         tooltipLines[index],
         chipLines[index],
-        `regular page chip tooltip should preserve visible line breaks before the tail row: ${JSON.stringify(lineCount)}`
+        `regular page chip expansion should preserve visible line breaks before the tail row: ${JSON.stringify(lineCount)}`
       )
     }
     const lastChipLine = chipLines[chipLines.length - 1]
     const lastTooltipLine = tooltipLines[chipLines.length - 1]
     assert.ok(
       lastTooltipLine?.startsWith(lastChipLine),
-      `regular page chip tooltip tail row should start with the same visible text before revealing more: ${JSON.stringify(lineCount)}`
+      `regular page chip expansion tail row should start with the same visible text before revealing more: ${JSON.stringify(lineCount)}`
     )
   }
   const structuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Boundary Alpha', {
@@ -3417,7 +3704,12 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   const foldedTooltip = await measureFoldedPageChipTooltipTitleLineCount(session, 'Folded Tooltip Lenses', {
     forcedTextWidth: 270
   })
-  assert.ok(foldedTooltip.tooltip, `folded chip tooltip should open: ${JSON.stringify(foldedTooltip)}`)
+  assert.ok(foldedTooltip.tooltip, `folded chip should expand in place: ${JSON.stringify(foldedTooltip)}`)
+  assert.equal(
+    foldedTooltip.tooltip.visibleTooltipCount,
+    0,
+    `folded chip expansion should not create a tooltip popup: ${JSON.stringify(foldedTooltip)}`
+  )
   assert.equal(
     foldedTooltip.target.titleLineCount,
     1,
@@ -3426,25 +3718,29 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(
     foldedTooltip.tooltip.titleLineCount,
     foldedTooltip.target.titleLineCount,
-    `folded chip tooltip title row should match the visible title row line count: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion title row should match the visible title row line count: ${JSON.stringify(foldedTooltip)}`
   )
   assert.ok(
     foldedTooltip.tooltip.titleText.includes('Example Optical'),
-    `folded chip tooltip should expand the hidden title marker inline: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion should expand the hidden title marker inline: ${JSON.stringify(foldedTooltip)}`
   )
-  assert.equal(
-    foldedTooltip.tooltip.envCount,
-    0,
-    `folded chip tooltip should not render env buttons: ${JSON.stringify(foldedTooltip)}`
+  assert.ok(
+    foldedTooltip.tooltip.envCount > 0,
+    `folded chip expansion should keep the existing env buttons in the chip: ${JSON.stringify(foldedTooltip)}`
   )
   assert.ok(
     foldedTooltip.tooltip.textWidth > foldedTooltip.target.chipTextWidth,
-    `folded chip tooltip should grow wider than the compact folded chip when hidden title text expands: ${JSON.stringify(foldedTooltip)}`
+    `folded chip expansion should grow wider than the compact folded chip when hidden title text expands: ${JSON.stringify(foldedTooltip)}`
   )
   const foldedWrappedTooltip = await measureFoldedPageChipTooltipTitleLineCount(session, 'Folded Tooltip Lenses', {
     forcedTextWidth: 160
   })
-  assert.ok(foldedWrappedTooltip.tooltip, `wrapped folded chip tooltip should open: ${JSON.stringify(foldedWrappedTooltip)}`)
+  assert.ok(foldedWrappedTooltip.tooltip, `wrapped folded chip should expand in place: ${JSON.stringify(foldedWrappedTooltip)}`)
+  assert.equal(
+    foldedWrappedTooltip.tooltip.visibleTooltipCount,
+    0,
+    `wrapped folded chip expansion should not create a tooltip popup: ${JSON.stringify(foldedWrappedTooltip)}`
+  )
   assert.ok(
     foldedWrappedTooltip.target.titleLineCount > 1,
     `wrapped folded chip visible title row should span multiple lines for this smoke: ${JSON.stringify(foldedWrappedTooltip)}`
@@ -3452,16 +3748,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(
     foldedWrappedTooltip.tooltip.titleLineCount,
     foldedWrappedTooltip.target.titleLineCount,
-    `wrapped folded chip tooltip title row should keep the visible title line breaks: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip expansion title row should keep the visible title line breaks: ${JSON.stringify(foldedWrappedTooltip)}`
   )
   assert.ok(
     foldedWrappedTooltip.tooltip.titleText.includes('Example Optical'),
-    `wrapped folded chip tooltip should still expand the hidden title marker: ${JSON.stringify(foldedWrappedTooltip)}`
+    `wrapped folded chip expansion should still expand the hidden title marker: ${JSON.stringify(foldedWrappedTooltip)}`
   )
-  assert.equal(
-    foldedWrappedTooltip.tooltip.envCount,
-    0,
-    `wrapped folded chip tooltip should not render env buttons: ${JSON.stringify(foldedWrappedTooltip)}`
+  assert.ok(
+    foldedWrappedTooltip.tooltip.envCount > 0,
+    `wrapped folded chip expansion should keep the existing env buttons in the chip: ${JSON.stringify(foldedWrappedTooltip)}`
   )
   const foldedEnvHover = await measureFoldedEnvHoverTooltips(session, 'Folded Tooltip Lenses')
   assert.deepEqual(
@@ -3470,27 +3765,36 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `hovering a folded env button should not open a tooltip: ${JSON.stringify(foldedEnvHover)}`
   )
 
-  const popupHover = await measureTooltipPopupHover(session)
-  assert.ok(popupHover.whileHovered, `tooltip should remain open when the pointer moves into the popup: ${JSON.stringify(popupHover)}`)
+  const originalSlotLeave = await measurePageChipOriginalSlotLeave(session)
+  assert.equal(
+    originalSlotLeave.first.visibleTooltipCount,
+    0,
+    `page chip expansion should not create a tooltip popup: ${JSON.stringify(originalSlotLeave)}`
+  )
+  assert.equal(
+    originalSlotLeave.afterOriginalSlotLeave,
+    null,
+    `page chip should collapse when the pointer leaves the original chip slot, even inside the grown bounds: ${JSON.stringify(originalSlotLeave)}`
+  )
   assert.ok(
-    !popupHover.afterLeaveTooltips.some((text: string) => text === popupHover.first.text),
-    `original tooltip should close after the pointer leaves the popup: ${JSON.stringify(popupHover)}`
+    !originalSlotLeave.afterLeaveTooltips.some((text: string) => text === originalSlotLeave.first.text),
+    `page chip expansion should stay closed after the pointer leaves the original chip slot: ${JSON.stringify(originalSlotLeave)}`
   )
 
   const popupClickFocus = await measureTooltipPopupClickFocus(session)
-  assert.equal(popupClickFocus.popupStyle?.cursor, 'default', `page chip tooltip popup should keep the default cursor: ${JSON.stringify(popupClickFocus)}`)
-  assert.equal(popupClickFocus.popupStyle?.userSelect, 'none', `page chip tooltip popup should not select text when it is used as a click target: ${JSON.stringify(popupClickFocus)}`)
+  assert.equal(popupClickFocus.popupStyle?.cursor, 'default', `expanded page chip should keep the default cursor: ${JSON.stringify(popupClickFocus)}`)
+  assert.equal(popupClickFocus.first.visibleTooltipCount, 0, `clickable expanded page chip should not create a tooltip popup: ${JSON.stringify(popupClickFocus)}`)
   assert.ok(
     popupClickFocus.updates.some((update: { kind: string; args: [number, { active?: boolean }] }) => (
       update.kind === 'tab' && update.args[1]?.active === true
     )),
-    `clicking the page chip tooltip popup should focus the matching tab: ${JSON.stringify(popupClickFocus)}`
+    `clicking the expanded page chip should focus the matching tab: ${JSON.stringify(popupClickFocus)}`
   )
   assert.ok(
     popupClickFocus.updates.some((update: { kind: string; args: [number, { focused?: boolean }] }) => (
       update.kind === 'window' && update.args[1]?.focused === true
     )),
-    `clicking the page chip tooltip popup should focus the matching window: ${JSON.stringify(popupClickFocus)}`
+    `clicking the expanded page chip should focus the matching window: ${JSON.stringify(popupClickFocus)}`
   )
   const historyPopupClickFocus = await measureHistoryTooltipPopupClickFocus(session)
   assert.equal(historyPopupClickFocus.popupStyle?.cursor, 'default', `history entry tooltip popup should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
@@ -3509,30 +3813,21 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
 
   const popupWheelScroll = await measureTooltipPopupWheelScroll(session)
-  assert.ok(popupWheelScroll.first, `tooltip should open before popup-wheel check: ${JSON.stringify(popupWheelScroll)}`)
+  assert.ok(popupWheelScroll.first, `page chip should expand before wheel check: ${JSON.stringify(popupWheelScroll)}`)
+  assert.equal(popupWheelScroll.first.visibleTooltipCount, 0, `expanded page chip wheel target should not create a tooltip popup: ${JSON.stringify(popupWheelScroll)}`)
   assert.ok(
     popupWheelScroll.after.scrollTop - popupWheelScroll.beforeScrollTop > 72,
-    `repeated wheel input over a closing tooltip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
-  )
-  assert.ok(
-    popupWheelScroll.forwardedWheelSteps.every((step: { defaultPrevented: boolean }) => step.defaultPrevented),
-    `synthetic continuation wheel events should be captured while the closing tooltip preserves the wheel target: ${JSON.stringify(popupWheelScroll)}`
-  )
-  assert.ok(
-    (popupWheelScroll.forwardedWheelSteps.at(-1)?.scrollTop ?? 0) -
-      popupWheelScroll.beforeForwardedWheelTop >
-      72,
-    `continued wheel input after the tooltip visually closes should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
+    `repeated wheel input over an expanded page chip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
   )
   assert.equal(
-    popupWheelScroll.after.tooltipCount,
+    popupWheelScroll.after.expandedCount,
     0,
-    `tooltip should close after popup wheel input scrolls the dashboard: ${JSON.stringify(popupWheelScroll)}`
+    `page chip expansion should close after wheel input scrolls the dashboard: ${JSON.stringify(popupWheelScroll)}`
   )
   assert.equal(
-    popupWheelScroll.afterLeaveTooltipCount,
+    popupWheelScroll.afterLeaveExpandedCount,
     0,
-    `tooltip should close after the pointer leaves the wheel-scrolled popup: ${JSON.stringify(popupWheelScroll)}`
+    `page chip expansion should stay closed after the pointer leaves the wheel-scrolled chip: ${JSON.stringify(popupWheelScroll)}`
   )
 
   const historyPopupWheelScroll = await measureHistoryTooltipPopupWheelScroll(session)
@@ -3688,15 +3983,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
 
   const windowBlurTooltip = await measureTooltipWindowBlurClose(session)
-  assert.ok(windowBlurTooltip.first, `tooltip should open before window-blur check: ${JSON.stringify(windowBlurTooltip)}`)
-  assert.deepEqual(windowBlurTooltip.afterBlurTooltips, [], `tooltip should close when the window loses focus: ${JSON.stringify(windowBlurTooltip)}`)
+  assert.ok(windowBlurTooltip.first, `page chip should expand before window-blur check: ${JSON.stringify(windowBlurTooltip)}`)
+  assert.deepEqual(windowBlurTooltip.afterBlurTooltips, [], `page chip expansion should close when the window loses focus: ${JSON.stringify(windowBlurTooltip)}`)
 
   const visibilityTooltip = await measureTooltipVisibilityChangeClose(session)
-  assert.ok(visibilityTooltip.first, `tooltip should open before visibility-change check: ${JSON.stringify(visibilityTooltip)}`)
+  assert.ok(visibilityTooltip.first, `page chip should expand before visibility-change check: ${JSON.stringify(visibilityTooltip)}`)
   assert.deepEqual(
     visibilityTooltip.afterVisibilityChangeTooltips,
     [],
-    `tooltip should close synchronously when the page becomes hidden: ${JSON.stringify(visibilityTooltip)}`
+    `page chip expansion should close synchronously when the page becomes hidden: ${JSON.stringify(visibilityTooltip)}`
   )
 
   const actionTooltip = await measureActionTooltipClickClose(session)
@@ -3706,32 +4001,47 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
 
   const pageChipReturnTooltip = await measureInteractiveTooltipClickReturnFocus(
     session,
-    '.chip-text-truncated',
-    'enough tooltip text',
+    '.page-chip .chip-text',
+    PAGE_CHIP_EXPANSION_SMOKE_LABEL,
     'page-chip',
-    '.chip-text-truncated'
+    '.chip-text'
   )
-  assert.ok(pageChipReturnTooltip.first.found, `page chip tooltip should open before click-return check: ${JSON.stringify(pageChipReturnTooltip)}`)
+  assert.ok(pageChipReturnTooltip.first.found, `page chip should expand before click-return check: ${JSON.stringify(pageChipReturnTooltip)}`)
   assert.equal(pageChipReturnTooltip.afterReturnFocus?.active, true, `page chip should be refocused during click-return smoke test: ${JSON.stringify(pageChipReturnTooltip)}`)
   assert.equal(pageChipReturnTooltip.afterReturnFocus?.focusVisible, false, `page chip click-return focus should not be keyboard-visible focus: ${JSON.stringify(pageChipReturnTooltip)}`)
-  assert.deepEqual(pageChipReturnTooltip.afterReturnTooltips, [], `page chip tooltip should stay closed after pointer-click return focus: ${JSON.stringify(pageChipReturnTooltip)}`)
+  assert.deepEqual(pageChipReturnTooltip.afterReturnTooltips, [], `page chip expansion should not leave a tooltip popup after pointer-click return focus: ${JSON.stringify(pageChipReturnTooltip)}`)
 
   const markerHandoff = await measureMarkerToChipTooltipHandoff(session)
-  assert.equal(markerHandoff.target.markerText, '/', `strip indicator should render compact marker text in the chip: ${JSON.stringify(markerHandoff)}`)
-  assert.ok(markerHandoff.markerTooltip.found, `strip indicator tooltip should open first: ${JSON.stringify(markerHandoff)}`)
+  assert.ok(markerHandoff.target.markerText.startsWith('/'), `strip indicator should render compact path marker text in the chip: ${JSON.stringify(markerHandoff)}`)
+  assert.ok(markerHandoff.markerTooltip.found, `strip indicator hover should expand the page chip first: ${JSON.stringify(markerHandoff)}`)
   assert.ok(
-    markerHandoff.markerTooltip.tooltips.some((tooltip: { text: string }) => tooltip.text.includes('Hover Handoff Title')),
-    `strip indicator should use the chip-level tooltip instead of a marker-only tooltip: ${JSON.stringify(markerHandoff)}`
+    markerHandoff.markerTooltip.expansion?.text.includes('dev2') &&
+      markerHandoff.markerTooltip.expansion?.text.includes('Hover Handoff Title'),
+    `strip indicator should use chip-level in-place expansion instead of a marker-only tooltip: ${JSON.stringify(markerHandoff)}`
   )
-  assert.ok(markerHandoff.chipTooltip.found, `chip text tooltip should open after moving from the strip indicator to chip text: ${JSON.stringify(markerHandoff)}`)
+  assert.deepEqual(markerHandoff.markerTooltip.tooltips, [], `strip indicator hover should not create a tooltip popup: ${JSON.stringify(markerHandoff)}`)
+  assert.ok(markerHandoff.chipTooltip.found, `page chip should remain expanded after moving from the strip indicator to chip text: ${JSON.stringify(markerHandoff)}`)
 
   const edgeTooltip = await measureTooltipEdgeFlip(session)
-  assert.ok(edgeTooltip.first, `tooltip should open near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
-  assert.ok(['start', 'end'].includes(edgeTooltip.first.align), `tooltip should keep a valid text-edge alignment near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
-  assert.ok(edgeTooltip.first.visualRight <= edgeTooltip.target.viewportRight + 1, `tooltip should stay within the viewport near the text edge: ${JSON.stringify(edgeTooltip)}`)
-  assert.ok(Math.abs(edgeTooltip.first.left - (edgeTooltip.target.textLeft - 6)) <= 1, `tooltip should preserve the original text origin near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
-  const edgeAnchorRadius = edgeTooltip.first.align === 'end' ? edgeTooltip.first.topRightRadius : edgeTooltip.first.topLeftRadius
-  assert.equal(edgeAnchorRadius, '0px', `tooltip anchor corner should be square near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+  assert.ok(edgeTooltip.first, `page chip should expand near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+  assert.equal(edgeTooltip.first.visibleTooltipCount, 0, `viewport-edge page chip expansion should not create a tooltip popup: ${JSON.stringify(edgeTooltip)}`)
+  assert.ok(edgeTooltip.first.right <= edgeTooltip.target.viewportRight - 12, `expanded page chip should keep viewport collision padding near the text edge: ${JSON.stringify(edgeTooltip)}`)
+  assert.ok(Math.abs(edgeTooltip.first.textLeft - edgeTooltip.target.textLeft) <= 1, `expanded page chip should preserve the original text origin near the viewport edge: ${JSON.stringify(edgeTooltip)}`)
+
+  const compactTitleVariantExpansion = await measureCompactTitleVariantExpansion(session)
+  assert.ok(compactTitleVariantExpansion.expansion, `compact same-title variant chip should expand in place: ${JSON.stringify(compactTitleVariantExpansion)}`)
+  assert.ok(
+    compactTitleVariantExpansion.expansion.width <= compactTitleVariantExpansion.target.contentWidth + 72,
+    `compact same-title variant chip should not expand to the whole flex row when the content is short: ${JSON.stringify(compactTitleVariantExpansion)}`
+  )
+  assert.ok(
+    compactTitleVariantExpansion.expansion.width < compactTitleVariantExpansion.target.chipWidth - 16,
+    `compact same-title variant chip expansion should stay narrower than its full row when content allows: ${JSON.stringify(compactTitleVariantExpansion)}`
+  )
+  assert.ok(
+    compactTitleVariantExpansion.expandedVariantLabels.every((label: { clientWidth: number; scrollWidth: number }) => label.scrollWidth - label.clientWidth <= 1),
+    `compact same-title variant chip expansion should keep its URL variant labels untruncated when viewport room allows: ${JSON.stringify(compactTitleVariantExpansion)}`
+  )
 
   await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
