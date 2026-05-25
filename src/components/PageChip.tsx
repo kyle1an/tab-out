@@ -1306,20 +1306,21 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   // drop the shadow so it doesn't read as a floating copy of the chip.
   const chipTooltipSameHeightAsChip = !chipTooltipViewportConstrained
   const chipTooltipMaxWidthValue = chipTooltipMaxWidth > 0 ? `${chipTooltipMaxWidth}px` : 'calc(100vw - 16px)'
+  // Apply the sub-pixel correction to the popup itself (not the text), so the rounded
+  // box snaps back onto the chip's half-pixel y; the text follows the popup, so its
+  // first line still lands exactly on the chip text.
+  const chipTooltipSubpixelTransform = chipTooltipSubpixelOffsetsEqual(chipTooltipSubpixelOffset, { x: 0, y: 0 })
+    ? ''
+    : `translate3d(${chipTooltipSubpixelOffset.x}px, ${chipTooltipSubpixelOffset.y}px, 0)`
   const chipTooltipStyle = {
     ...(chipTooltipTextWidth ? { '--page-chip-tooltip-text-width': chipTooltipTextWidth } : {}),
     ...(regularChipTooltipWidth ? { '--page-chip-tooltip-width': regularChipTooltipWidth } : {}),
     '--page-chip-tooltip-max-width': chipTooltipMaxWidthValue,
     maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))',
     paddingLeft: `${PAGE_CHIP_TOOLTIP_TEXT_LEFT_INSET_PX}px`,
-    paddingRight: `${PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX}px`
+    paddingRight: `${PAGE_CHIP_TOOLTIP_TEXT_RIGHT_INSET_PX}px`,
+    ...(chipTooltipSubpixelTransform ? { transform: chipTooltipSubpixelTransform } : {})
   } as CSSProperties
-  const chipTooltipSubpixelTransform = chipTooltipSubpixelOffsetsEqual(chipTooltipSubpixelOffset, { x: 0, y: 0 })
-    ? ''
-    : `translate3d(${chipTooltipSubpixelOffset.x}px, ${chipTooltipSubpixelOffset.y}px, 0)`
-  const chipTooltipTextStyle = chipTooltipSubpixelTransform
-    ? { transform: chipTooltipSubpixelTransform } as CSSProperties
-    : undefined
   function chipMatchesActiveHover(target: DashboardChipData) {
     return (
       pageTargetMatchesHover(target, activeHoverUrl, activeHoverUrls) ||
@@ -1808,7 +1809,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           : chipTooltipTextWidth && !isFolded && !isTitleVariantGroup && 'w-[var(--page-chip-tooltip-text-width)]',
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
       )}
-      style={chipTooltipTextStyle}
     >
       {isFolded ? foldedChipTooltipContentNode() : isTitleVariantGroup ? titleVariantChipTooltipContentNode() : isRegularTitleTooltip ? regularChipTooltipContentNode() : chipTextContentNode('tooltip')}
     </span>
