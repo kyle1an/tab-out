@@ -11,6 +11,14 @@
   border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--warm-gray));
 }
 
+/* Match the hovered chip's background (accent at 13% over the card, the same
+   tint the anchoring chip shows while its tooltip is open) so the tooltip
+   blends with the chip instead of flashing white over it. The data-slot
+   qualifier outranks the base `bg-[canvas]` utility on the same element. */
+.page-chip-tooltip[data-slot='tooltip-content'] {
+  background-color: color-mix(in srgb, var(--card-bg) 87%, var(--accent-amber));
+}
+
 .working-set-item.is-active-working-set-item {
   border-color: color-mix(in srgb, var(--accent-slate) 45%, var(--warm-gray));
 }
