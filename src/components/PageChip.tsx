@@ -1300,6 +1300,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipTooltipTextWidth = !chip.iconOnly && chipTextWidth > 0 ? `${chipTextWidth}px` : ''
   const regularChipTooltipWidth = isSplitTitleTooltip && chipTooltipWidth > 0 ? `${chipTooltipWidth}px` : ''
   const shouldKeepSingleLineTooltip = isSplitTitleTooltip && !chipTooltipViewportConstrained && chipTooltipLineHtml.length === 0 && chipTooltipWidth > 0
+  // The tooltip is widened to fit the chip's visible line count, so it renders at the
+  // chip's exact height unless it's viewport-constrained — the one case where it can't
+  // widen enough and wraps to extra lines (taller). When it's a flush same-height overlay,
+  // drop the shadow so it doesn't read as a floating copy of the chip.
+  const chipTooltipSameHeightAsChip = !chipTooltipViewportConstrained
   const chipTooltipMaxWidthValue = chipTooltipMaxWidth > 0 ? `${chipTooltipMaxWidth}px` : 'calc(100vw - 16px)'
   const chipTooltipStyle = {
     ...(chipTooltipTextWidth ? { '--page-chip-tooltip-text-width': chipTooltipTextWidth } : {}),
@@ -2008,7 +2013,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             anchor={getChipTooltipAnchor}
             anchorToCursor={false}
             content={chipTooltipContent}
-            className="page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
+            className={cn(
+              'page-chip-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none',
+              chipTooltipSameHeightAsChip && 'shadow-none'
+            )}
             instant
             onClick={parentInteractive ? onPageChipTooltipClick : undefined}
             onOpenChange={onChipTooltipOpenChange}
