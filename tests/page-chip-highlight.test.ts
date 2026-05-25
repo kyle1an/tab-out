@@ -1424,7 +1424,7 @@ test('TabHistoryPanel appends only non-overlapping working-set items below histo
   assert.ok(extraListMatch, 'supplemental working set list should render')
   assert.doesNotMatch(extraListMatch[1], /\bmt-1\b/)
   assert.match(extraListMatch[1], /\bborder-t\b/)
-  assert.match(extraListMatch[1], /\bpt-1\.5\b/)
+  assert.match(extraListMatch[1], /\bpt-0\.75\b/)
   assert.equal(extraRows.length, 1)
   assert.match(html, /Ext<\/span>ra[\s\S]*Cand<\/span>idate/)
   assert.match(html, /default-favicon-image/)
