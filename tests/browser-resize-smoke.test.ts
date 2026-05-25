@@ -913,6 +913,15 @@ async function measurePageChipTooltipLineCount(
           chipText.style.maxHeight = 'calc(${options.forcedMaxLines || 1}lh)'
         }
         const rect = chipText?.getBoundingClientRect()
+        if (
+          chipText instanceof HTMLElement &&
+          rect &&
+          (rect.top < 24 || rect.bottom > window.innerHeight - 24)
+        ) {
+          chipText.scrollIntoView({ block: 'center', inline: 'nearest' })
+          setTimeout(wait, 120)
+          return
+        }
         if (chipText && rect && rect.width > 80 && rect.height > 8) {
           const styles = window.getComputedStyle(chipText)
           const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
@@ -3281,6 +3290,12 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `structural-tail tooltip should widen enough for expanded non-tail suppression text instead of clipping it: ${JSON.stringify(structuralTailTooltip)}`
   )
   assert.ok(
+    !structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-alpha') &&
+      structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-alpha') &&
+      structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `structural-tail tooltip should split before the structural marker without duplicating it: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  assert.ok(
     structuralTailTooltip.tooltip.width > structuralTailTooltip.target.chipWidth + 20,
     `structural-tail tooltip should grow wider than the compact chip when non-tail markers expand: ${JSON.stringify(structuralTailTooltip)}`
   )
@@ -3300,6 +3315,54 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     1,
     `one-line structural-tail tooltip should widen enough to stay on one line: ${JSON.stringify(oneLineStructuralTailTooltip)}`
   )
+  const wrappedContentfulScreenshotTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Screenshot Alpha', {
+    forcedTextWidth: 280,
+    forcedMaxLines: 2,
+    viewportWidth: 1600
+  })
+  assert.ok(wrappedContentfulScreenshotTooltip.tooltip, `wrapped Contentful tooltip should open: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`)
+  assert.equal(
+    wrappedContentfulScreenshotTooltip.target.chipLineCount,
+    2,
+    `wrapped Contentful smoke target should render as two visible chip lines so line 2 carries only the trailing marker: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+  )
+  assert.equal(
+    wrappedContentfulScreenshotTooltip.tooltip.tooltipLineCount,
+    2,
+    `wrapped Contentful tooltip should split the expanded title into two rows even when chip line 2 has no text node: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+  )
+  assert.ok(
+    wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[0]?.includes('dev2') &&
+      !wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('dev2') &&
+      wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `wrapped Contentful tooltip should keep dev2 on row 1 and Contentful on row 2: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+  )
+  const wrappedTrailingMarkerTooltip = await measurePageChipTooltipLineCount(session, 'Wrap Trailing Marker Alpha', {
+    forcedTextWidth: 230,
+    forcedMaxLines: 2,
+    viewportWidth: 1600
+  })
+  assert.ok(wrappedTrailingMarkerTooltip.tooltip, `wrapped trailing-marker tooltip should open: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`)
+  assert.equal(
+    wrappedTrailingMarkerTooltip.target.chipLineCount,
+    2,
+    `wrapped trailing-marker chip should render as two visible lines so line 2 carries only the trailing suppression marker: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+  )
+  assert.equal(
+    wrappedTrailingMarkerTooltip.tooltip.tooltipLineCount,
+    2,
+    `wrapped trailing-marker tooltip should split when the chip wraps with only a trailing suppression marker on line 2: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+  )
+  assert.ok(
+    wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[0]?.includes('Wrap Trailing Marker Alpha') &&
+      !wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[0]?.includes('JIRA') &&
+      wrappedTrailingMarkerTooltip.tooltip.tooltipLineTexts[1]?.includes('JIRA'),
+    `wrapped trailing-marker tooltip should keep the title on row 1 and drop the JIRA marker onto row 2: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+  )
+  assert.ok(
+    wrappedTrailingMarkerTooltip.tooltip.tooltipLineOverflows.every((overflows: boolean) => !overflows),
+    `wrapped trailing-marker tooltip lines should not visually overflow: ${JSON.stringify(wrappedTrailingMarkerTooltip)}`
+  )
   const splitStructuralTailTooltip = await measurePageChipTooltipLineCount(session, 'Tooltip Line Alpha', {
     forcedTextWidth: 310,
     forcedMaxLines: 2
@@ -3317,6 +3380,10 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Shared Website'),
     `split structural-tail tooltip should keep the expanded website marker on the first visible line: ${JSON.stringify(splitStructuralTailTooltip)}`
+  )
+  assert.ok(
+    !splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-beta'),
+    `split structural-tail tooltip should not duplicate the structural marker into the first row: ${JSON.stringify(splitStructuralTailTooltip)}`
   )
   assert.ok(
     splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-beta') && splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),

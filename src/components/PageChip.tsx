@@ -38,6 +38,7 @@ const PAGE_CHIP_TOOLTIP_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_TOOLTIP_LINE_HEIGHT_FALLBACK_PX = 16
 const PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_TOOLTIP_SINGLE_LINE_WIDTH_GUARD_PX = 24
+const PAGE_CHIP_TOOLTIP_SPLIT_LINE_WIDTH_GUARD_PX = 2
 const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 const PAGE_CHIP_TOOLTIP_LINES_CLASS_NAME = 'page-chip-tooltip-lines block min-w-0 max-w-full'
 const PAGE_CHIP_TOOLTIP_LINE_CLASS_NAME = 'page-chip-tooltip-line block min-w-0 max-w-full whitespace-nowrap'
@@ -443,6 +444,13 @@ function getTooltipSingleLineNaturalWidth(measureEl: HTMLElement) {
   }
 }
 
+function guardedSplitLineTooltipWidth(width: number, maxContentWidth: number, lineHtml: readonly string[]) {
+  const guardedWidth = lineHtml.length > 0
+    ? width + PAGE_CHIP_TOOLTIP_SPLIT_LINE_WIDTH_GUARD_PX
+    : width
+  return Math.round(Math.min(guardedWidth, maxContentWidth) * 100) / 100
+}
+
 type ChipTooltipDomPosition = {
   node: Text
   offset: number
@@ -494,11 +502,50 @@ function hydrateClonedChipTooltipFragment(document: Document, fragment: Document
   }
 
   for (const marker of Array.from(fragment.querySelectorAll('.chip-strip-indicator'))) {
+    if (!marker.textContent?.trim()) {
+      marker.remove()
+      continue
+    }
+
     const label = marker.getAttribute('aria-label') || ''
     if (!label) continue
 
     marker.className = PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME
     marker.replaceChildren(document.createTextNode(label))
+  }
+}
+
+function wrappedMarkerTailTooltipLineHtml(textEl: HTMLElement) {
+  const ownerDocument = textEl.ownerDocument
+  const win = ownerDocument.defaultView
+  if (!win) return []
+
+  const textRect = textEl.getBoundingClientRect()
+  const lineHeight = getChipTextLineHeight(textEl)
+  if (textRect.height <= 0 || lineHeight <= 0) return []
+
+  const markers = Array.from(textEl.querySelectorAll<HTMLElement>('.chip-strip-indicator, .chip-title-suppression-marker'))
+  const wrappedMarker = markers.find((marker) => {
+    const rect = marker.getBoundingClientRect()
+    return rect.top - textRect.top >= lineHeight - PAGE_CHIP_TOOLTIP_LINE_TOLERANCE_PX
+  })
+  if (!wrappedMarker) return []
+
+  const headRange = ownerDocument.createRange()
+  const tailRange = ownerDocument.createRange()
+
+  try {
+    headRange.selectNodeContents(textEl)
+    headRange.setEndBefore(wrappedMarker)
+    tailRange.selectNodeContents(textEl)
+    tailRange.setStartBefore(wrappedMarker)
+
+    const headHtml = fragmentHtml(ownerDocument, headRange.cloneContents())
+    const tailHtml = fragmentHtml(ownerDocument, tailRange.cloneContents())
+    return headHtml.trim() && tailHtml.trim() ? [headHtml, tailHtml] : []
+  } finally {
+    headRange.detach()
+    tailRange.detach()
   }
 }
 
@@ -551,7 +598,7 @@ function getRegularChipTooltipLineHtml(textEl: HTMLElement | null) {
     }
   }
 
-  if (lineStarts.length <= 1) return []
+  if (lineStarts.length <= 1) return wrappedMarkerTailTooltipLineHtml(textEl)
 
   const lines: string[] = []
   for (let index = 0; index < lineStarts.length; index += 1) {
@@ -668,7 +715,7 @@ function getRegularChipTooltipWidth(
   const visibleWidth = getChipTextWidth(textEl)
   const maxPopupWidth = getChipTooltipMaxWidth(textEl)
   const maxContentWidth = Math.max(0, maxPopupWidth - PAGE_CHIP_TOOLTIP_HORIZONTAL_PADDING_PX)
-  const targetLineCount = getVisibleChipTextLineCount(textEl)
+  const targetLineCount = Math.max(getVisibleChipTextLineCount(textEl), lineHtml.length)
   if (visibleWidth <= 0 || maxContentWidth <= 0) return { viewportConstrained: false, width: visibleWidth }
 
   const measureEl = createChipTooltipMeasureElement(textEl, lineHtml)
@@ -686,7 +733,7 @@ function getRegularChipTooltipWidth(
 
     const lowerBound = Math.min(visibleWidth, maxContentWidth)
     if (tooltipMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
-      return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
+      return { viewportConstrained: false, width: guardedSplitLineTooltipWidth(lowerBound, maxContentWidth, lineHtml) }
     }
 
     if (!tooltipMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
@@ -701,7 +748,7 @@ function getRegularChipTooltipWidth(
       else low = mid
     }
 
-    return { viewportConstrained: false, width: Math.round(high * 100) / 100 }
+    return { viewportConstrained: false, width: guardedSplitLineTooltipWidth(high, maxContentWidth, lineHtml) }
   } finally {
     measureEl.remove()
   }

@@ -1,8 +1,97 @@
 # Tooltip Migration Notes
 
-Last updated: 2026-05-09
+Last updated: 2026-05-25
 
 This note records the tooltip migration decisions, the reasons behind them, and the parts that are still unresolved. It is intentionally not a completion report: the current page-chip wrap issues are still open.
+
+## 2026-05-25 Handoff
+
+The page-chip tooltip width / line-break behavior matches the chip's visible wrap:
+
+- one-line chip → one-line tooltip that widens up to `maxContentWidth` so the expanded markers stay on a single row;
+- multi-line chip whose last visible line carries only the trailing suppression marker → two-row tooltip using the structural-tail split, so the expanded structural label stays on row 1 with the head and the trailing marker drops onto row 2.
+
+Fix landed in this branch:
+
+- `wrappedMarkerTailTooltipLineHtml()` in `src/components/PageChip.tsx` produces the head/tail pair by locating the first `.chip-title-suppression-marker` or `.chip-strip-indicator` whose visible top sits on a wrapped line, then splitting the source content immediately before that marker. This handles both the Contentful structural+trailing chip and the JIRA-style chip that has only a trailing suppression marker.
+- `getRegularChipTooltipLineHtml()` falls back to `wrappedMarkerTailTooltipLineHtml()` when `visibleLineCount > 1` but the multi-line walker can't anchor enough line starts (because chip line 2 contains only a marker SVG with no text node). Without the fallback the multi-line path returns `[]` and the tooltip stays glued on one row, leaving the expanded label overflowing.
+- One-line chips skip the split entirely and let `getRegularChipTooltipWidth()` widen the tooltip naturally via `getTooltipSingleLineNaturalWidth()`.
+- Empty cloned `.chip-strip-indicator` nodes are still removed during tooltip fragment hydration and a small width guard is applied to pre-split tooltip lines so head/tail lines do not visually overflow.
+- `getRegularChipTooltipWidth()` uses `Math.max(visibleLineCount, lineHtml.length)` as the target line count so split tooltips compute the right binary-search bounds.
+
+Test coverage:
+
+- `tests/fixtures/dashboard-resize.html` carries three synthetic Contentful tabs (`Tooltip Screenshot Alpha`, `Tooltip Screenshot Beta`, `Tooltip Screenshot Gamma`) plus two JIRA-style tabs (`Wrap Trailing Marker Alpha`, `Wrap Trailing Marker Beta`) that reproduce the chip shapes from the screenshots, using generic placeholders instead of the real company / product names.
+- `tests/browser-resize-smoke.test.ts` keeps the `oneLineStructuralTailTooltip` assertion that the tooltip widens to stay on one line, adds `wrappedContentfulScreenshotTooltip` covering the structural-tail wrap, and `wrappedTrailingMarkerTooltip` covering the trailing-suppression-only wrap.
+- `pnpm verify:browser` (typecheck, lint, build, bundle check, unit tests, browser smoke) passes.
+
+If the tooltip still renders incorrectly in the real extension after pulling this change, reload the unpacked extension from `chrome://extensions` so Chrome picks up the rebuilt `extension/dist/app.js`. The in-memory `chipTooltipLayoutCache` is module-scoped, so a fresh page load is enough; no manual cache invalidation is required once the new bundle is loaded.
+
+If the bug returns, the next live-debug script remains:
+
+1. Open the real Tab Out extension page in Chrome with the failing chip visible.
+2. Hover the failing page chip and keep the tooltip open.
+3. Run a console snippet that collects source and tooltip layout data from the actual DOM.
+4. Compare the real data against the synthetic fixture before changing code again.
+
+Useful console snippet for the live page (replace `YOUR_CHIP_TEXT` with the visible chip text you want to inspect):
+
+```js
+(() => {
+  const source = [...document.querySelectorAll('.page-chip .chip-text')]
+    .find((el) => !el.closest('[data-slot="tooltip-content"]') && el.textContent?.includes('YOUR_CHIP_TEXT'));
+  const tooltip = document.querySelector('[data-slot="tooltip-content"]');
+  const tooltipText = tooltip?.querySelector('.chip-text');
+  const pick = (el) => {
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const styles = getComputedStyle(el);
+    return {
+      text: el.textContent,
+      html: el.innerHTML,
+      className: el.className,
+      rect: {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        right: rect.right,
+        bottom: rect.bottom
+      },
+      clientWidth: el.clientWidth,
+      scrollWidth: el.scrollWidth,
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+      display: styles.display,
+      whiteSpace: styles.whiteSpace,
+      overflowWrap: styles.overflowWrap,
+      wordBreak: styles.wordBreak,
+      width: styles.width,
+      maxWidth: styles.maxWidth,
+      lineHeight: styles.lineHeight
+    };
+  };
+  const lines = tooltipText
+    ? [...tooltipText.querySelectorAll('.page-chip-tooltip-line')].map(pick)
+    : [];
+  return {
+    source: pick(source),
+    tooltip: pick(tooltip),
+    tooltipText: pick(tooltipText),
+    tooltipLines: lines,
+    sourceMarkers: source ? [...source.querySelectorAll('.chip-title-suppression-marker, .chip-strip-indicator')].map(pick) : [],
+    tooltipMarkers: tooltip ? [...tooltip.querySelectorAll('.chip-title-suppression-marker, .chip-strip-indicator')].map(pick) : []
+  };
+})()
+```
+
+If the bug returns, capture:
+
+- `chipTooltipLineHtml` equivalent from the live DOM by checking whether `.page-chip-tooltip-line` nodes exist in the open tooltip.
+- source `.chip-text` `innerHTML`, not only text content.
+- tooltip `.chip-text` `innerHTML`.
+- source and tooltip marker order (specifically whether a `.chip-title-suppression-marker` follows the `.chip-strip-indicator`).
+- exact `extension/dist/app.js` reload state in Chrome.
 
 ## Landed Behavior
 
