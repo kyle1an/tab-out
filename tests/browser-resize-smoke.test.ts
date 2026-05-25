@@ -3127,7 +3127,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(tooltip.first, `tooltip should open on chip hover: ${JSON.stringify(tooltip)}`)
   assert.ok(tooltip.second, `tooltip should stay open during an in-chip pointer move: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs(tooltip.first.left - (tooltip.target.textLeft - 6)) <= 1, `tooltip should start close to the original chip text without covering the favicon: ${JSON.stringify(tooltip)}`)
-  assert.ok(Math.abs((tooltip.first.top + 4) - tooltip.target.textTop) <= 1, `tooltip popup should place its text over the original chip text: ${JSON.stringify(tooltip)}`)
+  assert.ok(Math.abs((tooltip.first.top + 5) - tooltip.target.textTop) <= 1, `tooltip popup should place its text over the original chip text: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs((tooltip.first.textLeft || 0) - tooltip.target.textLeftExact) <= 0.1, `tooltip text should keep the original chip text x-origin: ${JSON.stringify(tooltip)}`)
   assert.ok(Math.abs((tooltip.first.textTop || 0) - tooltip.target.textTopExact) <= 0.1, `tooltip text should keep the original chip text y-origin: ${JSON.stringify(tooltip)}`)
   assert.equal(tooltip.first.align, 'start', `tooltip should use start alignment away from viewport edges: ${JSON.stringify(tooltip)}`)
@@ -3149,7 +3149,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(tooltipHitArea.above?.text.includes('enough tooltip text'), `tooltip should open from the vertical space above chip text: ${JSON.stringify(tooltipHitArea)}`)
   assert.ok(tooltipHitArea.below?.text.includes('enough tooltip text'), `tooltip should open from the vertical space below chip text: ${JSON.stringify(tooltipHitArea)}`)
   assert.ok(Math.abs(tooltipHitArea.above.left - (tooltipHitArea.target.textLeft - 6)) <= 1, `tooltip should stay anchored close to chip text when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
-  assert.ok(Math.abs((tooltipHitArea.above.top + 4) - tooltipHitArea.target.textTop) <= 1, `tooltip should remain in text position when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
+  assert.ok(Math.abs((tooltipHitArea.above.top + 5) - tooltipHitArea.target.textTop) <= 1, `tooltip should remain in text position when hovering above its text: ${JSON.stringify(tooltipHitArea)}`)
   assert.ok(Math.abs((tooltipHitArea.above.textLeft || 0) - tooltipHitArea.target.textLeftExact) <= 0.1, `tooltip text x-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
   assert.ok(Math.abs((tooltipHitArea.above.textTop || 0) - tooltipHitArea.target.textTopExact) <= 0.1, `tooltip text y-origin should stay precise from the padding hit area: ${JSON.stringify(tooltipHitArea)}`)
 

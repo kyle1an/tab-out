@@ -11,12 +11,20 @@
   border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--warm-gray));
 }
 
-/* Match the hovered chip's background (accent at 13% over the card, the same
-   tint the anchoring chip shows while its tooltip is open) so the tooltip
-   blends with the chip instead of flashing white over it. The data-slot
-   qualifier outranks the base `bg-[canvas]` utility on the same element. */
+/* Make the tooltip read as a seamless continuation of the chip it covers:
+   - the same tint the chip shows on hover (accent at 13% over the card), so it
+     doesn't flash white over the highlighted chip;
+   - the same vertical padding the chip uses (py-[5px]), so the filled box is the
+     chip's height instead of leaning on an outline to fake the missing 2px;
+   - no outline, so the box can't overshoot the chip — the drop shadow carries
+     the edge.
+   The data-slot qualifier outranks the base bg-[canvas]/py-1/outline utilities,
+   and PAGE_CHIP_TOOLTIP_TEXT_TOP_INSET_PX (kept in sync with padding-block here)
+   lifts the box so the first line stays in place. */
 .page-chip-tooltip[data-slot='tooltip-content'] {
   background-color: color-mix(in srgb, var(--card-bg) 87%, var(--accent-amber));
+  padding-block: 5px;
+  outline: none;
 }
 
 .working-set-item.is-active-working-set-item {
