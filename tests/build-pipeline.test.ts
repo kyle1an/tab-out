@@ -376,7 +376,6 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /window\.addEventListener\('pointermove', closeOnPointerMove, true\)/)
   assert.match(tabHistoryPanelSource, /history-entry-title-expansion-hit-area/)
   assert.match(tabHistoryPanelSource, /pageTargetMatchesHover\(entry, activeHoverUrl, activeHoverUrls\)/)
-  assert.match(tabHistoryPanelSource, /pageIdentityForWorkingSet\(entry\.url \|\| entry\.rawUrl \|\| entry\.displayUrl \|\| ''\)/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_CLICKABLE_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)'/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover\/history-row:bg-\[var\(--history-entry-interaction-bg\)\][\s\S]*\[\&\.history-entry-expanded-open\]:bg-\[var\(--history-entry-interaction-bg\)\]/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-\[var\(--history-entry-rest-bg\)\]/)

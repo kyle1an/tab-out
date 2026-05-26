@@ -92,7 +92,8 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
         url: 'https://example.com/docs',
         rawUrl: 'https://example.com/docs',
         displayUrl: 'example.com/docs',
-        favIconUrl: ''
+        favIconUrl: '',
+        lastActivatedAt: null
       }
     ],
     ...overrides
@@ -116,7 +117,8 @@ function makeWorkingSetSnapshot(overrides: Partial<WorkingSetSnapshot> = {}): Wo
         dupeCount: 1,
         active: true,
         activeInOtherWindow: false,
-        score: 100
+        score: 100,
+        lastActivatedAt: 0
       }
     ],
     ...overrides
@@ -1298,7 +1300,7 @@ test('TabHistoryPanel applies bionic title emphasis with protected title tokens'
   assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>UX</)
 })
 
-test('TabHistoryPanel marks working-set history matches and dims low-score history rows', () => {
+test('TabHistoryPanel dims low-score history rows and omits the extras section', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
@@ -1314,9 +1316,9 @@ test('TabHistoryPanel marks working-set history matches and dims low-score histo
             active: false,
             cursor: false,
             current: false,
-            title: 'Older Entry',
-            url: 'https://example.com/older',
-            displayUrl: 'example.com/older'
+            title: 'Chrome Settings',
+            url: 'chrome://settings/',
+            displayUrl: 'chrome://settings/'
           }
         ]
       }),
@@ -1324,7 +1326,6 @@ test('TabHistoryPanel marks working-set history matches and dims low-score histo
     })
   )
 
-  assert.match(html, /data-working-set-priority="true"/)
   assert.doesNotMatch(html, /history-working-set-rail/)
   assert.match(html, /data-low-score="true"/)
   const lowScoreRowMatch = html.match(/<div\b(?=[^>]*data-low-score="true")(?=[^>]*class="([^"]*\bhistory-entry-row\b[^"]*)")[^>]*>/)
@@ -1372,6 +1373,41 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
   assert.equal(indexMatches.filter((match) => match[1] === 'muted').length, 1)
   assert.match(highlightedIndex, /font-semibold/)
   assert.match(mutedIndex, /text-\[rgba\(115,115,115,0\.42\)\]/)
+})
+
+test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority attribute', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const ghostUrl = 'https://example.com/open-tab-not-in-stack'
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot({
+        activeTabId: 101,
+        currentIndex: 0,
+        entries: [baseEntry]
+      }),
+      workingSet: makeWorkingSetSnapshot({
+        items: [
+          {
+            key: ghostUrl,
+            tabId: 999,
+            windowId: 1,
+            tabUrl: ghostUrl,
+            rawUrl: ghostUrl,
+            title: 'Open Tab Not In Stack',
+            displayUrl: 'example.com/open-tab-not-in-stack',
+            faviconUrl: '',
+            dupeCount: 1,
+            active: false,
+            activeInOtherWindow: false,
+            score: 90,
+            lastActivatedAt: Date.now()
+          }
+        ]
+      })
+    })
+  )
+
+  assert.equal(/data-working-set-priority="true"/.test(html), false)
 })
 
 test('TabHistoryPanel always dims browser utility history rows', () => {
@@ -1472,7 +1508,7 @@ test('TabHistoryPanel does not dim suspended real pages as extension utility row
   assert.doesNotMatch(html, /data-low-score="true"/)
 })
 
-test('TabHistoryPanel appends only non-overlapping working-set items below history', () => {
+test('TabHistoryPanel renders non-overlapping working-set items inline without a separate section', () => {
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot(),
@@ -1491,20 +1527,16 @@ test('TabHistoryPanel appends only non-overlapping working-set items below histo
             dupeCount: 1,
             active: false,
             activeInOtherWindow: false,
-            score: 80
+            score: 80,
+            lastActivatedAt: 0
           }
         ]
       })
     })
   )
-  const extraRows = Array.from(html.matchAll(/<div\b(?=[^>]*data-working-set-extra="true")(?=[^>]*class="[^"]*\bhistory-entry-row\b[^"]*")[^>]*>/g))
-  const extraListMatch = html.match(/<div data-tabout-part="working-set-extra-list" class="([^"]*)"/)
 
-  assert.ok(extraListMatch, 'supplemental working set list should render')
-  assert.doesNotMatch(extraListMatch[1], /\bmt-1\b/)
-  assert.match(extraListMatch[1], /\bborder-t\b/)
-  assert.match(extraListMatch[1], /\bpt-0\.75\b/)
-  assert.equal(extraRows.length, 1)
+  assert.doesNotMatch(html, /data-tabout-part="working-set-extra-list"/)
+  assert.match(html, /data-tabout-part="history-entry-marker-open-ghost"/)
   assert.match(html, /Ext<\/span>ra[\s\S]*Cand<\/span>idate/)
   assert.match(html, /default-favicon-image/)
   assert.doesNotMatch(html, /Close Extra Candidate/)
@@ -1543,7 +1575,8 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
         dupeCount: 1,
         active: false,
         activeInOtherWindow: false,
-        score: 90
+        score: 90,
+        lastActivatedAt: 0
       },
       {
         key: 'https://news.example.com/article',
@@ -1557,7 +1590,8 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
         dupeCount: 1,
         active: false,
         activeInOtherWindow: false,
-        score: 70
+        score: 70,
+        lastActivatedAt: 0
       }
     ]
   })
@@ -1586,10 +1620,10 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
     })
   )
   const newsRows = historyEntryElements(newsHtml)
-  const newsExtraListMatch = newsHtml.match(/<div data-tabout-part="working-set-extra-list"/)
 
   assert.equal(newsRows.length, 1, 'no history entries match so only the extra working set row renders')
-  assert.ok(newsExtraListMatch, 'extras list should render when the filter matches a working set item')
+  assert.doesNotMatch(newsHtml, /data-tabout-part="working-set-extra-list"/)
+  assert.match(newsHtml, /data-tabout-part="history-entry-marker-open-ghost"/)
   assert.match(newsHtml, /Dai<\/span>ly[\s\S]*Ne<\/span>ws/)
   assert.doesNotMatch(newsHtml, /Git<\/span>Hub/)
   assert.doesNotMatch(newsHtml, /Exa<\/span>mple/)
@@ -3098,4 +3132,58 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
   assert.equal(markerClasses.length, 2)
   assert.match(markerClasses[0], /title-suppression-token-tone-sky/)
   assert.match(markerClasses[1], /title-suppression-token-tone-amber/)
+})
+
+test('HistoryEntry renders open-ghost marker with data-tabout-part attribute', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot(),
+      workingSet: makeWorkingSetSnapshot({
+        items: [
+          makeWorkingSetSnapshot().items[0],
+          {
+            key: 'https://example.com/extra',
+            tabId: 202,
+            windowId: 1,
+            tabUrl: 'https://example.com/extra',
+            rawUrl: 'https://example.com/extra',
+            title: 'Extra Candidate',
+            displayUrl: 'example.com/extra',
+            faviconUrl: '',
+            dupeCount: 1,
+            active: false,
+            activeInOtherWindow: false,
+            score: 80,
+            lastActivatedAt: 0
+          }
+        ]
+      })
+    })
+  )
+
+  assert.match(html, /data-tabout-part="history-entry-marker-open-ghost"/)
+})
+
+test('closed-ghost dot has accessible label describing close time', () => {
+  const closedAt = Date.now() - 5 * 60_000
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot(),
+      closedTabs: [
+        {
+          sessionId: 'session-abc',
+          tabId: 555,
+          url: 'https://example.com/closed',
+          rawUrl: 'https://example.com/closed',
+          displayUrl: 'example.com/closed',
+          title: 'Closed Page',
+          favIconUrl: '',
+          lastClosedAt: closedAt
+        }
+      ]
+    })
+  )
+
+  assert.match(html, /data-tabout-part="history-entry-marker-closed-ghost"/)
+  assert.match(html, /aria-label="Closed (4|5|6) minutes ago"/)
 })
