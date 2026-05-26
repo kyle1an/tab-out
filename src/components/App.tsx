@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
+import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
@@ -109,6 +110,7 @@ type ProgressiveCardsOptions = {
   threshold?: number
 }
 type AppDashboardState = {
+  closedTabs: readonly ClosedTabEntry[]
   dashboard: DashboardData | null
   historyRange: string
   source: DashboardSource
@@ -116,6 +118,7 @@ type AppDashboardState = {
   workingSet: WorkingSetSnapshot | null
 }
 type AppDashboardAction =
+  | { type: 'closedTabs'; closedTabs: readonly ClosedTabEntry[] }
   | { type: 'dashboard'; dashboard: DashboardData | null }
   | { type: 'historyRange'; historyRange: string }
   | { type: 'source'; source: DashboardSource }
@@ -131,6 +134,7 @@ type AppDashboardAction =
 
 function initialAppDashboardState(dashboard: DashboardData | null): AppDashboardState {
   return {
+    closedTabs: [],
     dashboard,
     historyRange: DEFAULT_HISTORY_RANGE,
     source: 'tabs',
@@ -141,6 +145,8 @@ function initialAppDashboardState(dashboard: DashboardData | null): AppDashboard
 
 function appDashboardReducer(state: AppDashboardState, action: AppDashboardAction): AppDashboardState {
   switch (action.type) {
+    case 'closedTabs':
+      return state.closedTabs === action.closedTabs ? state : { ...state, closedTabs: action.closedTabs }
     case 'dashboard':
       return state.dashboard === action.dashboard ? state : { ...state, dashboard: action.dashboard }
     case 'historyRange':
@@ -415,11 +421,14 @@ function DashboardMissionsList({
 
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialDashboard, initialAppDashboardState)
-  const { dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
+  const { closedTabs, dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
   const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
   const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
   const [isScrolled, setIsScrolled] = useState(false)
+  function setClosedTabs(next: readonly ClosedTabEntry[]) {
+    dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
+  }
   function setDashboard(nextDashboard: DashboardData | null) {
     dispatchAppDashboard({ type: 'dashboard', dashboard: nextDashboard })
   }
@@ -432,6 +441,20 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   function setWorkingSet(nextWorkingSet: WorkingSetSnapshot | null) {
     dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
   }
+  const closedTabsSeqRef = useRef(0)
+  const refreshClosedTabs = useCallback(async function refreshClosedTabs() {
+    if (isClosedTabFetchSuppressed()) return
+    const seq = ++closedTabsSeqRef.current
+    const next = await fetchClosedTabs()
+    if (seq !== closedTabsSeqRef.current) return
+    setClosedTabs(next)
+  }, [])
+
+  useEffect(() => {
+    void refreshClosedTabs()
+    return subscribeClosedTabChanges(() => { void refreshClosedTabs() })
+  }, [refreshClosedTabs])
+
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
@@ -651,6 +674,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
         {showTabHistory && (
           <TabHistoryPanel
             snapshot={tabHistory}
+            closedTabs={closedTabs}
             onSnapshotChange={setTabHistory}
             onHoverUrlChange={handleHoverUrlChange}
             activeHoverUrl={hoverMatch.url}
