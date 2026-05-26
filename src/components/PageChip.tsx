@@ -46,7 +46,7 @@ const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90
 const PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 94%, var(--color-neutral-600) 6%)'
 const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
-const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
+const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const PAGE_CHIP_GROUP_INTERACTION_CLASSES = PAGE_CHIP_SURFACE_INTERACTION_CLASSES
@@ -479,7 +479,14 @@ function carriedExpandedMarkerToneClass(marker: Element) {
     .join(' ')
 }
 
+function carriedExpandedMarkerSpacingClass(marker: Element) {
+  return Array.from(marker.classList)
+    .filter((className) => className.startsWith('ml-') || className.startsWith('mr-'))
+    .join(' ')
+}
+
 function ensureLeadingExpandedMarkerSpace(document: Document, marker: Element) {
+  if (carriedExpandedMarkerSpacingClass(marker)) return
   const previous = marker.previousSibling
   if (previous?.textContent && /\s$/.test(previous.textContent)) return
   marker.before(document.createTextNode(' '))
@@ -508,7 +515,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
     if (!hiddenTitleText) continue
 
     ensureLeadingExpandedMarkerSpace(document, marker)
-    marker.className = cn(PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME, carriedExpandedMarkerToneClass(marker))
+    marker.className = cn(PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME, carriedExpandedMarkerSpacingClass(marker), carriedExpandedMarkerToneClass(marker))
     marker.replaceChildren(document.createTextNode(hiddenTitleText))
   }
 

@@ -314,6 +314,8 @@ test('PageChip keeps the other-window active chip style separate from the curren
   assert.match(html, /Active in another window/)
   assert.match(chipMatch[1], /\bhover:bg/)
   assert.match(chipMatch[1], /hover::after/)
+  assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 88%, var\(--color-neutral-600\) 12%\)/)
+  assert.match(html, /--chip-rest-bg:color-mix\(in srgb, var\(--card-bg\) 92\.5%, var\(--color-neutral-600\) 7\.5%\)/)
   assert.doesNotMatch(chipMatch[1], /current-active-chip\b/)
   assert.doesNotMatch(chipMatch[1], /\bring-neutral-400\b/)
   assert.doesNotMatch(frameMatch[1], /current-active-chip-frame\b/)
@@ -1794,10 +1796,14 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)
 })
 
-test('PageChip expansion keeps whitespace before trailing suppression labels', () => {
+test('PageChip expansion preserves trailing suppression marker spacing', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
   assert.match(pageChipSource, /const markerSpacingClass = mode === 'chip' \? \(index === 0 \? 'ml-1' : 'ml-0\.5'\) : ''/)
+  assert.match(pageChipSource, /function carriedExpandedMarkerSpacingClass\(marker: Element\)/)
+  assert.match(pageChipSource, /className\.startsWith\('ml-'\) \|\| className\.startsWith\('mr-'\)/)
+  assert.match(pageChipSource, /if \(carriedExpandedMarkerSpacingClass\(marker\)\) return/)
+  assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME, carriedExpandedMarkerSpacingClass\(marker\), carriedExpandedMarkerToneClass\(marker\)/)
   assert.match(pageChipSource, /chip-title-suppression-label hidden group-\[\.page-chip-expanded\]\/page-chip:inline/)
   assert.match(pageChipSource, /if \(mode === 'tooltip'\) \{[\s\S]*\{\s*' '\s*\}[\s\S]*\{marker\}/)
 })

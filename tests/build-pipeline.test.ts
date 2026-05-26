@@ -318,6 +318,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /'--page-chip-expanded-width': chipExpandedWidth/)
   assert.match(pageChipSource, /const chipInteractionBg = isCurrentActiveFrame/)
   assert.match(pageChipSource, /PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)'/)
+  assert.match(pageChipSource, /PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 88%, var\(--color-neutral-600\) 12%\)'/)
   assert.doesNotMatch(pageChipSource, /backgroundColor: 'var\(--chip-hover-fade-bg\)'/)
   assert.match(pageChipSource, /width: chipExpandedWidth/)
   assert.match(pageChipSource, /page-chip-expanded-line/)
