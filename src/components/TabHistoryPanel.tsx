@@ -24,6 +24,15 @@ const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines bl
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
 const HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const HISTORY_ENTRY_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
+const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
+const HISTORY_ENTRY_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
+const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
+const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-[var(--history-entry-interaction-bg)] focus-within:bg-[var(--history-entry-interaction-bg)] [&.history-entry-expanded-open]:bg-[var(--history-entry-interaction-bg)] group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100'
+const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
+const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
+const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-[var(--history-entry-rest-bg)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES}`
+const HISTORY_ENTRY_EXPANDED_SHADOW_CLASS_NAME = 'shadow-[0_3px_10px_rgba(10,10,10,0.055)]'
 const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
   bottom: 0,
   left: 0,
@@ -992,6 +1001,18 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   const canCloseEntry = !isWorkingSetExtra && entry.exists
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
+  const historyEntryInteractionBg = entry.current
+    ? 'var(--color-neutral-100)'
+    : activeInOtherWindow
+      ? HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG
+      : entry.exists
+        ? HISTORY_ENTRY_CLICKABLE_INTERACTION_BG
+        : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG
+  const historyEntryInteractionClasses = activeInOtherWindow
+    ? HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES
+    : entry.exists
+      ? HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES
+      : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES
   const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
   const matchUrls = uniqueUrls([
     ...pageTargetMatchUrls(entry),
@@ -1012,16 +1033,21 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   const entryExpandedMaxWidth = entryExpansionGeometry.maxWidth > 0 ? `${entryExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
   const entryExpandedWidth = entryExpansionGeometry.width > 0 ? `${entryExpansionGeometry.width}px` : entryExpandedMaxWidth
   const entryExpandedTitleWidth = entryExpansionGeometry.titleWidth > 0 ? `${entryExpansionGeometry.titleWidth}px` : `${Math.max(1, titleMetrics.width)}px`
-  const entryStyle = titleExpanded ? {
-    '--history-entry-expanded-max-width': entryExpandedMaxWidth,
-    '--history-entry-expanded-title-width': entryExpandedTitleWidth,
-    '--history-entry-expanded-width': entryExpandedWidth,
-    bottom: entryExpansionGeometry.y === 'up' ? `${entryExpansionGeometry.bottom}px` : undefined,
-    left: `${entryExpansionGeometry.left}px`,
-    maxWidth: entryExpandedMaxWidth,
-    top: entryExpansionGeometry.y === 'down' ? `${entryExpansionGeometry.top}px` : undefined,
-    width: entryExpandedWidth
-  } as CSSProperties : undefined
+  const entryStyle = {
+    '--history-entry-fade-bg': historyEntryInteractionBg,
+    '--history-entry-interaction-bg': historyEntryInteractionBg,
+    '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent',
+    ...(titleExpanded ? {
+      '--history-entry-expanded-max-width': entryExpandedMaxWidth,
+      '--history-entry-expanded-title-width': entryExpandedTitleWidth,
+      '--history-entry-expanded-width': entryExpandedWidth,
+      bottom: entryExpansionGeometry.y === 'up' ? `${entryExpansionGeometry.bottom}px` : undefined,
+      left: `${entryExpansionGeometry.left}px`,
+      maxWidth: entryExpandedMaxWidth,
+      top: entryExpansionGeometry.y === 'down' ? `${entryExpansionGeometry.top}px` : undefined,
+      width: entryExpandedWidth
+    } : {})
+  } as CSSProperties
   function historyTitleExpandedLinesNode() {
     const lastIndex = entryExpansionGeometry.lineHtml.length - 1
     return (
@@ -1061,7 +1087,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
         {badges.length > 0 && (
           <span className="inline-flex flex-none items-center gap-1">
             {badges.map((badge) => (
-              <span key={badge} className="whitespace-nowrap rounded-full bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
+              <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
                 {badge}
               </span>
             ))}
@@ -1110,12 +1136,11 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
           data-next-target={entry.nextTarget ? 'true' : undefined}
           data-working-set-priority={isWorkingSetPriority ? 'true' : undefined}
           className={cn(
-            "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:bg-[rgba(82,82,82,0.13)] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+            "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
             titleExpanded && 'history-entry-expanded-open',
-            titleExpanded && 'history-entry-expanded fixed z-30 min-w-0 max-w-[var(--history-entry-expanded-max-width)] cursor-default select-none !overflow-visible !transition-none [width:var(--history-entry-expanded-width)] shadow-[0_4px_14px_rgba(10,10,10,0.07)]',
+            titleExpanded && cn('history-entry-expanded fixed z-30 min-w-0 max-w-[var(--history-entry-expanded-max-width)] cursor-default select-none !overflow-visible !transition-none [width:var(--history-entry-expanded-width)]', HISTORY_ENTRY_EXPANDED_SHADOW_CLASS_NAME),
             entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
-            !entry.current && 'group-hover/history-row:bg-[rgba(82,82,82,0.13)] group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:bg-[color-mix(in_srgb,var(--card-bg)_87%,rgb(82_82_82))] [&.history-entry-expanded-open]:after:opacity-100',
-            activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [&.history-entry-expanded-open]:bg-[color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
+            !entry.current && historyEntryInteractionClasses,
             hoverMatched && 'history-entry-hover-match'
           )}
           style={entryStyle}
@@ -1156,7 +1181,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
                 <button
                   type="button"
                   data-tabout-part="close-button"
-                  className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                  className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                   aria-label={`Close ${entryLabel}`}
                   onClick={onCloseEntry}
                 >

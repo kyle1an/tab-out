@@ -40,6 +40,18 @@ const PAGE_CHIP_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'page-chip-expanded-line 
 const PAGE_CHIP_EXPANDED_TAIL_LINE_CLASS_NAME = 'page-chip-expanded-line page-chip-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
+const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
+const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-[var(--chip-interaction-bg)] [&.page-chip-context-menu-open]:bg-[var(--chip-interaction-bg)] [&.page-chip-tooltip-open]:bg-[var(--chip-interaction-bg)]'
+const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
+const PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 94%, var(--color-neutral-600) 6%)'
+const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
+const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
+const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
+const PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
+const PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
+const PAGE_CHIP_GROUP_INTERACTION_CLASSES = PAGE_CHIP_SURFACE_INTERACTION_CLASSES
+const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
+const PAGE_CHIP_EXPANDED_SHADOW_CLASS_NAME = 'shadow-[0_3px_10px_rgba(10,10,10,0.055)]'
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   lineHtml: [],
   maxWidth: 0,
@@ -417,7 +429,12 @@ function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
   for (const shell of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-variant-shell'))) {
     const button = shell.querySelector<HTMLElement>('.chip-title-variant')
     if (!button) continue
-    width = Math.max(width, elementInlinePaddingWidth(shell) + titleVariantButtonMinimumWidth(button))
+    const list = shell.closest<HTMLElement>('.chip-title-variant-list')
+    const listInlinePadding = list ? elementInlinePaddingWidth(list) : 0
+    width = Math.max(
+      width,
+      listInlinePadding + elementInlinePaddingWidth(shell) + titleVariantButtonMinimumWidth(button)
+    )
   }
   return Math.round(width * 100) / 100
 }
@@ -474,7 +491,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
   }
 
   for (const list of Array.from(fragment.querySelectorAll('.chip-title-variant-list'))) {
-    list.className = 'chip-title-variant-list inline-flex max-w-full flex-col items-start gap-0.5 align-top'
+    list.className = 'chip-title-variant-list inline-flex max-w-full flex-col items-start gap-0.5 pr-[5px] pb-1 align-top'
   }
 
   for (const shell of Array.from(fragment.querySelectorAll('.chip-title-variant-shell'))) {
@@ -482,7 +499,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
   }
 
   for (const variant of Array.from(fragment.querySelectorAll('.chip-title-variant'))) {
-    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]'
+    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]'
   }
 
   for (const marker of Array.from(fragment.querySelectorAll('.chip-title-suppression-marker'))) {
@@ -1479,11 +1496,20 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
   const rightActionCount = showSavedHint ? 1 : 0
   const chipHoverFadeWidth = rightActionCount === 0 ? '0px' : rightActionCount === 1 ? '56px' : '88px'
+  const chipInteractionBg = isCurrentActiveFrame
+    ? 'var(--color-neutral-50)'
+    : hasActiveChipFrame
+      ? PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG
+      : isClosedSavedPage
+        ? PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG
+        : isFolded || isTitleVariantGroup
+          ? PAGE_CHIP_GROUP_INTERACTION_BG
+          : PAGE_CHIP_CLICKABLE_INTERACTION_BG
   const style = {
-    '--chip-hover-fade-bg': hasActiveChipFrame
-      ? 'color-mix(in srgb, var(--card-bg) 82%, rgb(82 82 82))'
-      : 'color-mix(in srgb, var(--card-bg) 92%, rgb(82 82 82))',
+    '--chip-hover-fade-bg': chipInteractionBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
+    '--chip-interaction-bg': chipInteractionBg,
+    '--chip-rest-bg': hasActiveChipFrame ? PAGE_CHIP_ACTIVE_OTHER_REST_BG : 'transparent',
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
   } as CSSProperties
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
@@ -1501,7 +1527,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     ...(chipExpanded ? {
       '--page-chip-expanded-max-width': chipExpandedMaxWidth,
       '--page-chip-expanded-width': chipExpandedWidth,
-      backgroundColor: 'var(--chip-hover-fade-bg)',
       maxWidth: chipExpandedMaxWidth,
       width: chipExpandedWidth
     } : {})
@@ -1642,10 +1667,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
     const envClassName = cn(
-      "chip-env inline-flex items-center rounded-lg border-0 bg-[rgba(115,115,115,0.05)] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
+      "chip-env inline-flex items-center rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
-      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-[rgba(82,82,82,0.13)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)] [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.13)] [&.page-chip-context-menu-open]:text-tab-ink',
-      env.activeInOtherWindow && 'bg-[rgba(82,82,82,0.13)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
+      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)] [&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
+      env.activeInOtherWindow && 'bg-neutral-600/[0.075] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 
     if (mode === 'tooltip') {
@@ -1776,10 +1801,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       <button
         type="button"
         className={cn(
-          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-[rgba(115,115,115,0.07)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-[rgba(82,82,82,0.14)] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
-          '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.14)] [&.page-chip-context-menu-open]:text-tab-ink',
-          !variantActive && !variantCurrent && 'group-hover/page-chip:bg-[rgba(115,115,115,0.1)]',
-          variantActive && 'bg-[rgba(82,82,82,0.11)] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]',
+          '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
+          variantActive && 'bg-neutral-600/[0.075] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
           variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
           variantHoverMatched && 'shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]'
         )}
@@ -1812,7 +1836,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       return (
         <span
           key={variant.rawUrl || variant.tabUrl}
-          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-[rgba(115,115,115,0.08)] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]"
+          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]"
         >
           {labelContent}
         </span>
@@ -1844,7 +1868,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             {variantCanClose && (
               <button
                 type="button"
-                className="chip-title-variant-action pointer-events-none inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                className="chip-title-variant-action pointer-events-none inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                 aria-label={titleVariantActionLabel(variant)}
                 onClick={(e) => onCloseTitleVariant(e, variant)}
                 onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -1866,7 +1890,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   function titleVariantListNode(mode: ChipTextRenderMode) {
     if (!isTitleVariantGroup) return null
     return (
-      <span className="chip-title-variant-list flex w-full max-w-full flex-col items-stretch gap-0.5">
+      <span className="chip-title-variant-list flex w-full max-w-full flex-col items-stretch gap-0.5 pr-[5px] pb-1">
         {titleVariantChips.map((variant, index) => titleVariantNode(variant, index, mode))}
       </span>
     )
@@ -2035,36 +2059,22 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           !chip.iconOnly && 'w-full',
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
           chipVisualOpen && 'page-chip-tooltip-open',
-          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-[var(--page-chip-expanded-max-width)] !overflow-visible !transition-none [width:var(--page-chip-expanded-width)] shadow-[0_4px_14px_rgba(10,10,10,0.07)]',
+          chipExpanded && cn('page-chip-expanded absolute z-30 min-w-0 max-w-[var(--page-chip-expanded-max-width)] !overflow-visible !transition-none [width:var(--page-chip-expanded-width)]', PAGE_CHIP_EXPANDED_SHADOW_CLASS_NAME),
           chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.08)] [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100',
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.08)] [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.08)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.08)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && 'page-chip-saved-closed text-tab-muted opacity-75 [&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.06)] [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100',
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.06)] [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.06)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.06)] [&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100',
-          hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted opacity-75', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
+          hasActiveChipFrame && !isCurrentActiveFrame && 'bg-[var(--chip-rest-bg)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.18)]',
-          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.18)]',
-          hasActiveChipFrame && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.18)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.18)]',
-          isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)]',
-          isTitleVariantGroup && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
-          isTitleVariantGroup && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
-          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.05)]',
-          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
-          isFolded && !hasActiveChipFrame && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.05)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.05)]',
-          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.11)]',
-          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && shouldExpandChip && '[&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.11)]',
-          isFolded && hasActiveChipFrame && !isCurrentActiveFrame && !shouldExpandChip && 'hover:bg-[rgba(82,82,82,0.11)] [&.page-chip-tooltip-open]:bg-[rgba(82,82,82,0.11)]',
+          hasActiveChipFrame && !isCurrentActiveFrame && PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES,
+          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && PAGE_CHIP_GROUP_INTERACTION_CLASSES,
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
           chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
-          chip.iconOnly && hasActiveChipFrame && 'bg-[rgba(82,82,82,0.075)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
+          chip.iconOnly && hasActiveChipFrame && 'bg-[var(--chip-rest-bg)] [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
         )}
         aria-label={chipLabel}
         style={chipStyle}
@@ -2121,7 +2131,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             <button
               type="button"
               data-tabout-part="close-button"
-              className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+              className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[2] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
               aria-label={closeActionLabel}
               onClick={isHistorySource ? onDeleteHistory : onClose}
             >
