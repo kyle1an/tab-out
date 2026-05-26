@@ -3,6 +3,7 @@ import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, Po
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
+import { tabMatchesFilter } from '../extension/filter-match.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { pageIdentityForWorkingSet } from '../extension/working-set.js'
 import { unwrapSuspenderUrl } from '../extension/suspender.js'
@@ -132,6 +133,7 @@ interface HistoryEntryProps {
 interface TabHistoryPanelProps {
   snapshot: TabHistorySnapshot | null
   workingSet?: WorkingSetSnapshot | null
+  filter?: string
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl?: string
@@ -1197,11 +1199,18 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   )
 }
 
-export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
+export function TabHistoryPanel({ snapshot, workingSet = null, filter = '', onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: TabHistoryPanelProps) {
+  const filterActive = filter.trim() !== ''
   const entries = snapshot?.entries || []
-  const displayEntries = entries.slice().reverse()
+  const filteredEntries = filterActive
+    ? entries.filter((entry) => tabMatchesFilter({ title: entry.title, url: entry.url, isTabOut: false }, filter))
+    : entries
+  const displayEntries = filteredEntries.slice().reverse()
   const workingSetLimit = workingSet?.defaultLimit || 0
-  const visibleWorkingSetItems = workingSetLimit > 0 ? (workingSet?.items || []).slice(0, workingSetLimit) : []
+  const limitedWorkingSetItems = workingSetLimit > 0 ? (workingSet?.items || []).slice(0, workingSetLimit) : []
+  const visibleWorkingSetItems = filterActive
+    ? limitedWorkingSetItems.filter((item) => tabMatchesFilter({ title: item.title, url: item.tabUrl, isTabOut: false }, filter))
+    : limitedWorkingSetItems
   const workingSetMatches = makeWorkingSetMatches(visibleWorkingSetItems)
   const historyRows = displayEntries.map((entry, index) => ({
     entry,

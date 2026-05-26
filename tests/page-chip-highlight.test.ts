@@ -1510,6 +1510,91 @@ test('TabHistoryPanel appends only non-overlapping working-set items below histo
   assert.doesNotMatch(html, /Close Extra Candidate/)
 })
 
+test('TabHistoryPanel filters history rows and working-set extras by the active filter', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  const snapshot = makeHistorySnapshot({
+    entries: [
+      baseEntry,
+      {
+        ...baseEntry,
+        index: 1,
+        tabId: 202,
+        active: false,
+        cursor: false,
+        current: false,
+        title: 'GitHub Repo',
+        url: 'https://github.com/example/repo',
+        displayUrl: 'github.com/example/repo'
+      }
+    ]
+  })
+  const workingSet = makeWorkingSetSnapshot({
+    items: [
+      makeWorkingSetSnapshot().items[0],
+      {
+        key: 'https://github.com/example/repo',
+        tabId: 202,
+        windowId: 1,
+        tabUrl: 'https://github.com/example/repo',
+        rawUrl: 'https://github.com/example/repo',
+        title: 'GitHub Repo',
+        displayUrl: 'github.com/example/repo',
+        faviconUrl: '',
+        dupeCount: 1,
+        active: false,
+        activeInOtherWindow: false,
+        score: 90
+      },
+      {
+        key: 'https://news.example.com/article',
+        tabId: 303,
+        windowId: 1,
+        tabUrl: 'https://news.example.com/article',
+        rawUrl: 'https://news.example.com/article',
+        title: 'Daily News',
+        displayUrl: 'news.example.com/article',
+        faviconUrl: '',
+        dupeCount: 1,
+        active: false,
+        activeInOtherWindow: false,
+        score: 70
+      }
+    ]
+  })
+
+  const filteredHtml = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      workingSet,
+      filter: 'github'
+    })
+  )
+  const filteredRows = historyEntryElements(filteredHtml)
+  const filteredExtraRows = Array.from(filteredHtml.matchAll(/data-working-set-extra="true"/g))
+
+  assert.equal(filteredRows.length, 1, 'only the matching history row should render under filter')
+  assert.match(filteredHtml, /Git<\/span>Hub[\s\S]*Re<\/span>po/)
+  assert.doesNotMatch(filteredHtml, /Exa<\/span>mple/)
+  assert.doesNotMatch(filteredHtml, /Dai<\/span>ly/)
+  assert.equal(filteredExtraRows.length, 0, 'working set extras matching open history entries should not duplicate')
+
+  const newsHtml = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot,
+      workingSet,
+      filter: 'news'
+    })
+  )
+  const newsRows = historyEntryElements(newsHtml)
+  const newsExtraListMatch = newsHtml.match(/<div data-tabout-part="working-set-extra-list"/)
+
+  assert.equal(newsRows.length, 1, 'no history entries match so only the extra working set row renders')
+  assert.ok(newsExtraListMatch, 'extras list should render when the filter matches a working set item')
+  assert.match(newsHtml, /Dai<\/span>ly[\s\S]*Ne<\/span>ws/)
+  assert.doesNotMatch(newsHtml, /Git<\/span>Hub/)
+  assert.doesNotMatch(newsHtml, /Exa<\/span>mple/)
+})
+
 test('TabHistoryPanel borrows current PageChip surface styling for the current entry', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(

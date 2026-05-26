@@ -601,7 +601,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   }
 
   const showTabHistory = isReady && source === 'tabs'
-  const historyWorkingSet = source === 'tabs' && filter.trim() === '' ? workingSet : null
+  const historyWorkingSet = source === 'tabs' ? workingSet : null
   const primaryMissionsEmpty = matchedCards.length === 0
   const bookmarkMatchesFlush = primaryMissionsEmpty
   const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
@@ -657,6 +657,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
             activeHoverUrls={hoverMatch.urls}
             activeHoverSource={hoverMatch.source}
             workingSet={historyWorkingSet}
+            filter={filter}
             onTabsChange={() => refreshDashboard({ animateCards: true })}
           />
         )}

@@ -99,7 +99,7 @@ test('source switch keeps one primed card-move refresh', () => {
 test('working set is merged into the history panel instead of rendering a top strip', () => {
   const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /const historyWorkingSet = source === 'tabs' && filter\.trim\(\) === '' \? workingSet : null/)
+  assert.match(source, /const historyWorkingSet = source === 'tabs' \? workingSet : null/)
   assert.match(source, /workingSet=\{historyWorkingSet\}/)
   assert.doesNotMatch(source, /<WorkingSetPanel\b/)
   assert.doesNotMatch(source, /workingSetLayoutRectsRef|primeWorkingSetLayoutChange|animateWorkingSetLayoutChange/)
