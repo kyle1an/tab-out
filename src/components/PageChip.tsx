@@ -923,7 +923,7 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
     lineHtml,
     maxWidth,
     viewportConstrained: contentMetrics.viewportConstrained,
-    width: Math.min(maxWidth, Math.max(minWidth, contentMetrics.width + horizontalInset)),
+    width: Math.min(maxWidth, Math.max(rect.width, minWidth, contentMetrics.width + horizontalInset)),
     x: 'start',
     y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
   }
@@ -1822,19 +1822,19 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return (
       <span
         key={variant.rawUrl || variant.tabUrl}
-        className={cn(
-          'chip-title-variant-shell group/title-variant relative flex w-full max-w-full min-w-0 items-center',
-          variantActionCount === 1 && 'pr-[22px]',
-          variantActionCount > 1 && 'pr-[42px]'
-        )}
+        className="chip-title-variant-shell relative flex w-full max-w-full min-w-0 items-center"
       >
         {variantFocusTarget}
         {variantActionCount > 0 && (
-          <span className="chip-title-variant-actions absolute top-0 right-0 bottom-0 z-[2] my-auto flex h-[19px] items-center gap-0.5">
+          <span className={cn(
+            'chip-title-variant-actions group/title-variant-actions absolute top-0 bottom-0 z-[2] my-auto flex h-[19px] items-center gap-0.5',
+            variantActionCount === 1 && '-left-[25.5px]',
+            variantActionCount > 1 && '-left-[46.5px]'
+          )}>
             {variantShowSavedHint && (
               <TooltipAnchor content="Saved page">
                 <span
-                  className="chip-title-variant-saved-hint pointer-events-none inline-flex size-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-[var(--accent-amber)] opacity-0 group-hover/title-variant:pointer-events-auto group-hover/title-variant:opacity-100"
+                  className="chip-title-variant-saved-hint pointer-events-none inline-flex size-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-[var(--accent-amber)] opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100"
                   aria-hidden="true"
                 >
                   <SavedPageIcon saved className="size-3.5" />
@@ -1844,7 +1844,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             {variantCanClose && (
               <button
                 type="button"
-                className="chip-title-variant-action inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                className="chip-title-variant-action pointer-events-none inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
                 aria-label={titleVariantActionLabel(variant)}
                 onClick={(e) => onCloseTitleVariant(e, variant)}
                 onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -1993,7 +1993,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
-        isTitleVariantGroup && 'max-h-none',
+        isTitleVariantGroup && 'max-h-none !overflow-visible',
         isFolded && 'max-h-none',
         chipExpanded && '!max-h-none !max-w-none !flex-1 !overflow-visible ![mask-image:none] whitespace-normal [overflow-wrap:break-word]'
       )}

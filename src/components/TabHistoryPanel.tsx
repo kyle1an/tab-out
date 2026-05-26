@@ -1043,7 +1043,10 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   }
   const titleExpansionTriggerElement = (
     <span
-      className="history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]"
+      className={cn(
+        'history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]',
+        dimmed && 'history-entry-low-score-content opacity-60 group-hover/history-row:opacity-100 group-focus-within/history-row:opacity-100 group-[.history-entry-row-expanded-open]/history-row:opacity-100'
+      )}
     >
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
         <span
@@ -1075,8 +1078,7 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
-        titleExpanded && 'history-entry-row-expanded-open',
-        dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 [&.history-entry-row-expanded-open]:opacity-100'
+        titleExpanded && 'history-entry-row-expanded-open'
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

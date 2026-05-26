@@ -4098,12 +4098,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   const compactTitleVariantExpansion = await measureCompactTitleVariantExpansion(session)
   assert.ok(compactTitleVariantExpansion.expansion, `compact same-title variant chip should expand in place: ${JSON.stringify(compactTitleVariantExpansion)}`)
   assert.ok(
-    compactTitleVariantExpansion.expansion.width <= compactTitleVariantExpansion.target.contentWidth + 72,
-    `compact same-title variant chip should not expand to the whole flex row when the content is short: ${JSON.stringify(compactTitleVariantExpansion)}`
+    compactTitleVariantExpansion.expansion.width <= Math.max(
+      compactTitleVariantExpansion.target.chipWidth,
+      compactTitleVariantExpansion.target.contentWidth + 72
+    ) + 1,
+    `compact same-title variant chip should not grow beyond its resting width/content budget when the content is short: ${JSON.stringify(compactTitleVariantExpansion)}`
   )
   assert.ok(
-    compactTitleVariantExpansion.expansion.width < compactTitleVariantExpansion.target.chipWidth - 16,
-    `compact same-title variant chip expansion should stay narrower than its full row when content allows: ${JSON.stringify(compactTitleVariantExpansion)}`
+    compactTitleVariantExpansion.expansion.width >= compactTitleVariantExpansion.target.chipWidth - 1,
+    `compact same-title variant chip expansion should not shrink below its resting chip width: ${JSON.stringify(compactTitleVariantExpansion)}`
   )
   assert.ok(
     compactTitleVariantExpansion.expandedVariantLabels.every((label: { clientWidth: number; scrollWidth: number }) => label.scrollWidth - label.clientWidth <= 1),
