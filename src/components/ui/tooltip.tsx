@@ -318,7 +318,7 @@ function TooltipContent({
   alignOffset = TOOLTIP_EDGE_BORDER_ALIGN_OFFSET_PX,
   arrowPadding = 0,
   collisionAvoidance = TOOLTIP_COLLISION_AVOIDANCE,
-  collisionPadding = 0,
+  collisionPadding = 4,
   positionMethod,
   instant = false,
   children,

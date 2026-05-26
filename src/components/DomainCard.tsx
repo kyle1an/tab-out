@@ -299,7 +299,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
         </header>
         <div
           className={cn(
-            'mission-card relative flex flex-col gap-2 overflow-hidden rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
+            'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
             isAppsCard ? 'p-[7px]' : 'p-2',
             group.pinned && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
           )}

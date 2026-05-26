@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, Dispatch, KeyboardEvent, MouseEvent, ReactNode, SetStateAction } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction, WheelEvent } from 'react'
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
@@ -10,24 +10,32 @@ import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { bionicTitleTextNodes } from './bionic-title-text'
-import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
-const HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX = 6
-const HISTORY_TITLE_TOOLTIP_TEXT_RIGHT_INSET_PX = 8
-const HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX =
-  HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX + HISTORY_TITLE_TOOLTIP_TEXT_RIGHT_INSET_PX
-const HISTORY_TITLE_TOOLTIP_TEXT_TOP_INSET_PX = 4
-const HISTORY_TITLE_TOOLTIP_SUBPIXEL_TOLERANCE_PX = 0.01
-const HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX = 1
-const HISTORY_TITLE_TOOLTIP_WIDTH_SEARCH_STEPS = 12
-const HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME = 'history-entry-title-tooltip-lines block min-w-0 max-w-full'
-const HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME = 'history-entry-title-tooltip-line block min-w-0 max-w-full whitespace-nowrap'
-const HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-title-tooltip-line history-entry-title-tooltip-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
-const HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME = 'history-entry-title-tooltip-line history-entry-title-tooltip-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12
+const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
+const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
+const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
+const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
+const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
+const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
+const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
+  bottom: 0,
+  left: 0,
+  lineHtml: [],
+  maxWidth: 0,
+  titleWidth: 0,
+  top: 0,
+  viewportConstrained: false,
+  width: 0,
+  y: 'down'
+}
+const DEFAULT_HISTORY_ENTRY_SLOT_SIZE: HistoryEntrySlotSize = { height: 0, width: 0 }
 const LOW_SCORE_HISTORY_PROTOCOLS = new Set([
   'about:',
   'brave:',
@@ -42,30 +50,55 @@ const historyTitleTruncationCallbacks = new WeakMap<
   (metrics: HistoryTitleMetrics) => void
 >()
 const EMPTY_HOVER_URLS: readonly string[] = []
-const HISTORY_TITLE_TOOLTIP_LAYOUT_CACHE_LIMIT = 240
-const historyTitleTooltipLayoutCache = new Map<string, HistoryTitleTooltipLayoutMetrics>()
+const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
+const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
+let activeExpandedHistoryEntryId: string | null = null
+const expandedHistoryEntrySubscribers = new Set<(activeId: string | null) => void>()
 
-type HistoryTitleTooltipSubpixelOffset = {
-  x: number
-  y: number
+function setActiveExpandedHistoryEntry(id: string | null) {
+  if (activeExpandedHistoryEntryId === id) return
+  activeExpandedHistoryEntryId = id
+  for (const subscriber of expandedHistoryEntrySubscribers) subscriber(activeExpandedHistoryEntryId)
+}
+
+function subscribeToExpandedHistoryEntry(subscriber: (activeId: string | null) => void) {
+  expandedHistoryEntrySubscribers.add(subscriber)
+  return () => {
+    expandedHistoryEntrySubscribers.delete(subscriber)
+  }
 }
 
 type HistoryTitleMetrics = {
   contentWidth: number
+  expandedLineHtml: string[]
+  expandedTextWidth: number
+  expandedViewportConstrained: boolean
   isTruncated: boolean
-  left: number
-  tooltipLineHtml: string[]
-  tooltipSubpixelOffset: HistoryTitleTooltipSubpixelOffset
-  tooltipTextWidth: number
-  tooltipViewportConstrained: boolean
   visibleLineCount: number
   width: number
 }
-type HistoryTitleTooltipLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'>
+type HistoryTitleExpandedLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'>
 
-type HistoryTitleTooltipDomPosition = {
+type HistoryTitleExpandedDomPosition = {
   node: Text
   offset: number
+}
+
+type HistoryEntryExpansionGeometry = {
+  bottom: number
+  left: number
+  lineHtml: string[]
+  maxWidth: number
+  top: number
+  titleWidth: number
+  viewportConstrained: boolean
+  width: number
+  y: 'down' | 'up'
+}
+
+type HistoryEntrySlotSize = {
+  height: number
+  width: number
 }
 
 type HistoryWorkingSetMatch = {
@@ -111,38 +144,6 @@ function getHistoryTitleWidth(titleEl: HTMLElement | null) {
   return Math.round(titleEl.getBoundingClientRect().width * 100) / 100
 }
 
-function roundHistoryTitleTooltipToDevicePixel(
-  value: number,
-  win: Window | null = typeof window === 'undefined' ? null : window
-) {
-  const scale = win?.devicePixelRatio || 1
-  return Math.round(value * scale) / scale
-}
-
-function getHistoryTitleTooltipSubpixelOffset(titleEl: HTMLElement | null): HistoryTitleTooltipSubpixelOffset {
-  if (!titleEl) return { x: 0, y: 0 }
-
-  const rect = titleEl.getBoundingClientRect()
-  const win = titleEl.ownerDocument.defaultView || (typeof window === 'undefined' ? null : window)
-  const left = rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX
-  const top = rect.top - HISTORY_TITLE_TOOLTIP_TEXT_TOP_INSET_PX
-
-  return {
-    x: left - roundHistoryTitleTooltipToDevicePixel(left, win),
-    y: top - roundHistoryTitleTooltipToDevicePixel(top, win)
-  }
-}
-
-function historyTitleTooltipSubpixelOffsetsEqual(
-  left: HistoryTitleTooltipSubpixelOffset,
-  right: HistoryTitleTooltipSubpixelOffset
-) {
-  return (
-    Math.abs(left.x - right.x) < HISTORY_TITLE_TOOLTIP_SUBPIXEL_TOLERANCE_PX &&
-    Math.abs(left.y - right.y) < HISTORY_TITLE_TOOLTIP_SUBPIXEL_TOLERANCE_PX
-  )
-}
-
 function getHistoryTitleVisibleLineCount(titleEl: HTMLElement | null) {
   if (!titleEl) return 1
 
@@ -186,7 +187,7 @@ function getHistoryTitleContentWidth(titleEl: HTMLElement | null) {
   return width
 }
 
-function historyTitleTooltipLineHtmlEquals(left: readonly string[], right: readonly string[]) {
+function historyTitleExpandedLineHtmlEquals(left: readonly string[], right: readonly string[]) {
   return left.length === right.length && left.every((line, index) => line === right[index])
 }
 
@@ -201,7 +202,7 @@ function historyTitleFragmentHtml(document: Document, fragment: DocumentFragment
   return container.innerHTML
 }
 
-function getHistoryTitleTooltipLineHtml(titleEl: HTMLElement | null) {
+function getHistoryTitleExpandedLineHtml(titleEl: HTMLElement | null) {
   if (!titleEl || typeof document === 'undefined') return []
 
   const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
@@ -228,7 +229,7 @@ function getHistoryTitleTooltipLineHtml(titleEl: HTMLElement | null) {
     }
   )
   const range = ownerDocument.createRange()
-  const lineStarts: HistoryTitleTooltipDomPosition[] = []
+  const lineStarts: HistoryTitleExpandedDomPosition[] = []
   let lastLineIndex = -1
 
   while (lineStarts.length < visibleLineCount) {
@@ -273,8 +274,8 @@ function getHistoryTitleTooltipLineHtml(titleEl: HTMLElement | null) {
   return lines
 }
 
-function historyTitleTooltipLineContentOverflows(line: HTMLElement) {
-  if (line.scrollWidth - line.clientWidth > HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX) return true
+function historyTitleExpandedLineContentOverflows(line: HTMLElement) {
+  if (line.scrollWidth - line.clientWidth > HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX) return true
 
   const lineRect = line.getBoundingClientRect()
   const win = line.ownerDocument.defaultView
@@ -301,7 +302,7 @@ function historyTitleTooltipLineContentOverflows(line: HTMLElement) {
       for (const rect of range.getClientRects()) {
         if (
           rect.width > 0 &&
-          rect.right - lineRect.right > HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX
+          rect.right - lineRect.right > HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX
         ) {
           return true
         }
@@ -314,14 +315,14 @@ function historyTitleTooltipLineContentOverflows(line: HTMLElement) {
   return false
 }
 
-function historyTitleTooltipLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
+function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
   const lastIndex = lineHtml.length - 1
-  return `<span class="${HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
-    `<span class="${index === lastIndex ? HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME : viewportConstrained ? HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME}">${html}</span>`
+  return `<span class="${HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
+    `<span class="${index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}">${html}</span>`
   )).join('')}</span>`
 }
 
-function historyTitleTooltipLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
+function historyTitleExpandedLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
   if (!html || typeof document === 'undefined') return html
 
   const template = document.createElement('template')
@@ -348,7 +349,7 @@ function historyTitleTooltipLineNodesFromHtml(html: string, keyPrefix: string): 
   return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
 }
 
-function historyTitleTooltipMeasureFitsLineCount(
+function historyTitleExpandedMeasureFitsLineCount(
   measureEl: HTMLElement,
   width: number,
   targetLineCount: number
@@ -357,19 +358,19 @@ function historyTitleTooltipMeasureFitsLineCount(
   const styles = window.getComputedStyle(measureEl)
   const lineHeight = Number.parseFloat(styles.lineHeight)
   if (!lineHeight || !Number.isFinite(lineHeight)) return true
-  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.history-entry-title-tooltip-line:not(.history-entry-title-tooltip-line-tail)'))
-    .some(historyTitleTooltipLineContentOverflows)
+  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.history-entry-expanded-line:not(.history-entry-expanded-line-tail)'))
+    .some(historyTitleExpandedLineContentOverflows)
   return !fixedLineOverflows && measureEl.getBoundingClientRect().height <=
-    targetLineCount * lineHeight + HISTORY_TITLE_TOOLTIP_LINE_TOLERANCE_PX
+    targetLineCount * lineHeight + HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX
 }
 
-function createHistoryTitleTooltipMeasureElement(titleEl: HTMLElement, lineHtml: readonly string[]) {
+function createHistoryTitleExpandedMeasureElement(titleEl: HTMLElement, lineHtml: readonly string[]) {
   const ownerDocument = titleEl.ownerDocument
   if (!ownerDocument.body) return null
 
   const styles = window.getComputedStyle(titleEl)
   const measureEl = ownerDocument.createElement('span')
-  measureEl.className = 'history-entry-title-tooltip-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] [overflow-wrap:break-word]'
+  measureEl.className = 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] [overflow-wrap:break-word]'
   measureEl.setAttribute('aria-hidden', 'true')
   Object.assign(measureEl.style, {
     display: 'block',
@@ -391,47 +392,44 @@ function createHistoryTitleTooltipMeasureElement(titleEl: HTMLElement, lineHtml:
   measureEl.style.setProperty('hyphenate-character', '')
   measureEl.style.setProperty('mask-image', 'none')
   measureEl.style.setProperty('overflow-wrap', 'break-word')
-  measureEl.innerHTML = lineHtml.length > 0 ? historyTitleTooltipLineMarkup(lineHtml) : titleEl.innerHTML
+  measureEl.innerHTML = lineHtml.length > 0 ? historyTitleExpandedLineMarkup(lineHtml) : titleEl.innerHTML
   ownerDocument.body.append(measureEl)
   return measureEl
 }
 
-function getHistoryTitleTooltipTextWidth(
+function getHistoryTitleExpandedTextWidth(
   titleEl: HTMLElement | null,
   lineHtml: readonly string[],
   contentWidth: number,
-  left: number,
+  availableContentWidth: number,
   visibleLineCount: number,
   visibleWidth: number
 ) {
   if (!titleEl) return { viewportConstrained: false, width: 0 }
 
-  const popupLeft = Math.max(0, left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX)
-  const availableWidth = typeof window === 'undefined'
-    ? Math.max(1, contentWidth || visibleWidth)
-    : Math.max(1, window.innerWidth - popupLeft - HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX - 8)
+  const availableWidth = Math.max(1, availableContentWidth)
   const naturalWidth = Math.max(1, contentWidth || visibleWidth)
   const maxContentWidth = Math.min(availableWidth, naturalWidth)
   const targetLineCount = Math.max(1, visibleLineCount || 1)
 
-  const measureEl = createHistoryTitleTooltipMeasureElement(titleEl, lineHtml)
+  const measureEl = createHistoryTitleExpandedMeasureElement(titleEl, lineHtml)
   if (!measureEl) return { viewportConstrained: false, width: Math.round(Math.min(availableWidth, Math.max(visibleWidth, naturalWidth / targetLineCount)) * 100) / 100 }
 
   try {
     const lowerBound = Math.min(Math.max(1, visibleWidth), maxContentWidth)
-    if (historyTitleTooltipMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
+    if (historyTitleExpandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
       return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
     }
 
-    if (!historyTitleTooltipMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
+    if (!historyTitleExpandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
       return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
     }
 
     let low = lowerBound
     let high = maxContentWidth
-    for (let i = 0; i < HISTORY_TITLE_TOOLTIP_WIDTH_SEARCH_STEPS; i += 1) {
+    for (let i = 0; i < HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS; i += 1) {
       const mid = (low + high) / 2
-      if (historyTitleTooltipMeasureFitsLineCount(measureEl, mid, targetLineCount)) {
+      if (historyTitleExpandedMeasureFitsLineCount(measureEl, mid, targetLineCount)) {
         high = mid
       } else {
         low = mid
@@ -446,25 +444,23 @@ function getHistoryTitleTooltipTextWidth(
 function sameHistoryTitleMetrics(a: HistoryTitleMetrics, b: HistoryTitleMetrics) {
   return (
     Math.abs(a.contentWidth - b.contentWidth) < 0.1 &&
+    historyTitleExpandedLineHtmlEquals(a.expandedLineHtml, b.expandedLineHtml) &&
+    Math.abs(a.expandedTextWidth - b.expandedTextWidth) < 0.1 &&
+    a.expandedViewportConstrained === b.expandedViewportConstrained &&
     a.isTruncated === b.isTruncated &&
-    Math.abs(a.left - b.left) < 0.1 &&
-    historyTitleTooltipLineHtmlEquals(a.tooltipLineHtml, b.tooltipLineHtml) &&
-    historyTitleTooltipSubpixelOffsetsEqual(a.tooltipSubpixelOffset, b.tooltipSubpixelOffset) &&
-    Math.abs(a.tooltipTextWidth - b.tooltipTextWidth) < 0.1 &&
-    a.tooltipViewportConstrained === b.tooltipViewportConstrained &&
     a.visibleLineCount === b.visibleLineCount &&
     Math.abs(a.width - b.width) < 0.1
   )
 }
 
-function rememberHistoryTitleTooltipLayout(key: string, metrics: HistoryTitleTooltipLayoutMetrics) {
-  historyTitleTooltipLayoutCache.set(key, metrics)
-  if (historyTitleTooltipLayoutCache.size <= HISTORY_TITLE_TOOLTIP_LAYOUT_CACHE_LIMIT) return
-  const oldestKey = historyTitleTooltipLayoutCache.keys().next().value
-  if (oldestKey) historyTitleTooltipLayoutCache.delete(oldestKey)
+function rememberHistoryTitleExpandedLayout(key: string, metrics: HistoryTitleExpandedLayoutMetrics) {
+  historyTitleExpandedLayoutCache.set(key, metrics)
+  if (historyTitleExpandedLayoutCache.size <= HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT) return
+  const oldestKey = historyTitleExpandedLayoutCache.keys().next().value
+  if (oldestKey) historyTitleExpandedLayoutCache.delete(oldestKey)
 }
 
-function historyTitleTooltipLayoutCacheKey(titleEl: HTMLElement) {
+function historyTitleExpandedLayoutCacheKey(titleEl: HTMLElement, availableContentWidth: number) {
   const win = titleEl.ownerDocument.defaultView
   const styles = win?.getComputedStyle(titleEl)
   const rect = titleEl.getBoundingClientRect()
@@ -474,7 +470,7 @@ function historyTitleTooltipLayoutCacheKey(titleEl: HTMLElement) {
     Math.round(rect.top * 100) / 100,
     getHistoryTitleWidth(titleEl),
     getHistoryTitleVisibleLineCount(titleEl),
-    win ? Math.max(1, win.innerWidth - Math.max(0, rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX) - HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX - 8) : 0,
+    Math.round(availableContentWidth * 100) / 100,
     styles?.font || '',
     styles?.letterSpacing || '',
     styles?.lineHeight || '',
@@ -483,21 +479,17 @@ function historyTitleTooltipLayoutCacheKey(titleEl: HTMLElement) {
 }
 
 function syncHistoryTitleFade(titleEl: HTMLElement | null) {
-  if (!titleEl) return { contentWidth: 0, isTruncated: false, left: 0, tooltipLineHtml: [], tooltipSubpixelOffset: { x: 0, y: 0 }, tooltipTextWidth: 0, tooltipViewportConstrained: false, visibleLineCount: 1, width: 0 }
+  if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
 
   const isTruncated = isHistoryTitleTruncated(titleEl)
-  const rect = titleEl.getBoundingClientRect()
-  const left = Math.round(rect.left * 100) / 100
   const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
   const width = getHistoryTitleWidth(titleEl)
   const metrics = {
     contentWidth: 0,
+    expandedLineHtml: [],
+    expandedTextWidth: 0,
+    expandedViewportConstrained: false,
     isTruncated,
-    left,
-    tooltipLineHtml: [],
-    tooltipSubpixelOffset: { x: 0, y: 0 },
-    tooltipTextWidth: 0,
-    tooltipViewportConstrained: false,
     visibleLineCount,
     width
   }
@@ -506,33 +498,28 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null) {
   return metrics
 }
 
-function measureHistoryTitleTooltipLayout(titleEl: HTMLElement | null): HistoryTitleMetrics {
-  if (!titleEl) return { contentWidth: 0, isTruncated: false, left: 0, tooltipLineHtml: [], tooltipSubpixelOffset: { x: 0, y: 0 }, tooltipTextWidth: 0, tooltipViewportConstrained: false, visibleLineCount: 1, width: 0 }
+function measureHistoryTitleExpandedLayout(titleEl: HTMLElement | null, availableContentWidth = Number.POSITIVE_INFINITY): HistoryTitleMetrics {
+  if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
 
-  const cacheKey = historyTitleTooltipLayoutCacheKey(titleEl)
-  const cachedLayout = historyTitleTooltipLayoutCache.get(cacheKey)
+  const cacheKey = historyTitleExpandedLayoutCacheKey(titleEl, availableContentWidth)
+  const cachedLayout = historyTitleExpandedLayoutCache.get(cacheKey)
   const isTruncated = isHistoryTitleTruncated(titleEl)
   if (cachedLayout) return { ...cachedLayout, isTruncated }
 
-  const rect = titleEl.getBoundingClientRect()
   const contentWidth = getHistoryTitleContentWidth(titleEl)
-  const left = Math.round(rect.left * 100) / 100
   const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
   const width = getHistoryTitleWidth(titleEl)
-  const tooltipLineHtml = getHistoryTitleTooltipLineHtml(titleEl)
-  const tooltipMetrics = getHistoryTitleTooltipTextWidth(titleEl, tooltipLineHtml, contentWidth, left, visibleLineCount, width)
-  const tooltipSubpixelOffset = getHistoryTitleTooltipSubpixelOffset(titleEl)
+  const expandedLineHtml = getHistoryTitleExpandedLineHtml(titleEl)
+  const expandedMetrics = getHistoryTitleExpandedTextWidth(titleEl, expandedLineHtml, contentWidth, availableContentWidth, visibleLineCount, width)
   const layout = {
     contentWidth,
-    left,
-    tooltipLineHtml,
-    tooltipSubpixelOffset,
-    tooltipTextWidth: tooltipMetrics.width,
-    tooltipViewportConstrained: tooltipMetrics.viewportConstrained,
+    expandedLineHtml,
+    expandedTextWidth: expandedMetrics.width,
+    expandedViewportConstrained: expandedMetrics.viewportConstrained,
     visibleLineCount,
     width
   }
-  rememberHistoryTitleTooltipLayout(cacheKey, layout)
+  rememberHistoryTitleExpandedLayout(cacheKey, layout)
   return { ...layout, isTruncated }
 }
 
@@ -544,12 +531,71 @@ function updateTitleTruncation(
   setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
 }
 
-function updateTitleTooltipLayout(
-  titleEl: HTMLElement | null,
-  setTitleMetrics: Dispatch<SetStateAction<HistoryTitleMetrics>>
-) {
-  const metrics = measureHistoryTitleTooltipLayout(titleEl)
-  setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
+function getHistoryEntryExpansionHorizontalInset(entryEl: HTMLElement, titleEl: HTMLElement) {
+  const entryRect = entryEl.getBoundingClientRect()
+  const titleRect = titleEl.getBoundingClientRect()
+  return Math.max(0, titleRect.left - entryRect.left) + Math.max(0, entryRect.right - titleRect.right)
+}
+
+function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: HTMLElement | null): HistoryEntryExpansionGeometry {
+  if (!entryEl || !titleEl || typeof window === 'undefined') return DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY
+
+  const rect = entryEl.getBoundingClientRect()
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+  const roomToRight = Math.max(0, viewportWidth - rect.left - HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX)
+  const roomBelow = Math.max(0, viewportHeight - rect.top - HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX)
+  const roomAbove = Math.max(0, rect.bottom - HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX)
+  const maxWidth = Math.max(rect.width, roomToRight)
+  const horizontalInset = getHistoryEntryExpansionHorizontalInset(entryEl, titleEl)
+  const maxContentWidth = Math.max(1, maxWidth - horizontalInset)
+  const metrics = measureHistoryTitleExpandedLayout(titleEl, maxContentWidth)
+  const expandedContentWidth = Math.min(
+    maxContentWidth,
+    Math.max(metrics.width, metrics.expandedTextWidth + HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX)
+  )
+
+  return {
+    bottom: Math.round((viewportHeight - rect.bottom) * 100) / 100,
+    left: Math.round(rect.left * 100) / 100,
+    lineHtml: metrics.expandedLineHtml,
+    maxWidth,
+    top: Math.round(rect.top * 100) / 100,
+    titleWidth: expandedContentWidth,
+    viewportConstrained: metrics.expandedViewportConstrained,
+    width: Math.min(maxWidth, Math.max(rect.width, horizontalInset + expandedContentWidth)),
+    y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
+  }
+}
+
+function roundedHistoryEntrySlotSize(element: HTMLElement | null): HistoryEntrySlotSize {
+  if (!element) return DEFAULT_HISTORY_ENTRY_SLOT_SIZE
+  const rect = element.getBoundingClientRect()
+  return {
+    height: Math.round(rect.height * 100) / 100,
+    width: Math.round(rect.width * 100) / 100
+  }
+}
+
+function historyEntrySlotSizeEqual(left: HistoryEntrySlotSize, right: HistoryEntrySlotSize) {
+  return (
+    Math.abs(left.height - right.height) < 0.1 &&
+    Math.abs(left.width - right.width) < 0.1
+  )
+}
+
+function historyEntryExpansionGeometryEqual(left: HistoryEntryExpansionGeometry, right: HistoryEntryExpansionGeometry) {
+  return (
+    historyTitleExpandedLineHtmlEquals(left.lineHtml, right.lineHtml) &&
+    left.y === right.y &&
+    left.viewportConstrained === right.viewportConstrained &&
+    Math.abs(left.bottom - right.bottom) < 0.1 &&
+    Math.abs(left.left - right.left) < 0.1 &&
+    Math.abs(left.maxWidth - right.maxWidth) < 0.1 &&
+    Math.abs(left.top - right.top) < 0.1 &&
+    Math.abs(left.titleWidth - right.titleWidth) < 0.1 &&
+    Math.abs(left.width - right.width) < 0.1
+  )
 }
 
 function getHistoryTitleResizeObserver() {
@@ -662,29 +708,37 @@ function shouldDimHistoryEntry(entry: TabHistoryEntry, workingSetMatch: HistoryW
 }
 
 function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, workingSetItem = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+  const entryExpansionId = useId()
+  const entrySlotRef = useRef<HTMLDivElement | null>(null)
+  const entryRef = useRef<HTMLDivElement | null>(null)
   const titleRef = useRef<HTMLSpanElement | null>(null)
-  const titleTooltipOpenRef = useRef(false)
+  const titleExpandedRef = useRef(false)
+  const titleExpansionCloseTimerRef = useRef<number | null>(null)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     contentWidth: 0,
+    expandedLineHtml: [],
+    expandedTextWidth: 0,
+    expandedViewportConstrained: false,
     isTruncated: false,
-    left: 0,
-    tooltipLineHtml: [],
-    tooltipSubpixelOffset: { x: 0, y: 0 },
-    tooltipTextWidth: 0,
-    tooltipViewportConstrained: false,
     visibleLineCount: 1,
     width: 0
   })
-  const [titleTooltipOpen, setTitleTooltipOpen] = useState(false)
+  const [titleExpanded, setTitleExpandedState] = useState(false)
+  const [entrySlotSize, setEntrySlotSize] = useState(DEFAULT_HISTORY_ENTRY_SLOT_SIZE)
+  const [entryExpansionGeometry, setEntryExpansionGeometry] = useState(DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY)
 
-  function ensureTitleTooltipLayout() {
-    updateTitleTooltipLayout(titleRef.current, setTitleMetrics)
+  function setTitleExpanded(nextExpanded: boolean) {
+    titleExpandedRef.current = nextExpanded
+    setTitleExpandedState(nextExpanded)
   }
 
-  function onTitleTooltipOpenChange(open: boolean) {
-    titleTooltipOpenRef.current = open
-    if (open) ensureTitleTooltipLayout()
-    setTitleTooltipOpen(open)
+  function updateHistoryEntryExpansionMeasurements() {
+    const entryEl = entryRef.current
+    const titleEl = titleRef.current
+    const nextSize = roundedHistoryEntrySlotSize(entryEl)
+    const nextGeometry = getHistoryEntryExpansionGeometry(entryEl, titleEl)
+    setEntrySlotSize((current) => historyEntrySlotSizeEqual(current, nextSize) ? current : nextSize)
+    setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
 
   useLayoutEffect(() => {
@@ -692,10 +746,24 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     if (!titleEl) return
 
     const frameId = requestAnimationFrame(() => {
-      if (titleTooltipOpenRef.current) updateTitleTooltipLayout(titleEl, setTitleMetrics)
-      else updateTitleTruncation(titleEl, setTitleMetrics)
+      if (titleExpandedRef.current) return
+      updateTitleTruncation(titleEl, setTitleMetrics)
     })
     return () => cancelAnimationFrame(frameId)
+  })
+
+  useLayoutEffect(() => {
+    const entryEl = entryRef.current
+    if (!entryEl) return
+
+    if (!titleExpandedRef.current) updateHistoryEntryExpansionMeasurements()
+    if (typeof ResizeObserver !== 'function') return
+
+    const observer = new ResizeObserver(() => {
+      if (!titleExpandedRef.current) updateHistoryEntryExpansionMeasurements()
+    })
+    observer.observe(entryEl)
+    return () => observer.disconnect()
   })
 
   useEffect(() => {
@@ -706,16 +774,17 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     const observer = getHistoryTitleResizeObserver()
     historyTitleTruncationCallbacks.set(titleEl, (metrics) => {
       if (disposed) return
+      if (titleExpandedRef.current) return
       setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
-      if (titleTooltipOpenRef.current) updateTitleTooltipLayout(titleEl, setTitleMetrics)
     })
     observer?.observe(titleEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
       if (disposed) return
+      if (titleExpandedRef.current) return
       updateTitleTruncation(titleEl, setTitleMetrics)
-      if (titleTooltipOpenRef.current) updateTitleTooltipLayout(titleEl, setTitleMetrics)
+      updateHistoryEntryExpansionMeasurements()
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -727,6 +796,21 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
       fontSet?.removeEventListener?.('loadingdone', onFontsDone)
     }
   }, [])
+
+  useEffect(() => subscribeToExpandedHistoryEntry((activeId) => {
+    if (activeId === entryExpansionId) return
+    if (!titleExpandedRef.current) return
+    setTitleExpanded(false)
+  }), [entryExpansionId])
+
+  useEffect(() => () => {
+    if (titleExpansionCloseTimerRef.current !== null) {
+      window.clearTimeout(titleExpansionCloseTimerRef.current)
+    }
+    if (activeExpandedHistoryEntryId === entryExpansionId) {
+      setActiveExpandedHistoryEntry(null)
+    }
+  }, [entryExpansionId])
 
   async function refreshAfterMutation() {
     if (onTabsChange) {
@@ -759,12 +843,6 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     if (e.key !== 'Enter' && e.key !== ' ') return
     e.preventDefault()
     void onFocusEntry()
-  }
-
-  async function onHistoryTitleTooltipClick(e: MouseEvent<HTMLDivElement>) {
-    e.stopPropagation()
-    if (!entry.exists) return
-    await onFocusEntry()
   }
 
   async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
@@ -802,6 +880,113 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
     onHoverUrlChange?.('')
   }
 
+  function clearTitleExpansionCloseTimer() {
+    if (titleExpansionCloseTimerRef.current === null) return
+    window.clearTimeout(titleExpansionCloseTimerRef.current)
+    titleExpansionCloseTimerRef.current = null
+  }
+
+  function openTitleExpansion() {
+    const titleEl = titleRef.current
+    if (!isHistoryTitleTruncated(titleEl)) return
+    clearTitleExpansionCloseTimer()
+    updateTitleTruncation(titleEl, setTitleMetrics)
+    updateHistoryEntryExpansionMeasurements()
+    setActiveExpandedHistoryEntry(entryExpansionId)
+    setTitleExpanded(true)
+  }
+
+  function closeTitleExpansion({ delayed = true } = {}) {
+    clearTitleExpansionCloseTimer()
+    if (!delayed) {
+      if (activeExpandedHistoryEntryId === entryExpansionId) setActiveExpandedHistoryEntry(null)
+      setTitleExpanded(false)
+      return
+    }
+    titleExpansionCloseTimerRef.current = window.setTimeout(() => {
+      titleExpansionCloseTimerRef.current = null
+      if (activeExpandedHistoryEntryId === entryExpansionId) setActiveExpandedHistoryEntry(null)
+      setTitleExpanded(false)
+    }, HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS)
+  }
+
+  useEffect(() => {
+    if (!titleExpanded) return
+    const closeNow = () => {
+      clearTitleExpansionCloseTimer()
+      if (activeExpandedHistoryEntryId === entryExpansionId) setActiveExpandedHistoryEntry(null)
+      setTitleExpanded(false)
+    }
+    const closeOnPointerMove = (event: globalThis.PointerEvent) => {
+      const slotRect = entrySlotRef.current?.getBoundingClientRect()
+      if (!slotRect) return
+      const insideOriginalSlot =
+        event.clientX >= slotRect.left &&
+        event.clientX <= slotRect.right &&
+        event.clientY >= slotRect.top &&
+        event.clientY <= slotRect.bottom
+      if (!insideOriginalSlot) closeNow()
+    }
+    const closeOnVisibilityChange = () => {
+      if (document.hidden) closeNow()
+    }
+    window.addEventListener('blur', closeNow)
+    window.addEventListener('pointermove', closeOnPointerMove, true)
+    window.addEventListener('scroll', closeNow, true)
+    document.addEventListener('visibilitychange', closeOnVisibilityChange)
+    return () => {
+      window.removeEventListener('blur', closeNow)
+      window.removeEventListener('pointermove', closeOnPointerMove, true)
+      window.removeEventListener('scroll', closeNow, true)
+      document.removeEventListener('visibilitychange', closeOnVisibilityChange)
+    }
+  }, [entryExpansionId, titleExpanded])
+
+  function onHistoryEntryPointerEnter() {
+    openTitleExpansion()
+  }
+
+  function onHistoryEntryPointerMove(e: PointerEvent<HTMLDivElement>) {
+    if (titleExpandedRef.current) return
+    const slotRect = entrySlotRef.current?.getBoundingClientRect()
+    if (
+      slotRect &&
+      (e.clientX < slotRect.left ||
+        e.clientX > slotRect.right ||
+        e.clientY < slotRect.top ||
+        e.clientY > slotRect.bottom)
+    ) {
+      return
+    }
+    openTitleExpansion()
+  }
+
+  function onHistoryEntryPointerLeave(e: PointerEvent<HTMLDivElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    closeTitleExpansion()
+  }
+
+  function onHistoryEntryWheel(e: WheelEvent<HTMLDivElement>) {
+    if (!titleExpandedRef.current || e.deltaY === 0) return
+    const historyList = entrySlotRef.current?.closest<HTMLElement>('.history-entry-list')
+    if (!historyList) return
+    const maxScrollTop = Math.max(0, historyList.scrollHeight - historyList.clientHeight)
+    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, historyList.scrollTop + e.deltaY))
+    e.preventDefault()
+    e.stopPropagation()
+    if (nextScrollTop !== historyList.scrollTop) historyList.scrollTop = nextScrollTop
+    closeTitleExpansion({ delayed: false })
+  }
+
+  function onHistoryEntryFocus(e: FocusEvent<HTMLDivElement>) {
+    if (e.target instanceof HTMLElement && e.target.matches(':focus-visible')) openTitleExpansion()
+  }
+
+  function onHistoryEntryBlur(e: FocusEvent<HTMLDivElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    closeTitleExpansion({ delayed: false })
+  }
+
   const isWorkingSetExtra = !!workingSetItem
   const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
   const canCloseEntry = !isWorkingSetExtra && entry.exists
@@ -820,69 +1005,55 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
   const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || isWorkingSetPriority || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetMatch?.item.faviconUrl || workingSetItem?.faviconUrl || ''
-  const titleTooltipPopupLeft = Math.max(0, titleMetrics.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX)
-  const titleTooltipTargetTextWidth = titleMetrics.tooltipTextWidth || titleMetrics.width
-  const titleTooltipTextWidth = Math.max(1, titleTooltipTargetTextWidth)
-  const titleTooltipStyle = {
-    '--history-entry-title-tooltip-text-width': `${Math.round(titleTooltipTextWidth * 100) / 100}px`,
-    maxWidth: `calc(100vw - ${titleTooltipPopupLeft}px - 8px)`,
-    paddingLeft: `${HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX}px`,
-    paddingRight: `${HISTORY_TITLE_TOOLTIP_TEXT_RIGHT_INSET_PX}px`
-  } as CSSProperties
-  const titleTooltipSubpixelTransform = historyTitleTooltipSubpixelOffsetsEqual(titleMetrics.tooltipSubpixelOffset, { x: 0, y: 0 })
-    ? ''
-    : `translate3d(${titleMetrics.tooltipSubpixelOffset.x}px, ${titleMetrics.tooltipSubpixelOffset.y}px, 0)`
-  const titleTooltipTextStyle = titleTooltipSubpixelTransform
-    ? { transform: titleTooltipSubpixelTransform } as CSSProperties
-    : undefined
-  function getHistoryTitleTooltipAnchor() {
-    const titleEl = titleRef.current
-    if (!titleEl) return null
-
-    const rect = titleEl.getBoundingClientRect()
-    const viewportWidth = typeof window === 'undefined' ? rect.width : window.innerWidth
-    const popupWidth = Math.min(
-      Math.max(1, titleTooltipTextWidth + HISTORY_TITLE_TOOLTIP_HORIZONTAL_PADDING_PX),
-      Math.max(1, viewportWidth - Math.max(0, rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX) - 8)
-    )
-    const left = rect.left - HISTORY_TITLE_TOOLTIP_TEXT_LEFT_INSET_PX
-    const top = rect.top - HISTORY_TITLE_TOOLTIP_TEXT_TOP_INSET_PX
-
-    return {
-      getBoundingClientRect: () => new DOMRect(left, top, popupWidth, 0)
-    }
-  }
-  function historyTitleTooltipLinesNode() {
-    const lastIndex = titleMetrics.tooltipLineHtml.length - 1
+  const entrySlotStyle = titleExpanded && entrySlotSize.width > 0 && entrySlotSize.height > 0 ? {
+    height: `${entrySlotSize.height}px`,
+    width: `${entrySlotSize.width}px`
+  } as CSSProperties : undefined
+  const entryExpandedMaxWidth = entryExpansionGeometry.maxWidth > 0 ? `${entryExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
+  const entryExpandedWidth = entryExpansionGeometry.width > 0 ? `${entryExpansionGeometry.width}px` : entryExpandedMaxWidth
+  const entryExpandedTitleWidth = entryExpansionGeometry.titleWidth > 0 ? `${entryExpansionGeometry.titleWidth}px` : `${Math.max(1, titleMetrics.width)}px`
+  const entryStyle = titleExpanded ? {
+    '--history-entry-expanded-max-width': entryExpandedMaxWidth,
+    '--history-entry-expanded-title-width': entryExpandedTitleWidth,
+    '--history-entry-expanded-width': entryExpandedWidth,
+    bottom: entryExpansionGeometry.y === 'up' ? `${entryExpansionGeometry.bottom}px` : undefined,
+    left: `${entryExpansionGeometry.left}px`,
+    maxWidth: entryExpandedMaxWidth,
+    top: entryExpansionGeometry.y === 'down' ? `${entryExpansionGeometry.top}px` : undefined,
+    width: entryExpandedWidth
+  } as CSSProperties : undefined
+  function historyTitleExpandedLinesNode() {
+    const lastIndex = entryExpansionGeometry.lineHtml.length - 1
     return (
-      <span className={HISTORY_TITLE_TOOLTIP_LINES_CLASS_NAME}>
-        {titleMetrics.tooltipLineHtml.map((html, index) => (
+      <span className={HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME}>
+        {entryExpansionGeometry.lineHtml.map((html, index) => (
           <span
             key={`${index}:${html}`}
-            className={index === lastIndex ? HISTORY_TITLE_TOOLTIP_TAIL_LINE_CLASS_NAME : titleMetrics.tooltipViewportConstrained ? HISTORY_TITLE_TOOLTIP_CONSTRAINED_LINE_CLASS_NAME : HISTORY_TITLE_TOOLTIP_LINE_CLASS_NAME}
+            className={index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : entryExpansionGeometry.viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}
           >
-            {historyTitleTooltipLineNodesFromHtml(html, `history-title-line-${index}`)}
+            {historyTitleExpandedLineNodesFromHtml(html, `history-title-line-${index}`)}
           </span>
         ))}
       </span>
     )
   }
-  const titleTooltipContent = titleMetrics.isTruncated && entryLabel ? (
+  function historyTitleContentNode() {
+    if (titleExpanded && entryExpansionGeometry.lineHtml.length > 0) return historyTitleExpandedLinesNode()
+    return bionicTitleTextNodes(entry.title, 'history-entry-title')
+  }
+  const titleExpansionTriggerElement = (
     <span
-      className="history-entry-title-tooltip block min-w-0 max-w-[calc(100vw-32px)] w-[var(--history-entry-title-tooltip-text-width)] whitespace-normal hyphens-auto break-normal text-[13px] leading-tight font-normal text-tab-ink [font-family:inherit] [hyphenate-character:''] [overflow-wrap:break-word]"
-      style={titleTooltipTextStyle}
-    >
-      {titleMetrics.tooltipLineHtml.length > 0 ? historyTitleTooltipLinesNode() : bionicTitleTextNodes(entryLabel, 'history-entry-tooltip')}
-    </span>
-  ) : undefined
-  const titleTooltipTriggerElement = (
-    <span
-      className="history-entry-title-tooltip-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]"
-      onPointerEnter={ensureTitleTooltipLayout}
+      className="history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]"
     >
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
-        <span className="history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]" ref={titleRef}>
-          {bionicTitleTextNodes(entry.title, 'history-entry-title')}
+        <span
+          className={cn(
+            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+            titleExpanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-[var(--history-entry-expanded-title-width)] whitespace-normal [overflow-wrap:break-word]'
+          )}
+          ref={titleRef}
+        >
+          {historyTitleContentNode()}
         </span>
         {badges.length > 0 && (
           <span className="inline-flex flex-none items-center gap-1">
@@ -904,8 +1075,8 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
-        titleTooltipOpen && 'history-entry-row-tooltip-open',
-        dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 [&.history-entry-row-tooltip-open]:opacity-100'
+        titleExpanded && 'history-entry-row-expanded-open',
+        dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 [&.history-entry-row-expanded-open]:opacity-100'
       )}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -918,78 +1089,81 @@ function HistoryEntry({ entry, indexLabel, snapshot, workingSetMatch = null, wor
           'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
           isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
           isWorkingSetPriority && !dimmed && 'text-[color-mix(in_srgb,var(--accent-amber)_88%,var(--ink))]',
-          dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-tooltip-open]/history-row:text-[rgba(115,115,115,0.54)]'
+          dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-expanded-open]/history-row:text-[rgba(115,115,115,0.54)]'
         )}
       >
         {indexLabel}
       </span>
       <div
-        data-current={entry.current ? 'true' : undefined}
-        data-active={isActiveEntry ? 'true' : undefined}
-        data-active-in-other-window={activeInOtherWindow ? 'true' : undefined}
-        data-previous-target={entry.previousTarget ? 'true' : undefined}
-        data-next-target={entry.nextTarget ? 'true' : undefined}
-        data-working-set-priority={isWorkingSetPriority ? 'true' : undefined}
-        className={cn(
-          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:bg-[rgba(82,82,82,0.13)] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
-          entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
-          titleTooltipOpen && 'history-entry-tooltip-open',
-          !entry.current && 'group-hover/history-row:bg-[rgba(82,82,82,0.13)] group-hover/history-row:after:opacity-100 [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.13)] [&.history-entry-tooltip-open]:after:opacity-100',
-          activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [&.history-entry-tooltip-open]:bg-[rgba(82,82,82,0.18)] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
-          hoverMatched && 'history-entry-hover-match'
-        )}
+        className="history-entry-slot relative min-w-0 flex-auto"
+        style={entrySlotStyle}
+        ref={entrySlotRef}
       >
-        {entry.current && (
-          <span
-            className="active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
-            aria-hidden="true"
-          />
-        )}
         <div
-          role="button"
-          tabIndex={entry.exists ? 0 : -1}
-          data-tabout-part="focus-button"
-          aria-disabled={!entry.exists}
-          className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
-          onClick={entry.exists ? onFocusEntry : undefined}
-          onKeyDown={onEntryKeyDown}
+          data-expanded={titleExpanded ? 'true' : undefined}
+          data-current={entry.current ? 'true' : undefined}
+          data-active={isActiveEntry ? 'true' : undefined}
+          data-active-in-other-window={activeInOtherWindow ? 'true' : undefined}
+          data-previous-target={entry.previousTarget ? 'true' : undefined}
+          data-next-target={entry.nextTarget ? 'true' : undefined}
+          data-working-set-priority={isWorkingSetPriority ? 'true' : undefined}
+          className={cn(
+            "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:bg-[rgba(82,82,82,0.13)] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+            titleExpanded && 'history-entry-expanded-open',
+            titleExpanded && 'history-entry-expanded fixed z-30 min-w-0 max-w-[var(--history-entry-expanded-max-width)] cursor-default select-none !overflow-visible !transition-none [width:var(--history-entry-expanded-width)] shadow-[0_4px_14px_rgba(10,10,10,0.07)]',
+            entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
+            !entry.current && 'group-hover/history-row:bg-[rgba(82,82,82,0.13)] group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:bg-[color-mix(in_srgb,var(--card-bg)_87%,rgb(82_82_82))] [&.history-entry-expanded-open]:after:opacity-100',
+            activeInOtherWindow && 'bg-[rgba(82,82,82,0.075)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] group-hover/history-row:bg-[rgba(82,82,82,0.18)] [&.history-entry-expanded-open]:bg-[color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))] [--history-entry-fade-bg:color-mix(in_srgb,var(--card-bg)_82%,rgb(82_82_82))]',
+            hoverMatched && 'history-entry-hover-match'
+          )}
+          style={entryStyle}
+          ref={entryRef}
+          onPointerEnter={onHistoryEntryPointerEnter}
+          onPointerMove={onHistoryEntryPointerMove}
+          onPointerLeave={onHistoryEntryPointerLeave}
+          onWheel={onHistoryEntryWheel}
+          onFocus={onHistoryEntryFocus}
+          onBlur={onHistoryEntryBlur}
         >
-          <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
+          {entry.current && (
             <span
-              className={cn(
-                'history-entry-favicon-content grid h-full w-full place-items-center',
-                canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
-              )}
+              className="active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
               aria-hidden="true"
-            >
-              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
-            </span>
-            {canCloseEntry && (
-              <button
-                type="button"
-                data-tabout-part="close-button"
-                className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
-                aria-label={`Close ${entryLabel}`}
-                onClick={onCloseEntry}
-              >
-                <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
-              </button>
-            )}
-          </span>
-          <TooltipAnchor
-            alignOffset={0}
-            anchor={getHistoryTitleTooltipAnchor}
-            anchorToCursor={false}
-            content={titleTooltipContent}
-            className="history-entry-title-tooltip max-w-[calc(100vw-16px)] text-[13px] leading-tight [overflow-wrap:break-word] cursor-default select-none"
-            instant
-            onClick={onHistoryTitleTooltipClick}
-            onOpenChange={onTitleTooltipOpenChange}
-            sideOffset={0}
-            style={titleTooltipStyle}
+            />
+          )}
+          <div
+            role="button"
+            tabIndex={entry.exists ? 0 : -1}
+            data-tabout-part="focus-button"
+            aria-disabled={!entry.exists}
+            className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
+            onClick={entry.exists ? onFocusEntry : undefined}
+            onKeyDown={onEntryKeyDown}
           >
-            {titleTooltipTriggerElement}
-          </TooltipAnchor>
+            <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
+              <span
+                className={cn(
+                  'history-entry-favicon-content grid h-full w-full place-items-center',
+                  canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
+                )}
+                aria-hidden="true"
+              >
+                {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
+              </span>
+              {canCloseEntry && (
+                <button
+                  type="button"
+                  data-tabout-part="close-button"
+                  className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                  aria-label={`Close ${entryLabel}`}
+                  onClick={onCloseEntry}
+                >
+                  <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+                </button>
+              )}
+            </span>
+            {titleExpansionTriggerElement}
+          </div>
         </div>
       </div>
     </div>
@@ -1018,7 +1192,7 @@ export function TabHistoryPanel({ snapshot, workingSet = null, onSnapshotChange,
   return (
     <section
       data-tabout="activation-history"
-      className="tab-history-panel sticky top-0 col-start-1 flex h-screen max-h-screen min-w-0 flex-col pl-[var(--dashboard-history-edge-gutter)] max-[900px]:static max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
+      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col pl-[var(--dashboard-history-edge-gutter)] max-[900px]:static max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
       aria-label="Activation history"
     >
       <div className="history-entry-list flex min-h-0 min-w-0 flex-auto flex-col gap-0.75 overflow-y-auto pt-3 pr-3.5 pb-7.5 [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(115,115,115,0.28)] [&::-webkit-scrollbar-thumb:hover]:bg-[rgba(115,115,115,0.4)] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1">

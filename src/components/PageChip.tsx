@@ -2035,7 +2035,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           !chip.iconOnly && 'w-full',
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-amber)]',
           chipVisualOpen && 'page-chip-tooltip-open',
-          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-[var(--page-chip-expanded-max-width)] !overflow-visible !transition-none [width:var(--page-chip-expanded-width)] shadow-[0_4px_14px_rgba(10,10,10,0.1)]',
+          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-[var(--page-chip-expanded-max-width)] !overflow-visible !transition-none [width:var(--page-chip-expanded-width)] shadow-[0_4px_14px_rgba(10,10,10,0.07)]',
           chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !isCurrentActiveFrame && '[&.page-chip-context-menu-open]:bg-[rgba(82,82,82,0.08)] [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100',

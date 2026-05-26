@@ -239,9 +239,9 @@ async function measureDashboard(session: CdpSession, width: number) {
 async function measureInitialTooltipMeasureNodes(session: CdpSession) {
   return evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `(() => ({
+      expression: `(() => ({
       pageChipMeasureNodes: document.querySelectorAll('.page-chip-tooltip-measure').length,
-      historyMeasureNodes: document.querySelectorAll('.history-entry-title-tooltip-measure').length,
+      historyExpansionMeasureNodes: document.querySelectorAll('.history-entry-title-expansion-measure').length,
       visibleTooltipNodes: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
         const rect = tooltip.getBoundingClientRect()
         return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
@@ -466,6 +466,60 @@ async function waitForPageChipExpansionRect(session: CdpSession, text: string, t
               return tooltipRect.width > 0 && tooltipRect.height > 0 && !tooltip.hasAttribute('data-ending-style')
             }).length,
             viewportRight: window.innerWidth
+          })
+        } else if (Date.now() - start > ${JSON.stringify(timeoutMs)}) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+}
+
+async function waitForHistoryEntryExpansionRect(session: CdpSession, text: string, timeoutMs = 2000) {
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const entry = Array.from(document.querySelectorAll('.history-entry-expanded'))
+          .find((candidate) => candidate.textContent?.includes(${JSON.stringify(text)}))
+        const rect = entry?.getBoundingClientRect()
+        const title = entry?.querySelector('.history-entry-title')
+        const titleRect = title?.getBoundingClientRect()
+        if (entry instanceof HTMLElement && rect && title instanceof HTMLElement && titleRect && rect.width > 0 && rect.height > 0) {
+          const styles = window.getComputedStyle(title)
+          const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+          const lineNodes = Array.from(title.querySelectorAll('.history-entry-expanded-line'))
+          const expandedLineTexts = lineNodes.length > 0
+            ? lineNodes.map((node) => node.textContent || '')
+            : [title.textContent || '']
+          const expandedLineOverflows = lineNodes.map((node) => node.scrollWidth - node.clientWidth > 1)
+          resolve({
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            top: Math.round(rect.top),
+            bottom: Math.round(rect.bottom),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            titleLeft: Math.round(titleRect.left * 100) / 100,
+            titleTop: Math.round(titleRect.top * 100) / 100,
+            titleWidth: Math.round(titleRect.width * 100) / 100,
+            titleHeight: Math.round(titleRect.height * 100) / 100,
+            titleLineHeight: Math.round(lineHeight * 100) / 100,
+            expandedLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
+            expandedLineTexts,
+            expandedLineOverflows,
+            text: entry.textContent || '',
+            visibleTooltipCount: Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
+              const tooltipRect = tooltip.getBoundingClientRect()
+              return tooltipRect.width > 0 && tooltipRect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+            }).length,
+            viewportRight: window.innerWidth,
+            webkitLineClamp: styles.webkitLineClamp || null
           })
         } else if (Date.now() - start > ${JSON.stringify(timeoutMs)}) {
           resolve(null)
@@ -1701,7 +1755,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
   return { target, first, popupPoint, popupStyle, updates }
 }
 
-async function measureHistoryTooltipPopupClickFocus(session: CdpSession) {
+async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1400,
     height: 260,
@@ -1752,7 +1806,7 @@ async function measureHistoryTooltipPopupClickFocus(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a history-panel entry to hover for popup click smoke test')
+  assert.ok(target, 'expected a history-panel entry to hover for expansion click smoke test')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -1760,19 +1814,19 @@ async function measureHistoryTooltipPopupClickFocus(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
-  assert.ok(first, `history tooltip should open before popup click check: ${JSON.stringify({ target, first })}`)
+  const first = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
+  assert.ok(first, `history entry should expand before click check: ${JSON.stringify({ target, first })}`)
 
-  const popupPoint = {
+  const expandedPoint = {
     x: Math.round(first.left + first.width / 2),
     y: Math.round(first.top + first.height / 2)
   }
-  const popupStyle = await evaluateWithNavigationRetry(session, {
+  const expandedStyle = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const tooltip = document.querySelector('[data-slot="tooltip-content"].history-entry-title-tooltip')
-      if (!tooltip) return null
-      const styles = window.getComputedStyle(tooltip)
+      const entry = document.querySelector('.history-entry-expanded')
+      if (!entry) return null
+      const styles = window.getComputedStyle(entry)
       return {
         cursor: styles.cursor,
         userSelect: styles.userSelect
@@ -1782,8 +1836,8 @@ async function measureHistoryTooltipPopupClickFocus(session: CdpSession) {
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
-    x: popupPoint.x,
-    y: popupPoint.y
+    x: target.x,
+    y: target.y
   })
   await wait(80)
   await session.send('Input.dispatchMouseEvent', {
@@ -1791,16 +1845,16 @@ async function measureHistoryTooltipPopupClickFocus(session: CdpSession) {
     button: 'left',
     buttons: 1,
     clickCount: 1,
-    x: popupPoint.x,
-    y: popupPoint.y
+    x: target.x,
+    y: target.y
   })
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseReleased',
     button: 'left',
     buttons: 0,
     clickCount: 1,
-    x: popupPoint.x,
-    y: popupPoint.y
+    x: target.x,
+    y: target.y
   })
   await wait(220)
 
@@ -1821,7 +1875,7 @@ async function measureHistoryTooltipPopupClickFocus(session: CdpSession) {
   })
   await wait(260)
 
-  return { target, first, popupPoint, popupStyle, updates }
+  return { target, first, expandedPoint, activationPoint: target, expandedStyle, updates }
 }
 
 async function measurePageChipContextMenuSave(session: CdpSession) {
@@ -2495,7 +2549,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
   return { target, first, popupPoint, beforeScrollTop, wheelSteps, after, afterLeaveExpandedCount }
 }
 
-async function measureHistoryTooltipFaviconVerticalHitArea(session: CdpSession) {
+async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1400,
     height: 260,
@@ -2552,9 +2606,9 @@ async function measureHistoryTooltipFaviconVerticalHitArea(session: CdpSession) 
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a history entry favicon frame with vertical padding for tooltip hit-area smoke test')
+  assert.ok(target, 'expected a history entry favicon frame with vertical padding for expansion hit-area smoke test')
 
-  async function visibleTooltips() {
+  async function visibleTooltipTexts() {
     return evaluateWithNavigationRetry(session, {
       returnByValue: true,
       expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]'))
@@ -2569,7 +2623,8 @@ async function measureHistoryTooltipFaviconVerticalHitArea(session: CdpSession) 
     y: target.aboveY
   })
   await wait(650)
-  const aboveTooltipTexts = await visibleTooltips()
+  const above = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
+  const aboveTooltipTexts = await visibleTooltipTexts()
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -2584,7 +2639,8 @@ async function measureHistoryTooltipFaviconVerticalHitArea(session: CdpSession) 
     y: target.belowY
   })
   await wait(650)
-  const belowTooltipTexts = await visibleTooltips()
+  const below = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
+  const belowTooltipTexts = await visibleTooltipTexts()
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -2593,10 +2649,10 @@ async function measureHistoryTooltipFaviconVerticalHitArea(session: CdpSession) 
   })
   await wait(260)
 
-  return { target, aboveTooltipTexts, belowTooltipTexts }
+  return { target, above, below, aboveTooltipTexts, belowTooltipTexts }
 }
 
-async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
+async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1400,
     height: 260,
@@ -2619,11 +2675,14 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
             candidate.closest('.history-entry-row')?.textContent?.includes('Low score history item with enough tooltip text')
           )
         const rect = title?.getBoundingClientRect()
+        const entry = title?.closest('.history-entry')
+        const slot = entry?.closest('.history-entry-slot') || entry
+        const slotRect = slot?.getBoundingClientRect()
         const titleStyles = title ? window.getComputedStyle(title) : null
         const lineHeight = Number.parseFloat(titleStyles?.lineHeight || '') || 0
         const titleMaskImage = titleStyles?.maskImage || titleStyles?.webkitMaskImage || ''
         const list = document.querySelector('.history-entry-list')
-        if (rect && list && rect.width > 120 && rect.height > 8) {
+        if (rect && slotRect && list && rect.width > 120 && rect.height > 8) {
           const titleLineCount = Math.max(1, Math.round(rect.height / lineHeight))
           const collectLineTexts = (root, limit) => {
             const rootRect = root.getBoundingClientRect()
@@ -2667,6 +2726,12 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
             titleLineHeight: lineHeight,
             titleMaskImage,
             titleWebkitLineClamp: titleStyles?.webkitLineClamp || null,
+            slotLeft: Math.round(slotRect.left),
+            slotRight: Math.round(slotRect.right),
+            slotTop: Math.round(slotRect.top),
+            slotBottom: Math.round(slotRect.bottom),
+            slotWidth: Math.round(slotRect.width),
+            slotHeight: Math.round(slotRect.height),
             listScrollHeight: list.scrollHeight,
             listClientHeight: list.clientHeight
           })
@@ -2680,7 +2745,7 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
     })`
   }).then((result: any) => result.result.value)
 
-  assert.ok(target, 'expected a history-panel entry to hover for popup wheel smoke test')
+  assert.ok(target, 'expected a history-panel entry to hover for expansion wheel smoke test')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -2688,19 +2753,16 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
     y: target.y
   })
   await wait(650)
-  const first = await waitForTooltipRect(session)
+  const first = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
 
-  assert.ok(first, `history tooltip should open before popup wheel check: ${JSON.stringify({ target, first })}`)
+  assert.ok(first, `history entry should expand before wheel check: ${JSON.stringify({ target, first })}`)
 
   const tooltipOpenEntryState = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const title = Array.from(document.querySelectorAll('.history-entry-title-truncated'))
-        .find((candidate) =>
-          candidate.closest('.history-entry-row')?.textContent?.includes('Low score history item with enough tooltip text')
-        )
-      const entry = title?.closest('.history-entry')
-      const row = title?.closest('.history-entry-row')
+      const entry = Array.from(document.querySelectorAll('.history-entry-expanded'))
+        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+      const row = entry?.closest('.history-entry-row')
       const styles = entry ? window.getComputedStyle(entry) : null
       const rowStyles = row ? window.getComputedStyle(row) : null
       const indexStyles = row?.firstElementChild instanceof HTMLElement ? window.getComputedStyle(row.firstElementChild) : null
@@ -2708,45 +2770,56 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
         backgroundColor: styles?.backgroundColor || '',
         indexColor: indexStyles?.color || '',
         rowOpacity: rowStyles?.opacity || '',
-        rowTooltipOpen: row?.classList.contains('history-entry-row-tooltip-open') || false,
-        tooltipOpen: entry?.classList.contains('history-entry-tooltip-open') || false
+        rowExpandedOpen: row?.classList.contains('history-entry-row-expanded-open') || false,
+        expandedOpen: entry?.classList.contains('history-entry-expanded-open') || false
       }
     })()`
   }).then((result: any) => result.result.value)
 
-  const popupPoint = {
+  const expandedPoint = {
     x: Math.round(first.left + first.width / 2),
     y: Math.round(first.top + first.height / 2)
   }
-
-  await session.send('Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x: popupPoint.x,
-    y: popupPoint.y
-  })
-  await wait(80)
-
-  const popupHoverEntryState = await evaluateWithNavigationRetry(session, {
+  assert.ok(
+    first.right > target.slotRight + 8,
+    `history original-slot leave smoke needs an expanded-only horizontal area: ${JSON.stringify({ target, first })}`
+  )
+  const expandedOnlyPoint = {
+    x: Math.round(Math.min(first.right - 4, target.slotRight + 16)),
+    y: Math.round((Math.max(first.top, target.slotTop) + Math.min(first.bottom, target.slotBottom)) / 2)
+  }
+  assert.ok(
+    expandedOnlyPoint.x > target.slotRight + 1 && expandedOnlyPoint.x < first.right,
+    `history original-slot leave point should be outside the original slot and inside the expanded entry: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
+  )
+  const expandedOnlyHitTarget = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const title = Array.from(document.querySelectorAll('.history-entry-title-truncated'))
-        .find((candidate) =>
-          candidate.closest('.history-entry-row')?.textContent?.includes('Low score history item with enough tooltip text')
-        )
-      const entry = title?.closest('.history-entry')
-      const row = title?.closest('.history-entry-row')
-      const styles = entry ? window.getComputedStyle(entry) : null
-      const rowStyles = row ? window.getComputedStyle(row) : null
-      const indexStyles = row?.firstElementChild instanceof HTMLElement ? window.getComputedStyle(row.firstElementChild) : null
+      const node = document.elementFromPoint(${JSON.stringify(expandedOnlyPoint.x)}, ${JSON.stringify(expandedOnlyPoint.y)})
+      const entry = node instanceof Element ? node.closest('.history-entry-expanded') : null
       return {
-        backgroundColor: styles?.backgroundColor || '',
-        indexColor: indexStyles?.color || '',
-        rowOpacity: rowStyles?.opacity || '',
-        rowTooltipOpen: row?.classList.contains('history-entry-row-tooltip-open') || false,
-        tooltipOpen: entry?.classList.contains('history-entry-tooltip-open') || false
+        className: node instanceof Element ? node.className || '' : '',
+        text: entry?.textContent || ''
       }
     })()`
   }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: expandedOnlyPoint.x,
+    y: expandedOnlyPoint.y
+  })
+  await wait(220)
+  const afterOriginalSlotLeave = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text', 250)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+  const reopened = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
+  assert.ok(reopened, `history entry should reopen before wheel check: ${JSON.stringify({ target, first, afterOriginalSlotLeave })}`)
 
   const beforeScrollTop = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -2763,8 +2836,8 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
       type: 'mouseWheel',
       deltaX: 0,
       deltaY: 18,
-      x: popupPoint.x,
-      y: popupPoint.y
+      x: target.x,
+      y: target.y
     })
     await wait(60)
   }
@@ -2778,6 +2851,7 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
       return {
         dashboardScrollTop: dashboardScrollRegion?.scrollTop ?? 0,
         historyScrollTop: historyList?.scrollTop ?? 0,
+        expansionCount: document.querySelectorAll('.history-entry-expanded').length,
         tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
       }
     })()`
@@ -2790,12 +2864,15 @@ async function measureHistoryTooltipPopupWheelScroll(session: CdpSession) {
   })
   await wait(620)
 
-  const afterLeaveTooltipCount = await evaluateWithNavigationRetry(session, {
+  const afterLeaveExpansionState = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.querySelectorAll('[data-slot="tooltip-content"]').length`
+    expression: `(() => ({
+      expansionCount: document.querySelectorAll('.history-entry-expanded').length,
+      tooltipCount: document.querySelectorAll('[data-slot="tooltip-content"]').length
+    }))()`
   }).then((result: any) => result.result.value)
 
-  return { target, first, popupPoint, tooltipOpenEntryState, popupHoverEntryState, beforeScrollTop, after, afterLeaveTooltipCount }
+  return { target, first, expandedPoint, expandedOnlyPoint, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, after, afterLeaveExpansionState }
 }
 
 async function measureTooltipWindowBlurClose(session: CdpSession) {
@@ -3381,7 +3458,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
   assert.equal(initialTooltipMeasureNodes.pageChipMeasureNodes, 0, `page chips should not mount hidden tooltip measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
-  assert.equal(initialTooltipMeasureNodes.historyMeasureNodes, 0, `history rows should not mount hidden tooltip measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
+  assert.equal(initialTooltipMeasureNodes.historyExpansionMeasureNodes, 0, `history rows should not mount hidden expansion measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
   assert.equal(initialTooltipMeasureNodes.visibleTooltipNodes, 0, `dashboard should not show tooltip popups before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
 
   const horizontalScroll = await measureHorizontalScrollLock(session)
@@ -3796,20 +3873,20 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     )),
     `clicking the expanded page chip should focus the matching window: ${JSON.stringify(popupClickFocus)}`
   )
-  const historyPopupClickFocus = await measureHistoryTooltipPopupClickFocus(session)
-  assert.equal(historyPopupClickFocus.popupStyle?.cursor, 'default', `history entry tooltip popup should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
-  assert.equal(historyPopupClickFocus.popupStyle?.userSelect, 'none', `history entry tooltip popup should not select text when it is used as a click target: ${JSON.stringify(historyPopupClickFocus)}`)
+  const historyPopupClickFocus = await measureHistoryEntryExpansionClickFocus(session)
+  assert.equal(historyPopupClickFocus.expandedStyle?.cursor, 'default', `expanded history entry should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
+  assert.equal(historyPopupClickFocus.first.visibleTooltipCount, 0, `expanded history entry should not create a tooltip popup: ${JSON.stringify(historyPopupClickFocus)}`)
   assert.ok(
     historyPopupClickFocus.updates.some((update: { kind: string; args: [number, { active?: boolean }] }) => (
       update.kind === 'tab' && update.args[1]?.active === true
     )),
-    `clicking the history entry tooltip popup should focus the matching tab: ${JSON.stringify(historyPopupClickFocus)}`
+    `clicking the expanded history entry should focus the matching tab: ${JSON.stringify(historyPopupClickFocus)}`
   )
   assert.ok(
     historyPopupClickFocus.updates.some((update: { kind: string; args: [number, { focused?: boolean }] }) => (
       update.kind === 'window' && update.args[1]?.focused === true
     )),
-    `clicking the history entry tooltip popup should focus the matching window: ${JSON.stringify(historyPopupClickFocus)}`
+    `clicking the expanded history entry should focus the matching window: ${JSON.stringify(historyPopupClickFocus)}`
   )
 
   const popupWheelScroll = await measureTooltipPopupWheelScroll(session)
@@ -3830,63 +3907,49 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `page chip expansion should stay closed after the pointer leaves the wheel-scrolled chip: ${JSON.stringify(popupWheelScroll)}`
   )
 
-  const historyPopupWheelScroll = await measureHistoryTooltipPopupWheelScroll(session)
+  const historyPopupWheelScroll = await measureHistoryEntryExpansionWheelScroll(session)
   assert.ok(
-    Math.abs(historyPopupWheelScroll.first.left - (historyPopupWheelScroll.target.titleLeft - 6)) <= 1,
-    `history tooltip should start in place over the title text: ${JSON.stringify(historyPopupWheelScroll)}`
+    Math.abs(historyPopupWheelScroll.first.titleLeft - historyPopupWheelScroll.target.titleLeftExact) <= 0.1,
+    `expanded history entry should keep the title text x-origin: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.ok(
-    Math.abs((historyPopupWheelScroll.first.top + 4) - historyPopupWheelScroll.target.titleTop) <= 1,
-    `history tooltip text should align vertically with the title text: ${JSON.stringify(historyPopupWheelScroll)}`
+    Math.abs(historyPopupWheelScroll.first.titleTop - historyPopupWheelScroll.target.titleTopExact) <= 0.1,
+    `expanded history entry should keep the title text y-origin: ${JSON.stringify(historyPopupWheelScroll)}`
   )
-  assert.ok(
-    Math.abs((historyPopupWheelScroll.first.textLeft || 0) - historyPopupWheelScroll.target.titleLeftExact) <= 0.1,
-    `history tooltip text should keep the title text x-origin: ${JSON.stringify(historyPopupWheelScroll)}`
+  assert.equal(historyPopupWheelScroll.first.visibleTooltipCount, 0, `history expansion should not create a tooltip popup: ${JSON.stringify(historyPopupWheelScroll)}`)
+  assert.equal(
+    historyPopupWheelScroll.tooltipOpenEntryState.expandedOpen,
+    true,
+    `history entry should keep an explicit expanded-open class while expanded: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(
-    historyPopupWheelScroll.tooltipOpenEntryState.tooltipOpen,
+    historyPopupWheelScroll.tooltipOpenEntryState.rowExpandedOpen,
     true,
-    `history entry should keep an explicit tooltip-open class while its tooltip is visible: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
-  assert.equal(
-    historyPopupWheelScroll.tooltipOpenEntryState.rowTooltipOpen,
-    true,
-    `dimmed history row should carry tooltip-open state on the opacity owner while its tooltip is visible: ${JSON.stringify(historyPopupWheelScroll)}`
+    `dimmed history row should carry expanded-open state on the opacity owner while expanded: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(
     historyPopupWheelScroll.tooltipOpenEntryState.rowOpacity,
     '1',
-    `dimmed history row should use full opacity while hovered and its tooltip is visible: ${JSON.stringify(historyPopupWheelScroll)}`
+    `dimmed history row should use full opacity while hovered and expanded: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.match(
     historyPopupWheelScroll.tooltipOpenEntryState.backgroundColor,
-    /rgba\(82, 82, 82, 0\.13\)/,
-    `history entry should keep the hover background after its tooltip appears: ${JSON.stringify(historyPopupWheelScroll)}`
+    /^(rgb|color)\(/,
+    `expanded history entry should use an opaque background: ${JSON.stringify(historyPopupWheelScroll)}`
   )
-  assert.equal(
-    historyPopupWheelScroll.popupHoverEntryState.tooltipOpen,
-    true,
-    `history entry should keep the tooltip-open class while the pointer is over the tooltip: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
-  assert.equal(
-    historyPopupWheelScroll.popupHoverEntryState.rowTooltipOpen,
-    true,
-    `dimmed history row should keep tooltip-open state while the pointer is over the tooltip: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
-  assert.equal(
-    historyPopupWheelScroll.popupHoverEntryState.rowOpacity,
-    historyPopupWheelScroll.tooltipOpenEntryState.rowOpacity,
-    `dimmed history row should keep the same opacity while the pointer is over the tooltip: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
-  assert.equal(
-    historyPopupWheelScroll.popupHoverEntryState.indexColor,
-    historyPopupWheelScroll.tooltipOpenEntryState.indexColor,
-    `dimmed history row index should keep its hover color while the pointer is over the tooltip: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
-  assert.equal(
-    historyPopupWheelScroll.popupHoverEntryState.backgroundColor,
+  assert.doesNotMatch(
     historyPopupWheelScroll.tooltipOpenEntryState.backgroundColor,
-    `history entry should keep the same hover background while the pointer is over the tooltip: ${JSON.stringify(historyPopupWheelScroll)}`
+    /rgba\([^)]*, 0\.\d+\)/,
+    `expanded history entry background should not let content underneath show through: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.ok(
+    historyPopupWheelScroll.expandedOnlyHitTarget.text.includes('Low score history item'),
+    `expanded history entry should remain hit-test visible outside the original history pane: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.afterOriginalSlotLeave,
+    null,
+    `history entry should collapse when the pointer leaves the original entry slot, even inside the grown bounds: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.notEqual(
     historyPopupWheelScroll.target.titleWebkitLineClamp,
@@ -3901,61 +3964,55 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     historyPopupWheelScroll.target.titleHeight > historyPopupWheelScroll.target.titleLineHeight * 1.5,
     `long history entry title should render as two visible lines: ${JSON.stringify(historyPopupWheelScroll)}`
   )
-  const historyFaviconHitArea = await measureHistoryTooltipFaviconVerticalHitArea(session)
-  assert.deepEqual(
-    historyFaviconHitArea.aboveTooltipTexts,
-    [],
-    `hovering the vertical space above the history favicon should not open a title tooltip: ${JSON.stringify(historyFaviconHitArea)}`
-  )
-  assert.deepEqual(
-    historyFaviconHitArea.belowTooltipTexts,
-    [],
-    `hovering the vertical space below the history favicon should not open a title tooltip: ${JSON.stringify(historyFaviconHitArea)}`
-  )
+  const historyFaviconHitArea = await measureHistoryEntryExpansionSurfaceHitArea(session)
+  assert.ok(historyFaviconHitArea.above?.text.includes('Low score history item'), `hovering the vertical space above the history favicon should expand the entry: ${JSON.stringify(historyFaviconHitArea)}`)
+  assert.ok(historyFaviconHitArea.below?.text.includes('Low score history item'), `hovering the vertical space below the history favicon should expand the entry: ${JSON.stringify(historyFaviconHitArea)}`)
+  assert.deepEqual(historyFaviconHitArea.aboveTooltipTexts, [], `history entry expansion from favicon padding should not create a tooltip popup: ${JSON.stringify(historyFaviconHitArea)}`)
+  assert.deepEqual(historyFaviconHitArea.belowTooltipTexts, [], `history entry expansion from favicon padding should not create a tooltip popup: ${JSON.stringify(historyFaviconHitArea)}`)
   assert.notEqual(
     historyPopupWheelScroll.first.webkitLineClamp,
     '2',
-    `history tooltip should not reuse the clipped row's CSS line clamp: ${JSON.stringify(historyPopupWheelScroll)}`
+    `expanded history entry should not reuse the clipped row's CSS line clamp: ${JSON.stringify(historyPopupWheelScroll)}`
   )
-  const historyTooltipViewportConstrained = historyPopupWheelScroll.first.right >= historyPopupWheelScroll.first.viewportRight - 12
-  if (historyTooltipViewportConstrained) {
+  const historyExpansionViewportConstrained = historyPopupWheelScroll.first.right >= historyPopupWheelScroll.first.viewportRight - 12
+  if (historyExpansionViewportConstrained) {
     assert.ok(
-      historyPopupWheelScroll.first.tooltipLineCount >= historyPopupWheelScroll.target.titleLineCount,
-      `history tooltip may add rows only when constrained by the browser viewport edge: ${JSON.stringify(historyPopupWheelScroll)}`
+      historyPopupWheelScroll.first.expandedLineCount >= historyPopupWheelScroll.target.titleLineCount,
+      `history expansion may add rows only when constrained by the browser viewport edge: ${JSON.stringify(historyPopupWheelScroll)}`
     )
   } else {
     assert.equal(
-      historyPopupWheelScroll.first.tooltipLineCount,
+      historyPopupWheelScroll.first.expandedLineCount,
       historyPopupWheelScroll.target.titleLineCount,
-      `history tooltip should match the visible history title line count when viewport width allows it: ${JSON.stringify(historyPopupWheelScroll)}`
+      `history expansion should match the visible history title line count when viewport width allows it: ${JSON.stringify(historyPopupWheelScroll)}`
     )
   }
   const normalizeHistoryLineText = (value: string) => value.replace(/\s+/g, ' ').trim()
   const historyTitleLines = historyPopupWheelScroll.target.titleLineTexts.map(normalizeHistoryLineText).filter(Boolean)
-  const historyTooltipLines = historyPopupWheelScroll.first.tooltipLineTexts.map(normalizeHistoryLineText).filter(Boolean)
+  const historyTooltipLines = historyPopupWheelScroll.first.expandedLineTexts.map(normalizeHistoryLineText).filter(Boolean)
   assert.ok(
     historyTooltipLines.length >= historyTitleLines.length,
-    `history tooltip should keep at least the visible title line rows: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should keep at least the visible title line rows: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   for (let index = 0; index < historyTitleLines.length - 1; index += 1) {
     assert.equal(
       historyTooltipLines[index],
       historyTitleLines[index],
-      `history tooltip should preserve visible line breaks before the tail row: ${JSON.stringify(historyPopupWheelScroll)}`
+      `history expansion should preserve visible line breaks before the tail row: ${JSON.stringify(historyPopupWheelScroll)}`
     )
   }
   assert.ok(
     historyTooltipLines[historyTitleLines.length - 1]?.startsWith(historyTitleLines[historyTitleLines.length - 1]),
-    `history tooltip tail row should start with the same visible text before revealing more: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion tail row should start with the same visible text before revealing more: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.ok(
-    (historyPopupWheelScroll.first.textWidth || 0) > historyPopupWheelScroll.target.titleWidthExact + 8,
-    `history tooltip text should expand beyond the clipped visible title width: ${JSON.stringify(historyPopupWheelScroll)}`
+    (historyPopupWheelScroll.first.titleWidth || 0) > historyPopupWheelScroll.target.titleWidthExact + 8,
+    `history expansion title should expand beyond the clipped visible title width: ${JSON.stringify(historyPopupWheelScroll)}`
   )
-  if (!historyTooltipViewportConstrained) {
+  if (!historyExpansionViewportConstrained) {
     assert.ok(
-      Math.abs((historyPopupWheelScroll.first.textHeight || 0) - historyPopupWheelScroll.target.titleHeight) <= 1,
-      `history tooltip should keep the same two-line flow as the visible title when it can expand: ${JSON.stringify(historyPopupWheelScroll)}`
+      Math.abs((historyPopupWheelScroll.first.titleHeight || 0) - historyPopupWheelScroll.target.titleHeight) <= 1,
+      `history expansion should keep the same two-line flow as the visible title when it can expand: ${JSON.stringify(historyPopupWheelScroll)}`
     )
   }
   assert.ok(
@@ -3964,22 +4021,32 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
   assert.ok(
     historyPopupWheelScroll.after.historyScrollTop > historyPopupWheelScroll.beforeScrollTop.historyScrollTop,
-    `repeated wheel input over a closing history tooltip should keep scrolling the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
+    `repeated wheel input over an expanded history entry should keep scrolling the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(
     historyPopupWheelScroll.after.dashboardScrollTop,
     historyPopupWheelScroll.beforeScrollTop.dashboardScrollTop,
-    `wheel input over a history tooltip should not scroll the dashboard pane first: ${JSON.stringify(historyPopupWheelScroll)}`
+    `wheel input over an expanded history entry should not scroll the dashboard pane first: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.after.expansionCount,
+    0,
+    `history expansion should close after wheel input scrolls the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(
     historyPopupWheelScroll.after.tooltipCount,
     0,
-    `history tooltip should close after popup wheel input scrolls the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should not leave a tooltip popup after wheel input: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(
-    historyPopupWheelScroll.afterLeaveTooltipCount,
+    historyPopupWheelScroll.afterLeaveExpansionState.expansionCount,
     0,
-    `history tooltip should close after the pointer leaves the wheel-scrolled popup: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should stay closed after the pointer leaves the wheel-scrolled entry: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
+    historyPopupWheelScroll.afterLeaveExpansionState.tooltipCount,
+    0,
+    `history expansion should not leave a tooltip popup after pointer leave: ${JSON.stringify(historyPopupWheelScroll)}`
   )
 
   const windowBlurTooltip = await measureTooltipWindowBlurClose(session)
