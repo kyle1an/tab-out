@@ -267,6 +267,13 @@ export interface WorkingSetItem {
   active: boolean
   activeInOtherWindow: boolean
   score: number
+  /**
+   * Most recent activation OR navigation timestamp for this item's URL,
+   * derived as Math.max(lastActivatedAt, lastNavigatedAt) from the activity
+   * record. Non-nullable because a working-set item only exists when an
+   * activity record does.
+   */
+  lastActivatedAt: number
 }
 
 export interface WorkingSetSnapshot {
@@ -301,6 +308,13 @@ export interface TabHistoryEntry {
   rawUrl: string
   displayUrl: string
   favIconUrl: string
+  /**
+   * Most recent activation OR navigation timestamp for this entry's URL,
+   * derived as Math.max(lastActivatedAt, lastNavigatedAt) from the activity
+   * log. Null when the URL has no activity record yet (e.g. a tab that was
+   * opened but never explicitly activated while the extension was running).
+   */
+  lastActivatedAt: number | null
 }
 
 export interface TabHistorySnapshot {

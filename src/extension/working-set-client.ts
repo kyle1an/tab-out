@@ -36,7 +36,8 @@ export function normalizeWorkingSetSnapshot(snapshot: Partial<WorkingSetSnapshot
         dupeCount: Number.isInteger(item.dupeCount) ? Math.max(1, Number(item.dupeCount)) : 1,
         active: !!item.active,
         activeInOtherWindow: !!item.activeInOtherWindow,
-        score: typeof item.score === 'number' ? item.score : 0
+        score: typeof item.score === 'number' ? item.score : 0,
+        lastActivatedAt: typeof item.lastActivatedAt === 'number' ? item.lastActivatedAt : 0
       }
     })
     .filter((item): item is WorkingSetItem => !!item)

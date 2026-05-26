@@ -52,6 +52,7 @@ function makeWorkingSetItem(index: number, overrides: Partial<WorkingSetItem> = 
     active: false,
     activeInOtherWindow: false,
     score: 100 - index,
+    lastActivatedAt: 0,
     ...overrides
   }
 }
@@ -516,4 +517,28 @@ test('snapshotWorkingSetItemPositions reads stable grid-local rects by layout ke
       ['second', { left: 56, top: 78, width: 0, height: 0 }]
     ]
   )
+})
+
+test('buildWorkingSetSnapshot populates lastActivatedAt as the max of activation and navigation events', () => {
+  const now = Date.UTC(2026, 5, 1, 12)
+  const tabs = [makeTab({ id: 1, url: 'https://example.com/page', title: 'Page' })]
+  let activity = emptyWorkingSetActivity()
+  activity = record(activity, tabs[0], 'activation', now - 5000)
+  activity = record(activity, tabs[0], 'navigation', now - 1000)
+
+  const snapshot = buildWorkingSetSnapshot({ tabs, activity, now, minItems: 1 })
+
+  assert.equal(snapshot.items.length, 1)
+  assert.equal(snapshot.items[0].lastActivatedAt, now - 1000)
+})
+
+test('buildWorkingSetSnapshot uses activation timestamp when no navigation event exists', () => {
+  const now = Date.UTC(2026, 5, 1, 12)
+  const tabs = [makeTab({ id: 1, url: 'https://example.com/page', title: 'Page' })]
+  let activity = emptyWorkingSetActivity()
+  activity = record(activity, tabs[0], 'activation', now - 2000)
+
+  const snapshot = buildWorkingSetSnapshot({ tabs, activity, now, minItems: 1 })
+
+  assert.equal(snapshot.items[0].lastActivatedAt, now - 2000)
 })

@@ -10,7 +10,7 @@ import { createChromeApi, type ChromeApi } from './chrome-api.js'
 import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspender.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore, WorkingSetSnapshot } from '../types'
 
-const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
+export const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
 
 export type WorkingSetService = {
   getWorkingSetSnapshot: () => Promise<WorkingSetSnapshot>

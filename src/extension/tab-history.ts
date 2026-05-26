@@ -51,7 +51,8 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     url,
     rawUrl: String(entry?.rawUrl || url),
     displayUrl: String(entry?.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
-    favIconUrl: pickFavicon({ favIconUrl: String(entry?.favIconUrl || ''), url })
+    favIconUrl: pickFavicon({ favIconUrl: String(entry?.favIconUrl || ''), url }),
+    lastActivatedAt: integerOrNull(entry?.lastActivatedAt)
   }
 }
 

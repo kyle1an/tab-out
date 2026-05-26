@@ -13,6 +13,8 @@ import {
   type GlobalTabHistory,
   type GlobalTabHistoryInput
 } from './tab-history-state.js'
+import { normalizeWorkingSetActivity, pageIdentityForWorkingSet } from '../working-set.js'
+import { WORKING_SET_ACTIVITY_KEY } from './working-set-service.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
 import { focusExistingTabTarget } from '../tab-focus.js'
@@ -109,6 +111,23 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       await runChromeEffectBestEffort(writeChromeStorageValue(storage, TAB_HISTORY_KEY, cleanHistory))
     } catch {
       // Best-effort only - the command can still work while the worker lives.
+    }
+  }
+
+  async function readActivityTimestamps(): Promise<Map<string, number>> {
+    const storage = tabHistoryStorageArea()
+    if (!storage) return new Map()
+    try {
+      const stored = await runChromeEffect(readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY))
+      const activity = normalizeWorkingSetActivity(stored as Parameters<typeof normalizeWorkingSetActivity>[0])
+      const map = new Map<string, number>()
+      for (const [key, record] of Object.entries(activity.records)) {
+        const ts = Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)
+        if (ts > 0) map.set(key, ts)
+      }
+      return map
+    } catch {
+      return new Map()
     }
   }
 
@@ -386,6 +405,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       const cleanHistory = canonicalizeGlobalHistory(prunedHistory).history
       const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
       const nextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
+      const activityTimestamps = await readActivityTimestamps()
 
       return {
         history: cleanHistory,
@@ -406,6 +426,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
             const displayUrl = displayUrlForHistory(url)
             const cleanTitle = (tab?.title || '').replace(/\u200e/g, '').trim()
             const title = unwrapSuspenderTitle(rawUrl) || (cleanTitle ? cleanTitle : displayUrl)
+            const activityKey = pageIdentityForWorkingSet(url)
             return {
               index,
               tabId: entry.tabId,
@@ -424,7 +445,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               url,
               rawUrl,
               displayUrl,
-              favIconUrl: tab?.favIconUrl || ''
+              favIconUrl: tab?.favIconUrl || '',
+              lastActivatedAt: activityKey ? activityTimestamps.get(activityKey) ?? null : null
             }
           })
         }
