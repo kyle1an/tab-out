@@ -63,8 +63,11 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   const filtering = filter.trim().length > 0
   const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))
   const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : openTabs
-  const totalWindows = new Set(openTabs.map((t) => t.windowId)).size
-  const visibleWindows = new Set(visibleTabs.map((t) => t.windowId)).size
+  // Standalone apps open in dedicated windows; counting them inflates the
+  // window stat with windows that hold no regular tabs. Exclude them from
+  // both totals so the header reads as "browser windows" only.
+  const totalWindows = new Set(openTabs.filter((t) => !t.isApp).map((t) => t.windowId)).size
+  const visibleWindows = new Set(visibleTabs.filter((t) => !t.isApp).map((t) => t.windowId)).size
   const allowMutations = dashboardSourceAllowsTabActions(source)
 
   const matchedCards: DashboardCardEntry[] = []
