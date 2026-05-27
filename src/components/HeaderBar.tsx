@@ -167,30 +167,7 @@ export function HeaderBar({
   return (
     <header className="flex flex-col">
       <div className="header-row flex items-center justify-between gap-4">
-        <HeaderStats
-          source={source}
-          ready={ready}
-          totalTabs={stats.totalTabs}
-          visibleTabs={stats.visibleTabs}
-          totalWindows={stats.totalWindows}
-          visibleWindows={stats.visibleWindows}
-          totalDomains={stats.totalDomains}
-          visibleDomains={stats.visibleDomains}
-          dedupCount={stats.dedupCount}
-          filteredCloseCount={stats.filteredCloseCount}
-          hasCards={stats.hasCards}
-          filtering={stats.filtering}
-          onDedupAll={onDedupAll}
-          onCloseFiltered={onCloseFiltered}
-        />
-        <div className="header-controls inline-flex items-center gap-2.5">
-          <SourceSwitch source={source} onSourceChange={onSourceChange} />
-          {showHistoryRange && (
-            <HistoryRangeSelect
-              value={historyRange}
-              onValueChange={(nextRange) => onHistoryRangeChange?.(nextRange)}
-            />
-          )}
+        <div className="header-left inline-flex items-center gap-2.5">
           <div
             data-tabout="filter-query"
             className={cn('tab-filter-wrap relative inline-flex items-center', filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex')}
@@ -220,6 +197,31 @@ export function HeaderBar({
               </button>
             </TooltipAnchor>
           </div>
+          <HeaderStats
+            source={source}
+            ready={ready}
+            totalTabs={stats.totalTabs}
+            visibleTabs={stats.visibleTabs}
+            totalWindows={stats.totalWindows}
+            visibleWindows={stats.visibleWindows}
+            totalDomains={stats.totalDomains}
+            visibleDomains={stats.visibleDomains}
+            dedupCount={stats.dedupCount}
+            filteredCloseCount={stats.filteredCloseCount}
+            hasCards={stats.hasCards}
+            filtering={stats.filtering}
+            onDedupAll={onDedupAll}
+            onCloseFiltered={onCloseFiltered}
+          />
+        </div>
+        <div className="header-controls inline-flex items-center gap-2.5">
+          <SourceSwitch source={source} onSourceChange={onSourceChange} />
+          {showHistoryRange && (
+            <HistoryRangeSelect
+              value={historyRange}
+              onValueChange={(nextRange) => onHistoryRangeChange?.(nextRange)}
+            />
+          )}
         </div>
       </div>
     </header>
