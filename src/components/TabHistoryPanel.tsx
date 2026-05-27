@@ -641,6 +641,14 @@ function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnap
         </>
       )
     }
+    if (relativeIndex > 0) {
+      return (
+        <>
+          <span>+</span>
+          <span>{relativeIndex}</span>
+        </>
+      )
+    }
     return String(relativeIndex)
   }
   return String(fallback)
