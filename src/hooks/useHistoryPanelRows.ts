@@ -25,7 +25,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
     0
   )
   const stackCursorIndex = snapshot?.currentIndex ?? stackEntries.length - 1
-  const stackCandidates: HistoryPanelRow[] = []
+  const stackCandidates: Array<{ row: HistoryPanelRow; cursorDistance: number }> = []
   for (const entry of stackEntries) {
     if (filterActive && !tabMatchesFilter({ title: entry.title, url: entry.url, isTabOut: false }, filter)) continue
     const cursorDistance = Math.abs(entry.index - stackCursorIndex)
@@ -33,8 +33,9 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
       ? stackBaseTimestamp - cursorDistance
       : -cursorDistance
     const lastTouchedAt = entry.lastActivatedAt ?? synthesizedTouchedAt
-    stackCandidates.push({ kind: 'stack', entry, lastTouchedAt })
+    stackCandidates.push({ row: { kind: 'stack', entry, lastTouchedAt }, cursorDistance })
   }
+  stackCandidates.sort((a, b) => a.cursorDistance - b.cursorDistance)
 
   const openGhostCandidates: HistoryPanelRow[] = []
   for (const item of workingSet?.items ?? []) {
@@ -61,17 +62,17 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
     rows.push(candidate)
   }
 
-  for (const row of stackCandidates) {
+  for (const { row } of stackCandidates) {
     if (row.kind !== 'stack') continue
-    consume(row, pageIdentityForWorkingSet(row.entry.url))
+    consume(row, pageIdentityForWorkingSet(row.entry.url) || row.entry.url)
   }
   for (const row of openGhostCandidates) {
     if (row.kind !== 'open-ghost') continue
-    consume(row, row.item.key)
+    consume(row, row.item.key || row.item.tabUrl)
   }
   for (const row of closedGhostCandidates) {
     if (row.kind !== 'closed-ghost') continue
-    consume(row, pageIdentityForWorkingSet(row.closed.url))
+    consume(row, pageIdentityForWorkingSet(row.closed.url) || row.closed.url)
   }
 
   rows.sort((a, b) => b.lastTouchedAt - a.lastTouchedAt)

@@ -214,3 +214,30 @@ test('buildHistoryPanelRows slots stack rows with null timestamp by cursor dista
   assert.equal((rows[1] as { entry: TabHistoryEntry }).entry.tabId, 2)
   assert.equal((rows[2] as { entry: TabHistoryEntry }).entry.tabId, 1)
 })
+
+test('buildHistoryPanelRows dedupes utility-URL stack entries to the one closest to current', () => {
+  const rows = buildHistoryPanelRows({
+    snapshot: {
+      stackSize: 3,
+      maxSize: 24,
+      cursorIndex: 2,
+      currentIndex: 2,
+      previousIndex: -1,
+      nextIndex: -1,
+      activeTabId: null,
+      activeWindowId: null,
+      activeWasInserted: false,
+      entries: [
+        makeStackEntry({ index: 0, tabId: 1, url: 'chrome://newtab/' }),
+        makeStackEntry({ index: 1, tabId: 2, url: 'chrome://newtab/' }),
+        makeStackEntry({ index: 2, tabId: 3, url: 'chrome://newtab/' })
+      ]
+    },
+    workingSet: null,
+    closedTabs: [],
+    filter: ''
+  })
+
+  assert.equal(rows.length, 1)
+  assert.equal((rows[0] as { entry: TabHistoryEntry }).entry.tabId, 3)
+})
