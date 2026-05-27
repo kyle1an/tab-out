@@ -2137,6 +2137,11 @@ test('PageChip renders folded titles before env controls', () => {
 test('PathgroupSection renders header path-group pills with a slash prefix', () => {
   const html = renderToStaticMarkup(
     React.createElement(PathgroupSection, {
+      domain: 'github.com',
+      subdomainKey: '',
+      websitePathKey: '',
+      pathgroupKey: 'openai/docs',
+      isPinned: false,
       label: 'openai/docs',
       isPR: false,
       count: 1,
@@ -2153,6 +2158,10 @@ test('PathgroupSection renders header path-group pills with a slash prefix', () 
 test('WebsitePathSection renders raw path labels and keeps suppression summary on the section rail', () => {
   const html = renderToStaticMarkup(
     React.createElement(WebsitePathSection, {
+      domain: 'example.atlassian.net',
+      subdomainKey: '',
+      websitePathKey: '/wiki',
+      isPinned: false,
       label: '/wiki',
       sectionCount: 3,
       sectionClosableUrls: [],
@@ -2185,7 +2194,8 @@ test('WebsitePathSection renders raw path labels and keeps suppression summary o
             })
           ],
           hiddenChips: [],
-          hiddenCount: 0
+          hiddenCount: 0,
+          isPinned: false
         }
       ]
     })

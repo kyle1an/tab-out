@@ -1,13 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { pathgroupPinId } from '../extension/section-pins.js'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
 import { usePageChipOverflow } from './PageChipOverflow'
+import { SectionPinButton } from './SectionPinButton'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { Dispatch, SetStateAction } from 'react'
 import type { TitleSuppressionTone } from './title-suppression'
-import type { DashboardChipData, DashboardTitleSuppression } from './types'
+import type { DashboardChipData, DashboardTitleSuppression, TogglePinnedSectionHandler } from './types'
 
 let pathgroupLabelResizeObserver: ResizeObserver | null = null
 const pathgroupLabelTruncationCallbacks = new WeakMap<
@@ -22,6 +24,19 @@ interface PathgroupCloseButtonProps {
 }
 
 interface PathgroupSectionProps {
+  // Pin context defaults to empty / false so call sites and test mocks
+  // that predate the pin feature still compile. The pin button only
+  // renders when onTogglePinnedSection is supplied.
+  domain?: string
+  subdomainKey?: string
+  // Empty when the pathgroup is rendered directly under a subdomain. Set
+  // when nested inside a website-path section.
+  websitePathKey?: string
+  // Cluster identity used for the pin id — matches cluster.key from the
+  // view-model (e.g. 'acme/repo' or 'acme/repo:pr').
+  pathgroupKey?: string
+  isPinned?: boolean
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null
   label: string
   isPR: boolean
   count: number
@@ -97,7 +112,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
   )
 }
 
-export function PathgroupSection({ label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', suppressedTitleParts = EMPTY_SUPPRESSED_TITLE_PARTS, useSuppressionTokenTones = false, suppressedTitleToneIndexByText = EMPTY_SUPPRESSION_TONE_INDEX, suppressedTitleToneByText }: PathgroupSectionProps) {
+export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKey = '', pathgroupKey = '', isPinned = false, onTogglePinnedSection = null, label, isPR, count, closableUrls, visibleChips, hiddenChips, hiddenCount, className, isFirstContent = false, filter = '', suppressedTitleParts = EMPTY_SUPPRESSED_TITLE_PARTS, useSuppressionTokenTones = false, suppressedTitleToneIndexByText = EMPTY_SUPPRESSION_TONE_INDEX, suppressedTitleToneByText }: PathgroupSectionProps) {
   const labelRef = useRef<HTMLSpanElement | null>(null)
   const [pathgroupLabelTruncated, setPathgroupLabelTruncated] = useState(false)
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()
@@ -105,6 +120,7 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
   const pathgroupLabelTooltipContent = pathgroupLabelTruncated ? (
     <span className="text-[13px] leading-tight">{displayLabel}</span>
   ) : undefined
+  const canPin = typeof onTogglePinnedSection === 'function'
   const { expanded, pageChips } = usePageChipOverflow({
     visibleChips,
     hiddenChips,
@@ -113,6 +129,10 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
     suppressedTitleToneByText,
     overflowButtonClassName: 'pl-3'
   })
+
+  async function onTogglePin() {
+    await onTogglePinnedSection?.(pathgroupPinId(domain, subdomainKey, websitePathKey, pathgroupKey))
+  }
 
   useLayoutEffect(() => {
     const labelEl = labelRef.current
@@ -173,6 +193,14 @@ export function PathgroupSection({ label, isPR, count, closableUrls, visibleChip
           </span>
         )}
         <span className="pathgroup-header-count text-xs tabular-nums text-tab-muted opacity-70">{count}</span>
+        {canPin && (
+          <SectionPinButton
+            pinned={isPinned}
+            label={displayLabel}
+            onClick={onTogglePin}
+            className="group-hover/pathgroup-section:opacity-100"
+          />
+        )}
         {closableUrls && closableUrls.length > 0 && <PathgroupCloseButton count={closableUrls.length} isFirstContent={isFirstContent} onClick={onCloseCluster} />}
       </div>
       <TitleSuppressionSummary

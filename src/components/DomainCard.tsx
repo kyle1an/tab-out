@@ -10,7 +10,7 @@ import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler } from './types'
+import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedSectionHandler } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
@@ -22,6 +22,7 @@ interface DomainCardProps {
   activeHoverSource?: HoverUrlSource | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null
 }
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
@@ -137,7 +138,7 @@ type RenderSectionVM = DashboardSectionVM & {
 
 const EMPTY_HOVER_URLS: readonly string[] = []
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null }: DomainCardProps) {
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const cardContext = {
@@ -316,7 +317,11 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
               return (
                 <SubdomainSection
                   key={section.key || '__root__'}
+                  domain={group.domain}
                   subdomainKey={section.key}
+                  isPinned={section.isPinned}
+                  isShared={section.isShared}
+                  onTogglePinnedSection={onTogglePinnedSection}
                   position={index === 0 ? 'first' : 'later'}
                   headerType={!section.showHeader ? 'hidden' : section.isPort ? 'port' : 'subdomain'}
                   sectionCount={section.sectionCount}

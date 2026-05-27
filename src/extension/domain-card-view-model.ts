@@ -8,6 +8,7 @@ import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './w
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
+import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
 import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
@@ -18,6 +19,16 @@ type ComputeCardOptions = {
   currentWindowId?: number | null
   chipOrder?: Map<string, number>
   chipPriority?: DashboardChipPriorityMap
+  pinnedSections?: ReadonlySet<string>
+}
+
+const EMPTY_PINNED_SECTIONS: ReadonlySet<string> = new Set<string>()
+
+// Stable pinned-first sort. Array.prototype.sort has been stable since
+// ES2019, so unpinned items keep their incoming order. Treats absent
+// isPinned (test mocks built before this feature) as false.
+function sortPinnedFirst<T extends { isPinned?: boolean }>(items: readonly T[]): T[] {
+  return items.slice().sort((a, b) => Number(b.isPinned === true) - Number(a.isPinned === true))
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
 type TitlePresentation = {
@@ -571,7 +582,7 @@ function disambiguatingPaths(urls: string[]): string[] {
  * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null, chipOrder, chipPriority }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
   const filtering = filter.trim() !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -1236,7 +1247,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return result
   }
 
-  function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>): SectionContentVM {
+  function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>, pinContext: { subdomainKey: string; websitePathKey: string }): SectionContentVM {
     // Path-group pills: resolve each tab's path group (github repo,
     // jira project, contentful env, etc.) and only keep labels whose
     // group has ≥2 members in this content group. A lone group is
@@ -1305,7 +1316,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       }
     }
 
-    const clusters = rawClusters.map(({ label, tabs, key, isPR }) => {
+    const unsortedClusters = rawClusters.map(({ label, tabs, key, isPR }) => {
       const orderedTabs = tabs.slice().sort((a, b) => {
         const aCat = categoryRank(pgByUrl.get(a.url)?.category)
         const bCat = categoryRank(pgByUrl.get(b.url)?.category)
@@ -1326,9 +1337,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         closableUrls: clusterClosable.map((t) => t.url),
         visibleChips: vis,
         hiddenChips: hid,
-        hiddenCount: hid.length
+        hiddenCount: hid.length,
+        isPinned: pinnedSections.has(pathgroupPinId(group.domain, pinContext.subdomainKey, pinContext.websitePathKey, key))
       }
     })
+    const clusters = sortPinnedFirst(unsortedClusters)
 
     const flatPathByUrl = titleCollisionPathByUrl(singletonTabs)
     const flatChipData = buildChipDataList(singletonTabs, showChipPrefix, flatPathByUrl, '')
@@ -1381,7 +1394,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           flatHiddenCount: 0,
           suppressedTitleParts: [],
           clusters: [],
-          websitePathSections: []
+          websitePathSections: [],
+          isPinned: false
         }
       ]
     }
@@ -1478,11 +1492,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       flatHiddenCount: hid.length,
       suppressedTitleParts: [],
       clusters: [],
-      websitePathSections: []
+      websitePathSections: [],
+      isPinned: false
     }
   }
 
-  const sectionsData: DashboardSectionVM[] = sections.map(([key, sectionTabs]) => {
+  const unsortedSectionsData: DashboardSectionVM[] = sections.map(([key, sectionTabs]) => {
     // Header appears only when a card has 2+ subdomain sections AND
     // the section isn't the empty-key "root" (card title already says
     // the root). When shown, the header replaces the per-chip prefix —
@@ -1532,13 +1547,14 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       websitePathBucketList.length > 1 ||
       (websitePathBucketList.length === 1 && websitePathBucketList[0].tabs.length >= 2 && tabsWithoutWebsitePathSection.length > 0)
     const parentTabs = showWebsitePathSections ? tabsWithoutWebsitePathSection : sectionTabs
-    const parentContent = buildSectionContent(parentTabs, showChipPrefix, parentRedundantLabels)
-    const websitePathSections: DashboardWebsitePathSectionVM[] = showWebsitePathSections
+    const parentContent = buildSectionContent(parentTabs, showChipPrefix, parentRedundantLabels, { subdomainKey: key, websitePathKey: '' })
+    const unsortedWebsitePathSections: DashboardWebsitePathSectionVM[] = showWebsitePathSections
       ? websitePathBucketList.map((websitePathSection) => {
           const content = buildSectionContent(
             websitePathSection.tabs,
             showChipPrefix,
-            new Set([...parentRedundantLabels, websitePathSection.label])
+            new Set([...parentRedundantLabels, websitePathSection.label]),
+            { subdomainKey: key, websitePathKey: websitePathSection.key }
           )
           return {
             key: websitePathSection.key,
@@ -1546,10 +1562,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
             sectionCount: websitePathSection.tabs.length,
             sectionClosableUrls: allowMutations ? websitePathSection.tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url) : [],
             ...content,
-            suppressedTitleParts: []
+            suppressedTitleParts: [],
+            isPinned: pinnedSections.has(websitePathPinId(group.domain, key, websitePathSection.key))
           }
         })
       : []
+    const websitePathSections = sortPinnedFirst(unsortedWebsitePathSections)
 
     // Closable URLs for the subdomain-level close button in the
     // SubdomainSection header (shown only on multi-subdomain cards,
@@ -1567,9 +1585,16 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       isPort: isPortGroup,
       ...parentContent,
       suppressedTitleParts: [],
-      websitePathSections
+      websitePathSections,
+      isPinned: pinnedSections.has(subdomainPinId(group.domain, key))
     }
   })
+
+  // Float pinned subdomain sections to the top of the card. The shared
+  // (cross-env) section, prepended below, is a virtual aggregation —
+  // not user-pinnable — so the sort runs before the unshift to keep
+  // shared above everything.
+  const sectionsData = sortPinnedFirst(unsortedSectionsData)
 
   // Prepend the cross-env fold section so it sits above the per-
   // subdomain sections — it reads as a TL;DR of "these pages are the

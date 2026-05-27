@@ -56,9 +56,10 @@ type DashboardViewModelOptions = {
   currentWindowId?: number | null
   chipOrder?: DashboardChipOrderByCard
   chipPriority?: DashboardChipPriorityMap
+  pinnedSections?: ReadonlySet<string>
 }
 
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority }: DashboardViewModelOptions = {}): DashboardViewModel {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.trim().length > 0
   const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))
   const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : openTabs
@@ -72,7 +73,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   let dedupCount = 0
   for (const group of groups) {
     const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority })
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -83,7 +84,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 

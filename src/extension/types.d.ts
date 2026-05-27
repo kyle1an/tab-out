@@ -136,6 +136,7 @@ export interface DashboardClusterVM {
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
+  isPinned?: boolean
 }
 
 export interface DashboardWebsitePathSectionVM {
@@ -149,6 +150,7 @@ export interface DashboardWebsitePathSectionVM {
   flatHiddenCount: number
   suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: DashboardClusterVM[]
+  isPinned?: boolean
 }
 
 export interface DashboardSectionVM {
@@ -165,6 +167,7 @@ export interface DashboardSectionVM {
   suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: DashboardClusterVM[]
   websitePathSections: DashboardWebsitePathSectionVM[]
+  isPinned?: boolean
 }
 
 export interface DashboardCardVM {

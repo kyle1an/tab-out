@@ -1,14 +1,16 @@
+import { subdomainPinId } from '../extension/section-pins.js'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
+import { SectionPinButton } from './SectionPinButton'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { WebsitePathSection } from './WebsitePathSection'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, DashboardWebsitePathSectionVM } from './types'
+import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, DashboardWebsitePathSectionVM, TogglePinnedSectionHandler } from './types'
 
 interface SubdomainCloseButtonProps {
   count: number
@@ -16,7 +18,14 @@ interface SubdomainCloseButtonProps {
 }
 
 interface SubdomainSectionProps {
+  // Pin context defaults to empty / false so existing call sites and test
+  // mocks that predate the pin feature still compile. The pin button only
+  // renders when onTogglePinnedSection is supplied.
+  domain?: string
   subdomainKey: string
+  isPinned?: boolean
+  isShared?: boolean
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null
   position?: 'first' | 'later'
   headerType: 'hidden' | 'subdomain' | 'port'
   sectionCount: number
@@ -67,7 +76,11 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
 }
 
 export function SubdomainSection({
+  domain = '',
   subdomainKey,
+  isPinned = false,
+  isShared = false,
+  onTogglePinnedSection = null,
   position = 'later',
   headerType,
   sectionCount,
@@ -88,10 +101,18 @@ export function SubdomainSection({
   const hasFlat = flatSection !== null
   const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
   const headerLabel = subdomainKey
+  // Pinning a virtual section (cross-env shared, apps card) wouldn't have a
+  // stable identity, so skip the affordance there. The pin button itself
+  // only renders when the parent card supplies a toggle handler.
+  const canPin = !isShared && showHeader && typeof onTogglePinnedSection === 'function'
 
   async function onCloseSubdomain() {
     if (!sectionClosableUrls || sectionClosableUrls.length === 0) return
     await closeExactTabSection({ urls: sectionClosableUrls })
+  }
+
+  async function onTogglePin() {
+    await onTogglePinnedSection?.(subdomainPinId(domain, subdomainKey))
   }
 
   return (
@@ -120,6 +141,14 @@ export function SubdomainSection({
             {headerLabel}
           </span>
           <span className="subdomain-header-count font-medium tabular-nums opacity-[0.55]">{sectionCount}</span>
+          {canPin && (
+            <SectionPinButton
+              pinned={isPinned}
+              label={headerLabel}
+              onClick={onTogglePin}
+              className="group-hover/subdomain-section:opacity-100"
+            />
+          )}
           {hasClose && <SubdomainCloseButton count={sectionClosableUrls.length} onClick={onCloseSubdomain} />}
         </div>
       )}
@@ -144,6 +173,11 @@ export function SubdomainSection({
       {websitePathSections.map((websitePathSection, index) => (
         <WebsitePathSection
           key={websitePathSection.key}
+          domain={domain}
+          subdomainKey={subdomainKey}
+          websitePathKey={websitePathSection.key}
+          isPinned={websitePathSection.isPinned}
+          onTogglePinnedSection={onTogglePinnedSection}
           label={websitePathSection.label}
           sectionCount={websitePathSection.sectionCount}
           sectionClosableUrls={websitePathSection.sectionClosableUrls}
@@ -171,6 +205,12 @@ export function SubdomainSection({
         return (
           <PathgroupSection
             key={cluster.key}
+            domain={domain}
+            subdomainKey={subdomainKey}
+            websitePathKey=""
+            pathgroupKey={cluster.key}
+            isPinned={cluster.isPinned}
+            onTogglePinnedSection={onTogglePinnedSection}
             label={cluster.label}
             isPR={cluster.isPR}
             count={cluster.count}

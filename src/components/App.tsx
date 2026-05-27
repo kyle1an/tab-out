@@ -11,6 +11,7 @@ import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboa
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
+import { usePinnedSections } from '../hooks/usePinnedSections'
 import { useUrlPreview } from '../hooks/useUrlPreview'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
@@ -26,7 +27,8 @@ import type {
   HoverUrlSource,
   LayoutChangeHandler,
   TabHistorySnapshot,
-  TogglePinnedDomainHandler
+  TogglePinnedDomainHandler,
+  TogglePinnedSectionHandler
 } from './types'
 import type { WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
@@ -57,6 +59,7 @@ type MissionBlockProps = {
   onHoverUrlChange: HoverUrlChangeHandler
   onLayoutChange: LayoutChangeHandler
   onTogglePinnedDomain: TogglePinnedDomainHandler
+  onTogglePinnedSection: TogglePinnedSectionHandler
   showEmptyState: boolean
   source: DashboardSource
 }
@@ -100,6 +103,7 @@ type DashboardMissionsListProps = {
   onHoverUrlChange: HoverUrlChangeHandler
   onLayoutChange: LayoutChangeHandler
   onTogglePinnedDomain: TogglePinnedDomainHandler
+  onTogglePinnedSection: TogglePinnedSectionHandler
   sections: DashboardMissionSection[]
 }
 type ProgressiveCardsOptions = {
@@ -266,6 +270,7 @@ function MissionBlock({
   onHoverUrlChange,
   onLayoutChange,
   onTogglePinnedDomain,
+  onTogglePinnedSection,
   showEmptyState,
   source
 }: MissionBlockProps) {
@@ -293,6 +298,7 @@ function MissionBlock({
         activeHoverSource={activeHoverSource}
         onLayoutChange={onLayoutChange}
         onTogglePinnedDomain={onTogglePinnedDomain}
+        onTogglePinnedSection={onTogglePinnedSection}
       />
     </MissionsGrid>
   )
@@ -381,6 +387,7 @@ function DashboardMissionsList({
   onHoverUrlChange,
   onLayoutChange,
   onTogglePinnedDomain,
+  onTogglePinnedSection,
   sections
 }: DashboardMissionsListProps) {
   if (sections.length === 0) return null
@@ -402,6 +409,7 @@ function DashboardMissionsList({
             onHoverUrlChange={onHoverUrlChange}
             onLayoutChange={onLayoutChange}
             onTogglePinnedDomain={onTogglePinnedDomain}
+            onTogglePinnedSection={onTogglePinnedSection}
             showEmptyState={section.showEmptyState}
             source={section.source}
           />
@@ -524,6 +532,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     onBeforeApplyPinnedDomains: resetMissionOrder,
     onSaveError: () => showToast('Could not save pinned domain')
   })
+  const { pinnedSections, togglePinnedSection } = usePinnedSections({
+    onSaveError: () => showToast('Could not save pinned section')
+  })
   const refreshDashboard = useDashboardRefresh({
     dashboard,
     source,
@@ -585,7 +596,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyFilterEnabled,
     isReady,
     chipOrder: chipOrderRef.current,
-    workingSet
+    workingSet,
+    pinnedSections
   })
 
   async function onCloseFiltered() {
@@ -731,6 +743,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
               onHoverUrlChange={handleHoverUrlChange}
               onLayoutChange={scheduleMissionsMasonry}
               onTogglePinnedDomain={togglePinnedDomain}
+              onTogglePinnedSection={togglePinnedSection}
               sections={missionSections}
             />
           </div>

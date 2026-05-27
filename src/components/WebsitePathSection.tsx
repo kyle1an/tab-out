@@ -1,13 +1,15 @@
+import { websitePathPinId } from '../extension/section-pins.js'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
 import { FlatSection } from './FlatSection'
 import { PathgroupSection } from './PathgroupSection'
+import { SectionPinButton } from './SectionPinButton'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression } from './types'
+import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, TogglePinnedSectionHandler } from './types'
 
 interface WebsitePathSectionCloseButtonProps {
   count: number
@@ -16,6 +18,14 @@ interface WebsitePathSectionCloseButtonProps {
 }
 
 interface WebsitePathSectionProps {
+  // Pin context defaults to empty / false so call sites and test mocks
+  // that predate the pin feature still compile. The pin button only
+  // renders when onTogglePinnedSection is supplied.
+  domain?: string
+  subdomainKey?: string
+  websitePathKey?: string
+  isPinned?: boolean
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null
   label: string
   sectionCount: number
   sectionClosableUrls: string[]
@@ -61,6 +71,11 @@ function WebsitePathSectionCloseButton({ count, isFirstContent = false, onClick 
 }
 
 export function WebsitePathSection({
+  domain = '',
+  subdomainKey = '',
+  websitePathKey = '',
+  isPinned = false,
+  onTogglePinnedSection = null,
   label,
   sectionCount,
   sectionClosableUrls,
@@ -79,10 +94,15 @@ export function WebsitePathSection({
 }: WebsitePathSectionProps) {
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()
   const hasClose = sectionClosableUrls && sectionClosableUrls.length > 0
+  const canPin = typeof onTogglePinnedSection === 'function'
 
   async function onCloseWebsitePathSection() {
     if (!sectionClosableUrls || sectionClosableUrls.length === 0) return
     await closeExactTabSection({ urls: sectionClosableUrls })
+  }
+
+  async function onTogglePin() {
+    await onTogglePinnedSection?.(websitePathPinId(domain, subdomainKey, websitePathKey))
   }
 
   return (
@@ -97,6 +117,14 @@ export function WebsitePathSection({
           {label}
         </span>
         <span className="website-path-section-header-count text-xs tabular-nums text-tab-muted opacity-70">{sectionCount}</span>
+        {canPin && (
+          <SectionPinButton
+            pinned={isPinned}
+            label={label}
+            onClick={onTogglePin}
+            className="group-hover/website-path-section:opacity-100"
+          />
+        )}
         {hasClose && <WebsitePathSectionCloseButton count={sectionClosableUrls.length} isFirstContent={isFirstContent} onClick={onCloseWebsitePathSection} />}
       </div>
       <TitleSuppressionSummary
@@ -126,6 +154,12 @@ export function WebsitePathSection({
         return (
           <PathgroupSection
             key={cluster.key}
+            domain={domain}
+            subdomainKey={subdomainKey}
+            websitePathKey={websitePathKey}
+            pathgroupKey={cluster.key}
+            isPinned={cluster.isPinned}
+            onTogglePinnedSection={onTogglePinnedSection}
             label={cluster.label}
             isPR={cluster.isPR}
             count={cluster.count}
