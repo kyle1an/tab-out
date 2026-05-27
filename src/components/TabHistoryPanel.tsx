@@ -22,6 +22,11 @@ const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
 const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
+// How long after the last wheel event a manual-scroll gesture is considered
+// still active. The expanded entry collapses immediately on the first wheel
+// (so it never floats), but the gesture stays latched to the overflow:hidden
+// document, so we keep driving the list manually until the wheel goes quiet.
+const HISTORY_ENTRY_WHEEL_SETTLE_MS = 120
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
@@ -65,6 +70,22 @@ const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
 const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
 let activeExpandedHistoryEntryId: string | null = null
 const expandedHistoryEntrySubscribers = new Set<(activeId: string | null) => void>()
+
+// Shared across all history entries. While a wheel gesture is in progress
+// over (or starting from) an expanded entry, we drive the list manually
+// because the fixed popout latches the browser's scroll to the
+// overflow:hidden document. The flag lets the manual scroll keep going as the
+// gesture's wheel events retarget to different (now-collapsed) entries.
+let historyWheelGestureActive = false
+let historyWheelGestureTimer: number | null = null
+function markHistoryWheelGestureActive() {
+  historyWheelGestureActive = true
+  if (historyWheelGestureTimer !== null) window.clearTimeout(historyWheelGestureTimer)
+  historyWheelGestureTimer = window.setTimeout(() => {
+    historyWheelGestureActive = false
+    historyWheelGestureTimer = null
+  }, HISTORY_ENTRY_WHEEL_SETTLE_MS)
+}
 
 function setActiveExpandedHistoryEntry(id: string | null) {
   if (activeExpandedHistoryEntryId === id) return
@@ -989,15 +1010,26 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   }
 
   function onHistoryEntryWheel(e: WheelEvent<HTMLDivElement>) {
-    if (!titleExpandedRef.current || e.deltaY === 0) return
+    if (e.deltaY === 0) return
+    // Engage only while this entry is expanded, or while a manual-scroll gesture
+    // is already running (events retarget to collapsed entries as the list moves).
+    if (!titleExpandedRef.current && !historyWheelGestureActive) return
     const historyList = entrySlotRef.current?.closest<HTMLElement>('.history-entry-list')
     if (!historyList) return
+    // The expanded entry is position:fixed, so a wheel/momentum gesture over it
+    // latches the browser's scroll to the document — which is overflow:hidden
+    // (base.css) and can't move. Native scrolling therefore does nothing for
+    // the gesture's duration, even after the entry collapses. So drive the list
+    // manually for every event of the gesture. Collapse the popout immediately
+    // (unlike the page chip it is detached/fixed, so a lingering popout would
+    // visibly float). preventDefault is intentionally NOT called — native does
+    // nothing here and calling it cancels trackpad momentum.
+    e.stopPropagation()
     const maxScrollTop = Math.max(0, historyList.scrollHeight - historyList.clientHeight)
     const nextScrollTop = Math.max(0, Math.min(maxScrollTop, historyList.scrollTop + e.deltaY))
-    e.preventDefault()
-    e.stopPropagation()
     if (nextScrollTop !== historyList.scrollTop) historyList.scrollTop = nextScrollTop
-    closeTitleExpansion({ delayed: false })
+    markHistoryWheelGestureActive()
+    if (titleExpandedRef.current) closeTitleExpansion({ delayed: false })
   }
 
   function onHistoryEntryFocus(e: FocusEvent<HTMLDivElement>) {
