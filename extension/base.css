@@ -292,3 +292,15 @@ body {
 .chip-slot:has(.page-chip-hover-match) {
   z-index: 3;
 }
+
+/* When an active-frame chip is hovered (or holds an open tooltip / context
+   menu), its background darkens. With the -1px chip overlap, the inset
+   borders on either side of the seam alpha-blend into the dark hover bg
+   and become hard to see. Strengthen the inset shadow on the hovered chip
+   so its own border stays crisp and the shared seam border (which gets
+   dominated by this chip's stronger inset) remains legible. */
+.page-chip:hover > .active-chip-frame,
+.page-chip.page-chip-context-menu-open > .active-chip-frame,
+.page-chip.page-chip-tooltip-open > .active-chip-frame {
+  box-shadow: inset 0 0 0 1px rgba(38, 38, 38, 0.55);
+}
