@@ -25,17 +25,35 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
     0
   )
   const stackCursorIndex = snapshot?.currentIndex ?? stackEntries.length - 1
-  const stackCandidates: Array<{ row: HistoryPanelRow; cursorDistance: number }> = []
+
+  // Collect each stack entry with its cursor distance and a "base" timestamp:
+  // the real activity-log value when present, else a synthesized fallback
+  // derived from cursor distance.
+  const rawStackCandidates: Array<{ entry: TabHistoryEntry; cursorDistance: number; base: number }> = []
   for (const entry of stackEntries) {
     if (filterActive && !tabMatchesFilter({ title: entry.title, url: entry.url, isTabOut: false }, filter)) continue
     const cursorDistance = Math.abs(entry.index - stackCursorIndex)
     const synthesizedTouchedAt = stackBaseTimestamp > 0
       ? stackBaseTimestamp - cursorDistance
       : -cursorDistance
-    const lastTouchedAt = entry.lastActivatedAt ?? synthesizedTouchedAt
+    rawStackCandidates.push({ entry, cursorDistance, base: entry.lastActivatedAt ?? synthesizedTouchedAt })
+  }
+  rawStackCandidates.sort((a, b) => a.cursorDistance - b.cursorDistance)
+
+  // The stack is the current tab's linear navigation chain, so it must read in
+  // cursor-distance order. A back entry whose URL was recently touched in
+  // ANOTHER tab carries a fresh activity-log timestamp that would otherwise
+  // float it above closer entries (the Image #11 bug). Walking outward from
+  // the cursor and clamping each effective timestamp strictly below the
+  // previous one pins the stack into navigation order, while leaving gaps
+  // where ghost rows still interleave by their own real timestamps.
+  const stackCandidates: Array<{ row: HistoryPanelRow; cursorDistance: number }> = []
+  let previousStackEffective = Number.POSITIVE_INFINITY
+  for (const { entry, cursorDistance, base } of rawStackCandidates) {
+    const lastTouchedAt = Math.min(base, previousStackEffective - 1)
+    previousStackEffective = lastTouchedAt
     stackCandidates.push({ row: { kind: 'stack', entry, lastTouchedAt }, cursorDistance })
   }
-  stackCandidates.sort((a, b) => a.cursorDistance - b.cursorDistance)
 
   const openGhostCandidates: HistoryPanelRow[] = []
   for (const item of workingSet?.items ?? []) {

@@ -215,6 +215,42 @@ test('buildHistoryPanelRows slots stack rows with null timestamp by cursor dista
   assert.equal((rows[2] as { entry: TabHistoryEntry }).entry.tabId, 1)
 })
 
+test('buildHistoryPanelRows keeps stack rows in cursor order despite a fresher cross-tab timestamp on a back entry', () => {
+  // Reproduces the Image #11 bug: a back-history entry whose URL was recently
+  // visited in ANOTHER tab carries a fresh activity-log lastActivatedAt, which
+  // floated it above closer entries (e.g. order 0, -1, -4, -2, -3).
+  const rows = buildHistoryPanelRows({
+    snapshot: {
+      stackSize: 5,
+      maxSize: 24,
+      cursorIndex: 4,
+      currentIndex: 4,
+      previousIndex: 3,
+      nextIndex: -1,
+      activeTabId: null,
+      activeWindowId: null,
+      activeWasInserted: false,
+      entries: [
+        makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/merge', lastActivatedAt: 950 }),
+        makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/mattpocock', lastActivatedAt: 400 }),
+        makeStackEntry({ index: 2, tabId: 3, url: 'https://example.com/dev-web', lastActivatedAt: 500 }),
+        makeStackEntry({ index: 3, tabId: 4, url: 'https://example.com/claude', lastActivatedAt: 900 }),
+        makeStackEntry({ index: 4, tabId: 5, url: 'https://example.com/newtab', lastActivatedAt: 1000 })
+      ]
+    },
+    workingSet: null,
+    closedTabs: [],
+    filter: ''
+  })
+
+  // Cursor is index 4 (relative 0). Display must follow cursor distance:
+  // 4 (0), 3 (-1), 2 (-2), 1 (-3), 0 (-4) — NOT recency order.
+  assert.deepEqual(
+    rows.map((r) => (r as { entry: TabHistoryEntry }).entry.index),
+    [4, 3, 2, 1, 0]
+  )
+})
+
 test('buildHistoryPanelRows dedupes utility-URL stack entries to the one closest to current', () => {
   const rows = buildHistoryPanelRows({
     snapshot: {
