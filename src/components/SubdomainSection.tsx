@@ -129,7 +129,7 @@ export function SubdomainSection({
         setActiveSuppressedTitle={setActiveSuppressedTitle}
         useSuppressionTokenTones={useSuppressionTokenTones}
         suppressedTitleToneIndexByText={suppressedTitleToneIndexByText}
-        className="pb-1"
+        className={cn('pb-1', !isFirst && !showHeader && 'pt-1.5')}
       />
       {hasFlat && (
         <FlatSection
