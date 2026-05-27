@@ -276,11 +276,19 @@ body {
   display: contents;
 }
 
-/* Adjacent page chips that both render an inset active-frame border draw
-   1px on chip A's bottom edge + 1px on chip B's top edge = a 2px visual
-   seam. Overlap by 1px so the two inset borders share a single line.
-   PageChip wraps its outer element in .chip-slot, so the slot is the
-   actual DOM sibling — the page-chip itself is not. */
-.chip-slot:has(.active-chip-frame) + .chip-slot:has(.active-chip-frame) {
+/* Overlap every adjacent chip-slot pair in vertical stacks by 1px so:
+   - Two active-frame chips share their 1px inset border (no doubled seam)
+   - The stack height doesn't shift when one chip's activation changes
+   Scoped to .chip-slot.w-full because icon-only chip-slots use inline-flex
+   and lay out horizontally with their own gap. */
+.chip-slot.w-full + .chip-slot.w-full {
   margin-top: -1px;
+}
+
+/* The hover-match outline (.page-chip-hover-match) is drawn at the chip's
+   edge with a 1px offset, so it falls into the neighbor's overlap region.
+   Raise the slot above siblings so the amber outline stays on top of any
+   adjacent active-frame chip's inset border. */
+.chip-slot:has(.page-chip-hover-match) {
+  z-index: 3;
 }
