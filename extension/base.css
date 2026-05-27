@@ -276,32 +276,61 @@ body {
   display: contents;
 }
 
-/* Overlap every adjacent chip-slot pair in vertical stacks by 1px so:
-   - Two active-frame chips share their 1px inset border (no doubled seam)
-   - The stack height doesn't shift when one chip's activation changes
-   Scoped to .chip-slot.w-full because icon-only chip-slots use inline-flex
-   and lay out horizontally with their own gap. */
-.chip-slot.w-full + .chip-slot.w-full {
-  margin-top: -1px;
+/* When a chip-slot follows another active-frame chip-slot, suppress its
+   top inset border so the previous chip's bottom border serves as the
+   sole 1px seam. Eliminates the doubled border WITHOUT geometric overlap,
+   so a hovered chip's bg can never paint over a neighboring chip's border
+   (the two chips' boxes never share a pixel). No layout shift on
+   activation change either, because nothing changes the chip's box size. */
+
+/* Other-window active frame: 3-sided inset (left/right/bottom, no top) */
+.chip-slot:has(.active-chip-frame) + .chip-slot .active-chip-frame {
+  box-shadow:
+    inset 1px 0 0 0 rgba(115, 115, 115, 0.2),
+    inset -1px 0 0 0 rgba(115, 115, 115, 0.2),
+    inset 0 -1px 0 0 rgba(115, 115, 115, 0.2);
+}
+
+/* Current-active frame: same suppression with the darker frame color */
+.chip-slot:has(.active-chip-frame) + .chip-slot .current-active-chip-frame {
+  box-shadow:
+    inset 1px 0 0 0 rgba(82, 82, 82, 0.48),
+    inset -1px 0 0 0 rgba(82, 82, 82, 0.48),
+    inset 0 -1px 0 0 rgba(82, 82, 82, 0.48);
+}
+
+/* Current-active also has a ring on the chip element itself (separate
+   from the frame span). Suppress its top side too by overriding the
+   Tailwind ring-shadow custom property. */
+.chip-slot:has(.active-chip-frame) + .chip-slot .current-active-chip {
+  --tw-ring-shadow:
+    inset 1px 0 0 0 var(--tw-ring-color, currentColor),
+    inset -1px 0 0 0 var(--tw-ring-color, currentColor),
+    inset 0 -1px 0 0 var(--tw-ring-color, currentColor);
+}
+
+/* When a chip is in the darker interaction state (hover / tooltip open /
+   context menu open), its own bg darkens and the default frame alpha
+   (0.2 / 0.48) alpha-blends with that bg, making the chip's own border
+   hard to read. Strengthen the inset alpha to keep it crisp. */
+.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) > .active-chip-frame {
+  box-shadow: inset 0 0 0 1px rgba(38, 38, 38, 0.55);
+}
+
+/* When a hovered chip ALSO has its top suppressed (preceded by another
+   active chip), combine: 3-sided AND strengthened alpha. Higher
+   specificity than either source rule so it wins the cascade. */
+.chip-slot:has(.active-chip-frame) + .chip-slot .page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) > .active-chip-frame {
+  box-shadow:
+    inset 1px 0 0 0 rgba(38, 38, 38, 0.55),
+    inset -1px 0 0 0 rgba(38, 38, 38, 0.55),
+    inset 0 -1px 0 0 rgba(38, 38, 38, 0.55);
 }
 
 /* The hover-match outline (.page-chip-hover-match) is drawn at the chip's
-   edge with a 1px offset, so it falls into the neighbor's overlap region.
-   Raise the slot above siblings so the amber outline stays on top of any
-   adjacent active-frame chip's inset border. */
+   edge with a 1px offset. Without overlap there's no neighbor-occlusion
+   risk, but raising the slot still ensures the outline draws above any
+   adjacent chip's inset border. */
 .chip-slot:has(.page-chip-hover-match) {
   z-index: 3;
-}
-
-/* Strengthen an active-frame chip's inset border when its own bg OR an
-   adjacent chip-slot's bg is in the darker interaction state (hover, open
-   tooltip, open context menu). With the -1px chip-slot overlap, an active
-   chip's border at the seam paints over the neighbor's darkened bg; the
-   default alpha (0.2 / 0.48) alpha-blends to near-invisibility against
-   that bg. The stronger inset keeps the border legible whether the active
-   chip itself is the one being interacted with or just sits next to one. */
-.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) > .active-chip-frame,
-.chip-slot:has(.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open)) + .chip-slot .active-chip-frame,
-.chip-slot:has(+ .chip-slot:has(.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open))) .active-chip-frame {
-  box-shadow: inset 0 0 0 1px rgba(38, 38, 38, 0.55);
 }
