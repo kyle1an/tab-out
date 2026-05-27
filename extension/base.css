@@ -275,3 +275,10 @@ body {
 .pathgroup-section[data-expanded='true'] > .page-chips-overflow {
   display: contents;
 }
+
+/* Adjacent page chips that both render an inset active-frame border draw
+   1px on chip A's bottom edge + 1px on chip B's top edge = a 2px visual
+   seam. Overlap by 1px so the two inset borders share a single line. */
+.page-chip:has(> .active-chip-frame) + .page-chip:has(> .active-chip-frame) {
+  margin-top: -1px;
+}
