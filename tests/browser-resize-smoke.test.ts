@@ -1790,6 +1790,8 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
           .find((candidate) =>
             candidate.closest('.history-entry-row')?.textContent?.includes('Low score history item with enough tooltip text')
           )
+        const row = title?.closest('.history-entry-row')
+        row?.scrollIntoView({ block: 'center', inline: 'nearest' })
         const rect = title?.getBoundingClientRect()
         if (rect && rect.width > 120 && rect.height > 8) {
           resolve({
@@ -1826,11 +1828,12 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     expression: `(() => {
       const entry = document.querySelector('.history-entry-expanded')
       if (!entry) return null
-      const styles = window.getComputedStyle(entry)
-      return {
-        cursor: styles.cursor,
-        userSelect: styles.userSelect
-      }
+	      const styles = window.getComputedStyle(entry)
+	      return {
+	        cursor: styles.cursor,
+	        pointerEvents: styles.pointerEvents,
+	        userSelect: styles.userSelect
+	      }
     })()`
   }).then((result: any) => result.result.value)
 
@@ -2574,6 +2577,7 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
       const wait = () => {
         const row = Array.from(document.querySelectorAll('.history-entry-row'))
           .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+        row?.scrollIntoView({ block: 'center', inline: 'nearest' })
         const frame = row?.querySelector('.history-entry-favicon-frame')
         const main = row?.querySelector('.history-entry-main')
         const frameRect = frame?.getBoundingClientRect()
@@ -2674,6 +2678,8 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
           .find((candidate) =>
             candidate.closest('.history-entry-row')?.textContent?.includes('Low score history item with enough tooltip text')
           )
+        const row = title?.closest('.history-entry-row')
+        row?.scrollIntoView({ block: 'center', inline: 'nearest' })
         const rect = title?.getBoundingClientRect()
         const entry = title?.closest('.history-entry')
         const slot = entry?.closest('.history-entry-slot') || entry
@@ -2733,7 +2739,8 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
             slotWidth: Math.round(slotRect.width),
             slotHeight: Math.round(slotRect.height),
             listScrollHeight: list.scrollHeight,
-            listClientHeight: list.clientHeight
+            listClientHeight: list.clientHeight,
+            listMaxScrollTop: Math.max(0, list.scrollHeight - list.clientHeight)
           })
         } else if (Date.now() - start > 5000) {
           resolve(null)
@@ -2760,19 +2767,22 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
   const tooltipOpenEntryState = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
-      const entry = Array.from(document.querySelectorAll('.history-entry-expanded'))
-        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
-      const row = entry?.closest('.history-entry-row')
-      const styles = entry ? window.getComputedStyle(entry) : null
-      const rowStyles = row ? window.getComputedStyle(row) : null
-      const indexStyles = row?.firstElementChild instanceof HTMLElement ? window.getComputedStyle(row.firstElementChild) : null
-      return {
-        backgroundColor: styles?.backgroundColor || '',
-        indexColor: indexStyles?.color || '',
-        rowOpacity: rowStyles?.opacity || '',
-        rowExpandedOpen: row?.classList.contains('history-entry-row-expanded-open') || false,
-        expandedOpen: entry?.classList.contains('history-entry-expanded-open') || false
-      }
+	      const entry = Array.from(document.querySelectorAll('.history-entry-expanded'))
+	        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+	      const row = Array.from(document.querySelectorAll('.history-entry-row'))
+	        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+	      const styles = entry ? window.getComputedStyle(entry) : null
+	      const rowStyles = row ? window.getComputedStyle(row) : null
+	      const indexStyles = row?.firstElementChild instanceof HTMLElement ? window.getComputedStyle(row.firstElementChild) : null
+	      return {
+	        backgroundColor: styles?.backgroundColor || '',
+	        expandedInsideHistoryList: !!entry?.closest('.history-entry-list'),
+	        expandedInsideOverlay: !!entry?.closest('.history-entry-overlay'),
+	        indexColor: indexStyles?.color || '',
+	        rowOpacity: rowStyles?.opacity || '',
+	        rowExpandedOpen: row?.classList.contains('history-entry-row-expanded-open') || false,
+	        expandedOpen: entry?.classList.contains('history-entry-expanded-open') || false
+	      }
     })()`
   }).then((result: any) => result.result.value)
 
@@ -2792,16 +2802,20 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     expandedOnlyPoint.x > target.slotRight + 1 && expandedOnlyPoint.x < first.right,
     `history original-slot leave point should be outside the original slot and inside the expanded entry: ${JSON.stringify({ target, first, expandedOnlyPoint })}`
   )
-  const expandedOnlyHitTarget = await evaluateWithNavigationRetry(session, {
-    returnByValue: true,
-    expression: `(() => {
-      const node = document.elementFromPoint(${JSON.stringify(expandedOnlyPoint.x)}, ${JSON.stringify(expandedOnlyPoint.y)})
-      const entry = node instanceof Element ? node.closest('.history-entry-expanded') : null
-      return {
-        className: node instanceof Element ? node.className || '' : '',
-        text: entry?.textContent || ''
-      }
-    })()`
+	  const expandedOnlyHitTarget = await evaluateWithNavigationRetry(session, {
+	    returnByValue: true,
+	    expression: `(() => {
+	      const expandedEntry = Array.from(document.querySelectorAll('.history-entry-expanded'))
+	        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+	      const node = document.elementFromPoint(${JSON.stringify(expandedOnlyPoint.x)}, ${JSON.stringify(expandedOnlyPoint.y)})
+	      const entry = node instanceof Element ? node.closest('.history-entry-expanded') : null
+	      return {
+	        className: node instanceof Element ? node.className || '' : '',
+	        hitInsideExpanded: !!entry,
+	        text: entry?.textContent || '',
+	        visualText: expandedEntry?.textContent || ''
+	      }
+	    })()`
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
@@ -2831,11 +2845,12 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     })()`
   }).then((result: any) => result.result.value)
 
+  const wheelDeltaY = beforeScrollTop.historyScrollTop >= target.listMaxScrollTop - 1 ? -18 : 18
   for (let index = 0; index < 4; index += 1) {
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseWheel',
       deltaX: 0,
-      deltaY: 18,
+      deltaY: wheelDeltaY,
       x: target.x,
       y: target.y
     })
@@ -2872,7 +2887,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     }))()`
   }).then((result: any) => result.result.value)
 
-  return { target, first, expandedPoint, expandedOnlyPoint, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, after, afterLeaveExpansionState }
+  return { target, first, expandedPoint, expandedOnlyPoint, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
 }
 
 async function measureTooltipWindowBlurClose(session: CdpSession) {
@@ -3874,7 +3889,8 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `clicking the expanded page chip should focus the matching window: ${JSON.stringify(popupClickFocus)}`
   )
   const historyPopupClickFocus = await measureHistoryEntryExpansionClickFocus(session)
-  assert.equal(historyPopupClickFocus.expandedStyle?.cursor, 'default', `expanded history entry should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
+	  assert.equal(historyPopupClickFocus.expandedStyle?.cursor, 'default', `expanded history entry should keep the default cursor: ${JSON.stringify(historyPopupClickFocus)}`)
+	  assert.equal(historyPopupClickFocus.expandedStyle?.pointerEvents, 'none', `expanded history entry should let native pointer and wheel input reach the original row underneath: ${JSON.stringify(historyPopupClickFocus)}`)
   assert.equal(historyPopupClickFocus.first.visibleTooltipCount, 0, `expanded history entry should not create a tooltip popup: ${JSON.stringify(historyPopupClickFocus)}`)
   assert.ok(
     historyPopupClickFocus.updates.some((update: { kind: string; args: [number, { active?: boolean }] }) => (
@@ -3942,10 +3958,15 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     /rgba\([^)]*, 0\.\d+\)/,
     `expanded history entry background should not let content underneath show through: ${JSON.stringify(historyPopupWheelScroll)}`
   )
-  assert.ok(
-    historyPopupWheelScroll.expandedOnlyHitTarget.text.includes('Low score history item'),
-    `expanded history entry should remain hit-test visible outside the original history pane: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
+	  assert.ok(
+	    historyPopupWheelScroll.expandedOnlyHitTarget.visualText.includes('Low score history item'),
+	    `expanded history entry should remain visually rendered outside the original history pane: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
+	  assert.equal(
+	    historyPopupWheelScroll.expandedOnlyHitTarget.hitInsideExpanded,
+	    false,
+	    `expanded history entry should stay pointer-transparent so wheel input reaches the scroll list: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
   assert.equal(
     historyPopupWheelScroll.afterOriginalSlotLeave,
     null,
@@ -4015,12 +4036,24 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
       `history expansion should keep the same two-line flow as the visible title when it can expand: ${JSON.stringify(historyPopupWheelScroll)}`
     )
   }
-  assert.ok(
-    historyPopupWheelScroll.target.listScrollHeight > historyPopupWheelScroll.target.listClientHeight,
-    `history panel should be scrollable for popup-wheel check: ${JSON.stringify(historyPopupWheelScroll)}`
-  )
-  assert.ok(
-    historyPopupWheelScroll.after.historyScrollTop > historyPopupWheelScroll.beforeScrollTop.historyScrollTop,
+	  assert.ok(
+	    historyPopupWheelScroll.target.listScrollHeight > historyPopupWheelScroll.target.listClientHeight,
+	    `history panel should be scrollable for popup-wheel check: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
+	  assert.equal(
+	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideHistoryList,
+	    true,
+	    `expanded history entry should stay inside the scroll-list ancestry for native wheel scrolling: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
+	  assert.equal(
+	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideOverlay,
+	    false,
+	    `expanded history entry should not rely on a sibling overlay for wheel scrolling: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
+	  assert.ok(
+	    historyPopupWheelScroll.wheelDeltaY > 0
+	      ? historyPopupWheelScroll.after.historyScrollTop > historyPopupWheelScroll.beforeScrollTop.historyScrollTop
+      : historyPopupWheelScroll.after.historyScrollTop < historyPopupWheelScroll.beforeScrollTop.historyScrollTop,
     `repeated wheel input over an expanded history entry should keep scrolling the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(

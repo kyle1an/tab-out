@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction, WheelEvent } from 'react'
+import { flushSync } from 'react-dom'
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
@@ -22,11 +23,6 @@ const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
 const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
-// How long after the last wheel event a manual-scroll gesture is considered
-// still active. The expanded entry collapses immediately on the first wheel
-// (so it never floats), but the gesture stays latched to the overflow:hidden
-// document, so we keep driving the list manually until the wheel goes quiet.
-const HISTORY_ENTRY_WHEEL_SETTLE_MS = 120
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
@@ -71,22 +67,6 @@ const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayo
 let activeExpandedHistoryEntryId: string | null = null
 const expandedHistoryEntrySubscribers = new Set<(activeId: string | null) => void>()
 
-// Shared across all history entries. While a wheel gesture is in progress
-// over (or starting from) an expanded entry, we drive the list manually
-// because the fixed popout latches the browser's scroll to the
-// overflow:hidden document. The flag lets the manual scroll keep going as the
-// gesture's wheel events retarget to different (now-collapsed) entries.
-let historyWheelGestureActive = false
-let historyWheelGestureTimer: number | null = null
-function markHistoryWheelGestureActive() {
-  historyWheelGestureActive = true
-  if (historyWheelGestureTimer !== null) window.clearTimeout(historyWheelGestureTimer)
-  historyWheelGestureTimer = window.setTimeout(() => {
-    historyWheelGestureActive = false
-    historyWheelGestureTimer = null
-  }, HISTORY_ENTRY_WHEEL_SETTLE_MS)
-}
-
 function setActiveExpandedHistoryEntry(id: string | null) {
   if (activeExpandedHistoryEntryId === id) return
   activeExpandedHistoryEntryId = id
@@ -98,6 +78,12 @@ function subscribeToExpandedHistoryEntry(subscriber: (activeId: string | null) =
   return () => {
     expandedHistoryEntrySubscribers.delete(subscriber)
   }
+}
+
+function closeExpandedHistoryEntryBeforeNativeScroll(e: WheelEvent<HTMLDivElement>) {
+  if (e.deltaX === 0 && e.deltaY === 0 && e.deltaZ === 0) return
+  if (activeExpandedHistoryEntryId === null) return
+  flushSync(() => setActiveExpandedHistoryEntry(null))
 }
 
 type HistoryTitleMetrics = {
@@ -149,6 +135,7 @@ interface HistoryEntryProps {
   activeHoverUrls?: readonly string[]
   activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
+  panelElement?: HTMLElement | null
 }
 
 interface TabHistoryPanelProps {
@@ -570,10 +557,11 @@ function getHistoryEntryExpansionHorizontalInset(entryEl: HTMLElement, titleEl: 
   return Math.max(0, titleRect.left - entryRect.left) + Math.max(0, entryRect.right - titleRect.right)
 }
 
-function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: HTMLElement | null): HistoryEntryExpansionGeometry {
+function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: HTMLElement | null, panelEl: HTMLElement | null = null): HistoryEntryExpansionGeometry {
   if (!entryEl || !titleEl || typeof window === 'undefined') return DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY
 
   const rect = entryEl.getBoundingClientRect()
+  const panelRect = panelEl?.getBoundingClientRect()
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
   const roomToRight = Math.max(0, viewportWidth - rect.left - HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX)
@@ -589,11 +577,11 @@ function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: 
   )
 
   return {
-    bottom: Math.round((viewportHeight - rect.bottom) * 100) / 100,
-    left: Math.round(rect.left * 100) / 100,
+    bottom: Math.round(((panelRect?.bottom ?? viewportHeight) - rect.bottom) * 100) / 100,
+    left: Math.round((rect.left - (panelRect?.left ?? 0)) * 100) / 100,
     lineHtml: metrics.expandedLineHtml,
     maxWidth,
-    top: Math.round(rect.top * 100) / 100,
+    top: Math.round((rect.top - (panelRect?.top ?? 0)) * 100) / 100,
     titleWidth: expandedContentWidth,
     viewportConstrained: metrics.expandedViewportConstrained,
     width: Math.min(maxWidth, Math.max(rect.width, horizontalInset + expandedContentWidth)),
@@ -736,7 +724,7 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
   }
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, panelElement = null }: HistoryEntryProps) {
   const entryExpansionId = useId()
   const entrySlotRef = useRef<HTMLDivElement | null>(null)
   const entryRef = useRef<HTMLDivElement | null>(null)
@@ -765,10 +753,12 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     const entryEl = entryRef.current
     const titleEl = titleRef.current
     const nextSize = roundedHistoryEntrySlotSize(entryEl)
-    const nextGeometry = getHistoryEntryExpansionGeometry(entryEl, titleEl)
+    const nextGeometry = getHistoryEntryExpansionGeometry(entryEl, titleEl, panelElement)
     setEntrySlotSize((current) => historyEntrySlotSizeEqual(current, nextSize) ? current : nextSize)
     setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
+  const updateHistoryEntryExpansionMeasurementsRef = useRef(() => {})
+  updateHistoryEntryExpansionMeasurementsRef.current = updateHistoryEntryExpansionMeasurements
 
   useLayoutEffect(() => {
     const titleEl = titleRef.current
@@ -813,7 +803,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       if (disposed) return
       if (titleExpandedRef.current) return
       updateTitleTruncation(titleEl, setTitleMetrics)
-      updateHistoryEntryExpansionMeasurements()
+      updateHistoryEntryExpansionMeasurementsRef.current()
     }
     fontSet?.addEventListener?.('loadingdone', onFontsDone)
     fontSet?.ready?.then?.(onFontsDone)
@@ -890,7 +880,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
 
   async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
-    const row = e.currentTarget.closest('.history-entry-row')
+    const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
     const result = await closeHistoryEntry(entry)
     if (!result.closed) {
       showToast('Nothing to close')
@@ -1009,29 +999,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     closeTitleExpansion()
   }
 
-  function onHistoryEntryWheel(e: WheelEvent<HTMLDivElement>) {
-    if (e.deltaY === 0) return
-    // Engage only while this entry is expanded, or while a manual-scroll gesture
-    // is already running (events retarget to collapsed entries as the list moves).
-    if (!titleExpandedRef.current && !historyWheelGestureActive) return
-    const historyList = entrySlotRef.current?.closest<HTMLElement>('.history-entry-list')
-    if (!historyList) return
-    // The expanded entry is position:fixed, so a wheel/momentum gesture over it
-    // latches the browser's scroll to the document — which is overflow:hidden
-    // (base.css) and can't move. Native scrolling therefore does nothing for
-    // the gesture's duration, even after the entry collapses. So drive the list
-    // manually for every event of the gesture. Collapse the popout immediately
-    // (unlike the page chip it is detached/fixed, so a lingering popout would
-    // visibly float). preventDefault is intentionally NOT called — native does
-    // nothing here and calling it cancels trackpad momentum.
-    e.stopPropagation()
-    const maxScrollTop = Math.max(0, historyList.scrollHeight - historyList.clientHeight)
-    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, historyList.scrollTop + e.deltaY))
-    if (nextScrollTop !== historyList.scrollTop) historyList.scrollTop = nextScrollTop
-    markHistoryWheelGestureActive()
-    if (titleExpandedRef.current) closeTitleExpansion({ delayed: false })
-  }
-
   function onHistoryEntryFocus(e: FocusEvent<HTMLDivElement>) {
     if (e.target instanceof HTMLElement && e.target.matches(':focus-visible')) openTitleExpansion()
   }
@@ -1078,20 +1045,21 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const entryExpandedMaxWidth = entryExpansionGeometry.maxWidth > 0 ? `${entryExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
   const entryExpandedWidth = entryExpansionGeometry.width > 0 ? `${entryExpansionGeometry.width}px` : entryExpandedMaxWidth
   const entryExpandedTitleWidth = entryExpansionGeometry.titleWidth > 0 ? `${entryExpansionGeometry.titleWidth}px` : `${Math.max(1, titleMetrics.width)}px`
-  const entryStyle = {
+  const entryBaseStyle = {
     '--history-entry-fade-bg': historyEntryInteractionBg,
     '--history-entry-interaction-bg': historyEntryInteractionBg,
-    '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent',
-    ...(titleExpanded ? {
-      '--history-entry-expanded-max-width': entryExpandedMaxWidth,
-      '--history-entry-expanded-title-width': entryExpandedTitleWidth,
-      '--history-entry-expanded-width': entryExpandedWidth,
-      bottom: entryExpansionGeometry.y === 'up' ? `${entryExpansionGeometry.bottom}px` : undefined,
-      left: `${entryExpansionGeometry.left}px`,
-      maxWidth: entryExpandedMaxWidth,
-      top: entryExpansionGeometry.y === 'down' ? `${entryExpansionGeometry.top}px` : undefined,
-      width: entryExpandedWidth
-    } : {})
+    '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent'
+  } as CSSProperties
+  const entryOverlayStyle = {
+    ...entryBaseStyle,
+    '--history-entry-expanded-max-width': entryExpandedMaxWidth,
+    '--history-entry-expanded-title-width': entryExpandedTitleWidth,
+    '--history-entry-expanded-width': entryExpandedWidth,
+    bottom: entryExpansionGeometry.y === 'up' ? `${entryExpansionGeometry.bottom}px` : undefined,
+    left: `${entryExpansionGeometry.left}px`,
+    maxWidth: entryExpandedMaxWidth,
+    top: entryExpansionGeometry.y === 'down' ? `${entryExpansionGeometry.top}px` : undefined,
+    width: entryExpandedWidth
   } as CSSProperties
   function markerElement(): ReactNode {
     if (kind === 'open-ghost') {
@@ -1124,135 +1092,158 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       </span>
     )
   }
-  function historyTitleContentNode() {
-    if (titleExpanded && entryExpansionGeometry.lineHtml.length > 0) return historyTitleExpandedLinesNode()
+  function historyTitleContentNode(expanded: boolean) {
+    if (expanded && entryExpansionGeometry.lineHtml.length > 0) return historyTitleExpandedLinesNode()
     return bionicTitleTextNodes(entry.title, 'history-entry-title')
   }
-  const titleExpansionTriggerElement = (
-    <span
-      className={cn(
-        'history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]',
-        dimmed && 'history-entry-low-score-content opacity-60 group-hover/history-row:opacity-100 group-focus-within/history-row:opacity-100 group-[.history-entry-row-expanded-open]/history-row:opacity-100'
-      )}
-    >
-      <span className="flex min-w-0 flex-auto items-start gap-1.5">
-        <span
-          className={cn(
-            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
-            titleExpanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-[var(--history-entry-expanded-title-width)] whitespace-normal [overflow-wrap:break-word]'
-          )}
-          ref={titleRef}
-        >
-          {historyTitleContentNode()}
-        </span>
-        {badges.length > 0 && (
-          <span className="inline-flex flex-none items-center gap-1">
-            {badges.map((badge) => (
-              <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
-                {badge}
-              </span>
-            ))}
-          </span>
-        )}
-      </span>
-    </span>
-  )
 
-  return (
-    <div
-      data-tabout="activation-history-entry"
-      data-low-score={dimmed ? 'true' : undefined}
-      data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
-      className={cn(
-        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
-        titleExpanded && 'history-entry-row-expanded-open'
-      )}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      onFocus={onMouseEnter}
-      onBlur={onMouseLeave}
-    >
+  function titleExpansionTriggerElement(expanded: boolean) {
+    return (
       <span
-        data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
         className={cn(
-          'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-          isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
-          dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-expanded-open]/history-row:text-[rgba(115,115,115,0.54)]'
+          'history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]',
+          dimmed && 'history-entry-low-score-content opacity-60 group-hover/history-row:opacity-100 group-focus-within/history-row:opacity-100 group-[.history-entry-row-expanded-open]/history-row:opacity-100'
         )}
       >
-        {markerElement()}
-      </span>
-      <div
-        className="history-entry-slot relative min-w-0 flex-auto"
-        style={entrySlotStyle}
-        ref={entrySlotRef}
-      >
-        <div
-          data-expanded={titleExpanded ? 'true' : undefined}
-          data-current={entry.current ? 'true' : undefined}
-          data-active={isActiveEntry ? 'true' : undefined}
-          data-active-in-other-window={activeInOtherWindow ? 'true' : undefined}
-          data-previous-target={entry.previousTarget ? 'true' : undefined}
-          data-next-target={entry.nextTarget ? 'true' : undefined}
-          className={cn(
-            "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
-            titleExpanded && 'history-entry-expanded-open',
-            titleExpanded && cn('history-entry-expanded fixed z-30 min-w-0 max-w-[var(--history-entry-expanded-max-width)] cursor-default select-none !overflow-visible !transition-none [width:var(--history-entry-expanded-width)]', HISTORY_ENTRY_EXPANDED_SHADOW_CLASS_NAME),
-            entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
-            !entry.current && historyEntryInteractionClasses,
-            hoverMatched && 'history-entry-hover-match'
-          )}
-          style={entryStyle}
-          ref={entryRef}
-          onPointerEnter={onHistoryEntryPointerEnter}
-          onPointerMove={onHistoryEntryPointerMove}
-          onPointerLeave={onHistoryEntryPointerLeave}
-          onWheel={onHistoryEntryWheel}
-          onFocus={onHistoryEntryFocus}
-          onBlur={onHistoryEntryBlur}
-        >
-          {entry.current && (
-            <span
-              className="active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
-              aria-hidden="true"
-            />
-          )}
-          <div
-            role="button"
-            tabIndex={canActivateEntry ? 0 : -1}
-            data-tabout-part="focus-button"
-            aria-disabled={!canActivateEntry}
-            className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
-            onClick={canActivateEntry ? onFocusEntry : undefined}
-            onKeyDown={onEntryKeyDown}
+        <span className="flex min-w-0 flex-auto items-start gap-1.5">
+          <span
+            className={cn(
+              "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+              expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-[var(--history-entry-expanded-title-width)] whitespace-normal [overflow-wrap:break-word]'
+            )}
+            ref={expanded ? undefined : titleRef}
           >
-            <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
-              <span
-                className={cn(
-                  'history-entry-favicon-content grid h-full w-full place-items-center',
-                  canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
-                )}
-                aria-hidden="true"
-              >
-                {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
-              </span>
-              {canCloseEntry && (
-                <button
-                  type="button"
-                  data-tabout-part="close-button"
-                  className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
-                  aria-label={`Close ${entryLabel}`}
-                  onClick={onCloseEntry}
-                >
-                  <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
-                </button>
-              )}
+            {historyTitleContentNode(expanded)}
+          </span>
+          {badges.length > 0 && (
+            <span className="inline-flex flex-none items-center gap-1">
+              {badges.map((badge) => (
+                <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
+                  {badge}
+                </span>
+              ))}
             </span>
-            {titleExpansionTriggerElement}
-          </div>
+          )}
+        </span>
+      </span>
+    )
+  }
+
+  function historyEntrySurface(expanded: boolean) {
+    return (
+      <div
+        data-expanded={titleExpanded ? 'true' : undefined}
+        data-current={entry.current ? 'true' : undefined}
+        data-active={isActiveEntry ? 'true' : undefined}
+        data-active-in-other-window={activeInOtherWindow ? 'true' : undefined}
+        data-previous-target={entry.previousTarget ? 'true' : undefined}
+        data-next-target={entry.nextTarget ? 'true' : undefined}
+        aria-hidden={expanded ? true : undefined}
+        className={cn(
+          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+          titleExpanded && 'history-entry-expanded-open',
+          expanded && cn('history-entry-expanded pointer-events-none absolute z-30 min-w-0 max-w-[var(--history-entry-expanded-max-width)] cursor-default select-none !overflow-visible !transition-none [width:var(--history-entry-expanded-width)]', HISTORY_ENTRY_EXPANDED_SHADOW_CLASS_NAME),
+          entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
+          !entry.current && historyEntryInteractionClasses,
+          hoverMatched && 'history-entry-hover-match'
+        )}
+        style={expanded ? entryOverlayStyle : entryBaseStyle}
+        ref={expanded ? undefined : entryRef}
+        onMouseEnter={expanded ? onMouseEnter : undefined}
+        onMouseLeave={expanded ? onMouseLeave : undefined}
+        onPointerEnter={onHistoryEntryPointerEnter}
+        onPointerMove={onHistoryEntryPointerMove}
+        onPointerLeave={onHistoryEntryPointerLeave}
+        onFocus={(e) => {
+          if (expanded) onMouseEnter()
+          onHistoryEntryFocus(e)
+        }}
+        onBlur={(e) => {
+          if (expanded) onMouseLeave()
+          onHistoryEntryBlur(e)
+        }}
+      >
+        {entry.current && (
+          <span
+            className="active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
+            aria-hidden="true"
+          />
+        )}
+        <div
+          role="button"
+          tabIndex={!expanded && canActivateEntry ? 0 : -1}
+          data-tabout-part="focus-button"
+          aria-disabled={!canActivateEntry || expanded}
+          className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
+          onClick={!expanded && canActivateEntry ? onFocusEntry : undefined}
+          onKeyDown={expanded ? undefined : onEntryKeyDown}
+        >
+          <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
+            <span
+              className={cn(
+                'history-entry-favicon-content grid h-full w-full place-items-center',
+                canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
+              )}
+              aria-hidden="true"
+            >
+              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
+            </span>
+            {canCloseEntry && (
+              <button
+                type="button"
+                data-tabout-part="close-button"
+                className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                tabIndex={expanded ? -1 : undefined}
+                aria-label={`Close ${entryLabel}`}
+                onClick={expanded ? undefined : onCloseEntry}
+              >
+                <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+              </button>
+            )}
+          </span>
+          {titleExpansionTriggerElement(expanded)}
         </div>
       </div>
-    </div>
+    )
+  }
+
+  const expandedEntryElement = titleExpanded ? historyEntrySurface(true) : null
+
+  return (
+    <>
+      <div
+        data-tabout="activation-history-entry"
+        data-low-score={dimmed ? 'true' : undefined}
+        data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
+        className={cn(
+          'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
+          titleExpanded && 'history-entry-row-expanded-open'
+        )}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onFocus={onMouseEnter}
+        onBlur={onMouseLeave}
+      >
+        <span
+          data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
+          className={cn(
+            'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+            isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
+            dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-expanded-open]/history-row:text-[rgba(115,115,115,0.54)]'
+          )}
+        >
+          {markerElement()}
+        </span>
+        <div
+          className="history-entry-slot relative min-w-0 flex-auto"
+          style={entrySlotStyle}
+          ref={entrySlotRef}
+        >
+          {historyEntrySurface(false)}
+        </div>
+      </div>
+      {expandedEntryElement}
+    </>
   )
 }
 
@@ -1270,14 +1261,19 @@ export function TabHistoryPanel({
 }: TabHistoryPanelProps) {
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter })
   const hasRows = rows.length > 0
+  const [historyPanelElement, setHistoryPanelElement] = useState<HTMLElement | null>(null)
 
   return (
     <section
       data-tabout="activation-history"
-      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col pl-[var(--dashboard-history-edge-gutter)] max-[900px]:static max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
+      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-[var(--dashboard-history-edge-gutter)] max-[900px]:static max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
       aria-label="Activation history"
+      ref={setHistoryPanelElement}
     >
-      <div className="history-entry-list flex min-h-0 min-w-0 flex-auto flex-col gap-0.75 overflow-x-hidden overflow-y-auto pt-3 pr-3.5 pb-10 [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(115,115,115,0.28)] [&::-webkit-scrollbar-thumb:hover]:bg-[rgba(115,115,115,0.4)] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1">
+      <div
+        className="history-entry-list flex min-h-0 min-w-0 flex-auto flex-col gap-0.75 overflow-x-hidden overflow-y-auto pt-3 pr-3.5 pb-10 [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(115,115,115,0.28)] [&::-webkit-scrollbar-thumb:hover]:bg-[rgba(115,115,115,0.4)] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1"
+        onWheelCapture={closeExpandedHistoryEntryBeforeNativeScroll}
+      >
         {hasRows ? rows.map((row) => renderPanelRow(row, {
           snapshot,
           onSnapshotChange,
@@ -1285,7 +1281,8 @@ export function TabHistoryPanel({
           activeHoverUrl,
           activeHoverUrls,
           activeHoverSource,
-          onTabsChange
+          onTabsChange,
+          panelElement: historyPanelElement
         })) : (
           <div className="flex min-h-13.5 items-center text-[12px] text-tab-muted">No activation history yet.</div>
         )}
@@ -1302,6 +1299,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
   activeHoverUrls: readonly string[]
   activeHoverSource: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
+  panelElement?: HTMLElement | null
 }): ReactNode {
   if (row.kind === 'stack') {
     return (
@@ -1318,6 +1316,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         activeHoverUrls={ctx.activeHoverUrls}
         activeHoverSource={ctx.activeHoverSource}
         onTabsChange={ctx.onTabsChange}
+        panelElement={ctx.panelElement}
       />
     )
   }
@@ -1336,6 +1335,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         activeHoverUrls={ctx.activeHoverUrls}
         activeHoverSource={ctx.activeHoverSource}
         onTabsChange={ctx.onTabsChange}
+        panelElement={ctx.panelElement}
       />
     )
   }
@@ -1353,6 +1353,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
       activeHoverUrls={ctx.activeHoverUrls}
       activeHoverSource={ctx.activeHoverSource}
       onTabsChange={ctx.onTabsChange}
+      panelElement={ctx.panelElement}
     />
   )
 }
