@@ -2777,6 +2777,8 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
 	      return {
 	        backgroundColor: styles?.backgroundColor || '',
 	        expandedInsideHistoryList: !!entry?.closest('.history-entry-list'),
+	        expandedInsidePanel: !!entry?.closest('.tab-history-panel'),
+	        expandedInsideDashboardShell: !!entry?.closest('[data-tabout="dashboard-shell"]'),
 	        expandedInsideOverlay: !!entry?.closest('.history-entry-overlay'),
 	        indexColor: indexStyles?.color || '',
 	        rowOpacity: rowStyles?.opacity || '',
@@ -2816,6 +2818,25 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
 	        visualText: expandedEntry?.textContent || ''
 	      }
 	    })()`
+  }).then((result: any) => result.result.value)
+
+  const expandedOnlyClipCheck = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const expandedEntry = Array.from(document.querySelectorAll('.history-entry-expanded'))
+        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+      if (!(expandedEntry instanceof HTMLElement)) return { hitInsideExpanded: false, text: '' }
+      const previousPointerEvents = expandedEntry.style.pointerEvents
+      expandedEntry.style.pointerEvents = 'auto'
+      const node = document.elementFromPoint(${JSON.stringify(expandedOnlyPoint.x)}, ${JSON.stringify(expandedOnlyPoint.y)})
+      const entry = node instanceof Element ? node.closest('.history-entry-expanded') : null
+      expandedEntry.style.pointerEvents = previousPointerEvents
+      return {
+        className: node instanceof Element ? node.className || '' : '',
+        hitInsideExpanded: !!entry,
+        text: entry?.textContent || ''
+      }
+    })()`
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', {
@@ -2887,7 +2908,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     }))()`
   }).then((result: any) => result.result.value)
 
-  return { target, first, expandedPoint, expandedOnlyPoint, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
+  return { target, first, expandedPoint, expandedOnlyPoint, expandedOnlyClipCheck, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
 }
 
 async function measureTooltipWindowBlurClose(session: CdpSession) {
@@ -3968,6 +3989,11 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
 	    `expanded history entry should stay pointer-transparent so wheel input reaches the scroll list: ${JSON.stringify(historyPopupWheelScroll)}`
 	  )
   assert.equal(
+    historyPopupWheelScroll.expandedOnlyClipCheck.hitInsideExpanded,
+    true,
+    `expanded history entry should remain visibly hit-testable outside the clipped history list when pointer events are enabled for measurement: ${JSON.stringify(historyPopupWheelScroll)}`
+  )
+  assert.equal(
     historyPopupWheelScroll.afterOriginalSlotLeave,
     null,
     `history entry should collapse when the pointer leaves the original entry slot, even inside the grown bounds: ${JSON.stringify(historyPopupWheelScroll)}`
@@ -4042,8 +4068,18 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
 	  )
 	  assert.equal(
 	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideHistoryList,
+	    false,
+	    `expanded history entry should render outside the clipped scroll-list ancestry: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
+	  assert.equal(
+	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsidePanel,
+	    false,
+	    `expanded history entry should render above the history panel so it is not clipped by the panel column: ${JSON.stringify(historyPopupWheelScroll)}`
+	  )
+	  assert.equal(
+	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideDashboardShell,
 	    true,
-	    `expanded history entry should stay inside the scroll-list ancestry for native wheel scrolling: ${JSON.stringify(historyPopupWheelScroll)}`
+	    `expanded history entry should stay anchored in the dashboard shell overlay layer: ${JSON.stringify(historyPopupWheelScroll)}`
 	  )
 	  assert.equal(
 	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideOverlay,

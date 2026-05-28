@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction, WheelEvent } from 'react'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
@@ -82,8 +82,22 @@ function subscribeToExpandedHistoryEntry(subscriber: (activeId: string | null) =
 
 function closeExpandedHistoryEntryBeforeNativeScroll(e: WheelEvent<HTMLDivElement>) {
   if (e.deltaX === 0 && e.deltaY === 0 && e.deltaZ === 0) return
+  closeExpandedHistoryEntryForNativeScroll()
+}
+
+function closeExpandedHistoryEntryOnNativeScroll() {
+  closeExpandedHistoryEntryForNativeScroll()
+}
+
+function closeExpandedHistoryEntryForNativeScroll() {
   if (activeExpandedHistoryEntryId === null) return
   flushSync(() => setActiveExpandedHistoryEntry(null))
+}
+
+function getHistoryEntryLayerRoot(panelEl: HTMLElement | null) {
+  if (!panelEl) return null
+  const shellEl = panelEl.closest('[data-tabout="dashboard-shell"]')
+  return shellEl instanceof HTMLElement ? shellEl : panelEl
 }
 
 type HistoryTitleMetrics = {
@@ -135,7 +149,7 @@ interface HistoryEntryProps {
   activeHoverUrls?: readonly string[]
   activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
-  panelElement?: HTMLElement | null
+  layerElement?: HTMLElement | null
 }
 
 interface TabHistoryPanelProps {
@@ -557,11 +571,11 @@ function getHistoryEntryExpansionHorizontalInset(entryEl: HTMLElement, titleEl: 
   return Math.max(0, titleRect.left - entryRect.left) + Math.max(0, entryRect.right - titleRect.right)
 }
 
-function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: HTMLElement | null, panelEl: HTMLElement | null = null): HistoryEntryExpansionGeometry {
+function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: HTMLElement | null, layerEl: HTMLElement | null = null): HistoryEntryExpansionGeometry {
   if (!entryEl || !titleEl || typeof window === 'undefined') return DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY
 
   const rect = entryEl.getBoundingClientRect()
-  const panelRect = panelEl?.getBoundingClientRect()
+  const layerRect = layerEl?.getBoundingClientRect()
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
   const roomToRight = Math.max(0, viewportWidth - rect.left - HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX)
@@ -577,11 +591,11 @@ function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: 
   )
 
   return {
-    bottom: Math.round(((panelRect?.bottom ?? viewportHeight) - rect.bottom) * 100) / 100,
-    left: Math.round((rect.left - (panelRect?.left ?? 0)) * 100) / 100,
+    bottom: Math.round(((layerRect?.bottom ?? viewportHeight) - rect.bottom) * 100) / 100,
+    left: Math.round((rect.left - (layerRect?.left ?? 0)) * 100) / 100,
     lineHtml: metrics.expandedLineHtml,
     maxWidth,
-    top: Math.round((rect.top - (panelRect?.top ?? 0)) * 100) / 100,
+    top: Math.round((rect.top - (layerRect?.top ?? 0)) * 100) / 100,
     titleWidth: expandedContentWidth,
     viewportConstrained: metrics.expandedViewportConstrained,
     width: Math.min(maxWidth, Math.max(rect.width, horizontalInset + expandedContentWidth)),
@@ -724,7 +738,7 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
   }
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, panelElement = null }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, layerElement = null }: HistoryEntryProps) {
   const entryExpansionId = useId()
   const entrySlotRef = useRef<HTMLDivElement | null>(null)
   const entryRef = useRef<HTMLDivElement | null>(null)
@@ -753,7 +767,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     const entryEl = entryRef.current
     const titleEl = titleRef.current
     const nextSize = roundedHistoryEntrySlotSize(entryEl)
-    const nextGeometry = getHistoryEntryExpansionGeometry(entryEl, titleEl, panelElement)
+    const nextGeometry = getHistoryEntryExpansionGeometry(entryEl, titleEl, layerElement)
     setEntrySlotSize((current) => historyEntrySlotSizeEqual(current, nextSize) ? current : nextSize)
     setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
@@ -1208,6 +1222,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   }
 
   const expandedEntryElement = titleExpanded ? historyEntrySurface(true) : null
+  const expandedEntryLayer = expandedEntryElement && layerElement ? createPortal(expandedEntryElement, layerElement) : null
 
   return (
     <>
@@ -1242,7 +1257,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           {historyEntrySurface(false)}
         </div>
       </div>
-      {expandedEntryElement}
+      {expandedEntryLayer}
     </>
   )
 }
@@ -1262,17 +1277,24 @@ export function TabHistoryPanel({
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter })
   const hasRows = rows.length > 0
   const [historyPanelElement, setHistoryPanelElement] = useState<HTMLElement | null>(null)
+  const [historyLayerElement, setHistoryLayerElement] = useState<HTMLElement | null>(null)
+
+  useLayoutEffect(() => {
+    const nextLayerElement = getHistoryEntryLayerRoot(historyPanelElement)
+    setHistoryLayerElement((current) => current === nextLayerElement ? current : nextLayerElement)
+  }, [historyPanelElement])
 
   return (
     <section
       data-tabout="activation-history"
-      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-[var(--dashboard-history-edge-gutter)] max-[900px]:static max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
+      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-[var(--dashboard-history-edge-gutter)] max-[900px]:relative max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
       aria-label="Activation history"
       ref={setHistoryPanelElement}
     >
       <div
         className="history-entry-list flex min-h-0 min-w-0 flex-auto flex-col gap-0.75 overflow-x-hidden overflow-y-auto pt-3 pr-3.5 pb-10 [scrollbar-gutter:stable] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-0.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[rgba(115,115,115,0.28)] [&::-webkit-scrollbar-thumb:hover]:bg-[rgba(115,115,115,0.4)] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1"
         onWheelCapture={closeExpandedHistoryEntryBeforeNativeScroll}
+        onScrollCapture={closeExpandedHistoryEntryOnNativeScroll}
       >
         {hasRows ? rows.map((row) => renderPanelRow(row, {
           snapshot,
@@ -1282,7 +1304,7 @@ export function TabHistoryPanel({
           activeHoverUrls,
           activeHoverSource,
           onTabsChange,
-          panelElement: historyPanelElement
+          layerElement: historyLayerElement
         })) : (
           <div className="flex min-h-13.5 items-center text-[12px] text-tab-muted">No activation history yet.</div>
         )}
@@ -1299,7 +1321,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
   activeHoverUrls: readonly string[]
   activeHoverSource: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
-  panelElement?: HTMLElement | null
+  layerElement?: HTMLElement | null
 }): ReactNode {
   if (row.kind === 'stack') {
     return (
@@ -1316,7 +1338,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         activeHoverUrls={ctx.activeHoverUrls}
         activeHoverSource={ctx.activeHoverSource}
         onTabsChange={ctx.onTabsChange}
-        panelElement={ctx.panelElement}
+        layerElement={ctx.layerElement}
       />
     )
   }
@@ -1335,7 +1357,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         activeHoverUrls={ctx.activeHoverUrls}
         activeHoverSource={ctx.activeHoverSource}
         onTabsChange={ctx.onTabsChange}
-        panelElement={ctx.panelElement}
+        layerElement={ctx.layerElement}
       />
     )
   }
@@ -1353,7 +1375,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
       activeHoverUrls={ctx.activeHoverUrls}
       activeHoverSource={ctx.activeHoverSource}
       onTabsChange={ctx.onTabsChange}
-      panelElement={ctx.panelElement}
+      layerElement={ctx.layerElement}
     />
   )
 }
