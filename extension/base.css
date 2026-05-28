@@ -276,66 +276,38 @@ body {
   display: contents;
 }
 
-/* When a chip-slot follows another active-frame chip-slot, suppress its
-   top inset border so the previous chip's bottom border serves as the
-   sole 1px seam. Eliminates the doubled border WITHOUT geometric overlap,
-   so a hovered chip's bg can never paint over a neighboring chip's border
-   (the two chips' boxes never share a pixel). No layout shift on
-   activation change either, because nothing changes the chip's box size. */
+/* When two active-frame chip-slots sit adjacent, overlap them by -1px so
+   the seam borders coincide as a single 1px line. Each chip keeps its
+   FULL 4-sided rounded frame at all times — no suppression of any side.
 
-/* Other-window active frame: 3-sided inset (left/right/bottom, no top) */
-.chip-slot:has(.active-chip-frame) + .chip-slot .active-chip-frame {
-  box-shadow:
-    inset 1px 0 0 0 rgba(115, 115, 115, 0.2),
-    inset -1px 0 0 0 rgba(115, 115, 115, 0.2),
-    inset 0 -1px 0 0 rgba(115, 115, 115, 0.2);
+   At rest, the later slot's stacking is on top (later in DOM), so the seam
+   shows that slot's top border (same colour/alpha as the other slot's
+   bottom would have been — visually one 1px line).
+
+   On hover / tooltip-open / context-menu-open, lift the interacting slot's
+   z-index above its neighbours so its strengthened frame paints on top of
+   the neighbour's bg + frame in the shared row. The hovered chip's border
+   wins at the seam; the neighbour's bottom (or top) is occluded by the
+   hovered chip's bg, which is fine — the seam reads as the hovered chip's
+   own border. */
+
+.chip-slot:has(.active-chip-frame) + .chip-slot:has(.active-chip-frame) {
+  margin-top: -1px;
 }
 
-/* Current-active frame: same suppression with the darker frame color */
-.chip-slot:has(.active-chip-frame) + .chip-slot .current-active-chip-frame {
-  box-shadow:
-    inset 1px 0 0 0 rgba(82, 82, 82, 0.48),
-    inset -1px 0 0 0 rgba(82, 82, 82, 0.48),
-    inset 0 -1px 0 0 rgba(82, 82, 82, 0.48);
+/* Lift the interacting slot above its neighbours so its frame draws on top
+   at the seam. The chip-slot already has `position: relative` via the
+   component class, so z-index applies. Above .page-chip-hover-match (z:3)
+   so a deliberate interaction always wins over passive hover-match. */
+.chip-slot:has(.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open)) {
+  z-index: 4;
 }
 
-/* Current-active also has a ring on the chip element itself (separate
-   from the frame span). Suppress its top side too by overriding the
-   Tailwind ring-shadow custom property. */
-.chip-slot:has(.active-chip-frame) + .chip-slot .current-active-chip {
-  --tw-ring-shadow:
-    inset 1px 0 0 0 var(--tw-ring-color, currentColor),
-    inset -1px 0 0 0 var(--tw-ring-color, currentColor),
-    inset 0 -1px 0 0 var(--tw-ring-color, currentColor);
-}
-
-/* When a chip is in the darker interaction state (hover / tooltip open /
-   context menu open), its own bg darkens and the default frame alpha
-   (0.2 / 0.48) alpha-blends with that bg, making the chip's own border
-   hard to read. Strengthen the inset alpha to keep it crisp. */
+/* Hover strengthens the frame's alpha so the border stays crisp against
+   the darker interaction bg. Applied to every active-frame chip on hover —
+   the shape is always the full 4-sided rounded frame. */
 .page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) > .active-chip-frame {
   box-shadow: inset 0 0 0 1px rgba(38, 38, 38, 0.55);
-}
-
-/* When a hovered chip is ALSO preceded by another active chip, restore
-   its top border: the suppression is only meant for the rest state (so
-   two faint default borders don't double up). Under hover, the chip's
-   frame is a prominent dark box and a missing top edge reads as an
-   incomplete frame. The seam briefly shows chip A's faint bottom +
-   chip B's dark hover top, which is fine — both chips' identity-borders
-   stay coherent. */
-.chip-slot:has(.active-chip-frame) + .chip-slot .page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) > .active-chip-frame {
-  box-shadow: inset 0 0 0 1px rgba(38, 38, 38, 0.55);
-}
-
-/* Same restoration for the current-active chip's ring (the chip element's
-   own inset border, separate from the .active-chip-frame span). Without
-   this, a hovered current-active chip preceded by another active chip
-   would still have a 3-sided ring underneath the restored 4-sided frame
-   — the difference is invisible at the seam but keeps the cascade
-   consistent. */
-.chip-slot:has(.active-chip-frame) + .chip-slot .current-active-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) {
-  --tw-ring-shadow: inset 0 0 0 1px var(--tw-ring-color, currentColor);
 }
 
 /* The hover-match outline (.page-chip-hover-match) is drawn at the chip's
