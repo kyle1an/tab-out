@@ -882,7 +882,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
 
   function onEntryKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return
-    if (!entry.exists) return
+    if (!canActivateEntry) return
     if (e.key !== 'Enter' && e.key !== ' ') return
     e.preventDefault()
     void onFocusEntry()
@@ -1044,18 +1044,19 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const isWorkingSetExtra = !!workingSetItem
   const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
   const canCloseEntry = !isWorkingSetExtra && entry.exists
+  const canActivateEntry = entry.exists || (kind === 'closed-ghost' && !!closedTab)
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
   const historyEntryInteractionBg = entry.current
     ? 'var(--color-neutral-100)'
     : activeInOtherWindow
       ? HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG
-      : entry.exists
+      : canActivateEntry
         ? HISTORY_ENTRY_CLICKABLE_INTERACTION_BG
         : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG
   const historyEntryInteractionClasses = activeInOtherWindow
     ? HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES
-    : entry.exists
+    : canActivateEntry
       ? HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES
       : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES
   const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
@@ -1218,11 +1219,11 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           )}
           <div
             role="button"
-            tabIndex={entry.exists ? 0 : -1}
+            tabIndex={canActivateEntry ? 0 : -1}
             data-tabout-part="focus-button"
-            aria-disabled={!entry.exists}
+            aria-disabled={!canActivateEntry}
             className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
-            onClick={entry.exists ? onFocusEntry : undefined}
+            onClick={canActivateEntry ? onFocusEntry : undefined}
             onKeyDown={onEntryKeyDown}
           >
             <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
