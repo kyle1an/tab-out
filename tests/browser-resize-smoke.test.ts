@@ -4068,18 +4068,18 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
 	  )
 	  assert.equal(
 	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideHistoryList,
-	    false,
-	    `expanded history entry should render outside the clipped scroll-list ancestry: ${JSON.stringify(historyPopupWheelScroll)}`
+	    true,
+	    `expanded history entry should stay in the native scroll-list ancestry: ${JSON.stringify(historyPopupWheelScroll)}`
 	  )
 	  assert.equal(
 	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsidePanel,
-	    false,
-	    `expanded history entry should render above the history panel so it is not clipped by the panel column: ${JSON.stringify(historyPopupWheelScroll)}`
+	    true,
+	    `expanded history entry should remain parented to the history panel instead of a portal layer: ${JSON.stringify(historyPopupWheelScroll)}`
 	  )
 	  assert.equal(
 	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideDashboardShell,
 	    true,
-	    `expanded history entry should stay anchored in the dashboard shell overlay layer: ${JSON.stringify(historyPopupWheelScroll)}`
+	    `expanded history entry should still stay within the dashboard shell: ${JSON.stringify(historyPopupWheelScroll)}`
 	  )
 	  assert.equal(
 	    historyPopupWheelScroll.tooltipOpenEntryState.expandedInsideOverlay,
