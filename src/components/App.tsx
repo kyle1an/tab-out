@@ -679,7 +679,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
         data-tabout="dashboard-shell"
         className={cn(
           'dashboard-shell',
-          showTabHistory && 'has-history max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:6px] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0',
+          showTabHistory && 'has-history max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0',
           source === 'bookmarks' && 'is-bookmarks'
         )}
       >
@@ -732,7 +732,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
 
           <div
             data-tabout-part="scroll-region"
-            className="scroll-region max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))] max-[900px]:[&::-webkit-scrollbar]:w-1"
+            className="scroll-region max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
             ref={handleScrollRegionRef}
           >
             <DashboardMissionsList

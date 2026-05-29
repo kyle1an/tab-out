@@ -23,7 +23,8 @@ const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
 const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
-const HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX = 28
+const HISTORY_ENTRY_SCROLLBAR_AXIS_PADDING_PX = 2
+const HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX = 33
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
@@ -625,11 +626,14 @@ function getHistoryScrollbarMetrics(listEl: HTMLElement | null): HistoryScrollba
   const maxScrollTop = Math.max(0, scrollHeight - clientHeight)
   if (clientHeight <= 0 || maxScrollTop <= 1) return DEFAULT_HISTORY_SCROLLBAR_METRICS
 
+  const trackHeight = Math.max(0, clientHeight - HISTORY_ENTRY_SCROLLBAR_AXIS_PADDING_PX * 2)
+  if (trackHeight <= 0) return DEFAULT_HISTORY_SCROLLBAR_METRICS
+
   const thumbHeight = Math.min(
-    clientHeight,
-    Math.max(HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX, clientHeight * (clientHeight / scrollHeight))
+    trackHeight,
+    Math.max(HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX, trackHeight * (clientHeight / scrollHeight))
   )
-  const maxThumbTop = Math.max(0, clientHeight - thumbHeight)
+  const maxThumbTop = Math.max(0, trackHeight - thumbHeight)
   const thumbTop = maxThumbTop <= 0 ? 0 : (scrollTop / maxScrollTop) * maxThumbTop
 
   return {
@@ -1295,11 +1299,13 @@ function HistoryEntryScrollbar({ metrics }: { metrics: HistoryScrollbarMetrics }
   return (
     <div
       data-tabout-part="history-scrollbar"
-      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-0 w-0.5 select-none max-[900px]:right-[var(--dashboard-scrollbar-inset)] max-[900px]:w-1"
+      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-0 w-[var(--dashboard-scrollbar-size)] select-none max-[900px]:right-[var(--dashboard-scrollbar-inset)]"
       style={scrollbarStyle}
       aria-hidden="true"
     >
-      <div className="history-entry-scrollbar-thumb absolute top-0 right-0 w-full rounded-full bg-[rgba(115,115,115,0.28)] [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))]" />
+      <div className="history-entry-scrollbar-track absolute top-[var(--dashboard-scrollbar-padding)] right-[var(--dashboard-scrollbar-padding)] bottom-[var(--dashboard-scrollbar-padding)] w-[var(--dashboard-scrollbar-thumb-size)]">
+        <div className="history-entry-scrollbar-thumb absolute top-0 right-0 w-full rounded-[var(--dashboard-scrollbar-radius)] bg-[var(--dashboard-scrollbar-thumb-bg)] [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))]" />
+      </div>
     </div>
   )
 }

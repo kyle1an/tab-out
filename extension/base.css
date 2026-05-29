@@ -34,6 +34,13 @@
   --dashboard-history-edge-gutter: 12px;
   --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
+  --dashboard-scrollbar-size: 10px;
+  --dashboard-scrollbar-padding: 2px;
+  --dashboard-scrollbar-thumb-size: 6px;
+  --dashboard-scrollbar-radius: 10px;
+  --dashboard-scrollbar-thumb-bg: rgba(0, 0, 0, 0.44);
+  --dashboard-scrollbar-thumb-bg-hover: rgba(0, 0, 0, 0.55);
+  --dashboard-scrollbar-thumb-bg-active: rgba(0, 0, 0, 0.66);
   --dashboard-card-shadow-bleed: 6px;
   --header-control-height: 34px;
   --header-control-radius: 16px;
@@ -241,11 +248,13 @@ body {
   padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
   padding-bottom: 50px;
   scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  scrollbar-color: var(--dashboard-scrollbar-thumb-bg) transparent;
+  scrollbar-width: auto;
 }
 
 .scroll-region::-webkit-scrollbar {
-  width: 2px;
+  width: var(--dashboard-scrollbar-size);
+  height: var(--dashboard-scrollbar-size);
 }
 
 .scroll-region::-webkit-scrollbar-track {
@@ -253,12 +262,21 @@ body {
 }
 
 .scroll-region::-webkit-scrollbar-thumb {
-  background: rgba(115, 115, 115, 0.28);
-  border-radius: 999px;
+  min-height: 33px;
+  border: var(--dashboard-scrollbar-padding) solid transparent;
+  border-radius: var(--dashboard-scrollbar-radius);
+  background: var(--dashboard-scrollbar-thumb-bg);
+  background-clip: content-box;
 }
 
 .scroll-region::-webkit-scrollbar-thumb:hover {
-  background: rgba(115, 115, 115, 0.4);
+  background: var(--dashboard-scrollbar-thumb-bg-hover);
+  background-clip: content-box;
+}
+
+.scroll-region::-webkit-scrollbar-thumb:active {
+  background: var(--dashboard-scrollbar-thumb-bg-active);
+  background-clip: content-box;
 }
 
 /* Overflow containers inside flat-sections and pathgroup-sections:
