@@ -275,8 +275,11 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /page-chip-expansion-measure/)
   assert.match(pageChipSource, /function getPageChipExpansionGeometry\(chipEl: HTMLElement \| null, textEl: HTMLElement \| null = chipEl\?\.querySelector/)
   assert.match(pageChipSource, /const roomToRight = Math\.max\(0, viewportWidth - rect\.left - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX\)/)
-  assert.doesNotMatch(pageChipSource, /roomToLeft/)
+  // The expansion always grows rightward from the chip's left edge so the collapsed
+  // text keeps a stable position; never anchor at the right edge / grow left.
+  assert.match(pageChipSource, /const maxWidth = Math\.max\(rect\.width, roomToRight\)/)
   assert.match(pageChipSource, /x: 'start'/)
+  assert.doesNotMatch(pageChipSource, /roomToLeft/)
   assert.match(pageChipSource, /lineHtml = getExpandedPageChipLineHtml\(textEl\)/)
   assert.match(pageChipSource, /const contentBoxEl = chipEl\.querySelector<HTMLElement>\('\.chip-text'\) \|\| textEl/)
   assert.match(pageChipSource, /function getTitleVariantMinimumContentWidth\(textEl: HTMLElement \| null\)/)

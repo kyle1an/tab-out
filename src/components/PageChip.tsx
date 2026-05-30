@@ -864,13 +864,16 @@ function getExpandedPageChipContentWidth(
 
     if (targetLineCount <= 1) {
       // Expand horizontally only as far as the revealed text needs to sit on one line.
-      // If it can't fit on one line even at the full available width (the screen edge),
-      // don't widen at all — keep the resting width and let it wrap.
-      const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl)
+      // The natural width comes from a measure clone, which can render a sub-pixel
+      // narrower than the real expanded element; add the same guard the other width
+      // paths use so the text isn't left 1px short and forced to wrap. If it can't
+      // fit on one line even at the full available width (the screen edge), don't
+      // widen at all — keep the resting width and let it wrap.
+      const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
       if (naturalWidth > maxContentWidth) {
         return { viewportConstrained: true, width: Math.round(Math.min(visibleWidth, maxContentWidth) * 100) / 100 }
       }
-      return { viewportConstrained: false, width: Math.round(Math.max(visibleWidth, naturalWidth) * 100) / 100 }
+      return { viewportConstrained: false, width: Math.round(Math.min(maxContentWidth, Math.max(visibleWidth, naturalWidth)) * 100) / 100 }
     }
 
     // Try the resting width first: if the revealed content still fits within the resting
@@ -938,6 +941,8 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
   const contentBoxEl = chipEl.querySelector<HTMLElement>('.chip-text') || textEl
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
+  // Always grow rightward from the chip's left edge so the collapsed text keeps a
+  // stable position when expanding; the width budget is the room to the right.
   const roomToRight = Math.max(0, viewportWidth - rect.left - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomBelow = Math.max(0, viewportHeight - rect.top - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomAbove = Math.max(0, rect.bottom - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
