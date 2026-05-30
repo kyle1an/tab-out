@@ -44,7 +44,7 @@ function HistoryRangeSelect({
   return (
     <Select value={value} items={HISTORY_RANGE_OPTIONS} onValueChange={handleValueChange}>
       <SelectTrigger
-        className="h-[var(--header-control-height)] rounded-[var(--header-control-radius)] border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] [corner-shape:squircle]"
+        className="h-(--header-control-height) rounded-(--header-control-radius) border-(--warm-gray) bg-[rgba(115,115,115,0.06)] text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
         aria-label="History search range"
       >
         <SelectValue />
@@ -52,7 +52,7 @@ function HistoryRangeSelect({
       <SelectContent
         align="start"
         alignItemWithTrigger={false}
-        className="rounded-[var(--header-control-radius)] [corner-shape:squircle]"
+        className="rounded-(--header-control-radius) [corner-shape:squircle]"
       >
         <SelectGroup>
           {HISTORY_RANGE_OPTIONS.map((option) => (
@@ -60,7 +60,7 @@ function HistoryRangeSelect({
               key={option.value}
               value={option.value}
               label={option.label}
-              className="rounded-[calc(var(--header-control-radius)_-_6px)] text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] [corner-shape:squircle]"
+              className="rounded-[calc(var(--header-control-radius)_-_6px)] text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
             >
               {option.label}
             </SelectItem>
@@ -95,7 +95,7 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
   return (
     <Tabs
       data-tabout="source-switch"
-      className="source-switch-root inline-flex box-border h-[var(--header-control-height)] rounded-[var(--header-control-radius)] border border-[var(--warm-gray)] [corner-shape:squircle]"
+      className="source-switch-root inline-flex box-border h-(--header-control-height) rounded-(--header-control-radius) border border-(--warm-gray) [corner-shape:squircle]"
       value={source}
       onValueChange={handleSourceChange}
     >
@@ -108,13 +108,13 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
           <TabsTrigger
             key={option.value}
             data-tabout-part="source-option"
-            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-[var(--accent-amber)] data-[active]:bg-transparent data-[active]:text-tab-ink data-[active]:shadow-none dark:data-[active]:border-transparent dark:data-[active]:bg-transparent"
+            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-(--accent-amber) data-[active]:bg-transparent data-[active]:text-tab-ink data-[active]:shadow-none dark:data-[active]:border-transparent dark:data-[active]:bg-transparent"
             value={option.value}
           >
             {option.label}
           </TabsTrigger>
         ))}
-        <TabsPrimitive.Indicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-[var(--active-tab-width)] rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]" />
+        <TabsPrimitive.Indicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-(--active-tab-width) rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] [transition:width_0.2s_ease-in-out,transform_0.2s_ease-in-out]" />
       </TabsList>
     </Tabs>
   )
@@ -176,7 +176,7 @@ export function HeaderBar({
               ref={inputRef}
               type="search"
               data-tabout-part="input"
-              className="tab-filter box-border h-[var(--header-control-height)] w-[280px] rounded-[var(--header-control-radius)] border border-[var(--warm-gray)] bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-[length:var(--header-control-font-size)] leading-[var(--header-control-line-height)] text-[var(--ink)] outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-[var(--muted)] focus:border-[var(--accent-amber)] focus:bg-tab-card [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
+              className="tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-(--warm-gray) bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-(--ink) outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-(--muted) focus:border-(--accent-amber) focus:bg-tab-card [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
               autoComplete="off"
               spellCheck="false"
               placeholder={filterPlaceholder}

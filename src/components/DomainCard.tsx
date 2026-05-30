@@ -30,7 +30,7 @@ function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: Mous
     <button
       type="button"
       data-tabout-part="close-button"
-      className="card-close-btn group/card-close pointer-events-none absolute top-0 right-0 z-2 box-border flex h-[22px] min-w-[22px] cursor-pointer items-center justify-end gap-0 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 py-0 text-[12px] font-medium text-tab-muted opacity-0 transition-[opacity,background,border-color,color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-[var(--status-abandoned)] hover:bg-tab-card hover:text-[var(--status-abandoned)]"
+      className="card-close-btn group/card-close pointer-events-none absolute top-0 right-0 z-2 box-border flex h-[22px] min-w-[22px] cursor-pointer items-center justify-end gap-0 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 py-0 text-[12px] font-medium text-tab-muted opacity-0 transition-[opacity,background,border-color,color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-(--status-abandoned) hover:bg-tab-card hover:text-(--status-abandoned)"
       onClick={onClick}
     >
       <span className="card-close-btn-text inline-block max-w-0 overflow-hidden text-right tabular-nums opacity-0 transition-[max-width,opacity] duration-200 ease-out group-hover/card-close:max-w-[200px] group-hover/card-close:opacity-100">
@@ -48,15 +48,15 @@ function TabBadge({ label }: { label?: string | number }) {
   const slashIndex = labelText.indexOf('/')
   if (slashIndex > 0) {
     return (
-      <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
-        <span className="tab-count-badge-current font-bold text-[var(--accent-amber)]">{labelText.slice(0, slashIndex)}</span>
+      <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]">
+        <span className="tab-count-badge-current font-bold text-(--accent-amber)">{labelText.slice(0, slashIndex)}</span>
         <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
       </span>
     )
   }
 
   return (
-    <span className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-[var(--accent-amber)] [corner-shape:squircle]">
+    <span className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]">
       {labelText}
     </span>
   )
@@ -69,7 +69,7 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
       type="button"
       data-tabout-part="dedupe-button"
       className={cn(
-        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-[var(--warm-gray)] bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
         closing && 'closing'
       )}
       onClick={onClick}
@@ -90,8 +90,8 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
         className={cn(
           'domain-pin-btn inline-flex size-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
           pinned
-            ? 'is-pinned border-[var(--warm-gray)] bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
-            : 'border-transparent bg-transparent text-tab-muted opacity-[0.35] hover:border-[var(--warm-gray)] hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100'
+            ? 'is-pinned border-(--warm-gray) bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
+            : 'border-transparent bg-transparent text-tab-muted opacity-[0.35] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100'
         )}
         aria-label={title}
         aria-pressed={pinned ? 'true' : 'false'}
@@ -270,7 +270,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
       <div
         data-tabout="domain-card"
         className={cn(
-          'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[250ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
+          'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-250 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
           isAppsCard && 'domain-block-apps',
           group.pinned && 'domain-block-pinned'
@@ -300,7 +300,7 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
         </header>
         <div
           className={cn(
-            'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-[var(--warm-gray)] bg-tab-card transition-[box-shadow,transform] duration-[250ms] ease-[ease] [corner-shape:squircle]',
+            'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-(--warm-gray) bg-tab-card transition-[box-shadow,transform] duration-250 ease-[ease] [corner-shape:squircle]',
             isAppsCard ? 'p-[7px]' : 'p-2',
             group.pinned && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
           )}

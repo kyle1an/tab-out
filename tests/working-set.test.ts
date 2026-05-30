@@ -314,7 +314,7 @@ test('WorkingSetPanel renders a bounded switching surface without cleanup contro
   assert.match(dupeBadgeMatch[1], /\btext-\[rgb\(120,53,15\)\]/)
   assert.doesNotMatch(dupeBadgeMatch[1], /\bborder-2\b/)
   assert.doesNotMatch(dupeBadgeMatch[1], /\bborder-\[/)
-  assert.doesNotMatch(dupeBadgeMatch[1], /\bbg-\[var\(--accent-amber\)\]/)
+  assert.doesNotMatch(dupeBadgeMatch[1], /\bbg-\(--accent-amber\)/)
   assert.match(dupeBadgeMatch[2], /-translate-y-\[1px\]/)
   assert.match(html, /working-set-dismiss/)
   assert.match(html, /working-set-actions/)

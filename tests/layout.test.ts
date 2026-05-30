@@ -123,15 +123,15 @@ test('header controls share one size and corner radius contract', () => {
   assert.match(baseCss, /--header-control-radius: 16px/)
   assert.match(baseCss, /--header-control-font-size: 13px/)
   assert.match(baseCss, /--header-control-line-height: 16px/)
-  assert.match(headerBarSource, /source-switch-root[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\]/)
-  assert.match(headerBarSource, /source-switch-option[^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
+  assert.match(headerBarSource, /source-switch-root[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
+  assert.match(headerBarSource, /source-switch-option[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.match(headerBarSource, /source-switch-option[^"]*before:rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
   assert.match(headerBarSource, /source-switch-indicator[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
-  assert.match(headerBarSource, /<SelectTrigger\s+className="[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\][^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
-  assert.match(headerBarSource, /<SelectContent[\s\S]*align="start"[\s\S]*alignItemWithTrigger=\{false\}[\s\S]*className="[^"]*rounded-\[var\(--header-control-radius\)\]/)
-  assert.match(headerBarSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
-  assert.match(headerBarSource, /tab-filter[^"]*h-\[var\(--header-control-height\)\][^"]*rounded-\[var\(--header-control-radius\)\][^"]*text-\[length:var\(--header-control-font-size\)\][^"]*leading-\[var\(--header-control-line-height\)\]/)
-  assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\[var\(--header-control-radius\)\]/)
+  assert.match(headerBarSource, /<SelectTrigger\s+className="[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
+  assert.match(headerBarSource, /<SelectContent[\s\S]*align="start"[\s\S]*alignItemWithTrigger=\{false\}[\s\S]*className="[^"]*rounded-\(--header-control-radius\)/)
+  assert.match(headerBarSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
+  assert.match(headerBarSource, /tab-filter[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
+  assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
   assert.doesNotMatch(selectSource, /data-\[size=header\]|in-data-\[size=header\]|SelectPrimitive\.Popup[\s\S]*data-size=\{size\}|SelectPrimitive\.List[\s\S]*data-size=\{size\}/)
   assert.doesNotMatch(headerBarSource, /source-switch-root[^"]*rounded-\[16px\]|tab-filter[^"]*rounded-\[12px\]|source-switch-(?:option|indicator)[^"]*_-_[457]px/)
@@ -158,8 +158,8 @@ test('dashboard edge gutters are owned by panes instead of the shell', () => {
   const shellHistoryBranch = appSource.match(/\?\s*'has-history([^']*)'/)
   const shellPlainBranch = appSource.match(/:\s*'grid-cols-\[minmax\(0,1fr\)\]'/)
   const mainClass = appSource.match(/'dashboard-main([^']*)'/)
-  const mainHistoryBranch = appSource.match(/\?\s*'\[grid-column:2\]([^']*)'/)
-  const mainPlainBranch = appSource.match(/:\s*'\[grid-column:1\]([^']*)'/)
+  const mainHistoryBranch = appSource.match(/\?\s*'col-2([^']*)'/)
+  const mainPlainBranch = appSource.match(/:\s*'col-1([^']*)'/)
 
   assert.ok(shellClass)
   assert.ok(shellHistoryBranch)
@@ -174,9 +174,9 @@ test('dashboard edge gutters are owned by panes instead of the shell', () => {
   assert.doesNotMatch(shellClass[1], /\bp[xlr]?-/)
 
   // The page gutter padding is owned by the main pane (default and has-history).
-  assert.match(mainPlainBranch[1], /px-\[var\(--dashboard-page-gutter\)\]/)
+  assert.match(mainPlainBranch[1], /px-\(--dashboard-page-gutter\)/)
   assert.match(mainHistoryBranch[1], /\bpl-0\b/)
-  assert.match(mainHistoryBranch[1], /pr-\[var\(--dashboard-page-gutter\)\]/)
+  assert.match(mainHistoryBranch[1], /pr-\(--dashboard-page-gutter\)/)
 
   // has-history shell is a two-column grid sized off the history edge gutter.
   assert.match(
@@ -185,6 +185,6 @@ test('dashboard edge gutters are owned by panes instead of the shell', () => {
   )
 
   // The history panel keeps its own edge gutter, never the page gutter.
-  assert.doesNotMatch(tabHistoryPanelSource, /pl-\[var\(--dashboard-page-gutter\)\]/)
-  assert.match(tabHistoryPanelSource, /className="[^"]*tab-history-panel[^"]*pl-\[var\(--dashboard-history-edge-gutter\)\]/)
+  assert.doesNotMatch(tabHistoryPanelSource, /pl-\(--dashboard-page-gutter\)/)
+  assert.match(tabHistoryPanelSource, /className="[^"]*tab-history-panel[^"]*pl-\(--dashboard-history-edge-gutter\)/)
 })

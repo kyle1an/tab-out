@@ -128,7 +128,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
     <div
       aria-hidden="true"
       className={cn(
-        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle]',
+        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle]',
         exiting && 'is-exiting'
       )}
       style={style}
@@ -245,8 +245,8 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   const tooltipContent = titleMetrics.isTruncated ? (
     <span
       className={cn(
-        'block max-w-[min(360px,calc(100vw-32px))] text-[13px] leading-tight text-tab-ink [overflow-wrap:break-word]',
-        titleTooltipWidth && 'w-[var(--working-set-title-tooltip-width)]'
+        'block max-w-[min(360px,calc(100vw-32px))] text-[13px] leading-tight text-tab-ink wrap-break-word',
+        titleTooltipWidth && 'w-(--working-set-title-tooltip-width)'
       )}
     >
       {bionicTitleTextNodes(item.title, `working-set-tooltip-${item.key}`)}
@@ -278,7 +278,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
         <button
           type="button"
           className={cn(
-            "working-set-item relative flex min-h-12 w-full min-w-0 cursor-default items-center gap-2 rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)] group-hover/working-set-item:border-[var(--accent-amber)] group-hover/working-set-item:bg-[rgba(82,82,82,0.08)] group-focus-within/working-set-item:border-[var(--accent-amber)] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--working-set-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/working-set-item:after:opacity-100 group-focus-within/working-set-item:after:opacity-100",
+            "working-set-item relative flex min-h-12 w-full min-w-0 cursor-default items-center gap-2 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)] group-hover/working-set-item:border-(--accent-amber) group-hover/working-set-item:bg-[rgba(82,82,82,0.08)] group-focus-within/working-set-item:border-(--accent-amber) after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--working-set-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/working-set-item:after:opacity-100 group-focus-within/working-set-item:after:opacity-100",
             item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)]',
             hoverMatched && 'working-set-item-hover-match'
           )}
@@ -316,7 +316,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           </span>
         </button>
       </TooltipAnchor>
-      <div className="working-set-actions absolute top-1/2 right-2 z-[2] flex -translate-y-1/2 items-center gap-0.5">
+      <div className="working-set-actions absolute top-1/2 right-2 z-2 flex -translate-y-1/2 items-center gap-0.5">
         <TooltipAnchor content="Dismiss from working set">
           <button
             type="button"
@@ -441,7 +441,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
           <button
             type="button"
             data-tabout-part="toggle-button"
-            className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-[var(--warm-gray)] bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-[var(--accent-amber)] hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-[var(--accent-amber)] focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
+            className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
             data-working-set-layout-key="__working-set-toggle__"
             onClick={onToggleExpanded}
             aria-expanded={expanded}

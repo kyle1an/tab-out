@@ -82,7 +82,7 @@ function ContextMenuContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Backdrop
         data-slot="context-menu-backdrop"
-        className="fixed inset-0 z-[60] cursor-default bg-transparent"
+        className="fixed inset-0 z-60 cursor-default bg-transparent"
         onPointerDown={stopBackdropEvent}
         onPointerUp={stopBackdropEvent}
         onClick={stopBackdropEvent}
@@ -93,12 +93,12 @@ function ContextMenuContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
-        className="isolate z-[70]"
+        className="isolate z-70"
       >
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-content"
           className={cn(
-            'relative isolate z-[70] min-w-40 rounded-xl bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [corner-shape:squircle]',
+            'relative isolate z-70 min-w-40 rounded-xl bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [corner-shape:squircle]',
             className
           )}
           {...props}

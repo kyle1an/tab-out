@@ -25,17 +25,16 @@ const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
 const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
-const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
-const HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
+const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
+const HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
 const HISTORY_ENTRY_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
-const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-[var(--history-entry-interaction-bg)] focus-within:bg-[var(--history-entry-interaction-bg)] [&.history-entry-expanded-open]:bg-[var(--history-entry-interaction-bg)] group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100'
+const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100'
 const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
-const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-[var(--history-entry-rest-bg)] text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES}`
-const HISTORY_ENTRY_EXPANDED_SHADOW_CLASS_NAME = 'shadow-[0_3px_10px_rgba(10,10,10,0.055)]'
+const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES}`
 const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
   lineHtml: [],
   maxWidth: 0,
@@ -377,7 +376,7 @@ function createHistoryTitleExpandedMeasureElement(titleEl: HTMLElement, lineHtml
 
   const styles = window.getComputedStyle(titleEl)
   const measureEl = ownerDocument.createElement('span')
-  measureEl.className = 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] [overflow-wrap:break-word]'
+  measureEl.className = 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word'
   measureEl.setAttribute('aria-hidden', 'true')
   Object.assign(measureEl.style, {
     display: 'block',
@@ -1038,14 +1037,14 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   } as CSSProperties
   function markerElement(): ReactNode {
     if (kind === 'open-ghost') {
-      return <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-[var(--accent-amber)]" aria-hidden="true" />
+      return <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
     }
     if (kind === 'closed-ghost') {
       const ariaLabel = closedTab ? `Closed ${formatRelativeMinutes(Date.now(), closedTab.lastClosedAt)}` : 'Closed'
       return (
         <span
           data-tabout-part="history-entry-marker-closed-ghost"
-          className="block size-1.5 rounded-full border border-[var(--accent-amber)] bg-transparent"
+          className="block size-1.5 rounded-full border border-(--accent-amber) bg-transparent"
           aria-label={ariaLabel}
         />
       )
@@ -1083,8 +1082,8 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
         <span className="flex min-w-0 flex-auto items-start gap-1.5">
           <span
             className={cn(
-              "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] [overflow-wrap:break-word] [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
-              expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-[var(--history-entry-expanded-title-width)] whitespace-normal [overflow-wrap:break-word]'
+              "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+              expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
             )}
             ref={expanded ? undefined : titleRef}
           >
@@ -1117,7 +1116,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
         className={cn(
           "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
           titleExpanded && 'history-entry-expanded-open',
-          expanded && cn('history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-[var(--history-entry-expanded-max-width)] cursor-default select-none !overflow-visible !transition-none [width:var(--history-entry-expanded-width)]', HISTORY_ENTRY_EXPANDED_SHADOW_CLASS_NAME),
+          expanded && 'history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-(--history-entry-expanded-max-width) cursor-default select-none !overflow-visible !transition-none w-(--history-entry-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           expanded && (entryExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
           !entry.current && historyEntryInteractionClasses,
@@ -1141,7 +1140,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       >
         {entry.current && (
           <span
-            className="active-history-entry-frame pointer-events-none absolute inset-0 z-[2] rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
+            className="active-history-entry-frame pointer-events-none absolute inset-0 z-2 rounded-[inherit] shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)] [corner-shape:squircle]"
             aria-hidden="true"
           />
         )}
@@ -1168,7 +1167,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
               <button
                 type="button"
                 data-tabout-part="close-button"
-                className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-[3] inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-[var(--card-bg)] focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent-amber)]"
+                className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-3 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
                 tabIndex={expanded ? -1 : undefined}
                 aria-label={`Close ${entryLabel}`}
                 onClick={expanded ? undefined : onCloseEntry}
@@ -1192,7 +1191,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
         data-low-score={dimmed ? 'true' : undefined}
         data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
         className={cn(
-          'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-[160ms] [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
+          'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-160 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
           titleExpanded && 'history-entry-row-expanded-open'
         )}
         onMouseEnter={onMouseEnter}
@@ -1237,20 +1236,20 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
     <div
       ref={containerRef}
       data-tabout-part="history-scrollbar"
-      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-[var(--dashboard-scrollbar-size)] select-none max-[900px]:right-[var(--dashboard-scrollbar-inset)]"
+      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-(--dashboard-scrollbar-size) select-none max-[900px]:right-(--dashboard-scrollbar-inset)"
       style={scrollbarStyle}
       aria-hidden="true"
     >
       <div
         ref={trackRef}
-        className="history-entry-scrollbar-track pointer-events-auto absolute top-[var(--dashboard-scrollbar-padding)] right-[var(--dashboard-scrollbar-padding)] bottom-[var(--dashboard-scrollbar-padding)] w-[var(--dashboard-scrollbar-thumb-size)] touch-none"
+        className="history-entry-scrollbar-track pointer-events-auto absolute top-(--dashboard-scrollbar-padding) right-(--dashboard-scrollbar-padding) bottom-(--dashboard-scrollbar-padding) w-(--dashboard-scrollbar-thumb-size) touch-none"
         onPointerDown={onTrackPointerDown}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
       >
         <div
           className={cn(
-            'history-entry-scrollbar-thumb absolute top-0 right-0 w-full cursor-grab touch-none rounded-[var(--dashboard-scrollbar-radius)] bg-[var(--dashboard-scrollbar-thumb-bg)] transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] active:cursor-grabbing',
+            'history-entry-scrollbar-thumb absolute top-0 right-0 w-full cursor-grab touch-none rounded-(--dashboard-scrollbar-radius) bg-(--dashboard-scrollbar-thumb-bg) transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] active:cursor-grabbing',
             active ? 'opacity-100' : 'opacity-0'
           )}
           onPointerDown={onThumbPointerDown}
@@ -1296,7 +1295,7 @@ export function TabHistoryPanel({
   return (
     <section
       data-tabout="activation-history"
-      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-[var(--dashboard-history-edge-gutter)] max-[900px]:relative max-[900px]:ml-0 max-[900px]:mr-[var(--dashboard-scrollbar-inset)] max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-[var(--warm-gray)] max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1]"
+      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-(--dashboard-history-edge-gutter) max-[900px]:relative max-[900px]:ml-0 max-[900px]:mr-(--dashboard-scrollbar-inset) max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-(--warm-gray) max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1"
       aria-label="Activation history"
     >
       <div

@@ -678,7 +678,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
       <div
         data-tabout="dashboard-shell"
         className={cn(
-          'dashboard-shell relative z-[1] mx-auto grid min-h-0 w-full max-w-[var(--dashboard-shell-max-width)] flex-auto',
+          'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
           showTabHistory
             ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
             : 'grid-cols-[minmax(0,1fr)]',
@@ -703,8 +703,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
           className={cn(
             'dashboard-main flex min-h-0 min-w-0 flex-col',
             showTabHistory
-              ? '[grid-column:2] pr-[var(--dashboard-page-gutter)] pl-0 max-[900px]:[.dashboard-shell.has-history_&]:[grid-column:1] max-[900px]:[.dashboard-shell.has-history_&]:px-[var(--dashboard-page-gutter)]'
-              : '[grid-column:1] px-[var(--dashboard-page-gutter)]'
+              ? 'col-2 pr-(--dashboard-page-gutter) pl-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1 max-[900px]:[.dashboard-shell.has-history_&]:px-(--dashboard-page-gutter)'
+              : 'col-1 px-(--dashboard-page-gutter)'
           )}
         >
           <div
@@ -713,8 +713,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
               isScrolled && 'is-scrolled shadow-none',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
-                : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-[var(--header-shadow-left-reserve)]',
-              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px_-_var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px_-_var(--header-shadow-left-reserve)_-_4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:px-[var(--dashboard-edge-bleed)]'
+                : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
+              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px_-_var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px_-_var(--header-shadow-left-reserve)_-_4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:px-(--dashboard-edge-bleed)'
             )}
           >
             <HeaderBar
@@ -746,10 +746,10 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
           <div
             data-tabout-part="scroll-region"
             className={cn(
-              'scroll-region relative z-[1] flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] [scrollbar-color:var(--dashboard-scrollbar-thumb-bg)_transparent] [scrollbar-width:auto] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]',
+              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] [scrollbar-color:var(--dashboard-scrollbar-thumb-bg)_transparent] [scrollbar-width:auto] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
-                : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-[var(--dashboard-card-shadow-bleed)]'
+                : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'
             )}
             ref={handleScrollRegionRef}
           >
