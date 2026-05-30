@@ -201,6 +201,7 @@ export function HeaderBar({
             source={source}
             ready={ready}
             totalTabs={stats.totalTabs}
+            activeTabs={stats.activeTabs}
             visibleTabs={stats.visibleTabs}
             totalWindows={stats.totalWindows}
             visibleWindows={stats.visibleWindows}

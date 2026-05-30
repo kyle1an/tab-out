@@ -16,6 +16,7 @@ export function HeaderStats({
   ready = true,
   source = 'tabs',
   totalTabs,
+  activeTabs,
   visibleTabs,
   totalWindows,
   visibleWindows,
@@ -45,7 +46,10 @@ export function HeaderStats({
 
   return (
     <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-tab-muted">
-      <span className="font-medium text-tab-ink">{tabsLabel}</span>
+      <span className="font-medium text-tab-ink">
+        {tabsLabel}
+        {activeTabs < totalTabs && <span className="font-normal text-tab-muted"> ({activeTabs} active)</span>}
+      </span>
       {canUseTabActions && dedupCount > 0 && (
         <button
           type="button"

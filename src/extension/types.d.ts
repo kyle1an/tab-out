@@ -198,6 +198,7 @@ export interface DashboardCardEntry {
 
 export interface DashboardStats {
   totalTabs: number
+  activeTabs: number
   visibleTabs: number
   totalWindows: number
   visibleWindows: number

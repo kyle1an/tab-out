@@ -62,6 +62,9 @@ type DashboardViewModelOptions = {
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.trim().length > 0
   const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))
+  // Active = not parked by a tab-suspender extension. Counted over the same
+  // openTabs base as totalTabs so it reads as "loaded out of open".
+  const activeTabs = openTabs.filter((t) => !t.suspended).length
   const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : openTabs
   // Standalone apps open in dedicated windows; counting them inflates the
   // window stat with windows that hold no regular tabs. Exclude them from
@@ -97,6 +100,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
     source,
     stats: {
       totalTabs: openTabs.length,
+      activeTabs,
       visibleTabs: visibleTabs.length,
       totalWindows,
       visibleWindows,

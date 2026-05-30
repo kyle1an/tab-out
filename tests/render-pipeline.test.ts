@@ -1254,6 +1254,20 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
 })
 
+test('buildDashboardViewModel counts active (unsuspended) open tabs', () => {
+  const tabs = [
+    makeTab({ id: 1, url: 'https://a.example.com/', title: 'A' }),
+    makeTab({ id: 2, url: 'https://b.example.com/', title: 'B', suspended: true }),
+    makeTab({ id: 3, url: 'https://c.example.com/', title: 'C', suspended: true })
+  ]
+  const groups = buildDomainGroups(tabs)
+
+  const vm = buildDashboardViewModel({ realTabs: tabs, domainGroups: groups })
+
+  assert.equal(vm.stats.totalTabs, 3)
+  assert.equal(vm.stats.activeTabs, 1)
+})
+
 test('buildDashboardViewModel keeps known chip URLs in their previous card order when titles change', () => {
   const tabs = [
     makeTab({ url: 'https://example.test/?page=alpha', title: 'Alpha loading title' }),

@@ -708,6 +708,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
             <HeaderBar
               source={source}
               totalTabs={stats.totalTabs}
+              activeTabs={stats.activeTabs}
               visibleTabs={stats.visibleTabs}
               totalWindows={stats.totalWindows}
               visibleWindows={stats.visibleWindows}
