@@ -7,6 +7,7 @@
   "scripts": {
     "setup:hooks": "git config core.hooksPath .githooks",
     "dev": "node scripts/watch-build.mjs",
+    "serve": "node scripts/serve.mjs",
     "build": "node scripts/build-extension.mjs",
     "build:debug": "node scripts/build-extension.mjs --sourcemap",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
