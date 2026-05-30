@@ -29,7 +29,6 @@ const chipTextTruncationCallbacks = new WeakMap<
 
 const PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX = 12
 const PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX = 8
-const PAGE_CHIP_EXPANDED_SINGLE_LINE_WIDTH_GUARD_PX = 24
 const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
@@ -864,17 +863,24 @@ function getExpandedPageChipContentWidth(
     }
 
     if (targetLineCount <= 1) {
-      const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl) + PAGE_CHIP_EXPANDED_SINGLE_LINE_WIDTH_GUARD_PX
-      const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
-      return {
-        viewportConstrained: naturalWidth - maxContentWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX,
-        width: Math.round(width * 100) / 100
+      // Expand horizontally only as far as the revealed text needs to sit on one line.
+      // If it can't fit on one line even at the full available width (the screen edge),
+      // don't widen at all — keep the resting width and let it wrap.
+      const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl)
+      if (naturalWidth > maxContentWidth) {
+        return { viewportConstrained: true, width: Math.round(Math.min(visibleWidth, maxContentWidth) * 100) / 100 }
       }
+      return { viewportConstrained: false, width: Math.round(Math.max(visibleWidth, naturalWidth) * 100) / 100 }
     }
 
-    const lowerBound = Math.min(visibleWidth, maxContentWidth)
+    // Try the resting width first: if the revealed content still fits within the resting
+    // line count there, keep the resting width and don't grow (no guard padding). Flooring
+    // the lower bound at the resting box width — rather than a painted-content estimate that
+    // can fall below it — avoids widening a chip whose content already fits at its current
+    // width. Only widen (below) when it genuinely can't fit in the resting line count.
+    const lowerBound = Math.min(maxContentWidth, Math.max(visibleWidth, getChipTextWidth(textEl)))
     if (expandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
-      return { viewportConstrained: false, width: guardedExpandedSplitLineWidth(lowerBound, maxContentWidth, lineHtml) }
+      return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
     }
 
     if (!expandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
