@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import { useHistoryPanelRows, type HistoryPanelRow } from '../hooks/useHistoryPanelRows.js'
+import { useHistoryScrollbar, type HistoryScrollbar } from '../hooks/useHistoryScrollbar.js'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
 const HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12
@@ -23,8 +24,6 @@ const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
 const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
-const HISTORY_ENTRY_SCROLLBAR_AXIS_PADDING_PX = 2
-const HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX = 33
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal [overflow-wrap:break-word]'
@@ -47,11 +46,6 @@ const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = 
   y: 'down'
 }
 const DEFAULT_HISTORY_ENTRY_SLOT_SIZE: HistoryEntrySlotSize = { height: 0, width: 0 }
-const DEFAULT_HISTORY_SCROLLBAR_METRICS: HistoryScrollbarMetrics = {
-  thumbHeight: 0,
-  thumbTop: 0,
-  visible: false
-}
 const LOW_SCORE_HISTORY_PROTOCOLS = new Set([
   'about:',
   'brave:',
@@ -126,12 +120,6 @@ type HistoryEntryExpansionGeometry = {
 type HistoryEntrySlotSize = {
   height: number
   width: number
-}
-
-type HistoryScrollbarMetrics = {
-  thumbHeight: number
-  thumbTop: number
-  visible: boolean
 }
 
 type HistoryEntryKind = 'stack' | 'open-ghost' | 'closed-ghost'
@@ -612,42 +600,6 @@ function historyEntrySlotSizeEqual(left: HistoryEntrySlotSize, right: HistoryEnt
   return (
     Math.abs(left.height - right.height) < 0.1 &&
     Math.abs(left.width - right.width) < 0.1
-  )
-}
-
-function roundedCssPixel(value: number) {
-  return Math.round(value * 100) / 100
-}
-
-function getHistoryScrollbarMetrics(listEl: HTMLElement | null): HistoryScrollbarMetrics {
-  if (!listEl) return DEFAULT_HISTORY_SCROLLBAR_METRICS
-
-  const { clientHeight, scrollHeight, scrollTop } = listEl
-  const maxScrollTop = Math.max(0, scrollHeight - clientHeight)
-  if (clientHeight <= 0 || maxScrollTop <= 1) return DEFAULT_HISTORY_SCROLLBAR_METRICS
-
-  const trackHeight = Math.max(0, clientHeight - HISTORY_ENTRY_SCROLLBAR_AXIS_PADDING_PX * 2)
-  if (trackHeight <= 0) return DEFAULT_HISTORY_SCROLLBAR_METRICS
-
-  const thumbHeight = Math.min(
-    trackHeight,
-    Math.max(HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX, trackHeight * (clientHeight / scrollHeight))
-  )
-  const maxThumbTop = Math.max(0, trackHeight - thumbHeight)
-  const thumbTop = maxThumbTop <= 0 ? 0 : (scrollTop / maxScrollTop) * maxThumbTop
-
-  return {
-    thumbHeight: roundedCssPixel(thumbHeight),
-    thumbTop: roundedCssPixel(thumbTop),
-    visible: true
-  }
-}
-
-function historyScrollbarMetricsEqual(left: HistoryScrollbarMetrics, right: HistoryScrollbarMetrics) {
-  return (
-    left.visible === right.visible &&
-    Math.abs(left.thumbHeight - right.thumbHeight) < 0.1 &&
-    Math.abs(left.thumbTop - right.thumbTop) < 0.1
   )
 }
 
@@ -1288,23 +1240,38 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   )
 }
 
-function HistoryEntryScrollbar({ metrics }: { metrics: HistoryScrollbarMetrics }) {
+function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
+  const { metrics, active, clipPath, containerRef, trackRef, onThumbPointerDown, onTrackPointerDown, onPointerEnter, onPointerLeave } = scrollbar
   if (!metrics.visible) return null
 
   const scrollbarStyle = {
     '--history-entry-scrollbar-thumb-height': `${metrics.thumbHeight}px`,
-    '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`
+    '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`,
+    clipPath
   } as CSSProperties
 
   return (
     <div
+      ref={containerRef}
       data-tabout-part="history-scrollbar"
-      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-0 w-[var(--dashboard-scrollbar-size)] select-none max-[900px]:right-[var(--dashboard-scrollbar-inset)]"
+      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-[var(--dashboard-scrollbar-size)] select-none max-[900px]:right-[var(--dashboard-scrollbar-inset)]"
       style={scrollbarStyle}
       aria-hidden="true"
     >
-      <div className="history-entry-scrollbar-track absolute top-[var(--dashboard-scrollbar-padding)] right-[var(--dashboard-scrollbar-padding)] bottom-[var(--dashboard-scrollbar-padding)] w-[var(--dashboard-scrollbar-thumb-size)]">
-        <div className="history-entry-scrollbar-thumb absolute top-0 right-0 w-full rounded-[var(--dashboard-scrollbar-radius)] bg-[var(--dashboard-scrollbar-thumb-bg)] [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))]" />
+      <div
+        ref={trackRef}
+        className="history-entry-scrollbar-track pointer-events-auto absolute top-[var(--dashboard-scrollbar-padding)] right-[var(--dashboard-scrollbar-padding)] bottom-[var(--dashboard-scrollbar-padding)] w-[var(--dashboard-scrollbar-thumb-size)] touch-none"
+        onPointerDown={onTrackPointerDown}
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+      >
+        <div
+          className={cn(
+            'history-entry-scrollbar-thumb absolute top-0 right-0 w-full cursor-grab touch-none rounded-[var(--dashboard-scrollbar-radius)] bg-[var(--dashboard-scrollbar-thumb-bg)] transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] active:cursor-grabbing',
+            active ? 'opacity-100' : 'opacity-0'
+          )}
+          onPointerDown={onThumbPointerDown}
+        />
       </div>
     </div>
   )
@@ -1325,43 +1292,23 @@ export function TabHistoryPanel({
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter })
   const hasRows = rows.length > 0
   const historyListRef = useRef<HTMLDivElement | null>(null)
-  const [historyScrollbarMetrics, setHistoryScrollbarMetrics] = useState(DEFAULT_HISTORY_SCROLLBAR_METRICS)
+  const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
 
+  // Track which entry is expanded as React state so the DOM read below is
+  // correctly ordered against React's mount/unmount of the expansion element.
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null)
+  useEffect(() => subscribeToExpandedHistoryEntry(setExpandedEntryId), [])
+
+  // After React commits the open/close, hand the expanded element (or null) to
+  // the scrollbar so it can carve that popup's band out of itself. The bar's
+  // own visibility stays independent of this.
+  const { setExpandedElement } = scrollbar
   useLayoutEffect(() => {
-    const listEl = historyListRef.current
-    if (!listEl) return
-
-    let frameId = 0
-    function updateScrollbar() {
-      frameId = 0
-      const nextMetrics = getHistoryScrollbarMetrics(listEl)
-      setHistoryScrollbarMetrics((current) => (
-        historyScrollbarMetricsEqual(current, nextMetrics) ? current : nextMetrics
-      ))
-    }
-    function requestScrollbarUpdate() {
-      if (frameId !== 0) return
-      frameId = requestAnimationFrame(updateScrollbar)
-    }
-
-    updateScrollbar()
-    listEl.addEventListener('scroll', requestScrollbarUpdate, { passive: true })
-    window.addEventListener('resize', requestScrollbarUpdate)
-
-    const resizeObserver = typeof ResizeObserver === 'function'
-      ? new ResizeObserver(requestScrollbarUpdate)
-      : null
-    resizeObserver?.observe(listEl)
-    const contentEl = listEl.firstElementChild
-    if (contentEl instanceof HTMLElement) resizeObserver?.observe(contentEl)
-
-    return () => {
-      if (frameId !== 0) cancelAnimationFrame(frameId)
-      listEl.removeEventListener('scroll', requestScrollbarUpdate)
-      window.removeEventListener('resize', requestScrollbarUpdate)
-      resizeObserver?.disconnect()
-    }
-  }, [rows.length])
+    const expandedEl = expandedEntryId === null
+      ? null
+      : historyListRef.current?.querySelector<HTMLElement>('.history-entry-expanded') ?? null
+    setExpandedElement(expandedEl)
+  }, [expandedEntryId, rows.length, setExpandedElement])
 
   return (
     <section
@@ -1389,7 +1336,7 @@ export function TabHistoryPanel({
           )}
         </div>
       </div>
-      <HistoryEntryScrollbar metrics={historyScrollbarMetrics} />
+      <HistoryEntryScrollbar scrollbar={scrollbar} />
     </section>
   )
 }
