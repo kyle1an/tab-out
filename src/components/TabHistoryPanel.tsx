@@ -1,6 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction, WheelEvent } from 'react'
-import { flushSync } from 'react-dom'
+import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction } from 'react'
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
@@ -76,20 +75,6 @@ function subscribeToExpandedHistoryEntry(subscriber: (activeId: string | null) =
   return () => {
     expandedHistoryEntrySubscribers.delete(subscriber)
   }
-}
-
-function closeExpandedHistoryEntryBeforeNativeScroll(e: WheelEvent<HTMLDivElement>) {
-  if (e.deltaX === 0 && e.deltaY === 0 && e.deltaZ === 0) return
-  closeExpandedHistoryEntryForNativeScroll()
-}
-
-function closeExpandedHistoryEntryOnNativeScroll() {
-  closeExpandedHistoryEntryForNativeScroll()
-}
-
-function closeExpandedHistoryEntryForNativeScroll() {
-  if (activeExpandedHistoryEntryId === null) return
-  flushSync(() => setActiveExpandedHistoryEntry(null))
 }
 
 type HistoryTitleMetrics = {
@@ -960,12 +945,10 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     }
     window.addEventListener('blur', closeNow)
     window.addEventListener('pointermove', closeOnPointerMove, true)
-    window.addEventListener('scroll', closeNow, true)
     document.addEventListener('visibilitychange', closeOnVisibilityChange)
     return () => {
       window.removeEventListener('blur', closeNow)
       window.removeEventListener('pointermove', closeOnPointerMove, true)
-      window.removeEventListener('scroll', closeNow, true)
       document.removeEventListener('visibilitychange', closeOnVisibilityChange)
     }
   }, [entryExpansionId, titleExpanded])
@@ -1319,8 +1302,6 @@ export function TabHistoryPanel({
       <div
         ref={historyListRef}
         className="history-entry-list pointer-events-none relative z-10 flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
-        onWheelCapture={closeExpandedHistoryEntryBeforeNativeScroll}
-        onScrollCapture={closeExpandedHistoryEntryOnNativeScroll}
       >
         <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-0.75 pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
           {hasRows ? rows.map((row) => renderPanelRow(row, {

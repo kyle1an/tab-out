@@ -1261,12 +1261,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     }
     window.addEventListener('blur', closeNow)
     window.addEventListener('pointermove', closeOnPointerMove, true)
-    window.addEventListener('scroll', closeNow, true)
     document.addEventListener('visibilitychange', closeOnVisibilityChange)
     return () => {
       window.removeEventListener('blur', closeNow)
       window.removeEventListener('pointermove', closeOnPointerMove, true)
-      window.removeEventListener('scroll', closeNow, true)
       document.removeEventListener('visibilitychange', closeOnVisibilityChange)
     }
   }, [chipExpanded, chipExpansionId, setChipExpanded])

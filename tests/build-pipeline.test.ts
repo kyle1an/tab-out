@@ -391,10 +391,13 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /onPointerDown=\{onThumbPointerDown\}/)
   assert.match(tabHistoryPanelSource, /--history-entry-scrollbar-thumb-height/)
   assert.match(tabHistoryPanelSource, /className="history-entry-slot relative min-w-0 flex-auto"[\s\S]*\{historyEntrySurface\(false\)\}[\s\S]*\{expandedEntryElement\}/)
-  assert.match(tabHistoryPanelSource, /function closeExpandedHistoryEntryBeforeNativeScroll\(e: WheelEvent<HTMLDivElement>\)/)
-  assert.match(tabHistoryPanelSource, /flushSync\(\(\) => setActiveExpandedHistoryEntry\(null\)\)/)
-  assert.match(tabHistoryPanelSource, /onWheelCapture=\{closeExpandedHistoryEntryBeforeNativeScroll\}/)
-  assert.match(tabHistoryPanelSource, /onScrollCapture=\{closeExpandedHistoryEntryOnNativeScroll\}/)
+  // The expansion no longer collapses on scroll; it stays open until the pointer
+  // leaves the entry's slot (or window blur / tab hidden).
+  assert.doesNotMatch(tabHistoryPanelSource, /closeExpandedHistoryEntryBeforeNativeScroll/)
+  assert.doesNotMatch(tabHistoryPanelSource, /closeExpandedHistoryEntryOnNativeScroll/)
+  assert.doesNotMatch(tabHistoryPanelSource, /onWheelCapture=/)
+  assert.doesNotMatch(tabHistoryPanelSource, /onScrollCapture=/)
+  assert.doesNotMatch(tabHistoryPanelSource, /window\.addEventListener\('scroll'/)
   assert.doesNotMatch(tabHistoryPanelSource, /function getHistoryEntryLayerRoot/)
   assert.doesNotMatch(tabHistoryPanelSource, /layerElement\?: HTMLElement \| null/)
   assert.doesNotMatch(tabHistoryPanelSource, /const \[historyPanelElement, setHistoryPanelElement\]/)

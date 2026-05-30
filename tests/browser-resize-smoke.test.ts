@@ -3967,15 +3967,18 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     popupWheelScroll.after.scrollTop - popupWheelScroll.beforeScrollTop > 72,
     `repeated wheel input over an expanded page chip should keep scrolling the dashboard: ${JSON.stringify(popupWheelScroll)}`
   )
+  // Scroll no longer dismisses the expansion on its own; this wheel input scrolls
+  // far enough (144px) that the ~43px chip slot moves out from under the resting
+  // pointer, so the pointer-left-the-area close fires. Either way it ends closed.
   assert.equal(
     popupWheelScroll.after.expandedCount,
     0,
-    `page chip expansion should close after wheel input scrolls the dashboard: ${JSON.stringify(popupWheelScroll)}`
+    `page chip expansion should close once the chip slot scrolls out from under the pointer: ${JSON.stringify(popupWheelScroll)}`
   )
   assert.equal(
     popupWheelScroll.afterLeaveExpandedCount,
     0,
-    `page chip expansion should stay closed after the pointer leaves the wheel-scrolled chip: ${JSON.stringify(popupWheelScroll)}`
+    `page chip expansion should stay closed after the pointer leaves the chip's slot area: ${JSON.stringify(popupWheelScroll)}`
   )
 
   const historyPopupWheelScroll = await measureHistoryEntryExpansionWheelScroll(session)
@@ -4152,10 +4155,13 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     historyPopupWheelScroll.beforeScrollTop.dashboardScrollTop,
     `wheel input over an expanded history entry should not scroll the dashboard pane first: ${JSON.stringify(historyPopupWheelScroll)}`
   )
+  // Scroll no longer dismisses the expansion on its own; this wheel input scrolls
+  // the list ~72px, more than the ~43px entry slot, so the entry moves out from
+  // under the resting pointer and the pointer-left-the-area close fires.
   assert.equal(
     historyPopupWheelScroll.after.expansionCount,
     0,
-    `history expansion should close after wheel input scrolls the history panel: ${JSON.stringify(historyPopupWheelScroll)}`
+    `history expansion should close once the entry slot scrolls out from under the pointer: ${JSON.stringify(historyPopupWheelScroll)}`
   )
   assert.equal(
     historyPopupWheelScroll.after.tooltipCount,
