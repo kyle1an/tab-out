@@ -20,11 +20,7 @@
   --warm-gray: #ededed; /* soft neutral border */
   --muted: #737373; /* neutral-500 — secondary text */
   --accent-amber: #525252; /* neutral-600 — primary accent */
-  --accent-sage: #16a34a; /* green-600 — success (unused) */
   --accent-slate: #737373; /* neutral-500 */
-  --accent-rose: #ef4444; /* red-500 (unused) */
-  --status-active: #22c55e; /* green-500 (unused) */
-  --status-cooling: #eab308; /* yellow-500 (unused) */
   --status-abandoned: #ef4444; /* red-500 — danger */
   --card-bg: #ffffff;
   --shadow: rgba(10, 10, 10, 0.06);
@@ -102,56 +98,23 @@ body {
   flex-direction: column;
 }
 
-.dashboard-shell {
-  flex: 1 1 auto;
-  min-height: 0;
-  width: 100%;
-  max-width: var(--dashboard-shell-max-width);
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  position: relative;
-  z-index: 1;
-}
+/* .dashboard-shell / .dashboard-main own-box styles live as inline
+   Tailwind utilities in App.tsx (the elements that carry these classes).
+   The class names are retained as selector anchors for the descendant
+   rules below (`.dashboard-main > .pinned-top`, the is-bookmarks /
+   has-history context rules) and for arbitrary-variant selectors in
+   sibling components (e.g. TabHistoryPanel's `.dashboard-shell.has-history`). */
 
-.dashboard-shell.has-history {
-  grid-template-columns:
-    minmax(
-      calc(220px + var(--dashboard-history-edge-gutter)),
-      calc(260px + var(--dashboard-history-edge-gutter))
-    )
-    minmax(0, 1fr);
-  align-items: stretch;
-  gap: 16px;
-}
+/* .pinned-top own-box layout (the --header-shadow-* custom props, flex,
+   position, z-index, the dashboard-main > .pinned-top margins/padding, the
+   is-bookmarks / is-scrolled / has-history overrides, and the focus-within
+   clip-path) lives as inline Tailwind utilities in App.tsx. The custom props
+   are still set there, so the ::after shadow below reads them via inheritance.
+   Only the ::after contextual-shadow painting stays in CSS — it has no utility
+   equivalent. The .pinned-top / is-scrolled classes are kept as anchors.
 
-.dashboard-main {
-  grid-column: 1;
-  min-width: 0;
-  min-height: 0;
-  padding-left: var(--dashboard-page-gutter);
-  padding-right: var(--dashboard-page-gutter);
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-shell.has-history .dashboard-main {
-  grid-column: 2;
-  padding-left: 0;
-  padding-right: var(--dashboard-page-gutter);
-}
-
-.pinned-top {
-  --header-shadow-padding-fade: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
-  --header-shadow-left-reserve: 56px;
-  --header-shadow-left-fade: 18px;
-  flex: 0 0 auto;
-  position: relative;
-  z-index: 10;
-  /* No background at rest — pinned-top blends seamlessly with the
-     page. A contextual shadow (below) is the only separation cue,
-     triggered when the scroll region has scrolled away from the top. */
-}
+   No background at rest — pinned-top blends seamlessly with the page; the
+   ::after gradient is the only separation cue, shown once scrolled. */
 
 .pinned-top::after {
   content: '';
@@ -174,20 +137,6 @@ body {
   transition: opacity 0.2s ease;
 }
 
-.dashboard-main > .pinned-top {
-  margin-left: calc(0px - var(--header-shadow-left-reserve));
-  margin-right: calc(0px - var(--dashboard-edge-bleed));
-  padding-top: 12px;
-  padding-left: var(--header-shadow-left-reserve);
-  padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
-  padding-bottom: 12px;
-}
-
-.dashboard-shell.is-bookmarks .dashboard-main > .pinned-top {
-  margin-left: calc(0px - var(--dashboard-edge-bleed));
-  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
-}
-
 .dashboard-shell.is-bookmarks .dashboard-main > .pinned-top::after {
   mask-image: linear-gradient(
     to right,
@@ -199,11 +148,6 @@ body {
   );
 }
 
-.dashboard-shell.is-bookmarks .dashboard-main > .scroll-region {
-  margin-left: calc(0px - var(--dashboard-edge-bleed) - var(--dashboard-card-shadow-bleed));
-  padding-left: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter) + var(--dashboard-card-shadow-bleed));
-}
-
 @media (min-width: 901px) {
   .dashboard-shell.has-history .dashboard-main > .scroll-region.card-motion-bleed {
     --dashboard-card-motion-left-bleed: calc(260px + var(--dashboard-history-edge-gutter) + 16px);
@@ -213,44 +157,16 @@ body {
   }
 }
 
-.pinned-top.is-scrolled {
-  box-shadow: none;
-}
-
 .pinned-top.is-scrolled::after {
   opacity: 1;
 }
 
-.dashboard-shell.has-history .dashboard-main > .pinned-top {
-  clip-path: inset(0 0 -16px calc(0px - var(--header-shadow-left-reserve)));
-}
-
-.dashboard-shell.has-history .dashboard-main > .pinned-top:focus-within {
-  clip-path: inset(-4px -4px -16px calc(0px - var(--header-shadow-left-reserve) - 4px));
-}
-
-.scroll-region {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
-  overscroll-behavior-y: contain;
-  position: relative;
-  z-index: 1;
-}
-
-.dashboard-main > .scroll-region {
-  margin-left: calc(0px - var(--dashboard-card-shadow-bleed));
-  margin-right: calc(0px - var(--dashboard-edge-bleed));
-  padding-top: 6px;
-  padding-left: var(--dashboard-card-shadow-bleed);
-  padding-right: calc(var(--dashboard-edge-bleed) + var(--dashboard-scroll-gutter));
-  padding-bottom: 50px;
-  scrollbar-gutter: stable;
-  scrollbar-color: var(--dashboard-scrollbar-thumb-bg) transparent;
-  scrollbar-width: auto;
-}
+/* .scroll-region own-box + scrollbar-track layout (overflow, overscroll,
+   margins/padding, scrollbar-gutter/color/width) lives as inline Tailwind
+   utilities on the element in App.tsx. Only the ::-webkit-scrollbar painting
+   (below) and the JS-toggled card-motion-bleed animation rule (above) remain
+   here — neither has a utility equivalent. The .scroll-region class is kept
+   as the anchor for those rules. */
 
 .scroll-region::-webkit-scrollbar {
   width: var(--dashboard-scrollbar-size);

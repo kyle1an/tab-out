@@ -147,32 +147,44 @@ test('masonry resize observer rebinds after conditional mission grids mount', ()
 })
 
 test('dashboard edge gutters are owned by panes instead of the shell', () => {
-  const css = [
-    readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8'),
-    readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  ].join('\n')
+  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
+  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
-  const shellRule = css.match(/\.dashboard-shell\s*\{([^}]*)\}/)
-  const mainRule = css.match(/\.dashboard-main\s*\{([^}]*)\}/)
-  const historyShellRule = css.match(/\.dashboard-shell\.has-history\s*\{([^}]*)\}/)
-  const historyMainRule = css.match(/\.dashboard-shell\.has-history \.dashboard-main\s*\{([^}]*)\}/)
 
-  assert.ok(shellRule)
-  assert.ok(mainRule)
-  assert.ok(historyShellRule)
-  assert.ok(historyMainRule)
+  // .dashboard-shell / .dashboard-main own-box layout lives as inline Tailwind
+  // utilities in App.tsx; the class names survive in base.css only as selector
+  // anchors. These assertions follow the layout to its new home.
+  const shellClass = appSource.match(/'dashboard-shell([^']*)'/)
+  const shellHistoryBranch = appSource.match(/\?\s*'has-history([^']*)'/)
+  const shellPlainBranch = appSource.match(/:\s*'grid-cols-\[minmax\(0,1fr\)\]'/)
+  const mainClass = appSource.match(/'dashboard-main([^']*)'/)
+  const mainHistoryBranch = appSource.match(/\?\s*'\[grid-column:2\]([^']*)'/)
+  const mainPlainBranch = appSource.match(/:\s*'\[grid-column:1\]([^']*)'/)
 
-  assert.match(css, /--dashboard-history-edge-gutter:\s*12px;/)
-  assert.doesNotMatch(css, /\.tab-history-panel\s*\{[^}]*padding-left:\s*var\(--dashboard-page-gutter\)/s)
-  assert.doesNotMatch(tabHistoryPanelSource, /pl-\[var\(--dashboard-page-gutter\)\]/)
-  assert.doesNotMatch(shellRule[1], /\bpadding(?:-(?:left|right))?\s*:/)
-  assert.match(mainRule[1], /padding-left:\s*var\(--dashboard-page-gutter\)/)
-  assert.match(mainRule[1], /padding-right:\s*var\(--dashboard-page-gutter\)/)
+  assert.ok(shellClass)
+  assert.ok(shellHistoryBranch)
+  assert.ok(shellPlainBranch)
+  assert.ok(mainClass)
+  assert.ok(mainHistoryBranch)
+  assert.ok(mainPlainBranch)
+
+  assert.match(baseCss, /--dashboard-history-edge-gutter:\s*12px;/)
+
+  // Edge gutters are NOT on the shell.
+  assert.doesNotMatch(shellClass[1], /\bp[xlr]?-/)
+
+  // The page gutter padding is owned by the main pane (default and has-history).
+  assert.match(mainPlainBranch[1], /px-\[var\(--dashboard-page-gutter\)\]/)
+  assert.match(mainHistoryBranch[1], /\bpl-0\b/)
+  assert.match(mainHistoryBranch[1], /pr-\[var\(--dashboard-page-gutter\)\]/)
+
+  // has-history shell is a two-column grid sized off the history edge gutter.
   assert.match(
-    historyShellRule[1],
-    /minmax\(\s*calc\(220px \+ var\(--dashboard-history-edge-gutter\)\),\s*calc\(260px \+ var\(--dashboard-history-edge-gutter\)\)\s*\)\s*minmax\(0, 1fr\)/
+    shellHistoryBranch[1],
+    /grid-cols-\[minmax\(calc\(220px_\+_var\(--dashboard-history-edge-gutter\)\),calc\(260px_\+_var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/
   )
-  assert.match(historyMainRule[1], /padding-left:\s*0/)
-  assert.match(historyMainRule[1], /padding-right:\s*var\(--dashboard-page-gutter\)/)
+
+  // The history panel keeps its own edge gutter, never the page gutter.
+  assert.doesNotMatch(tabHistoryPanelSource, /pl-\[var\(--dashboard-page-gutter\)\]/)
   assert.match(tabHistoryPanelSource, /className="[^"]*tab-history-panel[^"]*pl-\[var\(--dashboard-history-edge-gutter\)\]/)
 })
