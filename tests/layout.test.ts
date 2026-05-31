@@ -105,6 +105,19 @@ test('working set is merged into the history panel instead of rendering a top st
   assert.doesNotMatch(source, /workingSetLayoutRectsRef|primeWorkingSetLayoutChange|animateWorkingSetLayoutChange/)
 })
 
+test('tabs source reserves the history column before dashboard data is ready', () => {
+  const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /const showTabHistory = source === 'tabs'/)
+  assert.doesNotMatch(source, /const showTabHistory = isReady && source === 'tabs'/)
+})
+
+test('activation history panel stays visually empty when there are no rows', () => {
+  const source = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(source, /No activation history yet/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

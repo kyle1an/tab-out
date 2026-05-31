@@ -1398,7 +1398,6 @@ export function TabHistoryPanel({
   }
 
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts })
-  const hasRows = rows.length > 0
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
 
@@ -1429,7 +1428,7 @@ export function TabHistoryPanel({
         className="history-entry-list pointer-events-none relative z-10 flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
       >
         <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
-          {hasRows ? rows.map((row) => renderPanelRow(row, {
+          {rows.map((row) => renderPanelRow(row, {
             snapshot,
             onSnapshotChange,
             onHoverUrlChange,
@@ -1438,9 +1437,7 @@ export function TabHistoryPanel({
             activeHoverSource,
             onTabsChange,
             onForgetClosedGhost: handleForgetClosedGhost
-          })) : (
-            <div className="flex min-h-13.5 items-center text-[12px] text-tab-muted">No activation history yet.</div>
-          )}
+          }))}
         </div>
       </div>
       <HistoryEntryScrollbar scrollbar={scrollbar} />

@@ -480,7 +480,9 @@ function DashboardShell({
   urlPreview,
   workingSet
 }: DashboardShellProps) {
-  const showTabHistory = isReady && source === 'tabs'
+  // Reserve the Tabs-source history column during the initial dashboard fetch so
+  // the header does not shift when the first snapshot arrives.
+  const showTabHistory = source === 'tabs'
   const historyWorkingSet = source === 'tabs' ? workingSet : null
   return (
     <TooltipProvider>
