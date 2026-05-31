@@ -651,6 +651,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const { pinnedSections, togglePinnedSection } = usePinnedSections({
     onSaveError: () => showToast('Could not save pinned section')
   })
+  // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
   const refreshDashboard = useDashboardRefresh({
     dashboard,
     source,
@@ -659,6 +660,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyFilterEnabled,
     pinnedDomains,
     pinsLoaded,
+    // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
     setDashboard,
     setTabHistory,
@@ -697,6 +699,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyRange,
     historyFilterEnabled,
     isReady,
+    // react-doctor-disable-next-line react-hooks-js/refs -- chipOrder is a mutable per-source ordering cache read at view-model build time, not render-derived state.
     chipOrder: chipOrderRef.current,
     workingSet,
     pinnedSections
@@ -741,6 +744,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const bookmarkMatchesFlush = primaryMissionsEmpty
   const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
   const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistoryMatches
+  // react-doctor-disable-next-line react-hooks-js/refs -- the mission grid refs are forwarded to the masonry container elements; they're attached by React, not read for render output.
   const missionSections = dashboardMissionSections({
     bookmarkMatchedCards,
     bookmarkMatchesFlush,

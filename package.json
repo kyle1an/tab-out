@@ -13,12 +13,12 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint . --max-warnings=0",
     "deps:nolyfill": "pnpm dlx nolyfill --pm pnpm",
-    "react-doctor": "pnpm dlx react-doctor@0.2.3 .",
-    "react-doctor:diff": "pnpm dlx react-doctor@0.2.3 . --diff",
+    "react-doctor": "react-doctor .",
+    "react-doctor:diff": "react-doctor . --diff",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:browser": "RUN_BROWSER_SMOKE=1 node --import tsx --test tests/browser-resize-smoke.test.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
-    "verify": "pnpm typecheck && pnpm lint && pnpm build && pnpm verify:bundle && pnpm test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm react-doctor && pnpm build && pnpm verify:bundle && pnpm test",
     "verify:browser": "pnpm verify && pnpm test:browser"
   },
   "dependencies": {
@@ -51,6 +51,7 @@
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0",
+    "react-doctor": "0.2.3",
     "shadcn": "^4.7.0",
     "tailwindcss": "^4.2.4",
     "tsx": "^4.21.0",

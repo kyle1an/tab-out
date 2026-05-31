@@ -138,30 +138,19 @@ type RenderSectionVM = DashboardSectionVM & {
 
 const EMPTY_HOVER_URLS: readonly string[] = []
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null }: DomainCardProps) {
-  const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
-  const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
-  const cardContext = {
-    activeSuppressedTitle,
-    setActiveSuppressedTitle,
-    dedupeBadgesClosing,
-    onHoverUrlChange,
-    activeHoverUrl,
-    activeHoverUrls,
-    activeHoverSource,
-    onLayoutChange
-  }
-  if (vm.isHidden) return null
-  const hideCardClose = group.domain === '__standalone-apps__'
-  const isAppsCard = group.domain === '__standalone-apps__'
-  const canPin = isPinnableDomain(group.domain) && typeof onTogglePinnedDomain === 'function'
-  const displayName = vm.displayName || group.label || group.domain
-  const closableExtras = vm.closableExtras ?? 0
-  const closableCount = vm.closableCount ?? 0
-  const sections = vm.sections ?? []
-  const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
-  const suppressedTitleParts = vm.suppressedTitleParts ?? []
-  const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
+type CardSuppressionTones = {
+  cardSuppressionToneScope: TitleSuppressionToneScope
+  renderedSections: RenderSectionVM[]
+}
+
+// Builds the per-card title-suppression tone scopes for the card and every nested
+// section/website-path/cluster, threading a single running tone index across the whole
+// tree. Kept module-level (not in render) so the running-index mutation stays pure from
+// React's perspective (react-hooks-js/immutability).
+function buildCardSuppressionTones(
+  suppressedTitleParts: readonly { text: string; spansRenderedChildGroups?: boolean }[],
+  sections: readonly DashboardSectionVM[]
+): CardSuppressionTones {
   let nextTitleSuppressionToneIndex = 0
 
   function allocateTitleSuppressionToneScope(parts: readonly { text: string; spansRenderedChildGroups?: boolean }[]) {
@@ -230,6 +219,35 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
       websitePathSections: renderedWebsitePathSections
     }
   })
+
+  return { cardSuppressionToneScope, renderedSections }
+}
+
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null }: DomainCardProps) {
+  const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
+  const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
+  const cardContext = {
+    activeSuppressedTitle,
+    setActiveSuppressedTitle,
+    dedupeBadgesClosing,
+    onHoverUrlChange,
+    activeHoverUrl,
+    activeHoverUrls,
+    activeHoverSource,
+    onLayoutChange
+  }
+  if (vm.isHidden) return null
+  const hideCardClose = group.domain === '__standalone-apps__'
+  const isAppsCard = group.domain === '__standalone-apps__'
+  const canPin = isPinnableDomain(group.domain) && typeof onTogglePinnedDomain === 'function'
+  const displayName = vm.displayName || group.label || group.domain
+  const closableExtras = vm.closableExtras ?? 0
+  const closableCount = vm.closableCount ?? 0
+  const sections = vm.sections ?? []
+  const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
+  const suppressedTitleParts = vm.suppressedTitleParts ?? []
+  const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
+  const { cardSuppressionToneScope, renderedSections } = buildCardSuppressionTones(suppressedTitleParts, sections)
 
   async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
     const block = e.currentTarget.closest('.domain-block')

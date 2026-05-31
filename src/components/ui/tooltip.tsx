@@ -849,16 +849,19 @@ function useTooltipAnchorController({
   }, [popupElement, tooltipOpen])
 
   const triggerRef = useMemo(
+    // react-doctor-disable-next-line react-hooks-js/refs -- mergeRefs intentionally composes the ref objects; the merged ref is consumed outside render (by React when attaching).
     () => mergeRefs<HTMLElement>(children.props.ref, triggerElementRef),
     [children.props.ref]
   )
   const popupRef = useMemo(
+    // react-doctor-disable-next-line react-hooks-js/refs -- mergeRefs intentionally composes the ref objects; the merged ref is consumed outside render (by React when attaching).
     () => mergeRefs<HTMLDivElement>(popupElementRef, setPopupElement),
     []
   )
 
   const trigger = useMemo(
     () =>
+      // react-doctor-disable-next-line react-hooks-js/refs -- triggerRef is a stable merged ref object passed to cloneElement; React consumes it on mount, not during render.
       cloneElement(children, {
         onBlur: handleBlur,
         onFocus: handleFocus,

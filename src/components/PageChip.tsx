@@ -941,6 +941,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setChipTextMetrics((current) => chipTextMetricsEqual(current, nextMetrics) ? current : nextMetrics)
   }, [])
 
+  // react-doctor-disable-next-line react-hooks-js/todo -- React Compiler bailout on the logical-expression default param; behavior is correct, the compiler just can't reorder it.
   const updateChipSlotMeasurements = useCallback((chipEl: HTMLElement | null = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip') || null) => {
     const nextSize = roundedElementSize(chipEl)
     const textEl = chipTextRef.current?.querySelector<HTMLElement>('.chip-title-row') || chipTextRef.current
@@ -1027,6 +1028,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return e.key === 'Enter' || e.key === ' '
   }
 
+  // react-doctor-disable-next-line react-hooks-js/todo -- React Compiler bailout on the default-param expression; behavior is correct, the compiler just can't reorder it.
   async function focusChipUrl(targetUrl: string | undefined, sourceType = chip.sourceType) {
     if (!targetUrl) return
     if (isReadOnlyDashboardSourceType(sourceType)) {
@@ -1532,6 +1534,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     })
   }
 
+  // react-doctor-disable-next-line react-hooks-js/todo -- React Compiler bailout on the default-param expression; behavior is correct, the compiler just can't reorder it.
   function structuralPlaceholderNode(segment: { placeholder: true; label?: string }, mode: ChipTextRenderMode, key: string, fallbackLabel = chip.pathGroupLabel) {
     const hiddenLabel = segment.label || fallbackLabel
     const marker = (

@@ -755,6 +755,7 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
     setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
   const updateHistoryEntryExpansionMeasurementsRef = useRef(() => {})
+  // react-doctor-disable-next-line react-hooks-js/refs -- latest-callback ref pattern; the ref is only invoked later from the fonts-loaded effect, never read for render output.
   updateHistoryEntryExpansionMeasurementsRef.current = updateHistoryEntryExpansionMeasurements
 
   useLayoutEffect(() => {
@@ -1051,6 +1052,9 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     onHistoryEntryFocus,
     onHistoryEntryBlur
   } = useHistoryEntryExpansion()
+  // Stable per-mount "now" for the relative closed-time label; reading Date.now()
+  // directly in render is an impurity the React Compiler flags (react-hooks-js/purity).
+  const [renderedAtMs] = useState(() => Date.now())
 
   const isWorkingSetExtra = !!workingSetItem
   const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
@@ -1120,7 +1124,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       return <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
     }
     if (kind === 'closed-ghost') {
-      const ariaLabel = closedTab ? `Closed ${formatRelativeMinutes(Date.now(), closedTab.lastClosedAt)}` : 'Closed'
+      const ariaLabel = closedTab ? `Closed ${formatRelativeMinutes(renderedAtMs, closedTab.lastClosedAt)}` : 'Closed'
       return (
         <span
           data-tabout-part="history-entry-marker-closed-ghost"

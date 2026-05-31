@@ -1,6 +1,6 @@
 {
   "offline": true,
-  "failOn": "none",
+  "failOn": "error",
   "deadCode": false,
   "verbose": true,
   "ignore": {
