@@ -732,6 +732,39 @@ function getExpandedTitleVariantContentWidth(textEl: HTMLElement, visibleWidth: 
   }
 }
 
+function getExpandedWrappedPageChipContentWidth(
+  textEl: HTMLElement,
+  measureEl: HTMLElement,
+  visibleWidth: number,
+  maxContentWidth: number,
+  targetLineCount: number,
+  lineHtml: readonly string[]
+): ExpandedPageChipContentMetrics {
+  // Try the resting width first: if the revealed content still fits within the resting
+  // line count there, keep the resting width and don't grow (no guard padding). Flooring
+  // the lower bound at the resting box width, rather than a painted-content estimate that
+  // can fall below it, avoids widening a chip whose content already fits at its current
+  // width. Only widen when it genuinely can't fit in the resting line count.
+  const lowerBound = Math.min(maxContentWidth, Math.max(visibleWidth, getChipTextWidth(textEl)))
+  if (expandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
+    return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
+  }
+
+  if (!expandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
+    return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
+  }
+
+  let low = lowerBound
+  let high = maxContentWidth
+  for (let index = 0; index < PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS; index += 1) {
+    const mid = (low + high) / 2
+    if (expandedMeasureFitsLineCount(measureEl, mid, targetLineCount)) high = mid
+    else low = mid
+  }
+
+  return { viewportConstrained: false, width: guardedExpandedSplitLineWidth(high, maxContentWidth, lineHtml) }
+}
+
 function getExpandedPageChipContentWidth(
   textEl: HTMLElement | null,
   lineHtml: readonly string[],
@@ -754,6 +787,9 @@ function getExpandedPageChipContentWidth(
 
   try {
     if (textEl.classList.contains('chip-title-row')) {
+      if (targetLineCount > 1) {
+        return getExpandedWrappedPageChipContentWidth(textEl, measureEl, visibleWidth, maxContentWidth, targetLineCount, lineHtml)
+      }
       const naturalWidth = getChipTextPaintedContentWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
       const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
       return {
@@ -776,29 +812,7 @@ function getExpandedPageChipContentWidth(
       return { viewportConstrained: false, width: Math.round(Math.min(maxContentWidth, Math.max(visibleWidth, naturalWidth)) * 100) / 100 }
     }
 
-    // Try the resting width first: if the revealed content still fits within the resting
-    // line count there, keep the resting width and don't grow (no guard padding). Flooring
-    // the lower bound at the resting box width — rather than a painted-content estimate that
-    // can fall below it — avoids widening a chip whose content already fits at its current
-    // width. Only widen (below) when it genuinely can't fit in the resting line count.
-    const lowerBound = Math.min(maxContentWidth, Math.max(visibleWidth, getChipTextWidth(textEl)))
-    if (expandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
-      return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
-    }
-
-    if (!expandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
-      return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
-    }
-
-    let low = lowerBound
-    let high = maxContentWidth
-    for (let index = 0; index < PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS; index += 1) {
-      const mid = (low + high) / 2
-      if (expandedMeasureFitsLineCount(measureEl, mid, targetLineCount)) high = mid
-      else low = mid
-    }
-
-    return { viewportConstrained: false, width: guardedExpandedSplitLineWidth(high, maxContentWidth, lineHtml) }
+    return getExpandedWrappedPageChipContentWidth(textEl, measureEl, visibleWidth, maxContentWidth, targetLineCount, lineHtml)
   } finally {
     measureEl.remove()
   }

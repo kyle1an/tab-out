@@ -3561,6 +3561,129 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
   return { target, expansion, expandedVariantLabels }
 }
 
+async function measureWrappedTitleVariantExpansion(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddWrappedTitleVariantTabs?.()`
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) =>
+            candidate.textContent?.includes('Example Store') &&
+            candidate.textContent?.includes('?example=alpha')
+          )
+        const chipRect = chip?.getBoundingClientRect()
+        const titleRow = chip?.querySelector('.chip-title-row')
+        const titleRect = titleRow?.getBoundingClientRect()
+        const markerCount = titleRow?.querySelectorAll('.chip-title-suppression-marker').length || 0
+        if (
+          chip instanceof HTMLElement &&
+          chipRect &&
+          (chipRect.top < 24 || chipRect.bottom > window.innerHeight - 24)
+        ) {
+          chip.scrollIntoView({ block: 'center', inline: 'nearest' })
+          setTimeout(wait, 120)
+          return
+        }
+        if (
+          chip instanceof HTMLElement &&
+          titleRow instanceof HTMLElement &&
+          chipRect &&
+          titleRect &&
+          titleRect.width > 120 &&
+          titleRect.height > 8
+        ) {
+          const lineHeight = Number.parseFloat(window.getComputedStyle(titleRow).lineHeight) || 16.25
+          resolve({
+            x: Math.round(titleRect.left + Math.min(24, titleRect.width / 2)),
+            y: Math.round(titleRect.top + Math.min(titleRect.height / 2, 10)),
+            chipWidth: Math.round(chipRect.width),
+            titleText: titleRow.textContent || '',
+            titleWidth: Math.round(titleRect.width),
+            titleLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
+            markerCount
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected wrapped same-title URL variant chip for expansion width smoke')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const expansion = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+          .find((candidate) => candidate.textContent?.includes('Example Store'))
+        const titleRow = chip?.querySelector('.chip-title-row')
+        const chipRect = chip?.getBoundingClientRect()
+        const titleRect = titleRow?.getBoundingClientRect()
+        if (
+          chip instanceof HTMLElement &&
+          titleRow instanceof HTMLElement &&
+          chipRect &&
+          titleRect &&
+          chipRect.width > 0 &&
+          chipRect.height > 0
+        ) {
+          const lineHeight = Number.parseFloat(window.getComputedStyle(titleRow).lineHeight) || 16.25
+          resolve({
+            width: Math.round(chipRect.width),
+            titleText: titleRow.textContent || '',
+            titleLineCount: Math.max(1, Math.round(titleRect.height / lineHeight)),
+            titleLineTexts: Array.from(titleRow.querySelectorAll('.page-chip-expanded-line')).map((line) => line.textContent || '')
+          })
+        } else if (Date.now() - start > 2000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: 8,
+    y: 8
+  })
+  await wait(260)
+
+  return { target, expansion }
+}
+
 test('dashboard cards repack when the viewport resizes', async (t) => {
   if (!RUN_BROWSER_SMOKE) {
     t.skip('set RUN_BROWSER_SMOKE=1 to launch Chrome for the resize smoke test')
@@ -4351,6 +4474,30 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     compactTitleVariantExpansion.expandedVariantLabels.every((label: { clientWidth: number; scrollWidth: number }) => label.scrollWidth - label.clientWidth <= 1),
     `compact same-title variant chip expansion should keep its URL variant labels untruncated when viewport room allows: ${JSON.stringify(compactTitleVariantExpansion)}`
+  )
+  const wrappedTitleVariantExpansion = await measureWrappedTitleVariantExpansion(session)
+  assert.equal(
+    wrappedTitleVariantExpansion.target.titleLineCount,
+    2,
+    `wrapped same-title variant title should start as two visible lines: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+  )
+  assert.ok(
+    wrappedTitleVariantExpansion.target.markerCount > 0,
+    `wrapped same-title variant title should include a compact suppression marker: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+  )
+  assert.ok(wrappedTitleVariantExpansion.expansion, `wrapped same-title variant chip should expand in place: ${JSON.stringify(wrappedTitleVariantExpansion)}`)
+  assert.ok(
+    Math.abs(wrappedTitleVariantExpansion.expansion.width - wrappedTitleVariantExpansion.target.chipWidth) <= 1,
+    `wrapped same-title variant chip should not grow when expanded title text fits in the resting line count: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+  )
+  assert.equal(
+    wrappedTitleVariantExpansion.expansion.titleLineCount,
+    wrappedTitleVariantExpansion.target.titleLineCount,
+    `wrapped same-title variant expansion should keep the resting title line count: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+  )
+  assert.ok(
+    wrappedTitleVariantExpansion.expansion.titleText.includes('Example Optical'),
+    `wrapped same-title variant expansion should reveal the suppressed title text: ${JSON.stringify(wrappedTitleVariantExpansion)}`
   )
 
   await evaluateWithNavigationRetry(session, {
