@@ -168,6 +168,7 @@ export function useMissionsMasonry(...args: unknown[]) {
   const lastColCountsRef = useRef(new WeakMap<HTMLElement, number>())
   const rafIdRef = useRef(0)
   const observerRef = useRef<ResizeObserver | null>(null)
+  const mutationObserverRef = useRef<MutationObserver | null>(null)
   const containerRefsRef = useRef(containerRefs)
   const optionsRef = useRef({ onBeforePack, onAfterPack })
   containerRefsRef.current = containerRefs
@@ -201,18 +202,37 @@ export function useMissionsMasonry(...args: unknown[]) {
       })
       observerRef.current = observer
     }
+    // Progressive reveal appends `.domain-block` children into a grid whose box
+    // doesn't change (its height is set imperatively), so the ResizeObserver
+    // alone never fires for it. A childList MutationObserver re-packs on append.
+    // packContainer only mutates styles/height (never childList), so this can't
+    // loop; scheduleMissionsMasonry rAF-coalesces bursts of appends into one pack.
+    let mutationObserver = mutationObserverRef.current
+    if (!mutationObserver) {
+      mutationObserver = new MutationObserver(() => {
+        scheduleMissionsMasonry({ animate: false })
+      })
+      mutationObserverRef.current = mutationObserver
+    }
     observer.disconnect()
+    mutationObserver.disconnect()
     containerRefs.forEach((ref) => {
       const container = ref.current
-      if (container) observer.observe(container)
+      if (!container) return
+      observer.observe(container)
+      mutationObserver.observe(container, { childList: true })
     })
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      mutationObserver.disconnect()
+    }
   })
 
   useEffect(
     () => () => {
       cancelAnimationFrame(rafIdRef.current)
       observerRef.current?.disconnect()
+      mutationObserverRef.current?.disconnect()
     },
     []
   )

@@ -269,11 +269,6 @@ function MissionBlock({
     resetKey: `${source}:${filter}:${progressiveCardListKey(cards)}`
   })
 
-  useLayoutEffect(() => {
-    if (!progressiveEnabled) return
-    onLayoutChange({ animate: false })
-  }, [cards.length, onLayoutChange, progressiveCards.cards.length, progressiveEnabled])
-
   return (
     <MissionsGrid empty={gridEmpty} id={gridId} ref={gridRef}>
       <Missions
