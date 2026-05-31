@@ -12,7 +12,8 @@ import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderM
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
 import { usePinnedSections } from '../hooks/usePinnedSections'
-import { useUrlPreview } from '../hooks/useUrlPreview'
+import { useHoverMatch } from '../hooks/useHoverMatch'
+import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
@@ -42,11 +43,6 @@ const PROGRESSIVE_CARD_THRESHOLD = 80
 const PROGRESSIVE_CARD_INITIAL_COUNT = 24
 const PROGRESSIVE_CARD_CHUNK_SIZE = 24
 
-type HoverMatchState = {
-  url: string
-  urls: string[]
-  source: HoverUrlSource | null
-}
 type MissionBlockProps = {
   activeHoverSource: HoverUrlSource | null
   activeHoverUrl: string
@@ -423,9 +419,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialDashboard, initialAppDashboardState)
   const { closedTabs, dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
-  const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
-  const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
-  const [isScrolled, setIsScrolled] = useState(false)
+  const { hoverMatch, urlPreview, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
+  const { isScrolled, handleScrollRegionRef } = useScrollShadow()
   function setClosedTabs(next: readonly ClosedTabEntry[]) {
     dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
   }
@@ -468,16 +463,10 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     bookmarks: new Map(),
     history: new Map()
   })
-  const scrollRegionRef = useRef<HTMLDivElement | null>(null)
   const primaryMissionsRef = useRef<HTMLDivElement | null>(null)
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
   const historyMissionsRef = useRef<HTMLDivElement | null>(null)
   const unmatchedMissionsRef = useRef<HTMLDivElement | null>(null)
-  const handleScrollRegionRef = useCallback((node: HTMLDivElement | null) => {
-    scrollRegionRef.current = node
-    const next = (node?.scrollTop || 0) > 0
-    setIsScrolled((prev) => (prev === next ? prev : next))
-  }, [])
   const isReady = !!dashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
@@ -492,29 +481,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const primeCardMoveAnimation = useCallback(function primeCardMoveAnimation() {
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
   }, [currentMissionContainers])
-
-  function sameHoverUrls(a: readonly string[], b: readonly string[]) {
-    return a.length === b.length && a.every((url, index) => url === b[index])
-  }
-
-  function handleHoverUrlChange(url: string, source: HoverUrlSource = 'chip', matchUrls?: readonly string[]) {
-    const nextUrl = url || ''
-    const nextUrls = nextUrl
-      ? [...new Set((matchUrls && matchUrls.length > 0 ? matchUrls : [nextUrl]).filter(Boolean))]
-      : []
-    const nextSource = nextUrls.length > 0 ? source : null
-    setHoverMatch((current) => (
-      current.url === nextUrl && current.source === nextSource && sameHoverUrls(current.urls, nextUrls)
-        ? current
-        : { url: nextUrl, urls: nextUrls, source: nextSource }
-    ))
-    setUrlPreview(nextUrl)
-  }
-
-  const clearHoverUrlNow = useCallback(function clearHoverUrlNow() {
-    setHoverMatch((current) => (current.url || current.urls.length > 0 || current.source ? { url: '', urls: [], source: null } : current))
-    clearUrlPreviewNow()
-  }, [clearUrlPreviewNow])
 
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
   function resetMissionOrder() {
@@ -543,20 +509,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     onBeforeAnimatedRefresh: primeCardMoveAnimation,
     onBeforePinnedRefresh: clearHoverUrlNow
   })
-
-  useEffect(() => {
-    const scrollEl = scrollRegionRef.current
-    if (!scrollEl) return
-    const scrollTarget = scrollEl
-
-    function onScroll() {
-      const next = scrollTarget.scrollTop > 0
-      setIsScrolled((prev) => (prev === next ? prev : next))
-    }
-
-    scrollTarget.addEventListener('scroll', onScroll, { passive: true })
-    return () => scrollTarget.removeEventListener('scroll', onScroll)
-  }, [])
 
   useLayoutEffect(() => {
     if (!isReady) return
