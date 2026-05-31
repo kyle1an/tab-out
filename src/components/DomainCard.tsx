@@ -2,6 +2,7 @@ import { isPinnableDomain } from '../extension/domain-pins.js'
 import { splitDomainForDisplay } from '../extension/domains.js'
 import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { DomainCardProvider } from './DomainCardContext'
+import { useDashboardActions } from './DashboardInteractionContext'
 import { SubdomainSection } from './SubdomainSection'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
@@ -10,20 +11,12 @@ import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedPageChipHandler, TogglePinnedSectionHandler } from './types'
+import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
   vm: DashboardCardVM
   filter?: string
-  onHoverUrlChange?: HoverUrlChangeHandler | null
-  activeHoverUrl?: string
-  activeHoverUrls?: readonly string[]
-  activeHoverSource?: HoverUrlSource | null
-  onLayoutChange?: LayoutChangeHandler | null
-  onTogglePinnedDomain?: TogglePinnedDomainHandler | null
-  onTogglePinnedSection?: TogglePinnedSectionHandler | null
-  onTogglePinnedPageChip?: TogglePinnedPageChipHandler | null
 }
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
@@ -137,8 +130,6 @@ type RenderSectionVM = DashboardSectionVM & {
   websitePathSections: RenderWebsitePathSectionVM[]
 }
 
-const EMPTY_HOVER_URLS: readonly string[] = []
-
 type CardSuppressionTones = {
   cardSuppressionToneScope: TitleSuppressionToneScope
   renderedSections: RenderSectionVM[]
@@ -224,19 +215,14 @@ function buildCardSuppressionTones(
   return { cardSuppressionToneScope, renderedSections }
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null, onTogglePinnedPageChip = null }: DomainCardProps) {
+export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
+  const { onTogglePinnedDomain, onTogglePinnedSection } = useDashboardActions()
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const cardContext = {
     activeSuppressedTitle,
     setActiveSuppressedTitle,
-    dedupeBadgesClosing,
-    onHoverUrlChange,
-    activeHoverUrl,
-    activeHoverUrls,
-    activeHoverSource,
-    onLayoutChange,
-    onTogglePinnedPageChip
+    dedupeBadgesClosing
   }
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'

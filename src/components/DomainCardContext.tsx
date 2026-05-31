@@ -1,28 +1,18 @@
 import { createContext, use, type ReactNode } from 'react'
-import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedPageChipHandler } from './types'
 
+// Per-card local state only. Ambient, dashboard-wide interaction state (hover, layout,
+// pin handlers) lives in DashboardInteractionContext so it can be provided once at the
+// top instead of drilled down to every card.
 export type DomainCardContextValue = {
   activeSuppressedTitle: string
   setActiveSuppressedTitle: (text: string) => void
   dedupeBadgesClosing: boolean
-  onHoverUrlChange: HoverUrlChangeHandler | null
-  activeHoverUrl: string
-  activeHoverUrls: readonly string[]
-  activeHoverSource: HoverUrlSource | null
-  onLayoutChange: LayoutChangeHandler | null
-  onTogglePinnedPageChip: TogglePinnedPageChipHandler | null
 }
 
 const defaultDomainCardContext: DomainCardContextValue = {
   activeSuppressedTitle: '',
   setActiveSuppressedTitle: () => {},
-  dedupeBadgesClosing: false,
-  onHoverUrlChange: null,
-  activeHoverUrl: '',
-  activeHoverUrls: [],
-  activeHoverSource: null,
-  onLayoutChange: null,
-  onTogglePinnedPageChip: null
+  dedupeBadgesClosing: false
 }
 
 const DomainCardContext = createContext(defaultDomainCardContext)

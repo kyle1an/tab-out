@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 
 import { DomainCard } from '../src/components/DomainCard.js'
 import { DomainCardProvider, type DomainCardContextValue } from '../src/components/DomainCardContext.js'
+import { DashboardActionsProvider, HoverStateProvider } from '../src/components/DashboardInteractionContext.js'
+import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedPageChipHandler, TogglePinnedSectionHandler } from '../src/components/types.js'
 import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PAGE_CHIP_CLOSE_ANIMATION_MS, startPageChipCloseAnimation } from '../src/components/PageChipCloseAnimation.js'
@@ -36,20 +38,78 @@ function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData
   }
 }
 
-function renderWithDomainCardContext(element: React.ReactElement, overrides: Partial<DomainCardContextValue> = {}) {
+// Mirrors the old single-context override surface so the tests below keep passing the
+// same fields. The ambient hover/handler fields are now routed to the split contexts.
+type RenderContextOverrides = Partial<DomainCardContextValue> & {
+  activeHoverUrl?: string
+  activeHoverUrls?: readonly string[]
+  activeHoverSource?: HoverUrlSource | null
+  onHoverUrlChange?: HoverUrlChangeHandler | null
+  onLayoutChange?: LayoutChangeHandler | null
+  onTogglePinnedDomain?: TogglePinnedDomainHandler | null
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null
+  onTogglePinnedPageChip?: TogglePinnedPageChipHandler | null
+}
+
+function renderWithDomainCardContext(element: React.ReactElement, overrides: RenderContextOverrides = {}) {
   const value: DomainCardContextValue = {
     activeSuppressedTitle: overrides.activeSuppressedTitle ?? '',
     setActiveSuppressedTitle: overrides.setActiveSuppressedTitle ?? (() => {}),
-    dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false,
-    onHoverUrlChange: overrides.onHoverUrlChange ?? null,
-    activeHoverUrl: overrides.activeHoverUrl ?? '',
-    activeHoverUrls: overrides.activeHoverUrls ?? [],
-    activeHoverSource: overrides.activeHoverSource ?? null,
-    onLayoutChange: overrides.onLayoutChange ?? null,
-    onTogglePinnedPageChip: overrides.onTogglePinnedPageChip ?? null
+    dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false
+  }
+  const hoverState = {
+    url: overrides.activeHoverUrl ?? '',
+    urls: overrides.activeHoverUrls ?? [],
+    source: overrides.activeHoverSource ?? null
+  }
+  const actions = {
+    onHoverUrlChange: overrides.onHoverUrlChange ?? (() => {}),
+    onLayoutChange: overrides.onLayoutChange ?? (() => {}),
+    onTogglePinnedDomain: overrides.onTogglePinnedDomain ?? (() => {}),
+    onTogglePinnedSection: overrides.onTogglePinnedSection ?? (() => {}),
+    onTogglePinnedPageChip: overrides.onTogglePinnedPageChip ?? (() => {})
   }
 
-  return renderToStaticMarkup(React.createElement(DomainCardProvider, { value }, element))
+  return renderToStaticMarkup(
+    React.createElement(
+      DashboardActionsProvider,
+      { value: actions },
+      React.createElement(
+        HoverStateProvider,
+        { value: hoverState },
+        React.createElement(DomainCardProvider, { value }, element)
+      )
+    )
+  )
+}
+
+function renderTabHistoryPanel(
+  props: Record<string, unknown>,
+  hover: { activeHoverUrl?: string; activeHoverUrls?: readonly string[]; activeHoverSource?: HoverUrlSource | null } = {}
+): string {
+  const hoverState = {
+    url: hover.activeHoverUrl ?? '',
+    urls: hover.activeHoverUrls ?? [],
+    source: hover.activeHoverSource ?? null
+  }
+  const actions = {
+    onHoverUrlChange: () => {},
+    onLayoutChange: () => {},
+    onTogglePinnedDomain: () => {},
+    onTogglePinnedSection: () => {},
+    onTogglePinnedPageChip: () => {}
+  }
+  return renderToStaticMarkup(
+    React.createElement(
+      DashboardActionsProvider,
+      { value: actions },
+      React.createElement(
+        HoverStateProvider,
+        { value: hoverState },
+        React.createElement(TabHistoryPanel as React.ComponentType<any>, props)
+      )
+    )
+  )
 }
 
 function assertInstantActionClass(className: string) {
@@ -598,15 +658,15 @@ test('PageChip outlines matching live chips when an external row owns the match'
   })
   const historyHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' } as Partial<DomainCardContextValue>
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' } as RenderContextOverrides
   )
   const workingSetHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' } as Partial<DomainCardContextValue>
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' } as RenderContextOverrides
   )
   const selfHoverHtml = renderWithDomainCardContext(
     React.createElement(PageChip, { chip }),
-    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as Partial<DomainCardContextValue>
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' } as RenderContextOverrides
   )
   const historyMatch = historyHoverHtml.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   const workingSetMatch = workingSetHoverHtml.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
@@ -895,7 +955,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
     {
       activeHoverUrl: 'https://example.com/content/item?search_id=bravo',
       activeHoverSource: 'history'
-    } as Partial<DomainCardContextValue>
+    } as RenderContextOverrides
   )
   const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
@@ -1071,7 +1131,7 @@ test('PageChip matches working set hover against raw tab URLs', () => {
       activeHoverUrl: 'https://example.com/preview',
       activeHoverUrls: [rawUrl],
       activeHoverSource: 'working-set'
-    } as Partial<DomainCardContextValue>
+    } as RenderContextOverrides
   )
   const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
 
@@ -1089,7 +1149,7 @@ test('Overflow expander outlines when external hover matches a hidden chip', () 
     tabUrl: 'https://example.com/visible',
     rawUrl: 'https://example.com/visible'
   })
-  const renderOverflow = (context: Partial<DomainCardContextValue>) => renderWithDomainCardContext(
+  const renderOverflow = (context: RenderContextOverrides) => renderWithDomainCardContext(
     React.createElement(FlatSection, {
       visibleChips: [visibleChip],
       hiddenChips: [hiddenChip],
@@ -1123,26 +1183,17 @@ test('Overflow expander outlines when external hover matches a hidden chip', () 
 
 test('TabHistoryPanel outlines matching history rows when another source owns the match', () => {
   const snapshot = makeHistorySnapshot()
-  const chipHoverHtml = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot,
-      activeHoverUrl: 'https://example.com/docs',
-      activeHoverSource: 'chip'
-    })
+  const chipHoverHtml = renderTabHistoryPanel(
+    { snapshot },
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'chip' }
   )
-  const workingSetHoverHtml = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot,
-      activeHoverUrl: 'https://example.com/docs',
-      activeHoverSource: 'working-set'
-    })
+  const workingSetHoverHtml = renderTabHistoryPanel(
+    { snapshot },
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'working-set' }
   )
-  const selfHoverHtml = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot,
-      activeHoverUrl: 'https://example.com/docs',
-      activeHoverSource: 'history'
-    })
+  const selfHoverHtml = renderTabHistoryPanel(
+    { snapshot },
+    { activeHoverUrl: 'https://example.com/docs', activeHoverSource: 'history' }
   )
   const chipHoverMatch = chipHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
   const workingSetHoverMatch = workingSetHoverHtml.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
@@ -1168,13 +1219,9 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
       }
     ]
   })
-  const html = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot,
-      activeHoverUrl: 'https://example.com/docs',
-      activeHoverUrls: ['https://example.com/docs', rawUrl],
-      activeHoverSource: 'chip'
-    })
+  const html = renderTabHistoryPanel(
+    { snapshot },
+    { activeHoverUrl: 'https://example.com/docs', activeHoverUrls: ['https://example.com/docs', rawUrl], activeHoverSource: 'chip' }
   )
   const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
@@ -1194,13 +1241,9 @@ test('TabHistoryPanel reuses shared page-target matching for suspended history r
       }
     ]
   })
-  const html = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot,
-      activeHoverUrl: rawUrl,
-      activeHoverUrls: [rawUrl],
-      activeHoverSource: 'chip'
-    })
+  const html = renderTabHistoryPanel(
+    { snapshot },
+    { activeHoverUrl: rawUrl, activeHoverUrls: [rawUrl], activeHoverSource: 'chip' }
   )
   const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
@@ -2635,8 +2678,7 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
     const html = renderToStaticMarkup(
       React.createElement(DomainCard, {
         group: { domain: card.domain, label: card.label, tabs: [] },
-        vm: { ...vm, stableId: card.stableId },
-        onTogglePinnedDomain: () => {}
+        vm: { ...vm, stableId: card.stableId }
       })
     )
 

@@ -18,6 +18,7 @@ import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabH
 import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import { useHistoryPanelRows, type HistoryPanelRow } from '../hooks/useHistoryPanelRows.js'
 import { useHistoryScrollbar, type HistoryScrollbar } from '../hooks/useHistoryScrollbar.js'
+import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
 const HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12
@@ -134,10 +135,6 @@ interface TabHistoryPanelProps {
   closedTabs?: readonly ClosedTabEntry[]
   filter?: string
   onSnapshotChange?: SnapshotChangeHandler
-  onHoverUrlChange?: HoverUrlChangeHandler
-  activeHoverUrl?: string
-  activeHoverUrls?: readonly string[]
-  activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
 }
 
@@ -1371,12 +1368,10 @@ export function TabHistoryPanel({
   closedTabs = EMPTY_CLOSED_TABS,
   filter = '',
   onSnapshotChange,
-  onHoverUrlChange,
-  activeHoverUrl = '',
-  activeHoverUrls = EMPTY_HOVER_URLS,
-  activeHoverSource = null,
   onTabsChange
 }: TabHistoryPanelProps) {
+  const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
+  const { onHoverUrlChange } = useDashboardActions()
   const [dismissedClosedGhosts, setDismissedClosedGhosts] = useState<ClosedGhostDismissals>(() => new Map<string, number>())
   useEffect(() => {
     let active = true

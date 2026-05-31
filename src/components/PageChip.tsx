@@ -10,6 +10,7 @@ import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
+import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
 import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
 import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
@@ -901,7 +902,9 @@ function getChipTextResizeObserver() {
 }
 
 function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
-  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange, onTogglePinnedPageChip } = useDomainCardContext()
+  const { activeSuppressedTitle, dedupeBadgesClosing } = useDomainCardContext()
+  const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
+  const { onHoverUrlChange, onLayoutChange, onTogglePinnedPageChip } = useDashboardActions()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []

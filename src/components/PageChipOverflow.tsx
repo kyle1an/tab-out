@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { pageTargetMatchesHover } from '../extension/page-target.js'
 import { useDomainCardContext } from './DomainCardContext'
+import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
 import { PageChip } from './PageChip'
 import { cn } from '@/lib/utils'
 import { TITLE_SUPPRESSION_MARKER_SYMBOL, countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass, titleSuppressionToneForText } from './title-suppression'
@@ -48,7 +49,9 @@ export function usePageChipOverflow({
   overflowButtonClassName
 }: PageChipOverflowOptions): { expanded: boolean; pageChips: ReactNode } {
   const [expanded, setExpanded] = useState(false)
-  const { activeSuppressedTitle, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
+  const { activeSuppressedTitle } = useDomainCardContext()
+  const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
+  const { onLayoutChange } = useDashboardActions()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
   const hiddenSuppressionCoversAll = hiddenSuppressionMatchCount > 0 && hiddenSuppressionMatchCount === hiddenCount

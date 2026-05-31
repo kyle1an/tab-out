@@ -71,7 +71,8 @@ function HistoryRangeSelect({
   )
 }
 
-interface HeaderBarProps extends DashboardStats {
+interface HeaderBarProps {
+  stats: DashboardStats
   filter: string
   filterFocusRequest?: number
   historyRange: string
@@ -132,7 +133,7 @@ export function HeaderBar({
   onSourceChange,
   source = 'tabs',
   ready = true,
-  ...stats
+  stats
 }: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -200,17 +201,7 @@ export function HeaderBar({
           <HeaderStats
             source={source}
             ready={ready}
-            totalTabs={stats.totalTabs}
-            activeTabs={stats.activeTabs}
-            visibleTabs={stats.visibleTabs}
-            totalWindows={stats.totalWindows}
-            visibleWindows={stats.visibleWindows}
-            totalDomains={stats.totalDomains}
-            visibleDomains={stats.visibleDomains}
-            dedupCount={stats.dedupCount}
-            filteredCloseCount={stats.filteredCloseCount}
-            hasCards={stats.hasCards}
-            filtering={stats.filtering}
+            {...stats}
             onDedupAll={onDedupAll}
             onCloseFiltered={onCloseFiltered}
           />

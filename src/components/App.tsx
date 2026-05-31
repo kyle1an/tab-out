@@ -13,26 +13,21 @@ import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
 import { usePinnedPageChips } from '../hooks/usePinnedPageChips'
 import { usePinnedSections } from '../hooks/usePinnedSections'
-import { useHoverMatch, type HoverMatchState } from '../hooks/useHoverMatch'
+import { useHoverMatch } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
+import { DashboardActionsProvider, HoverStateProvider } from './DashboardInteractionContext'
 import { cn } from '@/lib/utils'
 import type {
   DashboardCardEntry,
   DashboardData,
   DashboardSource,
   DashboardStats,
-  HoverUrlChangeHandler,
-  HoverUrlSource,
-  LayoutChangeHandler,
-  TabHistorySnapshot,
-  TogglePinnedDomainHandler,
-  TogglePinnedPageChipHandler,
-  TogglePinnedSectionHandler
+  TabHistorySnapshot
 } from './types'
 import type { WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
@@ -47,19 +42,11 @@ const PROGRESSIVE_CARD_INITIAL_COUNT = 24
 const PROGRESSIVE_CARD_CHUNK_SIZE = 24
 
 type MissionBlockProps = {
-  activeHoverSource: HoverUrlSource | null
-  activeHoverUrl: string
-  activeHoverUrls: readonly string[]
   cards: DashboardCardEntry[]
   filter: string
   gridEmpty?: boolean
   gridId: string
   gridRef?: Ref<HTMLDivElement>
-  onHoverUrlChange: HoverUrlChangeHandler
-  onLayoutChange: LayoutChangeHandler
-  onTogglePinnedDomain: TogglePinnedDomainHandler
-  onTogglePinnedPageChip: TogglePinnedPageChipHandler
-  onTogglePinnedSection: TogglePinnedSectionHandler
   showEmptyState: boolean
   source: DashboardSource
 }
@@ -96,15 +83,7 @@ type DashboardMissionSectionsOptions = {
   unmatchedMissionsRef: Ref<HTMLDivElement>
 }
 type DashboardMissionsListProps = {
-  activeHoverSource: HoverUrlSource | null
-  activeHoverUrl: string
-  activeHoverUrls: readonly string[]
   filter: string
-  onHoverUrlChange: HoverUrlChangeHandler
-  onLayoutChange: LayoutChangeHandler
-  onTogglePinnedDomain: TogglePinnedDomainHandler
-  onTogglePinnedPageChip: TogglePinnedPageChipHandler
-  onTogglePinnedSection: TogglePinnedSectionHandler
   sections: DashboardMissionSection[]
 }
 type ProgressiveCardsOptions = {
@@ -252,19 +231,11 @@ function progressiveCardListKey(cards: DashboardCardEntry[]) {
 }
 
 function MissionBlock({
-  activeHoverSource,
-  activeHoverUrl,
-  activeHoverUrls,
   cards,
   filter,
   gridEmpty = false,
   gridId,
   gridRef,
-  onHoverUrlChange,
-  onLayoutChange,
-  onTogglePinnedDomain,
-  onTogglePinnedPageChip,
-  onTogglePinnedSection,
   showEmptyState,
   source
 }: MissionBlockProps) {
@@ -281,14 +252,6 @@ function MissionBlock({
         filter={filter}
         source={source}
         showEmptyState={showEmptyState}
-        onHoverUrlChange={onHoverUrlChange}
-        activeHoverUrl={activeHoverUrl}
-        activeHoverUrls={activeHoverUrls}
-        activeHoverSource={activeHoverSource}
-        onLayoutChange={onLayoutChange}
-        onTogglePinnedDomain={onTogglePinnedDomain}
-        onTogglePinnedPageChip={onTogglePinnedPageChip}
-        onTogglePinnedSection={onTogglePinnedSection}
       />
     </MissionsGrid>
   )
@@ -369,18 +332,7 @@ function dashboardMissionSections({
   return sections
 }
 
-function DashboardMissionsList({
-  activeHoverSource,
-  activeHoverUrl,
-  activeHoverUrls,
-  filter,
-  onHoverUrlChange,
-  onLayoutChange,
-  onTogglePinnedDomain,
-  onTogglePinnedPageChip,
-  onTogglePinnedSection,
-  sections
-}: DashboardMissionsListProps) {
+function DashboardMissionsList({ filter, sections }: DashboardMissionsListProps) {
   if (sections.length === 0) return null
 
   return (
@@ -389,19 +341,11 @@ function DashboardMissionsList({
         const block = (
           <MissionBlock
             key={section.gridId}
-            activeHoverSource={activeHoverSource}
-            activeHoverUrl={activeHoverUrl}
-            activeHoverUrls={activeHoverUrls}
             cards={section.cards}
             filter={filter}
             gridEmpty={section.gridEmpty}
             gridId={section.gridId}
             gridRef={section.gridRef}
-            onHoverUrlChange={onHoverUrlChange}
-            onLayoutChange={onLayoutChange}
-            onTogglePinnedDomain={onTogglePinnedDomain}
-            onTogglePinnedPageChip={onTogglePinnedPageChip}
-            onTogglePinnedSection={onTogglePinnedSection}
             showEmptyState={section.showEmptyState}
             source={section.source}
           />
@@ -424,10 +368,8 @@ type DashboardShellProps = {
   filter: string
   filterFocusRequest: number
   filterInput: string
-  handleHoverUrlChange: HoverUrlChangeHandler
   handleScrollRegionRef: (node: HTMLDivElement | null) => void
   historyRange: string
-  hoverMatch: HoverMatchState
   isReady: boolean
   isScrolled: boolean
   missionSections: DashboardMissionSection[]
@@ -435,7 +377,6 @@ type DashboardShellProps = {
   onDedupAll: () => void
   onSourceChange: (nextSource: DashboardSource) => void
   onTabsChange: () => void
-  scheduleMissionsMasonry: LayoutChangeHandler
   setFilterInput: (value: string) => void
   setHistoryRange: (value: string) => void
   setTabHistory: (snapshot: TabHistorySnapshot | null) => void
@@ -443,9 +384,6 @@ type DashboardShellProps = {
   source: DashboardSource
   stats: DashboardStats
   tabHistory: TabHistorySnapshot | null
-  togglePinnedDomain: TogglePinnedDomainHandler
-  togglePinnedPageChip: TogglePinnedPageChipHandler
-  togglePinnedSection: TogglePinnedSectionHandler
   urlPreview: { url: string; visible: boolean }
   workingSet: WorkingSetSnapshot | null
 }
@@ -455,10 +393,8 @@ function DashboardShell({
   filter,
   filterFocusRequest,
   filterInput,
-  handleHoverUrlChange,
   handleScrollRegionRef,
   historyRange,
-  hoverMatch,
   isReady,
   isScrolled,
   missionSections,
@@ -466,7 +402,6 @@ function DashboardShell({
   onDedupAll,
   onSourceChange,
   onTabsChange,
-  scheduleMissionsMasonry,
   setFilterInput,
   setHistoryRange,
   setTabHistory,
@@ -474,9 +409,6 @@ function DashboardShell({
   source,
   stats,
   tabHistory,
-  togglePinnedDomain,
-  togglePinnedPageChip,
-  togglePinnedSection,
   urlPreview,
   workingSet
 }: DashboardShellProps) {
@@ -501,10 +433,6 @@ function DashboardShell({
             snapshot={tabHistory}
             closedTabs={closedTabs}
             onSnapshotChange={setTabHistory}
-            onHoverUrlChange={handleHoverUrlChange}
-            activeHoverUrl={hoverMatch.url}
-            activeHoverUrls={hoverMatch.urls}
-            activeHoverSource={hoverMatch.source}
             workingSet={historyWorkingSet}
             filter={filter}
             onTabsChange={onTabsChange}
@@ -530,17 +458,7 @@ function DashboardShell({
           >
             <HeaderBar
               source={source}
-              totalTabs={stats.totalTabs}
-              activeTabs={stats.activeTabs}
-              visibleTabs={stats.visibleTabs}
-              totalWindows={stats.totalWindows}
-              visibleWindows={stats.visibleWindows}
-              totalDomains={stats.totalDomains}
-              visibleDomains={stats.visibleDomains}
-              dedupCount={stats.dedupCount}
-              filteredCloseCount={stats.filteredCloseCount}
-              hasCards={stats.hasCards}
-              filtering={stats.filtering}
+              stats={stats}
               ready={isReady}
               filter={filterInput}
               filterFocusRequest={filterFocusRequest}
@@ -565,15 +483,7 @@ function DashboardShell({
             ref={handleScrollRegionRef}
           >
             <DashboardMissionsList
-              activeHoverSource={hoverMatch.source}
-              activeHoverUrl={hoverMatch.url}
-              activeHoverUrls={hoverMatch.urls}
               filter={filter}
-              onHoverUrlChange={handleHoverUrlChange}
-              onLayoutChange={scheduleMissionsMasonry}
-              onTogglePinnedDomain={togglePinnedDomain}
-              onTogglePinnedPageChip={togglePinnedPageChip}
-              onTogglePinnedSection={togglePinnedSection}
               sections={missionSections}
             />
           </div>
@@ -795,36 +705,42 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   })
 
   return (
-    <DashboardShell
-      closedTabs={closedTabs}
-      filter={filter}
-      filterFocusRequest={filterFocusRequest}
-      filterInput={filterInput}
-      handleHoverUrlChange={handleHoverUrlChange}
-      handleScrollRegionRef={handleScrollRegionRef}
-      historyRange={historyRange}
-      hoverMatch={hoverMatch}
-      isReady={isReady}
-      isScrolled={isScrolled}
-      missionSections={missionSections}
-      onCloseFiltered={onCloseFiltered}
-      onDedupAll={onDedupAll}
-      onSourceChange={onSourceChange}
-      onTabsChange={() => refreshDashboard({ animateCards: true })}
-      scheduleMissionsMasonry={scheduleMissionsMasonry}
-      setFilterInput={setFilterInput}
-      setHistoryRange={setHistoryRange}
-      setTabHistory={setTabHistory}
-      showHistoryRange={showHistoryRange}
-      source={source}
-      stats={stats}
-      tabHistory={tabHistory}
-      togglePinnedDomain={togglePinnedDomain}
-      togglePinnedPageChip={togglePinnedPageChip}
-      togglePinnedSection={togglePinnedSection}
-      urlPreview={urlPreview}
-      workingSet={workingSet}
-    />
+    <DashboardActionsProvider
+      value={{
+        onHoverUrlChange: handleHoverUrlChange,
+        onLayoutChange: scheduleMissionsMasonry,
+        onTogglePinnedDomain: togglePinnedDomain,
+        onTogglePinnedSection: togglePinnedSection,
+        onTogglePinnedPageChip: togglePinnedPageChip
+      }}
+    >
+      <HoverStateProvider value={hoverMatch}>
+        <DashboardShell
+          closedTabs={closedTabs}
+          filter={filter}
+          filterFocusRequest={filterFocusRequest}
+          filterInput={filterInput}
+          handleScrollRegionRef={handleScrollRegionRef}
+          historyRange={historyRange}
+          isReady={isReady}
+          isScrolled={isScrolled}
+          missionSections={missionSections}
+          onCloseFiltered={onCloseFiltered}
+          onDedupAll={onDedupAll}
+          onSourceChange={onSourceChange}
+          onTabsChange={() => refreshDashboard({ animateCards: true })}
+          setFilterInput={setFilterInput}
+          setHistoryRange={setHistoryRange}
+          setTabHistory={setTabHistory}
+          showHistoryRange={showHistoryRange}
+          source={source}
+          stats={stats}
+          tabHistory={tabHistory}
+          urlPreview={urlPreview}
+          workingSet={workingSet}
+        />
+      </HoverStateProvider>
+    </DashboardActionsProvider>
   )
 }
 
