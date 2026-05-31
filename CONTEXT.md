@@ -69,12 +69,13 @@
 - A **Working Set** ranks items by recency-dominant frecency and exposes a bounded top set as history hints, supplemental rows, and open-tab priority inside existing Domain Card scopes.
 - A **Working Set** excludes Tab Out pages, folds duplicate effective URLs, and does not treat Domain Card pins as a primary ranking signal.
 - A **Working Set** does not render as a standalone strip before **Domain Cards**; the fallback flow is **Activation History**, stable **Domain Cards**, then **Filter Query**.
-- A **Working Set** is for switching: its items support focus and URL preview, while cleanup actions remain in owning **Domain Cards**.
+- A **Working Set** is for switching: its supplemental **Activation History** rows support focus, URL preview, and closing the underlying open tab (with undo); broader cleanup such as dedupe and bulk close remains in owning **Domain Cards**.
 - **Working Set** activity is local, bounded, and open-tab oriented; it identifies candidates by effective page identity for ranking and by live tab identity only for focusing.
 - **Working Set** activity scores should mostly come from recent days, with older activity pruned or retained only as a weak tie-breaker.
 - **Working Set** page identity should distinguish meaningful path changes while avoiding noisy query, hash, redirect, or background-update churn.
 - **Activation History** and **Working Set** may use overlapping activity evidence, but **Activation History** is chronological switching state while **Working Set** is ranked shortcut discovery.
 - **Activation History** treats browser utility pages such as Tab Out, new-tab, settings, internal Chrome, and extension pages as low-score rows even when they are current or active; suspended extension URLs unwrap to their real page before this decision.
+- **Activation History** recently-closed rows can be focused to reopen the tab and can be forgotten with an undoable local dismissal that hides that closure from the panel; Chrome exposes no API to delete a recently-closed entry, so forgetting is local suppression keyed by effective page identity that lapses if the same page is closed again later.
 - A **Working Set** does not change **Domain Card** ordering; it may prioritize sibling subdomain sections, Website Path Sections, Path Groups, and Page Chips within a Domain Card, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
 - A **Working Set** excludes utility pages such as Tab Out pages and should drop non-open pages from the visible set while retaining recent activity only as historical ranking evidence.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.

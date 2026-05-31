@@ -1592,7 +1592,9 @@ test('TabHistoryPanel renders non-overlapping working-set items inline without a
   assert.match(html, /data-tabout-part="history-entry-marker-open-ghost"/)
   assert.match(html, /Ext<\/span>ra[\s\S]*Cand<\/span>idate/)
   assert.match(html, /default-favicon-image/)
-  assert.doesNotMatch(html, /Close Extra Candidate/)
+  // Open-ghost (Working Set) rows reference a live tab, so they expose the same
+  // favicon-hover close affordance as stack rows.
+  assert.match(html, /aria-label="Close Extra Candidate"/)
 })
 
 test('TabHistoryPanel filters history rows and working-set extras by the active filter', () => {
@@ -3249,4 +3251,29 @@ test('closed-ghost dot has accessible label describing close time', () => {
 
   assert.match(html, /data-tabout-part="history-entry-marker-closed-ghost"/)
   assert.match(html, /aria-label="Closed (4|5|6) minutes ago"/)
+})
+
+test('closed-ghost row exposes a forget affordance instead of a tab-close', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
+      snapshot: makeHistorySnapshot(),
+      closedTabs: [
+        {
+          sessionId: 'session-forget',
+          tabId: 556,
+          url: 'https://example.com/closed',
+          rawUrl: 'https://example.com/closed',
+          displayUrl: 'example.com/closed',
+          title: 'Closed Page',
+          favIconUrl: '',
+          lastClosedAt: Date.now() - 60_000
+        }
+      ]
+    })
+  )
+
+  assert.match(html, /data-tabout-part="forget-button"/)
+  assert.match(html, /aria-label="Remove Closed Page from recently closed"/)
+  // Non-destructive forget uses the eye-off glyph, not the tab-close X.
+  assert.match(html, /lucide-eye-off/)
 })

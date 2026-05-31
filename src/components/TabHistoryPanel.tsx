@@ -1,9 +1,10 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SetStateAction } from 'react'
-import { X } from 'lucide-react'
+import { EyeOff, X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
+import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { unwrapSuspenderUrl } from '../extension/suspender.js'
@@ -124,6 +125,7 @@ interface HistoryEntryProps {
   activeHoverUrls?: readonly string[]
   activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
+  onForgetClosedGhost?: (closed: ClosedTabEntry) => void
 }
 
 interface TabHistoryPanelProps {
@@ -1037,7 +1039,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   return { onFocusEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const {
     entrySlotRef,
     entryRef,
@@ -1058,7 +1060,12 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
 
   const isWorkingSetExtra = !!workingSetItem
   const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
-  const canCloseEntry = !isWorkingSetExtra && entry.exists
+  // Open-ghost (Working Set) rows reference a live tab, so they close it like
+  // stack rows. Closed-ghost rows are already closed and Chrome exposes no API
+  // to delete a recently-closed entry, so they "forget" via a local dismissal.
+  const canCloseEntry = entry.exists
+  const canForgetClosedGhost = kind === 'closed-ghost' && !!closedTab
+  const canRemoveEntry = canCloseEntry || canForgetClosedGhost
   const canActivateEntry = entry.exists || (kind === 'closed-ghost' && !!closedTab)
 
   const { onFocusEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave } = useHistoryEntryActions({
@@ -1072,6 +1079,16 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     onHoverUrlChange,
     onTabsChange
   })
+
+  async function onForgetEntry(e: MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation()
+    if (!closedTab) return
+    const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
+    row?.classList.add('closing')
+    await new Promise((resolve) => setTimeout(resolve, 160))
+    onHoverUrlChange?.('')
+    onForgetClosedGhost?.(closedTab)
+  }
 
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
@@ -1238,26 +1255,30 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           onClick={!expanded && canActivateEntry ? onFocusEntry : undefined}
           onKeyDown={expanded ? undefined : onEntryKeyDown}
         >
-          <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', !faviconUrl && !isWorkingSetExtra && !canCloseEntry && 'invisible')}>
+          <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
             <span
               className={cn(
                 'history-entry-favicon-content grid h-full w-full place-items-center',
-                canCloseEntry && 'group-hover/history-favicon-frame:opacity-0'
+                canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
               )}
               aria-hidden="true"
             >
-              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra ? <DefaultFavicon /> : null}
+              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon /> : null}
             </span>
-            {canCloseEntry && (
+            {canRemoveEntry && (
               <button
                 type="button"
-                data-tabout-part="close-button"
+                data-tabout-part={canForgetClosedGhost ? 'forget-button' : 'close-button'}
                 className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-3 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
                 tabIndex={expanded ? -1 : undefined}
-                aria-label={`Close ${entryLabel}`}
-                onClick={expanded ? undefined : onCloseEntry}
+                aria-label={canForgetClosedGhost ? `Remove ${entryLabel} from recently closed` : `Close ${entryLabel}`}
+                onClick={canForgetClosedGhost ? onForgetEntry : onCloseEntry}
               >
-                <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+                {canForgetClosedGhost ? (
+                  <EyeOff className="size-[15px]" aria-hidden="true" />
+                ) : (
+                  <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+                )}
               </button>
             )}
           </span>
@@ -1356,7 +1377,27 @@ export function TabHistoryPanel({
   activeHoverSource = null,
   onTabsChange
 }: TabHistoryPanelProps) {
-  const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter })
+  const [dismissedClosedGhosts, setDismissedClosedGhosts] = useState<ClosedGhostDismissals>(() => new Map<string, number>())
+  useEffect(() => {
+    let active = true
+    loadClosedGhostDismissals().then((map) => {
+      if (active) setDismissedClosedGhosts(map)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  async function handleForgetClosedGhost(closed: ClosedTabEntry) {
+    setDismissedClosedGhosts(await dismissClosedGhost(closed))
+    showToast('Removed from recently closed', {
+      label: 'Undo',
+      description: 'You can undo this action.',
+      onClick: async () => setDismissedClosedGhosts(await restoreClosedGhost(closed))
+    })
+  }
+
+  const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts })
   const hasRows = rows.length > 0
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
@@ -1387,7 +1428,7 @@ export function TabHistoryPanel({
         ref={historyListRef}
         className="history-entry-list pointer-events-none relative z-10 flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
       >
-        <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-0.75 pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
+        <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
           {hasRows ? rows.map((row) => renderPanelRow(row, {
             snapshot,
             onSnapshotChange,
@@ -1395,7 +1436,8 @@ export function TabHistoryPanel({
             activeHoverUrl,
             activeHoverUrls,
             activeHoverSource,
-            onTabsChange
+            onTabsChange,
+            onForgetClosedGhost: handleForgetClosedGhost
           })) : (
             <div className="flex min-h-13.5 items-center text-[12px] text-tab-muted">No activation history yet.</div>
           )}
@@ -1414,6 +1456,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
   activeHoverUrls: readonly string[]
   activeHoverSource: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
+  onForgetClosedGhost?: (closed: ClosedTabEntry) => void
 }): ReactNode {
   if (row.kind === 'stack') {
     return (
@@ -1465,6 +1508,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
       activeHoverUrls={ctx.activeHoverUrls}
       activeHoverSource={ctx.activeHoverSource}
       onTabsChange={ctx.onTabsChange}
+      onForgetClosedGhost={ctx.onForgetClosedGhost}
     />
   )
 }

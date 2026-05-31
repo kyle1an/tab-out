@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
+import { isClosedGhostDismissed, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { tabMatchesFilter } from '../extension/filter-match.js'
 import { pageIdentityForWorkingSet } from '../extension/working-set.js'
 
@@ -14,9 +15,10 @@ export interface UseHistoryPanelRowsArgs {
   workingSet: WorkingSetSnapshot | null
   closedTabs: readonly ClosedTabEntry[]
   filter: string
+  dismissedClosedGhosts?: ClosedGhostDismissals | null
 }
 
-export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
+export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts = null }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
   const filterActive = filter.trim() !== ''
 
   const stackEntries = snapshot?.entries ?? []
@@ -64,6 +66,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   const closedGhostCandidates: HistoryPanelRow[] = []
   for (const closed of closedTabs) {
     if (filterActive && !tabMatchesFilter({ title: closed.title, url: closed.url, isTabOut: false }, filter)) continue
+    if (isClosedGhostDismissed(dismissedClosedGhosts, closed)) continue
     closedGhostCandidates.push({ kind: 'closed-ghost', closed, lastTouchedAt: closed.lastClosedAt })
   }
 
@@ -97,9 +100,9 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   return rows
 }
 
-export function useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
+export function useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts = null }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
   return useMemo(
-    () => buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter }),
-    [snapshot, workingSet, closedTabs, filter]
+    () => buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts }),
+    [snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts]
   )
 }

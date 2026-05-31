@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildHistoryPanelRows } from '../src/hooks/useHistoryPanelRows.js'
+import { closedGhostDismissalKey } from '../src/extension/closed-ghost-dismissals.js'
 import type { TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
 import type { ClosedTabEntry } from '../src/extension/closed-tabs.js'
 
@@ -163,6 +164,33 @@ test('buildHistoryPanelRows hides closed-ghost when same URL exists as stack', (
 
   assert.equal(rows.length, 1)
   assert.equal(rows[0].kind, 'stack')
+})
+
+test('buildHistoryPanelRows hides a closed-ghost dismissed at or after its close time', () => {
+  const closed = makeClosed({ sessionId: 'c', url: 'https://example.com/forgotten', lastClosedAt: 3000 })
+  const rows = buildHistoryPanelRows({
+    snapshot: null,
+    workingSet: null,
+    closedTabs: [closed],
+    filter: '',
+    dismissedClosedGhosts: new Map([[closedGhostDismissalKey(closed), 3000]])
+  })
+
+  assert.equal(rows.length, 0)
+})
+
+test('buildHistoryPanelRows keeps a closed-ghost re-closed after its dismissal timestamp', () => {
+  const closed = makeClosed({ sessionId: 'c', url: 'https://example.com/forgotten', lastClosedAt: 5000 })
+  const rows = buildHistoryPanelRows({
+    snapshot: null,
+    workingSet: null,
+    closedTabs: [closed],
+    filter: '',
+    dismissedClosedGhosts: new Map([[closedGhostDismissalKey(closed), 3000]])
+  })
+
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0].kind, 'closed-ghost')
 })
 
 test('buildHistoryPanelRows sorts rows by recency descending', () => {
