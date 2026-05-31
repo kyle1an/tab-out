@@ -363,6 +363,38 @@ test('PageChip renders the current active chip frame without the other-window la
   assert.doesNotMatch(html, /Active in another window/)
 })
 
+test('PageChip renders current Tab Out chips with the history-entry frame treatment', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ activeChipFrame: true, isCurrentTabOut: true })
+    })
+  )
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
+  const frameMatch = html.match(/<span class="([^"]*\bactive-chip-frame\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'page chip should render')
+  assert.ok(frameMatch, 'active chip frame should render')
+  assert.match(chipMatch[1], /current-tab-out-chip\b/)
+  assert.match(chipMatch[1], /\bbg-neutral-100\b/)
+  assert.match(chipMatch[1], /\bring-neutral-400\b/)
+  assert.doesNotMatch(chipMatch[1], /current-active-chip\b/)
+  assert.match(frameMatch[1], /active-history-entry-frame\b/)
+  assert.match(frameMatch[1], /current-tab-out-chip-frame\b/)
+})
+
+test('PageChip renders Chrome pinned Tab Out state as an icon hint', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({ chromePinned: true })
+    })
+  )
+
+  assert.match(html, /data-tabout-part="chrome-pin"/)
+  assert.match(html, /chip-chrome-pin\b/)
+  assert.match(html, /icon-\[lucide--pin\]/)
+  assert.doesNotMatch(html, />Pinned</)
+})
+
 test('PageChip keeps the other-window active chip style separate from the current active style', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {

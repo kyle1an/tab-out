@@ -5,6 +5,7 @@ import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
+import { focusExistingTabTarget } from '../extension/tab-focus.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
@@ -1032,8 +1033,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   // react-doctor-disable-next-line react-hooks-js/todo -- React Compiler bailout on the default-param expression; behavior is correct, the compiler just can't reorder it.
-  async function focusChipUrl(targetUrl: string | undefined, sourceType = chip.sourceType) {
+  async function focusChipUrl(targetUrl: string | undefined, sourceType = chip.sourceType, target?: Pick<DashboardChipData, 'rawUrl' | 'tabId'>) {
     if (!targetUrl) return
+    if (typeof target?.tabId === 'number') {
+      const focused = await focusExistingTabTarget({ tabId: target.tabId, url: targetUrl, rawUrl: target.rawUrl })
+      if (focused) return
+    }
     if (isReadOnlyDashboardSourceType(sourceType)) {
       const focused = await focusExactTab(targetUrl)
       if (!focused) await openTabUrl(targetUrl)
@@ -1044,7 +1049,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   async function onFocus() {
     if (isFolded) return
-    await focusChipUrl(chip.tabUrl)
+    await focusChipUrl(chip.tabUrl, chip.sourceType, chip)
   }
 
   async function onPageChipTooltipClick(e: MouseEvent<HTMLDivElement>) {
@@ -1263,6 +1268,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
     await closeChipTarget({
       tabUrl: chip.tabUrl,
+      tabId: chip.tabId,
       envs,
       onAfterClose: async ({ shouldAnimateRemoval }) => {
         if (shouldAnimateRemoval && chipEl) {
@@ -1327,7 +1333,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
     e.stopPropagation()
-    await focusChipUrl(variant.tabUrl, variant.sourceType)
+    await focusChipUrl(variant.tabUrl, variant.sourceType, variant)
   }
 
   function onTitleVariantMouseEnter(variant: DashboardChipData) {
@@ -1362,6 +1368,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
     await closeChipTarget({
       tabUrl: variant.tabUrl,
+      tabId: variant.tabId,
       onAfterClose: async () => setPreview('')
     })
   }
@@ -1401,7 +1408,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   const hasActiveChipFrame = !!(chip.activeChipFrame || chip.activeInOtherWindow)
-  const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow
+  const isCurrentTabOutFrame = !!chip.isCurrentTabOut && !!chip.activeChipFrame && !chip.activeInOtherWindow
+  const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow && !isCurrentTabOutFrame
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
@@ -1422,7 +1430,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
   const rightActionCount = showSavedHint ? 1 : 0
   const chipHoverFadeWidth = rightActionCount === 0 ? '0px' : rightActionCount === 1 ? '56px' : '88px'
-  const chipInteractionBg = isCurrentActiveFrame
+  const chipInteractionBg = isCurrentTabOutFrame
+    ? 'var(--color-neutral-100)'
+    : isCurrentActiveFrame
     ? 'var(--color-neutral-50)'
     : hasActiveChipFrame
       ? PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG
@@ -1435,7 +1445,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     '--chip-hover-fade-bg': chipInteractionBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-interaction-bg': chipInteractionBg,
-    '--chip-rest-bg': hasActiveChipFrame ? PAGE_CHIP_ACTIVE_OTHER_REST_BG : 'transparent',
+    '--chip-rest-bg': hasActiveChipFrame && !isCurrentTabOutFrame ? PAGE_CHIP_ACTIVE_OTHER_REST_BG : 'transparent',
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
   }
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
@@ -1988,12 +1998,13 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) !overflow-visible !transition-none w-(--page-chip-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
+          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
           isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted opacity-75', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
-          hasActiveChipFrame && !isCurrentActiveFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
+          hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isCurrentActiveFrame && PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES,
-          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && PAGE_CHIP_GROUP_INTERACTION_CLASSES,
+          isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
+          hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES,
+          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_GROUP_INTERACTION_CLASSES,
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
@@ -2013,7 +2024,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         <span
           className={cn(
             'active-chip-frame pointer-events-none absolute inset-0 z-2 rounded-[inherit] [corner-shape:squircle]',
-            isCurrentActiveFrame
+            isCurrentTabOutFrame
+              ? 'active-history-entry-frame current-tab-out-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
+              : isCurrentActiveFrame
               ? 'current-active-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
               : 'shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]'
           )}
@@ -2065,6 +2078,13 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             </button>
           )}
         </span>
+      )}
+      {!chip.iconOnly && chip.chromePinned && (
+        <span
+          data-tabout-part="chrome-pin"
+          className="chip-chrome-pin icon-[lucide--pin] mt-[1px] size-3 shrink-0 text-tab-muted opacity-70"
+          aria-hidden="true"
+        />
       )}
       {!chip.iconOnly && (
         isFolded || isTitleVariantGroup ? chipTextElement : shouldExpandChip ? chipTextExpansionTriggerElement : chipTextElement

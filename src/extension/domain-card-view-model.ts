@@ -81,6 +81,13 @@ type ChipBuildEntry = {
   chip: DashboardChipData
   titleKey: string
 }
+type TabOutDisplayBucketKind = 'current' | 'chrome-pinned' | 'chrome-grouped' | 'ordinary'
+type TabOutDisplayMeta = {
+  tabs: DashboardTab[]
+  isCurrentTabOut: boolean
+  chromePinned: boolean
+  pagePinDisabled: boolean
+}
 
 const TITLE_SEGMENT_SEPARATORS = [' - ', ' | ', ' — ', ' · ', ' – ']
 const TITLE_STRUCTURAL_PLACEHOLDER_SEPARATORS = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
@@ -656,18 +663,84 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   function closableForUrl(u: string): number {
-    return countClosableDuplicateExtras(tabsByUrl.get(u) || [], { isTabOutGroup })
+    return countClosableDuplicateExtras(tabsByUrl.get(u) || [], { isTabOutGroup, currentWindowId })
   }
   const closableDupeUrls = [...tabsByUrl.keys()].filter((u) => closableForUrl(u) > 0)
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
-  // Deduplicate for display: show each URL once, with (Nx) badge if duped
-  const seen = new Set<string>()
-  const uniqueTabs: DashboardTab[] = []
+  const tabOutDisplayMeta = new WeakMap<DashboardTab, TabOutDisplayMeta>()
+  const displayTabsByUrl = new Map<string, DashboardTab[]>()
   for (const tab of tabs) {
-    if (!seen.has(tab.url)) {
-      seen.add(tab.url)
-      uniqueTabs.push(tab)
+    if (!displayTabsByUrl.has(tab.url)) displayTabsByUrl.set(tab.url, [])
+    displayTabsByUrl.get(tab.url)?.push(tab)
+  }
+
+  function tabOutBucketForTab(tab: DashboardTab): { key: string; kind: TabOutDisplayBucketKind; rank: number; groupId: number } {
+    if (isCurrentTabOutPage(tab, currentWindowId)) return { key: 'current', kind: 'current', rank: 0, groupId: -1 }
+    if (tab.pinned) return { key: 'chrome-pinned', kind: 'chrome-pinned', rank: 1, groupId: -1 }
+    if (isGroupedTab(tab)) return { key: `chrome-grouped:${tab.groupId}`, kind: 'chrome-grouped', rank: 2, groupId: tab.groupId }
+    return { key: 'ordinary', kind: 'ordinary', rank: 3, groupId: -1 }
+  }
+
+  function tabOutDisplayTabsForUrl(urlTabs: DashboardTab[]): DashboardTab[] {
+    if (urlTabs.length <= 1) {
+      const tab = urlTabs[0]
+      if (tab) {
+        tabOutDisplayMeta.set(tab, {
+          tabs: [tab],
+          isCurrentTabOut: isCurrentTabOutPage(tab, currentWindowId),
+          chromePinned: !!tab.pinned,
+          pagePinDisabled: false
+        })
+      }
+      return urlTabs
+    }
+
+    const buckets = new Map<string, {
+      kind: TabOutDisplayBucketKind
+      rank: number
+      groupId: number
+      firstSeen: number
+      tabs: DashboardTab[]
+    }>()
+    urlTabs.forEach((tab, firstSeen) => {
+      const bucket = tabOutBucketForTab(tab)
+      const existing = buckets.get(bucket.key)
+      if (existing) {
+        existing.tabs.push(tab)
+        return
+      }
+      buckets.set(bucket.key, { ...bucket, firstSeen, tabs: [tab] })
+    })
+
+    return [...buckets.values()]
+      .sort((a, b) => a.rank - b.rank || a.groupId - b.groupId || a.firstSeen - b.firstSeen)
+      .map((bucket) => {
+        const representative = bucket.tabs[0]
+        tabOutDisplayMeta.set(representative, {
+          tabs: bucket.tabs,
+          isCurrentTabOut: bucket.kind === 'current',
+          chromePinned: bucket.tabs.some((tab) => tab.pinned),
+          pagePinDisabled: true
+        })
+        return representative
+      })
+  }
+
+  // Deduplicate for display: ordinary cards show each URL once, while the
+  // New tabs utility card keeps state-preserved physical Tab Out buckets visible.
+  const uniqueTabs: DashboardTab[] = []
+  if (isTabOutGroup) {
+    for (const urlTabs of displayTabsByUrl.values()) {
+      uniqueTabs.push(...tabOutDisplayTabsForUrl(urlTabs))
+    }
+  } else {
+    const seen = new Set<string>()
+    for (const tab of tabs) {
+      if (!seen.has(tab.url)) {
+        seen.add(tab.url)
+        uniqueTabs.push(tab)
+      }
     }
   }
 
@@ -971,7 +1044,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const pagePinOrderById = new Map<string, number>()
 
   function annotatePageChipPin(chip: DashboardChipData, scopeId: string, chipKey: string): DashboardChipData {
-    if (source !== 'tabs' || chip.iconOnly || chip.isApp) return chip
+    if (source !== 'tabs' || chip.iconOnly || chip.isApp || chip.pagePinDisabled) return chip
     const pinId = pageChipPinId(source, scopeId, chipKey)
     const order = pinnedPageChipOrder(pinnedPageChips, source, scopeId, chipKey)
     if (order !== null) pagePinOrderById.set(pinId, order)
@@ -1139,14 +1212,18 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const displaySegments = rawSegments.map((seg) => (typeof seg === 'string' ? injectBreakPoints(seg) : seg))
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
-    const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(tabsByUrl.get(tab.url) || [tab], currentWindowId)
+    const tabOutMeta = tabOutDisplayMeta.get(tab)
+    const duplicateTabs = tabOutMeta?.tabs || tabsByUrl.get(tab.url) || [tab]
+    const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(duplicateTabs, currentWindowId)
     return {
+      tabId: tab.id,
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
       sourceType: tab.sourceType || 'tab',
       saved: !!tab.saved,
       closedSaved: isClosedSavedDashboardTab(tab),
       savedPageKey: tab.savedPageKey,
+      pagePinDisabled: !!tabOutMeta?.pagePinDisabled,
       leadPrefix,
       pathGroupLabel: pgLabel,
       title: label,
@@ -1154,13 +1231,15 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       suppressedTitleParts: presentation.suppressedTitleParts,
       pathSuffix: pathSuffix || '',
       tooltip,
-      dupeCount: urlCounts[tab.url] || 1,
+      dupeCount: tabOutMeta?.tabs.length || urlCounts[tab.url] || 1,
       faviconUrl: pickDashboardChipFavicon(tab),
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
       isApp: !!tab.isApp,
       activeInOtherWindow,
       activeChipFrame,
+      isCurrentTabOut: tabOutMeta?.isCurrentTabOut || isCurrentTabOutPage(tab, currentWindowId),
+      chromePinned: tabOutMeta?.chromePinned || (isTabOutGroup && !!tab.pinned),
       iconOnly,
       envs: null
     }

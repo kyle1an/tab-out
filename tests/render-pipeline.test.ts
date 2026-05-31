@@ -276,6 +276,166 @@ test('computeDomainCardViewModel keeps pinned new tabs out of close and dedupe c
   assert.equal(vm.closableExtras, 2)
 })
 
+test('computeDomainCardViewModel excludes the current Tab Out page from pinned dedupe counts', () => {
+  const group = {
+    domain: '__tab-out__',
+    label: 'New tabs',
+    tabs: [
+      makeTab({
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        active: true,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 2,
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        pinned: true,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 3,
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        windowId: 1,
+        isTabOut: true
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+
+  assert.equal(vm.closableExtras, 1)
+})
+
+test('computeDomainCardViewModel excludes the current Tab Out page from grouped dedupe counts', () => {
+  const group = {
+    domain: '__tab-out__',
+    label: 'New tabs',
+    tabs: [
+      makeTab({
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        active: true,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 2,
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        groupId: 7,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 3,
+        url: 'chrome-extension://tab-out/index.html',
+        rawUrl: 'chrome-extension://tab-out/index.html',
+        title: 'Tab Out',
+        windowId: 1,
+        isTabOut: true
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+
+  assert.equal(vm.closableExtras, 1)
+})
+
+test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chrome state', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const group = {
+    domain: '__tab-out__',
+    label: 'New tabs',
+    tabs: [
+      makeTab({
+        id: 1,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        active: true,
+        pinned: true,
+        groupId: 7,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 2,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        pinned: true,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 3,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        groupId: 7,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 4,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        groupId: 7,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 5,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        groupId: 8,
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 6,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        windowId: 1,
+        isTabOut: true
+      }),
+      makeTab({
+        id: 7,
+        url: tabOutUrl,
+        rawUrl: tabOutUrl,
+        title: 'Tab Out',
+        windowId: 1,
+        isTabOut: true
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const chips = vm.sections[0].flatVisibleChips
+
+  assert.equal(vm.closableExtras, 2)
+  assert.deepEqual(chips.map((chip) => chip.tabId), [1, 2, 3, 5, 6])
+  assert.deepEqual(chips.map((chip) => chip.dupeCount), [1, 1, 2, 1, 2])
+  assert.deepEqual(chips.map((chip) => !!chip.isCurrentTabOut), [true, false, false, false, false])
+  assert.deepEqual(chips.map((chip) => !!chip.chromePinned), [true, true, false, false, false])
+  assert.deepEqual(chips.map((chip) => !!chip.isGrouped), [true, false, true, true, false])
+  assert.deepEqual(chips.map((chip) => chip.pagePinId), [undefined, undefined, undefined, undefined, undefined])
+})
+
 test('computeDomainCardViewModel groups same-title URL variants in one rendered section', () => {
   const group = {
     domain: 'example.com',

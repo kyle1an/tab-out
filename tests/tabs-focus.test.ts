@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { closeChipTarget } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntry } from '../src/extension/tab-history.js'
 import { focusTab, snapshotChromeTabs } from '../src/extension/tabs.js'
 import { markClosure, undoLastClose } from '../src/extension/undo.js'
@@ -84,6 +85,9 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       async getCurrent() {
         return { id: currentWindowId, type: 'normal' }
       },
+      async getAll() {
+        return Array.from(new Set(tabs.map((tab) => tab.windowId))).map((id) => ({ id, type: 'normal' }))
+      },
       async update(windowId, updateProperties) {
         calls.windowsUpdate.push({ windowId, updateProperties: { ...updateProperties } })
         return { id: windowId, type: 'normal', focused: !!updateProperties.focused }
@@ -124,6 +128,25 @@ test('focusTab does not create a pinned Tab Out tab when focusing a chip target 
   assert.deepEqual(calls.create, [])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+})
+
+test('closeChipTarget can close the exact represented tab when a duplicate chip is split by state', async () => {
+  const cleanup = registerDashboardRefresh(() => {})
+  try {
+    const tabOutUrl = 'chrome-extension://tab-out/index.html'
+    const { calls, tabs } = createChromeMock([
+      { id: 1, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+      { id: 2, windowId: 1, url: tabOutUrl, title: 'Tab Out', active: false, pinned: true, groupId: -1 }
+    ])
+
+    const result = await closeChipTarget({ tabUrl: tabOutUrl, tabId: 2 })
+
+    assert.deepEqual(calls.remove, [2])
+    assert.deepEqual(tabs.map((tab) => tab.id), [1])
+    assert.equal(result.shouldAnimateRemoval, false)
+  } finally {
+    cleanup()
+  }
 })
 
 test('focusTab asks the owning suspender extension to unsuspend an exact suspended match', async () => {

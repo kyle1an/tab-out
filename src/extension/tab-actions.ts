@@ -38,6 +38,7 @@ type DedupeTabsOptions = {
 
 type CloseChipTargetOptions = {
   tabUrl: string
+  tabId?: number | string
   envs?: DashboardChipEnv[] | null
   onAfterClose?: (result: ChipCloseResult) => void | Promise<void>
 }
@@ -108,7 +109,7 @@ export async function dedupeTabs({ urls, preservePinnedTabOut = false, onAfterCl
   return result
 }
 
-export async function closeChipTarget({ tabUrl, envs = null, onAfterClose }: CloseChipTargetOptions): Promise<ChipCloseResult> {
+export async function closeChipTarget({ tabUrl, tabId, envs = null, onAfterClose }: CloseChipTargetOptions): Promise<ChipCloseResult> {
   const foldedEnvs = Array.isArray(envs) ? envs : []
   const isFolded = foldedEnvs.length > 0
   const allTabs = await chrome.tabs.query({})
@@ -129,7 +130,8 @@ export async function closeChipTarget({ tabUrl, envs = null, onAfterClose }: Clo
       const openTabUrl = tab.url || ''
       return openTabUrl === tabUrl || unwrapSuspenderUrl(openTabUrl) === targetEffective
     })
-    toCloseList = matches.slice(0, 1)
+    const exactTab = typeof tabId === 'number' ? matches.find((tab) => tab.id === tabId) : null
+    toCloseList = exactTab ? [exactTab] : matches.slice(0, 1)
     matchCount = matches.length
   }
 

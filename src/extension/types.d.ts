@@ -101,6 +101,7 @@ export interface DashboardChipEnv {
 }
 
 export interface DashboardChipData {
+  tabId?: number | string
   tabUrl: string
   rawUrl: string
   sourceType?: 'tab' | 'bookmark' | 'history' | 'saved-page'
@@ -109,6 +110,7 @@ export interface DashboardChipData {
   savedPageKey?: string
   pagePinId?: string
   pagePinned?: boolean
+  pagePinDisabled?: boolean
   leadPrefix: string
   pathGroupLabel: string
   title?: string
@@ -123,6 +125,8 @@ export interface DashboardChipData {
   isApp: boolean
   activeInOtherWindow?: boolean
   activeChipFrame?: boolean
+  isCurrentTabOut?: boolean
+  chromePinned?: boolean
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
   titleVariantChips?: DashboardChipData[]

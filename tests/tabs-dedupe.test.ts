@@ -70,7 +70,37 @@ test('dedupe policy preserves pinned Tab Out copies before score-based selection
   )
 })
 
-test('global dedupe preserves pinned Tab Out tabs while closing unpinned duplicates', async () => {
+test('dedupe policy preserves pinned and grouped Tab Out buckets while closing ordinary extras', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const matching = [
+    { id: 1, url: tabOutUrl, windowId: 1, index: 0, active: true, pinned: true, groupId: 7 },
+    { id: 2, url: tabOutUrl, windowId: 1, index: 1, active: false, pinned: true, groupId: -1 },
+    { id: 3, url: tabOutUrl, windowId: 1, index: 2, active: false, pinned: false, groupId: 7 },
+    { id: 4, url: tabOutUrl, windowId: 1, index: 3, active: false, pinned: false, groupId: 7 },
+    { id: 5, url: tabOutUrl, windowId: 1, index: 4, active: false, pinned: false, groupId: 8 },
+    { id: 6, url: tabOutUrl, windowId: 1, index: 5, active: false, pinned: false, groupId: -1 },
+    { id: 7, url: tabOutUrl, windowId: 1, index: 6, active: false, pinned: false, groupId: -1 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching, {
+      currentWindowId: 1,
+      preservePinnedTabOut: true,
+      isTabOutUrl: (url) => url === tabOutUrl
+    }).map((tab) => tab.id),
+    [6, 7]
+  )
+  assert.equal(
+    countClosableDuplicateExtras(matching, {
+      isTabOutGroup: true,
+      currentWindowId: 1,
+      isTabOutUrl: (url) => url === tabOutUrl
+    }),
+    2
+  )
+})
+
+test('global dedupe keeps the current Tab Out tab when a pinned duplicate exists', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
@@ -79,14 +109,38 @@ test('global dedupe preserves pinned Tab Out tabs while closing unpinned duplica
 
   await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
 
+  assert.deepEqual(removedIds, [])
+})
+
+test('global dedupe preserves pinned Tab Out tabs while closing non-current unpinned duplicates', async () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
+  ])
+
+  await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+
   assert.deepEqual(removedIds, [2])
+})
+
+test('global dedupe keeps the current Tab Out tab when a grouped duplicate exists', async () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 },
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: false, groupId: 7 }
+  ])
+
+  await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+
+  assert.deepEqual(removedIds, [])
 })
 
 test('global dedupe returns an undo snapshot for closed Tab Out duplicates', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
   const snapshot = await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
@@ -98,7 +152,7 @@ test('global dedupe returns an undo snapshot for closed Tab Out duplicates', asy
       title: 'Tab Out',
       pinned: false,
       groupId: -1,
-      windowId: 1,
+      windowId: 2,
       index: 1
     }
   ])
@@ -108,7 +162,7 @@ test('global dedupe returns an undo snapshot for closed native new-tab duplicate
   const newTabUrl = 'chrome://newtab/'
   createChromeMock([
     { id: 1, url: newTabUrl, title: 'New Tab', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
-    { id: 2, url: newTabUrl, title: 'New Tab', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
+    { id: 2, url: newTabUrl, title: 'New Tab', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
   const snapshot = await closeDuplicateTabs([newTabUrl], true, { preservePinnedTabOut: true })
@@ -120,7 +174,7 @@ test('global dedupe returns an undo snapshot for closed native new-tab duplicate
       title: 'New Tab',
       pinned: false,
       groupId: -1,
-      windowId: 1,
+      windowId: 2,
       index: 1
     }
   ])
