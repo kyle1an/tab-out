@@ -17,7 +17,7 @@ const activeCardMoveAnimations = new WeakMap<HTMLElement, CardMoveAnimation>()
 const activeCardMoveBleedTimeouts = new WeakMap<HTMLElement, number>()
 
 function shouldReduceMotion() {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function snapshotDomainCardRects(containers: MissionContainer[]): CardPositionMap {

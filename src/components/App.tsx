@@ -232,18 +232,10 @@ function useProgressiveCards(
       })
     }
 
-    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
-      const idleId = window.requestIdleCallback(appendNextChunk, { timeout: 160 })
-      return () => {
-        disposed = true
-        window.cancelIdleCallback(idleId)
-      }
-    }
-
-    const timeoutId = window.setTimeout(appendNextChunk, 16)
+    const idleId = window.requestIdleCallback(appendNextChunk, { timeout: 160 })
     return () => {
       disposed = true
-      window.clearTimeout(timeoutId)
+      window.cancelIdleCallback(idleId)
     }
   }, [cards.length, chunkSize, initialVisibleCount, progressive, resetKey, visibleCount])
 

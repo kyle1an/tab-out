@@ -220,18 +220,16 @@ export function useHistoryScrollbar(
     listEl.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', requestScrollbarUpdate)
 
-    const resizeObserver = typeof ResizeObserver === 'function'
-      ? new ResizeObserver(requestScrollbarUpdate)
-      : null
-    resizeObserver?.observe(listEl)
+    const resizeObserver = new ResizeObserver(requestScrollbarUpdate)
+    resizeObserver.observe(listEl)
     const contentEl = listEl.firstElementChild
-    if (contentEl instanceof HTMLElement) resizeObserver?.observe(contentEl)
+    if (contentEl instanceof HTMLElement) resizeObserver.observe(contentEl)
 
     return () => {
       if (frameId !== 0) cancelAnimationFrame(frameId)
       listEl.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', requestScrollbarUpdate)
-      resizeObserver?.disconnect()
+      resizeObserver.disconnect()
     }
   }, [listRef, rowCount, reveal])
 

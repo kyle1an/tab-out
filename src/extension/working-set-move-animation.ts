@@ -16,7 +16,7 @@ const activeWorkingSetItemMoves = new WeakMap<HTMLElement, WorkingSetItemMoveAni
 const activeWorkingSetItemSettles = new WeakMap<HTMLElement, number>()
 
 function shouldReduceMotion() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function workingSetLayoutItems(grid: HTMLElement): HTMLElement[] {

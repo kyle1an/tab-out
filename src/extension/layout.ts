@@ -193,7 +193,6 @@ export function useMissionsMasonry(...args: unknown[]) {
   }, [packMissionsMasonryNow])
 
   useLayoutEffect(() => {
-    if (typeof ResizeObserver !== 'function') return
     let observer = observerRef.current
     if (!observer) {
       observer = new ResizeObserver(() => {

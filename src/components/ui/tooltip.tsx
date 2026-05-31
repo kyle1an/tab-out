@@ -62,7 +62,7 @@ let tooltipWheelForwardRefresh: (() => void) | null = null
 let tooltipWheelForwardOwnerId: string | null = null
 
 function now() {
-  return typeof performance === 'undefined' ? Date.now() : performance.now()
+  return performance.now()
 }
 
 function shouldUseAdjacentTooltipDelay(anchorId: string) {
@@ -646,7 +646,7 @@ function useTooltipAnchorController({
         popupElement?.matches(':hover')
       )
     }
-    const handlePointerOrMouseMove = (event: PointerEvent | MouseEvent) => {
+    const handlePointerMove = (event: PointerEvent) => {
       if (tooltipWheelClosingRef.current) return
       if (isContextMenuOpen()) return
       latestPointerPointRef.current = {
@@ -685,11 +685,8 @@ function useTooltipAnchorController({
     window.addEventListener('scroll', handleScroll, { capture: true, passive: true, signal })
     document.addEventListener('scroll', handleScroll, { capture: true, passive: true, signal })
     window.addEventListener('blur', handleWindowBlur, { signal })
-    window.addEventListener('pointermove', handlePointerOrMouseMove, { capture: true, signal })
-    window.addEventListener('mousemove', handlePointerOrMouseMove, { capture: true, signal })
+    window.addEventListener('pointermove', handlePointerMove, { capture: true, signal })
     document.addEventListener('visibilitychange', handleVisibilityChange, { signal })
-    document.addEventListener('pointermove', handlePointerOrMouseMove, { capture: true, signal })
-    document.addEventListener('mousemove', handlePointerOrMouseMove, { capture: true, signal })
     return () => {
       window.clearInterval(hoverWatchId)
     }

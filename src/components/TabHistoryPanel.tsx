@@ -601,7 +601,6 @@ function historyEntryExpansionGeometryEqual(left: HistoryEntryExpansionGeometry,
 }
 
 function getHistoryTitleResizeObserver() {
-  if (typeof ResizeObserver !== 'function') return null
   if (!historyTitleResizeObserver) {
     historyTitleResizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -757,7 +756,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     if (!entryEl) return
 
     if (!titleExpandedRef.current) updateHistoryEntryExpansionMeasurements()
-    if (typeof ResizeObserver !== 'function') return
 
     const observer = new ResizeObserver(() => {
       if (!titleExpandedRef.current) updateHistoryEntryExpansionMeasurements()
@@ -777,7 +775,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       if (titleExpandedRef.current) return
       setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
     })
-    observer?.observe(titleEl)
+    observer.observe(titleEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
@@ -786,14 +784,14 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       updateTitleTruncation(titleEl, setTitleMetrics)
       updateHistoryEntryExpansionMeasurementsRef.current()
     }
-    fontSet?.addEventListener?.('loadingdone', onFontsDone)
-    fontSet?.ready?.then?.(onFontsDone)
+    fontSet.addEventListener('loadingdone', onFontsDone)
+    fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true
-      observer?.unobserve(titleEl)
+      observer.unobserve(titleEl)
       historyTitleTruncationCallbacks.delete(titleEl)
-      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+      fontSet.removeEventListener('loadingdone', onFontsDone)
     }
   }, [])
 
@@ -1244,14 +1242,14 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
     >
       <div
         ref={trackRef}
-        className="history-entry-scrollbar-track pointer-events-auto absolute top-(--dashboard-scrollbar-padding) right-(--dashboard-scrollbar-padding) bottom-(--dashboard-scrollbar-padding) w-(--dashboard-scrollbar-thumb-size) touch-none"
+        className="history-entry-scrollbar-track pointer-events-auto absolute top-(--dashboard-scrollbar-padding) right-(--dashboard-scrollbar-padding) bottom-(--dashboard-scrollbar-padding) w-(--dashboard-scrollbar-thumb-size)"
         onPointerDown={onTrackPointerDown}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
       >
         <div
           className={cn(
-            'history-entry-scrollbar-thumb absolute top-0 right-0 w-full cursor-grab touch-none rounded-(--dashboard-scrollbar-radius) bg-(--dashboard-scrollbar-thumb-bg) transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] active:cursor-grabbing',
+            'history-entry-scrollbar-thumb absolute top-0 right-0 w-full cursor-grab rounded-(--dashboard-scrollbar-radius) bg-(--dashboard-scrollbar-thumb-bg) transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] active:cursor-grabbing',
             active ? 'opacity-100' : 'opacity-0'
           )}
           onPointerDown={onThumbPointerDown}

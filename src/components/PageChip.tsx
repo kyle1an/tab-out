@@ -994,7 +994,6 @@ function chipExpansionGeometryEqual(left: ChipExpansionGeometry, right: ChipExpa
 }
 
 function getChipTextResizeObserver() {
-  if (typeof ResizeObserver !== 'function') return null
   if (!chipTextResizeObserver) {
     chipTextResizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -1096,21 +1095,21 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         return chipTextMetricsEqual(current, nextMetrics) ? current : nextMetrics
       })
     })
-    observer?.observe(textEl)
+    observer.observe(textEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
       if (disposed) return
       updateChipTextMeasurementsRef.current(textEl)
     }
-    fontSet?.addEventListener?.('loadingdone', onFontsDone)
-    fontSet?.ready?.then?.(onFontsDone)
+    fontSet.addEventListener('loadingdone', onFontsDone)
+    fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true
-      observer?.unobserve(textEl)
+      observer.unobserve(textEl)
       chipTextTruncationCallbacks.delete(textEl)
-      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+      fontSet.removeEventListener('loadingdone', onFontsDone)
     }
   }, [])
 
@@ -1119,7 +1118,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     if (!chipEl) return
 
     if (!chipExpandedRef.current) updateChipSlotMeasurements(chipEl)
-    if (typeof ResizeObserver !== 'function') return
 
     const observer = new ResizeObserver(() => {
       if (!chipExpandedRef.current) updateChipSlotMeasurements(chipEl)
@@ -1321,14 +1319,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     if (chipExpandedRef.current) return
     if (!isPointerInsideChipSlot(e)) return
     openChipExpansion()
-  }
-
-  function onChipPointerDown(e: PointerEvent<HTMLDivElement>) {
-    if (e.pointerType === 'mouse') return
-    if (chipExpandedRef.current) return
-    openChipExpansion()
-    e.preventDefault()
-    e.stopPropagation()
   }
 
   function onEnvMouseEnter(env: DashboardChipEnv) {
@@ -2062,7 +2052,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onKeyDown: onChipKeyDown,
         onMouseEnter: onChipMouseEnter,
         onMouseLeave: onChipMouseLeave,
-        onPointerDown: onChipPointerDown,
         onFocus: onChipFocus,
         onBlur: onChipBlur
       } as const

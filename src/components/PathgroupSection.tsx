@@ -80,7 +80,6 @@ function updatePathgroupLabelTruncation(
 }
 
 function getPathgroupLabelResizeObserver() {
-  if (typeof ResizeObserver !== 'function') return null
   if (!pathgroupLabelResizeObserver) {
     pathgroupLabelResizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -152,20 +151,20 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
       if (disposed) return
       setPathgroupLabelTruncated((current) => current === isTruncated ? current : isTruncated)
     })
-    observer?.observe(labelEl)
+    observer.observe(labelEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
       if (!disposed) updatePathgroupLabelTruncation(labelEl, setPathgroupLabelTruncated)
     }
-    fontSet?.addEventListener?.('loadingdone', onFontsDone)
-    fontSet?.ready?.then?.(onFontsDone)
+    fontSet.addEventListener('loadingdone', onFontsDone)
+    fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true
-      observer?.unobserve(labelEl)
+      observer.unobserve(labelEl)
       pathgroupLabelTruncationCallbacks.delete(labelEl)
-      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+      fontSet.removeEventListener('loadingdone', onFontsDone)
     }
   }, [])
 

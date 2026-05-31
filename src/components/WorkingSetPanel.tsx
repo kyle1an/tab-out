@@ -87,7 +87,6 @@ function cancelWorkingSetExitTimers(
 }
 
 function getWorkingSetTitleResizeObserver() {
-  if (typeof ResizeObserver !== 'function') return null
   if (!workingSetTitleResizeObserver) {
     workingSetTitleResizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -189,20 +188,20 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
       if (disposed) return
       setTitleMetrics((current) => sameWorkingSetTitleMetrics(current, metrics) ? current : metrics)
     })
-    observer?.observe(titleEl)
+    observer.observe(titleEl)
 
     const fontSet = document.fonts
     const onFontsDone = () => {
       if (!disposed) updateWorkingSetTitleTruncation(titleEl, setTitleMetrics)
     }
-    fontSet?.addEventListener?.('loadingdone', onFontsDone)
-    fontSet?.ready?.then?.(onFontsDone)
+    fontSet.addEventListener('loadingdone', onFontsDone)
+    fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true
-      observer?.unobserve(titleEl)
+      observer.unobserve(titleEl)
       workingSetTitleTruncationCallbacks.delete(titleEl)
-      fontSet?.removeEventListener?.('loadingdone', onFontsDone)
+      fontSet.removeEventListener('loadingdone', onFontsDone)
     }
   }, [])
 

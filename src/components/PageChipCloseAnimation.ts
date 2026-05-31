@@ -36,7 +36,7 @@ function isPageChipCloseAnimationElement(value: unknown): value is PageChipClose
 }
 
 function shouldReduceCloseMotion() {
-  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function pageChipCloseAnimationWaitMs() {
