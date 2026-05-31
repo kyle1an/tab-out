@@ -1372,7 +1372,10 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   assert.match(tabHistoryPanelSource, /history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-\(--dashboard-scrollbar-size\) select-none max-\[900px\]:right-\[calc\(0px-var\(--dashboard-scrollbar-inset\)\)\]/)
   assert.match(tabHistoryPanelSource, /history-entry-scrollbar-track pointer-events-auto absolute top-\(--dashboard-scrollbar-padding\) right-0 bottom-\(--dashboard-scrollbar-padding\) w-\(--dashboard-scrollbar-size\)/)
   assert.match(tabHistoryPanelSource, /onPointerDown=\{onTrackPointerDown\}/)
-  assert.match(tabHistoryPanelSource, /history-entry-scrollbar-thumb absolute top-0 right-0 w-\(--dashboard-scrollbar-size\) rounded-\(--dashboard-scrollbar-radius\) border-\[length:var\(--dashboard-scrollbar-padding\)\] border-transparent bg-\(--dashboard-scrollbar-thumb-bg\) bg-clip-content transition-opacity/)
+  assert.match(tabHistoryPanelSource, /history-entry-scrollbar-thumb absolute top-0 right-0 w-\(--dashboard-scrollbar-size\) rounded-\(--dashboard-scrollbar-radius\) border-\[length:var\(--dashboard-scrollbar-padding\)\] border-transparent bg-\(--dashboard-scrollbar-thumb-bg\) bg-clip-content/)
+  // Grow animates border-width over the shared duration; the bar stays wide for the whole drag.
+  assert.match(tabHistoryPanelSource, /\[transition:opacity_300ms_ease-out,border-width_var\(--dashboard-scrollbar-grow-duration\)_ease-out\]/)
+  assert.match(tabHistoryPanelSource, /dragging && 'border-\[length:var\(--dashboard-scrollbar-padding-hover\)\]'/)
   assert.doesNotMatch(tabHistoryPanelSource, /group-hover\/history-scrollbar-track:w-\(--dashboard-scrollbar-size\)/)
   assert.doesNotMatch(tabHistoryPanelSource, /transition-\[opacity,width,right\]/)
   assert.doesNotMatch(tabHistoryPanelSource, /cursor-grab/)

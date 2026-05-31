@@ -3196,6 +3196,24 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await wait(360)
   const afterHistoryThumbHover = await readSnapshot()
 
+  // Press the thumb, then drag the pointer well OFF the rail: a native bar stays
+  // at its wide grabbed size for the whole drag, so the thumb must keep hover
+  // width here even though the pointer is no longer over it.
+  const dragOffRailX = Math.max(20, initial.historyThumbCenterX - 220)
+  const dragOffRailY = initial.historyThumbCenterY + 40
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: initial.historyThumbCenterX, y: initial.historyThumbCenterY, button: 'left', buttons: 1, clickCount: 1
+  })
+  await wait(60)
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: dragOffRailX, y: dragOffRailY, button: 'left', buttons: 1 })
+  await wait(220)
+  const duringHistoryThumbDrag = await readSnapshot()
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: dragOffRailX, y: dragOffRailY, button: 'left' })
+  await wait(120)
+  // Reset scroll so the drag doesn't perturb the independent-scroll checks below.
+  await evaluateWithNavigationRetry(session, { expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)` })
+  await wait(120)
+
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: initial.historyTargetX,
@@ -3234,7 +3252,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await wait(180)
   const afterDashboardWheel = await readSnapshot()
 
-  return { initial, afterHistoryRailHover, afterHistoryThumbHover, afterHistoryWheel, afterDashboardWheel }
+  return { initial, afterHistoryRailHover, afterHistoryThumbHover, duringHistoryThumbDrag, afterHistoryWheel, afterDashboardWheel }
 }
 
 async function measureTooltipWindowBlurClose(session: CdpSession) {
@@ -4031,6 +4049,10 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
     `widening the thumb on hover should not change the reserved gutter width: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.duringHistoryThumbDrag.historyThumbVisibleWidth - narrowScrollbarEdges.initial.scrollbarThumbSizeHover) <= 1,
+    `dragging the thumb with the pointer off the rail should keep it at hover width, not snap back: ${JSON.stringify(narrowScrollbarEdges)}`
   )
   assert.notEqual(narrowScrollbarEdges.initial.historyTrackCursor, 'grab', `activation history track should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.notEqual(narrowScrollbarEdges.initial.historyThumbCursor, 'grab', `activation history thumb should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)

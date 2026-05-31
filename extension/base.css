@@ -35,6 +35,7 @@
   --dashboard-scrollbar-thumb-size: 6px;
   --dashboard-scrollbar-padding-hover: 1px;
   --dashboard-scrollbar-thumb-size-hover: 8px;
+  --dashboard-scrollbar-grow-duration: 200ms;
   --dashboard-scrollbar-radius: 10px;
   --dashboard-scrollbar-thumb-bg: rgba(0, 0, 0, 0.44);
   --dashboard-scrollbar-thumb-bg-hover: rgba(0, 0, 0, 0.55);
@@ -195,6 +196,11 @@ body {
   border-radius: var(--dashboard-scrollbar-radius);
   background: var(--dashboard-scrollbar-thumb-bg);
   background-clip: content-box;
+  /* Grow smoothly on hover/drag. NOTE: Chromium ignores transitions on
+     ::-webkit-scrollbar pseudo-elements, so this is a no-op there today and the
+     native thumb snaps; kept so it animates if/when that support lands. The
+     history thumb (a real DOM node) animates via its own transition. */
+  transition: border-width var(--dashboard-scrollbar-grow-duration) ease-out;
 }
 
 .scroll-region::-webkit-scrollbar-thumb:hover {

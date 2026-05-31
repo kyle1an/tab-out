@@ -26,6 +26,8 @@ export interface HistoryScrollbar {
   metrics: HistoryScrollbarMetrics
   /** true while the bar should be revealed (recent scroll / hover / drag) */
   active: boolean
+  /** true while the thumb is being dragged (keeps it at hover width throughout) */
+  dragging: boolean
   /** clip-path for the bar so it visually yields to an overlapping expansion (or undefined) */
   clipPath: string | undefined
   /** attach to the scrollbar container element (the clip-path target) */
@@ -165,6 +167,9 @@ export function useHistoryScrollbar(
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [metrics, setMetrics] = useState(DEFAULT_HISTORY_SCROLLBAR_METRICS)
   const [active, setActive] = useState(false)
+  // Exposed (unlike draggingRef) so the thumb can stay at hover width for the
+  // whole drag, even after the pointer leaves the rail — like a native bar.
+  const [dragging, setDragging] = useState(false)
   const [cutout, setCutout] = useState<ScrollbarCutout | null>(null)
 
   // Imperative flags read inside timers/listeners (avoid stale-closure churn).
@@ -254,6 +259,7 @@ export function useHistoryScrollbar(
     event.stopPropagation()
 
     draggingRef.current = true
+    setDragging(true)
     setActive(true)
     clearHideTimer()
 
@@ -269,6 +275,7 @@ export function useHistoryScrollbar(
     }
     const onUp = () => {
       draggingRef.current = false
+      setDragging(false)
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
       scheduleHide()
@@ -304,6 +311,7 @@ export function useHistoryScrollbar(
   return {
     metrics,
     active,
+    dragging,
     clipPath,
     containerRef,
     trackRef,

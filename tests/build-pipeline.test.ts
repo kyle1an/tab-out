@@ -400,10 +400,13 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-\(--dashboard-scrollbar-size\) select-none max-\[900px\]:right-\[calc\(0px-var\(--dashboard-scrollbar-inset\)\)\]/)
   assert.match(tabHistoryPanelSource, /history-entry-scrollbar-track pointer-events-auto absolute top-\(--dashboard-scrollbar-padding\) right-0 bottom-\(--dashboard-scrollbar-padding\) w-\(--dashboard-scrollbar-size\)/)
   assert.match(tabHistoryPanelSource, /onPointerDown=\{onTrackPointerDown\}/)
-  assert.match(tabHistoryPanelSource, /history-entry-scrollbar-thumb absolute top-0 right-0 w-\(--dashboard-scrollbar-size\) rounded-\(--dashboard-scrollbar-radius\) border-\[length:var\(--dashboard-scrollbar-padding\)\] border-transparent bg-\(--dashboard-scrollbar-thumb-bg\) bg-clip-content transition-opacity/)
+  assert.match(tabHistoryPanelSource, /history-entry-scrollbar-thumb absolute top-0 right-0 w-\(--dashboard-scrollbar-size\) rounded-\(--dashboard-scrollbar-radius\) border-\[length:var\(--dashboard-scrollbar-padding\)\] border-transparent bg-\(--dashboard-scrollbar-thumb-bg\) bg-clip-content/)
   // Thumb widens on hover by shrinking its transparent border, mirroring the native
   // .scroll-region::-webkit-scrollbar-thumb:hover rule so both rails expand alike.
   assert.match(tabHistoryPanelSource, /history-entry-scrollbar-thumb[^']*hover:border-\[length:var\(--dashboard-scrollbar-padding-hover\)\]/)
+  // The grow animates border-width over the shared duration, and stays wide for the whole drag.
+  assert.match(tabHistoryPanelSource, /\[transition:opacity_300ms_ease-out,border-width_var\(--dashboard-scrollbar-grow-duration\)_ease-out\]/)
+  assert.match(tabHistoryPanelSource, /dragging && 'border-\[length:var\(--dashboard-scrollbar-padding-hover\)\]'/)
   assert.doesNotMatch(tabHistoryPanelSource, /group-hover\/history-scrollbar-track:w-\(--dashboard-scrollbar-size\)/)
   assert.doesNotMatch(tabHistoryPanelSource, /transition-\[opacity,width,right\]/)
   assert.doesNotMatch(tabHistoryPanelSource, /cursor-grab/)
@@ -524,6 +527,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(baseStylesheet, /--dashboard-scrollbar-thumb-size: 6px;/)
   assert.match(baseStylesheet, /--dashboard-scrollbar-padding-hover: 1px;/)
   assert.match(baseStylesheet, /--dashboard-scrollbar-thumb-size-hover: 8px;/)
+  assert.match(baseStylesheet, /--dashboard-scrollbar-grow-duration: 200ms;/)
   assert.match(baseStylesheet, /--dashboard-scrollbar-radius: 10px;/)
   assert.match(baseStylesheet, /--dashboard-scrollbar-thumb-bg: rgba\(0, 0, 0, 0\.44\);/)
   assert.match(baseStylesheet, /--dashboard-scrollbar-thumb-bg-hover: rgba\(0, 0, 0, 0\.55\);/)
@@ -538,6 +542,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(appComponentSource, /'scroll-region[^']*max-\[900px\]:\[\.dashboard-main_>&\]:mr-\[calc\(var\(--dashboard-scrollbar-size\)-var\(--dashboard-scrollbar-thumb-size\)-var\(--dashboard-edge-bleed\)\)\][^']*max-\[900px\]:\[\.dashboard-main_>&\]:pr-\[calc\(var\(--dashboard-edge-bleed\)-var\(--dashboard-scrollbar-size\)\+var\(--dashboard-scrollbar-thumb-size\)\)\]/)
   assert.match(baseStylesheet, /\.scroll-region::-webkit-scrollbar\s*\{[\s\S]*width: var\(--dashboard-scrollbar-size\);/)
   assert.match(baseStylesheet, /\.scroll-region::-webkit-scrollbar-thumb\s*\{[\s\S]*min-height: 33px;[\s\S]*border: var\(--dashboard-scrollbar-padding\) solid transparent;[\s\S]*background: var\(--dashboard-scrollbar-thumb-bg\);/)
+  assert.match(baseStylesheet, /\.scroll-region::-webkit-scrollbar-thumb\s*\{[\s\S]*transition: border-width var\(--dashboard-scrollbar-grow-duration\) ease-out;/)
   assert.match(baseStylesheet, /\.scroll-region::-webkit-scrollbar-thumb:hover\s*\{\n\s*border-width: var\(--dashboard-scrollbar-padding-hover\);\n\s*background: var\(--dashboard-scrollbar-thumb-bg-hover\);\n\s*background-clip: content-box;\n\}/)
   assert.match(baseStylesheet, /\.scroll-region::-webkit-scrollbar-thumb:active\s*\{\n\s*border-width: var\(--dashboard-scrollbar-padding-hover\);\n\s*background: var\(--dashboard-scrollbar-thumb-bg-active\);\n\s*background-clip: content-box;\n\}/)
   assert.match(pageChipSource, /'chip-dupe-badge [^']*items-start[^']*px-0[^']*pt-px/)

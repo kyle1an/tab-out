@@ -1326,7 +1326,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
 }
 
 function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
-  const { metrics, active, clipPath, containerRef, trackRef, onThumbPointerDown, onTrackPointerDown, onPointerEnter, onPointerLeave } = scrollbar
+  const { metrics, active, dragging, clipPath, containerRef, trackRef, onThumbPointerDown, onTrackPointerDown, onPointerEnter, onPointerLeave } = scrollbar
   if (!metrics.visible) return null
 
   const scrollbarStyle: CSSVariableProperties = {
@@ -1352,8 +1352,9 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
       >
         <div
           className={cn(
-            'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-[length:var(--dashboard-scrollbar-padding)] border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] hover:border-[length:var(--dashboard-scrollbar-padding-hover)]',
-            active ? 'opacity-100' : 'opacity-0'
+            'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-[length:var(--dashboard-scrollbar-padding)] border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content [transition:opacity_300ms_ease-out,border-width_var(--dashboard-scrollbar-grow-duration)_ease-out] [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] hover:border-[length:var(--dashboard-scrollbar-padding-hover)]',
+            active ? 'opacity-100' : 'opacity-0',
+            dragging && 'border-[length:var(--dashboard-scrollbar-padding-hover)]'
           )}
           onPointerDown={onThumbPointerDown}
         />
