@@ -86,7 +86,7 @@ export function useDashboardRefresh({
     setWorkingSet(next.workingSet)
   }
 
-  useEffect(() => registerDashboardRefresh((options: RefreshOptions) => refreshRef.current(options)), [])
+  useEffect(() => registerDashboardRefresh((options?: RefreshOptions) => refreshRef.current(options)), [])
 
   useEffect(() => {
     if (!pinsLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return

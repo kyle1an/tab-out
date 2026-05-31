@@ -20,6 +20,7 @@ import type {
 import { flushSync } from 'react-dom'
 import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip'
 import { mergeRefs } from 'foxact/merge-refs'
+import { useAbortableEffect } from 'foxact/use-abortable-effect'
 import { useRetimer } from 'foxact/use-retimer'
 
 import { cn } from '@/lib/utils'
@@ -613,7 +614,7 @@ function useTooltipAnchorController({
     [openInstantly, openTooltip, retimeHoverOpen, updateLatestPointerPoint]
   )
 
-  useEffect(() => {
+  useAbortableEffect((signal) => {
     if (!tooltipOpen) return
 
     const closeFromGlobalEvent = () => {
@@ -681,24 +682,16 @@ function useTooltipAnchorController({
       }
     }, TOOLTIP_HOVER_WATCH_INTERVAL_MS)
 
-    window.addEventListener('scroll', handleScroll, true)
-    document.addEventListener('scroll', handleScroll, true)
-    window.addEventListener('blur', handleWindowBlur)
-    window.addEventListener('pointermove', handlePointerOrMouseMove, true)
-    window.addEventListener('mousemove', handlePointerOrMouseMove, true)
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    document.addEventListener('pointermove', handlePointerOrMouseMove, true)
-    document.addEventListener('mousemove', handlePointerOrMouseMove, true)
+    window.addEventListener('scroll', handleScroll, { capture: true, passive: true, signal })
+    document.addEventListener('scroll', handleScroll, { capture: true, passive: true, signal })
+    window.addEventListener('blur', handleWindowBlur, { signal })
+    window.addEventListener('pointermove', handlePointerOrMouseMove, { capture: true, signal })
+    window.addEventListener('mousemove', handlePointerOrMouseMove, { capture: true, signal })
+    document.addEventListener('visibilitychange', handleVisibilityChange, { signal })
+    document.addEventListener('pointermove', handlePointerOrMouseMove, { capture: true, signal })
+    document.addEventListener('mousemove', handlePointerOrMouseMove, { capture: true, signal })
     return () => {
       window.clearInterval(hoverWatchId)
-      window.removeEventListener('scroll', handleScroll, true)
-      document.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('blur', handleWindowBlur)
-      window.removeEventListener('pointermove', handlePointerOrMouseMove, true)
-      window.removeEventListener('mousemove', handlePointerOrMouseMove, true)
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      document.removeEventListener('pointermove', handlePointerOrMouseMove, true)
-      document.removeEventListener('mousemove', handlePointerOrMouseMove, true)
     }
   }, [clearHoverCloseTimer, closeTooltip, scheduleHoverClose, tooltipOpen])
 
@@ -847,7 +840,7 @@ function useTooltipAnchorController({
     handleContentWheelRef.current = handleContentWheel
   }, [handleContentWheel])
 
-  useEffect(() => {
+  useAbortableEffect((signal) => {
     if (!tooltipOpen || !popupElement) return
 
     function handleWheel(event: WheelEvent) {
@@ -855,10 +848,7 @@ function useTooltipAnchorController({
     }
 
     // react-doctor-disable-next-line react-doctor/client-passive-event-listeners -- nested tooltip scrolling calls preventDefault after manual scroll.
-    popupElement.addEventListener('wheel', handleWheel, { passive: false })
-    return () => {
-      popupElement.removeEventListener('wheel', handleWheel)
-    }
+    popupElement.addEventListener('wheel', handleWheel, { passive: false, signal })
   }, [popupElement, tooltipOpen])
 
   const triggerRef = useMemo(

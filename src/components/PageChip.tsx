@@ -1,5 +1,5 @@
 import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
+import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
@@ -14,6 +14,7 @@ import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './Pa
 import { TooltipAnchor } from './ui/tooltip'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu'
 import { cn } from '@/lib/utils'
+import type { CSSVariableProperties } from '@/lib/css-properties'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
 import type { InlineTextRenderer } from './bionic-title-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
@@ -1522,24 +1523,24 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         : isFolded || isTitleVariantGroup
           ? PAGE_CHIP_GROUP_INTERACTION_BG
           : PAGE_CHIP_CLICKABLE_INTERACTION_BG
-  const style = {
+  const style: CSSVariableProperties = {
     '--chip-hover-fade-bg': chipInteractionBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-interaction-bg': chipInteractionBg,
     '--chip-rest-bg': hasActiveChipFrame ? PAGE_CHIP_ACTIVE_OTHER_REST_BG : 'transparent',
-    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor } : {})
-  } as CSSProperties
+    ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
+  }
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldExpandChip = !chip.iconOnly && (isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
   const chipVisualOpen = chipExpanded || chipTooltipOpen
-  const chipSlotStyle = chipExpanded && chipSlotSize.width > 0 && chipSlotSize.height > 0 ? {
+  const chipSlotStyle: CSSVariableProperties | undefined = chipExpanded && chipSlotSize.width > 0 && chipSlotSize.height > 0 ? {
     height: `${chipSlotSize.height}px`,
     width: `${chipSlotSize.width}px`
-  } as CSSProperties : undefined
+  } : undefined
   const chipExpandedMaxWidth = chipExpansionGeometry.maxWidth > 0 ? `${chipExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
   const chipExpandedWidth = chipExpansionGeometry.width > 0 ? `${chipExpansionGeometry.width}px` : chipExpandedMaxWidth
-  const chipStyle = {
+  const chipStyle: CSSVariableProperties = {
     ...style,
     ...(chipExpanded ? {
       '--page-chip-expanded-max-width': chipExpandedMaxWidth,
@@ -1547,11 +1548,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       maxWidth: chipExpandedMaxWidth,
       width: chipExpandedWidth
     } : {})
-  } as CSSProperties
-  const chipTooltipStyle = {
+  }
+  const chipTooltipStyle: CSSVariableProperties = {
     '--page-chip-tooltip-max-width': 'calc(100vw - 16px)',
     maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))'
-  } as CSSProperties
+  }
   function chipMatchesActiveHover(target: DashboardChipData) {
     return (
       pageTargetMatchesHover(target, activeHoverUrl, activeHoverUrls) ||
@@ -2089,7 +2090,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
-          chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-[1px] before:hidden after:hidden',
+          chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-1 before:hidden after:hidden',
           chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
           chip.iconOnly && hasActiveChipFrame && 'bg-(--chip-rest-bg) [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
         )}

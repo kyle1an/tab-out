@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction } from 'react'
+import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction } from 'react'
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
@@ -12,6 +12,7 @@ import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { bionicTitleTextNodes } from './bionic-title-text'
 import { cn } from '@/lib/utils'
+import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
 import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import { useHistoryPanelRows, type HistoryPanelRow } from '../hooks/useHistoryPanelRows.js'
@@ -58,6 +59,7 @@ const historyTitleTruncationCallbacks = new WeakMap<
   (metrics: HistoryTitleMetrics) => void
 >()
 const EMPTY_HOVER_URLS: readonly string[] = []
+const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
 const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
 const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
 let activeExpandedHistoryEntryId: string | null = null
@@ -1015,26 +1017,26 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetItem?.faviconUrl || ''
-  const entrySlotStyle = titleExpanded && entrySlotSize.width > 0 && entrySlotSize.height > 0 ? {
+  const entrySlotStyle: CSSVariableProperties | undefined = titleExpanded && entrySlotSize.width > 0 && entrySlotSize.height > 0 ? {
     height: `${entrySlotSize.height}px`,
     width: `${entrySlotSize.width}px`
-  } as CSSProperties : undefined
+  } : undefined
   const entryExpandedMaxWidth = entryExpansionGeometry.maxWidth > 0 ? `${entryExpansionGeometry.maxWidth}px` : 'calc(100vw - 16px)'
   const entryExpandedWidth = entryExpansionGeometry.width > 0 ? `${entryExpansionGeometry.width}px` : entryExpandedMaxWidth
   const entryExpandedTitleWidth = entryExpansionGeometry.titleWidth > 0 ? `${entryExpansionGeometry.titleWidth}px` : `${Math.max(1, titleMetrics.width)}px`
-  const entryBaseStyle = {
+  const entryBaseStyle: CSSVariableProperties = {
     '--history-entry-fade-bg': historyEntryInteractionBg,
     '--history-entry-interaction-bg': historyEntryInteractionBg,
     '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent'
-  } as CSSProperties
-  const entryOverlayStyle = {
+  }
+  const entryOverlayStyle: CSSVariableProperties = {
     ...entryBaseStyle,
     '--history-entry-expanded-max-width': entryExpandedMaxWidth,
     '--history-entry-expanded-title-width': entryExpandedTitleWidth,
     '--history-entry-expanded-width': entryExpandedWidth,
     maxWidth: entryExpandedMaxWidth,
     width: entryExpandedWidth
-  } as CSSProperties
+  }
   function markerElement(): ReactNode {
     if (kind === 'open-ghost') {
       return <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
@@ -1226,11 +1228,11 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
   const { metrics, active, clipPath, containerRef, trackRef, onThumbPointerDown, onTrackPointerDown, onPointerEnter, onPointerLeave } = scrollbar
   if (!metrics.visible) return null
 
-  const scrollbarStyle = {
+  const scrollbarStyle: CSSVariableProperties = {
     '--history-entry-scrollbar-thumb-height': `${metrics.thumbHeight}px`,
     '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`,
     clipPath
-  } as CSSProperties
+  }
 
   return (
     <div
@@ -1262,7 +1264,7 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
 export function TabHistoryPanel({
   snapshot,
   workingSet = null,
-  closedTabs = [],
+  closedTabs = EMPTY_CLOSED_TABS,
   filter = '',
   onSnapshotChange,
   onHoverUrlChange,

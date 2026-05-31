@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CSSProperties, Dispatch, FocusEvent as ReactFocusEvent, MouseEvent as ReactMouseEvent, SetStateAction } from 'react'
+import type { Dispatch, FocusEvent as ReactFocusEvent, MouseEvent as ReactMouseEvent, SetStateAction } from 'react'
 import { ChevronDown, ChevronUp, EyeOff } from 'lucide-react'
 import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } from '../extension/working-set-client.js'
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
@@ -10,6 +10,7 @@ import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import type { CSSVariableProperties } from '@/lib/css-properties'
 
 let workingSetTitleResizeObserver: ResizeObserver | null = null
 const workingSetTitleTruncationCallbacks = new WeakMap<
@@ -117,12 +118,12 @@ function workingSetVisibleLayoutSignature(items: WorkingSetItem[], hasMore: bool
 }
 
 function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem; position: WorkingSetItemPosition; exiting: boolean }) {
-  const style = {
+  const style: CSSVariableProperties = {
     left: `${position.left}px`,
     top: `${position.top}px`,
     width: `${position.width}px`,
     height: `${position.height}px`
-  } satisfies CSSProperties
+  }
 
   return (
     <div
@@ -233,9 +234,9 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   }
 
   const titleTooltipWidth = titleMetrics.width > 0 ? `${titleMetrics.width}px` : ''
-  const titleTooltipStyle = titleTooltipWidth ? {
+  const titleTooltipStyle: CSSVariableProperties | undefined = titleTooltipWidth ? {
     '--working-set-title-tooltip-width': titleTooltipWidth
-  } as CSSProperties : undefined
+  } : undefined
   const hoverMatched = !!activeHoverSource && activeHoverSource !== 'working-set' && !!item.tabUrl && (
     item.tabUrl === activeHoverUrl ||
     item.rawUrl === activeHoverUrl ||
@@ -252,11 +253,11 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
       {bionicTitleTextNodes(item.title, `working-set-tooltip-${item.key}`)}
     </span>
   ) : undefined
-  const itemStyle = {
+  const itemStyle: CSSVariableProperties = {
     '--working-set-hover-fade-bg': item.active
       ? 'color-mix(in srgb, var(--card-bg) 88%, var(--accent-amber))'
       : 'color-mix(in srgb, var(--card-bg) 92%, rgb(82 82 82))'
-  } as CSSProperties
+  }
   const duplicateLabel = item.dupeCount > 1 ? `${item.dupeCount} open copies` : ''
   const itemLabel = [`Switch to ${item.title}`, duplicateLabel].filter(Boolean).join(', ')
 

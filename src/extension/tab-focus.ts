@@ -7,7 +7,7 @@ type ChromeTabFocusApi = {
     sendMessage?: (extensionId: string, message: unknown) => Promise<unknown>
   }
   tabs: {
-    query: (queryInfo?: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>
+    query: (queryInfo: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>
     update: (tabId: number, updateProperties: chrome.tabs.UpdateProperties) => Promise<chrome.tabs.Tab | undefined>
   }
   windows: {

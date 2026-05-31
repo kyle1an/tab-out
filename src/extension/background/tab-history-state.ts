@@ -40,7 +40,7 @@ export function normalizeGlobalHistory(entry: GlobalTabHistoryInput): GlobalTabH
   const maxIndex = stack.length - 1
   const rawIndex = entry.index
   const index = typeof rawIndex === 'number' && Number.isInteger(rawIndex) ? Math.max(-1, Math.min(rawIndex, maxIndex)) : maxIndex
-  return { stack: stack as GlobalTabHistoryEntry[], index }
+  return { stack, index }
 }
 
 export function historyChanged(a: GlobalTabHistoryInput, b: GlobalTabHistoryInput): boolean {

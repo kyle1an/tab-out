@@ -12,8 +12,8 @@
    a key. A chip with no matching adapter returns null (no pill, no
    noise). A lone "group" of one is silent clutter, so we drop it.
 
-   User rules (window.LOCAL_PATH_GROUPERS from config.local.js) are
-   checked BEFORE built-ins so personal overrides always win.
+   Valid user rules (window.LOCAL_PATH_GROUPERS from config.local.js)
+   are checked BEFORE built-ins so personal overrides always win.
 
    Adapter shape:
      { hostname, extract(urlObj) → { key, label } | null }
@@ -24,6 +24,7 @@
    share the atlassian.net host: whichever path pattern hits first.
    ================================================================ */
 
+import { readLocalPathGroupers } from './local-config.js'
 import type { PathGroupResult, PathGroupRule } from './types'
 
 const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
@@ -172,7 +173,7 @@ export function resolvePathGroup(url: string): PathGroupResult | null {
     return null
   }
 
-  const rules = [...(window.LOCAL_PATH_GROUPERS || []), ...BUILT_IN_PATH_GROUPERS]
+  const rules = [...readLocalPathGroupers(), ...BUILT_IN_PATH_GROUPERS]
   for (const rule of rules) {
     const hostMatch = rule.hostname ? parsed.hostname === rule.hostname : rule.hostnameEndsWith ? parsed.hostname.endsWith(rule.hostnameEndsWith) : false
     if (!hostMatch) continue
