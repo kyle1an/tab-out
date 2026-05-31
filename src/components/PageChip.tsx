@@ -1,5 +1,5 @@
-import { cloneElement, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactElement, ReactNode } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
@@ -12,7 +12,10 @@ import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
 import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from './ui/context-menu'
+import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
+import { PageChipContextMenu } from './PageChipContextMenu'
+import { PageChipContextMenuContent } from './PageChipContextMenuContent'
+import { SavedPageIcon } from './SavedPageIcon'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
@@ -33,7 +36,6 @@ const PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX = 8
 const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
-const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
 const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
@@ -69,21 +71,6 @@ type RenderTitleContentOptions = {
 }
 type StopPropagationEvent = {
   stopPropagation: () => void
-}
-type PageChipContextMenuContentProps = {
-  savedActionLabel: string
-  saved: boolean
-  titleText: string
-  onSavedSelect: (event: StopPropagationEvent) => void | Promise<void>
-  onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
-}
-type PageChipContextMenuTriggerElement = ReactElement<{
-  className?: string
-  'data-context-menu-open'?: string
-}>
-type PageChipContextMenuProps = PageChipContextMenuContentProps & {
-  children: PageChipContextMenuTriggerElement
-  onOpenChange?: (open: boolean) => void
 }
 type ChipTextMetrics = {
   isTruncated: boolean
@@ -132,103 +119,12 @@ function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
 }
 
-function SavedPageIcon({ saved, className }: { saved: boolean; className: string }) {
-  return <span aria-hidden="true" className={cn(saved ? 'icon-[mingcute--star-fill]' : 'icon-[mingcute--star-line]', className)} />
-}
-
 function titleTextForChip(target: Pick<DashboardChipData, 'title' | 'tooltip' | 'tabUrl'>): string {
   return (target.title || target.tooltip || target.tabUrl).trim()
 }
 
 function titleTextForEnv(env: DashboardChipEnv, parent: Pick<DashboardChipData, 'title' | 'tooltip'>): string {
   return (env.title || parent.title || parent.tooltip || env.tabUrl).trim()
-}
-
-function PageChipContextMenuContent({
-  savedActionLabel,
-  saved,
-  titleText,
-  onSavedSelect,
-  onCopyTitle
-}: PageChipContextMenuContentProps) {
-  return (
-    <ContextMenuContent>
-      <ContextMenuItem
-        className="page-chip-save-menu-item"
-        label={savedActionLabel}
-        onClick={onSavedSelect}
-      >
-        <SavedPageIcon saved={saved} className="size-3.5" />
-        <span className="min-w-0 flex-1">{savedActionLabel}</span>
-      </ContextMenuItem>
-      <ContextMenuItem
-        className="page-chip-copy-title-menu-item"
-        disabled={!titleText}
-        label="Copy page title text"
-        onClick={onCopyTitle}
-      >
-        <svg className="icon-[ooui--copy-ltr] size-3.5" aria-hidden="true" />
-        <span className="min-w-0 flex-1">Copy page title text</span>
-      </ContextMenuItem>
-    </ContextMenuContent>
-  )
-}
-
-function PageChipContextMenu({
-  children,
-  savedActionLabel,
-  saved,
-  titleText,
-  onSavedSelect,
-  onCopyTitle,
-  onOpenChange
-}: PageChipContextMenuProps) {
-  const [visualOpen, setVisualOpen] = useState(false)
-  const visualCloseTimerRef = useRef<number | null>(null)
-
-  function clearVisualCloseTimer() {
-    if (visualCloseTimerRef.current === null) return
-    window.clearTimeout(visualCloseTimerRef.current)
-    visualCloseTimerRef.current = null
-  }
-
-  useEffect(() => () => {
-    if (visualCloseTimerRef.current !== null) {
-      window.clearTimeout(visualCloseTimerRef.current)
-    }
-  }, [])
-
-  function handleOpenChange(nextOpen: boolean) {
-    clearVisualCloseTimer()
-    if (nextOpen) {
-      setVisualOpen(true)
-    } else {
-      visualCloseTimerRef.current = window.setTimeout(() => {
-        visualCloseTimerRef.current = null
-        setVisualOpen(false)
-      }, PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS)
-    }
-    onOpenChange?.(nextOpen)
-  }
-  const trigger = visualOpen
-    ? cloneElement(children, {
-        className: cn(children.props.className, 'page-chip-context-menu-open'),
-        'data-context-menu-open': ''
-      })
-    : children
-
-  return (
-    <ContextMenu onOpenChange={handleOpenChange}>
-      <ContextMenuTrigger render={trigger} />
-      <PageChipContextMenuContent
-        savedActionLabel={savedActionLabel}
-        saved={saved}
-        onSavedSelect={onSavedSelect}
-        titleText={titleText}
-        onCopyTitle={onCopyTitle}
-      />
-    </ContextMenu>
-  )
 }
 
 function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titleSuppression: string } {

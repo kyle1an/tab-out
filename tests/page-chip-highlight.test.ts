@@ -807,19 +807,38 @@ test('PageChip keeps icon-only tooltip popups click-through while text chips exp
 
 test('PageChip routes saved-page mutation actions through Base UI context menus', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  const contextMenuComponentSource = readFileSync(new URL('../src/components/PageChipContextMenu.tsx', import.meta.url), 'utf8')
+  const contextMenuContentSource = readFileSync(new URL('../src/components/PageChipContextMenuContent.tsx', import.meta.url), 'utf8')
 
-  assert.match(pageChipSource, /import \{\s*ContextMenu,\s*ContextMenuContent,\s*ContextMenuItem,\s*ContextMenuTrigger\s*\} from '\.\/ui\/context-menu'/)
-  assert.match(pageChipSource, /function PageChipContextMenu\(/)
+  // PageChip wires the Base UI primitives plus the extracted menu modules
+  assert.match(pageChipSource, /import \{ ContextMenu, ContextMenuTrigger \} from '\.\/ui\/context-menu'/)
+  assert.match(pageChipSource, /import \{ PageChipContextMenu \} from '\.\/PageChipContextMenu'/)
+  assert.match(pageChipSource, /import \{ PageChipContextMenuContent \} from '\.\/PageChipContextMenuContent'/)
+
+  // The extracted wrapper owns the visual-open lifecycle and trigger cloning
+  assert.match(contextMenuComponentSource, /export function PageChipContextMenu\(/)
+  assert.match(contextMenuComponentSource, /onOpenChange\?: \(open: boolean\) => void/)
+  assert.match(contextMenuComponentSource, /PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80/)
+  assert.match(contextMenuComponentSource, /function handleOpenChange\(nextOpen: boolean\)/)
+  assert.match(contextMenuComponentSource, /const \[visualOpen, setVisualOpen\] = useState\(false\)/)
+  assert.match(contextMenuComponentSource, /window\.setTimeout\(\(\) => \{[\s\S]*setVisualOpen\(false\)[\s\S]*PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS/)
+  assert.match(contextMenuComponentSource, /const trigger = visualOpen/)
+  assert.match(contextMenuComponentSource, /<ContextMenu onOpenChange=\{handleOpenChange\}>/)
+  assert.match(contextMenuComponentSource, /<ContextMenuTrigger render=\{trigger\} \/>/)
+  assert.match(contextMenuComponentSource, /page-chip-context-menu-open/)
+
+  // The extracted content renders the saved + copy menu items
+  assert.match(contextMenuContentSource, /className="page-chip-save-menu-item"/)
+  assert.match(contextMenuContentSource, /className="page-chip-copy-title-menu-item"/)
+  assert.match(contextMenuContentSource, /SavedPageIcon saved=\{saved\} className="size-3\.5"/)
+  assert.match(contextMenuContentSource, /<svg className="icon-\[ooui--copy-ltr\] size-3\.5" aria-hidden="true" \/>/)
+  assert.match(contextMenuContentSource, /Copy page title text/)
+  assert.match(contextMenuContentSource, /onClick=\{onSavedSelect\}/)
+  assert.match(contextMenuContentSource, /onClick=\{onCopyTitle\}/)
+
+  // PageChip keeps the interaction styling, ref coordination, and clipboard handler
   assert.match(pageChipSource, /page-chip-context-menu-open/)
   assert.match(pageChipSource, /page-chip-tooltip-open/)
-  assert.match(pageChipSource, /onOpenChange\?: \(open: boolean\) => void/)
-  assert.match(pageChipSource, /PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80/)
-  assert.match(pageChipSource, /function handleOpenChange\(nextOpen: boolean\)/)
-  assert.match(pageChipSource, /const \[visualOpen, setVisualOpen\] = useState\(false\)/)
-  assert.match(pageChipSource, /window\.setTimeout\(\(\) => \{[\s\S]*setVisualOpen\(false\)[\s\S]*PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS/)
-  assert.match(pageChipSource, /const trigger = visualOpen/)
-  assert.match(pageChipSource, /<ContextMenu onOpenChange=\{handleOpenChange\}>/)
-  assert.match(pageChipSource, /<ContextMenuTrigger render=\{trigger\} \/>/)
   assert.match(pageChipSource, /contextMenuOpenRef\.current/)
   assert.match(pageChipSource, /if \(contextMenuOpenRef\.current\) return/)
   assert.match(pageChipSource, /\[\&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
@@ -827,15 +846,10 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /onOpenChange=\{onChipTooltipOpenChange\}/)
   assert.match(pageChipSource, /group-\[\.page-chip-context-menu-open\]\/page-chip:opacity-100/)
   assert.match(pageChipSource, /group-\[\.page-chip-tooltip-open\]\/page-chip:opacity-100/)
-  assert.match(pageChipSource, /className="page-chip-save-menu-item"/)
-  assert.match(pageChipSource, /className="page-chip-copy-title-menu-item"/)
-  assert.match(pageChipSource, /SavedPageIcon saved=\{saved\} className="size-3\.5"/)
-  assert.match(pageChipSource, /<svg className="icon-\[ooui--copy-ltr\] size-3\.5" aria-hidden="true" \/>/)
   assert.doesNotMatch(pageChipSource, /import \{ Copy, X \} from 'lucide-react'/)
-  assert.match(pageChipSource, /Copy page title text/)
   assert.match(pageChipSource, /navigator\.clipboard\.writeText\(titleText\)/)
-  assert.match(pageChipSource, /onClick=\{onSavedSelect\}/)
-  assert.match(pageChipSource, /onClick=\{onCopyTitle\}/)
+
+  // PageChip wires the mutation handlers into the menus at each call site
   assert.match(pageChipSource, /canToggleSavedEnv \? \([\s\S]*<PageChipContextMenu[\s\S]*onSavedSelect=\{\(e\) => onToggleSavedEnv\(e, env\)\}[\s\S]*titleText=\{envTitleText\}/)
   assert.match(pageChipSource, /variantCanToggleSaved \? \([\s\S]*<ContextMenu>[\s\S]*onSavedSelect=\{\(e\) => onToggleSavedTitleVariant\(e, variant\)\}[\s\S]*titleText=\{variantTitleText\}/)
   assert.match(pageChipSource, /canToggleSavedPage[\s\S]*<PageChipContextMenu[\s\S]*onSavedSelect=\{onToggleSavedPage\}[\s\S]*titleText=\{chipTitleText\}[\s\S]*onOpenChange=\{onChipContextMenuOpenChange\}/)
