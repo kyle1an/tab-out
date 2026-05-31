@@ -445,6 +445,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const refreshClosedTabs = useCallback(async function refreshClosedTabs() {
     if (isClosedTabFetchSuppressed()) return
     const seq = ++closedTabsSeqRef.current
+    // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await seq comparison is a stale-response race guard; it must run after the await.
     const next = await fetchClosedTabs()
     if (seq !== closedTabsSeqRef.current) return
     setClosedTabs(next)

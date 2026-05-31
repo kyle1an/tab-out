@@ -41,6 +41,7 @@ function ContextMenu({
   )
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn context-menu primitive family is intentionally colocated in one file.
 function ContextMenuContent({
   align = 'start',
   alignOffset = 0,
@@ -86,6 +87,7 @@ function ContextMenuContent({
   )
 }
 
+// react-doctor-disable-next-line react-doctor/no-multi-comp -- shadcn context-menu primitive family is intentionally colocated in one file.
 function ContextMenuItem({
   className,
   children,

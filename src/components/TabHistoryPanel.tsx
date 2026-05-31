@@ -1144,6 +1144,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
             aria-hidden="true"
           />
         )}
+        {/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- row contains a nested close <button>; a real <button> wrapper would be invalid nested-interactive DOM. */}
         <div
           role="button"
           tabIndex={!expanded && canActivateEntry ? 0 : -1}

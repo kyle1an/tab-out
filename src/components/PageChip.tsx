@@ -947,6 +947,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const nextGeometry = getPageChipExpansionGeometry(chipEl, textEl)
     setChipSlotSize((current) => chipSlotSizeEqual(current, nextSize) ? current : nextSize)
     setChipExpansionGeometry((current) => chipExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
+    // react-doctor-disable-next-line react-doctor/exhaustive-deps -- callback reads only stable refs; eslint-plugin-react-hooks (the enforced gate) exempts refs.
   }, [])
 
   useEffect(() => {
