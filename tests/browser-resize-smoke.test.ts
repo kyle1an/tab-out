@@ -3036,6 +3036,188 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
   return { target, beforeScrollTop, after }
 }
 
+async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 760,
+    height: 620,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `(() => {
+      document.querySelector('.history-entry-list')?.scrollTo(0, 0)
+      document.querySelector('.scroll-region')?.scrollTo(0, 0)
+      document.scrollingElement?.scrollTo(0, 0)
+    })()`
+  })
+  await wait(250)
+
+  async function readSnapshot() {
+    return evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const round = (value) => Math.round(value * 100) / 100
+        const shell = document.querySelector('[data-tabout="dashboard-shell"]')
+        const main = document.querySelector('.dashboard-main')
+        const scrollRegion = document.querySelector('.scroll-region')
+        const historyList = document.querySelector('.history-entry-list')
+        const historyContent = document.querySelector('.history-entry-list-content')
+        const historyScrollbar = document.querySelector('.history-entry-scrollbar')
+        const historyTrack = document.querySelector('.history-entry-scrollbar-track')
+        const historyThumb = document.querySelector('.history-entry-scrollbar-thumb')
+        const filter = document.querySelector('[data-tabout="filter-query"]')
+        const card = document.querySelector('[data-tabout="domain-card"] .mission-card') || document.querySelector('.mission-card')
+        const shellRect = shell?.getBoundingClientRect()
+        const mainRect = main?.getBoundingClientRect()
+        const scrollRegionRect = scrollRegion?.getBoundingClientRect()
+        const historyListRect = historyList?.getBoundingClientRect()
+        const historyContentRect = historyContent?.getBoundingClientRect()
+        const historyScrollbarRect = historyScrollbar?.getBoundingClientRect()
+        const historyTrackRect = historyTrack?.getBoundingClientRect()
+        const historyThumbRect = historyThumb?.getBoundingClientRect()
+        const filterRect = filter?.getBoundingClientRect()
+        const cardRect = card?.getBoundingClientRect()
+        if (
+          !(scrollRegion instanceof HTMLElement) ||
+          !(historyList instanceof HTMLElement) ||
+          !shellRect ||
+          !mainRect ||
+          !scrollRegionRect ||
+          !historyListRect ||
+          !historyContentRect ||
+          !historyScrollbarRect ||
+          !historyTrackRect ||
+          !historyThumbRect ||
+          !filterRect ||
+          !cardRect
+        ) {
+          return null
+        }
+        const shellStyles = window.getComputedStyle(shell)
+        const historyThumbStyles = window.getComputedStyle(historyThumb)
+        const scrollbarSize = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-size')) || 0
+        const scrollbarPadding = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-padding')) || 0
+        const scrollbarThumbSize = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-thumb-size')) || 0
+        const historyThumbBorderLeft = Number.parseFloat(historyThumbStyles.borderLeftWidth) || 0
+        const historyThumbBorderRight = Number.parseFloat(historyThumbStyles.borderRightWidth) || 0
+        const pageGutter = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-page-gutter')) || 0
+        const historyTargetX = Math.round(Math.min(historyContentRect.right - 24, Math.max(historyContentRect.left + 24, historyContentRect.left + historyContentRect.width / 3)))
+        const historyTargetY = Math.round(Math.min(window.innerHeight - 24, Math.max(24, historyContentRect.top + 84)))
+        const historyRailTargetX = Math.round(historyTrackRect.left + historyTrackRect.width / 2)
+        const historyRailTargetY = Math.round(Math.min(historyScrollbarRect.bottom - 24, Math.max(historyScrollbarRect.top + 24, historyTrackRect.top + 84)))
+        const dashboardTargetX = Math.round(Math.min(cardRect.right - 24, Math.max(cardRect.left + 24, cardRect.left + cardRect.width / 3)))
+        const dashboardTargetY = Math.round(Math.min(window.innerHeight - 24, Math.max(24, cardRect.top + Math.min(84, cardRect.height / 2))))
+        const historyNode = document.elementFromPoint(historyTargetX, historyTargetY)
+        const dashboardNode = document.elementFromPoint(dashboardTargetX, dashboardTargetY)
+        return {
+          viewportWidth: window.innerWidth,
+          documentClientWidth: document.documentElement.clientWidth,
+          documentScrollWidth: document.documentElement.scrollWidth,
+          bodyScrollWidth: document.body?.scrollWidth || 0,
+          shellRight: round(shellRect.right),
+          mainLeft: round(mainRect.left),
+          mainRight: round(mainRect.right),
+          scrollRegionLeft: round(scrollRegionRect.left),
+          scrollRegionRight: round(scrollRegionRect.right),
+          scrollRegionWidth: round(scrollRegionRect.width),
+          scrollRegionNativeTrackWidth: scrollRegion.offsetWidth - scrollRegion.clientWidth,
+          scrollRegionClientHeight: scrollRegion.clientHeight,
+          scrollRegionScrollHeight: scrollRegion.scrollHeight,
+          scrollRegionScrollTop: round(scrollRegion.scrollTop),
+          historyListRight: round(historyListRect.right),
+          historyScrollbarLeft: round(historyScrollbarRect.left),
+          historyScrollbarRight: round(historyScrollbarRect.right),
+          historyScrollbarWidth: round(historyScrollbarRect.width),
+          historyTrackRight: round(historyTrackRect.right),
+          historyTrackWidth: round(historyTrackRect.width),
+          historyThumbRight: round(historyThumbRect.right),
+          historyThumbWidth: round(historyThumbRect.width),
+          historyThumbVisibleRight: round(historyThumbRect.right - historyThumbBorderRight),
+          historyThumbVisibleWidth: round(historyThumbRect.width - historyThumbBorderLeft - historyThumbBorderRight),
+          historyThumbBorderLeft: round(historyThumbBorderLeft),
+          historyThumbBorderRight: round(historyThumbBorderRight),
+          historyTrackCursor: window.getComputedStyle(historyTrack).cursor,
+          historyThumbCursor: window.getComputedStyle(historyThumb).cursor,
+          historyListClientHeight: historyList.clientHeight,
+          historyListScrollHeight: historyList.scrollHeight,
+          historyListScrollTop: round(historyList.scrollTop),
+          filterLeft: round(filterRect.left),
+          filterRight: round(filterRect.right),
+          cardLeft: round(cardRect.left),
+          cardRight: round(cardRect.right),
+          pageGutter,
+          scrollbarSize,
+          scrollbarPadding,
+          scrollbarThumbSize,
+          historyTargetX,
+          historyTargetY,
+          historyRailTargetX,
+          historyRailTargetY,
+          dashboardTargetX,
+          dashboardTargetY,
+          historyHitClass: historyNode instanceof Element ? historyNode.className || '' : '',
+          historyHitPart: historyNode instanceof Element ? historyNode.closest('[data-tabout-part]')?.getAttribute('data-tabout-part') || '' : '',
+          dashboardHitClass: dashboardNode instanceof Element ? dashboardNode.className || '' : '',
+          dashboardHitTabout: dashboardNode instanceof Element ? dashboardNode.closest('[data-tabout]')?.getAttribute('data-tabout') || '' : '',
+          windowScrollX: window.scrollX,
+          documentScrollLeft: document.scrollingElement?.scrollLeft || 0
+        }
+      })()`
+    }).then((result: any) => result.result.value)
+  }
+
+  const initial = await readSnapshot()
+  assert.ok(initial, 'expected narrow viewport scrollbar geometry to be measurable')
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: initial.historyRailTargetX,
+    y: initial.historyRailTargetY
+  })
+  await wait(360)
+  const afterHistoryRailHover = await readSnapshot()
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: initial.historyTargetX,
+    y: initial.historyTargetY
+  })
+  await wait(80)
+  for (let index = 0; index < 5; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      deltaX: 0,
+      deltaY: 48,
+      x: initial.historyTargetX,
+      y: initial.historyTargetY
+    })
+    await wait(50)
+  }
+  await wait(180)
+  const afterHistoryWheel = await readSnapshot()
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: initial.dashboardTargetX,
+    y: initial.dashboardTargetY
+  })
+  await wait(80)
+  for (let index = 0; index < 5; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      deltaX: 0,
+      deltaY: 48,
+      x: initial.dashboardTargetX,
+      y: initial.dashboardTargetY
+    })
+    await wait(50)
+  }
+  await wait(180)
+  const afterDashboardWheel = await readSnapshot()
+
+  return { initial, afterHistoryRailHover, afterHistoryWheel, afterDashboardWheel }
+}
+
 async function measureTooltipWindowBlurClose(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -3769,6 +3951,120 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     historyLeftGutterScroll.after.dashboardScrollTop,
     historyLeftGutterScroll.beforeScrollTop.dashboardScrollTop,
     `left gutter history scroll should not scroll the domain cards pane: ${JSON.stringify(historyLeftGutterScroll)}`
+  )
+
+  const narrowScrollbarEdges = await measureNarrowViewportScrollbarEdges(session)
+  assert.ok(narrowScrollbarEdges.afterHistoryRailHover, `expected narrow history rail hover geometry: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.ok(narrowScrollbarEdges.afterHistoryWheel, `expected narrow history wheel geometry: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.ok(narrowScrollbarEdges.afterDashboardWheel, `expected narrow dashboard wheel geometry: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyScrollbarRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
+    `narrow activation history scrollbar rail should reach the viewport right edge: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.scrollRegionRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
+    `narrow dashboard scroll region should place the native rail at the viewport right edge: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyTrackRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
+    `narrow activation history hover track should reach the viewport edge: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyScrollbarWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
+    `narrow activation history rail should use the shared scrollbar width: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
+    `narrow activation history hover track should match the native rail width: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyThumbRight - narrowScrollbarEdges.initial.viewportWidth) <= 1,
+    `narrow activation history thumb box should reach the viewport edge like the native rail: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyThumbVisibleRight - (narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.scrollbarPadding)) <= 1,
+    `narrow activation history visible thumb should keep the shared scrollbar padding at the viewport edge: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyThumbWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
+    `narrow activation history thumb box should match the native rail width: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.historyThumbVisibleWidth - narrowScrollbarEdges.initial.scrollbarThumbSize) <= 1,
+    `narrow activation history visible thumb should use the shared visible thumb width: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.afterHistoryRailHover.historyTrackWidth - narrowScrollbarEdges.initial.historyTrackWidth) <= 1,
+    `hovering activation history should not change the interactive track width: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.afterHistoryRailHover.historyThumbVisibleRight - narrowScrollbarEdges.initial.historyThumbVisibleRight) <= 1,
+    `hovering activation history should keep the visible thumb right edge unchanged: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.afterHistoryRailHover.historyThumbVisibleWidth - narrowScrollbarEdges.initial.historyThumbVisibleWidth) <= 1,
+    `hovering activation history should keep the visible thumb width unchanged: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.notEqual(narrowScrollbarEdges.initial.historyTrackCursor, 'grab', `activation history track should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.notEqual(narrowScrollbarEdges.initial.historyThumbCursor, 'grab', `activation history thumb should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.notEqual(narrowScrollbarEdges.afterHistoryRailHover.historyThumbCursor, 'grabbing', `activation history hover should not use a grabbing cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.cardLeft - narrowScrollbarEdges.initial.pageGutter) <= 1,
+    `moving the native rail outward should keep dashboard card content at the page gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.filterLeft - narrowScrollbarEdges.initial.pageGutter) <= 1,
+    `moving the native rail outward should keep header/filter content at the page gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    narrowScrollbarEdges.initial.cardRight <= narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.pageGutter + 1,
+    `dashboard card content should stay inside the existing right content gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    narrowScrollbarEdges.initial.documentScrollWidth <= narrowScrollbarEdges.initial.documentClientWidth + 1,
+    `narrow scrollbar rail should not introduce horizontal page overflow: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.equal(narrowScrollbarEdges.initial.windowScrollX, 0, `narrow viewport should not scroll the page horizontally: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.equal(narrowScrollbarEdges.initial.documentScrollLeft, 0, `narrow viewport should not move the document scroller horizontally: ${JSON.stringify(narrowScrollbarEdges)}`)
+  assert.ok(
+    narrowScrollbarEdges.initial.historyListScrollHeight > narrowScrollbarEdges.initial.historyListClientHeight + 8,
+    `narrow activation history smoke needs an independently scrollable history list: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    narrowScrollbarEdges.initial.scrollRegionScrollHeight > narrowScrollbarEdges.initial.scrollRegionClientHeight + 8,
+    `narrow dashboard smoke needs an independently scrollable card list: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    narrowScrollbarEdges.afterHistoryWheel.historyListScrollTop - narrowScrollbarEdges.initial.historyListScrollTop > 96,
+    `wheel input over activation history should scroll history independently: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.equal(
+    narrowScrollbarEdges.afterHistoryWheel.scrollRegionScrollTop,
+    narrowScrollbarEdges.initial.scrollRegionScrollTop,
+    `wheel input over activation history should not scroll the dashboard cards: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    narrowScrollbarEdges.afterDashboardWheel.scrollRegionScrollTop - narrowScrollbarEdges.afterHistoryWheel.scrollRegionScrollTop > 96,
+    `wheel input over dashboard cards should scroll the dashboard independently: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.afterDashboardWheel.historyListScrollTop - narrowScrollbarEdges.afterHistoryWheel.historyListScrollTop) <= 1,
+    `wheel input over dashboard cards should not scroll activation history: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  // The native .scroll-region rail must actually render the custom
+  // ::-webkit-scrollbar at the shared width. getBoundingClientRect cannot see a
+  // scrollbar pseudo-element, but the layout width it consumes (offsetWidth -
+  // clientWidth) is an exact proxy: 8px = custom bar honored, 0 = a standard
+  // overlay bar is silently overriding it (the bug this guards against), ~15px
+  // = an unstyled standard bar. Without this the history mirror could match a
+  // reference bar that the browser never paints.
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.scrollRegionNativeTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
+    `narrow dashboard scroll region must render the custom ::-webkit-scrollbar at the shared width, not a standard/overlay bar: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.scrollRegionNativeTrackWidth - narrowScrollbarEdges.initial.historyScrollbarWidth) <= 1,
+    `narrow dashboard native rail and activation history rail must occupy the same width: ${JSON.stringify(narrowScrollbarEdges)}`
   )
 
   const shortTooltip = await measureShortChipTooltipAbsence(session)

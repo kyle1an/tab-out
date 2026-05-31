@@ -1339,20 +1339,20 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
     <div
       ref={containerRef}
       data-tabout-part="history-scrollbar"
-      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-(--dashboard-scrollbar-size) select-none max-[900px]:right-(--dashboard-scrollbar-inset)"
+      className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-(--dashboard-scrollbar-size) select-none max-[900px]:right-[calc(0px-var(--dashboard-scrollbar-inset))]"
       style={scrollbarStyle}
       aria-hidden="true"
     >
       <div
         ref={trackRef}
-        className="history-entry-scrollbar-track pointer-events-auto absolute top-(--dashboard-scrollbar-padding) right-(--dashboard-scrollbar-padding) bottom-(--dashboard-scrollbar-padding) w-(--dashboard-scrollbar-thumb-size)"
+        className="history-entry-scrollbar-track pointer-events-auto absolute top-(--dashboard-scrollbar-padding) right-0 bottom-(--dashboard-scrollbar-padding) w-(--dashboard-scrollbar-size)"
         onPointerDown={onTrackPointerDown}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}
       >
         <div
           className={cn(
-            'history-entry-scrollbar-thumb absolute top-0 right-0 w-full cursor-grab rounded-(--dashboard-scrollbar-radius) bg-(--dashboard-scrollbar-thumb-bg) transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] active:cursor-grabbing',
+            'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-[length:var(--dashboard-scrollbar-padding)] border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content transition-opacity duration-300 ease-out [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))]',
             active ? 'opacity-100' : 'opacity-0'
           )}
           onPointerDown={onThumbPointerDown}

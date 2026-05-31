@@ -487,7 +487,7 @@ function DashboardShell({
           <div
             data-tabout-part="scroll-region"
             className={cn(
-              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] [scrollbar-color:var(--dashboard-scrollbar-thumb-bg)_transparent] [scrollbar-width:auto] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]',
+              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'

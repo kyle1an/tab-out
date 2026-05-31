@@ -30,9 +30,9 @@
   --dashboard-history-edge-gutter: 12px;
   --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
-  --dashboard-scrollbar-size: 10px;
+  --dashboard-scrollbar-size: 8px;
   --dashboard-scrollbar-padding: 2px;
-  --dashboard-scrollbar-thumb-size: 6px;
+  --dashboard-scrollbar-thumb-size: 4px;
   --dashboard-scrollbar-radius: 10px;
   --dashboard-scrollbar-thumb-bg: rgba(0, 0, 0, 0.44);
   --dashboard-scrollbar-thumb-bg-hover: rgba(0, 0, 0, 0.55);
@@ -161,12 +161,22 @@ body {
   opacity: 1;
 }
 
-/* .scroll-region own-box + scrollbar-track layout (overflow, overscroll,
-   margins/padding, scrollbar-gutter/color/width) lives as inline Tailwind
-   utilities on the element in App.tsx. Only the ::-webkit-scrollbar painting
-   (below) and the JS-toggled card-motion-bleed animation rule (above) remain
-   here — neither has a utility equivalent. The .scroll-region class is kept
-   as the anchor for those rules. */
+/* .scroll-region own-box layout (overflow, overscroll, margins/padding,
+   scrollbar-gutter) lives as inline Tailwind utilities on the element in
+   App.tsx. The scrollbar itself is painted entirely by the ::-webkit-scrollbar
+   rules below.
+
+   Do NOT add the standard `scrollbar-width` / `scrollbar-color` properties to
+   this element: in Chromium they take precedence over ::-webkit-scrollbar and
+   make the browser paint its own standard (overlay) scrollbar instead — an
+   overlay rail consumes 0 layout width and ignores the 8px track / 4px thumb
+   tokens below, so it no longer matches the Activation History thumb that
+   mirrors this bar. (Tab Out is Chrome-only; no Firefox fallback is needed.)
+   The browser-resize smoke test pins scrollRegionNativeTrackWidth === the
+   shared scrollbar size so this regression can't return silently.
+
+   The JS-toggled card-motion-bleed animation rule (above) also has no utility
+   equivalent. The .scroll-region class anchors both. */
 
 .scroll-region::-webkit-scrollbar {
   width: var(--dashboard-scrollbar-size);
