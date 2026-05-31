@@ -30,9 +30,11 @@
   --dashboard-history-edge-gutter: 12px;
   --dashboard-edge-bleed: max(var(--dashboard-page-gutter), calc(50vw - var(--dashboard-shell-half-max-width) + var(--dashboard-page-gutter)));
   --dashboard-scroll-gutter: 12px;
-  --dashboard-scrollbar-size: 8px;
+  --dashboard-scrollbar-size: 10px;
   --dashboard-scrollbar-padding: 2px;
-  --dashboard-scrollbar-thumb-size: 4px;
+  --dashboard-scrollbar-thumb-size: 6px;
+  --dashboard-scrollbar-padding-hover: 1px;
+  --dashboard-scrollbar-thumb-size-hover: 8px;
   --dashboard-scrollbar-radius: 10px;
   --dashboard-scrollbar-thumb-bg: rgba(0, 0, 0, 0.44);
   --dashboard-scrollbar-thumb-bg-hover: rgba(0, 0, 0, 0.55);
@@ -196,11 +198,13 @@ body {
 }
 
 .scroll-region::-webkit-scrollbar-thumb:hover {
+  border-width: var(--dashboard-scrollbar-padding-hover);
   background: var(--dashboard-scrollbar-thumb-bg-hover);
   background-clip: content-box;
 }
 
 .scroll-region::-webkit-scrollbar-thumb:active {
+  border-width: var(--dashboard-scrollbar-padding-hover);
   background: var(--dashboard-scrollbar-thumb-bg-active);
   background-clip: content-box;
 }

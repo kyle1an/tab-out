@@ -3098,6 +3098,8 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
         const scrollbarSize = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-size')) || 0
         const scrollbarPadding = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-padding')) || 0
         const scrollbarThumbSize = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-thumb-size')) || 0
+        const scrollbarPaddingHover = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-padding-hover')) || 0
+        const scrollbarThumbSizeHover = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-scrollbar-thumb-size-hover')) || 0
         const historyThumbBorderLeft = Number.parseFloat(historyThumbStyles.borderLeftWidth) || 0
         const historyThumbBorderRight = Number.parseFloat(historyThumbStyles.borderRightWidth) || 0
         const pageGutter = Number.parseFloat(shellStyles.getPropertyValue('--dashboard-page-gutter')) || 0
@@ -3105,6 +3107,8 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
         const historyTargetY = Math.round(Math.min(window.innerHeight - 24, Math.max(24, historyContentRect.top + 84)))
         const historyRailTargetX = Math.round(historyTrackRect.left + historyTrackRect.width / 2)
         const historyRailTargetY = Math.round(Math.min(historyScrollbarRect.bottom - 24, Math.max(historyScrollbarRect.top + 24, historyTrackRect.top + 84)))
+        const historyThumbCenterX = Math.round(historyThumbRect.left + historyThumbRect.width / 2)
+        const historyThumbCenterY = Math.round(historyThumbRect.top + historyThumbRect.height / 2)
         const dashboardTargetX = Math.round(Math.min(cardRect.right - 24, Math.max(cardRect.left + 24, cardRect.left + cardRect.width / 3)))
         const dashboardTargetY = Math.round(Math.min(window.innerHeight - 24, Math.max(24, cardRect.top + Math.min(84, cardRect.height / 2))))
         const historyNode = document.elementFromPoint(historyTargetX, historyTargetY)
@@ -3149,10 +3153,14 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
           scrollbarSize,
           scrollbarPadding,
           scrollbarThumbSize,
+          scrollbarPaddingHover,
+          scrollbarThumbSizeHover,
           historyTargetX,
           historyTargetY,
           historyRailTargetX,
           historyRailTargetY,
+          historyThumbCenterX,
+          historyThumbCenterY,
           dashboardTargetX,
           dashboardTargetY,
           historyHitClass: historyNode instanceof Element ? historyNode.className || '' : '',
@@ -3176,6 +3184,17 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   })
   await wait(360)
   const afterHistoryRailHover = await readSnapshot()
+
+  // Hover the visible thumb itself: this is what widens the rail (mirrors the
+  // native ::-webkit-scrollbar-thumb:hover), so target the thumb center, not
+  // the empty track gutter the rail-hover step above lands in.
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: initial.historyThumbCenterX,
+    y: initial.historyThumbCenterY
+  })
+  await wait(360)
+  const afterHistoryThumbHover = await readSnapshot()
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -3215,7 +3234,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await wait(180)
   const afterDashboardWheel = await readSnapshot()
 
-  return { initial, afterHistoryRailHover, afterHistoryWheel, afterDashboardWheel }
+  return { initial, afterHistoryRailHover, afterHistoryThumbHover, afterHistoryWheel, afterDashboardWheel }
 }
 
 async function measureTooltipWindowBlurClose(session: CdpSession) {
@@ -3998,12 +4017,20 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `hovering activation history should not change the interactive track width: ${JSON.stringify(narrowScrollbarEdges)}`
   )
   assert.ok(
-    Math.abs(narrowScrollbarEdges.afterHistoryRailHover.historyThumbVisibleRight - narrowScrollbarEdges.initial.historyThumbVisibleRight) <= 1,
-    `hovering activation history should keep the visible thumb right edge unchanged: ${JSON.stringify(narrowScrollbarEdges)}`
+    Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyThumbVisibleWidth - narrowScrollbarEdges.initial.scrollbarThumbSizeHover) <= 1,
+    `hovering the activation history thumb should widen it to the shared hover thumb size: ${JSON.stringify(narrowScrollbarEdges)}`
   )
   assert.ok(
-    Math.abs(narrowScrollbarEdges.afterHistoryRailHover.historyThumbVisibleWidth - narrowScrollbarEdges.initial.historyThumbVisibleWidth) <= 1,
-    `hovering activation history should keep the visible thumb width unchanged: ${JSON.stringify(narrowScrollbarEdges)}`
+    narrowScrollbarEdges.afterHistoryThumbHover.historyThumbVisibleWidth > narrowScrollbarEdges.initial.historyThumbVisibleWidth + 1,
+    `hovering the activation history thumb should make it visibly wider than at rest: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyThumbVisibleRight - (narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.scrollbarPaddingHover)) <= 1,
+    `the widened activation history thumb should stay inset by the hover padding, not flush to the edge: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.afterHistoryThumbHover.historyTrackWidth - narrowScrollbarEdges.initial.scrollbarSize) <= 1,
+    `widening the thumb on hover should not change the reserved gutter width: ${JSON.stringify(narrowScrollbarEdges)}`
   )
   assert.notEqual(narrowScrollbarEdges.initial.historyTrackCursor, 'grab', `activation history track should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
   assert.notEqual(narrowScrollbarEdges.initial.historyThumbCursor, 'grab', `activation history thumb should not use a grab cursor: ${JSON.stringify(narrowScrollbarEdges)}`)
