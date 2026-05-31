@@ -1420,8 +1420,14 @@ export function TabHistoryPanel({
     >
       <div
         ref={historyListRef}
-        className="history-entry-list pointer-events-none relative z-10 flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
+        className="history-entry-list pointer-events-none relative z-10 flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 min-[901px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[901px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
       >
+        <div className="history-entry-scroll-hit-area-frame pointer-events-none sticky top-0 z-0 ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] h-0 w-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] flex-none max-[900px]:hidden" aria-hidden="true">
+          <div
+            data-tabout-part="history-scroll-hit-area"
+            className="history-entry-scroll-hit-area h-screen w-full pointer-events-auto"
+          />
+        </div>
         <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
           {rows.map((row) => renderPanelRow(row, {
             snapshot,

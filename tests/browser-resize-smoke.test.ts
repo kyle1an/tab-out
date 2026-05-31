@@ -2945,6 +2945,97 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
   return { target, first, scrollbarGeometry, expandedPoint, expandedOnlyPoint, expandedOnlyClipCheck, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
 }
 
+async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1800,
+    height: 260,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `(() => {
+      document.querySelector('.history-entry-list')?.scrollTo(0, 0)
+      document.querySelector('.scroll-region')?.scrollTo(0, 0)
+    })()`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const shell = document.querySelector('[data-tabout="dashboard-shell"]')
+      const panel = document.querySelector('.tab-history-panel')
+      const list = document.querySelector('.history-entry-list')
+      const content = document.querySelector('.history-entry-list-content')
+      const hitArea = document.querySelector('[data-tabout-part="history-scroll-hit-area"]')
+      const shellRect = shell?.getBoundingClientRect()
+      const panelRect = panel?.getBoundingClientRect()
+      const listRect = list?.getBoundingClientRect()
+      const contentRect = content?.getBoundingClientRect()
+      const hitAreaRect = hitArea?.getBoundingClientRect()
+      if (!shellRect || !panelRect || !listRect || !contentRect || !hitAreaRect) return null
+      const x = Math.max(4, Math.round(shellRect.left / 2))
+      const y = Math.round(Math.min(window.innerHeight - 20, Math.max(20, contentRect.top + 90)))
+      const node = document.elementFromPoint(x, y)
+      const hitPart = node instanceof Element
+        ? node.closest('[data-tabout-part]')?.getAttribute('data-tabout-part') || ''
+        : ''
+      return {
+        x,
+        y,
+        hitPart,
+        shellLeft: Math.round(shellRect.left * 100) / 100,
+        panelLeft: Math.round(panelRect.left * 100) / 100,
+        listLeft: Math.round(listRect.left * 100) / 100,
+        contentLeft: Math.round(contentRect.left * 100) / 100,
+        hitAreaLeft: Math.round(hitAreaRect.left * 100) / 100,
+        hitAreaRight: Math.round(hitAreaRect.right * 100) / 100,
+        hitAreaWidth: Math.round(hitAreaRect.width * 100) / 100,
+        viewportWidth: window.innerWidth
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected history left gutter target to be measurable')
+
+  const beforeScrollTop = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => ({
+      dashboardScrollTop: document.querySelector('.scroll-region')?.scrollTop ?? 0,
+      historyScrollTop: document.querySelector('.history-entry-list')?.scrollTop ?? 0
+    }))()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(80)
+
+  for (let index = 0; index < 4; index += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseWheel',
+      deltaX: 0,
+      deltaY: 36,
+      x: target.x,
+      y: target.y
+    })
+    await wait(60)
+  }
+  await wait(160)
+
+  const after = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => ({
+      dashboardScrollTop: document.querySelector('.scroll-region')?.scrollTop ?? 0,
+      historyScrollTop: document.querySelector('.history-entry-list')?.scrollTop ?? 0
+    }))()`
+  }).then((result: any) => result.result.value)
+
+  return { target, beforeScrollTop, after }
+}
+
 async function measureTooltipWindowBlurClose(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -3537,6 +3628,25 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(horizontalScroll.scrollWidth > horizontalScroll.clientWidth, `smoke probe should create horizontal overflow: ${JSON.stringify(horizontalScroll)}`)
   assert.equal(horizontalScroll.initialScrollLeft, 0, `scroll region should start at the left edge: ${JSON.stringify(horizontalScroll)}`)
   assert.equal(horizontalScroll.afterScrollLeft, 0, `horizontal wheel input should not move the scroll region sideways: ${JSON.stringify(horizontalScroll)}`)
+
+  const historyLeftGutterScroll = await measureHistoryLeftGutterWheelScroll(session)
+  assert.ok(historyLeftGutterScroll.target.shellLeft > 40, `wide smoke viewport should create a left dashboard gutter: ${JSON.stringify(historyLeftGutterScroll)}`)
+  assert.equal(historyLeftGutterScroll.target.listLeft, 0, `history scrollbox should bleed to the viewport edge on wide screens: ${JSON.stringify(historyLeftGutterScroll)}`)
+  assert.ok(
+    historyLeftGutterScroll.target.x >= historyLeftGutterScroll.target.hitAreaLeft &&
+      historyLeftGutterScroll.target.x <= historyLeftGutterScroll.target.hitAreaRight,
+    `history left gutter wheel target should land inside the scroll hit area: ${JSON.stringify(historyLeftGutterScroll)}`
+  )
+  assert.equal(historyLeftGutterScroll.target.hitPart, 'history-scroll-hit-area', `left gutter should hit the history scroll target: ${JSON.stringify(historyLeftGutterScroll)}`)
+  assert.ok(
+    historyLeftGutterScroll.after.historyScrollTop - historyLeftGutterScroll.beforeScrollTop.historyScrollTop > 72,
+    `wheel input in the left gutter should scroll activation history: ${JSON.stringify(historyLeftGutterScroll)}`
+  )
+  assert.equal(
+    historyLeftGutterScroll.after.dashboardScrollTop,
+    historyLeftGutterScroll.beforeScrollTop.dashboardScrollTop,
+    `left gutter history scroll should not scroll the domain cards pane: ${JSON.stringify(historyLeftGutterScroll)}`
+  )
 
   const shortTooltip = await measureShortChipTooltipAbsence(session)
   assert.equal(shortTooltip.target.isTruncated, false, `short chip text should fit for tooltip absence smoke test: ${JSON.stringify(shortTooltip)}`)
