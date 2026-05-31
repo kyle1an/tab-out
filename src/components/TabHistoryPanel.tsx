@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, SetStateAction } from 'react'
+import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SetStateAction } from 'react'
 import { X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
@@ -704,7 +704,24 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
   }
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+type HistoryEntryExpansion = {
+  entryExpansionId: string
+  entrySlotRef: RefObject<HTMLDivElement | null>
+  entryRef: RefObject<HTMLDivElement | null>
+  titleRef: RefObject<HTMLSpanElement | null>
+  titleMetrics: HistoryTitleMetrics
+  titleExpanded: boolean
+  entrySlotSize: HistoryEntrySlotSize
+  entryExpansionGeometry: HistoryEntryExpansionGeometry
+  updateHistoryEntryExpansionMeasurements: () => void
+  onHistoryEntryPointerEnter: () => void
+  onHistoryEntryPointerMove: (e: PointerEvent<HTMLDivElement>) => void
+  onHistoryEntryPointerLeave: (e: PointerEvent<HTMLDivElement>) => void
+  onHistoryEntryFocus: (e: FocusEvent<HTMLDivElement>) => void
+  onHistoryEntryBlur: (e: FocusEvent<HTMLDivElement>) => void
+}
+
+function useHistoryEntryExpansion(): HistoryEntryExpansion {
   const entryExpansionId = useId()
   const entrySlotRef = useRef<HTMLDivElement | null>(null)
   const entryRef = useRef<HTMLDivElement | null>(null)
@@ -810,88 +827,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     }
   }, [entryExpansionId])
 
-  async function refreshAfterMutation() {
-    if (onTabsChange) {
-      await onTabsChange()
-      return
-    }
-    onSnapshotChange?.(await fetchTabHistorySnapshot())
-  }
-
-  async function onFocusEntry() {
-    if (kind === 'closed-ghost' && closedTab) {
-      const ok = await restoreClosedTab(closedTab.sessionId)
-      if (!ok) {
-        showToast("Couldn't reopen that tab")
-        return
-      }
-      if (onTabsChange) {
-        await onTabsChange()
-        return
-      }
-      onSnapshotChange?.(await fetchTabHistorySnapshot())
-      return
-    }
-
-    if (workingSetItem) {
-      const focused = await focusWorkingSetItem(workingSetItem)
-      if (!focused) return
-      if (onTabsChange) {
-        await onTabsChange()
-        return
-      }
-      onSnapshotChange?.(await fetchTabHistorySnapshot())
-      return
-    }
-
-    const focused = await focusHistoryEntry(entry)
-    if (!focused) return
-    onSnapshotChange?.(await fetchTabHistorySnapshot())
-  }
-
-  function onEntryKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.target !== e.currentTarget) return
-    if (!canActivateEntry) return
-    if (e.key !== 'Enter' && e.key !== ' ') return
-    e.preventDefault()
-    void onFocusEntry()
-  }
-
-  async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
-    e.stopPropagation()
-    const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
-    const result = await closeHistoryEntry(entry)
-    if (!result.closed) {
-      showToast('Nothing to close')
-      return
-    }
-
-    row?.classList.add('closing')
-    await new Promise((resolve) => setTimeout(resolve, 160))
-    onHoverUrlChange?.('')
-    await refreshAfterMutation()
-
-    if (result.snapshot.length > 0) {
-      markClosure(result.snapshot, 'Tab closed')
-    } else {
-      showToast('Tab closed')
-    }
-  }
-
-  function onMouseEnter() {
-    const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
-    const hoverUrl = workingSetItem ? pageTargetUrl(workingSetItem) : pageTargetUrl(entry)
-    const hoverUrls = uniqueUrls([
-      ...pageTargetMatchUrls(entry),
-      ...workingSetUrls(workingSetItem ?? undefined)
-    ])
-    onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls)
-  }
-
-  function onMouseLeave() {
-    onHoverUrlChange?.('')
-  }
-
   function clearTitleExpansionCloseTimer() {
     if (titleExpansionCloseTimerRef.current === null) return
     window.clearTimeout(titleExpansionCloseTimerRef.current)
@@ -985,10 +920,155 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     closeTitleExpansion({ delayed: false })
   }
 
+  return {
+    entryExpansionId,
+    entrySlotRef,
+    entryRef,
+    titleRef,
+    titleMetrics,
+    titleExpanded,
+    entrySlotSize,
+    entryExpansionGeometry,
+    updateHistoryEntryExpansionMeasurements,
+    onHistoryEntryPointerEnter,
+    onHistoryEntryPointerMove,
+    onHistoryEntryPointerLeave,
+    onHistoryEntryFocus,
+    onHistoryEntryBlur
+  }
+}
+
+type HistoryEntryActionsOptions = {
+  entry: TabHistoryEntry
+  kind: HistoryEntryKind
+  workingSetItem: WorkingSetItem | null
+  closedTab: ClosedTabEntry | null
+  canActivateEntry: boolean
+  entrySlotRef: RefObject<HTMLDivElement | null>
+  onSnapshotChange?: SnapshotChangeHandler
+  onHoverUrlChange?: HoverUrlChangeHandler
+  onTabsChange?: TabsChangeHandler
+}
+
+function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canActivateEntry, entrySlotRef, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryActionsOptions) {
+  async function refreshAfterMutation() {
+    if (onTabsChange) {
+      await onTabsChange()
+      return
+    }
+    onSnapshotChange?.(await fetchTabHistorySnapshot())
+  }
+
+  async function onFocusEntry() {
+    if (kind === 'closed-ghost' && closedTab) {
+      const ok = await restoreClosedTab(closedTab.sessionId)
+      if (!ok) {
+        showToast("Couldn't reopen that tab")
+        return
+      }
+      if (onTabsChange) {
+        await onTabsChange()
+        return
+      }
+      onSnapshotChange?.(await fetchTabHistorySnapshot())
+      return
+    }
+
+    if (workingSetItem) {
+      const focused = await focusWorkingSetItem(workingSetItem)
+      if (!focused) return
+      if (onTabsChange) {
+        await onTabsChange()
+        return
+      }
+      onSnapshotChange?.(await fetchTabHistorySnapshot())
+      return
+    }
+
+    const focused = await focusHistoryEntry(entry)
+    if (!focused) return
+    onSnapshotChange?.(await fetchTabHistorySnapshot())
+  }
+
+  function onEntryKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return
+    if (!canActivateEntry) return
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    void onFocusEntry()
+  }
+
+  async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation()
+    const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
+    const result = await closeHistoryEntry(entry)
+    if (!result.closed) {
+      showToast('Nothing to close')
+      return
+    }
+
+    row?.classList.add('closing')
+    await new Promise((resolve) => setTimeout(resolve, 160))
+    onHoverUrlChange?.('')
+    await refreshAfterMutation()
+
+    if (result.snapshot.length > 0) {
+      markClosure(result.snapshot, 'Tab closed')
+    } else {
+      showToast('Tab closed')
+    }
+  }
+
+  function onMouseEnter() {
+    const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
+    const hoverUrl = workingSetItem ? pageTargetUrl(workingSetItem) : pageTargetUrl(entry)
+    const hoverUrls = uniqueUrls([
+      ...pageTargetMatchUrls(entry),
+      ...workingSetUrls(workingSetItem ?? undefined)
+    ])
+    onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls)
+  }
+
+  function onMouseLeave() {
+    onHoverUrlChange?.('')
+  }
+
+  return { onFocusEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
+}
+
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange }: HistoryEntryProps) {
+  const {
+    entrySlotRef,
+    entryRef,
+    titleRef,
+    titleMetrics,
+    titleExpanded,
+    entrySlotSize,
+    entryExpansionGeometry,
+    onHistoryEntryPointerEnter,
+    onHistoryEntryPointerMove,
+    onHistoryEntryPointerLeave,
+    onHistoryEntryFocus,
+    onHistoryEntryBlur
+  } = useHistoryEntryExpansion()
+
   const isWorkingSetExtra = !!workingSetItem
   const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
   const canCloseEntry = !isWorkingSetExtra && entry.exists
   const canActivateEntry = entry.exists || (kind === 'closed-ghost' && !!closedTab)
+
+  const { onFocusEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave } = useHistoryEntryActions({
+    entry,
+    kind,
+    workingSetItem,
+    closedTab,
+    canActivateEntry,
+    entrySlotRef,
+    onSnapshotChange,
+    onHoverUrlChange,
+    onTabsChange
+  })
+
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
   const historyEntryInteractionBg = entry.current
