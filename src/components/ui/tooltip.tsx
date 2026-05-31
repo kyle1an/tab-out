@@ -24,7 +24,7 @@ import { useAbortableEffect } from 'foxact/use-abortable-effect'
 import { useRetimer } from 'foxact/use-retimer'
 
 import { cn } from '@/lib/utils'
-import { isContextMenuOpen } from './context-menu'
+import { isContextMenuOpen } from './context-menu-registry'
 
 const TOOLTIP_CLOSE_ANCHOR_CLEAR_DELAY_MS = 200
 const TOOLTIP_INITIAL_REST_DELAY_MS = 500

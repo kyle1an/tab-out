@@ -2,33 +2,9 @@ import * as React from 'react'
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu'
 
 import { cn } from '@/lib/utils'
+import { clearActiveContextMenu, setActiveContextMenu } from './context-menu-registry'
 
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger
-
-type ActiveContextMenu = {
-  id: string
-  close: () => void
-}
-
-let activeContextMenuId: string | null = null
-let activeContextMenuClose: (() => void) | null = null
-
-function setActiveContextMenu(nextMenu: ActiveContextMenu | null) {
-  if (nextMenu && activeContextMenuId && activeContextMenuId !== nextMenu.id) {
-    activeContextMenuClose?.()
-  }
-
-  activeContextMenuId = nextMenu?.id ?? null
-  activeContextMenuClose = nextMenu?.close ?? null
-}
-
-function clearActiveContextMenu(id: string) {
-  if (activeContextMenuId === id) setActiveContextMenu(null)
-}
-
-function isContextMenuOpen() {
-  return activeContextMenuId !== null
-}
 
 function stopBackdropEvent(event: React.SyntheticEvent) {
   event.preventDefault()
@@ -133,6 +109,5 @@ export {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuTrigger,
-  isContextMenuOpen
+  ContextMenuTrigger
 }
