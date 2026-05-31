@@ -901,7 +901,7 @@ function getChipTextResizeObserver() {
 }
 
 function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
-  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange } = useDomainCardContext()
+  const { activeSuppressedTitle, dedupeBadgesClosing, onHoverUrlChange, activeHoverUrl, activeHoverUrls, activeHoverSource, onLayoutChange, onTogglePinnedPageChip } = useDomainCardContext()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []
@@ -1296,6 +1296,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
+  async function onTogglePagePin(e: StopPropagationEvent) {
+    e.stopPropagation()
+    if (!chip.pagePinId) return
+    await onTogglePinnedPageChip?.(chip.pagePinId)
+    onLayoutChange?.({ animate: true })
+    setPreview('')
+  }
+
   async function onCopyTitleText(e: StopPropagationEvent, titleText: string) {
     e.stopPropagation()
     if (!titleText) return
@@ -1394,8 +1402,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
+  const pagePinActionLabel = chip.pagePinned ? 'Unpin page' : 'Pin page'
   const chipTitleText = titleTextForChip(chip)
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
+  const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
   const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const showFaviconCloseAction = !chip.iconOnly && canCloseChip
@@ -2064,11 +2074,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       )}
       </div>
   )
-  const chipElementWithContextMenu = !chip.iconOnly && canToggleSavedPage ? (
+  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin) ? (
     <PageChipContextMenu
-      savedActionLabel={savedActionLabel}
+      savedActionLabel={canToggleSavedPage ? savedActionLabel : undefined}
       saved={!!chip.saved}
-      onSavedSelect={onToggleSavedPage}
+      onSavedSelect={canToggleSavedPage ? onToggleSavedPage : undefined}
+      pagePinActionLabel={canTogglePagePin ? pagePinActionLabel : undefined}
+      pagePinned={!!chip.pagePinned}
+      onPagePinSelect={canTogglePagePin ? onTogglePagePin : undefined}
       titleText={chipTitleText}
       onCopyTitle={(e) => onCopyTitleText(e, chipTitleText)}
       onOpenChange={onChipContextMenuOpenChange}

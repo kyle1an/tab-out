@@ -4,6 +4,7 @@ import { dashboardChipOrderKeyForChip } from '../extension/domain-card-view-mode
 import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { buildDashboardViewModel } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DomainGroup, WorkingSetSnapshot } from '../extension/types'
+import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import type { MissionOrderMap } from './useDashboardRefresh'
 
 const EMPTY_TABS: DashboardData['realTabs'] = []
@@ -24,6 +25,7 @@ type DashboardViewModelOptions = {
   chipOrder: DashboardChipOrderMemoryMap
   workingSet?: WorkingSetSnapshot | null
   pinnedSections?: ReadonlySet<string>
+  pinnedPageChips?: PinnedPageChipIndex
 }
 
 function chipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | undefined): DashboardChipPriorityMap {
@@ -42,7 +44,7 @@ function chipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | unde
   return priority
 }
 
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections }: DashboardViewModelOptions) {
+export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
@@ -61,7 +63,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     currentWindowId,
     chipOrder: chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD,
     chipPriority,
-    pinnedSections
+    pinnedSections,
+    pinnedPageChips
   })
 
   const bookmarkSearchVm =
@@ -72,7 +75,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           filter,
           source: 'bookmarks',
           chipOrder: chipOrder.bookmarks || EMPTY_CHIP_ORDER_BY_CARD,
-          pinnedSections
+          pinnedSections,
+          pinnedPageChips
         })
       : null
 
@@ -84,7 +88,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           filter,
           source: 'history',
           chipOrder: chipOrder.history || EMPTY_CHIP_ORDER_BY_CARD,
-          pinnedSections
+          pinnedSections,
+          pinnedPageChips
         })
       : null
 

@@ -23,6 +23,9 @@ export function PageChipContextMenu({
   saved,
   titleText,
   onSavedSelect,
+  pagePinActionLabel,
+  pagePinned,
+  onPagePinSelect,
   onCopyTitle,
   onOpenChange
 }: PageChipContextMenuProps) {
@@ -67,6 +70,9 @@ export function PageChipContextMenu({
         savedActionLabel={savedActionLabel}
         saved={saved}
         onSavedSelect={onSavedSelect}
+        pagePinActionLabel={pagePinActionLabel}
+        pagePinned={pagePinned}
+        onPagePinSelect={onPagePinSelect}
         titleText={titleText}
         onCopyTitle={onCopyTitle}
       />

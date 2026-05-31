@@ -9,17 +9,21 @@ import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
-import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
+import { pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
+import type { PinnedPageChipIndex } from './page-chip-pins.js'
+import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
   filter?: string
   mode?: CardMode
+  source?: DashboardSource
   allowMutations?: boolean
   currentWindowId?: number | null
   chipOrder?: Map<string, number>
   chipPriority?: DashboardChipPriorityMap
   pinnedSections?: ReadonlySet<string>
+  pinnedPageChips?: PinnedPageChipIndex
 }
 
 const EMPTY_PINNED_SECTIONS: ReadonlySet<string> = new Set<string>()
@@ -582,7 +586,7 @@ function disambiguatingPaths(urls: string[]): string[] {
  * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', source = 'tabs', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS, pinnedPageChips }: ComputeCardOptions = {}): DashboardCardVM {
   const allTabs = group.tabs || []
   const filtering = filter.trim() !== ''
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
@@ -964,6 +968,37 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     if (aOrder === undefined && bOrder !== undefined) return 1
     return fallback()
   }
+  const pagePinOrderById = new Map<string, number>()
+
+  function annotatePageChipPin(chip: DashboardChipData, scopeId: string, chipKey: string): DashboardChipData {
+    if (source !== 'tabs' || chip.iconOnly || chip.isApp) return chip
+    const pinId = pageChipPinId(source, scopeId, chipKey)
+    const order = pinnedPageChipOrder(pinnedPageChips, source, scopeId, chipKey)
+    if (order !== null) pagePinOrderById.set(pinId, order)
+    return {
+      ...chip,
+      pagePinId: pinId,
+      pagePinned: order !== null
+    }
+  }
+
+  function pagePinOrderForChip(chip: DashboardChipData): number | null {
+    if (!chip.pagePinId) return null
+    return pagePinOrderById.get(chip.pagePinId) ?? null
+  }
+
+  function comparePageChipPins(a: DashboardChipData, b: DashboardChipData): number {
+    const aOrder = pagePinOrderForChip(a)
+    const bOrder = pagePinOrderForChip(b)
+    if (aOrder !== null && bOrder !== null) return aOrder - bOrder
+    if (aOrder !== null) return -1
+    if (bOrder !== null) return 1
+    return 0
+  }
+
+  function sortPageChipsInScope<T extends DashboardChipData>(chips: T[]): T[] {
+    return chips.slice().sort(comparePageChipPins) as T[]
+  }
   function tabOpenStateRank(tab: DashboardTab): number {
     return isClosedSavedDashboardTab(tab) ? 1 : 0
   }
@@ -1205,7 +1240,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
   }
 
-  function buildChipDataList(contentTabs: DashboardTab[], showChipPrefix: boolean, pathByUrl: Map<string, string>, pathGroupLabel: string, stripLabel = ''): DashboardChipData[] {
+  function buildChipDataList(contentTabs: DashboardTab[], showChipPrefix: boolean, pathByUrl: Map<string, string>, pathGroupLabel: string, pinScopeId: string, stripLabel = ''): DashboardChipData[] {
     const entries: ChipBuildEntry[] = contentTabs.map((tab) => {
       const pathSuffix = pathByUrl.get(tab.url) || ''
       return {
@@ -1229,7 +1264,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const result: DashboardChipData[] = []
     for (const entry of entries) {
       if (!groupedTitleKeys.has(entry.titleKey)) {
-        result.push(entry.chip)
+        result.push(annotatePageChipPin(entry.chip, pinScopeId, pageChipPinKeyForUrl(entry.tab.url)))
         continue
       }
       if (emittedTitleKeys.has(entry.titleKey)) continue
@@ -1242,9 +1277,13 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           titleVariantChips: undefined
         }
       })
-      result.push(titleVariantGroupChip(variants))
+      result.push(annotatePageChipPin(
+        titleVariantGroupChip(variants),
+        pinScopeId,
+        pageChipPinKeyForFoldUrls(variants.map((variant) => variant.tabUrl))
+      ))
     }
-    return result
+    return sortPageChipsInScope(result)
   }
 
   function buildSectionContent(contentTabs: DashboardTab[], showChipPrefix: boolean, redundantLabels: Set<string>, pinContext: { subdomainKey: string; websitePathKey: string }): SectionContentVM {
@@ -1326,7 +1365,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       // group. If path-group headers already separate same-title
       // chips, URL crumbs would duplicate that structural signal.
       const pathByUrl = titleCollisionPathByUrl(orderedTabs)
-      const chipData = buildChipDataList(orderedTabs, showChipPrefix, pathByUrl, '', label)
+      const pinScopeId = pageChipPinScopeId(group.domain, pinContext.subdomainKey, pinContext.websitePathKey, key)
+      const chipData = buildChipDataList(orderedTabs, showChipPrefix, pathByUrl, '', pinScopeId, label)
       const { vis, hid } = splitForOverflow(chipData)
       const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
       return {
@@ -1344,7 +1384,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const clusters = sortPinnedFirst(unsortedClusters)
 
     const flatPathByUrl = titleCollisionPathByUrl(singletonTabs)
-    const flatChipData = buildChipDataList(singletonTabs, showChipPrefix, flatPathByUrl, '')
+    const flatPinScopeId = pageChipPinScopeId(group.domain, pinContext.subdomainKey, pinContext.websitePathKey, '')
+    const flatChipData = buildChipDataList(singletonTabs, showChipPrefix, flatPathByUrl, '', flatPinScopeId)
     const { vis: flatVisibleChips, hid: flatHiddenChips } = splitForOverflow(flatChipData)
 
     return {
@@ -1476,7 +1517,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       chipPriorityScoreForTabs(b),
       () => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true })
     ))
-    const foldedChipData = sortedFolds.map((tabs) => buildFoldedChipData(tabs))
+    const sharedPinScopeId = pageChipPinScopeId(group.domain, '__shared__', '', '')
+    const foldedChipData = sortPageChipsInScope(sortedFolds.map((tabs) => annotatePageChipPin(
+      buildFoldedChipData(tabs),
+      sharedPinScopeId,
+      pageChipPinKeyForFoldUrls(tabs.map((tab) => tab.url))
+    )))
     const { vis, hid } = splitForOverflow(foldedChipData)
     const sharedClosableUrls = allowMutations ? sortedFolds.flatMap((tabs) => tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url)) : []
     const totalFoldedTabs = sortedFolds.reduce((sum, tabs) => sum + tabs.length, 0)

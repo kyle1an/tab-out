@@ -11,6 +11,7 @@ import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboa
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
+import { usePinnedPageChips } from '../hooks/usePinnedPageChips'
 import { usePinnedSections } from '../hooks/usePinnedSections'
 import { useHoverMatch, type HoverMatchState } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
@@ -30,6 +31,7 @@ import type {
   LayoutChangeHandler,
   TabHistorySnapshot,
   TogglePinnedDomainHandler,
+  TogglePinnedPageChipHandler,
   TogglePinnedSectionHandler
 } from './types'
 import type { WorkingSetSnapshot } from '../extension/types'
@@ -56,6 +58,7 @@ type MissionBlockProps = {
   onHoverUrlChange: HoverUrlChangeHandler
   onLayoutChange: LayoutChangeHandler
   onTogglePinnedDomain: TogglePinnedDomainHandler
+  onTogglePinnedPageChip: TogglePinnedPageChipHandler
   onTogglePinnedSection: TogglePinnedSectionHandler
   showEmptyState: boolean
   source: DashboardSource
@@ -100,6 +103,7 @@ type DashboardMissionsListProps = {
   onHoverUrlChange: HoverUrlChangeHandler
   onLayoutChange: LayoutChangeHandler
   onTogglePinnedDomain: TogglePinnedDomainHandler
+  onTogglePinnedPageChip: TogglePinnedPageChipHandler
   onTogglePinnedSection: TogglePinnedSectionHandler
   sections: DashboardMissionSection[]
 }
@@ -259,6 +263,7 @@ function MissionBlock({
   onHoverUrlChange,
   onLayoutChange,
   onTogglePinnedDomain,
+  onTogglePinnedPageChip,
   onTogglePinnedSection,
   showEmptyState,
   source
@@ -282,6 +287,7 @@ function MissionBlock({
         activeHoverSource={activeHoverSource}
         onLayoutChange={onLayoutChange}
         onTogglePinnedDomain={onTogglePinnedDomain}
+        onTogglePinnedPageChip={onTogglePinnedPageChip}
         onTogglePinnedSection={onTogglePinnedSection}
       />
     </MissionsGrid>
@@ -371,6 +377,7 @@ function DashboardMissionsList({
   onHoverUrlChange,
   onLayoutChange,
   onTogglePinnedDomain,
+  onTogglePinnedPageChip,
   onTogglePinnedSection,
   sections
 }: DashboardMissionsListProps) {
@@ -393,6 +400,7 @@ function DashboardMissionsList({
             onHoverUrlChange={onHoverUrlChange}
             onLayoutChange={onLayoutChange}
             onTogglePinnedDomain={onTogglePinnedDomain}
+            onTogglePinnedPageChip={onTogglePinnedPageChip}
             onTogglePinnedSection={onTogglePinnedSection}
             showEmptyState={section.showEmptyState}
             source={section.source}
@@ -436,6 +444,7 @@ type DashboardShellProps = {
   stats: DashboardStats
   tabHistory: TabHistorySnapshot | null
   togglePinnedDomain: TogglePinnedDomainHandler
+  togglePinnedPageChip: TogglePinnedPageChipHandler
   togglePinnedSection: TogglePinnedSectionHandler
   urlPreview: { url: string; visible: boolean }
   workingSet: WorkingSetSnapshot | null
@@ -466,6 +475,7 @@ function DashboardShell({
   stats,
   tabHistory,
   togglePinnedDomain,
+  togglePinnedPageChip,
   togglePinnedSection,
   urlPreview,
   workingSet
@@ -560,6 +570,7 @@ function DashboardShell({
               onHoverUrlChange={handleHoverUrlChange}
               onLayoutChange={scheduleMissionsMasonry}
               onTogglePinnedDomain={togglePinnedDomain}
+              onTogglePinnedPageChip={togglePinnedPageChip}
               onTogglePinnedSection={togglePinnedSection}
               sections={missionSections}
             />
@@ -651,6 +662,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   const { pinnedSections, togglePinnedSection } = usePinnedSections({
     onSaveError: () => showToast('Could not save pinned section')
   })
+  const { pinnedPageChips, togglePinnedPageChip } = usePinnedPageChips({
+    onSaveError: () => showToast('Could not save pinned page')
+  })
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
   const refreshDashboard = useDashboardRefresh({
     dashboard,
@@ -702,7 +716,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     // react-doctor-disable-next-line react-hooks-js/refs -- chipOrder is a mutable per-source ordering cache read at view-model build time, not render-derived state.
     chipOrder: chipOrderRef.current,
     workingSet,
-    pinnedSections
+    pinnedSections,
+    pinnedPageChips
   })
 
   async function onCloseFiltered() {
@@ -803,6 +818,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
       stats={stats}
       tabHistory={tabHistory}
       togglePinnedDomain={togglePinnedDomain}
+      togglePinnedPageChip={togglePinnedPageChip}
       togglePinnedSection={togglePinnedSection}
       urlPreview={urlPreview}
       workingSet={workingSet}

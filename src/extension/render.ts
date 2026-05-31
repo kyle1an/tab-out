@@ -30,6 +30,7 @@ import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './da
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import { readLocalCustomGroups } from './local-config.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
+import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
 export { pickFavicon } from './favicons.js'
 export { buildDomainGroups } from './domain-groups.js'
@@ -58,9 +59,10 @@ type DashboardViewModelOptions = {
   chipOrder?: DashboardChipOrderByCard
   chipPriority?: DashboardChipPriorityMap
   pinnedSections?: ReadonlySet<string>
+  pinnedPageChips?: PinnedPageChipIndex
 }
 
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections }: DashboardViewModelOptions = {}): DashboardViewModel {
+export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections, pinnedPageChips }: DashboardViewModelOptions = {}): DashboardViewModel {
   const filtering = filter.trim().length > 0
   const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))
   // Active = not parked by a tab-suspender extension. Counted over the same
@@ -80,7 +82,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   let dedupCount = 0
   for (const group of groups) {
     const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections })
+    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -91,7 +93,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 

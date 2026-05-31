@@ -10,7 +10,7 @@ import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedSectionHandler } from './types'
+import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedPageChipHandler, TogglePinnedSectionHandler } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
@@ -23,6 +23,7 @@ interface DomainCardProps {
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
   onTogglePinnedSection?: TogglePinnedSectionHandler | null
+  onTogglePinnedPageChip?: TogglePinnedPageChipHandler | null
 }
 
 function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
@@ -223,7 +224,7 @@ function buildCardSuppressionTones(
   return { cardSuppressionToneScope, renderedSections }
 }
 
-export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null }: DomainCardProps) {
+export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null, onTogglePinnedPageChip = null }: DomainCardProps) {
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const cardContext = {
@@ -234,7 +235,8 @@ export function DomainCard({ group, vm, filter = '', onHoverUrlChange = null, ac
     activeHoverUrl,
     activeHoverUrls,
     activeHoverSource,
-    onLayoutChange
+    onLayoutChange,
+    onTogglePinnedPageChip
   }
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'

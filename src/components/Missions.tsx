@@ -2,7 +2,7 @@ import { DomainCard } from './DomainCard'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardSourceEmptyNoun } from '../extension/dashboard-source.js'
 import { cn } from '@/lib/utils'
-import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedSectionHandler } from './types'
+import type { DashboardCardEntry, DashboardSource, HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedPageChipHandler, TogglePinnedSectionHandler } from './types'
 
 interface MissionsProps {
   cards: DashboardCardEntry[]
@@ -16,6 +16,7 @@ interface MissionsProps {
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
   onTogglePinnedSection?: TogglePinnedSectionHandler | null
+  onTogglePinnedPageChip?: TogglePinnedPageChipHandler | null
 }
 
 const EMPTY_HOVER_URLS: readonly string[] = []
@@ -37,7 +38,7 @@ function NoResultsState({ query = '' }: { query?: string }) {
   )
 }
 
-export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null }: MissionsProps) {
+export function Missions({ cards, filter = '', source = 'tabs', showEmptyState = true, onHoverUrlChange = null, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onLayoutChange = null, onTogglePinnedDomain = null, onTogglePinnedSection = null, onTogglePinnedPageChip = null }: MissionsProps) {
   if (!cards || cards.length === 0) {
     if (!showEmptyState) return null
     return filter ? <NoResultsState query={filter} /> : <EmptyState source={source} />
@@ -58,6 +59,7 @@ export function Missions({ cards, filter = '', source = 'tabs', showEmptyState =
           onLayoutChange={onLayoutChange}
           onTogglePinnedDomain={onTogglePinnedDomain}
           onTogglePinnedSection={onTogglePinnedSection}
+          onTogglePinnedPageChip={onTogglePinnedPageChip}
         />
       ))}
     </>

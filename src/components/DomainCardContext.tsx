@@ -1,5 +1,5 @@
 import { createContext, use, type ReactNode } from 'react'
-import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler } from './types'
+import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedPageChipHandler } from './types'
 
 export type DomainCardContextValue = {
   activeSuppressedTitle: string
@@ -10,6 +10,7 @@ export type DomainCardContextValue = {
   activeHoverUrls: readonly string[]
   activeHoverSource: HoverUrlSource | null
   onLayoutChange: LayoutChangeHandler | null
+  onTogglePinnedPageChip: TogglePinnedPageChipHandler | null
 }
 
 const defaultDomainCardContext: DomainCardContextValue = {
@@ -20,7 +21,8 @@ const defaultDomainCardContext: DomainCardContextValue = {
   activeHoverUrl: '',
   activeHoverUrls: [],
   activeHoverSource: null,
-  onLayoutChange: null
+  onLayoutChange: null,
+  onTogglePinnedPageChip: null
 }
 
 const DomainCardContext = createContext(defaultDomainCardContext)

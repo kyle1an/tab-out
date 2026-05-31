@@ -107,6 +107,8 @@ export interface DashboardChipData {
   saved?: boolean
   closedSaved?: boolean
   savedPageKey?: string
+  pagePinId?: string
+  pagePinned?: boolean
   leadPrefix: string
   pathGroupLabel: string
   title?: string
