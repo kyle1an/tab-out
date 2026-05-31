@@ -294,6 +294,10 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /const \[chipSlotSize, setChipSlotSize\] = useState\(DEFAULT_CHIP_SLOT_SIZE\)/)
   assert.match(pageChipSource, /const \[chipExpansionGeometry, setChipExpansionGeometry\] = useState\(DEFAULT_CHIP_EXPANSION_GEOMETRY\)/)
   assert.match(pageChipSource, /ResizeObserver\(\(\) => \{[\s\S]*!chipExpandedRef\.current[\s\S]*updateChipSlotMeasurements\(chipEl\)/)
+  // openChipExpansion must not re-measure while already expanded: re-deriving the
+  // expansion geometry from the hydrated expanded DOM duplicates suppression markers
+  // (regression: right-clicking an already-expanded chip duplicated the marker).
+  assert.match(pageChipSource, /function openChipExpansion\(\) \{[\s\S]*if \(!chipExpandedRef\.current\) \{[\s\S]*updateChipSlotMeasurements\(\)[\s\S]*\}/)
   assert.match(pageChipSource, /pageTargetMatchUrls\(target\)/)
   assert.match(pageChipSource, /pageTargetMatchesHover\(target, activeHoverUrl, activeHoverUrls\)/)
   assert.match(pageChipOverflowSource, /pageTargetMatchesHover\(chip, activeHoverUrl, activeHoverUrls\)/)

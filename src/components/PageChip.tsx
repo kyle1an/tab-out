@@ -1120,8 +1120,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const measuredExpandable = hasTitleSuppressionMarkers || hasStructuralPlaceholders || isChipTextTruncated(textEl)
     if (!measuredExpandable) return
     clearChipExpansionCloseTimer()
-    updateChipTextMeasurements(textEl)
-    updateChipSlotMeasurements()
+    // Only measure from the collapsed source DOM. Re-measuring while already
+    // expanded feeds the hydrated expanded markers (whose suppressed text is now
+    // a real text node) back into getExpandedPageChipLineHtml, which re-captures
+    // the marker on two adjacent line ranges and duplicates it.
+    if (!chipExpandedRef.current) {
+      updateChipTextMeasurements(textEl)
+      updateChipSlotMeasurements()
+    }
     setActiveExpandedPageChip(chipExpansionId)
     setChipExpanded(true)
   }
