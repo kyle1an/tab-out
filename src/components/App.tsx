@@ -7,7 +7,7 @@ import { showToast } from '../extension/toast.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
-import { fetchDashboardSnapshot, useDashboardRefresh } from '../hooks/useDashboardRefresh'
+import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
@@ -109,6 +109,10 @@ type AppDashboardAction =
   | { type: 'tabHistory'; tabHistory: TabHistorySnapshot | null }
   | { type: 'workingSet'; workingSet: WorkingSetSnapshot | null }
   | {
+      type: 'startupSnapshot'
+      snapshot: DashboardStartupSnapshot
+    }
+  | {
       type: 'sourceSnapshot'
       dashboard: DashboardData | null
       source: DashboardSource
@@ -141,6 +145,14 @@ function appDashboardReducer(state: AppDashboardState, action: AppDashboardActio
       return state.tabHistory === action.tabHistory ? state : { ...state, tabHistory: action.tabHistory }
     case 'workingSet':
       return state.workingSet === action.workingSet ? state : { ...state, workingSet: action.workingSet }
+    case 'startupSnapshot':
+      return {
+        ...state,
+        closedTabs: action.snapshot.closedTabs,
+        dashboard: action.snapshot.dashboard,
+        tabHistory: action.snapshot.tabHistory,
+        workingSet: action.snapshot.workingSet
+      }
     case 'sourceSnapshot':
       return {
         ...state,
@@ -507,6 +519,9 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   function setDashboard(nextDashboard: DashboardData | null) {
     dispatchAppDashboard({ type: 'dashboard', dashboard: nextDashboard })
   }
+  function setStartupSnapshot(snapshot: DashboardStartupSnapshot) {
+    dispatchAppDashboard({ type: 'startupSnapshot', snapshot })
+  }
   function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
   }
@@ -527,7 +542,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   }, [])
 
   useEffect(() => {
-    void refreshClosedTabs()
     return subscribeClosedTabChanges(() => { void refreshClosedTabs() })
   }, [refreshClosedTabs])
 
@@ -589,6 +603,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
     setDashboard,
+    setStartupSnapshot,
     setTabHistory,
     setWorkingSet,
     onBeforeAnimatedRefresh: primeCardMoveAnimation,
@@ -645,26 +660,31 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     clearHoverUrlNow()
-    void fetchDashboardSnapshot({
-      source: nextSource,
-      filter,
-      historyRange,
-      historyFilterEnabled,
-      pinnedDomains,
-      previousOrder: previousOrderRef.current
-    }).then(({ dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet }) => {
-      if (requestId !== sourceSwitchSeqRef.current) return
-      layoutMoveRectsRef.current = previousRects
-      startSourceTransition(() => {
-        dispatchAppDashboard({
-          type: 'sourceSnapshot',
-          dashboard: nextDashboard,
+    void (async () => {
+      try {
+        if (requestId !== sourceSwitchSeqRef.current) return
+        // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await requestId comparison is a stale-response race guard; it must run after the await.
+        const { dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet } = await fetchDashboardSnapshot({
           source: nextSource,
-          tabHistory: nextTabHistory,
-          workingSet: nextWorkingSet
+          filter,
+          historyRange,
+          historyFilterEnabled,
+          pinnedDomains,
+          previousOrder: previousOrderRef.current
         })
-      })
-    })
+        if (requestId !== sourceSwitchSeqRef.current) return
+        layoutMoveRectsRef.current = previousRects
+        startSourceTransition(() => {
+          dispatchAppDashboard({
+            type: 'sourceSnapshot',
+            dashboard: nextDashboard,
+            source: nextSource,
+            tabHistory: nextTabHistory,
+            workingSet: nextWorkingSet
+          })
+        })
+      } catch {}
+    })()
   }
 
   const primaryMissionsEmpty = matchedCards.length === 0

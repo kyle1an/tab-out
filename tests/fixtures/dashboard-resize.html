@@ -104,7 +104,8 @@
             url: 'chrome://settings/appearance',
             rawUrl: 'chrome://settings/appearance',
             displayUrl: 'chrome://settings/appearance',
-            favIconUrl: ''
+            favIconUrl: '',
+            lastActivatedAt: 1800000001000
           }
         ]
       }
@@ -336,6 +337,27 @@
           }
         })]
 
+      function workingSetActivityFromTabs() {
+        const now = 1800000000000
+        const records = {}
+        tabs
+          .filter((tab) => tab.url?.startsWith('https://'))
+          .slice(0, 18)
+          .forEach((tab, index) => {
+            const url = tab.url
+            records[url] = {
+              key: url,
+              url,
+              title: tab.title,
+              domain: new URL(url).hostname,
+              lastSeenAt: now - index,
+              lastActivatedAt: now - index,
+              events: [{ kind: 'activation', at: now - index }]
+            }
+          })
+        return { version: 1, records }
+      }
+
       window.chrome = {
         bookmarks: {
           getTree: async () => bookmarkTree,
@@ -355,6 +377,13 @@
         runtime: {
           getURL: (path) => `${window.location.origin}${path}`,
           sendMessage: async (message) => {
+            if (message?.type === 'tab-out:get-dashboard-service-state') {
+              return {
+                ok: true,
+                tabHistory: tabHistorySnapshot,
+                workingSetActivity: workingSetActivityFromTabs()
+              }
+            }
             if (message?.type === 'tab-out:get-tab-history') {
               return { ok: true, snapshot: tabHistorySnapshot }
             }

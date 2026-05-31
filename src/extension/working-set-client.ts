@@ -1,10 +1,11 @@
+import {
+  WORKING_SET_DEFAULT_LIMIT,
+  WORKING_SET_DISMISS_MESSAGE,
+  WORKING_SET_EXPANDED_LIMIT,
+  WORKING_SET_GET_MESSAGE,
+} from './working-set.js'
 import type { WorkingSetItem, WorkingSetSnapshot } from './types'
 import { focusExistingTabTarget } from './tab-focus.js'
-
-const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
-const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
-const WORKING_SET_DEFAULT_LIMIT = 8
-const WORKING_SET_EXPANDED_LIMIT = 16
 
 function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
   return {

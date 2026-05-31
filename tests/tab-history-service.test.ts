@@ -74,6 +74,24 @@ test('getTabHistorySnapshot sets lastActivatedAt to null when the URL has no act
   assert.equal(snapshot.entries[0].lastActivatedAt, null)
 })
 
+test('getTabHistorySnapshot can use an already-read activity snapshot', async () => {
+  const now = Date.UTC(2026, 5, 1, 12)
+  let activity = emptyWorkingSetActivity()
+  activity = recordWorkingSetActivity(activity, {
+    kind: 'activation',
+    at: now - 500,
+    tab: { url: 'https://example.test/b', rawUrl: 'https://example.test/b', title: 'B' }
+  })
+
+  const service = createTabHistoryService(makeChromeApi({
+    history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
+    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/b', title: 'B', active: true } as chrome.tabs.Tab]
+  }))
+
+  const snapshot = await service.getTabHistorySnapshot(activity)
+  assert.equal(snapshot.entries[0].lastActivatedAt, now - 500)
+})
+
 test('normalizeTabHistorySnapshot preserves lastActivatedAt on entries', () => {
   const result = normalizeTabHistorySnapshot({
     stackSize: 1,

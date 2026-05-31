@@ -25,6 +25,10 @@ type DedupeOptions = {
   preservePinned?: boolean
   preservePinnedTabOut?: boolean
 }
+export type ChromeOpenTabsSnapshot = {
+  tabs: chrome.tabs.Tab[]
+  windows: chrome.windows.Window[]
+}
 
 export let openTabs: DashboardTab[] = []
 
@@ -65,6 +69,62 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
     })
 }
 
+export async function fetchChromeOpenTabsSnapshot(): Promise<ChromeOpenTabsSnapshot> {
+  const [tabs, windows] = await Promise.all([chrome.tabs.query({}), chrome.windows.getAll(), fetchTabGroupColors()])
+  return { tabs, windows }
+}
+
+export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapshot): DashboardTab[] {
+  const windowTypeById = new Map(windows.filter((w) => typeof w.id === 'number').map((w) => [w.id, w.type]))
+  return tabs.map((t) => {
+    const rawUrl = t.url || ''
+    const effectiveUrl = unwrapSuspenderUrl(rawUrl)
+    const suspended = rawUrl !== effectiveUrl
+    // For suspended tabs, Chrome's tab.title is unreliable — it can
+    // be the full suspender URL, empty, or stale — but the suspender
+    // always stores the original page title in the `ttl=` fragment
+    // param. Prefer that when it's available so the chip renders
+    // the real page title instead of `chrome-extension://.../...`.
+    let title = t.title || ''
+    if (suspended) {
+      const suspenderTitle = unwrapSuspenderTitle(rawUrl)
+      if (suspenderTitle) title = suspenderTitle
+    }
+    const windowType = windowTypeById.get(t.windowId)
+    return {
+      id: t.id,
+      url: effectiveUrl,
+      rawUrl: rawUrl,
+      suspended,
+      title,
+      favIconUrl: t.favIconUrl || '',
+      windowId: t.windowId,
+      active: t.active,
+      pinned: t.pinned,
+      groupId: typeof t.groupId === 'number' ? t.groupId : -1,
+      isTabOut: isTabOutUrl(rawUrl),
+      isApp: windowType === 'app' || windowType === 'popup',
+      index: t.index
+    }
+  })
+}
+
+export function replaceOpenTabs(nextOpenTabs: DashboardTab[]): void {
+  openTabs = nextOpenTabs
+}
+
+export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
+  try {
+    const snapshot = await fetchChromeOpenTabsSnapshot()
+    const nextOpenTabs = normalizeChromeOpenTabs(snapshot)
+    replaceOpenTabs(nextOpenTabs)
+    return nextOpenTabs
+  } catch {
+    replaceOpenTabs([])
+    return []
+  }
+}
+
 /**
  * fetchOpenTabs() — refreshes `openTabs` from chrome.tabs.query(),
  * normalizing each tab into our internal shape. Suspended tabs get
@@ -73,45 +133,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
  * @returns {Promise<void>}
  */
 export async function fetchOpenTabs(): Promise<void> {
-  try {
-    // Fetch tabs, windows, and tab-group colors in parallel — all
-    // network-free API calls. Window types tell us which tabs are
-    // running in standalone app/PWA windows (type === 'app' | 'popup').
-    const [tabs, windows] = await Promise.all([chrome.tabs.query({}), chrome.windows.getAll(), fetchTabGroupColors()])
-    const windowTypeById = new Map(windows.filter((w) => typeof w.id === 'number').map((w) => [w.id, w.type]))
-    openTabs = tabs.map((t) => {
-      const rawUrl = t.url || ''
-      const effectiveUrl = unwrapSuspenderUrl(rawUrl)
-      const suspended = rawUrl !== effectiveUrl
-      // For suspended tabs, Chrome's tab.title is unreliable — it can
-      // be the full suspender URL, empty, or stale — but the suspender
-      // always stores the original page title in the `ttl=` fragment
-      // param. Prefer that when it's available so the chip renders
-      // the real page title instead of `chrome-extension://.../...`.
-      let title = t.title || ''
-      if (suspended) {
-        const suspenderTitle = unwrapSuspenderTitle(rawUrl)
-        if (suspenderTitle) title = suspenderTitle
-      }
-      const windowType = windowTypeById.get(t.windowId)
-      return {
-        id: t.id,
-        url: effectiveUrl,
-        rawUrl: rawUrl,
-        suspended,
-        title,
-        favIconUrl: t.favIconUrl || '',
-        windowId: t.windowId,
-        active: t.active,
-        pinned: t.pinned,
-        groupId: typeof t.groupId === 'number' ? t.groupId : -1,
-        isTabOut: isTabOutUrl(rawUrl),
-        isApp: windowType === 'app' || windowType === 'popup'
-      }
-    })
-  } catch {
-    openTabs = []
-  }
+  await fetchOpenTabsSnapshot()
 }
 
 /**
@@ -127,6 +149,14 @@ export function getRealTabs(): DashboardTab[] {
   })
 }
 
+export function getDashboardTabsFromOpenTabs(tabs: readonly DashboardTab[]): DashboardTab[] {
+  return tabs.filter((t) => {
+    if (t.isTabOut) return true
+    const url = t.url || ''
+    return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
+  })
+}
+
 /**
  * getDashboardTabs() — tabs shown in the dashboard tab source:
  * real web tabs plus Tab Out / Chrome new-tab pages, so the user can
@@ -135,11 +165,7 @@ export function getRealTabs(): DashboardTab[] {
  * @returns {DashboardTab[]}
  */
 export function getDashboardTabs(): DashboardTab[] {
-  return openTabs.filter((t) => {
-    if (t.isTabOut) return true
-    const url = t.url || ''
-    return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
-  })
+  return getDashboardTabsFromOpenTabs(openTabs)
 }
 
 /**

@@ -16,6 +16,7 @@ Update this section in the same patch when a change intentionally alters one of 
 
 - The dashboard groups open tab-like items by registrable domain. Homepage-like routes stay inside their site's normal domain card instead of being split into special homepage groups.
 - The tab source shows real web tabs plus Tab Out/new-tab pages. Chrome internal pages and unrelated extension pages are otherwise excluded from normal dashboard cards.
+- On initial Tabs-source load, Tab Out reserves the Activation History column from first paint and commits dashboard data, activation history, Working Set, and recently closed rows through one startup snapshot so the filter/header do not shift and history-only intermediate states do not flash.
 - Standalone app/PWA windows are shown in the `Apps` utility card, do not receive active-tab highlighting, and are treated as low-score activation-history entries.
 - `New tabs` (`__tab-out__`) and `Apps` (`__standalone-apps__`) are utility cards. They are unpinned by default, but the user can explicitly pin them like other pinnable cards.
 - Domain-card pins are user-facing dashboard ordering state stored in `chrome.storage.local`; they are separate from Chrome's native `tab.pinned` flag.

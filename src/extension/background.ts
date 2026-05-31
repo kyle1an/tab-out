@@ -18,6 +18,7 @@ import { updateBadge } from './background/badge.js'
 import { createChromeApi } from './background/chrome-api.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
+import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
 import {
   TAB_HISTORY_GET_MESSAGE,
   TAB_HISTORY_SWITCH_MESSAGE,
@@ -61,12 +62,13 @@ chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
 chromeApi.windows.onFocusChanged.addListener((windowId) => {
   tabHistoryService.recordFocusedWindowActiveTab(windowId)
   if (windowId != null && windowId !== chromeApi.windows.WINDOW_ID_NONE) {
-    chromeApi.tabs.query({ windowId, active: true })
-      .then((tabs) => {
+    void (async () => {
+      try {
+        const tabs = await chromeApi.tabs.query({ windowId, active: true })
         const activeTab = tabs[0]
-        if (typeof activeTab?.id === 'number') workingSetService.recordTabActivation(windowId, activeTab.id)
-      })
-      .catch(() => {})
+        if (typeof activeTab?.id === 'number') await workingSetService.recordTabActivation(windowId, activeTab.id)
+      } catch {}
+    })()
   }
 })
 
@@ -96,32 +98,65 @@ chromeApi.commands?.onCommand.addListener((command) => {
 
 chromeApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
   if (message?.type === TAB_HISTORY_GET_MESSAGE) {
-    tabHistoryService.getTabHistorySnapshot()
-      .then((snapshot) => sendResponse({ ok: true, snapshot }))
-      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    void (async () => {
+      try {
+        const snapshot = await tabHistoryService.getTabHistorySnapshot()
+        sendResponse({ ok: true, snapshot })
+      } catch {
+        sendResponse({ ok: false, snapshot: null })
+      }
+    })()
     return true
   }
 
   if (message?.type === TAB_HISTORY_SWITCH_MESSAGE) {
     const direction = message.direction === 1 ? 1 : -1
-    tabHistoryService.switchTabHistory(direction)
-      .then(() => tabHistoryService.getTabHistorySnapshot())
-      .then((snapshot) => sendResponse({ ok: true, snapshot }))
-      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    void (async () => {
+      try {
+        await tabHistoryService.switchTabHistory(direction)
+        const snapshot = await tabHistoryService.getTabHistorySnapshot()
+        sendResponse({ ok: true, snapshot })
+      } catch {
+        sendResponse({ ok: false, snapshot: null })
+      }
+    })()
     return true
   }
 
   if (message?.type === WORKING_SET_GET_MESSAGE) {
-    workingSetService.getWorkingSetSnapshot()
-      .then((snapshot) => sendResponse({ ok: true, snapshot }))
-      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    void (async () => {
+      try {
+        const snapshot = await workingSetService.getWorkingSetSnapshot()
+        sendResponse({ ok: true, snapshot })
+      } catch {
+        sendResponse({ ok: false, snapshot: null })
+      }
+    })()
+    return true
+  }
+
+  if (message?.type === DASHBOARD_SERVICE_STATE_GET_MESSAGE) {
+    void (async () => {
+      try {
+        const workingSetActivity = await workingSetService.getWorkingSetActivity()
+        const tabHistory = await tabHistoryService.getTabHistorySnapshot(workingSetActivity)
+        sendResponse({ ok: true, tabHistory, workingSetActivity })
+      } catch {
+        sendResponse({ ok: false, tabHistory: null, workingSetActivity: null })
+      }
+    })()
     return true
   }
 
   if (message?.type === WORKING_SET_DISMISS_MESSAGE) {
-    workingSetService.dismissWorkingSetItem(String(message.key || message.url || ''))
-      .then((snapshot) => sendResponse({ ok: true, snapshot }))
-      .catch(() => sendResponse({ ok: false, snapshot: null }))
+    void (async () => {
+      try {
+        const snapshot = await workingSetService.dismissWorkingSetItem(String(message.key || message.url || ''))
+        sendResponse({ ok: true, snapshot })
+      } catch {
+        sendResponse({ ok: false, snapshot: null })
+      }
+    })()
     return true
   }
 

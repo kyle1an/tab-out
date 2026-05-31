@@ -19,7 +19,7 @@
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
-import { fetchOpenTabs, getDashboardTabs, getRealTabs } from './tabs.js'
+import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
 import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
@@ -60,6 +60,17 @@ type DashboardViewModelOptions = {
   chipPriority?: DashboardChipPriorityMap
   pinnedSections?: ReadonlySet<string>
   pinnedPageChips?: PinnedPageChipIndex
+}
+type FetchDashboardDataOptions = {
+  pinnedDomains?: string[]
+  bookmarkPreviousOrder?: Map<string, number>
+  historyPreviousOrder?: Map<string, number>
+  includeBookmarkMatches?: boolean
+  includeHistoryMatches?: boolean
+  searchQuery?: string
+  historyRange?: string
+  dashboardTabs?: DashboardTab[]
+  currentWindowId?: number | null
 }
 
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections, pinnedPageChips }: DashboardViewModelOptions = {}): DashboardViewModel {
@@ -131,12 +142,68 @@ function getDashboardGroupingConfig(): { customGroups: CustomGroupRule[] } {
   }
 }
 
-async function getCurrentWindowId(): Promise<number | null> {
+export async function getCurrentWindowId(): Promise<number | null> {
   try {
     const currentWindow = await chrome.windows.getCurrent()
     return typeof currentWindow.id === 'number' ? currentWindow.id : null
   } catch {
     return null
+  }
+}
+
+async function saveSavedPagesStoreBestEffort(store: Parameters<typeof saveSavedPagesStore>[0]): Promise<void> {
+  try {
+    await saveSavedPagesStore(store)
+  } catch {}
+}
+
+async function dashboardTabsForData(dashboardTabs?: DashboardTab[]): Promise<DashboardTab[]> {
+  if (dashboardTabs) return dashboardTabs
+  const openTabsSnapshot = await fetchOpenTabsSnapshot()
+  return getDashboardTabsFromOpenTabs(openTabsSnapshot)
+}
+
+export async function buildDashboardDataFromTabs(
+  dashboardTabs: DashboardTab[],
+  currentWindowId: number | null,
+  previousOrder: Map<string, number> = new Map(),
+  {
+    pinnedDomains = [],
+    bookmarkPreviousOrder = new Map(),
+    historyPreviousOrder = new Map(),
+    includeBookmarkMatches = false,
+    includeHistoryMatches = false,
+    searchQuery = '',
+    historyRange = DEFAULT_HISTORY_RANGE
+  }: FetchDashboardDataOptions = {}
+): Promise<Required<DashboardData>> {
+  const groupingConfig = getDashboardGroupingConfig()
+  const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
+  const [savedPagesStore, bookmarkTabs, historyTabs] = await Promise.all([
+    loadSavedPagesStore(),
+    includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([]),
+    includeHistoryMatches ? fetchHistorySourceItems(searchQuery, historyRange) : Promise.resolve([])
+  ])
+  const savedPagesMerge = mergeSavedPagesWithTabs(dashboardTabs, savedPagesStore)
+  if (!savedPagesStoresEqual(savedPagesStore, savedPagesMerge.store)) {
+    void saveSavedPagesStoreBestEffort(savedPagesMerge.store)
+  }
+  const realTabs = savedPagesMerge.tabs
+  const annotatedBookmarkTabs = annotateSavedPageHints(bookmarkTabs, savedPagesMerge.store)
+  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
+  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
+  const historyDomainGroups = buildDomainGroups(historyTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
+  return {
+    realTabs,
+    domainGroups,
+    currentWindowId,
+    bookmarkTabs: annotatedBookmarkTabs,
+    bookmarkDomainGroups,
+    bookmarkSearchReady: includeBookmarkMatches,
+    historyTabs,
+    historyDomainGroups,
+    historySearchQuery: historyQuery,
+    historyRange
   }
 }
 
@@ -159,16 +226,10 @@ export async function fetchDashboardData(
     includeBookmarkMatches = false,
     includeHistoryMatches = false,
     searchQuery = '',
-    historyRange = DEFAULT_HISTORY_RANGE
-  }: {
-    pinnedDomains?: string[]
-    bookmarkPreviousOrder?: Map<string, number>
-    historyPreviousOrder?: Map<string, number>
-    includeBookmarkMatches?: boolean
-    includeHistoryMatches?: boolean
-    searchQuery?: string
-    historyRange?: string
-  } = {}
+    historyRange = DEFAULT_HISTORY_RANGE,
+    dashboardTabs,
+    currentWindowId
+  }: FetchDashboardDataOptions = {}
 ): Promise<Required<DashboardData>> {
   const groupingConfig = getDashboardGroupingConfig()
   if (source === 'bookmarks') {
@@ -192,33 +253,17 @@ export async function fetchDashboardData(
     }
   }
 
-  const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
-  const [, currentWindowId, savedPagesStore, bookmarkTabs, historyTabs] = await Promise.all([
-    fetchOpenTabs(),
-    getCurrentWindowId(),
-    loadSavedPagesStore(),
-    includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([]),
-    includeHistoryMatches ? fetchHistorySourceItems(searchQuery, historyRange) : Promise.resolve([])
+  const [resolvedDashboardTabs, resolvedCurrentWindowId] = await Promise.all([
+    dashboardTabsForData(dashboardTabs),
+    currentWindowId === undefined ? getCurrentWindowId() : Promise.resolve(currentWindowId)
   ])
-  const savedPagesMerge = mergeSavedPagesWithTabs(getDashboardTabs(), savedPagesStore)
-  if (!savedPagesStoresEqual(savedPagesStore, savedPagesMerge.store)) {
-    void saveSavedPagesStore(savedPagesMerge.store).catch(() => {})
-  }
-  const realTabs = savedPagesMerge.tabs
-  const annotatedBookmarkTabs = annotateSavedPageHints(bookmarkTabs, savedPagesMerge.store)
-  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
-  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
-  const historyDomainGroups = buildDomainGroups(historyTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
-  return {
-    realTabs,
-    domainGroups,
-    currentWindowId,
-    bookmarkTabs: annotatedBookmarkTabs,
-    bookmarkDomainGroups,
-    bookmarkSearchReady: includeBookmarkMatches,
-    historyTabs,
-    historyDomainGroups,
-    historySearchQuery: historyQuery,
+  return buildDashboardDataFromTabs(resolvedDashboardTabs, resolvedCurrentWindowId, previousOrder, {
+    pinnedDomains,
+    bookmarkPreviousOrder,
+    historyPreviousOrder,
+    includeBookmarkMatches,
+    includeHistoryMatches,
+    searchQuery,
     historyRange
-  }
+  })
 }

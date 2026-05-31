@@ -13,6 +13,7 @@ import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore, Wor
 export const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
 
 export type WorkingSetService = {
+  getWorkingSetActivity: () => Promise<WorkingSetActivityStore>
   getWorkingSetSnapshot: () => Promise<WorkingSetSnapshot>
   dismissWorkingSetItem: (keyOrUrl: string) => Promise<WorkingSetSnapshot>
   recordTabActivation: (windowId: number, tabId: number) => Promise<void>
@@ -99,6 +100,13 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
     return getWorkingSetSnapshot()
   }
 
+  async function getWorkingSetActivity(): Promise<WorkingSetActivityStore> {
+    try {
+      await activityQueue
+    } catch {}
+    return readActivity()
+  }
+
   async function recordTabActivation(windowId: number, tabId: number): Promise<void> {
     if (typeof windowId !== 'number' || typeof tabId !== 'number') return
     try {
@@ -135,6 +143,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
   }
 
   return {
+    getWorkingSetActivity,
     getWorkingSetSnapshot,
     dismissWorkingSetItem,
     recordTabActivation,

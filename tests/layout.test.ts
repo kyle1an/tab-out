@@ -118,6 +118,30 @@ test('activation history panel stays visually empty when there are no rows', () 
   assert.doesNotMatch(source, /No activation history yet/)
 })
 
+test('startup snapshot updates dashboard and history rows atomically', () => {
+  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
+
+  assert.match(appSource, /type: 'startupSnapshot'/)
+  assert.match(appSource, /closedTabs: action\.snapshot\.closedTabs/)
+  assert.match(appSource, /dashboard: action\.snapshot\.dashboard/)
+  assert.match(appSource, /tabHistory: action\.snapshot\.tabHistory/)
+  assert.match(appSource, /workingSet: action\.snapshot\.workingSet/)
+  assert.match(refreshSource, /export async function fetchDashboardStartupSnapshot/)
+  assert.match(refreshSource, /fetchClosedTabs/)
+  assert.match(refreshSource, /buildWorkingSetSnapshot/)
+  assert.match(refreshSource, /fetchDashboardServiceState/)
+  assert.match(refreshSource, /startupSnapshotFlight/)
+})
+
+test('recently closed rows do not fetch independently before initial dashboard readiness', () => {
+  const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const closedTabsEffect = source.match(/useEffect\(\(\) => \{\n\s*return subscribeClosedTabChanges[\s\S]*?\n\s*\}, \[refreshClosedTabs\]\)/)
+
+  assert.ok(closedTabsEffect)
+  assert.doesNotMatch(source, /useEffect\(\(\) => \{\n\s*void refreshClosedTabs\(\)\n\s*return subscribeClosedTabChanges/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

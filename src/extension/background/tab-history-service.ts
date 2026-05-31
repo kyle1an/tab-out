@@ -19,7 +19,7 @@ import { createChromeApi, type ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
 import { focusExistingTabTarget } from '../tab-focus.js'
 import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspender.js'
-import type { TabHistorySnapshot } from '../types'
+import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
 
@@ -43,7 +43,7 @@ type FocusAction = {
   openerTabId?: number
 }
 export type TabHistoryService = {
-  getTabHistorySnapshot: () => Promise<TabHistorySnapshot>
+  getTabHistorySnapshot: (activity?: WorkingSetActivityStore | null) => Promise<TabHistorySnapshot>
   recordFocusedWindowActiveTab: (windowId: number) => Promise<void>
   recordTabActivation: (windowId: number, tabId: number) => Promise<void>
   removeTabFromHistory: (tabId: number) => Promise<void>
@@ -129,6 +129,16 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     } catch {
       return new Map()
     }
+  }
+
+  function activityTimestampsFromStore(activity: WorkingSetActivityStore | null | undefined): Map<string, number> {
+    const normalized = normalizeWorkingSetActivity(activity)
+    const map = new Map<string, number>()
+    for (const [key, record] of Object.entries(normalized.records)) {
+      const ts = Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)
+      if (ts > 0) map.set(key, ts)
+    }
+    return map
   }
 
   function enqueueTabHistoryMutation<T>(mutator: (history: GlobalTabHistory) => MutationResult<T> | void | Promise<MutationResult<T> | void>) {
@@ -391,7 +401,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     await focusExistingTab(focusAction.tab)
   }
 
-  async function getTabHistorySnapshot(): Promise<TabHistorySnapshot> {
+  async function getTabHistorySnapshot(activity?: WorkingSetActivityStore | null): Promise<TabHistorySnapshot> {
     const { value: snapshot } = await enqueueTabHistoryMutation(async (storedHistory) => {
       const tabs = await chromeApi.tabs.query({})
       let windowTypeById = new Map<number, string | undefined>()
@@ -405,7 +415,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       const cleanHistory = canonicalizeGlobalHistory(prunedHistory).history
       const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
       const nextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
-      const activityTimestamps = await readActivityTimestamps()
+      const activityTimestamps = activity ? activityTimestampsFromStore(activity) : await readActivityTimestamps()
 
       return {
         history: cleanHistory,

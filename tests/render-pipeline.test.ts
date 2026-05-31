@@ -16,7 +16,7 @@ import {
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
-import { buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
+import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
@@ -78,6 +78,22 @@ test('buildDomainGroups orders normal domain cards by tab count', () => {
     groups.map((group) => group.domain),
     ['github.com', 'openai.com']
   )
+})
+
+test('buildDashboardDataFromTabs builds dashboard data from an injected open-tab snapshot', async () => {
+  const dashboard = await buildDashboardDataFromTabs(
+    [
+      makeTab({ url: 'https://example.com/docs', title: 'Docs' }),
+      makeTab({ id: 2, url: 'https://example.test/app', title: 'App' })
+    ],
+    1
+  )
+
+  assert.deepEqual(dashboard.realTabs.map((tab) => tab.url), ['https://example.com/docs', 'https://example.test/app'])
+  assert.deepEqual(dashboard.domainGroups.map((group) => group.domain), ['example.com', 'example.test'])
+  assert.equal(dashboard.currentWindowId, 1)
+  assert.equal(dashboard.bookmarkSearchReady, false)
+  assert.equal(dashboard.historySearchQuery, '')
 })
 
 test('buildDomainGroups puts pinned domain cards above higher-count normal cards', () => {
