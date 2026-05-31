@@ -12,7 +12,7 @@ import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderM
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { usePinnedDomains } from '../hooks/usePinnedDomains'
 import { usePinnedSections } from '../hooks/usePinnedSections'
-import { useHoverMatch } from '../hooks/useHoverMatch'
+import { useHoverMatch, type HoverMatchState } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
@@ -24,6 +24,7 @@ import type {
   DashboardCardEntry,
   DashboardData,
   DashboardSource,
+  DashboardStats,
   HoverUrlChangeHandler,
   HoverUrlSource,
   LayoutChangeHandler,
@@ -415,6 +416,167 @@ function DashboardMissionsList({
   )
 }
 
+type DashboardShellProps = {
+  closedTabs: readonly ClosedTabEntry[]
+  filter: string
+  filterFocusRequest: number
+  filterInput: string
+  handleHoverUrlChange: HoverUrlChangeHandler
+  handleScrollRegionRef: (node: HTMLDivElement | null) => void
+  historyRange: string
+  hoverMatch: HoverMatchState
+  isReady: boolean
+  isScrolled: boolean
+  missionSections: DashboardMissionSection[]
+  onCloseFiltered: () => void
+  onDedupAll: () => void
+  onSourceChange: (nextSource: DashboardSource) => void
+  onTabsChange: () => void
+  scheduleMissionsMasonry: LayoutChangeHandler
+  setFilterInput: (value: string) => void
+  setHistoryRange: (value: string) => void
+  setTabHistory: (snapshot: TabHistorySnapshot | null) => void
+  showHistoryRange: boolean
+  source: DashboardSource
+  stats: DashboardStats
+  tabHistory: TabHistorySnapshot | null
+  togglePinnedDomain: TogglePinnedDomainHandler
+  togglePinnedSection: TogglePinnedSectionHandler
+  urlPreview: { url: string; visible: boolean }
+  workingSet: WorkingSetSnapshot | null
+}
+
+function DashboardShell({
+  closedTabs,
+  filter,
+  filterFocusRequest,
+  filterInput,
+  handleHoverUrlChange,
+  handleScrollRegionRef,
+  historyRange,
+  hoverMatch,
+  isReady,
+  isScrolled,
+  missionSections,
+  onCloseFiltered,
+  onDedupAll,
+  onSourceChange,
+  onTabsChange,
+  scheduleMissionsMasonry,
+  setFilterInput,
+  setHistoryRange,
+  setTabHistory,
+  showHistoryRange,
+  source,
+  stats,
+  tabHistory,
+  togglePinnedDomain,
+  togglePinnedSection,
+  urlPreview,
+  workingSet
+}: DashboardShellProps) {
+  const showTabHistory = isReady && source === 'tabs'
+  const historyWorkingSet = source === 'tabs' ? workingSet : null
+  return (
+    <TooltipProvider>
+      <div
+        data-tabout="dashboard-shell"
+        className={cn(
+          'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
+          showTabHistory
+            ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
+            : 'grid-cols-[minmax(0,1fr)]',
+          source === 'bookmarks' && 'is-bookmarks'
+        )}
+      >
+        {showTabHistory && (
+          <TabHistoryPanel
+            snapshot={tabHistory}
+            closedTabs={closedTabs}
+            onSnapshotChange={setTabHistory}
+            onHoverUrlChange={handleHoverUrlChange}
+            activeHoverUrl={hoverMatch.url}
+            activeHoverUrls={hoverMatch.urls}
+            activeHoverSource={hoverMatch.source}
+            workingSet={historyWorkingSet}
+            filter={filter}
+            onTabsChange={onTabsChange}
+          />
+        )}
+        <div
+          className={cn(
+            'dashboard-main flex min-h-0 min-w-0 flex-col',
+            showTabHistory
+              ? 'col-2 pr-(--dashboard-page-gutter) pl-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1 max-[900px]:[.dashboard-shell.has-history_&]:px-(--dashboard-page-gutter)'
+              : 'col-1 px-(--dashboard-page-gutter)'
+          )}
+        >
+          <div
+            className={cn(
+              'pinned-top relative z-10 flex-none mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[12px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[12px] [--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scroll-gutter))] [--header-shadow-left-reserve:56px] [--header-shadow-left-fade:18px]',
+              isScrolled && 'is-scrolled shadow-none',
+              source === 'bookmarks'
+                ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
+                : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
+              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px_-_var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px_-_var(--header-shadow-left-reserve)_-_4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:px-(--dashboard-edge-bleed)'
+            )}
+          >
+            <HeaderBar
+              source={source}
+              totalTabs={stats.totalTabs}
+              activeTabs={stats.activeTabs}
+              visibleTabs={stats.visibleTabs}
+              totalWindows={stats.totalWindows}
+              visibleWindows={stats.visibleWindows}
+              totalDomains={stats.totalDomains}
+              visibleDomains={stats.visibleDomains}
+              dedupCount={stats.dedupCount}
+              filteredCloseCount={stats.filteredCloseCount}
+              hasCards={stats.hasCards}
+              filtering={stats.filtering}
+              ready={isReady}
+              filter={filterInput}
+              filterFocusRequest={filterFocusRequest}
+              historyRange={historyRange}
+              showHistoryRange={showHistoryRange}
+              onFilterChange={setFilterInput}
+              onHistoryRangeChange={setHistoryRange}
+              onSourceChange={onSourceChange}
+              onCloseFiltered={onCloseFiltered}
+              onDedupAll={onDedupAll}
+            />
+          </div>
+
+          <div
+            data-tabout-part="scroll-region"
+            className={cn(
+              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] [scrollbar-color:var(--dashboard-scrollbar-thumb-bg)_transparent] [scrollbar-width:auto] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]',
+              source === 'bookmarks'
+                ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
+                : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'
+            )}
+            ref={handleScrollRegionRef}
+          >
+            <DashboardMissionsList
+              activeHoverSource={hoverMatch.source}
+              activeHoverUrl={hoverMatch.url}
+              activeHoverUrls={hoverMatch.urls}
+              filter={filter}
+              onHoverUrlChange={handleHoverUrlChange}
+              onLayoutChange={scheduleMissionsMasonry}
+              onTogglePinnedDomain={togglePinnedDomain}
+              onTogglePinnedSection={togglePinnedSection}
+              sections={missionSections}
+            />
+          </div>
+        </div>
+      </div>
+
+      <UrlPreview url={urlPreview.url} visible={urlPreview.visible} />
+    </TooltipProvider>
+  )
+}
+
 export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
   const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialDashboard, initialAppDashboardState)
   const { closedTabs, dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
@@ -580,8 +742,6 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     })
   }
 
-  const showTabHistory = isReady && source === 'tabs'
-  const historyWorkingSet = source === 'tabs' ? workingSet : null
   const primaryMissionsEmpty = matchedCards.length === 0
   const bookmarkMatchesFlush = primaryMissionsEmpty
   const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
@@ -619,102 +779,35 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   })
 
   return (
-    <TooltipProvider>
-      <div
-        data-tabout="dashboard-shell"
-        className={cn(
-          'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
-          showTabHistory
-            ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
-            : 'grid-cols-[minmax(0,1fr)]',
-          source === 'bookmarks' && 'is-bookmarks'
-        )}
-      >
-        {showTabHistory && (
-          <TabHistoryPanel
-            snapshot={tabHistory}
-            closedTabs={closedTabs}
-            onSnapshotChange={setTabHistory}
-            onHoverUrlChange={handleHoverUrlChange}
-            activeHoverUrl={hoverMatch.url}
-            activeHoverUrls={hoverMatch.urls}
-            activeHoverSource={hoverMatch.source}
-            workingSet={historyWorkingSet}
-            filter={filter}
-            onTabsChange={() => refreshDashboard({ animateCards: true })}
-          />
-        )}
-        <div
-          className={cn(
-            'dashboard-main flex min-h-0 min-w-0 flex-col',
-            showTabHistory
-              ? 'col-2 pr-(--dashboard-page-gutter) pl-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1 max-[900px]:[.dashboard-shell.has-history_&]:px-(--dashboard-page-gutter)'
-              : 'col-1 px-(--dashboard-page-gutter)'
-          )}
-        >
-          <div
-            className={cn(
-              'pinned-top relative z-10 flex-none mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[12px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[12px] [--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scroll-gutter))] [--header-shadow-left-reserve:56px] [--header-shadow-left-fade:18px]',
-              isScrolled && 'is-scrolled shadow-none',
-              source === 'bookmarks'
-                ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
-                : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
-              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px_-_var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px_-_var(--header-shadow-left-reserve)_-_4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:px-(--dashboard-edge-bleed)'
-            )}
-          >
-            <HeaderBar
-              source={source}
-              totalTabs={stats.totalTabs}
-              activeTabs={stats.activeTabs}
-              visibleTabs={stats.visibleTabs}
-              totalWindows={stats.totalWindows}
-              visibleWindows={stats.visibleWindows}
-              totalDomains={stats.totalDomains}
-              visibleDomains={stats.visibleDomains}
-              dedupCount={stats.dedupCount}
-              filteredCloseCount={stats.filteredCloseCount}
-              hasCards={stats.hasCards}
-              filtering={stats.filtering}
-              ready={isReady}
-              filter={filterInput}
-              filterFocusRequest={filterFocusRequest}
-              historyRange={historyRange}
-              showHistoryRange={showHistoryRange}
-              onFilterChange={setFilterInput}
-              onHistoryRangeChange={setHistoryRange}
-              onSourceChange={onSourceChange}
-              onCloseFiltered={onCloseFiltered}
-              onDedupAll={onDedupAll}
-            />
-          </div>
-
-          <div
-            data-tabout-part="scroll-region"
-            className={cn(
-              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] [scrollbar-color:var(--dashboard-scrollbar-thumb-bg)_transparent] [scrollbar-width:auto] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-inset)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]',
-              source === 'bookmarks'
-                ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
-                : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'
-            )}
-            ref={handleScrollRegionRef}
-          >
-            <DashboardMissionsList
-              activeHoverSource={hoverMatch.source}
-              activeHoverUrl={hoverMatch.url}
-              activeHoverUrls={hoverMatch.urls}
-              filter={filter}
-              onHoverUrlChange={handleHoverUrlChange}
-              onLayoutChange={scheduleMissionsMasonry}
-              onTogglePinnedDomain={togglePinnedDomain}
-              onTogglePinnedSection={togglePinnedSection}
-              sections={missionSections}
-            />
-          </div>
-        </div>
-      </div>
-
-      <UrlPreview url={urlPreview.url} visible={urlPreview.visible} />
-    </TooltipProvider>
+    <DashboardShell
+      closedTabs={closedTabs}
+      filter={filter}
+      filterFocusRequest={filterFocusRequest}
+      filterInput={filterInput}
+      handleHoverUrlChange={handleHoverUrlChange}
+      handleScrollRegionRef={handleScrollRegionRef}
+      historyRange={historyRange}
+      hoverMatch={hoverMatch}
+      isReady={isReady}
+      isScrolled={isScrolled}
+      missionSections={missionSections}
+      onCloseFiltered={onCloseFiltered}
+      onDedupAll={onDedupAll}
+      onSourceChange={onSourceChange}
+      onTabsChange={() => refreshDashboard({ animateCards: true })}
+      scheduleMissionsMasonry={scheduleMissionsMasonry}
+      setFilterInput={setFilterInput}
+      setHistoryRange={setHistoryRange}
+      setTabHistory={setTabHistory}
+      showHistoryRange={showHistoryRange}
+      source={source}
+      stats={stats}
+      tabHistory={tabHistory}
+      togglePinnedDomain={togglePinnedDomain}
+      togglePinnedSection={togglePinnedSection}
+      urlPreview={urlPreview}
+      workingSet={workingSet}
+    />
   )
 }
 

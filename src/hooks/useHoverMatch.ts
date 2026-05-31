@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { useUrlPreview } from './useUrlPreview'
 import type { HoverUrlSource } from '../components/types'
 
-type HoverMatchState = {
+export type HoverMatchState = {
   url: string
   urls: string[]
   source: HoverUrlSource | null
