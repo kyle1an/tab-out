@@ -565,6 +565,57 @@
         listeners.dispatch()
         await new Promise((resolve) => setTimeout(resolve, 350))
       }
+      window.__tabOutSmokeAddDuplicateStackTabs = async () => {
+        if (tabs.some((tab) => tab.id === 1281 || tab.id === 1282 || tab.id === 1283 || tab.id === 1284)) return
+        tabs.push(
+          {
+            id: 1281,
+            url: 'https://duplicate-stack.test/index.html',
+            title: 'Duplicate Stack Target',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1281
+          },
+          {
+            id: 1282,
+            url: 'https://duplicate-stack.test/index.html',
+            title: 'Duplicate Stack Target',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1282
+          },
+          {
+            id: 1283,
+            url: 'https://duplicate-stack.test/index.html',
+            title: 'Duplicate Stack Target',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1283
+          },
+          {
+            id: 1284,
+            url: 'https://duplicate-stack.test/index.html',
+            title: 'Duplicate Stack Target',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1284
+          }
+        )
+        listeners.dispatch()
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
       window.__tabOutSmokeSetActiveTab = async (tabId, windowId = 1) => {
         for (const tab of tabs) {
           tab.windowId = originalWindowIds.get(tab.id) ?? tab.windowId

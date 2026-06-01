@@ -395,6 +395,30 @@ test('PageChip renders Chrome pinned Tab Out state as an icon hint', () => {
   assert.doesNotMatch(html, />Pinned</)
 })
 
+test('PageChip renders duplicate pages as a favicon stack and page pins as a favicon badge', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        sourceType: 'tab',
+        dupeCount: 3,
+        pagePinned: true,
+        faviconUrl: 'https://example.com/favicon.ico'
+      })
+    })
+  )
+
+  assert.match(html, /3 open copies/)
+  assert.match(html, /Pinned/)
+  assert.match(html, /\bchip-favicon-stack\b/)
+  assert.equal((html.match(/\bchip-favicon-stack-layer\b/g) || []).length, 2)
+  assert.match(html, /\bchip-favicon-stack-layer\b[^"]*\bsize-4\b/)
+  assert.doesNotMatch(html, /\bchip-favicon-stack-layer\b[^"]*\binset-0\b/)
+  assert.match(html, /\bchip-page-pin-badge\b/)
+  assert.match(html, /data-tabout-part="page-pin"/)
+  assert.match(html, /icon-\[lucide--pin\]/)
+  assert.doesNotMatch(html, /\bchip-dupe-badge\b/)
+})
+
 test('PageChip keeps the other-window active chip style separate from the current active style', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
@@ -589,6 +613,9 @@ test('PageChip renders closed saved pages muted with no close action', () => {
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-saved\b/)
   assert.match(chipMatch[1], /\bpage-chip-saved-closed\b/)
+  assert.match(chipMatch[1], /\bbg-\(--chip-rest-bg\)/)
+  assert.doesNotMatch(chipMatch[1], /\bopacity-75\b/)
+  assert.doesNotMatch(chipMatch[1], /shadow-\[inset_0_0_0_1px/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /aria-label="Close this tab"/)
   assert.match(html, /default-favicon-image/)

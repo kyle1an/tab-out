@@ -2042,7 +2042,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         const styles = window.getComputedStyle(chip)
         const closeButton = chip.querySelector('.chip-close-favicon')
         const faviconContent = chip.querySelector('.chip-favicon-content')
-        const dupeBadge = chip.querySelector('.chip-dupe-badge')
+        const duplicateStack = chip.querySelector('.chip-favicon-stack')
         const readPart = (part) => {
           if (!(part instanceof HTMLElement)) return null
           const partStyles = window.getComputedStyle(part)
@@ -2060,7 +2060,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           transitionProperty: styles.transitionProperty,
           width: Math.round(chip.getBoundingClientRect().width),
           closeButton: readPart(closeButton),
-          dupeBadge: readPart(dupeBadge),
+          duplicateStack: readPart(duplicateStack),
           faviconContent: readPart(faviconContent),
           hover: chip.matches(':hover'),
           urlPreview: document.querySelector('.url-preview span')?.textContent || ''
@@ -3903,6 +3903,55 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
   return { target, expansion }
 }
 
+async function measureDuplicateStackGeometry(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddDuplicateStackTabs?.()`
+  })
+
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) => candidate.textContent?.includes('Duplicate Stack Target'))
+        const frame = chip?.querySelector('.chip-favicon-stack')
+        const layers = Array.from(frame?.querySelectorAll('.chip-favicon-stack-layer') || [])
+        if (chip instanceof HTMLElement && frame instanceof HTMLElement && layers.length >= 2) {
+          const rectFor = (element) => {
+            const rect = element.getBoundingClientRect()
+            return {
+              left: Math.round(rect.left * 100) / 100,
+              top: Math.round(rect.top * 100) / 100,
+              width: Math.round(rect.width * 100) / 100,
+              height: Math.round(rect.height * 100) / 100
+            }
+          }
+          resolve({
+            chip: rectFor(chip),
+            frame: rectFor(frame),
+            layers: layers.map(rectFor),
+            className: frame.className
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+}
+
 test('dashboard cards repack when the viewport resizes', async (t) => {
   if (!RUN_BROWSER_SMOKE) {
     t.skip('set RUN_BROWSER_SMOKE=1 to launch Chrome for the resize smoke test')
@@ -4843,6 +4892,18 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     wrappedTitleVariantExpansion.expansion.titleText.includes('Example Optical'),
     `wrapped same-title variant expansion should reveal the suppressed title text: ${JSON.stringify(wrappedTitleVariantExpansion)}`
+  )
+
+  const duplicateStackGeometry = await measureDuplicateStackGeometry(session)
+  assert.ok(duplicateStackGeometry, `duplicate page chip stack should render in the browser smoke harness: ${JSON.stringify(duplicateStackGeometry)}`)
+  assert.ok(
+    duplicateStackGeometry.frame.width <= 18 && duplicateStackGeometry.frame.height <= 18,
+    `duplicate page chip favicon stack frame should stay favicon-sized: ${JSON.stringify(duplicateStackGeometry)}`
+  )
+  assert.equal(duplicateStackGeometry.layers.length, 2, `duplicate page chip should render two stack layers for 4 copies: ${JSON.stringify(duplicateStackGeometry)}`)
+  assert.ok(
+    duplicateStackGeometry.layers.every((layer: { width: number; height: number }) => layer.width <= 18 && layer.height <= 18),
+    `duplicate page chip stack layers should not stretch into a tall overlay: ${JSON.stringify(duplicateStackGeometry)}`
   )
 
   await evaluateWithNavigationRetry(session, {

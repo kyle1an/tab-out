@@ -41,6 +41,7 @@ const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inl
 const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
+const PAGE_CHIP_CLOSED_SAVED_REST_BG = 'color-mix(in srgb, var(--card-bg) 97%, var(--color-neutral-600) 3%)'
 const PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 94%, var(--color-neutral-600) 6%)'
 const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
@@ -263,7 +264,7 @@ function getChipTextPaintedContentWidth(textEl: HTMLElement | null) {
     range.detach()
   }
 
-  for (const marker of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator, .chip-dupe-badge'))) {
+  for (const marker of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator'))) {
     includeRect(marker.getBoundingClientRect())
   }
 
@@ -1441,11 +1442,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow && !isCurrentTabOutFrame
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
+  const pinnedLabel = chip.pagePinned ? 'Pinned' : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const savedLabel = chip.saved ? (isClosedSavedPage ? 'Closed saved page' : 'Saved page') : ''
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const titleVariantLabel = isTitleVariantGroup ? `${titleVariantChips.length} URL variants: ${titleVariantChips.map((variant) => variant.pathSuffix || variant.tabUrl).join(' · ')}` : ''
-  const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
+  const chipLabel = [chip.tooltip, pinnedLabel, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
   const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
@@ -1474,7 +1476,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     '--chip-hover-fade-bg': chipInteractionBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-interaction-bg': chipInteractionBg,
-    '--chip-rest-bg': hasActiveChipFrame && !isCurrentTabOutFrame ? PAGE_CHIP_ACTIVE_OTHER_REST_BG : 'transparent',
+    '--chip-rest-bg': isClosedSavedPage
+      ? PAGE_CHIP_CLOSED_SAVED_REST_BG
+      : hasActiveChipFrame && !isCurrentTabOutFrame
+        ? PAGE_CHIP_ACTIVE_OTHER_REST_BG
+        : 'transparent',
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
   }
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
@@ -1752,7 +1758,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantPagePinActionLabel = variant.pagePinned ? 'Unpin' : 'Pin'
     const variantCanTogglePagePin = !!variant.pagePinId && typeof onTogglePinnedPageChip === 'function'
     const variantTitleText = titleTextForChip(variant)
-    const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
+    const variantPinnedLabel = variant.pagePinned ? 'Pinned' : ''
+    const variantLabel = [variant.tooltip, variantPinnedLabel, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     const labelContent = (
       <>
         <span className="chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
@@ -2033,7 +2040,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted opacity-75', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed bg-(--chip-rest-bg) text-tab-muted', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
           hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
@@ -2070,13 +2077,36 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       {showFaviconFrame && (
         <span
           className={cn(
-            'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center',
+            'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center self-start',
+            !chip.isApp && 'min-h-4 min-w-4 max-h-4 max-w-4',
+            !chip.iconOnly && dupeCount > 1 && 'chip-favicon-stack',
             chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
           )}
         >
+          {!chip.iconOnly && dupeCount > 2 && (
+            <span
+              className={cn(
+                'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-0 size-4 max-h-4 max-w-4 translate-x-1 translate-y-1 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.12)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
+                dedupeBadgesClosing && 'closing'
+              )}
+              aria-hidden="true"
+            />
+          )}
+          {!chip.iconOnly && dupeCount > 1 && (
+            <span
+              className={cn(
+                'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-1 size-4 max-h-4 max-w-4 translate-x-0.5 translate-y-0.5 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/55 shadow-[0_1px_2px_rgba(10,10,10,0.1)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
+                dedupeBadgesClosing && 'closing'
+              )}
+              aria-hidden="true"
+            />
+          )}
           <span
             className={cn(
-              'chip-favicon-content grid h-full w-full place-items-center',
+              'chip-favicon-content relative z-2 grid size-4 place-items-center',
+              !chip.iconOnly && dupeCount > 1 && 'rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.08)] [corner-shape:squircle]',
               showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
             )}
             aria-hidden="true"
@@ -2087,24 +2117,24 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
               <DefaultFavicon />
             ) : null}
           </span>
-          {!chip.iconOnly && dupeCount > 1 && (
+          {!chip.iconOnly && chip.pagePinned && (
             <span
+              data-tabout-part="page-pin"
+              data-pinned="true"
               className={cn(
-                'chip-dupe-badge pointer-events-none absolute -top-[7px] -right-[7px] z-1 box-border inline-flex size-4 min-w-4 items-start justify-center rounded-full border-2 border-tab-card bg-(--accent-amber) px-0 pt-px text-[9px] leading-none font-bold tabular-nums text-tab-card shadow-[0_1px_2px_rgba(10,10,10,0.18)] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
-                dupeCount > 9 && 'chip-dupe-badge-wide w-auto rounded-lg px-1 [corner-shape:squircle]',
-                dedupeBadgesClosing && 'closing'
+                'chip-page-pin-badge pointer-events-none absolute -top-[6px] -right-[6px] z-3 inline-flex size-3.5 items-center justify-center rounded-full border border-tab-card bg-(--card-bg) text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.16)] data-[pinned=true]:opacity-100',
+                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
               )}
               aria-hidden="true"
             >
-              {dupeCount}
+              <span className="icon-[lucide--pin] size-2.5" aria-hidden="true" />
             </span>
           )}
           {showFaviconCloseAction && (
             <button
               type="button"
               data-tabout-part="close-button"
-              className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-2 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+              className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
               aria-label={closeActionLabel}
               onClick={isHistorySource ? onDeleteHistory : onClose}
             >
