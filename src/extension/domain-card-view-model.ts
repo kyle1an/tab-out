@@ -1310,6 +1310,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       saved: allVariantsSaved,
       closedSaved: allVariantsClosedSaved,
       savedPageKey: undefined,
+      pagePinId: undefined,
+      pagePinned: undefined,
       pathSuffix: '',
       tooltip: `${representative.tooltip} · ${variants.length} URL variants`,
       dupeCount: 1,
@@ -1350,17 +1352,17 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       emittedTitleKeys.add(entry.titleKey)
       const variants = (entriesByTitle.get(entry.titleKey) || []).map((variantEntry) => {
         const variant = variantEntry.chip
-        return {
+        return annotatePageChipPin({
           ...variant,
           pathSuffix: variant.pathSuffix || titleVariantLabelForUrl(variant.tabUrl),
           titleVariantChips: undefined
-        }
+        }, pinScopeId, pageChipPinKeyForUrl(variantEntry.tab.url))
       })
-      result.push(annotatePageChipPin(
-        titleVariantGroupChip(variants),
-        pinScopeId,
-        pageChipPinKeyForFoldUrls(variants.map((variant) => variant.tabUrl))
-      ))
+      const pinnedVariants = variants.filter((variant) => variant.pagePinned)
+      const unpinnedVariants = variants.filter((variant) => !variant.pagePinned)
+      result.push(...pinnedVariants)
+      if (unpinnedVariants.length > 1) result.push(titleVariantGroupChip(unpinnedVariants))
+      else result.push(...unpinnedVariants)
     }
     return sortPageChipsInScope(result)
   }

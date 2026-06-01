@@ -125,3 +125,51 @@ test('computeDomainCardViewModel sorts pinned folded chips as aggregate rows', (
     [true, false]
   )
 })
+
+test('computeDomainCardViewModel promotes pinned same-title URL variants into their parent chip scope', () => {
+  const tabs = [
+    makeTab({ id: 1, title: 'Example content item', url: 'https://example.com/alpha' }),
+    makeTab({ id: 2, title: 'Example content item', url: 'https://example.com/bravo' }),
+    makeTab({ id: 3, title: 'Example content item', url: 'https://example.com/charlie' }),
+    makeTab({ id: 4, title: 'Settings', url: 'https://example.com/settings' })
+  ]
+  const group = groupFor('example.com', tabs)
+  const rootScope = pageChipPinScopeId('example.com', '', '', '')
+  const alphaPinId = pageChipPinId('tabs', rootScope, pageChipPinKeyForUrl('https://example.com/alpha'))
+  const bravoPinId = pageChipPinId('tabs', rootScope, pageChipPinKeyForUrl('https://example.com/bravo'))
+  const charliePinId = pageChipPinId('tabs', rootScope, pageChipPinKeyForUrl('https://example.com/charlie'))
+  const pinnedPageChips = createPinnedPageChipIndex([bravoPinId])
+
+  const vm = computeDomainCardViewModel(group, { source: 'tabs', pinnedPageChips })
+  const section = vm.sections?.find((candidate) => candidate.key === '')
+  assert.ok(section)
+  assert.deepEqual(
+    section.flatVisibleChips.map((chip) => chip.tabUrl),
+    [
+      'https://example.com/bravo',
+      'https://example.com/alpha',
+      'https://example.com/settings'
+    ]
+  )
+
+  const [pinnedVariant, remainingGroup] = section.flatVisibleChips
+  assert.equal(pinnedVariant.pagePinId, bravoPinId)
+  assert.equal(pinnedVariant.pagePinned, true)
+  assert.equal(remainingGroup.pagePinId, undefined)
+  assert.equal(remainingGroup.pagePinned, undefined)
+  assert.deepEqual(
+    remainingGroup.titleVariantChips?.map((variant) => variant.tabUrl),
+    [
+      'https://example.com/alpha',
+      'https://example.com/charlie'
+    ]
+  )
+  assert.deepEqual(
+    remainingGroup.titleVariantChips?.map((variant) => variant.pagePinId),
+    [alphaPinId, charliePinId]
+  )
+  assert.deepEqual(
+    remainingGroup.titleVariantChips?.map((variant) => variant.pagePinned),
+    [false, false]
+  )
+})

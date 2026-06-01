@@ -28,8 +28,8 @@
 - A **Website Path Section** may contain one or more **Path Groups**, and a **Path Group** may contain one or more **Page Chips**.
 - **Path Group** singleton behavior belongs to the Path Group rule itself; adding a **Website Path Section** does not change whether a single site-specific object stays grouped.
 - A **Page Chip** shows a URL path suffix only when another chip in the same rendered group has the same visible title; sibling Website Path Sections and Path Groups already provide enough context.
-- Same-title **Page Chips** with different effective URLs inside the same rendered group merge visually into one title row with per-URL distinguishers; the distinguishers remain the focus and close/delete targets.
-- A **Page Chip** pin is Tabs-source ordering state for an exact page identity inside one rendered sibling scope; pinned chips sort before Working Set priority but do not move across Domain Cards, subdomain sections, Website Path Sections, Path Groups, or Sources.
+- Same-title **Page Chips** with different effective URLs inside the same rendered group merge visually into one title row with per-URL distinguishers; the distinguishers remain the focus, close/delete, and page-pin targets.
+- A **Page Chip** pin is Tabs-source ordering state for an exact page identity inside one rendered sibling scope; pinned chips sort before Working Set priority but do not move across Domain Cards, subdomain sections, Website Path Sections, Path Groups, or Sources. Pinned same-title URL distinguishers promote into that local sibling list, while remaining unpinned variants may stay visually grouped.
 - For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
 - For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira`, and `/servicedesk`.
 - For other sites, **Website Path Sections** may use the first path segment such as `/resource`, but singleton generic segments stay flat.

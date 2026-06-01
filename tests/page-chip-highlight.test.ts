@@ -903,10 +903,10 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   const contextMenuComponentSource = readFileSync(new URL('../src/components/PageChipContextMenu.tsx', import.meta.url), 'utf8')
   const contextMenuContentSource = readFileSync(new URL('../src/components/PageChipContextMenuContent.tsx', import.meta.url), 'utf8')
 
-  // PageChip wires the Base UI primitives plus the extracted menu modules
-  assert.match(pageChipSource, /import \{ ContextMenu, ContextMenuTrigger \} from '\.\/ui\/context-menu'/)
+  // PageChip routes chip triggers through the extracted menu wrapper
+  assert.doesNotMatch(pageChipSource, /import \{ ContextMenu, ContextMenuTrigger \} from '\.\/ui\/context-menu'/)
   assert.match(pageChipSource, /import \{ PageChipContextMenu \} from '\.\/PageChipContextMenu'/)
-  assert.match(pageChipSource, /import \{ PageChipContextMenuContent \} from '\.\/PageChipContextMenuContent'/)
+  assert.doesNotMatch(pageChipSource, /import \{ PageChipContextMenuContent \} from '\.\/PageChipContextMenuContent'/)
 
   // The extracted wrapper owns the visual-open lifecycle and trigger cloning
   assert.match(contextMenuComponentSource, /export function PageChipContextMenu\(/)
@@ -923,6 +923,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   // The extracted content renders the saved, page-pin, and copy menu items
   assert.match(contextMenuContentSource, /className="page-chip-save-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-pin-menu-item"/)
+  assert.match(contextMenuContentSource, /className="page-chip-pin-menu-item"[\s\S]*className="page-chip-save-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-copy-title-menu-item"/)
   assert.match(contextMenuContentSource, /SavedPageIcon saved=\{!!saved\} className="size-3\.5"/)
   assert.match(contextMenuContentSource, /icon-\[lucide--pin\]/)
@@ -945,15 +946,19 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /group-\[\.page-chip-tooltip-open\]\/page-chip:opacity-100/)
   assert.doesNotMatch(pageChipSource, /import \{ Copy, X \} from 'lucide-react'/)
   assert.match(pageChipSource, /navigator\.clipboard\.writeText\(titleText\)/)
-  assert.match(pageChipSource, /const pagePinActionLabel = chip\.pagePinned \? 'Unpin page' : 'Pin page'/)
+  assert.match(pageChipSource, /const pagePinActionLabel = chip\.pagePinned \? 'Unpin' : 'Pin'/)
   assert.match(pageChipSource, /const canTogglePagePin = !!chip\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
   assert.match(pageChipSource, /async function onTogglePagePin\(e: StopPropagationEvent\)/)
   assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(chip\.pagePinId\)/)
   assert.match(pageChipSource, /onLayoutChange\?\.\(\{ animate: true \}\)/)
+  assert.match(pageChipSource, /const variantPagePinActionLabel = variant\.pagePinned \? 'Unpin' : 'Pin'/)
+  assert.match(pageChipSource, /const variantCanTogglePagePin = !!variant\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
+  assert.match(pageChipSource, /async function onTogglePinnedTitleVariant\(e: StopPropagationEvent, variant: DashboardChipData\)/)
+  assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(variant\.pagePinId\)/)
 
   // PageChip wires the mutation handlers into the menus at each call site
   assert.match(pageChipSource, /canToggleSavedEnv \? \([\s\S]*<PageChipContextMenu[\s\S]*onSavedSelect=\{\(e\) => onToggleSavedEnv\(e, env\)\}[\s\S]*titleText=\{envTitleText\}/)
-  assert.match(pageChipSource, /variantCanToggleSaved \? \([\s\S]*<ContextMenu>[\s\S]*onSavedSelect=\{\(e\) => onToggleSavedTitleVariant\(e, variant\)\}[\s\S]*titleText=\{variantTitleText\}/)
+  assert.match(pageChipSource, /variantCanToggleSaved \|\| variantCanTogglePagePin[\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{variantCanToggleSaved \? variantSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{variantCanToggleSaved \? \(e\) => onToggleSavedTitleVariant\(e, variant\) : undefined\}[\s\S]*pagePinActionLabel=\{variantCanTogglePagePin \? variantPagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{variantCanTogglePagePin \? \(e\) => onTogglePinnedTitleVariant\(e, variant\) : undefined\}[\s\S]*titleText=\{variantTitleText\}/)
   assert.match(pageChipSource, /canToggleSavedPage \|\| canTogglePagePin[\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedPage \? savedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedPage \? onToggleSavedPage : undefined\}[\s\S]*pagePinActionLabel=\{canTogglePagePin \? pagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{canTogglePagePin \? onTogglePagePin : undefined\}[\s\S]*titleText=\{chipTitleText\}[\s\S]*onOpenChange=\{onChipContextMenuOpenChange\}/)
 })
 

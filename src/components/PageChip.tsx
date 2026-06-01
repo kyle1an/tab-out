@@ -14,9 +14,7 @@ import { useDomainCardContext } from './DomainCardContext'
 import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
 import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
-import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
 import { PageChipContextMenu } from './PageChipContextMenu'
-import { PageChipContextMenuContent } from './PageChipContextMenuContent'
 import { SavedPageIcon } from './SavedPageIcon'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
@@ -1119,6 +1117,15 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
+  function onTitleVariantContextMenuOpenChange(open: boolean, variant: DashboardChipData) {
+    contextMenuOpenRef.current = open
+    if (open) {
+      setPreview(variant.tabUrl, previewUrlsForChip(variant))
+      return
+    }
+    setPreview('')
+  }
+
   function onChipMouseEnter() {
     if (isFolded) return
     setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
@@ -1404,6 +1411,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
+  async function onTogglePinnedTitleVariant(e: StopPropagationEvent, variant: DashboardChipData) {
+    e.stopPropagation()
+    if (!variant.pagePinId) return
+    await onTogglePinnedPageChip?.(variant.pagePinId)
+    onLayoutChange?.({ animate: true })
+    setPreview('')
+  }
+
   async function onToggleSavedEnv(e: StopPropagationEvent, env: DashboardChipEnv) {
     e.stopPropagation()
     if (env.saved) {
@@ -1433,7 +1448,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipLabel = [chip.tooltip, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
-  const pagePinActionLabel = chip.pagePinned ? 'Unpin page' : 'Pin page'
+  const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
   const chipTitleText = titleTextForChip(chip)
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
@@ -1734,6 +1749,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantCanClose = !variantClosedSaved && (!isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource)
     const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
     const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
+    const variantPagePinActionLabel = variant.pagePinned ? 'Unpin' : 'Pin'
+    const variantCanTogglePagePin = !!variant.pagePinId && typeof onTogglePinnedPageChip === 'function'
     const variantTitleText = titleTextForChip(variant)
     const variantLabel = [variant.tooltip, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     const labelContent = (
@@ -1768,17 +1785,20 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         {labelContent}
       </button>
     )
-    const variantFocusTarget = variantCanToggleSaved ? (
-      <ContextMenu>
-        <ContextMenuTrigger render={variantFocusButton} />
-        <PageChipContextMenuContent
-          savedActionLabel={variantSavedActionLabel}
-          saved={!!variant.saved}
-          onSavedSelect={(e) => onToggleSavedTitleVariant(e, variant)}
-          titleText={variantTitleText}
-          onCopyTitle={(e) => onCopyTitleText(e, variantTitleText)}
-        />
-      </ContextMenu>
+    const variantFocusTarget = variantCanToggleSaved || variantCanTogglePagePin ? (
+      <PageChipContextMenu
+        savedActionLabel={variantCanToggleSaved ? variantSavedActionLabel : undefined}
+        saved={!!variant.saved}
+        onSavedSelect={variantCanToggleSaved ? (e) => onToggleSavedTitleVariant(e, variant) : undefined}
+        pagePinActionLabel={variantCanTogglePagePin ? variantPagePinActionLabel : undefined}
+        pagePinned={!!variant.pagePinned}
+        onPagePinSelect={variantCanTogglePagePin ? (e) => onTogglePinnedTitleVariant(e, variant) : undefined}
+        titleText={variantTitleText}
+        onCopyTitle={(e) => onCopyTitleText(e, variantTitleText)}
+        onOpenChange={(open) => onTitleVariantContextMenuOpenChange(open, variant)}
+      >
+        {variantFocusButton}
+      </PageChipContextMenu>
     ) : (
       variantFocusButton
     )
