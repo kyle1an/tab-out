@@ -44,11 +44,12 @@ const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90
 const PAGE_CHIP_CLOSED_SAVED_REST_BG = 'color-mix(in srgb, var(--card-bg) 97%, var(--color-neutral-600) 3%)'
 const PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 94%, var(--color-neutral-600) 6%)'
 const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
+const PAGE_CHIP_GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
 const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
-const PAGE_CHIP_GROUP_INTERACTION_CLASSES = PAGE_CHIP_SURFACE_INTERACTION_CLASSES
+const PAGE_CHIP_GROUP_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
 const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   lineHtml: [],
@@ -1475,6 +1476,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const style: CSSVariableProperties = {
     '--chip-hover-fade-bg': chipInteractionBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
+    '--chip-group-hover-border': PAGE_CHIP_GROUP_HOVER_BORDER,
     '--chip-interaction-bg': chipInteractionBg,
     '--chip-rest-bg': isClosedSavedPage
       ? PAGE_CHIP_CLOSED_SAVED_REST_BG
