@@ -38,6 +38,10 @@ const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
+// Expanded chips reveal the full path suffix, so the cloned/measured copy must
+// wrap (and break long, space-free query strings) instead of staying on the
+// single nowrap line it uses while collapsed — otherwise it overflows the chip.
+const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path text-xs font-normal text-tab-muted opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
 const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
@@ -423,6 +427,10 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
 
     marker.className = PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME
     marker.replaceChildren(document.createTextNode(label))
+  }
+
+  for (const path of Array.from(fragment.querySelectorAll('.chip-path'))) {
+    path.className = PAGE_CHIP_EXPANDED_PATH_CLASS_NAME
   }
 }
 
@@ -1728,7 +1736,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
               className={cn(
                 'chip-path text-xs font-normal text-tab-muted opacity-75',
                 mode === 'chip'
-                  ? 'inline-block whitespace-nowrap'
+                  ? 'inline-block whitespace-nowrap group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:whitespace-normal group-[.page-chip-expanded]/page-chip:wrap-break-word'
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal w-max wrap-break-word'
               )}
             >
