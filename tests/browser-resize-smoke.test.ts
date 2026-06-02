@@ -213,11 +213,18 @@ async function measureDashboard(session: CdpSession, width: number) {
         const cards = Array.from(document.querySelectorAll('.domain-block'))
         const rects = cards.map((card) => card.getBoundingClientRect()).filter((rect) => rect.width > 0)
         const lefts = Array.from(new Set(rects.map((rect) => Math.round(rect.left))))
+        const round = (value) => Math.round(value * 100) / 100
+        const sourceSwitchRect = document.querySelector('[data-tabout="source-switch"]')?.getBoundingClientRect()
+        const headerControlsRect = document.querySelector('.header-controls')?.getBoundingClientRect()
+        const missionsRect = document.querySelector('.missions:not(.missions-empty)')?.getBoundingClientRect()
         resolve({
           cardCount: rects.length,
           columns: lefts.length,
           firstWidth: Math.round(rects[0]?.width || 0),
+          headerControlsRight: headerControlsRect ? round(headerControlsRect.right) : null,
+          missionsRight: missionsRect ? round(missionsRect.right) : null,
           rootHtmlLength: document.getElementById('appRoot')?.innerHTML.length || 0,
+          sourceSwitchRight: sourceSwitchRect ? round(sourceSwitchRect.right) : null,
           errors: window.__tabOutSmokeErrors || []
         })
       }
@@ -3066,6 +3073,9 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
         const historyTrack = document.querySelector('.history-entry-scrollbar-track')
         const historyThumb = document.querySelector('.history-entry-scrollbar-thumb')
         const filter = document.querySelector('[data-tabout="filter-query"]')
+        const sourceSwitch = document.querySelector('[data-tabout="source-switch"]')
+        const headerControls = document.querySelector('.header-controls')
+        const missions = document.querySelector('.missions:not(.missions-empty)')
         const card = document.querySelector('[data-tabout="domain-card"] .mission-card') || document.querySelector('.mission-card')
         const shellRect = shell?.getBoundingClientRect()
         const mainRect = main?.getBoundingClientRect()
@@ -3076,6 +3086,9 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
         const historyTrackRect = historyTrack?.getBoundingClientRect()
         const historyThumbRect = historyThumb?.getBoundingClientRect()
         const filterRect = filter?.getBoundingClientRect()
+        const sourceSwitchRect = sourceSwitch?.getBoundingClientRect()
+        const headerControlsRect = headerControls?.getBoundingClientRect()
+        const missionsRect = missions?.getBoundingClientRect()
         const cardRect = card?.getBoundingClientRect()
         if (
           !(scrollRegion instanceof HTMLElement) ||
@@ -3089,6 +3102,9 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
           !historyTrackRect ||
           !historyThumbRect ||
           !filterRect ||
+          !sourceSwitchRect ||
+          !headerControlsRect ||
+          !missionsRect ||
           !cardRect
         ) {
           return null
@@ -3147,6 +3163,9 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
           historyListScrollTop: round(historyList.scrollTop),
           filterLeft: round(filterRect.left),
           filterRight: round(filterRect.right),
+          sourceSwitchRight: round(sourceSwitchRect.right),
+          headerControlsRight: round(headerControlsRect.right),
+          missionsRight: round(missionsRect.right),
           cardLeft: round(cardRect.left),
           cardRight: round(cardRect.right),
           pageGutter,
@@ -4003,12 +4022,17 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   await session.connect()
 
   const wide = await measureDashboard(session, 1420)
+  const constrained = await measureDashboard(session, 920)
   const narrow = await measureDashboard(session, 760)
   const initialTooltipMeasureNodes = await measureInitialTooltipMeasureNodes(session)
 
   assert.ok(wide.cardCount >= 12, `dashboard should render enough cards for a column smoke test: ${JSON.stringify(wide)}`)
   assert.ok(wide.columns > narrow.columns, `expected columns to shrink after resize, got ${wide.columns} -> ${narrow.columns}`)
   assert.notEqual(wide.firstWidth, narrow.firstWidth, 'card width should respond to viewport resize')
+  assert.ok(Math.abs(wide.headerControlsRight - wide.missionsRight) <= 1, `wide header controls should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(wide)}`)
+  assert.ok(Math.abs(wide.sourceSwitchRight - wide.missionsRight) <= 1, `wide source switch should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(wide)}`)
+  assert.ok(Math.abs(constrained.headerControlsRight - constrained.missionsRight) <= 1, `constrained history layout header controls should align to the scrollable missions grid: ${JSON.stringify(constrained)}`)
+  assert.ok(Math.abs(constrained.sourceSwitchRight - constrained.missionsRight) <= 1, `constrained history layout source switch should align to the scrollable missions grid: ${JSON.stringify(constrained)}`)
   assert.equal(initialTooltipMeasureNodes.pageChipMeasureNodes, 0, `page chips should not mount hidden tooltip measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
   assert.equal(initialTooltipMeasureNodes.historyExpansionMeasureNodes, 0, `history rows should not mount hidden expansion measurement nodes before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
   assert.equal(initialTooltipMeasureNodes.visibleTooltipNodes, 0, `dashboard should not show tooltip popups before hover: ${JSON.stringify(initialTooltipMeasureNodes)}`)
@@ -4117,6 +4141,14 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     narrowScrollbarEdges.initial.cardRight <= narrowScrollbarEdges.initial.viewportWidth - narrowScrollbarEdges.initial.pageGutter + 1,
     `dashboard card content should stay inside the existing right content gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.headerControlsRight - narrowScrollbarEdges.initial.missionsRight) <= 1,
+    `narrow header controls should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(narrowScrollbarEdges)}`
+  )
+  assert.ok(
+    Math.abs(narrowScrollbarEdges.initial.sourceSwitchRight - narrowScrollbarEdges.initial.missionsRight) <= 1,
+    `narrow source switch should align to the scrollable missions grid, not the native scrollbar gutter: ${JSON.stringify(narrowScrollbarEdges)}`
   )
   assert.ok(
     narrowScrollbarEdges.initial.documentScrollWidth <= narrowScrollbarEdges.initial.documentClientWidth + 1,
