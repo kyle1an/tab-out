@@ -1876,6 +1876,29 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         count: renderedCounts?.titleVariantCount ? renderedCounts.count : part.count
       }
     })
+
+  // Map each suppressed-title token to the open, closable tab URLs whose title
+  // carries it, so the dashboard can offer "Close N tabs" on the token. Keyed by
+  // the normalized suppression key. Left empty for read-only sources and the
+  // unmatched grid, mirroring how every other bulk-close action is suppressed there.
+  const allowTitleSuppressionClose = displayMode !== 'unmatched' && allowMutations
+  const suppressionCloseUrlsByText: Record<string, string[]> = {}
+  if (allowTitleSuppressionClose) {
+    const urlSetByKey = new Map<string, Set<string>>()
+    for (const tab of closableTabs) {
+      for (const part of titlePresentation(tab).suppressedTitleParts) {
+        const key = titleSuppressionKey(part)
+        let urls = urlSetByKey.get(key)
+        if (!urls) {
+          urls = new Set<string>()
+          urlSetByKey.set(key, urls)
+        }
+        urls.add(tab.url)
+      }
+    }
+    for (const [key, urls] of urlSetByKey) suppressionCloseUrlsByText[key] = [...urls]
+  }
+
   const sectionsDataWithInlineSingletonSuppressions = inlineSingletonSuppressionsInSections(sectionsData, singletonSuppressionKeys)
   const hasMultipleVisibleSuppressionMeaningsAfterMerge = visibleSuppressedTitleParts.length > 1
 
@@ -2120,6 +2143,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     displayName,
     suppressedTitleParts: cardSuppressedTitleParts,
     allSuppressedTitleParts: visibleSuppressedTitleParts,
+    suppressionCloseUrlsByText,
     sections: vmSections
   }
 }

@@ -542,6 +542,48 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
   assert.equal(mergedChip.titleVariantChips?.length, 2)
 })
 
+test('computeDomainCardViewModel maps a suppression token to its closable tab URLs', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
+      makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' }),
+      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+
+  // The token's display count is 2 titles, but it maps to 3 closable tabs.
+  assert.equal(vm.sections?.[0]?.suppressedTitleParts?.[0]?.count, 2)
+  assert.deepEqual(vm.suppressionCloseUrlsByText, {
+    '- example workspace': [
+      'https://example.com/content/item?search_id=alpha',
+      'https://example.com/content/item?search_id=bravo',
+      'https://example.com/settings'
+    ]
+  })
+})
+
+test('suppressionCloseUrlsByText excludes grouped tabs and is empty when mutations are disallowed', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/a', title: 'Alpha - Example Workspace' }),
+      makeTab({ id: 2, url: 'https://example.com/b', title: 'Bravo - Example Workspace' }),
+      makeTab({ id: 3, url: 'https://example.com/c', title: 'Charlie - Example Workspace', groupId: 7 })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  assert.deepEqual(vm.suppressionCloseUrlsByText, {
+    '- example workspace': ['https://example.com/a', 'https://example.com/b']
+  })
+
+  const readOnlyVm = computeDomainCardViewModel(group, { allowMutations: false })
+  assert.deepEqual(readOnlyVm.suppressionCloseUrlsByText, {})
+})
+
 test('computeDomainCardViewModel skips path suffixes for duplicate titles in different rendered path groups', () => {
   const group = {
     domain: 'atlassian.net',

@@ -1064,6 +1064,94 @@ async function measureSuppressionMarkerChipLine(session: CdpSession, label: stri
   return { result }
 }
 
+async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1420,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const token = Array.from(document.querySelectorAll('.title-suppression-token'))
+          .find((el) => (el.textContent || '').trim().startsWith('— Shared Workspace'))
+        if (token instanceof HTMLElement) {
+          token.scrollIntoView({ block: 'center' })
+          const rect = token.getBoundingClientRect()
+          if (rect.width > 0 && rect.height > 0) {
+            resolve({ x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) })
+            return
+          }
+        }
+        if (Date.now() - start > 5000) resolve(null)
+        else setTimeout(wait, 50)
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target, 'expected a "— Shared Workspace" title-suppression token for the close-highlight smoke test')
+
+  const readHighlightedChips = () => evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `document.querySelectorAll('.page-chip-suppression-highlighted').length`
+  }).then((result: any) => result.result.value)
+
+  const baseline = await readHighlightedChips()
+
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: target.x, y: target.y })
+  await wait(150)
+  const onHover = await readHighlightedChips()
+
+  await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'right', buttons: 2, clickCount: 1, x: target.x, y: target.y })
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'right', buttons: 0, clickCount: 1, x: target.x, y: target.y })
+  await wait(220)
+
+  const onRightClick = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const menu = document.querySelector('[data-slot="context-menu-content"]')
+      return {
+        highlightedChips: document.querySelectorAll('.page-chip-suppression-highlighted').length,
+        menuOpen: !!menu && menu.getClientRects().length > 0,
+        itemTexts: Array.from(document.querySelectorAll('[data-slot="context-menu-item"]')).map((item) => (item.textContent || '').trim())
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  // Close the menu by clicking elsewhere with the mouse (away from the menu). Base UI
+  // restores focus to the token on close; the highlight must still clear because that
+  // restored focus is not :focus-visible (mouse modality), so onFocus does not re-arm it.
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 8, y: 860 })
+  await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', buttons: 1, clickCount: 1, x: 8, y: 860 })
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', buttons: 0, clickCount: 1, x: 8, y: 860 })
+  await wait(220)
+
+  const afterClickAway = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => ({
+      menuOpen: !!document.querySelector('[data-slot="context-menu-content"]'),
+      highlightedChips: document.querySelectorAll('.page-chip-suppression-highlighted').length,
+      activeIsToken: !!(document.activeElement && document.activeElement.classList.contains('title-suppression-token'))
+    }))()`
+  }).then((result: any) => result.result.value)
+
+  // Park the pointer away so later smoke measurements start clean.
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 8, y: 8 })
+  await wait(150)
+
+  return { baseline, onHover, onRightClick, afterClickAway }
+}
+
 async function measurePageChipTooltipLineCount(
   session: CdpSession,
   label: string,
@@ -4959,6 +5047,17 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     1,
     `one-line path-group placeholder tooltip should widen enough to stay on one line: ${JSON.stringify(oneLinePathGroupPlaceholderTooltip)}`
   )
+
+  // Runs near the end (before the bookmark-source switch) so its hover/right-click
+  // interactions cannot perturb the timing-sensitive tabs-source measurements above.
+  const suppressionTokenClose = await measureSuppressionTokenCloseHighlight(session)
+  assert.equal(suppressionTokenClose.baseline, 0, `suppression chips should not be highlighted before hover: ${JSON.stringify(suppressionTokenClose)}`)
+  assert.equal(suppressionTokenClose.onHover, 3, `hovering the "— Shared Workspace" token should highlight its 3 chips: ${JSON.stringify(suppressionTokenClose)}`)
+  assert.equal(suppressionTokenClose.onRightClick.highlightedChips, 3, `right-clicking the token must keep its 3 chips highlighted while the close menu is open: ${JSON.stringify(suppressionTokenClose)}`)
+  assert.ok(suppressionTokenClose.onRightClick.menuOpen, `right-clicking the token should open the close menu: ${JSON.stringify(suppressionTokenClose)}`)
+  assert.ok(suppressionTokenClose.onRightClick.itemTexts.includes('Close 3 tabs'), `token close menu should offer "Close 3 tabs": ${JSON.stringify(suppressionTokenClose)}`)
+  assert.equal(suppressionTokenClose.afterClickAway.menuOpen, false, `clicking elsewhere should close the token close menu: ${JSON.stringify(suppressionTokenClose)}`)
+  assert.equal(suppressionTokenClose.afterClickAway.highlightedChips, 0, `closing the menu by clicking away must clear the suppression highlight even though focus returns to the token: ${JSON.stringify(suppressionTokenClose)}`)
 
   const largeBookmarks = await measureLargeBookmarkProgressiveRender(session)
   assert.ok(largeBookmarks.initial, `bookmark source should render an initial progressive chunk: ${JSON.stringify(largeBookmarks)}`)

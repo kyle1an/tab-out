@@ -222,7 +222,8 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const cardContext = {
     activeSuppressedTitle,
     setActiveSuppressedTitle,
-    dedupeBadgesClosing
+    dedupeBadgesClosing,
+    suppressionCloseUrlsByText: vm.suppressionCloseUrlsByText ?? {}
   }
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
