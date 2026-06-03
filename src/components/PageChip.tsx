@@ -2072,7 +2072,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES,
-          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_GROUP_INTERACTION_CLASSES,
+          // `page-chip-group` is an unstyled marker consumed only by base.css's seam-overlap
+          // rule (`.chip-slot:has(.page-chip-group)`). Keep it — a TSX-only dead-code scan
+          // (knip/refactor-cleaner) can't see the CSS reference and may flag it as unused.
+          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && cn('page-chip-group', PAGE_CHIP_GROUP_INTERACTION_CLASSES),
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',

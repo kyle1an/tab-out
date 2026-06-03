@@ -231,22 +231,33 @@ body {
   display: contents;
 }
 
-/* When two active-frame chip-slots sit adjacent, overlap them by -1px so
-   the seam borders coincide as a single 1px line. Each chip keeps its
-   FULL 4-sided rounded frame at all times — no suppression of any side.
+/* When two potentially-bordered chip-slots sit adjacent, overlap them by
+   -1px so that whenever both show a 1px frame the seam borders coincide as a
+   single line. Each chip keeps its FULL 4-sided rounded frame at all times —
+   no suppression of any side.
 
-   At rest, the later slot's stacking is on top (later in DOM), so the seam
-   shows that slot's top border (same colour/alpha as the other slot's
-   bottom would have been — visually one 1px line).
+   A chip-slot is overlapped when its chip either carries an active frame
+   (.active-chip-frame, inset box-shadow) OR is a group chip (.page-chip-group)
+   that draws an interaction outline on hover / tooltip-open / context-menu-
+   open. Crucially the overlap is keyed off the STATIC marker, not the hover
+   state: a group chip reserves the -1px at rest too, so hovering it only
+   reveals the (already-overlapping) outline instead of pulling the chip up —
+   the run's total height stays stable, with no layout shift on hover.
 
-   On hover / tooltip-open / context-menu-open, lift the interacting slot's
-   z-index above its neighbours so its strengthened frame paints on top of
-   the neighbour's bg + frame in the shared row. The hovered chip's border
-   wins at the seam; the neighbour's bottom (or top) is occluded by the
-   hovered chip's bg, which is fine — the seam reads as the hovered chip's
-   own border. */
+   At rest a group chip has no border, so the -1px overlap is invisible (its
+   transparent top edge just sits over the neighbour's intact border). On
+   interaction the outline appears already aligned to the seam.
 
-.chip-slot:has(.active-chip-frame) + .chip-slot:has(.active-chip-frame) {
+   The z-index rule below lifts the interacting slot so its strengthened
+   frame paints on top of the neighbour at the shared seam. */
+
+:is(
+  .chip-slot:has(.active-chip-frame),
+  .chip-slot:has(.page-chip-group)
+) + :is(
+  .chip-slot:has(.active-chip-frame),
+  .chip-slot:has(.page-chip-group)
+) {
   margin-top: -1px;
 }
 
