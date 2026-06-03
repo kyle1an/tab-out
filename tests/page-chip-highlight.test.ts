@@ -925,7 +925,7 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
 test('PageChip keeps icon-only tooltip popups click-through while text chips expand in place', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
 
-  assert.match(pageChipSource, /async function onPageChipTooltipClick\(e: MouseEvent<HTMLDivElement>\) \{[\s\S]*await onFocus\(\)/)
+  assert.match(pageChipSource, /async function onPageChipTooltipClick\(e: MouseEvent<HTMLDivElement>\) \{[\s\S]*await onFocus\(e\)/)
   assert.match(pageChipSource, /onClick=\{onPageChipTooltipClick\}/)
   assert.match(pageChipSource, /chip\.iconOnly && chipTooltipContent \? \(/)
   assert.match(pageChipSource, /shouldExpandChip \? chipTextExpansionTriggerElement : chipTextElement/)

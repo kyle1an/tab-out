@@ -4,7 +4,7 @@ import test from 'node:test'
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
 import { closeChipTarget } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntry } from '../src/extension/tab-history.js'
-import { focusTab, snapshotChromeTabs } from '../src/extension/tabs.js'
+import { focusTab, openTabUrl, snapshotChromeTabs } from '../src/extension/tabs.js'
 import { markClosure, undoLastClose } from '../src/extension/undo.js'
 import { focusWorkingSetItem } from '../src/extension/working-set-client.js'
 
@@ -423,4 +423,34 @@ test('undoLastClose restores same-window tabs in their original tab-strip order'
   ])
   assert.equal(tabs.find((tab) => tab.url === 'https://bravo.example/')?.index, 1)
   assert.equal(tabs.find((tab) => tab.url === 'https://delta.example/')?.index, 3)
+})
+
+test('openTabUrl opens an active (foreground) tab by default', async () => {
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+
+  await openTabUrl('https://example.com/new')
+
+  assert.deepEqual(calls.create, [{ url: 'https://example.com/new', active: true }])
+})
+
+test('openTabUrl opens a background tab when active is false', async () => {
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+
+  await openTabUrl('https://example.com/new', { active: false })
+
+  assert.deepEqual(calls.create, [{ url: 'https://example.com/new', active: false }])
+})
+
+test('openTabUrl creates no tab for an empty URL', async () => {
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+
+  await openTabUrl('')
+
+  assert.deepEqual(calls.create, [])
 })

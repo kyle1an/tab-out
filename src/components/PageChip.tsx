@@ -22,6 +22,8 @@ import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-te
 import type { InlineTextRenderer } from './bionic-title-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
+import { chipActivationMode } from './chip-activation'
+import type { ChipActivationModifiers } from './chip-activation'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 
@@ -1069,34 +1071,49 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     await focusTab(targetUrl)
   }
 
-  async function onFocus() {
+  async function activateChipTarget(
+    e: ChipActivationModifiers | undefined,
+    targetUrl: string | undefined,
+    sourceType: DashboardChipData['sourceType'],
+    target?: Pick<DashboardChipData, 'rawUrl' | 'tabId'>
+  ) {
+    if (!targetUrl) return
+    const mode = chipActivationMode(e, navigator.platform)
+    if (mode === 'focus') {
+      await focusChipUrl(targetUrl, sourceType, target)
+      return
+    }
+    await openTabUrl(targetUrl, { active: mode === 'new-foreground' })
+  }
+
+  async function onFocus(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
     if (isFolded) return
-    await focusChipUrl(chip.tabUrl, chip.sourceType, chip)
+    await activateChipTarget(e, chip.tabUrl, chip.sourceType, chip)
   }
 
   async function onPageChipTooltipClick(e: MouseEvent<HTMLDivElement>) {
     e.stopPropagation()
     if (!parentInteractive) return
-    await onFocus()
+    await onFocus(e)
   }
 
   async function onChipKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
-    await onFocus()
+    await onFocus(e)
   }
 
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     e.stopPropagation()
-    await focusChipUrl(env.tabUrl, env.sourceType || chip.sourceType)
+    await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType)
   }
 
   async function onEnvKeyDown(e: KeyboardEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
-    await focusChipUrl(env.tabUrl, env.sourceType || chip.sourceType)
+    await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType)
   }
 
   function setPreview(url: string, matchUrls: readonly string[] = [url]) {
@@ -1364,7 +1381,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
     e.stopPropagation()
-    await focusChipUrl(variant.tabUrl, variant.sourceType, variant)
+    await activateChipTarget(e, variant.tabUrl, variant.sourceType, variant)
   }
 
   function onTitleVariantMouseEnter(variant: DashboardChipData) {

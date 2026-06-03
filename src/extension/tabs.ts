@@ -260,15 +260,19 @@ export async function focusExactTab(url: string): Promise<boolean> {
 }
 
 /**
- * openTabUrl(url) — open a URL in a new active tab in the current window.
+ * openTabUrl(url, opts) — open a URL in a new tab in the current window.
+ * Defaults to an active (foreground) tab; pass { active: false } to open it
+ * in the background and keep the current tab focused.
  *
  * @param {string} url
+ * @param {{ active?: boolean }} [opts]
  * @returns {Promise<void>}
  */
-export async function openTabUrl(url: string): Promise<void> {
+export async function openTabUrl(url: string, opts: { active?: boolean } = {}): Promise<void> {
   if (!url) return
+  const { active = true } = opts
   try {
-    await chrome.tabs.create({ url, active: true })
+    await chrome.tabs.create({ url, active })
   } catch {}
 }
 
