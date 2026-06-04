@@ -6,7 +6,7 @@
                        "tabGroups" permission is granted, else a
                        deterministic palette fallback)
    fetchTabGroupColors — populates the cache from chrome.tabGroups
-   scoreForKeep     — priority score used by dedup to choose the
+   compareForKeep   — priority comparator used by dedup to choose the
                        canonical copy of a duplicated URL
    ================================================================ */
 
@@ -16,11 +16,13 @@ type GroupedTabLike = {
   groupId?: number
 }
 type ScoredTabLike = GroupedTabLike & {
+  id?: number | string
   url?: string
   active?: boolean
   pinned?: boolean
   windowId: number
   index?: number
+  lastAccessed?: number
 }
 
 /**
@@ -104,24 +106,46 @@ export function groupDotColor(groupId?: number): string {
 }
 
 /**
- * scoreForKeep(tab, currentWindowId) — priority score for which duplicate
- * to keep. Higher score wins.
+ * keepKeys(tab, currentWindowId) — priority keys for a tab, highest-first.
+ * Every entry is "higher is better" so two key arrays compare lexically.
  *
- * Priority order:
- *   active in current window > active in any window > grouped > pinned >
- *   non-suspended > in current window > lowest tab index
+ * Priority order (higher wins):
+ *   active in current window > grouped > pinned >
+ *   last touched (lastAccessed — Chrome stamps this at tab creation and
+ *   refreshes it on activation, so it means "opened-or-viewed, most recent
+ *   wins"; tab id breaks ties so a newer-opened copy wins when timestamps
+ *   are equal or missing) >
+ *   active in another window > non-suspended > in current window >
+ *   lowest tab index
  */
-export function scoreForKeep(tab: ScoredTabLike, currentWindowId: number): number {
+function keepKeys(tab: ScoredTabLike, currentWindowId: number): number[] {
   const rawUrl = tab.url || ''
   const isSuspended = unwrapSuspenderUrl(rawUrl) !== rawUrl
-  const grouped = isGroupedTab(tab)
-  let s = 0
-  if (tab.active && tab.windowId === currentWindowId) s += 10000
-  else if (tab.active) s += 5000
-  if (grouped) s += 1000
-  if (tab.pinned) s += 500
-  if (!isSuspended) s += 200
-  if (tab.windowId === currentWindowId) s += 50
-  s -= (tab.index || 0) * 0.001 // stable tiebreaker: prefer leftmost
-  return s
+  const numericId = typeof tab.id === 'number' ? tab.id : 0
+  return [
+    tab.active && tab.windowId === currentWindowId ? 1 : 0,
+    isGroupedTab(tab) ? 1 : 0,
+    tab.pinned ? 1 : 0,
+    tab.lastAccessed ?? 0,
+    numericId,
+    tab.active ? 1 : 0,
+    isSuspended ? 0 : 1,
+    tab.windowId === currentWindowId ? 1 : 0,
+    -(tab.index ?? 0)
+  ]
+}
+
+/**
+ * compareForKeep(a, b, currentWindowId) — ordering for which duplicate to
+ * keep. Returns < 0 when `a` should be kept over `b` (sorts the keeper
+ * first). Consumed only by the dedup policy's sort, so the ordering — not
+ * any absolute score — is what matters.
+ */
+export function compareForKeep(a: ScoredTabLike, b: ScoredTabLike, currentWindowId: number): number {
+  const aKeys = keepKeys(a, currentWindowId)
+  const bKeys = keepKeys(b, currentWindowId)
+  for (let i = 0; i < aKeys.length; i++) {
+    if (aKeys[i] !== bKeys[i]) return bKeys[i] - aKeys[i]
+  }
+  return 0
 }

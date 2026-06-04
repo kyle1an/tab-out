@@ -100,6 +100,85 @@ test('dedupe policy preserves pinned and grouped Tab Out buckets while closing o
   )
 })
 
+test('dedupe keeps the most recently touched copy among ungrouped duplicates', () => {
+  const url = 'https://example.com/a'
+  const matching = [
+    { id: 1, url, windowId: 1, index: 0, lastAccessed: 100 },
+    { id: 2, url, windowId: 1, index: 1, lastAccessed: 300 },
+    { id: 3, url, windowId: 1, index: 2, lastAccessed: 200 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching).map((tab) => tab.id),
+    [1, 3]
+  )
+})
+
+test('a grouped duplicate is kept over a more recently touched ungrouped one', () => {
+  const url = 'https://example.com/a'
+  const matching = [
+    { id: 1, url, windowId: 1, index: 0, groupId: 7, lastAccessed: 100 },
+    { id: 2, url, windowId: 1, index: 1, groupId: -1, lastAccessed: 999 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching).map((tab) => tab.id),
+    [2]
+  )
+})
+
+test('a pinned duplicate is kept over a more recently touched unpinned one', () => {
+  const url = 'https://example.com/a'
+  const matching = [
+    { id: 1, url, windowId: 1, index: 0, pinned: true, lastAccessed: 100 },
+    { id: 2, url, windowId: 1, index: 1, pinned: false, lastAccessed: 999 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching).map((tab) => tab.id),
+    [2]
+  )
+})
+
+test('a more recently touched background copy is kept over one active in another window', () => {
+  const url = 'https://example.com/a'
+  const matching = [
+    { id: 1, url, windowId: 2, index: 5, active: true, lastAccessed: 100 },
+    { id: 2, url, windowId: 1, index: 0, active: false, lastAccessed: 999 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching, { currentWindowId: 1 }).map((tab) => tab.id),
+    [1]
+  )
+})
+
+test('tab id breaks recency ties so the newer-opened duplicate is kept', () => {
+  const url = 'https://example.com/a'
+  const matching = [
+    { id: 10, url, windowId: 1, index: 0 },
+    { id: 20, url, windowId: 1, index: 1 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching).map((tab) => tab.id),
+    [10]
+  )
+})
+
+test('a duplicate with a recorded lastAccessed is kept over one missing it (e.g. discarded)', () => {
+  const url = 'https://example.com/a'
+  const matching = [
+    { id: 1, url, windowId: 1, index: 0 },
+    { id: 2, url, windowId: 1, index: 1, lastAccessed: 500 }
+  ]
+
+  assert.deepEqual(
+    pickDuplicateTabsToClose(matching).map((tab) => tab.id),
+    [1]
+  )
+})
+
 test('global dedupe keeps the current Tab Out tab when a pinned duplicate exists', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const { removedIds } = createChromeMock([
