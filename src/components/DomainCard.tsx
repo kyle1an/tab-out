@@ -4,10 +4,11 @@ import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
 import { DomainCardProvider } from './DomainCardContext'
 import { useDashboardActions } from './DashboardInteractionContext'
 import { SubdomainSection } from './SubdomainSection'
+import { CardActionsMenu } from './CardActionsMenu'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
@@ -17,24 +18,6 @@ interface DomainCardProps {
   group: DomainGroup
   vm: DashboardCardVM
   filter?: string
-}
-
-function CardCloseButton({ label, onClick }: { label?: string; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
-  return (
-    <button
-      type="button"
-      data-tabout-part="close-button"
-      className="card-close-btn group/card-close pointer-events-none absolute top-0 right-0 z-2 box-border flex h-[22px] min-w-[22px] cursor-pointer items-center justify-end gap-0 whitespace-nowrap rounded-lg border border-transparent bg-transparent px-2.5 py-0 text-[12px] font-medium text-tab-muted opacity-0 transition-[opacity,background,border-color,color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-(--status-abandoned) hover:bg-tab-card hover:text-(--status-abandoned)"
-      onClick={onClick}
-    >
-      <span className="card-close-btn-text inline-block max-w-0 overflow-hidden text-right tabular-nums opacity-0 transition-[max-width,opacity] duration-200 ease-out group-hover/card-close:max-w-[200px] group-hover/card-close:opacity-100">
-        {label}
-      </span>
-      <svg className="absolute top-1/2 right-[5px] size-[13px] -translate-y-1/2 opacity-100 transition-opacity duration-200 ease-out group-hover/card-close:opacity-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-      </svg>
-    </button>
-  )
 }
 
 function TabBadge({ label }: { label?: string | number }) {
@@ -219,6 +202,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const { onTogglePinnedDomain, onTogglePinnedSection } = useDashboardActions()
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
+  const blockRef = useRef<HTMLDivElement>(null)
   const cardContext = {
     activeSuppressedTitle,
     setActiveSuppressedTitle,
@@ -238,8 +222,8 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
   const { cardSuppressionToneScope, renderedSections } = buildCardSuppressionTones(suppressedTitleParts, sections)
 
-  async function onCloseDomain(e: MouseEvent<HTMLButtonElement>) {
-    const block = e.currentTarget.closest('.domain-block')
+  async function onCloseDomain() {
+    const block = blockRef.current
 
     await closeDomainTabs({
       group,
@@ -275,6 +259,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   return (
     <DomainCardProvider value={cardContext}>
       <div
+        ref={blockRef}
         data-tabout="domain-card"
         className={cn(
           'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-250 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
@@ -303,7 +288,9 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
           )}
           <TabBadge label={vm.tabCountLabel} />
           {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
-          {!hideCardClose && closableCount > 0 && <CardCloseButton label={vm.closableCountLabel} onClick={onCloseDomain} />}
+          {!hideCardClose && closableCount > 0 && (
+            <CardActionsMenu displayName={displayName} label={vm.closableCountLabel} onClose={onCloseDomain} />
+          )}
         </header>
         <div
           className={cn(

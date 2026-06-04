@@ -2,6 +2,7 @@ import * as React from 'react'
 import { ContextMenu as ContextMenuPrimitive } from '@base-ui/react/context-menu'
 
 import { cn } from '@/lib/utils'
+import { menuItemClassName, menuPopupClassName } from './menu-styles'
 import { clearActiveContextMenu, setActiveContextMenu } from './context-menu-registry'
 
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger
@@ -75,7 +76,7 @@ function ContextMenuContent({
         <ContextMenuPrimitive.Popup
           data-slot="context-menu-content"
           className={cn(
-            'relative isolate z-70 min-w-40 rounded-xl bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10 outline-none [corner-shape:squircle]',
+            menuPopupClassName,
             className
           )}
           {...props}
@@ -97,7 +98,7 @@ function ContextMenuItem({
     <ContextMenuPrimitive.Item
       data-slot="context-menu-item"
       className={cn(
-        'relative flex min-h-6 min-w-36 cursor-default items-center gap-1.5 rounded-lg px-2 py-1 text-[13px] leading-tight text-tab-ink outline-none select-none [corner-shape:squircle] data-disabled:pointer-events-none data-disabled:opacity-50 data-highlighted:bg-accent data-highlighted:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0',
+        menuItemClassName,
         className
       )}
       {...props}
