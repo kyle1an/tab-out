@@ -110,6 +110,30 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
   assert.equal(snapshot.items.some((item) => item.title === 'Mail app'), false)
 })
 
+test('buildWorkingSetSnapshot carries each tab audible and muted state independently', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const tabs = [
+    makeTab({ id: 1, url: 'https://example.com/playing', title: 'Playing', audible: true }),
+    makeTab({ id: 2, url: 'https://example.com/muted', title: 'Muted', muted: true }),
+    makeTab({ id: 3, url: 'https://example.com/silent', title: 'Silent' })
+  ]
+
+  let store = emptyWorkingSetActivity()
+  store = record(store, tabs[0], 'activation', now - 60_000)
+  store = record(store, tabs[1], 'activation', now - 2 * 60_000)
+  store = record(store, tabs[2], 'activation', now - 3 * 60_000)
+
+  const snapshot = buildWorkingSetSnapshot({ tabs, activity: store, now, minItems: 1 })
+  const byTab = new Map(snapshot.items.map((item) => [item.tabId, item]))
+
+  assert.equal(byTab.get(1)?.audible, true)
+  assert.equal(byTab.get(1)?.muted, false)
+  assert.equal(byTab.get(2)?.audible, false)
+  assert.equal(byTab.get(2)?.muted, true)
+  assert.equal(byTab.get(3)?.audible, false)
+  assert.equal(byTab.get(3)?.muted, false)
+})
+
 test('buildWorkingSetSnapshot keeps live tab favicons aligned with Chrome tab state', () => {
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [

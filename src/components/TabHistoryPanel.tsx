@@ -705,6 +705,8 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
     rawUrl: item.rawUrl,
     displayUrl: item.displayUrl,
     favIconUrl: item.faviconUrl,
+    audible: item.audible,
+    muted: item.muted,
     lastActivatedAt: item.lastActivatedAt
   }
 }
@@ -1135,9 +1137,9 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetItem?.faviconUrl || ''
-  // Audio icon is intentionally scoped to live history entries: closed rows are
-  // exists:false, and working-set (open-ghost) rows carry no audible/muted so
-  // audioStateForTab() returns null. Keep audio off those adapters by design.
+  // Audio icon shows on any live (exists) row that is playing or muted — both
+  // stack entries and working-set open-ghost rows (the adapter carries the
+  // tab's audible/muted). Closed rows are exists:false, so a gone tab gets none.
   const audioState = entry.exists ? audioStateForTab(entry) : null
   function onToggleEntryAudio() {
     if (!audioState || !Number.isInteger(entry.tabId)) return

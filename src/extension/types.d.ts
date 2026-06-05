@@ -282,6 +282,8 @@ export interface WorkingSetItem {
   dupeCount: number
   active: boolean
   activeInOtherWindow: boolean
+  audible?: boolean
+  muted?: boolean
   score: number
   /**
    * Most recent activation OR navigation timestamp for this item's URL,

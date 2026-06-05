@@ -253,6 +253,8 @@ export function buildWorkingSetSnapshot({
       dupeCount: groupedTabs.length,
       active: !!representative.active,
       activeInOtherWindow: !!(representative.active && currentWindowId != null && representative.windowId !== currentWindowId),
+      audible: !!representative.audible,
+      muted: !!representative.muted,
       score,
       lastActivatedAt: Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)
     })
