@@ -6,6 +6,7 @@ import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
+import { moveTabToCurrentWindow } from '../extension/tab-move.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls, setChipTargetMuted } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
@@ -1085,7 +1086,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       await focusChipUrl(targetUrl, sourceType, target)
       return
     }
-    await openTabUrl(targetUrl, { active: mode === 'new-foreground' })
+    const activate = mode === 'bring-foreground'
+    const moved = await moveTabToCurrentWindow({ tabId: target?.tabId, tabUrl: targetUrl, rawUrl: target?.rawUrl }, { activate })
+    if (!moved) await openTabUrl(targetUrl, { active: activate })
   }
 
   async function onFocus(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {

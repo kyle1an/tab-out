@@ -1,13 +1,14 @@
 /* ================================================================
    Chip activation mode — classifies a (modifier) click/keydown on a
-   page chip into one of three intents, mirroring the browser's
-   "open link in a new tab" gestures.
+   page chip into one of three intents: focus the existing tab, or
+   bring the tab into the current window (in the background, or in the
+   foreground and switch to it).
 
    Pure and platform-injected (like isFilterFocusShortcut in
    app-url.ts) so it is unit-testable without a real `navigator`.
    ================================================================ */
 
-export type ChipActivationMode = 'focus' | 'new-background' | 'new-foreground'
+export type ChipActivationMode = 'focus' | 'bring-background' | 'bring-foreground'
 
 export interface ChipActivationModifiers {
   metaKey?: boolean
@@ -17,9 +18,9 @@ export interface ChipActivationModifiers {
 
 /**
  * chipActivationMode(e, platform) — resolve a click/keydown into an intent:
- *   • no primary modifier        → 'focus'          (switch to the existing tab)
- *   • primary modifier, no Shift  → 'new-background' (open a background tab)
- *   • primary modifier + Shift    → 'new-foreground' (open and switch to it)
+ *   • no primary modifier        → 'focus'            (switch to the existing tab)
+ *   • primary modifier, no Shift  → 'bring-background' (move the tab into the current window)
+ *   • primary modifier + Shift    → 'bring-foreground' (move it here and switch to it)
  *
  * The primary modifier is Cmd on macOS, Ctrl elsewhere, and the opposite key
  * must NOT be held — matching isFilterFocusShortcut so a cross-platform key
@@ -35,5 +36,5 @@ export function chipActivationMode(e: ChipActivationModifiers | null | undefined
   const isMac = /mac|iphone|ipad|ipod/i.test(platform)
   const hasPrimaryModifier = isMac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey
   if (!hasPrimaryModifier) return 'focus'
-  return e.shiftKey ? 'new-foreground' : 'new-background'
+  return e.shiftKey ? 'bring-foreground' : 'bring-background'
 }
