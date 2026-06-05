@@ -50,7 +50,6 @@ const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path text-xs font-normal text-t
 const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
-const PAGE_CHIP_CLOSED_SAVED_REST_BG = 'color-mix(in srgb, var(--card-bg) 97%, var(--color-neutral-600) 3%)'
 const PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 94%, var(--color-neutral-600) 6%)'
 const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const PAGE_CHIP_GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
@@ -1538,9 +1537,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-group-hover-border': PAGE_CHIP_GROUP_HOVER_BORDER,
     '--chip-interaction-bg': chipInteractionBg,
-    '--chip-rest-bg': isClosedSavedPage
-      ? PAGE_CHIP_CLOSED_SAVED_REST_BG
-      : hasActiveChipFrame && !isCurrentTabOutFrame
+    '--chip-rest-bg': hasActiveChipFrame && !isCurrentTabOutFrame
         ? PAGE_CHIP_ACTIVE_OTHER_REST_BG
         : 'transparent',
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
@@ -2102,7 +2099,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed bg-(--chip-rest-bg) text-tab-muted', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
           hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',

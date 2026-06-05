@@ -603,7 +603,7 @@ test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
   assert.doesNotMatch(html, /aria-label="Close this tab"/)
 })
 
-test('PageChip renders closed saved pages muted with no close action', () => {
+test('PageChip renders closed saved pages muted without a resting background or close action', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({ sourceType: 'saved-page', saved: true, closedSaved: true, savedPageKey: 'https://openai.com/docs' })
@@ -614,7 +614,7 @@ test('PageChip renders closed saved pages muted with no close action', () => {
   assert.ok(chipMatch, 'page chip should render')
   assert.match(chipMatch[1], /\bpage-chip-saved\b/)
   assert.match(chipMatch[1], /\bpage-chip-saved-closed\b/)
-  assert.match(chipMatch[1], /\bbg-\(--chip-rest-bg\)/)
+  assert.doesNotMatch(chipMatch[1], /\bbg-\(--chip-rest-bg\)/)
   assert.doesNotMatch(chipMatch[1], /\bopacity-75\b/)
   assert.doesNotMatch(chipMatch[1], /shadow-\[inset_0_0_0_1px/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
