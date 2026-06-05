@@ -12,9 +12,12 @@ import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../e
 import { unwrapSuspenderUrl } from '../extension/suspender.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
+import { moveTabToCurrentWindow } from '../extension/tab-move.js'
+import { openTabUrl } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { TabAudioButton } from './TabAudioButton'
 import { bionicTitleTextNodes } from './bionic-title-text'
+import { chipActivationMode } from './chip-activation'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -993,12 +996,28 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     onSnapshotChange?.(await fetchTabHistorySnapshot())
   }
 
+  async function activateHistoryEntry(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
+    const mode = chipActivationMode(e, navigator.platform)
+    const hasLiveTab = !!workingSetItem || entry.exists
+    if (mode === 'focus' || !hasLiveTab) {
+      await onFocusEntry()
+      return
+    }
+    const tabId = workingSetItem ? workingSetItem.tabId : entry.tabId
+    const tabUrl = workingSetItem ? workingSetItem.tabUrl : entry.url
+    const rawUrl = workingSetItem ? workingSetItem.rawUrl : entry.rawUrl
+    const activate = mode === 'bring-foreground'
+    const moved = await moveTabToCurrentWindow({ tabId, tabUrl, rawUrl }, { activate })
+    if (!moved) await openTabUrl(tabUrl, { active: activate })
+    await refreshAfterMutation()
+  }
+
   function onEntryKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (e.target !== e.currentTarget) return
     if (!canActivateEntry) return
     if (e.key !== 'Enter' && e.key !== ' ') return
     e.preventDefault()
-    void onFocusEntry()
+    void activateHistoryEntry(e)
   }
 
   async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
@@ -1036,7 +1055,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     onHoverUrlChange?.('')
   }
 
-  return { onFocusEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
+  return { activateHistoryEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
 }
 
 function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
@@ -1068,7 +1087,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const canRemoveEntry = canCloseEntry || canForgetClosedGhost
   const canActivateEntry = entry.exists || (kind === 'closed-ghost' && !!closedTab)
 
-  const { onFocusEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave } = useHistoryEntryActions({
+  const { activateHistoryEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave } = useHistoryEntryActions({
     entry,
     kind,
     workingSetItem,
@@ -1260,7 +1279,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           data-tabout-part="focus-button"
           aria-disabled={!canActivateEntry || expanded}
           className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
-          onClick={!expanded && canActivateEntry ? onFocusEntry : undefined}
+          onClick={!expanded && canActivateEntry ? activateHistoryEntry : undefined}
           onKeyDown={expanded ? undefined : onEntryKeyDown}
         >
           <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
