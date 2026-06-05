@@ -4559,8 +4559,9 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     `split structural-tail tooltip should expand hidden website and source markers: ${JSON.stringify(splitStructuralTailTooltip)}`
   )
   assert.ok(
-    splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Shared Website'),
-    `split structural-tail tooltip should keep the expanded website marker on the first visible line: ${JSON.stringify(splitStructuralTailTooltip)}`
+    !splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Shared Website') &&
+      splitStructuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Shared Website'),
+    `split structural-tail tooltip should keep the expanded website marker on the wrapped marker line: ${JSON.stringify(splitStructuralTailTooltip)}`
   )
   assert.ok(
     !splitStructuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-beta'),
@@ -4580,8 +4581,8 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   })
   assert.ok(edgeConstrainedTooltip.tooltip, `edge-constrained tooltip should open: ${JSON.stringify(edgeConstrainedTooltip)}`)
   assert.ok(
-    edgeConstrainedTooltip.tooltip.right >= edgeConstrainedTooltip.tooltip.viewportRight - 12,
-    `edge-constrained tooltip should exercise the browser viewport limit: ${JSON.stringify(edgeConstrainedTooltip)}`
+    edgeConstrainedTooltip.tooltip.right <= edgeConstrainedTooltip.tooltip.viewportRight - 12,
+    `wrapped marker expansion should not grow to the browser viewport edge when the marker label fits on its wrapped line: ${JSON.stringify(edgeConstrainedTooltip)}`
   )
   assert.ok(
     edgeConstrainedTooltip.tooltip.tooltipLineCount >= edgeConstrainedTooltip.target.chipLineCount,

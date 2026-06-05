@@ -99,10 +99,16 @@ type ChipExpansionGeometry = {
   x: 'start' | 'end'
   y: 'down' | 'up'
 }
-type ChipExpansionDomPosition = {
-  node: Text
-  offset: number
-}
+type ChipExpansionDomPosition =
+  | {
+    kind: 'text'
+    node: Text
+    offset: number
+  }
+  | {
+    element: HTMLElement
+    kind: 'element'
+  }
 type ExpandedPageChipContentMetrics = {
   viewportConstrained: boolean
   width: number
@@ -369,6 +375,28 @@ function paintedRangeRect(range: Range) {
   return rects[rects.length - 1] || null
 }
 
+function chipExpansionLineIndexForRect(rect: DOMRect, textRect: DOMRect, lineHeight: number, visibleLineCount: number) {
+  if (rect.width <= 0 && rect.height <= 0) return null
+  const lineIndex = Math.max(0, Math.round((rect.top - textRect.top) / lineHeight))
+  return lineIndex < visibleLineCount ? lineIndex : null
+}
+
+function setRangeStartAtChipExpansionPosition(range: Range, position: ChipExpansionDomPosition) {
+  if (position.kind === 'text') {
+    range.setStart(position.node, position.offset)
+    return
+  }
+  range.setStartBefore(position.element)
+}
+
+function setRangeEndAtChipExpansionPosition(range: Range, position: ChipExpansionDomPosition) {
+  if (position.kind === 'text') {
+    range.setEnd(position.node, position.offset)
+    return
+  }
+  range.setEndBefore(position.element)
+}
+
 function carriedExpandedMarkerToneClass(marker: Element) {
   return Array.from(marker.classList)
     .filter((className) => (
@@ -446,40 +474,6 @@ function expandedChipFragmentHtml(document: Document, fragment: DocumentFragment
   return container.innerHTML
 }
 
-function wrappedMarkerTailExpandedLineHtml(textEl: HTMLElement) {
-  const ownerDocument = textEl.ownerDocument
-  const win = ownerDocument.defaultView
-  if (!win) return []
-
-  const textRect = textEl.getBoundingClientRect()
-  const lineHeight = getChipTextLineHeight(textEl)
-  if (textRect.height <= 0 || lineHeight <= 0) return []
-
-  const markers = Array.from(textEl.querySelectorAll<HTMLElement>('.chip-strip-indicator, .chip-title-suppression-marker'))
-  const wrappedMarker = markers.find((marker) => {
-    const rect = marker.getBoundingClientRect()
-    return rect.top - textRect.top >= lineHeight - PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
-  })
-  if (!wrappedMarker) return []
-
-  const headRange = ownerDocument.createRange()
-  const tailRange = ownerDocument.createRange()
-
-  try {
-    headRange.selectNodeContents(textEl)
-    headRange.setEndBefore(wrappedMarker)
-    tailRange.selectNodeContents(textEl)
-    tailRange.setStartBefore(wrappedMarker)
-
-    const headHtml = expandedChipFragmentHtml(ownerDocument, headRange.cloneContents())
-    const tailHtml = expandedChipFragmentHtml(ownerDocument, tailRange.cloneContents())
-    return headHtml.trim() && tailHtml.trim() ? [headHtml, tailHtml] : []
-  } finally {
-    headRange.detach()
-    tailRange.detach()
-  }
-}
-
 function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
   if (!textEl || typeof document === 'undefined') return []
 
@@ -494,55 +488,82 @@ function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
   const lineHeight = getChipTextLineHeight(textEl)
   if (textRect.height <= 0 || lineHeight <= 0) return []
 
+  // A compact marker glyph can be the first painted item on a wrapped line.
+  // Treat those marker elements as line-start candidates so the expanded label
+  // stays on the same visible line instead of jumping back into the prior text.
   const walker = ownerDocument.createTreeWalker(
     textEl,
-    win.NodeFilter.SHOW_TEXT,
+    win.NodeFilter.SHOW_TEXT | win.NodeFilter.SHOW_ELEMENT,
     {
       acceptNode(node) {
-        return node.textContent
-          ? win.NodeFilter.FILTER_ACCEPT
-          : win.NodeFilter.FILTER_REJECT
+        if (node instanceof win.Text) {
+          return node.textContent
+            ? win.NodeFilter.FILTER_ACCEPT
+            : win.NodeFilter.FILTER_REJECT
+        }
+        if (
+          node instanceof win.HTMLElement &&
+          (
+            node.classList.contains('chip-title-suppression-marker') ||
+            node.classList.contains('chip-strip-indicator')
+          )
+        ) {
+          return win.NodeFilter.FILTER_ACCEPT
+        }
+        return win.NodeFilter.FILTER_SKIP
       }
     }
   )
   const range = ownerDocument.createRange()
-  const lineStarts: ChipExpansionDomPosition[] = []
-  let lastLineIndex = -1
+  const lineStartsByIndex: Array<ChipExpansionDomPosition | undefined> = Array.from({ length: visibleLineCount })
+  let capturedLineCount = 0
 
-  while (lineStarts.length < visibleLineCount) {
+  while (capturedLineCount < visibleLineCount) {
     const node = walker.nextNode()
-    if (!(node instanceof win.Text)) break
+    if (!node) break
+
+    if (node instanceof win.HTMLElement) {
+      const lineIndex = chipExpansionLineIndexForRect(node.getBoundingClientRect(), textRect, lineHeight, visibleLineCount)
+      if (lineIndex !== null && !lineStartsByIndex[lineIndex]) {
+        lineStartsByIndex[lineIndex] = { element: node, kind: 'element' }
+        capturedLineCount += 1
+      }
+      continue
+    }
+
+    if (!(node instanceof win.Text)) continue
 
     const text = node.data
-    for (let offset = 0; offset < text.length && lineStarts.length < visibleLineCount; offset += 1) {
+    for (let offset = 0; offset < text.length && capturedLineCount < visibleLineCount; offset += 1) {
       range.setStart(node, offset)
       range.setEnd(node, offset + 1)
       const rect = paintedRangeRect(range)
       if (!rect) continue
 
-      const lineIndex = Math.max(0, Math.round((rect.top - textRect.top) / lineHeight))
-      if (lineIndex >= visibleLineCount) break
-      if (lineIndex > lastLineIndex) {
-        lineStarts.push({ node, offset })
-        lastLineIndex = lineIndex
+      const lineIndex = chipExpansionLineIndexForRect(rect, textRect, lineHeight, visibleLineCount)
+      if (lineIndex === null) break
+      if (!lineStartsByIndex[lineIndex]) {
+        lineStartsByIndex[lineIndex] = { kind: 'text', node, offset }
+        capturedLineCount += 1
       }
     }
   }
 
   range.detach()
-  if (lineStarts.length <= 1) return wrappedMarkerTailExpandedLineHtml(textEl)
+  const lineStarts = lineStartsByIndex.filter((position): position is ChipExpansionDomPosition => !!position)
+  if (lineStarts.length <= 1) return []
 
   const lines: string[] = []
   for (let index = 0; index < lineStarts.length; index += 1) {
     const lineRange = ownerDocument.createRange()
     const start = lineStarts[index]
-    lineRange.setStart(start.node, start.offset)
+    setRangeStartAtChipExpansionPosition(lineRange, start)
     const next = lineStarts[index + 1]
     if (next) {
-      lineRange.setEnd(next.node, next.offset)
+      setRangeEndAtChipExpansionPosition(lineRange, next)
     } else {
       lineRange.selectNodeContents(textEl)
-      lineRange.setStart(start.node, start.offset)
+      setRangeStartAtChipExpansionPosition(lineRange, start)
     }
     lines.push(expandedChipFragmentHtml(ownerDocument, lineRange.cloneContents()))
     lineRange.detach()
