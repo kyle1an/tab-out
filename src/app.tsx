@@ -43,7 +43,9 @@ if (chrome.tabs) {
       changeInfo.favIconUrl !== undefined ||
       changeInfo.groupId !== undefined ||
       changeInfo.pinned !== undefined ||
-      changeInfo.discarded !== undefined
+      changeInfo.discarded !== undefined ||
+      changeInfo.audible !== undefined ||
+      changeInfo.mutedInfo !== undefined
     )
       scheduleDashboardRefresh({
         animateCards:

@@ -1,3 +1,5 @@
+export type TabAudioState = 'playing' | 'muted' | null
+
 export interface DashboardTab {
   id?: number | string
   url: string
@@ -11,6 +13,8 @@ export interface DashboardTab {
   groupId: number
   isTabOut: boolean
   isApp: boolean
+  audible?: boolean
+  muted?: boolean
   sourceType?: 'tab' | 'bookmark' | 'history' | 'saved-page'
   saved?: boolean
   closedSaved?: boolean
@@ -123,6 +127,7 @@ export interface DashboardChipData {
   isGrouped: boolean
   groupDotColor: string | null
   isApp: boolean
+  audioState?: TabAudioState
   activeInOtherWindow?: boolean
   activeChipFrame?: boolean
   isCurrentTabOut?: boolean
@@ -310,6 +315,8 @@ export interface TabHistoryEntry {
   isApp: boolean
   pinned: boolean
   discarded: boolean
+  audible?: boolean
+  muted?: boolean
   cursor: boolean
   current: boolean
   previousTarget: boolean

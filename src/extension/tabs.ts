@@ -98,6 +98,8 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
       suspended,
       title,
       favIconUrl: t.favIconUrl || '',
+      audible: !!t.audible,
+      muted: !!t.mutedInfo?.muted,
       windowId: t.windowId,
       active: t.active,
       pinned: t.pinned,

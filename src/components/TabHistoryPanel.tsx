@@ -2,6 +2,8 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SetStateAction } from 'react'
 import { EyeOff, X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
+import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio.js'
+import { setHistoryEntryMuted } from '../extension/tab-actions'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
@@ -11,6 +13,7 @@ import { unwrapSuspenderUrl } from '../extension/suspender.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { DefaultFavicon } from './DefaultFavicon'
+import { TabAudioButton } from './TabAudioButton'
 import { bionicTitleTextNodes } from './bionic-title-text'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
@@ -1113,6 +1116,14 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetItem?.faviconUrl || ''
+  // Audio icon is intentionally scoped to live history entries: closed rows are
+  // exists:false, and working-set (open-ghost) rows carry no audible/muted so
+  // audioStateForTab() returns null. Keep audio off those adapters by design.
+  const audioState = entry.exists ? audioStateForTab(entry) : null
+  function onToggleEntryAudio() {
+    if (!audioState || !Number.isInteger(entry.tabId)) return
+    void setHistoryEntryMuted(entry.tabId, nextMutedForAudioState(audioState))
+  }
   const entrySlotStyle: CSSVariableProperties | undefined = titleExpanded && entrySlotSize.width > 0 && entrySlotSize.height > 0 ? {
     height: `${entrySlotSize.height}px`,
     width: `${entrySlotSize.width}px`
@@ -1279,6 +1290,13 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
               </button>
             )}
           </span>
+          {audioState && (
+            <TabAudioButton
+              state={audioState}
+              onToggle={onToggleEntryAudio}
+              className="mt-[1px] self-start"
+            />
+          )}
           {titleExpansionTriggerElement(expanded)}
         </div>
       </div>

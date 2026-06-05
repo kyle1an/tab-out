@@ -1,6 +1,7 @@
 import { domainGroupCardId } from './domain-card-id.js'
 import { pickFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
+import { aggregateAudioState, mergeAudioStates } from './tab-audio.js'
 import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
@@ -1241,6 +1242,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       isCurrentTabOut: tabOutMeta?.isCurrentTabOut || isCurrentTabOutPage(tab, currentWindowId),
       chromePinned: tabOutMeta?.chromePinned || (isTabOutGroup && !!tab.pinned),
       iconOnly,
+      audioState: aggregateAudioState(duplicateTabs),
       envs: null
     }
   }
@@ -1317,6 +1319,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       dupeCount: 1,
       activeChipFrame: activeInCurrentWindow || activeInOtherWindow,
       activeInOtherWindow,
+      audioState: mergeAudioStates(variants.map((variant) => variant.audioState ?? null)),
       titleVariantChips: variants
     }
   }
@@ -1581,6 +1584,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       isApp: tabs.every((t) => t.isApp),
       activeInOtherWindow: envs.some((env) => env.activeInOtherWindow),
       activeChipFrame: envs.some((env) => env.activeInOtherWindow),
+      audioState: aggregateAudioState(tabs),
       envs
     }
   }

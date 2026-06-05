@@ -7,8 +7,9 @@ import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../e
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
-import { closeChipTarget, deleteHistoryUrls } from '../extension/tab-actions'
+import { closeChipTarget, deleteHistoryUrls, setChipTargetMuted } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
+import { nextMutedForAudioState } from '../extension/tab-audio.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
 import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
@@ -16,6 +17,7 @@ import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './Pa
 import { TooltipAnchor } from './ui/tooltip'
 import { PageChipContextMenu } from './PageChipContextMenu'
 import { SavedPageIcon } from './SavedPageIcon'
+import { TabAudioButton } from './TabAudioButton'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
@@ -1342,6 +1344,15 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     })
   }
 
+  function onToggleChipAudio() {
+    if (!chip.audioState) return
+    void setChipTargetMuted({
+      tabUrl: chip.tabUrl,
+      envs: chip.envs,
+      muted: nextMutedForAudioState(chip.audioState)
+    })
+  }
+
   async function onToggleSavedPage(e: StopPropagationEvent) {
     e.stopPropagation()
     if (chip.saved) {
@@ -2171,7 +2182,21 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
               <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
             </button>
           )}
+          {chip.iconOnly && chip.audioState && (
+            <TabAudioButton
+              state={chip.audioState}
+              onToggle={onToggleChipAudio}
+              className="absolute right-0 bottom-0 z-4 size-3.5 rounded-full bg-(--card-bg) shadow-[0_1px_2px_rgba(10,10,10,0.16)] [corner-shape:squircle]"
+            />
+          )}
         </span>
+      )}
+      {!chip.iconOnly && chip.audioState && (
+        <TabAudioButton
+          state={chip.audioState}
+          onToggle={onToggleChipAudio}
+          className="mt-[1px] self-start"
+        />
       )}
       {!chip.iconOnly && chip.chromePinned && (
         <span

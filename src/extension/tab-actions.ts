@@ -179,3 +179,60 @@ export async function deleteHistoryUrls({ urls, onAfterDelete }: DeleteHistoryUr
   showToast(deletedCount === 1 ? 'History deleted' : `Deleted ${deletedCount} history items`)
   return result
 }
+
+type SetChipMutedOptions = {
+  tabUrl: string
+  envs?: DashboardChipEnv[] | null
+  muted: boolean
+}
+
+async function applyMutedToTabs(targets: chrome.tabs.Tab[], muted: boolean): Promise<void> {
+  for (const tab of targets) {
+    if (typeof tab.id !== 'number') continue
+    try {
+      await chrome.tabs.update(tab.id, { muted })
+    } catch {}
+  }
+}
+
+/**
+ * setChipTargetMuted — mute/unmute every open tab a chip represents. Mirrors
+ * closeChipTarget's URL matching (effective + raw URL, suspended-aware) but
+ * acts on ALL matches so a noisy duplicate can't survive a mute.
+ */
+export async function setChipTargetMuted({ tabUrl, envs = null, muted }: SetChipMutedOptions): Promise<void> {
+  const foldedEnvs = Array.isArray(envs) ? envs : []
+  const allTabs = await chrome.tabs.query({})
+
+  let targets: chrome.tabs.Tab[]
+  if (foldedEnvs.length > 0) {
+    const targetEffectives = new Set(foldedEnvs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
+    const targetUrls = new Set(foldedEnvs.map((env) => env.tabUrl))
+    targets = allTabs.filter((tab) => {
+      const openUrl = tab.url || ''
+      return targetUrls.has(openUrl) || targetEffectives.has(unwrapSuspenderUrl(openUrl))
+    })
+  } else {
+    const targetEffective = unwrapSuspenderUrl(tabUrl)
+    targets = allTabs.filter((tab) => {
+      const openUrl = tab.url || ''
+      return openUrl === tabUrl || unwrapSuspenderUrl(openUrl) === targetEffective
+    })
+  }
+
+  await applyMutedToTabs(targets, muted)
+  await fetchOpenTabs()
+  // Passive refresh: muting doesn't reorganize cards, so repaint in place (no card animation).
+  await requestDashboardRefresh()
+}
+
+/** setHistoryEntryMuted — mute/unmute the single tab behind a history row. */
+export async function setHistoryEntryMuted(tabId: number, muted: boolean): Promise<void> {
+  if (!Number.isInteger(tabId)) return
+  try {
+    await chrome.tabs.update(tabId, { muted })
+  } catch {}
+  await fetchOpenTabs()
+  // Passive refresh: muting doesn't reorganize cards, so repaint in place (no card animation).
+  await requestDashboardRefresh()
+}
