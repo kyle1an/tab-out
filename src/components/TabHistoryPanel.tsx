@@ -19,7 +19,8 @@ import { PageChipContextMenu } from './PageChipContextMenu'
 import { openTabUrl } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { TabAudioButton } from './TabAudioButton'
-import { bionicTitleTextNodes } from './bionic-title-text'
+import { createBionicTitleTextRenderer } from './bionic-title-text'
+import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { chipActivationMode } from './chip-activation'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
@@ -70,6 +71,7 @@ const historyTitleTruncationCallbacks = new WeakMap<
   (metrics: HistoryTitleMetrics) => void
 >()
 const EMPTY_HOVER_URLS: readonly string[] = []
+const EMPTY_HIGHLIGHT_TERMS: readonly string[] = []
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
 const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
 const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
@@ -132,6 +134,7 @@ interface HistoryEntryProps {
   closedTab?: ClosedTabEntry | null
   dimmed?: boolean
   savedKeys?: ReadonlySet<string>
+  highlightTerms?: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl?: string
@@ -1085,7 +1088,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   return { activateHistoryEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const {
     entrySlotRef,
@@ -1261,7 +1264,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   }
   function historyTitleContentNode(expanded: boolean) {
     if (expanded && entryExpansionGeometry.lineHtml.length > 0) return historyTitleExpandedLinesNode()
-    return bionicTitleTextNodes(entry.title, 'history-entry-title')
+    return highlightedTextNodes(entry.title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(entry.title))
   }
 
   function titleExpansionTriggerElement(expanded: boolean) {
@@ -1511,6 +1514,7 @@ export function TabHistoryPanel({
 
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts })
   const savedKeySet = useMemo(() => new Set(savedKeys ?? []), [savedKeys])
+  const highlightTerms = useMemo(() => highlightTermsForFilter(filter, 'parsed'), [filter])
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
 
@@ -1550,6 +1554,7 @@ export function TabHistoryPanel({
           {rows.map((row) => renderPanelRow(row, {
             snapshot,
             savedKeys: savedKeySet,
+            highlightTerms,
             onSnapshotChange,
             onHoverUrlChange,
             activeHoverUrl,
@@ -1568,6 +1573,7 @@ export function TabHistoryPanel({
 function renderPanelRow(row: HistoryPanelRow, ctx: {
   snapshot: TabHistorySnapshot | null
   savedKeys: ReadonlySet<string>
+  highlightTerms: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl: string
@@ -1586,6 +1592,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         kind="stack"
         dimmed={isLowScoreHistoryEntry(row.entry)}
         savedKeys={ctx.savedKeys}
+        highlightTerms={ctx.highlightTerms}
         onSnapshotChange={ctx.onSnapshotChange}
         onHoverUrlChange={ctx.onHoverUrlChange}
         activeHoverUrl={ctx.activeHoverUrl}
@@ -1605,6 +1612,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         kind="open-ghost"
         workingSetItem={row.item}
         savedKeys={ctx.savedKeys}
+        highlightTerms={ctx.highlightTerms}
         onSnapshotChange={ctx.onSnapshotChange}
         onHoverUrlChange={ctx.onHoverUrlChange}
         activeHoverUrl={ctx.activeHoverUrl}
@@ -1623,6 +1631,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
       kind="closed-ghost"
       closedTab={row.closed}
       savedKeys={ctx.savedKeys}
+      highlightTerms={ctx.highlightTerms}
       onSnapshotChange={ctx.onSnapshotChange}
       onHoverUrlChange={ctx.onHoverUrlChange}
       activeHoverUrl={ctx.activeHoverUrl}

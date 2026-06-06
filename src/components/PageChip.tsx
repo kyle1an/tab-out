@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
-import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
@@ -22,7 +21,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
-import type { InlineTextRenderer } from './bionic-title-text'
+import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode } from './chip-activation'
@@ -75,7 +74,6 @@ interface PageChipProps {
 }
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
-type HighlightMode = 'parsed' | 'legacy'
 type RenderTitleContentOptions = {
   includePathSuffix?: boolean
 }
@@ -149,81 +147,6 @@ function isTitleSuppressionSegment(segment: DashboardSegment): segment is { titl
 
 function isStructuralPlaceholderSegment(segment: DashboardSegment): segment is { placeholder: true; label?: string } {
   return typeof segment !== 'string' && 'placeholder' in segment
-}
-
-function highlightTermsForFilter(filter: string, mode: HighlightMode): string[] {
-  const query = filter.trim()
-  if (!query) return []
-  if (mode === 'legacy') return [query.toLowerCase()]
-  return [...new Set(parseFilterQuery(query).terms.flatMap((term) => matchValuesForFilterTerm(term)))]
-}
-
-function appendTextNodes(nodes: ReactNode[], text: string, keyPrefix: string, textOffset: number, renderText: InlineTextRenderer) {
-  const rendered = renderText(text, keyPrefix, textOffset)
-  if (Array.isArray(rendered)) nodes.push(...rendered)
-  else nodes.push(rendered)
-}
-
-function highlightedTextNodes(text: string, highlightTerms: readonly string[], keyPrefix: string, renderText: InlineTextRenderer = (value) => value): ReactNode {
-  if (!text) return text
-  if (highlightTerms.length === 0) return renderText(text, keyPrefix, 0)
-
-  const normalizedChars: string[] = []
-  const originalIndexes: number[] = []
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    if (char === '\u200B') continue
-    normalizedChars.push(char)
-    originalIndexes.push(index)
-  }
-
-  const normalizedText = normalizedChars.join('').toLowerCase()
-  const ranges: Array<{ start: number; end: number }> = []
-  for (const term of highlightTerms) {
-    if (!term) continue
-    let searchFrom = 0
-    while (searchFrom < normalizedText.length) {
-      const start = normalizedText.indexOf(term, searchFrom)
-      if (start === -1) break
-      const end = start + term.length
-      ranges.push({ start, end })
-      searchFrom = end
-    }
-  }
-
-  if (ranges.length === 0) return renderText(text, keyPrefix, 0)
-
-  ranges.sort((a, b) => a.start - b.start || b.end - a.end)
-  const mergedRanges: Array<{ start: number; end: number }> = []
-  for (const range of ranges) {
-    const previous = mergedRanges[mergedRanges.length - 1]
-    if (previous && range.start <= previous.end) {
-      previous.end = Math.max(previous.end, range.end)
-    } else {
-      mergedRanges.push({ ...range })
-    }
-  }
-
-  const nodes: ReactNode[] = []
-  let cursor = 0
-
-  for (const range of mergedRanges) {
-    const originalStart = originalIndexes[range.start]
-    const originalEnd = range.end < originalIndexes.length ? originalIndexes[range.end] : text.length
-    if (originalStart > cursor) appendTextNodes(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
-    nodes.push(
-      <mark
-        key={`${keyPrefix}-${originalStart}-${originalEnd}`}
-        className="chip-filter-match rounded-[2px] bg-[rgba(234,179,8,0.42)] text-tab-ink [font:inherit] [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]"
-      >
-        {text.slice(originalStart, originalEnd)}
-      </mark>
-    )
-    cursor = originalEnd
-  }
-
-  if (cursor < text.length) appendTextNodes(nodes, text.slice(cursor), `${keyPrefix}:${cursor}:tail`, cursor, renderText)
-  return nodes
 }
 
 function isChipTextTruncated(textEl: HTMLElement | null) {

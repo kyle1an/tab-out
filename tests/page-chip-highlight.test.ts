@@ -1846,7 +1846,7 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
   const filteredExtraRows = Array.from(filteredHtml.matchAll(/data-working-set-extra="true"/g))
 
   assert.equal(filteredRows.length, 1, 'only the matching history row should render under filter')
-  assert.match(filteredHtml, /Git<\/span>Hub[\s\S]*Re<\/span>po/)
+  assert.match(filteredHtml, /<mark[^>]*class="[^"]*chip-filter-match[^"]*"[^>]*>GitHub<\/mark>[\s\S]*Re<\/span>po/)
   assert.doesNotMatch(filteredHtml, /Exa<\/span>mple/)
   assert.doesNotMatch(filteredHtml, /Dai<\/span>ly/)
   assert.equal(filteredExtraRows.length, 0, 'working set extras matching open history entries should not duplicate')
@@ -1863,8 +1863,8 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
   assert.equal(newsRows.length, 1, 'no history entries match so only the extra working set row renders')
   assert.doesNotMatch(newsHtml, /data-tabout-part="working-set-extra-list"/)
   assert.match(newsHtml, /data-tabout-part="history-entry-marker-open-ghost"/)
-  assert.match(newsHtml, /Dai<\/span>ly[\s\S]*Ne<\/span>ws/)
-  assert.doesNotMatch(newsHtml, /Git<\/span>Hub/)
+  assert.match(newsHtml, /Dai<\/span>ly[\s\S]*<mark[^>]*class="[^"]*chip-filter-match[^"]*"[^>]*>News<\/mark>/)
+  assert.doesNotMatch(newsHtml, /<mark[^>]*chip-filter-match[^>]*>GitHub/)
   assert.doesNotMatch(newsHtml, /Exa<\/span>mple/)
 })
 
@@ -3465,4 +3465,15 @@ test('closed-ghost row exposes a forget affordance instead of a tab-close', () =
   assert.match(html, /aria-label="Remove Closed Page from recently closed"/)
   // Non-destructive forget uses the eye-off glyph, not the tab-close X.
   assert.match(html, /lucide-eye-off/)
+})
+
+test('TabHistoryPanel highlights filter matches in history-row titles', () => {
+  const html = renderTabHistoryPanel({ snapshot: makeHistorySnapshot(), filter: 'example' })
+  assert.match(html, /Example Docs|<mark/) // sanity: the row title renders
+  assert.match(html, /<mark[^>]*class="[^"]*chip-filter-match[^"]*"[^>]*>Example<\/mark>/)
+})
+
+test('TabHistoryPanel does not highlight history-row titles when no filter is active', () => {
+  const html = renderTabHistoryPanel({ snapshot: makeHistorySnapshot(), filter: '' })
+  assert.doesNotMatch(html, /<mark/)
 })
