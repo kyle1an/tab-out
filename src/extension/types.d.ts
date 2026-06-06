@@ -243,6 +243,7 @@ export interface DashboardData {
   historyDomainGroups?: DomainGroup[]
   historySearchQuery?: string
   historyRange?: string
+  savedKeys?: readonly string[]
 }
 
 export type WorkingSetActivityKind = 'activation' | 'navigation'

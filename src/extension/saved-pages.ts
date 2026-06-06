@@ -27,7 +27,7 @@ export interface SavedPagesStore {
   pages: Record<string, SavedPageRecord>
 }
 
-type SavedPageCandidate = Pick<DashboardTab, 'url' | 'rawUrl' | 'title' | 'favIconUrl' | 'isTabOut' | 'isApp'>
+export type SavedPageCandidate = Pick<DashboardTab, 'url' | 'rawUrl' | 'title' | 'favIconUrl' | 'isTabOut' | 'isApp'>
 
 export function emptySavedPagesStore(): SavedPagesStore {
   return { version: SAVED_PAGES_VERSION, pages: {} }
@@ -73,6 +73,10 @@ export function normalizeSavedPagesStore(store: Partial<SavedPagesStore> | null 
   }
 
   return { version: SAVED_PAGES_VERSION, pages }
+}
+
+export function savedPageKeysFromStore(store: Partial<SavedPagesStore> | null | undefined): string[] {
+  return Object.keys(normalizeSavedPagesStore(store).pages)
 }
 
 function numberOrNow(value: unknown, fallback: number): number {

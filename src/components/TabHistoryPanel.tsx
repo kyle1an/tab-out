@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SetStateAction } from 'react'
 import { EyeOff, X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
@@ -13,6 +13,9 @@ import { unwrapSuspenderUrl } from '../extension/suspender.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { moveTabToCurrentWindow } from '../extension/tab-move.js'
+import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
+import { historyEntrySaveTarget, historyEntrySaved, isHistoryEntrySaveEligible } from '../extension/history-saved-page.js'
+import { PageChipContextMenu } from './PageChipContextMenu'
 import { openTabUrl } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { TabAudioButton } from './TabAudioButton'
@@ -40,7 +43,7 @@ const HISTORY_ENTRY_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
-const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100'
+const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) [&[data-context-menu-open]]:bg-(--history-entry-interaction-bg) group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100 [&[data-context-menu-open]]:after:opacity-100'
 const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
 const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES}`
@@ -118,6 +121,8 @@ type HistoryEntrySlotSize = {
 
 type HistoryEntryKind = 'stack' | 'open-ghost' | 'closed-ghost'
 
+type StopPropagationEvent = { stopPropagation: () => void }
+
 interface HistoryEntryProps {
   entry: TabHistoryEntry
   kind: HistoryEntryKind
@@ -126,6 +131,7 @@ interface HistoryEntryProps {
   workingSetItem?: WorkingSetItem | null
   closedTab?: ClosedTabEntry | null
   dimmed?: boolean
+  savedKeys?: ReadonlySet<string>
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl?: string
@@ -140,6 +146,7 @@ interface TabHistoryPanelProps {
   workingSet?: WorkingSetSnapshot | null
   closedTabs?: readonly ClosedTabEntry[]
   filter?: string
+  savedKeys?: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
   onTabsChange?: TabsChangeHandler
 }
@@ -726,9 +733,10 @@ type HistoryEntryExpansion = {
   onHistoryEntryPointerLeave: (e: PointerEvent<HTMLDivElement>) => void
   onHistoryEntryFocus: (e: FocusEvent<HTMLDivElement>) => void
   onHistoryEntryBlur: (e: FocusEvent<HTMLDivElement>) => void
+  onHistoryEntryContextMenuOpenChange: (open: boolean) => void
 }
 
-function useHistoryEntryExpansion(): HistoryEntryExpansion {
+function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>): HistoryEntryExpansion {
   const entryExpansionId = useId()
   const entrySlotRef = useRef<HTMLDivElement | null>(null)
   const entryRef = useRef<HTMLDivElement | null>(null)
@@ -822,9 +830,10 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
 
   useEffect(() => subscribeToExpandedHistoryEntry((activeId) => {
     if (activeId === entryExpansionId) return
+    if (contextMenuOpenRef.current) return
     if (!titleExpandedRef.current) return
     setTitleExpanded(false)
-  }), [entryExpansionId])
+  }), [entryExpansionId, contextMenuOpenRef])
 
   useEffect(() => () => {
     if (titleExpansionCloseTimerRef.current !== null) {
@@ -873,6 +882,7 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
       setTitleExpanded(false)
     }
     const closeOnPointerMove = (event: globalThis.PointerEvent) => {
+      if (contextMenuOpenRef.current) return
       const slotRect = entrySlotRef.current?.getBoundingClientRect()
       if (!slotRect) return
       const insideOriginalSlot =
@@ -893,7 +903,17 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
       window.removeEventListener('pointermove', closeOnPointerMove, true)
       document.removeEventListener('visibilitychange', closeOnVisibilityChange)
     }
-  }, [entryExpansionId, titleExpanded])
+  }, [entryExpansionId, titleExpanded, contextMenuOpenRef])
+
+  // Unlike PageChip (which force-opens the title expansion when its menu opens),
+  // history rows only keep an already-open expansion from collapsing while the
+  // menu is open — they don't force-expand on right-click. The hover preview is
+  // driven separately by the row's onMouseEnter/onMouseLeave.
+  function onHistoryEntryContextMenuOpenChange(open: boolean) {
+    contextMenuOpenRef.current = open
+    if (open) clearTitleExpansionCloseTimer()
+    else closeTitleExpansion()
+  }
 
   function onHistoryEntryPointerEnter() {
     openTitleExpansion()
@@ -915,6 +935,7 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
   }
 
   function onHistoryEntryPointerLeave(e: PointerEvent<HTMLDivElement>) {
+    if (contextMenuOpenRef.current) return
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     closeTitleExpansion()
   }
@@ -924,6 +945,7 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
   }
 
   function onHistoryEntryBlur(e: FocusEvent<HTMLDivElement>) {
+    if (contextMenuOpenRef.current) return
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     closeTitleExpansion({ delayed: false })
   }
@@ -942,7 +964,8 @@ function useHistoryEntryExpansion(): HistoryEntryExpansion {
     onHistoryEntryPointerMove,
     onHistoryEntryPointerLeave,
     onHistoryEntryFocus,
-    onHistoryEntryBlur
+    onHistoryEntryBlur,
+    onHistoryEntryContextMenuOpenChange
   }
 }
 
@@ -953,12 +976,13 @@ type HistoryEntryActionsOptions = {
   closedTab: ClosedTabEntry | null
   canActivateEntry: boolean
   entrySlotRef: RefObject<HTMLDivElement | null>
+  contextMenuOpenRef: RefObject<boolean>
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   onTabsChange?: TabsChangeHandler
 }
 
-function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canActivateEntry, entrySlotRef, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryActionsOptions) {
+function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canActivateEntry, entrySlotRef, contextMenuOpenRef, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryActionsOptions) {
   async function refreshAfterMutation() {
     if (onTabsChange) {
       await onTabsChange()
@@ -1054,13 +1078,15 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   }
 
   function onMouseLeave() {
+    if (contextMenuOpenRef.current) return
     onHoverUrlChange?.('')
   }
 
   return { activateHistoryEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+  const contextMenuOpenRef = useRef(false)
   const {
     entrySlotRef,
     entryRef,
@@ -1073,8 +1099,9 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     onHistoryEntryPointerMove,
     onHistoryEntryPointerLeave,
     onHistoryEntryFocus,
-    onHistoryEntryBlur
-  } = useHistoryEntryExpansion()
+    onHistoryEntryBlur,
+    onHistoryEntryContextMenuOpenChange
+  } = useHistoryEntryExpansion(contextMenuOpenRef)
   // Stable per-mount "now" for the relative closed-time label; reading Date.now()
   // directly in render is an impurity the React Compiler flags (react-hooks-js/purity).
   const [renderedAtMs] = useState(() => Date.now())
@@ -1096,6 +1123,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     closedTab,
     canActivateEntry,
     entrySlotRef,
+    contextMenuOpenRef,
     onSnapshotChange,
     onHoverUrlChange,
     onTabsChange
@@ -1145,6 +1173,41 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     if (!audioState || !Number.isInteger(entry.tabId)) return
     void setHistoryEntryMuted(entry.tabId, nextMutedForAudioState(audioState))
   }
+
+  function onHistoryEntryMenuOpenChange(open: boolean) {
+    onHistoryEntryContextMenuOpenChange(open)
+    if (open) {
+      onMouseEnter()
+    } else {
+      onHoverUrlChange?.('')
+    }
+  }
+
+  const copyTitleText = entry.title
+  const saveEligible = isHistoryEntrySaveEligible(entry)
+  const saved = historyEntrySaved(entry, savedKeys)
+  const savedActionLabel = saved ? 'Remove saved page' : 'Save page'
+
+  async function onCopyEntryTitle(e: StopPropagationEvent) {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(copyTitleText)
+      showToast('Page title copied')
+    } catch {
+      showToast('Could not copy page title')
+    }
+  }
+
+  async function onToggleEntrySaved(e: StopPropagationEvent) {
+    e.stopPropagation()
+    try {
+      if (saved) await removeSavedPageTarget(entry.url)
+      else await savePageTarget(historyEntrySaveTarget(entry))
+    } catch {
+      showToast(saved ? "Couldn't remove the saved page" : "Couldn't save the page")
+    }
+  }
+
   const entrySlotStyle: CSSVariableProperties | undefined = titleExpanded && entrySlotSize.width > 0 && entrySlotSize.height > 0 ? {
     height: `${entrySlotSize.height}px`,
     width: `${entrySlotSize.width}px`
@@ -1356,7 +1419,20 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           style={entrySlotStyle}
           ref={entrySlotRef}
         >
-          {historyEntrySurface(false)}
+          {(copyTitleText || saveEligible) ? (
+            <PageChipContextMenu
+              titleText={copyTitleText}
+              onCopyTitle={onCopyEntryTitle}
+              saved={saved}
+              savedActionLabel={saveEligible ? savedActionLabel : undefined}
+              onSavedSelect={saveEligible ? onToggleEntrySaved : undefined}
+              onOpenChange={onHistoryEntryMenuOpenChange}
+            >
+              {historyEntrySurface(false)}
+            </PageChipContextMenu>
+          ) : (
+            historyEntrySurface(false)
+          )}
           {expandedEntryElement}
         </div>
       </div>
@@ -1407,6 +1483,7 @@ export function TabHistoryPanel({
   workingSet = null,
   closedTabs = EMPTY_CLOSED_TABS,
   filter = '',
+  savedKeys,
   onSnapshotChange,
   onTabsChange
 }: TabHistoryPanelProps) {
@@ -1433,6 +1510,7 @@ export function TabHistoryPanel({
   }
 
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts })
+  const savedKeySet = useMemo(() => new Set(savedKeys ?? []), [savedKeys])
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
 
@@ -1471,6 +1549,7 @@ export function TabHistoryPanel({
         <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
           {rows.map((row) => renderPanelRow(row, {
             snapshot,
+            savedKeys: savedKeySet,
             onSnapshotChange,
             onHoverUrlChange,
             activeHoverUrl,
@@ -1488,6 +1567,7 @@ export function TabHistoryPanel({
 
 function renderPanelRow(row: HistoryPanelRow, ctx: {
   snapshot: TabHistorySnapshot | null
+  savedKeys: ReadonlySet<string>
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
   activeHoverUrl: string
@@ -1505,6 +1585,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         snapshot={ctx.snapshot}
         kind="stack"
         dimmed={isLowScoreHistoryEntry(row.entry)}
+        savedKeys={ctx.savedKeys}
         onSnapshotChange={ctx.onSnapshotChange}
         onHoverUrlChange={ctx.onHoverUrlChange}
         activeHoverUrl={ctx.activeHoverUrl}
@@ -1523,6 +1604,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         snapshot={ctx.snapshot}
         kind="open-ghost"
         workingSetItem={row.item}
+        savedKeys={ctx.savedKeys}
         onSnapshotChange={ctx.onSnapshotChange}
         onHoverUrlChange={ctx.onHoverUrlChange}
         activeHoverUrl={ctx.activeHoverUrl}
@@ -1540,6 +1622,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
       snapshot={ctx.snapshot}
       kind="closed-ghost"
       closedTab={row.closed}
+      savedKeys={ctx.savedKeys}
       onSnapshotChange={ctx.onSnapshotChange}
       onHoverUrlChange={ctx.onHoverUrlChange}
       activeHoverUrl={ctx.activeHoverUrl}

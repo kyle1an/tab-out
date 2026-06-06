@@ -22,7 +22,7 @@
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
-import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeysFromStore, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
@@ -203,7 +203,8 @@ export async function buildDashboardDataFromTabs(
     historyTabs,
     historyDomainGroups,
     historySearchQuery: historyQuery,
-    historyRange
+    historyRange,
+    savedKeys: savedPageKeysFromStore(savedPagesMerge.store)
   }
 }
 
@@ -214,7 +215,7 @@ export async function buildDashboardDataFromTabs(
  * @param {Map<string, number>} [previousOrder]
  * @param {DashboardSource} [source]
  * @param {{ pinnedDomains?: string[], bookmarkPreviousOrder?: Map<string, number>, historyPreviousOrder?: Map<string, number>, includeBookmarkMatches?: boolean, includeHistoryMatches?: boolean, searchQuery?: string, historyRange?: string }} [opts]
- * @returns {Promise<{ realTabs: DashboardTab[], domainGroups: DomainGroup[], bookmarkTabs: DashboardTab[], bookmarkDomainGroups: DomainGroup[], bookmarkSearchReady: boolean, historyTabs: DashboardTab[], historyDomainGroups: DomainGroup[], historySearchQuery: string, historyRange: string }>}
+ * @returns {Promise<Required<DashboardData>>}
  */
 export async function fetchDashboardData(
   previousOrder: Map<string, number> = new Map(),
@@ -249,7 +250,11 @@ export async function fetchDashboardData(
       historyTabs: [],
       historyDomainGroups: [],
       historySearchQuery: '',
-      historyRange: DEFAULT_HISTORY_RANGE
+      historyRange: DEFAULT_HISTORY_RANGE,
+      // savedKeys is sourced from the pre-merge store here; the history panel only
+      // renders in the 'tabs' source, and merging never changes the saved-page key
+      // set (it only updates record fields), so the keys match the tabs branch.
+      savedKeys: savedPageKeysFromStore(savedPagesStore)
     }
   }
 

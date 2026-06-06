@@ -377,6 +377,7 @@ function DashboardMissionsList({ filter, sections }: DashboardMissionsListProps)
 
 type DashboardShellProps = {
   closedTabs: readonly ClosedTabEntry[]
+  savedKeys?: readonly string[]
   filter: string
   filterFocusRequest: number
   filterInput: string
@@ -402,6 +403,7 @@ type DashboardShellProps = {
 
 function DashboardShell({
   closedTabs,
+  savedKeys,
   filter,
   filterFocusRequest,
   filterInput,
@@ -447,6 +449,7 @@ function DashboardShell({
             onSnapshotChange={setTabHistory}
             workingSet={historyWorkingSet}
             filter={filter}
+            savedKeys={savedKeys}
             onTabsChange={onTabsChange}
           />
         )}
@@ -737,6 +740,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
       <HoverStateProvider value={hoverMatch}>
         <DashboardShell
           closedTabs={closedTabs}
+          savedKeys={dashboard?.savedKeys}
           filter={filter}
           filterFocusRequest={filterFocusRequest}
           filterInput={filterInput}

@@ -9,6 +9,7 @@ import {
   mergeSavedPagesWithTabs,
   normalizeSavedPagesStore,
   savedPageKeyForUrl,
+  savedPageKeysFromStore,
   savedPagesStoresEqual
 } from '../src/extension/saved-pages.js'
 import type { DashboardTab } from '../src/extension/types'
@@ -139,4 +140,18 @@ test('annotateSavedPageHints marks matching bookmark items without adding closed
   assert.equal(annotated[0].closedSaved, false)
   assert.equal(annotated[0].savedPageKey, 'https://example.test/saved')
   assert.equal(annotated[1], otherBookmark)
+})
+
+test('savedPageKeysFromStore returns the normalized keys of every saved page', () => {
+  const one = addSavedPageToStore(emptySavedPagesStore(), {
+    url: 'https://a.test/', rawUrl: 'https://a.test/', title: 'A', favIconUrl: '', isTabOut: false, isApp: false
+  })
+  const two = addSavedPageToStore(one, {
+    url: 'https://b.test/', rawUrl: 'https://b.test/', title: 'B', favIconUrl: '', isTabOut: false, isApp: false
+  })
+  assert.deepEqual(savedPageKeysFromStore(two).sort(), ['https://a.test/', 'https://b.test/'])
+})
+
+test('savedPageKeysFromStore returns [] for a nullish store', () => {
+  assert.deepEqual(savedPageKeysFromStore(null), [])
 })
