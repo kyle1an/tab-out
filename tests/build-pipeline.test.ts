@@ -122,6 +122,13 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(workingSetClientSource, /focusExistingTabTarget/)
   assert.match(tabHistoryServiceSource, /focusExistingTabTarget/)
   assert.match(tabHistoryServiceSource, /const url = unwrapSuspenderUrl\(rawUrl\)/)
+  // The chip + history-row <div role="button"> surfaces cancel native text
+  // selection on mousedown for the ⌘/⌃(+⇧) move gesture (a plain click still
+  // drag-selects). Guard the wiring so the selection leak can't regress.
+  assert.match(pageChipSource, /shouldSuppressSelectionForGesture/)
+  assert.match(pageChipSource, /onMouseDown:\s*onChipPointerDown/)
+  assert.match(tabHistoryPanelSource, /shouldSuppressSelectionForGesture/)
+  assert.match(tabHistoryPanelSource, /onMouseDown=\{!expanded && canActivateEntry \? onEntryMouseDown : undefined\}/)
   assert.match(sharedTypesSource, /interface TabHistoryEntry[\s\S]*rawUrl: string/)
   assert.match(appSource, /styles\/app\.css/)
   assert.doesNotMatch(

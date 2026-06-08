@@ -38,3 +38,22 @@ export function chipActivationMode(e: ChipActivationModifiers | null | undefined
   if (!hasPrimaryModifier) return 'focus'
   return e.shiftKey ? 'bring-foreground' : 'bring-background'
 }
+
+/**
+ * shouldSuppressSelectionForGesture(e, platform) — true when a pointer event
+ * carries one of the move modifiers (i.e. chipActivationMode is not 'focus').
+ *
+ * The chip and history-row click targets are <div role="button"> whose title is
+ * ordinary selectable text — unlike a real <a>/<button>, a <div> has no
+ * activation behavior, so the browser starts a native text selection on the same
+ * ⌘/⌃(+⇧)-click we've overloaded to MOVE the tab. Calling preventDefault() on
+ * mousedown when this returns true cancels that default for the move gesture
+ * only, so the surface behaves like a link while a plain click still drag-selects.
+ *
+ * @param {{ metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean } | null | undefined} e
+ * @param {string} [platform]
+ * @returns {boolean}
+ */
+export function shouldSuppressSelectionForGesture(e: ChipActivationModifiers | null | undefined, platform = ''): boolean {
+  return chipActivationMode(e, platform) !== 'focus'
+}

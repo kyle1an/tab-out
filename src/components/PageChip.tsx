@@ -24,7 +24,7 @@ import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-te
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import { chipActivationMode } from './chip-activation'
+import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
@@ -1052,6 +1052,13 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     await onFocus(e)
   }
 
+  function onChipPointerDown(e: MouseEvent<HTMLDivElement>) {
+    // ⌘/⌃(+⇧)-click is our "move tab into this window" gesture; cancel the
+    // browser's native text selection for that gesture only so the chip behaves
+    // like a link (a plain click still drag-selects). See chip-activation.ts.
+    if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+  }
+
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     e.stopPropagation()
     await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType)
@@ -2001,6 +2008,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         role: 'button',
         tabIndex: 0,
         onClick: onFocus,
+        onMouseDown: onChipPointerDown,
         onKeyDown: onChipKeyDown,
         onMouseEnter: onChipMouseEnter,
         onMouseLeave: onChipMouseLeave,

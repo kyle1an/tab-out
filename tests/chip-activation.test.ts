@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { chipActivationMode } from '../src/components/chip-activation.js'
+import { chipActivationMode, shouldSuppressSelectionForGesture } from '../src/components/chip-activation.js'
 
 const MAC = 'MacIntel'
 const WIN = 'Win32'
@@ -48,4 +48,31 @@ test('chipActivationMode: Shift alone stays focus (new-window gesture is out of 
 test('chipActivationMode: holding both Cmd and Ctrl is ambiguous and stays focus', () => {
   assert.equal(chipActivationMode({ metaKey: true, ctrlKey: true }, MAC), 'focus')
   assert.equal(chipActivationMode({ metaKey: true, ctrlKey: true }, WIN), 'focus')
+})
+
+test('shouldSuppressSelectionForGesture: a plain click keeps selection (so drag-select still works)', () => {
+  assert.equal(shouldSuppressSelectionForGesture(undefined, MAC), false)
+  assert.equal(shouldSuppressSelectionForGesture(null, MAC), false)
+  assert.equal(shouldSuppressSelectionForGesture({}, MAC), false)
+  assert.equal(shouldSuppressSelectionForGesture({}, WIN), false)
+})
+
+test('shouldSuppressSelectionForGesture: the move gestures suppress native selection on macOS', () => {
+  assert.equal(shouldSuppressSelectionForGesture({ metaKey: true }, MAC), true)
+  assert.equal(shouldSuppressSelectionForGesture({ metaKey: true, shiftKey: true }, MAC), true)
+})
+
+test('shouldSuppressSelectionForGesture: the move gestures suppress native selection off macOS', () => {
+  assert.equal(shouldSuppressSelectionForGesture({ ctrlKey: true }, WIN), true)
+  assert.equal(shouldSuppressSelectionForGesture({ ctrlKey: true, shiftKey: true }, WIN), true)
+})
+
+test('shouldSuppressSelectionForGesture: Shift alone keeps selection (not a move gesture)', () => {
+  assert.equal(shouldSuppressSelectionForGesture({ shiftKey: true }, MAC), false)
+  assert.equal(shouldSuppressSelectionForGesture({ shiftKey: true }, WIN), false)
+})
+
+test('shouldSuppressSelectionForGesture: a wrong-platform primary modifier keeps selection', () => {
+  assert.equal(shouldSuppressSelectionForGesture({ ctrlKey: true }, MAC), false)
+  assert.equal(shouldSuppressSelectionForGesture({ metaKey: true }, WIN), false)
 })

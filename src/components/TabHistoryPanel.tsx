@@ -21,7 +21,7 @@ import { DefaultFavicon } from './DefaultFavicon'
 import { TabAudioButton } from './TabAudioButton'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
-import { chipActivationMode } from './chip-activation'
+import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -1049,6 +1049,13 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     void activateHistoryEntry(e)
   }
 
+  function onEntryMouseDown(e: MouseEvent<HTMLDivElement>) {
+    // ⌘/⌃(+⇧)-click moves the tab into this window; cancel the browser's native
+    // text selection for that gesture only so the row behaves like a link
+    // (a plain click still drag-selects). See chip-activation.ts.
+    if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+  }
+
   async function onCloseEntry(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
@@ -1085,7 +1092,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     onHoverUrlChange?.('')
   }
 
-  return { activateHistoryEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave }
+  return { activateHistoryEntry, onEntryKeyDown, onEntryMouseDown, onCloseEntry, onMouseEnter, onMouseLeave }
 }
 
 function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
@@ -1119,7 +1126,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const canRemoveEntry = canCloseEntry || canForgetClosedGhost
   const canActivateEntry = entry.exists || (kind === 'closed-ghost' && !!closedTab)
 
-  const { activateHistoryEntry, onEntryKeyDown, onCloseEntry, onMouseEnter, onMouseLeave } = useHistoryEntryActions({
+  const { activateHistoryEntry, onEntryKeyDown, onEntryMouseDown, onCloseEntry, onMouseEnter, onMouseLeave } = useHistoryEntryActions({
     entry,
     kind,
     workingSetItem,
@@ -1348,6 +1355,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           aria-disabled={!canActivateEntry || expanded}
           className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
           onClick={!expanded && canActivateEntry ? activateHistoryEntry : undefined}
+          onMouseDown={!expanded && canActivateEntry ? onEntryMouseDown : undefined}
           onKeyDown={expanded ? undefined : onEntryKeyDown}
         >
           <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
