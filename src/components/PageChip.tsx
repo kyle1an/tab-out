@@ -28,6 +28,7 @@ import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-ac
 import type { ChipActivationModifiers } from './chip-activation'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
+import { partitionVariantCloseTargets, groupCloseActionLabel } from './chip-close-targets.js'
 
 let chipTextResizeObserver: ResizeObserver | null = null
 const chipTextTruncationCallbacks = new WeakMap<
@@ -880,6 +881,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const isFolded = envs.length > 0
   const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []
   const isTitleVariantGroup = titleVariantChips.length > 1
+  const variantCloseTargets = partitionVariantCloseTargets(titleVariantChips)
+  const variantCloseCount = variantCloseTargets.historyUrls.length + variantCloseTargets.tabEnvs.length
   const parentInteractive = !isFolded && !isTitleVariantGroup
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
@@ -1385,6 +1388,21 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     })
   }
 
+  async function onCloseAllVariants(e: MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation()
+    const chipEl = e.currentTarget.closest('.page-chip')
+    const { historyUrls, tabEnvs } = variantCloseTargets
+    if (historyUrls.length === 0 && tabEnvs.length === 0) return
+
+    // Close tabs and delete history without each call running its own removal
+    // animation; animate the whole group chip out once, after both resolve.
+    if (tabEnvs.length > 0) await closeChipTarget({ tabUrl: chip.tabUrl, envs: tabEnvs })
+    if (historyUrls.length > 0) await deleteHistoryUrls({ urls: historyUrls })
+
+    if (chipEl && startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
+    setPreview('')
+  }
+
   async function onToggleSavedTitleVariant(e: StopPropagationEvent, variant: DashboardChipData) {
     e.stopPropagation()
     if (variant.saved) {
@@ -1438,7 +1456,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const titleVariantLabel = isTitleVariantGroup ? `${titleVariantChips.length} URL variants: ${titleVariantChips.map((variant) => variant.pathSuffix || variant.tabUrl).join(' · ')}` : ''
   const chipLabel = [chip.tooltip, pinnedLabel, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
-  const closeActionLabel = isHistorySource ? 'Delete from history' : 'Close this tab'
+  const groupCloseCount = isTitleVariantGroup ? variantCloseCount : isFolded ? envs.length : 1
+  const closeTargetsAllHistory = isTitleVariantGroup
+    ? variantCloseTargets.tabEnvs.length === 0 && variantCloseTargets.historyUrls.length > 0
+    : isHistorySource
+  const closeActionLabel = groupCloseActionLabel({ count: groupCloseCount, allHistory: closeTargetsAllHistory })
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
   const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
   const chipTitleText = titleTextForChip(chip)
@@ -1446,7 +1468,9 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
   const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
-  const showFaviconCloseAction = !chip.iconOnly && canCloseChip
+  const canCloseFoldedGroup = isFolded && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
+  const canCloseVariantGroup = isTitleVariantGroup && variantCloseCount > 0
+  const showFaviconCloseAction = !chip.iconOnly && (canCloseChip || canCloseFoldedGroup || canCloseVariantGroup)
   const showDefaultFavicon = !chip.faviconUrl && (!isReadOnlySource || chip.sourceType === 'saved-page')
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
   const rightActionCount = showSavedHint ? 1 : 0
@@ -2129,7 +2153,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
               data-tabout-part="close-button"
               className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
               aria-label={closeActionLabel}
-              onClick={isHistorySource ? onDeleteHistory : onClose}
+              onClick={isTitleVariantGroup ? onCloseAllVariants : isHistorySource ? onDeleteHistory : onClose}
             >
               <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
             </button>
