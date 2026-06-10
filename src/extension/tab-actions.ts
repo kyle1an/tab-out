@@ -1,6 +1,7 @@
 import { requestDashboardRefresh } from './dashboard-controller.js'
 import { deleteHistorySourceUrl } from './history-source.js'
 import { unwrapSuspenderUrl } from './suspender.js'
+import { getSuspendTarget, buildSuspendUrl, type SuspendTarget } from './suspend-target.js'
 import { closeDuplicateTabs, closeTabsExact, fetchOpenTabs, snapshotChromeTabs } from './tabs.js'
 import { showToast } from './toast.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
@@ -235,4 +236,93 @@ export async function setHistoryEntryMuted(tabId: number, muted: boolean): Promi
   await fetchOpenTabs()
   // Passive refresh: muting doesn't reorganize cards, so repaint in place (no card animation).
   await requestDashboardRefresh()
+}
+
+type SuspendChipTargetOptions = {
+  tabUrl: string
+  envs?: DashboardChipEnv[] | null
+}
+
+function isTabAlreadySuspended(tab: chrome.tabs.Tab): boolean {
+  const url = tab.url || ''
+  return unwrapSuspenderUrl(url) !== url
+}
+
+async function applySuspendToTabs(targets: chrome.tabs.Tab[], target: SuspendTarget): Promise<number> {
+  let count = 0
+  for (const tab of targets) {
+    if (typeof tab.id !== 'number') continue
+    if (isTabAlreadySuspended(tab)) continue
+    try {
+      await chrome.tabs.update(tab.id, {
+        url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
+      })
+      count += 1
+    } catch {}
+  }
+  return count
+}
+
+/**
+ * suspendChipTarget — redirect every live, not-already-suspended tab a chip
+ * represents into the detected suspender. Mirrors setChipTargetMuted's
+ * suspender-aware URL matching (effective + raw URL, folded groups = all matches).
+ */
+export async function suspendChipTarget({ tabUrl, envs = null }: SuspendChipTargetOptions): Promise<void> {
+  const target = await getSuspendTarget()
+  if (!target) {
+    showToast('No suspender detected')
+    return
+  }
+
+  const foldedEnvs = Array.isArray(envs) ? envs : []
+  const allTabs = await chrome.tabs.query({})
+
+  let matches: chrome.tabs.Tab[]
+  if (foldedEnvs.length > 0) {
+    const targetEffectives = new Set(foldedEnvs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
+    const targetUrls = new Set(foldedEnvs.map((env) => env.tabUrl))
+    matches = allTabs.filter((tab) => {
+      const openUrl = tab.url || ''
+      return targetUrls.has(openUrl) || targetEffectives.has(unwrapSuspenderUrl(openUrl))
+    })
+  } else {
+    const targetEffective = unwrapSuspenderUrl(tabUrl)
+    matches = allTabs.filter((tab) => {
+      const openUrl = tab.url || ''
+      return openUrl === tabUrl || unwrapSuspenderUrl(openUrl) === targetEffective
+    })
+  }
+
+  const count = await applySuspendToTabs(matches, target)
+  await fetchOpenTabs()
+  // Passive refresh: suspending doesn't reorganize cards, so repaint in place.
+  await requestDashboardRefresh()
+  showToast(count === 0 ? 'Nothing to suspend' : count === 1 ? 'Tab suspended' : `Suspended ${count} tabs`)
+}
+
+/** suspendHistoryEntry — redirect the single tab behind a history row into the suspender. */
+export async function suspendHistoryEntry(tabId: number): Promise<void> {
+  if (!Number.isInteger(tabId)) return
+  const target = await getSuspendTarget()
+  if (!target) {
+    showToast('No suspender detected')
+    return
+  }
+  try {
+    const tab = await chrome.tabs.get(tabId)
+    if (isTabAlreadySuspended(tab)) {
+      showToast('Already suspended')
+      return
+    }
+    await chrome.tabs.update(tabId, {
+      url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
+    })
+  } catch {
+    showToast('Could not suspend tab')
+    return
+  }
+  await fetchOpenTabs()
+  await requestDashboardRefresh()
+  showToast('Tab suspended')
 }

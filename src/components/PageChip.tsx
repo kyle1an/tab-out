@@ -7,7 +7,7 @@ import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-a
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
 import { moveTabToCurrentWindow } from '../extension/tab-move.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
-import { closeChipTarget, deleteHistoryUrls, setChipTargetMuted } from '../extension/tab-actions'
+import { closeChipTarget, deleteHistoryUrls, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
 import { nextMutedForAudioState } from '../extension/tab-audio.js'
 import { DefaultFavicon } from './DefaultFavicon'
@@ -29,6 +29,7 @@ import type { ChipActivationModifiers } from './chip-activation'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { partitionVariantCloseTargets, groupCloseActionLabel } from './chip-close-targets.js'
+import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
 
 let chipTextResizeObserver: ResizeObserver | null = null
 const chipTextTruncationCallbacks = new WeakMap<
@@ -1309,6 +1310,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     })
   }
 
+  function onToggleChipSuspend(e: StopPropagationEvent) {
+    e.stopPropagation()
+    void suspendChipTarget({ tabUrl: chip.tabUrl, envs: chip.envs })
+  }
+
   async function onToggleSavedPage(e: StopPropagationEvent) {
     e.stopPropagation()
     if (chip.saved) {
@@ -1466,6 +1472,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipTitleText = titleTextForChip(chip)
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
+  // Unlike the other can* flags, canShowSuspend intentionally does NOT gate on
+  // parentInteractive: folded groups (not parentInteractive) still expose Suspend.
+  const canShowSuspend = chipCanShowSuspend(chip)
+  const suspendEnabled = chipSuspendableTargetCount(chip) > 0
   const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const canCloseFoldedGroup = isFolded && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
@@ -2198,7 +2208,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       )}
       </div>
   )
-  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin) ? (
+  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin || canShowSuspend) ? (
     <PageChipContextMenu
       savedActionLabel={canToggleSavedPage ? savedActionLabel : undefined}
       saved={!!chip.saved}
@@ -2206,6 +2216,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       pagePinActionLabel={canTogglePagePin ? pagePinActionLabel : undefined}
       pagePinned={!!chip.pagePinned}
       onPagePinSelect={canTogglePagePin ? onTogglePagePin : undefined}
+      suspendEnabled={suspendEnabled}
+      onSuspendSelect={canShowSuspend ? onToggleChipSuspend : undefined}
       titleText={chipTitleText}
       onCopyTitle={(e) => onCopyTitleText(e, chipTitleText)}
       onOpenChange={onChipContextMenuOpenChange}

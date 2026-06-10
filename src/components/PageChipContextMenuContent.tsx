@@ -14,6 +14,8 @@ export type PageChipContextMenuContentProps = {
   pagePinned?: boolean
   onPagePinSelect?: (event: StopPropagationEvent) => void | Promise<void>
   onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
+  suspendEnabled?: boolean
+  onSuspendSelect?: (event: StopPropagationEvent) => void | Promise<void>
 }
 
 export function PageChipContextMenuContent({
@@ -24,7 +26,9 @@ export function PageChipContextMenuContent({
   pagePinActionLabel,
   pagePinned,
   onPagePinSelect,
-  onCopyTitle
+  onCopyTitle,
+  suspendEnabled,
+  onSuspendSelect
 }: PageChipContextMenuContentProps) {
   return (
     <ContextMenuContent>
@@ -46,6 +50,17 @@ export function PageChipContextMenuContent({
         >
           <SavedPageIcon saved={!!saved} className="size-3.5" />
           <span className="min-w-0 flex-1">{savedActionLabel}</span>
+        </ContextMenuItem>
+      )}
+      {onSuspendSelect && (
+        <ContextMenuItem
+          className="page-chip-suspend-menu-item"
+          disabled={!suspendEnabled}
+          label="Suspend"
+          onClick={onSuspendSelect}
+        >
+          <span className="icon-[lucide--circle-pause] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Suspend</span>
         </ContextMenuItem>
       )}
       <ContextMenuItem

@@ -3,7 +3,7 @@ import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, Rea
 import { EyeOff, X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio.js'
-import { setHistoryEntryMuted } from '../extension/tab-actions'
+import { setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
@@ -1183,6 +1183,13 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     if (!audioState || !Number.isInteger(entry.tabId)) return
     void setHistoryEntryMuted(entry.tabId, nextMutedForAudioState(audioState))
   }
+  const canShowSuspend = entry.exists && Number.isInteger(entry.tabId)
+  const suspendEnabled = canShowSuspend && entry.rawUrl === entry.url
+  function onToggleEntrySuspend(e: StopPropagationEvent) {
+    e.stopPropagation()
+    if (!Number.isInteger(entry.tabId)) return
+    void suspendHistoryEntry(entry.tabId)
+  }
 
   function onHistoryEntryMenuOpenChange(open: boolean) {
     onHistoryEntryContextMenuOpenChange(open)
@@ -1430,13 +1437,15 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           style={entrySlotStyle}
           ref={entrySlotRef}
         >
-          {(copyTitleText || saveEligible) ? (
+          {(copyTitleText || saveEligible || canShowSuspend) ? (
             <PageChipContextMenu
               titleText={copyTitleText}
               onCopyTitle={onCopyEntryTitle}
               saved={saved}
               savedActionLabel={saveEligible ? savedActionLabel : undefined}
               onSavedSelect={saveEligible ? onToggleEntrySaved : undefined}
+              suspendEnabled={suspendEnabled}
+              onSuspendSelect={canShowSuspend ? onToggleEntrySuspend : undefined}
               onOpenChange={onHistoryEntryMenuOpenChange}
             >
               {historyEntrySurface(false)}

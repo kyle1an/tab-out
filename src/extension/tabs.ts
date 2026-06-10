@@ -9,6 +9,7 @@
    ================================================================ */
 
 import { unwrapSuspenderUrl, unwrapSuspenderTitle } from './suspender.js'
+import { rememberSuspendTargetFromTabs } from './suspend-target.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { focusExactTabTarget, focusTabTarget } from './tab-focus.js'
@@ -120,6 +121,7 @@ export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
     const snapshot = await fetchChromeOpenTabsSnapshot()
     const nextOpenTabs = normalizeChromeOpenTabs(snapshot)
     replaceOpenTabs(nextOpenTabs)
+    rememberSuspendTargetFromTabs(nextOpenTabs)
     return nextOpenTabs
   } catch {
     replaceOpenTabs([])

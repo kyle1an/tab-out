@@ -27,6 +27,8 @@ export function PageChipContextMenu({
   pagePinned,
   onPagePinSelect,
   onCopyTitle,
+  suspendEnabled,
+  onSuspendSelect,
   onOpenChange
 }: PageChipContextMenuProps) {
   const [visualOpen, setVisualOpen] = useState(false)
@@ -75,6 +77,8 @@ export function PageChipContextMenu({
         onPagePinSelect={onPagePinSelect}
         titleText={titleText}
         onCopyTitle={onCopyTitle}
+        suspendEnabled={suspendEnabled}
+        onSuspendSelect={onSuspendSelect}
       />
     </ContextMenu>
   )
