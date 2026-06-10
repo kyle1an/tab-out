@@ -20,3 +20,14 @@ export function pickFavicon(tab?: Pick<DashboardTab, 'favIconUrl' | 'url'> | nul
   faviconUrl.searchParams.set('size', '32')
   return faviconUrl.toString()
 }
+
+/**
+ * pickTabFavicon(tab) — favicon for an OPEN tab. A live tab's own favIconUrl is
+ * authoritative, but a suspended tab reports the suspender page's (empty or
+ * greyed) icon, so recover the real page favicon from Chrome's cache by the
+ * unwrapped url — mirroring how the title is recovered for suspended tabs.
+ */
+export function pickTabFavicon(tab: Pick<DashboardTab, 'favIconUrl' | 'url' | 'suspended'>): string {
+  if (tab.suspended) return pickFavicon(tab)
+  return tab.favIconUrl || ''
+}

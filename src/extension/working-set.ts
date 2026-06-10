@@ -8,6 +8,7 @@ import type {
   WorkingSetSnapshot
 } from './types'
 import { unwrapSuspenderUrl } from './suspender.js'
+import { pickTabFavicon } from './favicons.js'
 
 export const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
 export const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
@@ -249,7 +250,7 @@ export function buildWorkingSetSnapshot({
       rawUrl: representative.rawUrl || url,
       title: representative.title || record.title || displayUrlForPageIdentity(key),
       displayUrl: displayUrlForPageIdentity(key),
-      faviconUrl: representative.favIconUrl || '',
+      faviconUrl: pickTabFavicon({ favIconUrl: representative.favIconUrl, url, suspended: representative.suspended }),
       dupeCount: groupedTabs.length,
       active: !!representative.active,
       activeInOtherWindow: !!(representative.active && currentWindowId != null && representative.windowId !== currentWindowId),

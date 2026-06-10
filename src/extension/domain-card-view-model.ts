@@ -1,5 +1,5 @@
 import { domainGroupCardId } from './domain-card-id.js'
-import { pickFavicon } from './favicons.js'
+import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
 import { aggregateAudioState, mergeAudioStates } from './tab-audio.js'
 import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
@@ -114,7 +114,7 @@ export function dashboardChipOrderKeyForChip(chip: Pick<DashboardChipData, 'sour
 }
 
 function pickDashboardChipFavicon(tab: DashboardTab): string {
-  if ((tab.sourceType || 'tab') === 'tab') return tab.favIconUrl || ''
+  if ((tab.sourceType || 'tab') === 'tab') return pickTabFavicon(tab)
   return pickFavicon(tab)
 }
 
