@@ -56,10 +56,10 @@ function makeClosed(overrides: Partial<ClosedTabEntry> & { sessionId: string; ur
   }
 }
 
-function snapshotOf(entries: TabHistoryEntry[]): TabHistorySnapshot {
+function snapshotOf(entries: TabHistoryEntry[], maxSize = 24): TabHistorySnapshot {
   return {
     stackSize: entries.length,
-    maxSize: 24,
+    maxSize,
     cursorIndex: entries.length - 1,
     currentIndex: entries.length - 1,
     previousIndex: -1,
@@ -164,6 +164,27 @@ test('buildHistoryPanelRows hides closed-ghost when same URL exists as stack', (
 
   assert.equal(rows.length, 1)
   assert.equal(rows[0].kind, 'stack')
+})
+
+test('buildHistoryPanelRows caps merged rows to the history max size', () => {
+  const rows = buildHistoryPanelRows({
+    snapshot: snapshotOf([
+      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/stack-a', lastActivatedAt: 100 }),
+      makeStackEntry({ index: 1, tabId: 2, url: 'https://example.com/stack-b', lastActivatedAt: 90 })
+    ], 3),
+    workingSet: workingSetOf([
+      makeWorkingSetItem({ key: 'https://example.com/work-a', tabId: 3, lastActivatedAt: 300 }),
+      makeWorkingSetItem({ key: 'https://example.com/work-b', tabId: 4, lastActivatedAt: 250 })
+    ]),
+    closedTabs: [
+      makeClosed({ sessionId: 'closed-a', url: 'https://example.com/closed-a', lastClosedAt: 1000 }),
+      makeClosed({ sessionId: 'closed-b', url: 'https://example.com/closed-b', lastClosedAt: 900 })
+    ],
+    filter: ''
+  })
+
+  assert.equal(rows.length, 3)
+  assert.deepEqual(rows.map((r) => r.kind), ['open-ghost', 'stack', 'stack'])
 })
 
 test('buildHistoryPanelRows hides a closed-ghost dismissed at or after its close time', () => {

@@ -60,6 +60,7 @@
 - Removing a **Saved Page** removes saved state only and should offer undo.
 - **Saved Pages** exclude browser utility pages such as Tab Out, new-tab, settings, internal Chrome, extension pages, and standalone apps.
 - A **Working Set** is merged into **Activation History**: overlapping items mark their history rows, and high-ranked items missing from history appear as supplemental history-panel rows.
+- The rendered **Activation History** column is bounded by the tab-history max size after merging stack, **Working Set**, and recently closed rows. Stack rows reserve the budget first; supplemental rows fill any remaining slots.
 - A **Working Set** is not a **Source** and does not include bookmark or history **Dashboard Items**.
 - A **Working Set** crosses **Domain Card** boundaries because it is optimized for return switching rather than domain cleanup.
 - A **Working Set** prefers currently relevant open tabs: recent activations, repeated same-day navigation/use, and repeated current-week navigation/use can all raise an item, while older or monthly habits are only weak tie-breakers.

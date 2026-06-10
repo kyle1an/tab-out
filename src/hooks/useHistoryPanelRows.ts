@@ -18,8 +18,16 @@ export interface UseHistoryPanelRowsArgs {
   dismissedClosedGhosts?: ClosedGhostDismissals | null
 }
 
+const DEFAULT_HISTORY_PANEL_ROW_LIMIT = 24
+
+function historyPanelRowLimit(snapshot: TabHistorySnapshot | null): number {
+  const maxSize = snapshot?.maxSize
+  return typeof maxSize === 'number' && Number.isInteger(maxSize) && maxSize > 0 ? maxSize : DEFAULT_HISTORY_PANEL_ROW_LIMIT
+}
+
 export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts = null }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
   const filterActive = filter.trim() !== ''
+  const rowLimit = historyPanelRowLimit(snapshot)
 
   const stackEntries = snapshot?.entries ?? []
   const stackBaseTimestamp = stackEntries.reduce(
@@ -74,12 +82,9 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   const rows: HistoryPanelRow[] = []
 
   function consume(candidate: HistoryPanelRow, identity: string | undefined) {
-    if (!identity) {
-      rows.push(candidate)
-      return
-    }
-    if (seen.has(identity)) return
-    seen.add(identity)
+    if (identity && seen.has(identity)) return
+    if (rows.length >= rowLimit) return
+    if (identity) seen.add(identity)
     rows.push(candidate)
   }
 
