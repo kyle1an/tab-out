@@ -4,6 +4,7 @@ import { EyeOff, X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
 import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio.js'
 import { setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
+import { pickTabFavicon } from '../extension/favicons.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
@@ -706,6 +707,7 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
     isApp: false,
     pinned: false,
     discarded: false,
+    suspended: item.rawUrl !== item.tabUrl,
     cursor: false,
     current: item.active && !item.activeInOtherWindow,
     previousTarget: false,
@@ -1661,6 +1663,9 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
 }
 
 function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEntry {
+  // A tab closed while suspended persisted the suspender's faded data: icon,
+  // so recover the real favicon the same way live suspended rows do.
+  const suspended = closed.rawUrl !== closed.url
   return {
     index: -1,
     tabId: -1,
@@ -1671,6 +1676,7 @@ function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEntry {
     isApp: false,
     pinned: false,
     discarded: false,
+    suspended,
     cursor: false,
     current: false,
     previousTarget: false,
@@ -1679,7 +1685,7 @@ function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEntry {
     url: closed.url,
     rawUrl: closed.rawUrl,
     displayUrl: closed.displayUrl,
-    favIconUrl: closed.favIconUrl,
+    favIconUrl: pickTabFavicon({ favIconUrl: closed.favIconUrl, url: closed.url, suspended }),
     lastActivatedAt: null
   }
 }

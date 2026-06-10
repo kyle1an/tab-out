@@ -146,6 +146,7 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
         isApp: false,
         pinned: false,
         discarded: false,
+        suspended: false,
         cursor: true,
         current: true,
         previousTarget: false,

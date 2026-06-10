@@ -114,6 +114,7 @@ test('normalizeTabHistorySnapshot preserves lastActivatedAt on entries', () => {
         isApp: false,
         pinned: false,
         discarded: false,
+        suspended: false,
         cursor: true,
         current: true,
         previousTarget: false,

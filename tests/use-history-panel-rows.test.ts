@@ -15,6 +15,7 @@ function makeStackEntry(overrides: Partial<TabHistoryEntry> & { index: number; t
     isApp: false,
     pinned: false,
     discarded: false,
+    suspended: false,
     cursor: false,
     current: false,
     previousTarget: false,

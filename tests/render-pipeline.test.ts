@@ -1834,6 +1834,47 @@ test('normalizeTabHistorySnapshot resolves history favicons from Chrome cache', 
   assert.equal(snapshot.entries[1].favIconUrl, 'data:image/png;base64,abc')
 })
 
+test('normalizeTabHistorySnapshot recovers suspended-row favicons from the unwrapped url', () => {
+  // A suspended row's favIconUrl is the suspender page's faded data: icon, so
+  // the data: short-circuit must not keep it — recover via the unwrapped url.
+  const snapshot = normalizeTabHistorySnapshot({
+    entries: [
+      {
+        index: 0,
+        tabId: 21,
+        windowId: 1,
+        title: 'Charlie',
+        url: 'https://charlie.example/docs',
+        rawUrl: 'chrome-extension://suspenderid/suspended.html#ttl=Charlie&uri=https://charlie.example/docs',
+        favIconUrl: 'data:image/png;base64,faded',
+        exists: true
+      }
+    ] as any
+  })
+
+  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
+})
+
+test('normalizeTabHistorySnapshot honors the explicit suspended flag over url comparison', () => {
+  const snapshot = normalizeTabHistorySnapshot({
+    entries: [
+      {
+        index: 0,
+        tabId: 22,
+        windowId: 1,
+        title: 'Delta',
+        url: 'https://delta.example/docs',
+        suspended: true,
+        favIconUrl: 'data:image/png;base64,faded',
+        exists: true
+      }
+    ] as any
+  })
+
+  assert.equal(snapshot.entries[0].suspended, true)
+  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fdelta.example%2Fdocs&size=32')
+})
+
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {
   const bookmarks = flattenBookmarkNodes([
     {

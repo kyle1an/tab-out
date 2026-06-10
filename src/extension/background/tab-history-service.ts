@@ -447,6 +447,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               isApp: isStandaloneAppWindow(tab ? windowTypeById.get(tab.windowId) : undefined),
               pinned: !!tab?.pinned,
               discarded: !!tab?.discarded,
+              suspended: rawUrl !== url,
               audible: !!tab?.audible,
               muted: !!tab?.mutedInfo?.muted,
               cursor: index === cleanHistory.index,

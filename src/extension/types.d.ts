@@ -318,6 +318,7 @@ export interface TabHistoryEntry {
   isApp: boolean
   pinned: boolean
   discarded: boolean
+  suspended: boolean
   audible?: boolean
   muted?: boolean
   cursor: boolean

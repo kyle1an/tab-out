@@ -1,5 +1,5 @@
 import { snapshotChromeTabs } from './tabs.js'
-import { pickFavicon } from './favicons.js'
+import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { focusExistingTabTarget } from './tab-focus.js'
 import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot } from './types'
 
@@ -33,6 +33,14 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
   const tabId = integerOr(entry?.tabId, -1)
   const windowId = integerOr(entry?.windowId, -1)
   const url = String(entry?.url || '')
+  const rawUrl = String(entry?.rawUrl || url)
+  // A suspended row's favIconUrl is the suspender page's faded data: icon —
+  // recover the real favicon by the unwrapped url instead of keeping that
+  // copy. Older snapshots lack the explicit flag, so fall back to the
+  // canonical derivation (rawUrl differs from the effective url only when
+  // a suspender rewrote it).
+  const suspended = entry?.suspended ?? rawUrl !== url
+  const favIconUrl = String(entry?.favIconUrl || '')
   return {
     index: integerOr(entry?.index, index),
     tabId,
@@ -43,6 +51,7 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     isApp: !!entry?.isApp,
     pinned: !!entry?.pinned,
     discarded: !!entry?.discarded,
+    suspended,
     audible: !!entry?.audible,
     muted: !!entry?.muted,
     cursor: !!entry?.cursor,
@@ -51,9 +60,9 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     nextTarget: !!entry?.nextTarget,
     title: String(entry?.title || (tabId === -1 ? 'Unknown tab' : `Tab ${tabId}`)),
     url,
-    rawUrl: String(entry?.rawUrl || url),
+    rawUrl,
     displayUrl: String(entry?.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
-    favIconUrl: pickFavicon({ favIconUrl: String(entry?.favIconUrl || ''), url }),
+    favIconUrl: suspended ? pickTabFavicon({ favIconUrl, url, suspended }) : pickFavicon({ favIconUrl, url }),
     lastActivatedAt: integerOrNull(entry?.lastActivatedAt)
   }
 }
