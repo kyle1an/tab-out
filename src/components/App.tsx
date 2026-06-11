@@ -302,19 +302,6 @@ function dashboardMissionSections({
     }
   ]
 
-  if (showBookmarkMatches) {
-    sections.push({
-      cards: bookmarkMatchedCards,
-      gridId: 'bookmarkMatchesMissions',
-      gridRef: bookmarkMissionsRef,
-      label: 'Bookmarks',
-      sectionClassName: cn('missions-other missions-bookmarks mt-6', bookmarkMatchesFlush && 'mt-0'),
-      sectionId: 'bookmarkMatchesSection',
-      showEmptyState: false,
-      source: 'bookmarks'
-    })
-  }
-
   if (showHistoryMatches) {
     sections.push({
       cards: historyMatchedCards,
@@ -325,6 +312,19 @@ function dashboardMissionSections({
       sectionId: 'historyMatchesSection',
       showEmptyState: false,
       source: 'history'
+    })
+  }
+
+  if (showBookmarkMatches) {
+    sections.push({
+      cards: bookmarkMatchedCards,
+      gridId: 'bookmarkMatchesMissions',
+      gridRef: bookmarkMissionsRef,
+      label: 'Bookmarks',
+      sectionClassName: cn('missions-other missions-bookmarks mt-6', bookmarkMatchesFlush && 'mt-0'),
+      sectionId: 'bookmarkMatchesSection',
+      showEmptyState: false,
+      source: 'bookmarks'
     })
   }
 

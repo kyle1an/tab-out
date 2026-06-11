@@ -22,13 +22,14 @@
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
 import { fetchBookmarksSourceItems } from './bookmarks.js'
 import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
-import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeysFromStore, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, savedPagesStoresEqual, saveSavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import { readLocalCustomGroups } from './local-config.js'
+import { unwrapSuspenderUrl } from './suspender.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
@@ -163,6 +164,27 @@ async function dashboardTabsForData(dashboardTabs?: DashboardTab[]): Promise<Das
   return getDashboardTabsFromOpenTabs(openTabsSnapshot)
 }
 
+function dashboardItemIdentityKey(tab: Pick<DashboardTab, 'url' | 'rawUrl'>): string {
+  return savedPageKeyForUrl(unwrapSuspenderUrl(tab.url || tab.rawUrl || ''))
+}
+
+function addMatchingItemIdentityKeys(keys: Set<string>, tabs: DashboardTab[], filter: string): void {
+  if (!filter.trim()) return
+  for (const tab of tabs) {
+    if (!tabMatchesSourceFilter(tab, filter)) continue
+    const key = dashboardItemIdentityKey(tab)
+    if (key) keys.add(key)
+  }
+}
+
+function removePriorSourceMatches(tabs: DashboardTab[], priorKeys: ReadonlySet<string>): DashboardTab[] {
+  if (priorKeys.size === 0) return tabs
+  return tabs.filter((tab) => {
+    const key = dashboardItemIdentityKey(tab)
+    return !key || !priorKeys.has(key)
+  })
+}
+
 export async function buildDashboardDataFromTabs(
   dashboardTabs: DashboardTab[],
   currentWindowId: number | null,
@@ -190,17 +212,22 @@ export async function buildDashboardDataFromTabs(
   }
   const realTabs = savedPagesMerge.tabs
   const annotatedBookmarkTabs = annotateSavedPageHints(bookmarkTabs, savedPagesMerge.store)
+  const priorCompanionKeys = new Set<string>()
+  addMatchingItemIdentityKeys(priorCompanionKeys, realTabs, searchQuery)
+  const dedupedHistoryTabs = includeHistoryMatches ? removePriorSourceMatches(historyTabs, priorCompanionKeys) : historyTabs
+  addMatchingItemIdentityKeys(priorCompanionKeys, dedupedHistoryTabs, searchQuery)
+  const dedupedBookmarkTabs = includeBookmarkMatches ? removePriorSourceMatches(annotatedBookmarkTabs, priorCompanionKeys) : annotatedBookmarkTabs
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
-  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
-  const historyDomainGroups = buildDomainGroups(historyTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
+  const bookmarkDomainGroups = buildDomainGroups(dedupedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
+  const historyDomainGroups = buildDomainGroups(dedupedHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
   return {
     realTabs,
     domainGroups,
     currentWindowId,
-    bookmarkTabs: annotatedBookmarkTabs,
+    bookmarkTabs: dedupedBookmarkTabs,
     bookmarkDomainGroups,
     bookmarkSearchReady: includeBookmarkMatches,
-    historyTabs,
+    historyTabs: dedupedHistoryTabs,
     historyDomainGroups,
     historySearchQuery: historyQuery,
     historyRange,

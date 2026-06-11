@@ -5,6 +5,7 @@
 - **Dashboard**: The Tab Out new-tab surface that shows open tabs and related sources grouped for cleanup.
 - **Source**: The selected dashboard input: open tabs, bookmarks, or history.
 - **Dashboard Item**: A tab-shaped page from any Source that can be grouped and rendered on the Dashboard.
+- **Dashboard Item Identity**: The effective page target used to decide when Dashboard Items from different Sources represent the same page.
 - **Saved Page**: A user-kept Dashboard Item that stays visible in the Tabs source after its matching open tab is closed.
 - **Domain Card**: A dashboard group for one registrable domain or fixed system group.
 - **Domain Card Identity**: The stable `domain-*` key shared by card order memory, Domain Card view data, React keys, and card move animation DOM hooks.
@@ -43,6 +44,7 @@
 - First-pass **Filter Matches** preserve existing Dashboard Item order rather than ranking by match quality.
 - Filter highlighting marks each parsed term or quoted phrase that contributes to an app-owned **Filter Match**.
 - **Companion Results** are loaded only while open tabs are the selected **Source**, so they do not replace the selected source view.
+- **Companion Results** use Source priority while filtering: Tabs-source **Filter Matches** come first, then history **Companion Results**, then bookmark **Companion Results**. A lower-priority Companion Result does not repeat a higher-priority **Dashboard Item Identity**.
 - Bookmark **Filter Matches** and history **Companion Results** remain read-only **Dashboard Items** even though they render as Page Chips.
 - A **Saved Page** belongs to the Tabs source, not the Bookmarks source, and saving one does not create a Chrome bookmark.
 - A **Saved Page** is created only by explicit user action; closing an unsaved tab does not create a visible closed-tab item.
