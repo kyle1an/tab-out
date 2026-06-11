@@ -32,6 +32,13 @@ test('highlightedTextNodes tolerates zero-width spaces when matching', () => {
   assert.match(html, /<mark/)
 })
 
+test('highlightedTextNodes keeps highlights aligned when toLowerCase expands characters', () => {
+  // '\u0130' (U+0130) lowercases to two units ('i' + combining dot), shifting every
+  // later index \u2014 the mark must still wrap the matched original text.
+  const html = renderNodes(highlightedTextNodes('\u0130\u0130\u0130 Example Docs', ['docs'], 'k'))
+  assert.match(html, /<mark[^>]*>Docs<\/mark>/)
+})
+
 test('highlightTermsForFilter parses space-separated terms in parsed mode', () => {
   assert.deepEqual(highlightTermsForFilter('foo bar', 'parsed').sort(), ['bar', 'foo'])
 })

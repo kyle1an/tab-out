@@ -36,6 +36,13 @@ test('buildSuspendUrl: preserves the suspender base path and extra fragment para
   assert.ok(built.endsWith('&uri=https://new.example'))
 })
 
+test('buildSuspendUrl: zeroes the template pos= scroll offset', () => {
+  const template = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=Old&pos=4220&uri=https://old.example/page`
+  const built = buildSuspendUrl({ id: SUSPENDER_ID, template }, { url: 'https://new.example', title: 'New' })
+  assert.ok(built.includes('&pos=0&'))
+  assert.ok(!built.includes('pos=4220'))
+})
+
 test('rememberSuspendTargetFromTabs: captures the first suspended tab; getSuspendTarget returns it', async () => {
   const raw = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=T&pos=0&uri=https://kept.example`
   rememberSuspendTargetFromTabs([
@@ -56,4 +63,28 @@ test('rememberSuspendTargetFromTabs: ignores non-suspender and non-suspended tab
     { suspended: false, rawUrl: 'https://live.example' }
   ])
   assert.deepEqual(await getSuspendTarget(), { id: SUSPENDER_ID, template: good })
+})
+
+test('rememberSuspendTargetFromTabs: same-suspender template drift updates memory without re-persisting', async () => {
+  const otherId = 'iiiijjjjkkkkllllmmmmnnnnoooopppp'
+  const setCalls: unknown[] = []
+  globalThis.chrome = {
+    storage: {
+      local: {
+        get: async () => ({}),
+        set: async (items: unknown) => { setCalls.push(items) }
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+  try {
+    const first = `chrome-extension://${otherId}/suspended.html#ttl=A&pos=10&uri=https://a.example`
+    const second = `chrome-extension://${otherId}/suspended.html#ttl=B&pos=99&uri=https://b.example`
+    rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: first }])
+    assert.equal(setCalls.length, 1)
+    rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: second }])
+    assert.equal(setCalls.length, 1)
+    assert.deepEqual(await getSuspendTarget(), { id: otherId, template: second })
+  } finally {
+    delete (globalThis as { chrome?: unknown }).chrome
+  }
 })

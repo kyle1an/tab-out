@@ -4,10 +4,10 @@
    format template) and rebuilds suspend URLs for new tabs.
 
    buildSuspendUrl is the inverse of suspender.ts's unwrap helpers:
-   it keeps the observed suspender's fragment shape and only swaps
-   the `ttl=` (URL-encoded title) and trailing `uri=` (raw real URL,
-   always last) values, so the result round-trips through
-   unwrapSuspenderUrl / unwrapSuspenderTitle.
+   it keeps the observed suspender's fragment shape, swaps the `ttl=`
+   (URL-encoded title) and trailing `uri=` (raw real URL, always last)
+   values, and zeroes any `pos=` scroll offset, so the result
+   round-trips through unwrapSuspenderUrl / unwrapSuspenderTitle.
    ================================================================ */
 
 export const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
@@ -43,6 +43,11 @@ export function buildSuspendUrl(target: SuspendTarget, opts: { url: string; titl
   let head = frag
   if (markerIndex >= 0) head = frag.slice(0, markerIndex)
   else if (frag.startsWith('uri=')) head = ''
+
+  // The template's pos= is the observed tab's own scroll offset (Great/
+  // Marvellous Suspender convention) — zero it so a freshly suspended tab
+  // restores at the top instead of at another page's position.
+  head = head.replace(/(^|&)pos=[^&]*/, '$1pos=0')
 
   const encodedTitle = encodeURIComponent(title)
   let titledHead: string
@@ -90,9 +95,11 @@ export async function getSuspendTarget(): Promise<SuspendTarget | null> {
 
 /**
  * rememberSuspendTargetFromTabs — scan normalized open tabs for the first
- * suspended one whose rawUrl is a recognizable suspended.html URL, and cache +
- * persist it as the suspend target. Cheap and idempotent: re-observing the same
- * URL is a no-op. Called on every fetchOpenTabs so the target stays current.
+ * suspended one whose rawUrl is a recognizable suspended.html URL and cache it
+ * as the suspend target. Called on every fetchOpenTabs, so storage writes are
+ * kept rare: the target is persisted only when the suspender id changes; a
+ * same-id template refresh (a different suspended tab observed first) only
+ * updates the in-memory cache.
  */
 export function rememberSuspendTargetFromTabs(
   tabs: readonly { suspended?: boolean; rawUrl?: string }[]
@@ -101,9 +108,10 @@ export function rememberSuspendTargetFromTabs(
     if (!tab.suspended || !tab.rawUrl) continue
     const id = extractSuspenderId(tab.rawUrl)
     if (!id) continue
-    if (cachedTarget && cachedTarget.id === id && cachedTarget.template === tab.rawUrl) return
+    if (cachedTarget?.id === id && cachedTarget.template === tab.rawUrl) return
+    const idChanged = cachedTarget?.id !== id
     cachedTarget = { id, template: tab.rawUrl }
-    void saveSuspendTarget(cachedTarget)
+    if (idChanged) void saveSuspendTarget(cachedTarget)
     return
   }
 }

@@ -26,11 +26,17 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index]
     if (char === '\u200B') continue
-    normalizedChars.push(char)
-    originalIndexes.push(index)
+    // Lowercase per character: toLowerCase can expand a character into several
+    // units ('\u0130' \u2192 'i' + combining dot), so each unit must map back to its own
+    // original index or every later highlight range drifts.
+    const lower = char.toLowerCase()
+    for (let unit = 0; unit < lower.length; unit += 1) {
+      normalizedChars.push(lower[unit])
+      originalIndexes.push(index)
+    }
   }
 
-  const normalizedText = normalizedChars.join('').toLowerCase()
+  const normalizedText = normalizedChars.join('')
   const ranges: Array<{ start: number; end: number }> = []
   for (const term of highlightTerms) {
     if (!term) continue

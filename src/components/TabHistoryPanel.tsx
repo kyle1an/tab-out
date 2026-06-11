@@ -1186,7 +1186,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     void setHistoryEntryMuted(entry.tabId, nextMutedForAudioState(audioState))
   }
   const canShowSuspend = entry.exists && Number.isInteger(entry.tabId)
-  const suspendEnabled = canShowSuspend && entry.rawUrl === entry.url
+  const suspendEnabled = canShowSuspend && !entry.suspended
   function onToggleEntrySuspend(e: StopPropagationEvent) {
     e.stopPropagation()
     if (!Number.isInteger(entry.tabId)) return
