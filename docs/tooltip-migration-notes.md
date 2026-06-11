@@ -159,7 +159,7 @@ The current threshold is 15 or more letters, digits, or underscores, split every
 
 Reason: normal English words mostly stay untouched, while long code-like tokens get invisible break opportunities.
 
-`renderHighlightedText()` ignores zero-width spaces when finding filter matches.
+`highlightedTextNodes()` (now in `src/components/filter-highlight-text.tsx`) ignores zero-width spaces when finding filter matches.
 
 Reason: filter highlighting should still match user-visible text, even when the displayed chip string contains invisible breakpoints.
 

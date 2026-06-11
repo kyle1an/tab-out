@@ -19,6 +19,7 @@
 - **Activation History**: The chronological open-tab focus path used for previous/next tab switching and close-recovery behavior.
 - **Working Set**: A ranking signal over open-tab Dashboard Items that the user is likely to return to before scanning Domain Cards or using a Filter Query.
 - **Tab Action**: A user intent from the dashboard that mutates tabs or history, records undo/toast feedback, and refreshes the Dashboard.
+- **Suspend Target**: The remembered third-party suspender (extension id plus an observed suspended-page URL template) used to rebuild suspend URLs when a Tab Action suspends tabs.
 
 ## Relationships
 
@@ -29,7 +30,7 @@
 - A **Website Path Section** may contain one or more **Path Groups**, and a **Path Group** may contain one or more **Page Chips**.
 - **Path Group** singleton behavior belongs to the Path Group rule itself; adding a **Website Path Section** does not change whether a single site-specific object stays grouped.
 - A **Page Chip** shows a URL path suffix only when another chip in the same rendered group has the same visible title; sibling Website Path Sections and Path Groups already provide enough context.
-- Same-title **Page Chips** with different effective URLs inside the same rendered group merge visually into one title row with per-URL distinguishers; the distinguishers remain the focus, close/delete, and page-pin targets.
+- Same-title **Page Chips** with different effective URLs inside the same rendered group merge visually into one title row with per-URL distinguishers; the distinguishers remain the focus, close/delete, and page-pin targets, and the merged row's favicon close action closes or deletes every closable variant at once.
 - A **Page Chip** pin is Tabs-source ordering state for an exact page identity inside one rendered sibling scope; pinned chips sort before Working Set priority but do not move across Domain Cards, subdomain sections, Website Path Sections, Path Groups, or Sources. Pinned chips show a favicon-corner pin marker. Pinned same-title URL distinguishers promote into that local sibling list, while remaining unpinned variants may stay visually grouped.
 - For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
 - For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira`, and `/servicedesk`.
@@ -81,6 +82,10 @@
 - **Activation History** recently-closed rows can be focused to reopen the tab and can be forgotten with an undoable local dismissal that hides that closure from the panel; Chrome exposes no API to delete a recently-closed entry, so forgetting is local suppression keyed by effective page identity that lapses if the same page is closed again later.
 - A **Working Set** does not change **Domain Card** ordering; it may prioritize sibling subdomain sections, Website Path Sections, Path Groups, and Page Chips within a Domain Card, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
 - A **Working Set** excludes utility pages such as Tab Out pages and should drop non-open pages from the visible set while retaining recent activity only as historical ranking evidence.
+- A **Tab Action** may suspend the live, not-already-suspended tabs behind a **Page Chip** or **Activation History** row by redirecting them into the **Suspend Target**; folded chips suspend every matching live tab, and without a learned Suspend Target the action only reports that no suspender was detected.
+- The **Suspend Target** is learned by observing an already-suspended open tab and is remembered across sessions; suspending never picks a suspender the user has not used.
+- A suspended **Dashboard Item** keeps its real page's favicon: chips, history rows, and Working Set rows resolve the icon from the unwrapped effective URL instead of keeping the suspender page's faded copy.
+- An **Activation History** row offers the explicit **Page Chip** context-menu actions that apply to it: copy title, save page, and suspend.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.
 - Repeated title noise inside a visible **Website Path Section** is scoped to that section when no narrower **Path Group** owns it.
 - A **Title Suppression Scope** owns its summary tokens and matching chip markers; visible scopes coordinate palette colors within a **Domain Card** so two visible suppression meanings do not use the same color.

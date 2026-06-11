@@ -26,15 +26,22 @@ The agent will walk you through it. Takes about 1 minute.
 - **Homepages stay with their site** so Gmail, GitHub, YouTube, and similar start pages remain in their own domain cards
 - **Close tabs with style** with a polished collapse animation, undoable via toast
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
-- **Pin domain cards** to keep important sites at the top of the dashboard
+- **Pin domain cards** to keep important sites at the top of the dashboard, plus per-card section and page-chip pins that keep important pages first inside their card
 - **Click any tab to jump to it** across Chrome windows
+- **Move a tab here with a modifier-click** — Cmd/Ctrl-click any chip or history row to pull that tab into the current window (add Shift to switch to it); if the page has no live tab, the same gesture opens it in a new tab
+- **Activation history column** — your chronological tab-switching path with working-set hints and recently closed rows you can restore or forget
+- **Saved pages** — explicitly keep a page on its card after the tab closes, and reopen it with one click (local state, not a Chrome bookmark)
+- **Audio at a glance** — chips and history rows show Chrome-style play/mute indicators with a click-to-mute toggle
+- **Suspend tabs** — bulk-suspend a card from its actions menu, or suspend a single page from its right-click menu, through your own suspender extension
+- **Right-click menus** — copy a page title, save a page, or suspend it from any chip or history row; group chips can close all their URL variants at once
+- **Filter-match highlighting** — matched terms are marked in chip and history-row titles while you filter
 - **Live filter** — type in the filter input to narrow the dashboard; the clear button resets it. Matching bookmarks and recent history appear below open-tab matches, with a history range menu for last day/week/month/3 months, and non-matching tabs move to an "Other tabs" section so every tab stays accounted for
 - **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Global new-tab shortcut support** — assign "Open a new Tab Out tab" in `chrome://extensions/shortcuts` and set it to Global to create a fresh Tab Out page even when Chrome is not focused
 - **Shared-page fold** — if the same path is open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), it collapses into one chip with a row of clickable env pills; each pill jumps to that specific tab
 - **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill
-- **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally
+- **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally, recovers the real page favicon over the suspender's faded copy, and unsuspends through the owning suspender when activated
 - **Localhost grouping** shows port numbers next to each tab so you can tell your dev projects apart
 - **Path-group clusters** — GitHub repos, Jira projects, Confluence spaces, Contentful envs, Figma files, and subreddits each cluster under a labeled sub-section within their domain card
 - **Expandable sections** show the first 5 chips with a clickable "+N more" (skipped when N would be 1)
@@ -88,7 +95,7 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 | Service worker | Source under `src/extension/background.ts`, bundled by Vite into `extension/dist/background.js` |
 | Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS-driven close and move animations |
-| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` stores pinned domain-card order and activation history |
+| State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` stores user state such as card/section/page pins, saved pages, activation history, working-set activity, and the detected suspender |
 
 ## Development
 
