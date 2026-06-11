@@ -157,7 +157,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(contextMenuSource, /menuPopupClassName/)
   assert.match(contextMenuSource, /menuItemClassName/)
   assert.match(menuStylesSource, /relative isolate z-70 min-w-40/)
-  assert.match(menuStylesSource, /rounded-xl bg-popover p-1/)
+  assert.match(menuStylesSource, /rounded-\[15px\] bg-popover p-1/)
   assert.match(menuStylesSource, /min-h-6 min-w-36/)
   assert.match(menuStylesSource, /gap-1\.5 rounded-lg px-2 py-1 text-\[13px\]/)
   assert.match(inputSource, /@base-ui\/react\/input/)
