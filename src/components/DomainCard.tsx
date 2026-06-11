@@ -1,6 +1,6 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { splitDomainForDisplay } from '../extension/domains.js'
-import { closeDomainTabs, dedupeTabs } from '../extension/tab-actions'
+import { closeDomainTabs, dedupeTabs, suspendDomainTabs } from '../extension/tab-actions'
 import { DomainCardProvider } from './DomainCardContext'
 import { useDashboardActions } from './DashboardInteractionContext'
 import { SubdomainSection } from './SubdomainSection'
@@ -216,6 +216,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const displayName = vm.displayName || group.label || group.domain
   const closableExtras = vm.closableExtras ?? 0
   const closableCount = vm.closableCount ?? 0
+  const suspendableCount = vm.suspendableCount ?? 0
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
@@ -235,6 +236,13 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
           await new Promise((resolve) => setTimeout(resolve, 250))
         }
       }
+    })
+  }
+
+  async function onSuspendDomain() {
+    await suspendDomainTabs({
+      group,
+      filter
     })
   }
 
@@ -289,7 +297,13 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
           <TabBadge label={vm.tabCountLabel} />
           {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
           {!hideCardClose && closableCount > 0 && (
-            <CardActionsMenu displayName={displayName} label={vm.closableCountLabel} onClose={onCloseDomain} />
+            <CardActionsMenu
+              displayName={displayName}
+              label={vm.closableCountLabel}
+              onClose={onCloseDomain}
+              suspendLabel={suspendableCount > 0 ? vm.suspendableCountLabel : undefined}
+              onSuspend={suspendableCount > 0 ? onSuspendDomain : undefined}
+            />
           )}
         </header>
         <div

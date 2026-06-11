@@ -273,7 +273,33 @@ test('computeDomainCardViewModel keeps pinned new tabs out of close and dedupe c
   const vm = computeDomainCardViewModel(group)
   assert.equal(vm.displayName, 'New tabs')
   assert.equal(vm.closableCount, 2)
+  assert.equal(vm.suspendableCount, 2)
+  assert.equal(vm.suspendableCountLabel, 'Suspend 2 ungrouped tabs')
   assert.equal(vm.closableExtras, 2)
+})
+
+test('computeDomainCardViewModel labels card-level suspend for live tabs only', () => {
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ url: 'https://example.com/a', title: 'Alpha' }),
+      makeTab({ id: 2, url: 'https://example.com/b', title: 'Bravo' }),
+      makeTab({
+        id: 3,
+        url: 'https://example.com/c',
+        rawUrl: 'chrome-extension://suspender/suspended.html#uri=https%3A%2F%2Fexample.com%2Fc',
+        suspended: true,
+        title: 'Charlie'
+      }),
+      makeTab({ id: 4, url: 'https://example.com/d', title: 'Delta', groupId: 7 })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  assert.equal(vm.closableCount, 3)
+  assert.equal(vm.closableCountLabel, 'Close 3 ungrouped tabs')
+  assert.equal(vm.suspendableCount, 2)
+  assert.equal(vm.suspendableCountLabel, 'Suspend 2 ungrouped tabs')
 })
 
 test('computeDomainCardViewModel excludes the current Tab Out page from pinned dedupe counts', () => {

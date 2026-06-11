@@ -652,6 +652,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
   const closableTabs = openTabs.filter((t) => !isGroupedTab(t) && !(isTabOutGroup && t.pinned))
   const closableCount = closableTabs.length
+  const suspendableTabs = closableTabs.filter((t) => !t.suspended)
+  const suspendableCount = suspendableTabs.length
 
   // Count duplicates per URL and delegate the closeability rules to the
   // shared dedupe policy so dashboard counts mirror tab mutation behavior.
@@ -2103,6 +2105,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // "Close N ungrouped tabs" split so the button text matches.
   const closableCountLabel =
     closableCount === tabCount ? `Close all ${closableCount} tab${closableCount !== 1 ? 's' : ''}` : `Close ${closableCount} ungrouped tab${closableCount !== 1 ? 's' : ''}`
+  const suspendableCountLabel =
+    suspendableCount === tabCount
+      ? `Suspend all ${suspendableCount} tab${suspendableCount !== 1 ? 's' : ''}`
+      : closableCount !== tabCount
+        ? `Suspend ${suspendableCount} ungrouped tab${suspendableCount !== 1 ? 's' : ''}`
+        : `Suspend ${suspendableCount} active tab${suspendableCount !== 1 ? 's' : ''}`
 
   const displayName = group.label || group.domain.replace(/^www\./, '')
 
@@ -2114,6 +2122,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   // on closableCount > 0 / closableUrls.length > 0).
   const isUnmatched = displayMode === 'unmatched'
   const vmClosableCount = isUnmatched || !allowMutations ? 0 : closableCount
+  const vmSuspendableCount = isUnmatched || !allowMutations ? 0 : suspendableCount
   const vmClosableExtras = isUnmatched || !allowMutations ? 0 : closableExtras
   const vmClosableDupeUrls = isUnmatched || !allowMutations ? [] : closableDupeUrls
   const vmSections = isUnmatched
@@ -2140,6 +2149,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     tabCountTitle,
     closableCount: vmClosableCount,
     closableCountLabel,
+    suspendableCount: vmSuspendableCount,
+    suspendableCountLabel,
     closableDupeUrls: vmClosableDupeUrls,
     closableExtras: vmClosableExtras,
     singleSubdomainKey,

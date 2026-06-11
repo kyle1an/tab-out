@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -36,6 +37,8 @@ function makeClosableCardVM(overrides: Partial<DashboardCardVM> = {}): Dashboard
     tabCountLabel: '5',
     closableCount: 5,
     closableCountLabel: 'Close all 5 tabs',
+    suspendableCount: 5,
+    suspendableCountLabel: 'Suspend all 5 tabs',
     suppressedTitleParts: [],
     sections: [],
     ...overrides
@@ -51,6 +54,12 @@ test('DomainCard renders the kebab actions menu (not the old close button) when 
   // The old dual-mode close button is gone from the at-rest header.
   assert.doesNotMatch(html, /card-close-btn/)
   assert.doesNotMatch(html, /data-tabout-part="close-button"/)
+})
+
+test('CardActionsMenu orders suspend before close', () => {
+  const source = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
+
+  assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-button"'))
 })
 
 test('DomainCard renders no actions menu when there is nothing closable', () => {

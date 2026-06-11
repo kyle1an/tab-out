@@ -1,4 +1,6 @@
 import { requestDashboardRefresh } from './dashboard-controller.js'
+import { isClosedSavedDashboardTab } from './dashboard-source.js'
+import { isGroupedTab } from './groups.js'
 import { deleteHistorySourceUrl } from './history-source.js'
 import { unwrapSuspenderUrl } from './suspender.js'
 import { getSuspendTarget, buildSuspendUrl, type SuspendTarget } from './suspend-target.js'
@@ -25,6 +27,11 @@ type CloseDomainTabsOptions = {
   filter: string
   displayName: string
   onAfterClose?: (result: TabActionResult) => void | Promise<void>
+}
+
+type SuspendDomainTabsOptions = {
+  group: DomainGroup
+  filter: string
 }
 
 type CloseExactTabSectionOptions = {
@@ -88,6 +95,44 @@ export async function closeDomainTabs({ group, filter, displayName, onAfterClose
   markClosedTabs(snapshot, `${closedTabsLabel(snapshot.length)} from ${displayName}`)
   await refreshDashboardAfterTabAction()
   return result
+}
+
+function domainSuspendTargetUrls({ group, filter }: SuspendDomainTabsOptions): string[] {
+  const isTabOutGroup = group.domain === '__tab-out__'
+  const scopedTabs = filter ? group.tabs.filter((tab) => tabMatchesSourceFilter(tab, filter)) : group.tabs
+  return scopedTabs
+    .filter((tab) => !isClosedSavedDashboardTab(tab))
+    .filter((tab) => !isGroupedTab(tab) && !(isTabOutGroup && tab.pinned))
+    .filter((tab) => !tab.suspended)
+    .map((tab) => tab.url)
+}
+
+export async function suspendDomainTabs(options: SuspendDomainTabsOptions): Promise<{ suspendedCount: number }> {
+  const urls = domainSuspendTargetUrls(options)
+  if (urls.length === 0) {
+    showToast('Nothing to suspend')
+    return { suspendedCount: 0 }
+  }
+
+  const target = await getSuspendTarget()
+  if (!target) {
+    showToast('No suspender detected')
+    return { suspendedCount: 0 }
+  }
+
+  const urlSet = new Set(urls)
+  const isTabOutGroup = options.group.domain === '__tab-out__'
+  const allTabs = await chrome.tabs.query({})
+  const targets = allTabs.filter((tab) => {
+    if (isGroupedTab(tab) || (isTabOutGroup && tab.pinned)) return false
+    return urlSet.has(unwrapSuspenderUrl(tab.url || ''))
+  })
+  const suspendedCount = await applySuspendToTabs(targets, target)
+
+  await fetchOpenTabs()
+  await requestDashboardRefresh()
+  showToast(suspendedCount === 0 ? 'Nothing to suspend' : suspendedCount === 1 ? 'Tab suspended' : `Suspended ${suspendedCount} tabs`)
+  return { suspendedCount }
 }
 
 export async function closeExactTabSection({ urls }: CloseExactTabSectionOptions): Promise<TabActionResult> {

@@ -4,9 +4,11 @@ interface CardActionsMenuProps {
   displayName: string
   label?: string
   onClose: () => void | Promise<void>
+  suspendLabel?: string
+  onSuspend?: () => void | Promise<void>
 }
 
-export function CardActionsMenu({ displayName, label, onClose }: CardActionsMenuProps) {
+export function CardActionsMenu({ displayName, label, onClose, suspendLabel, onSuspend }: CardActionsMenuProps) {
   return (
     <Menu>
       <MenuTrigger
@@ -17,6 +19,17 @@ export function CardActionsMenu({ displayName, label, onClose }: CardActionsMenu
         <span className="icon-[lucide--ellipsis-vertical] size-[14px]" aria-hidden="true" />
       </MenuTrigger>
       <MenuContent>
+        {suspendLabel && onSuspend && (
+          <MenuItem
+            data-tabout-part="suspend-button"
+            className="card-actions-suspend-item"
+            label={suspendLabel}
+            onClick={onSuspend}
+          >
+            <span className="icon-[lucide--circle-pause] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{suspendLabel}</span>
+          </MenuItem>
+        )}
         <MenuItem
           data-tabout-part="close-button"
           className="card-actions-close-item data-highlighted:text-(--status-abandoned)!"

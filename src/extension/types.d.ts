@@ -192,6 +192,8 @@ export interface DashboardCardVM {
   tabCountTitle?: string
   closableCount?: number
   closableCountLabel?: string
+  suspendableCount?: number
+  suspendableCountLabel?: string
   closableDupeUrls?: string[]
   closableExtras?: number
   singleSubdomainKey?: string
