@@ -1503,40 +1503,38 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const expandedEntryElement = titleExpanded ? historyEntrySurface(true) : null
 
   return (
-    <>
+    <div
+      data-tabout="activation-history-entry"
+      data-low-score={dimmed ? 'true' : undefined}
+      data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
+      className={cn(
+        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-160 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
+        titleExpanded && 'history-entry-row-expanded-open'
+      )}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onMouseEnter}
+      onBlur={onMouseLeave}
+    >
+      <HistoryEntryMarkerCell
+        kind={kind}
+        indexLabel={indexLabel}
+        closedTab={closedTab}
+        renderedAtMs={renderedAtMs}
+        isIndexHighlighted={isIndexHighlighted}
+        dimmed={dimmed}
+      />
       <div
-        data-tabout="activation-history-entry"
-        data-low-score={dimmed ? 'true' : undefined}
-        data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
-        className={cn(
-          'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-160 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
-          titleExpanded && 'history-entry-row-expanded-open'
-        )}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-        onFocus={onMouseEnter}
-        onBlur={onMouseLeave}
+        className="history-entry-slot relative min-w-0 flex-auto"
+        style={entrySlotStyle}
+        ref={entrySlotRef}
       >
-        <HistoryEntryMarkerCell
-          kind={kind}
-          indexLabel={indexLabel}
-          closedTab={closedTab}
-          renderedAtMs={renderedAtMs}
-          isIndexHighlighted={isIndexHighlighted}
-          dimmed={dimmed}
-        />
-        <div
-          className="history-entry-slot relative min-w-0 flex-auto"
-          style={entrySlotStyle}
-          ref={entrySlotRef}
-        >
-          <HistoryEntryContextMenu entry={entry} savedKeys={savedKeys} onOpenChange={onHistoryEntryMenuOpenChange}>
-            {historyEntrySurface(false)}
-          </HistoryEntryContextMenu>
-          {expandedEntryElement}
-        </div>
+        <HistoryEntryContextMenu entry={entry} savedKeys={savedKeys} onOpenChange={onHistoryEntryMenuOpenChange}>
+          {historyEntrySurface(false)}
+        </HistoryEntryContextMenu>
+        {expandedEntryElement}
       </div>
-    </>
+    </div>
   )
 }
 
