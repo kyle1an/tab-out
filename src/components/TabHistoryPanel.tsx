@@ -17,6 +17,7 @@ import { moveTabToCurrentWindow } from '../extension/tab-move.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { historyEntrySaveTarget, historyEntrySaved, isHistoryEntrySaveEligible } from '../extension/history-saved-page.js'
 import { PageChipContextMenu } from './PageChipContextMenu'
+import type { PageChipContextMenuTriggerElement } from './PageChipContextMenu'
 import { openTabUrl } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { TabAudioButton } from './TabAudioButton'
@@ -1097,6 +1098,208 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   return { activateHistoryEntry, onEntryKeyDown, onEntryMouseDown, onCloseEntry, onMouseEnter, onMouseLeave }
 }
 
+type HistoryEntryMarkerCellProps = {
+  kind: HistoryEntryKind
+  indexLabel: ReactNode
+  closedTab: ClosedTabEntry | null
+  renderedAtMs: number
+  isIndexHighlighted: boolean
+  dimmed: boolean
+}
+
+function HistoryEntryMarkerCell({ kind, indexLabel, closedTab, renderedAtMs, isIndexHighlighted, dimmed }: HistoryEntryMarkerCellProps) {
+  let marker: ReactNode = indexLabel
+  if (kind === 'open-ghost') {
+    marker = <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
+  } else if (kind === 'closed-ghost') {
+    marker = (
+      <span
+        data-tabout-part="history-entry-marker-closed-ghost"
+        className="block size-1.5 rounded-full border border-(--accent-amber) bg-transparent"
+        aria-label={closedTab ? `Closed ${formatRelativeMinutes(renderedAtMs, closedTab.lastClosedAt)}` : 'Closed'}
+      />
+    )
+  }
+  return (
+    <span
+      data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
+      className={cn(
+        'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
+        dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-expanded-open]/history-row:text-[rgba(115,115,115,0.54)]'
+      )}
+    >
+      {marker}
+    </span>
+  )
+}
+
+type HistoryEntryTitleProps = {
+  expanded: boolean
+  title: string
+  highlightTerms: readonly string[]
+  badges: readonly string[]
+  dimmed: boolean
+  geometry: HistoryEntryExpansionGeometry
+  titleRef: RefObject<HTMLSpanElement | null>
+}
+
+function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, geometry, titleRef }: HistoryEntryTitleProps) {
+  function expandedLinesNode() {
+    const lastIndex = geometry.lineHtml.length - 1
+    return (
+      <span className={HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME}>
+        {geometry.lineHtml.map((html, index) => (
+          <span
+            key={`${index}:${html}`}
+            className={index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : geometry.viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}
+          >
+            {historyTitleExpandedLineNodesFromHtml(html, `history-title-line-${index}`)}
+          </span>
+        ))}
+      </span>
+    )
+  }
+  const titleContent = expanded && geometry.lineHtml.length > 0
+    ? expandedLinesNode()
+    : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
+  return (
+    <span
+      className={cn(
+        'history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]',
+        dimmed && 'history-entry-low-score-content opacity-60 group-hover/history-row:opacity-100 group-focus-within/history-row:opacity-100 group-[.history-entry-row-expanded-open]/history-row:opacity-100'
+      )}
+    >
+      <span className="flex min-w-0 flex-auto items-start gap-1.5">
+        <span
+          className={cn(
+            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+            expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
+          )}
+          ref={expanded ? undefined : titleRef}
+        >
+          {titleContent}
+        </span>
+        {badges.length > 0 && (
+          <span className="inline-flex flex-none items-center gap-1">
+            {badges.map((badge) => (
+              <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
+                {badge}
+              </span>
+            ))}
+          </span>
+        )}
+      </span>
+    </span>
+  )
+}
+
+type HistoryEntryFaviconFrameProps = {
+  expanded: boolean
+  faviconUrl: string
+  isWorkingSetExtra: boolean
+  canRemoveEntry: boolean
+  canForgetClosedGhost: boolean
+  entryLabel: string
+  onForget: (e: MouseEvent<HTMLButtonElement>) => void
+  onClose: (e: MouseEvent<HTMLButtonElement>) => void
+}
+
+function HistoryEntryFaviconFrame({ expanded, faviconUrl, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
+  return (
+    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
+      <span
+        className={cn(
+          'history-entry-favicon-content grid h-full w-full place-items-center',
+          canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
+        )}
+        aria-hidden="true"
+      >
+        {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon /> : null}
+      </span>
+      {canRemoveEntry && (
+        <button
+          type="button"
+          data-tabout-part={canForgetClosedGhost ? 'forget-button' : 'close-button'}
+          className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-3 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+          tabIndex={expanded ? -1 : undefined}
+          aria-label={canForgetClosedGhost ? `Remove ${entryLabel} from recently closed` : `Close ${entryLabel}`}
+          onClick={canForgetClosedGhost ? onForget : onClose}
+        >
+          {canForgetClosedGhost ? (
+            <EyeOff className="size-[15px]" aria-hidden="true" />
+          ) : (
+            <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+          )}
+        </button>
+      )}
+    </span>
+  )
+}
+
+type HistoryEntryContextMenuProps = {
+  entry: TabHistoryEntry
+  savedKeys?: ReadonlySet<string>
+  onOpenChange: (open: boolean) => void
+  children: PageChipContextMenuTriggerElement
+}
+
+/**
+ * HistoryEntryContextMenu — wraps a history row in the shared page-chip
+ * context menu (Copy title / Save page / Suspend) when at least one action
+ * applies; otherwise renders the row untouched.
+ */
+function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: HistoryEntryContextMenuProps) {
+  const copyTitleText = entry.title
+  const saveEligible = isHistoryEntrySaveEligible(entry)
+  const saved = historyEntrySaved(entry, savedKeys)
+  const savedActionLabel = saved ? 'Remove saved page' : 'Save page'
+  const canShowSuspend = entry.exists && Number.isInteger(entry.tabId)
+  const suspendEnabled = canShowSuspend && !entry.suspended
+
+  async function onCopyEntryTitle(e: StopPropagationEvent) {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(copyTitleText)
+      showToast('Page title copied')
+    } catch {
+      showToast('Could not copy page title')
+    }
+  }
+
+  async function onToggleEntrySaved(e: StopPropagationEvent) {
+    e.stopPropagation()
+    try {
+      if (saved) await removeSavedPageTarget(entry.url)
+      else await savePageTarget(historyEntrySaveTarget(entry))
+    } catch {
+      showToast(saved ? "Couldn't remove the saved page" : "Couldn't save the page")
+    }
+  }
+
+  function onToggleEntrySuspend(e: StopPropagationEvent) {
+    e.stopPropagation()
+    if (!Number.isInteger(entry.tabId)) return
+    void suspendHistoryEntry(entry.tabId)
+  }
+
+  if (!copyTitleText && !saveEligible && !canShowSuspend) return children
+  return (
+    <PageChipContextMenu
+      titleText={copyTitleText}
+      onCopyTitle={onCopyEntryTitle}
+      saved={saved}
+      savedActionLabel={saveEligible ? savedActionLabel : undefined}
+      onSavedSelect={saveEligible ? onToggleEntrySaved : undefined}
+      suspendEnabled={suspendEnabled}
+      onSuspendSelect={canShowSuspend ? onToggleEntrySuspend : undefined}
+      onOpenChange={onOpenChange}
+    >
+      {children}
+    </PageChipContextMenu>
+  )
+}
+
 function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const {
@@ -1185,45 +1388,12 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     if (!audioState || !Number.isInteger(entry.tabId)) return
     void setHistoryEntryMuted(entry.tabId, nextMutedForAudioState(audioState))
   }
-  const canShowSuspend = entry.exists && Number.isInteger(entry.tabId)
-  const suspendEnabled = canShowSuspend && !entry.suspended
-  function onToggleEntrySuspend(e: StopPropagationEvent) {
-    e.stopPropagation()
-    if (!Number.isInteger(entry.tabId)) return
-    void suspendHistoryEntry(entry.tabId)
-  }
-
   function onHistoryEntryMenuOpenChange(open: boolean) {
     onHistoryEntryContextMenuOpenChange(open)
     if (open) {
       onMouseEnter()
     } else {
       onHoverUrlChange?.('')
-    }
-  }
-
-  const copyTitleText = entry.title
-  const saveEligible = isHistoryEntrySaveEligible(entry)
-  const saved = historyEntrySaved(entry, savedKeys)
-  const savedActionLabel = saved ? 'Remove saved page' : 'Save page'
-
-  async function onCopyEntryTitle(e: StopPropagationEvent) {
-    e.stopPropagation()
-    try {
-      await navigator.clipboard.writeText(copyTitleText)
-      showToast('Page title copied')
-    } catch {
-      showToast('Could not copy page title')
-    }
-  }
-
-  async function onToggleEntrySaved(e: StopPropagationEvent) {
-    e.stopPropagation()
-    try {
-      if (saved) await removeSavedPageTarget(entry.url)
-      else await savePageTarget(historyEntrySaveTarget(entry))
-    } catch {
-      showToast(saved ? "Couldn't remove the saved page" : "Couldn't save the page")
     }
   }
 
@@ -1247,74 +1417,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     maxWidth: entryExpandedMaxWidth,
     width: entryExpandedWidth
   }
-  function markerElement(): ReactNode {
-    if (kind === 'open-ghost') {
-      return <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
-    }
-    if (kind === 'closed-ghost') {
-      const ariaLabel = closedTab ? `Closed ${formatRelativeMinutes(renderedAtMs, closedTab.lastClosedAt)}` : 'Closed'
-      return (
-        <span
-          data-tabout-part="history-entry-marker-closed-ghost"
-          className="block size-1.5 rounded-full border border-(--accent-amber) bg-transparent"
-          aria-label={ariaLabel}
-        />
-      )
-    }
-    return indexLabel
-  }
-  function historyTitleExpandedLinesNode() {
-    const lastIndex = entryExpansionGeometry.lineHtml.length - 1
-    return (
-      <span className={HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME}>
-        {entryExpansionGeometry.lineHtml.map((html, index) => (
-          <span
-            key={`${index}:${html}`}
-            className={index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : entryExpansionGeometry.viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}
-          >
-            {historyTitleExpandedLineNodesFromHtml(html, `history-title-line-${index}`)}
-          </span>
-        ))}
-      </span>
-    )
-  }
-  function historyTitleContentNode(expanded: boolean) {
-    if (expanded && entryExpansionGeometry.lineHtml.length > 0) return historyTitleExpandedLinesNode()
-    return highlightedTextNodes(entry.title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(entry.title))
-  }
-
-  function titleExpansionTriggerElement(expanded: boolean) {
-    return (
-      <span
-        className={cn(
-          'history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]',
-          dimmed && 'history-entry-low-score-content opacity-60 group-hover/history-row:opacity-100 group-focus-within/history-row:opacity-100 group-[.history-entry-row-expanded-open]/history-row:opacity-100'
-        )}
-      >
-        <span className="flex min-w-0 flex-auto items-start gap-1.5">
-          <span
-            className={cn(
-              "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
-              expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
-            )}
-            ref={expanded ? undefined : titleRef}
-          >
-            {historyTitleContentNode(expanded)}
-          </span>
-          {badges.length > 0 && (
-            <span className="inline-flex flex-none items-center gap-1">
-              {badges.map((badge) => (
-                <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
-                  {badge}
-                </span>
-              ))}
-            </span>
-          )}
-        </span>
-      </span>
-    )
-  }
-
   function historyEntrySurface(expanded: boolean) {
     return (
       <div
@@ -1367,33 +1469,16 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           onMouseDown={!expanded && canActivateEntry ? onEntryMouseDown : undefined}
           onKeyDown={expanded ? undefined : onEntryKeyDown}
         >
-          <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
-            <span
-              className={cn(
-                'history-entry-favicon-content grid h-full w-full place-items-center',
-                canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
-              )}
-              aria-hidden="true"
-            >
-              {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon /> : null}
-            </span>
-            {canRemoveEntry && (
-              <button
-                type="button"
-                data-tabout-part={canForgetClosedGhost ? 'forget-button' : 'close-button'}
-                className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-3 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
-                tabIndex={expanded ? -1 : undefined}
-                aria-label={canForgetClosedGhost ? `Remove ${entryLabel} from recently closed` : `Close ${entryLabel}`}
-                onClick={canForgetClosedGhost ? onForgetEntry : onCloseEntry}
-              >
-                {canForgetClosedGhost ? (
-                  <EyeOff className="size-[15px]" aria-hidden="true" />
-                ) : (
-                  <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
-                )}
-              </button>
-            )}
-          </span>
+          <HistoryEntryFaviconFrame
+            expanded={expanded}
+            faviconUrl={faviconUrl}
+            isWorkingSetExtra={isWorkingSetExtra}
+            canRemoveEntry={canRemoveEntry}
+            canForgetClosedGhost={canForgetClosedGhost}
+            entryLabel={entryLabel}
+            onForget={onForgetEntry}
+            onClose={onCloseEntry}
+          />
           {audioState && (
             <TabAudioButton
               state={audioState}
@@ -1401,7 +1486,15 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
               className="mt-[1px] self-start"
             />
           )}
-          {titleExpansionTriggerElement(expanded)}
+          <HistoryEntryTitle
+            expanded={expanded}
+            title={entry.title}
+            highlightTerms={highlightTerms}
+            badges={badges}
+            dimmed={dimmed}
+            geometry={entryExpansionGeometry}
+            titleRef={titleRef}
+          />
         </div>
       </div>
     )
@@ -1424,37 +1517,22 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
         onFocus={onMouseEnter}
         onBlur={onMouseLeave}
       >
-        <span
-          data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
-          className={cn(
-            'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-            isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
-            dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-expanded-open]/history-row:text-[rgba(115,115,115,0.54)]'
-          )}
-        >
-          {markerElement()}
-        </span>
+        <HistoryEntryMarkerCell
+          kind={kind}
+          indexLabel={indexLabel}
+          closedTab={closedTab}
+          renderedAtMs={renderedAtMs}
+          isIndexHighlighted={isIndexHighlighted}
+          dimmed={dimmed}
+        />
         <div
           className="history-entry-slot relative min-w-0 flex-auto"
           style={entrySlotStyle}
           ref={entrySlotRef}
         >
-          {(copyTitleText || saveEligible || canShowSuspend) ? (
-            <PageChipContextMenu
-              titleText={copyTitleText}
-              onCopyTitle={onCopyEntryTitle}
-              saved={saved}
-              savedActionLabel={saveEligible ? savedActionLabel : undefined}
-              onSavedSelect={saveEligible ? onToggleEntrySaved : undefined}
-              suspendEnabled={suspendEnabled}
-              onSuspendSelect={canShowSuspend ? onToggleEntrySuspend : undefined}
-              onOpenChange={onHistoryEntryMenuOpenChange}
-            >
-              {historyEntrySurface(false)}
-            </PageChipContextMenu>
-          ) : (
-            historyEntrySurface(false)
-          )}
+          <HistoryEntryContextMenu entry={entry} savedKeys={savedKeys} onOpenChange={onHistoryEntryMenuOpenChange}>
+            {historyEntrySurface(false)}
+          </HistoryEntryContextMenu>
           {expandedEntryElement}
         </div>
       </div>

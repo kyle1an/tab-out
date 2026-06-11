@@ -7,7 +7,7 @@ import type { PageChipContextMenuContentProps } from './PageChipContextMenuConte
 
 const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 
-type PageChipContextMenuTriggerElement = ReactElement<{
+export type PageChipContextMenuTriggerElement = ReactElement<{
   className?: string
   'data-context-menu-open'?: string
 }>
