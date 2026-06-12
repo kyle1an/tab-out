@@ -796,6 +796,101 @@ function getChipTextResizeObserver() {
   return chipTextResizeObserver
 }
 
+type ChipFaviconFrameProps = {
+  chip: DashboardChipData
+  dupeCount: number
+  showDefaultFavicon: boolean
+  showFaviconCloseAction: boolean
+  dedupeBadgesClosing: boolean
+  closeActionLabel: string
+  onCloseAction: (e: MouseEvent<HTMLButtonElement>) => void
+  onToggleAudio: () => void
+}
+
+/**
+ * ChipFaviconFrame — the chip's favicon cell: dupe-stack layers, the favicon
+ * (or default), the page-pin badge, the hover-revealed close action, and the
+ * icon-only audio toggle.
+ */
+function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconCloseAction, dedupeBadgesClosing, closeActionLabel, onCloseAction, onToggleAudio }: ChipFaviconFrameProps) {
+  return (
+    <span
+      className={cn(
+        'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center self-start',
+        !chip.isApp && 'min-h-4 min-w-4 max-h-4 max-w-4',
+        !chip.iconOnly && dupeCount > 1 && 'chip-favicon-stack',
+        chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
+      )}
+    >
+      {!chip.iconOnly && dupeCount > 2 && (
+        <span
+          className={cn(
+            'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-0 size-4 max-h-4 max-w-4 translate-x-1 translate-y-1 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.12)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+            showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
+            dedupeBadgesClosing && 'closing'
+          )}
+          aria-hidden="true"
+        />
+      )}
+      {!chip.iconOnly && dupeCount > 1 && (
+        <span
+          className={cn(
+            'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-1 size-4 max-h-4 max-w-4 translate-x-0.5 translate-y-0.5 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/55 shadow-[0_1px_2px_rgba(10,10,10,0.1)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+            showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
+            dedupeBadgesClosing && 'closing'
+          )}
+          aria-hidden="true"
+        />
+      )}
+      <span
+        className={cn(
+          'chip-favicon-content relative z-2 grid size-4 place-items-center',
+          !chip.iconOnly && dupeCount > 1 && 'rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.08)] [corner-shape:squircle]',
+          showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
+        )}
+        aria-hidden="true"
+      >
+        {chip.faviconUrl ? (
+          <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
+        ) : showDefaultFavicon ? (
+          <DefaultFavicon />
+        ) : null}
+      </span>
+      {!chip.iconOnly && chip.pagePinned && (
+        <span
+          data-tabout-part="page-pin"
+          data-pinned="true"
+          className={cn(
+            'chip-page-pin-badge pointer-events-none absolute -top-[6px] -right-[6px] z-3 inline-flex size-3.5 items-center justify-center rounded-full border border-tab-card bg-(--card-bg) text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.16)] data-[pinned=true]:opacity-100',
+            showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
+          )}
+          aria-hidden="true"
+        >
+          <span className="icon-[lucide--pin] size-2.5" aria-hidden="true" />
+        </span>
+      )}
+      {showFaviconCloseAction && (
+        <button
+          type="button"
+          data-tabout-part="close-button"
+          className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+          aria-label={closeActionLabel}
+          onClick={onCloseAction}
+        >
+          <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+        </button>
+      )}
+      {chip.iconOnly && chip.audioState && (
+        <TabAudioButton
+          state={chip.audioState}
+          onToggle={onToggleAudio}
+          className="absolute right-0 bottom-0 z-4 size-3.5 rounded-full bg-(--card-bg) shadow-[0_1px_2px_rgba(10,10,10,0.16)] [corner-shape:squircle]"
+        />
+      )}
+    </span>
+  )
+}
+
 function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
   const { activeSuppressedTitle, dedupeBadgesClosing } = useDomainCardContext()
   const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
@@ -2024,80 +2119,16 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         />
       )}
       {showFaviconFrame && (
-        <span
-          className={cn(
-            'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center self-start',
-            !chip.isApp && 'min-h-4 min-w-4 max-h-4 max-w-4',
-            !chip.iconOnly && dupeCount > 1 && 'chip-favicon-stack',
-            chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
-          )}
-        >
-          {!chip.iconOnly && dupeCount > 2 && (
-            <span
-              className={cn(
-                'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-0 size-4 max-h-4 max-w-4 translate-x-1 translate-y-1 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.12)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
-                dedupeBadgesClosing && 'closing'
-              )}
-              aria-hidden="true"
-            />
-          )}
-          {!chip.iconOnly && dupeCount > 1 && (
-            <span
-              className={cn(
-                'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-1 size-4 max-h-4 max-w-4 translate-x-0.5 translate-y-0.5 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/55 shadow-[0_1px_2px_rgba(10,10,10,0.1)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
-                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
-                dedupeBadgesClosing && 'closing'
-              )}
-              aria-hidden="true"
-            />
-          )}
-          <span
-            className={cn(
-              'chip-favicon-content relative z-2 grid size-4 place-items-center',
-              !chip.iconOnly && dupeCount > 1 && 'rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.08)] [corner-shape:squircle]',
-              showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
-            )}
-            aria-hidden="true"
-          >
-            {chip.faviconUrl ? (
-              <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
-            ) : showDefaultFavicon ? (
-              <DefaultFavicon />
-            ) : null}
-          </span>
-          {!chip.iconOnly && chip.pagePinned && (
-            <span
-              data-tabout-part="page-pin"
-              data-pinned="true"
-              className={cn(
-                'chip-page-pin-badge pointer-events-none absolute -top-[6px] -right-[6px] z-3 inline-flex size-3.5 items-center justify-center rounded-full border border-tab-card bg-(--card-bg) text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.16)] data-[pinned=true]:opacity-100',
-                showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
-              )}
-              aria-hidden="true"
-            >
-              <span className="icon-[lucide--pin] size-2.5" aria-hidden="true" />
-            </span>
-          )}
-          {showFaviconCloseAction && (
-            <button
-              type="button"
-              data-tabout-part="close-button"
-              className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
-              aria-label={closeActionLabel}
-              onClick={isTitleVariantGroup ? onCloseAllVariants : isHistorySource ? onDeleteHistory : onClose}
-            >
-              <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
-            </button>
-          )}
-          {chip.iconOnly && chip.audioState && (
-            <TabAudioButton
-              state={chip.audioState}
-              onToggle={onToggleChipAudio}
-              className="absolute right-0 bottom-0 z-4 size-3.5 rounded-full bg-(--card-bg) shadow-[0_1px_2px_rgba(10,10,10,0.16)] [corner-shape:squircle]"
-            />
-          )}
-        </span>
+        <ChipFaviconFrame
+          chip={chip}
+          dupeCount={dupeCount}
+          showDefaultFavicon={showDefaultFavicon}
+          showFaviconCloseAction={showFaviconCloseAction}
+          dedupeBadgesClosing={dedupeBadgesClosing}
+          closeActionLabel={closeActionLabel}
+          onCloseAction={isTitleVariantGroup ? onCloseAllVariants : isHistorySource ? onDeleteHistory : onClose}
+          onToggleAudio={onToggleChipAudio}
+        />
       )}
       {!chip.iconOnly && chip.audioState && (
         <TabAudioButton
