@@ -2,7 +2,8 @@ import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isSuspended } from './suspension.js'
 import { focusExistingTabTarget } from './tab-focus.js'
-import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot } from './types'
+import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot, WorkingSetItem } from './types'
+import type { ClosedTabEntry } from './closed-tabs.js'
 
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
@@ -65,6 +66,70 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     favIconUrl: suspended ? pickTabFavicon({ favIconUrl, url, suspended }) : pickFavicon({ favIconUrl, url }),
     lastActivatedAt: integerOrNull(entry?.lastActivatedAt)
   }
+}
+
+type HistoryEntryInput = Pick<TabHistoryEntry, 'tabId' | 'windowId' | 'title' | 'url' | 'rawUrl' | 'displayUrl' | 'favIconUrl'> & Partial<TabHistoryEntry>
+
+/**
+ * makeHistoryEntry — constructor for synthesized Activation History rows
+ * (Working Set extras, recently-closed ghosts). Owns the row defaults so a
+ * new TabHistoryEntry field is a one-place change; `suspended` derives from
+ * the URL pair unless the caller knows better. Persisted snapshot rows go
+ * through normalizeEntry above instead, which also repairs legacy shapes.
+ */
+export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
+  return {
+    index: -1,
+    exists: false,
+    active: false,
+    activeInOtherWindow: false,
+    isApp: false,
+    pinned: false,
+    discarded: false,
+    suspended: isSuspended(entry.rawUrl, entry.url),
+    cursor: false,
+    current: false,
+    previousTarget: false,
+    nextTarget: false,
+    lastActivatedAt: null,
+    ...entry
+  }
+}
+
+/** historyEntryFromWorkingSetItem — adapt a Working Set item into a supplemental history row. */
+export function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
+  return makeHistoryEntry({
+    tabId: item.tabId,
+    windowId: item.windowId,
+    exists: true,
+    active: item.active,
+    activeInOtherWindow: item.activeInOtherWindow,
+    current: item.active && !item.activeInOtherWindow,
+    title: item.title,
+    url: item.tabUrl,
+    rawUrl: item.rawUrl,
+    displayUrl: item.displayUrl,
+    favIconUrl: item.faviconUrl,
+    audible: item.audible,
+    muted: item.muted,
+    lastActivatedAt: item.lastActivatedAt
+  })
+}
+
+/** historyEntryFromClosedTab — adapt a recently-closed tab into a ghost history row. */
+export function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEntry {
+  // A tab closed while suspended persisted the suspender's faded data: icon,
+  // so recover the real favicon the same way live suspended rows do.
+  const suspended = isSuspended(closed.rawUrl, closed.url)
+  return makeHistoryEntry({
+    tabId: -1,
+    windowId: -1,
+    title: closed.title,
+    url: closed.url,
+    rawUrl: closed.rawUrl,
+    displayUrl: closed.displayUrl,
+    favIconUrl: pickTabFavicon({ favIconUrl: closed.favIconUrl, url: closed.url, suspended })
+  })
 }
 
 export function normalizeTabHistorySnapshot(snapshot: Partial<TabHistorySnapshot> | null | undefined): TabHistorySnapshot {

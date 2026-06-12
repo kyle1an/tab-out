@@ -1,16 +1,15 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SetStateAction } from 'react'
 import { EyeOff, X } from 'lucide-react'
-import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry } from '../extension/tab-history.js'
+import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry, historyEntryFromClosedTab, historyEntryFromWorkingSetItem } from '../extension/tab-history.js'
 import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio.js'
 import { setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
-import { pickTabFavicon } from '../extension/favicons.js'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
-import { isSuspended, unwrapSuspenderUrl } from '../extension/suspension.js'
+import { unwrapSuspenderUrl } from '../extension/suspension.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { moveTabToCurrentWindow } from '../extension/tab-move.js'
@@ -695,33 +694,6 @@ function formatRelativeMinutes(now: number, ts: number): string {
   const days = Math.round(hours / 24)
   if (days === 1) return '1 day ago'
   return `${days} days ago`
-}
-
-function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
-  return {
-    index: -1,
-    tabId: item.tabId,
-    windowId: item.windowId,
-    exists: true,
-    active: item.active,
-    activeInOtherWindow: item.activeInOtherWindow,
-    isApp: false,
-    pinned: false,
-    discarded: false,
-    suspended: isSuspended(item.rawUrl, item.tabUrl),
-    cursor: false,
-    current: item.active && !item.activeInOtherWindow,
-    previousTarget: false,
-    nextTarget: false,
-    title: item.title,
-    url: item.tabUrl,
-    rawUrl: item.rawUrl,
-    displayUrl: item.displayUrl,
-    favIconUrl: item.faviconUrl,
-    audible: item.audible,
-    muted: item.muted,
-    lastActivatedAt: item.lastActivatedAt
-  }
 }
 
 type HistoryEntryExpansion = {
@@ -1738,30 +1710,3 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
   )
 }
 
-function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEntry {
-  // A tab closed while suspended persisted the suspender's faded data: icon,
-  // so recover the real favicon the same way live suspended rows do.
-  const suspended = isSuspended(closed.rawUrl, closed.url)
-  return {
-    index: -1,
-    tabId: -1,
-    windowId: -1,
-    exists: false,
-    active: false,
-    activeInOtherWindow: false,
-    isApp: false,
-    pinned: false,
-    discarded: false,
-    suspended,
-    cursor: false,
-    current: false,
-    previousTarget: false,
-    nextTarget: false,
-    title: closed.title,
-    url: closed.url,
-    rawUrl: closed.rawUrl,
-    displayUrl: closed.displayUrl,
-    favIconUrl: pickTabFavicon({ favIconUrl: closed.favIconUrl, url: closed.url, suspended }),
-    lastActivatedAt: null
-  }
-}

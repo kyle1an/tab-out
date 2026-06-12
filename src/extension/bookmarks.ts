@@ -1,3 +1,4 @@
+import { makeDashboardItem } from './dashboard-item.js'
 import type { BookmarkTreeNode, DashboardTab } from './types'
 
 /**
@@ -14,21 +15,12 @@ export function flattenBookmarkNodes(nodes: BookmarkTreeNode[]): DashboardTab[] 
   function visit(node?: BookmarkTreeNode) {
     if (!node) return
     if (node.url) {
-      flattened.push({
+      flattened.push(makeDashboardItem({
         id: node.id,
         url: node.url,
-        rawUrl: node.url,
-        suspended: false,
         title: node.title || '',
-        favIconUrl: '',
-        windowId: 1,
-        active: false,
-        pinned: false,
-        groupId: -1,
-        isTabOut: false,
-        isApp: false,
         sourceType: 'bookmark'
-      })
+      }))
     }
     if (Array.isArray(node.children)) {
       node.children.forEach(visit)

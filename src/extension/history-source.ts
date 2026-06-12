@@ -1,3 +1,4 @@
+import { makeDashboardItem } from './dashboard-item.js'
 import type { DashboardTab } from './types'
 
 type HistoryItemLike = Pick<chrome.history.HistoryItem, 'id' | 'title' | 'url'>
@@ -32,19 +33,10 @@ function historyRangeDays(range = DEFAULT_HISTORY_RANGE): number {
 export function flattenHistoryItems(items: HistoryItemLike[]): DashboardTab[] {
   return (items || [])
     .filter((item): item is HistoryItemLike & { url: string } => !!item?.url && !item.url.startsWith('chrome://') && !item.url.startsWith('chrome-extension://'))
-    .map((item, index) => ({
+    .map((item, index) => makeDashboardItem({
       id: item.id || `history-${index}`,
       url: item.url,
-      rawUrl: item.url,
-      suspended: false,
       title: item.title || '',
-      favIconUrl: '',
-      windowId: 1,
-      active: false,
-      pinned: false,
-      groupId: -1,
-      isTabOut: false,
-      isApp: false,
       sourceType: 'history'
     }))
 }

@@ -1,3 +1,4 @@
+import { makeDashboardItem } from './dashboard-item.js'
 import type { DashboardTab } from './types'
 
 export const SAVED_PAGES_STORAGE_KEY = 'tabOutSavedPagesV1'
@@ -206,24 +207,17 @@ function savedPageRecordsEqual(a: SavedPageRecord, b: SavedPageRecord): boolean 
 }
 
 function savedPageRecordToDashboardTab(record: SavedPageRecord): DashboardTab {
-  return {
+  return makeDashboardItem({
     id: `saved:${record.key}`,
     url: record.url,
-    rawUrl: record.url,
-    suspended: false,
     title: record.title || displayUrlForSavedPage(record.url),
     favIconUrl: record.favIconUrl || '',
     windowId: 0,
-    active: false,
-    pinned: false,
-    groupId: -1,
-    isTabOut: false,
-    isApp: false,
     sourceType: 'saved-page',
     saved: true,
     closedSaved: true,
     savedPageKey: record.key
-  }
+  })
 }
 
 function displayUrlForSavedPage(url = ''): string {
