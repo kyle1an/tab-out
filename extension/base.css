@@ -284,10 +284,10 @@ body {
   z-index: 3;
 }
 
-/* Hovering a same-title group's non-URL surface (title row, blank padding,
-   gaps) highlights the default URL variant — the pill the title/blank click
-   would activate. PageChip marks that pill with the static
-   `data-tabout-default-variant` attribute.
+/* Hovering ANY non-URL surface of a same-title group chip (title row, blank
+   padding, favicon gutter, edge strips) highlights the default URL variant —
+   the pill a click on that surface activates. PageChip marks that pill with
+   the static `data-tabout-default-variant` attribute.
 
    This must stay pure CSS: the exact pill's own :hover turns off in the same
    style recalculation that turns this rule on, so the highlight hands over
@@ -297,12 +297,22 @@ body {
    The declarations mirror the pill's own hover utilities
    (`hover:bg-neutral-600/[0.14] hover:text-tab-ink`); the selector outranks
    the rest/active background utilities the same way tailwind-merge dropped
-   them for the old state-driven class. The :not(:has(…)) arm keeps the
-   default pill quiet while the pointer is on an exact pill or its floating
-   action rail (a DOM descendant of the group, even though it renders outside
-   the pill's box). */
-.chip-title-variant-content:hover:not(
-  :has(.chip-title-variant:hover, .chip-title-variant-actions:hover)
+   them for the old state-driven class. The :not(:has(…)) arms keep the
+   default pill quiet while the pointer is on a surface that owns its own
+   click instead of activating the default variant: an exact pill, its
+   floating action rail (a DOM descendant of the group even though it renders
+   outside the pill's box), a favicon frame whose hover swaps in the
+   close-all action (`.chip-close-favicon` only renders when closable, and it
+   covers the whole frame), or the audio toggle. Each of those also stops
+   click propagation, keeping hover highlight and click activation in
+   lockstep. */
+.page-chip:hover:not(
+  :has(
+    .chip-title-variant:hover,
+    .chip-title-variant-actions:hover,
+    .chip-favicon-frame:hover .chip-close-favicon,
+    [data-tabout-part='audio-toggle']:hover
+  )
 ) .chip-title-variant[data-tabout-default-variant] {
   background-color: #52525224;
   background-color: color-mix(in oklab, var(--color-neutral-600) 14%, transparent);

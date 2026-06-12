@@ -1068,17 +1068,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview(variant.tabUrl, previewUrlsForChip(variant))
   }
 
-  function clearDefaultTitleVariantPreview() {
-    setPreview('')
-  }
-
   function titleVariantEventTargetsExactVariant(target: EventTarget | null) {
     return target instanceof Element && !!target.closest('.chip-title-variant, .chip-title-variant-actions, .chip-title-variant-action')
-  }
-
-  function titleVariantGroupContainsRelatedTarget(currentTarget: Element, relatedTarget: EventTarget | null) {
-    const groupEl = currentTarget.closest('.chip-title-variant-content')
-    return !!groupEl && relatedTarget instanceof Node && groupEl.contains(relatedTarget)
   }
 
   async function onFocus(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
@@ -1106,37 +1097,30 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }
 
-  async function onTitleVariantSurfaceClick(e: MouseEvent<HTMLSpanElement>) {
+  // The whole grouped-chip surface is the default-variant target: clicks on
+  // the exact pills, their action rails, the favicon close, and the audio
+  // toggle never reach these handlers (each stops propagation), so only
+  // title/blank-surface clicks activate the default variant.
+  async function onVariantGroupChipClick(e: MouseEvent<HTMLDivElement>) {
+    if (titleVariantEventTargetsExactVariant(e.target)) return
     const variant = defaultTitleVariantChip()
     if (!variant) return
-    e.stopPropagation()
     await activateChipTarget(e, variant.tabUrl, variant.sourceType, variant)
   }
 
-  function onTitleVariantSurfaceMouseDown(e: MouseEvent<HTMLSpanElement>) {
+  function onVariantGroupChipMouseDown(e: MouseEvent<HTMLDivElement>) {
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }
 
-  function onTitleVariantSurfaceMouseEnter() {
-    previewDefaultTitleVariant()
-  }
-
-  function onTitleVariantSurfaceMouseLeave(e: MouseEvent<HTMLSpanElement>) {
-    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
-    if (titleVariantGroupContainsRelatedTarget(e.currentTarget, e.relatedTarget)) return
-    if (contextMenuOpenRef.current) return
-    clearDefaultTitleVariantPreview()
-  }
-
-  function onTitleVariantGroupMouseEnter(e: MouseEvent<HTMLSpanElement>) {
+  function onVariantGroupChipMouseEnter(e: MouseEvent<HTMLDivElement>) {
     if (titleVariantEventTargetsExactVariant(e.target)) return
     previewDefaultTitleVariant()
   }
 
-  function onTitleVariantGroupMouseLeave(e: MouseEvent<HTMLSpanElement>) {
+  function onVariantGroupChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     if (contextMenuOpenRef.current) return
-    clearDefaultTitleVariantPreview()
+    setPreview('')
   }
 
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
@@ -1438,12 +1422,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function onTitleVariantMouseLeave(e: MouseEvent<HTMLElement>) {
-    if (titleVariantGroupContainsRelatedTarget(e.currentTarget, e.relatedTarget)) {
+    const chipEl = e.currentTarget.closest('.page-chip')
+    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
       if (!titleVariantEventTargetsExactVariant(e.relatedTarget)) previewDefaultTitleVariant()
       return
     }
-    const chipEl = e.currentTarget.closest('.page-chip')
-    if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) return
+    if (contextMenuOpenRef.current) return
     setPreview('')
   }
 
@@ -2080,43 +2064,19 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   )
 
   const titleVariantTitleExpansionTriggerElement = (
-    // react-doctor-disable-next-line react-doctor/click-events-have-key-events, react-doctor/no-static-element-interactions -- URL variant buttons remain the keyboard targets; this title-only span handles blank/title mouse fallback clicks.
     <span
-      data-tabout-part="default-variant-trigger"
-      className="chip-text-expansion-hit-area -my-[5px] flex w-full min-w-0 cursor-default py-[5px]"
-      onClick={onTitleVariantSurfaceClick}
-      onMouseDown={onTitleVariantSurfaceMouseDown}
-      onMouseEnter={onTitleVariantSurfaceMouseEnter}
-      onMouseLeave={onTitleVariantSurfaceMouseLeave}
-    >
-      {titleVariantTitleRowNode('chip')}
-    </span>
-  )
-
-  const titleVariantTitleRestTriggerElement = (
-    // react-doctor-disable-next-line react-doctor/click-events-have-key-events, react-doctor/no-static-element-interactions -- URL variant buttons remain the keyboard targets; this title-only span handles blank/title mouse fallback clicks.
-    <span
-      data-tabout-part="default-variant-trigger"
-      className="chip-title-variant-default-trigger block w-full min-w-0 cursor-default"
-      onClick={onTitleVariantSurfaceClick}
-      onMouseDown={onTitleVariantSurfaceMouseDown}
-      onMouseEnter={onTitleVariantSurfaceMouseEnter}
-      onMouseLeave={onTitleVariantSurfaceMouseLeave}
+      className="chip-text-expansion-hit-area -my-[5px] flex min-w-0 py-[5px]"
     >
       {titleVariantTitleRowNode('chip')}
     </span>
   )
 
   const titleVariantChipTextContent = (
-    <span
-      className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0.5"
-      onMouseEnter={onTitleVariantGroupMouseEnter}
-      onMouseLeave={onTitleVariantGroupMouseLeave}
-    >
+    <span className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0.5">
       {shouldExpandChip ? (
         titleVariantTitleExpansionTriggerElement
       ) : (
-        titleVariantTitleRestTriggerElement
+        titleVariantTitleRowNode('chip')
       )}
       {titleVariantListNode('chip')}
     </span>
@@ -2161,6 +2121,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       } as const
     : {}
 
+  // The grouped chip stays keyboard-inert (no role/tabIndex — the URL variant
+  // buttons are the keyboard targets), but its whole mouse surface targets
+  // the default variant.
+  const variantGroupInteractionProps = isTitleVariantGroup
+    ? {
+        onClick: onVariantGroupChipClick,
+        onMouseDown: onVariantGroupChipMouseDown,
+        onMouseEnter: onVariantGroupChipMouseEnter,
+        onMouseLeave: onVariantGroupChipMouseLeave
+      } as const
+    : {}
+
   const chipElement = (
       <div
         data-tabout="page-chip"
@@ -2183,6 +2155,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           // rule (`.chip-slot:has(.page-chip-group)`). Keep it — a TSX-only dead-code scan
           // (knip/refactor-cleaner) can't see the CSS reference and may flag it as unused.
           (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && cn('page-chip-group', PAGE_CHIP_GROUP_INTERACTION_CLASSES),
+          isTitleVariantGroup && 'cursor-default',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
@@ -2197,6 +2170,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onPointerMove={onChipPointerMove}
         onPointerLeave={onChipPointerLeave}
         {...chipInteractionProps}
+        {...variantGroupInteractionProps}
       >
       {hasActiveChipFrame && !chip.iconOnly && (
         <span
