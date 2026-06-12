@@ -1,5 +1,6 @@
 import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
+import { isSuspended } from './suspension.js'
 import { focusExistingTabTarget } from './tab-focus.js'
 import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot } from './types'
 
@@ -36,10 +37,9 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
   const rawUrl = String(entry?.rawUrl || url)
   // A suspended row's favIconUrl is the suspender page's faded data: icon —
   // recover the real favicon by the unwrapped url instead of keeping that
-  // copy. Older snapshots lack the explicit flag, so fall back to the
-  // canonical derivation (rawUrl differs from the effective url only when
-  // a suspender rewrote it).
-  const suspended = entry?.suspended ?? rawUrl !== url
+  // copy. Older snapshots lack the explicit flag, so fall back to deriving
+  // it from the URL pair.
+  const suspended = entry?.suspended ?? isSuspended(rawUrl, url)
   const favIconUrl = String(entry?.favIconUrl || '')
   return {
     index: integerOr(entry?.index, index),

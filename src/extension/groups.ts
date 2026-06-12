@@ -10,7 +10,7 @@
                        canonical copy of a duplicated URL
    ================================================================ */
 
-import { unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderUrl } from './suspension.js'
 
 type GroupedTabLike = {
   groupId?: number

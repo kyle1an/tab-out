@@ -8,8 +8,7 @@
    extension pages).
    ================================================================ */
 
-import { unwrapSuspenderUrl, unwrapSuspenderTitle } from './suspender.js'
-import { rememberSuspendTargetFromTabs } from './suspend-target.js'
+import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { focusExactTabTarget, focusTabTarget } from './tab-focus.js'
@@ -80,7 +79,7 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
   return tabs.map((t) => {
     const rawUrl = t.url || ''
     const effectiveUrl = unwrapSuspenderUrl(rawUrl)
-    const suspended = rawUrl !== effectiveUrl
+    const suspended = isSuspended(rawUrl, effectiveUrl)
     // For suspended tabs, Chrome's tab.title is unreliable — it can
     // be the full suspender URL, empty, or stale — but the suspender
     // always stores the original page title in the `ttl=` fragment

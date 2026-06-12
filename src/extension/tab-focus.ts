@@ -1,4 +1,4 @@
-import { unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderUrl } from './suspension.js'
 import type { PageTarget } from './page-target.js'
 
 type ChromeTabFocusApi = {

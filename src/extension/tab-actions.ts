@@ -2,8 +2,7 @@ import { requestDashboardRefresh } from './dashboard-controller.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
 import { deleteHistorySourceUrl } from './history-source.js'
-import { unwrapSuspenderUrl } from './suspender.js'
-import { getSuspendTarget, buildSuspendUrl, type SuspendTarget } from './suspend-target.js'
+import { buildSuspendUrl, getSuspendTarget, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
 import { closeDuplicateTabs, closeTabsExact, fetchOpenTabs, snapshotChromeTabs } from './tabs.js'
 import { showToast } from './toast.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
@@ -288,16 +287,11 @@ type SuspendChipTargetOptions = {
   envs?: DashboardChipEnv[] | null
 }
 
-function isTabAlreadySuspended(tab: chrome.tabs.Tab): boolean {
-  const url = tab.url || ''
-  return unwrapSuspenderUrl(url) !== url
-}
-
 async function applySuspendToTabs(targets: chrome.tabs.Tab[], target: SuspendTarget): Promise<number> {
   let count = 0
   for (const tab of targets) {
     if (typeof tab.id !== 'number') continue
-    if (isTabAlreadySuspended(tab)) continue
+    if (isSuspended(tab.url)) continue
     try {
       await chrome.tabs.update(tab.id, {
         url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
@@ -356,7 +350,7 @@ export async function suspendHistoryEntry(tabId: number): Promise<void> {
   }
   try {
     const tab = await chrome.tabs.get(tabId)
-    if (isTabAlreadySuspended(tab)) {
+    if (isSuspended(tab.url)) {
       showToast('Already suspended')
       return
     }

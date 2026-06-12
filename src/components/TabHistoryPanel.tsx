@@ -10,7 +10,7 @@ import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
-import { unwrapSuspenderUrl } from '../extension/suspender.js'
+import { isSuspended, unwrapSuspenderUrl } from '../extension/suspension.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { moveTabToCurrentWindow } from '../extension/tab-move.js'
@@ -708,7 +708,7 @@ function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistoryEntry {
     isApp: false,
     pinned: false,
     discarded: false,
-    suspended: item.rawUrl !== item.tabUrl,
+    suspended: isSuspended(item.rawUrl, item.tabUrl),
     cursor: false,
     current: item.active && !item.activeInOtherWindow,
     previousTarget: false,
@@ -1741,7 +1741,7 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
 function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEntry {
   // A tab closed while suspended persisted the suspender's faded data: icon,
   // so recover the real favicon the same way live suspended rows do.
-  const suspended = closed.rawUrl !== closed.url
+  const suspended = isSuspended(closed.rawUrl, closed.url)
   return {
     index: -1,
     tabId: -1,

@@ -8,6 +8,7 @@
    ================================================================ */
 
 import type { DashboardChipData, DashboardChipEnv } from '../extension/types'
+import { isSuspended } from '../extension/suspension.js'
 
 type SuspendEnvLike = Pick<DashboardChipEnv, 'sourceType' | 'closedSaved' | 'tabUrl' | 'rawUrl'>
 
@@ -39,8 +40,8 @@ export function chipCanShowSuspend(chip: SuspendChipLike): boolean {
 export function chipSuspendableTargetCount(chip: SuspendChipLike): number {
   if (chipIsTitleVariantGroup(chip)) return 0
   if (chipIsFolded(chip)) {
-    return (chip.envs ?? []).filter((env) => envIsTabEnv(env) && env.rawUrl === env.tabUrl).length
+    return (chip.envs ?? []).filter((env) => envIsTabEnv(env) && !isSuspended(env.rawUrl, env.tabUrl)).length
   }
-  if (chip.sourceType === 'tab' && !chip.closedSaved && chip.rawUrl === chip.tabUrl) return 1
+  if (chip.sourceType === 'tab' && !chip.closedSaved && !isSuspended(chip.rawUrl, chip.tabUrl)) return 1
   return 0
 }

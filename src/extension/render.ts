@@ -29,7 +29,7 @@ import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import { readLocalCustomGroups } from './local-config.js'
-import { unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderUrl } from './suspension.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 

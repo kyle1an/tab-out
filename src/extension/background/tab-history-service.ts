@@ -18,7 +18,7 @@ import { WORKING_SET_ACTIVITY_KEY } from './working-set-service.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
 import { focusExistingTabTarget } from '../tab-focus.js'
-import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspender.js'
+import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
 
 const TAB_HISTORY_KEY = 'globalTabHistory'
@@ -447,7 +447,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               isApp: isStandaloneAppWindow(tab ? windowTypeById.get(tab.windowId) : undefined),
               pinned: !!tab?.pinned,
               discarded: !!tab?.discarded,
-              suspended: rawUrl !== url,
+              suspended: isSuspended(rawUrl, url),
               audible: !!tab?.audible,
               muted: !!tab?.mutedInfo?.muted,
               cursor: index === cleanHistory.index,

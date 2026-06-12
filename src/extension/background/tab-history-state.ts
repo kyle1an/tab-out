@@ -1,4 +1,4 @@
-import { unwrapSuspenderUrl } from '../suspender.js'
+import { unwrapSuspenderUrl } from '../suspension.js'
 
 export const MAX_TAB_HISTORY = 24
 

@@ -1,4 +1,4 @@
-import { unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 
 let closedTabFetchSuppressUntilMs = 0
 

@@ -7,7 +7,7 @@ import type {
   WorkingSetItem,
   WorkingSetSnapshot
 } from './types'
-import { unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderUrl } from './suspension.js'
 import { pickTabFavicon } from './favicons.js'
 
 export const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'

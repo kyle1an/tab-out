@@ -1,17 +1,91 @@
 /* ================================================================
-   Suspend target — remembers which third-party suspender the user
-   runs (extension id + an observed suspended.html URL used as a
-   format template) and rebuilds suspend URLs for new tabs.
+   Suspension — everything Tab Out knows about third-party tab
+   suspenders (The Marvellous Suspender, The Great Suspender, etc.),
+   behind one seam:
 
-   buildSuspendUrl is the inverse of suspender.ts's unwrap helpers:
-   it keeps the observed suspender's fragment shape, swaps the `ttl=`
-   (URL-encoded title) and trailing `uri=` (raw real URL, always last)
-   values, and zeroes any `pos=` scroll offset, so the result
-   round-trips through unwrapSuspenderUrl / unwrapSuspenderTitle.
+   • unwrapSuspenderUrl / unwrapSuspenderTitle — suspenders rewrite a
+     tab's URL to chrome-extension://<id>/suspended.html#...&uri=<real>
+     with the real URL in the fragment's `uri=` param. Because the
+     real URL can itself contain `&` and `#`, it is always the LAST
+     param — so we split on the literal `&uri=` marker (or leading
+     `uri=`) instead of URLSearchParams, which would truncate at the
+     first inner `&`.
+
+   • isSuspended — THE predicate for "this item is a suspended tab".
+     A raw URL differs from its unwrapped effective URL only when a
+     suspender rewrote it; callers that already carry both URLs pass
+     the pair, everyone else lets the default unwrap derive it.
+
+   • Suspend Target memory + buildSuspendUrl — remembers which
+     suspender the user runs (extension id + an observed
+     suspended.html URL used as a format template) and rebuilds
+     suspend URLs for new tabs. buildSuspendUrl is the inverse of the
+     unwrap helpers: it keeps the observed suspender's fragment shape,
+     swaps the `ttl=` (URL-encoded title) and trailing `uri=` (raw
+     real URL, always last) values, and zeroes any `pos=` scroll
+     offset, so the result round-trips through unwrapSuspenderUrl /
+     unwrapSuspenderTitle.
    ================================================================ */
 
 export const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
 const SUSPENDED_PATH_SUFFIX = '/suspended.html'
+
+export function unwrapSuspenderUrl(url?: string): string {
+  if (!url || !url.startsWith('chrome-extension://')) return url || ''
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return url
+    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+    const marker = '&uri='
+    let encoded
+    const idx = frag.indexOf(marker)
+    if (idx >= 0) encoded = frag.slice(idx + marker.length)
+    else if (frag.startsWith('uri=')) encoded = frag.slice(4)
+    else return url
+    return decodeURIComponent(encoded) || url
+  } catch {
+    return url
+  }
+}
+
+/**
+ * unwrapSuspenderTitle(url) — pull the `ttl=` param out of a suspender
+ * fragment. The Marvellous/Great Suspender store the original page
+ * title there, which is what we want to render on the chip — Chrome's
+ * own `tab.title` for a not-yet-rendered suspended tab is unreliable
+ * (sometimes the full suspender URL, sometimes empty, sometimes a
+ * stale cached value). Returns '' when the URL isn't a suspender URL
+ * or when no `ttl=` fragment is present.
+ *
+ * Unlike `uri=` which is always the LAST fragment param (since the
+ * real URL can itself contain `&`), `ttl=` values are URL-encoded so
+ * any literal `&` in the title shows up as `%26` — safe to split at
+ * the next raw `&`.
+ */
+export function unwrapSuspenderTitle(url?: string): string {
+  if (!url || !url.startsWith('chrome-extension://')) return ''
+  try {
+    const parsed = new URL(url)
+    if (!parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return ''
+    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+    const match = frag.match(/(?:^|&)ttl=([^&]*)/)
+    if (!match) return ''
+    return decodeURIComponent(match[1] || '') || ''
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * isSuspended(rawUrl, effectiveUrl) — true when a suspender rewrote
+ * this item's URL. `rawUrl` is Chrome's actual tab URL; `effectiveUrl`
+ * is the unwrapped real page URL and defaults to unwrapping rawUrl,
+ * so callers that already carry both (normalized tabs, history
+ * entries, chip envs) pass the pair and skip the re-unwrap.
+ */
+export function isSuspended(rawUrl: string | undefined, effectiveUrl = unwrapSuspenderUrl(rawUrl)): boolean {
+  return !!rawUrl && rawUrl !== effectiveUrl
+}
 
 export interface SuspendTarget {
   id: string

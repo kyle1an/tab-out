@@ -1,11 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { extractSuspenderId, buildSuspendUrl, rememberSuspendTargetFromTabs, getSuspendTarget } from '../src/extension/suspend-target.js'
-import { unwrapSuspenderUrl, unwrapSuspenderTitle } from '../src/extension/suspender.js'
+import { extractSuspenderId, buildSuspendUrl, isSuspended, rememberSuspendTargetFromTabs, getSuspendTarget, unwrapSuspenderUrl, unwrapSuspenderTitle } from '../src/extension/suspension.js'
 
 const SUSPENDER_ID = 'aaaabbbbccccddddeeeeffffgggghhhh'
 const TEMPLATE = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=Old%20Title&pos=0&uri=https://old.example/page`
+
+test('isSuspended: true only for a suspender-rewritten url pair, derived or supplied', () => {
+  assert.equal(isSuspended(TEMPLATE, 'https://old.example/page'), true)
+  assert.equal(isSuspended(TEMPLATE), true)
+  assert.equal(isSuspended('https://old.example/page', 'https://old.example/page'), false)
+  assert.equal(isSuspended('https://old.example/page'), false)
+  assert.equal(isSuspended(''), false)
+  assert.equal(isSuspended(undefined), false)
+})
 
 test('extractSuspenderId: returns the id for a suspended.html url', () => {
   assert.equal(extractSuspenderId(TEMPLATE), SUSPENDER_ID)

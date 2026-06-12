@@ -7,7 +7,7 @@ import {
 } from '../working-set.js'
 import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
-import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspender.js'
+import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore, WorkingSetSnapshot } from '../types'
 
 export const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'

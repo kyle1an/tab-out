@@ -11,7 +11,7 @@
    tab-focus tests drive the chrome API.
    ================================================================ */
 
-import { unwrapSuspenderUrl } from './suspender.js'
+import { unwrapSuspenderUrl } from './suspension.js'
 import { focusExistingTabTarget } from './tab-focus.js'
 
 type ChromeTabMoveApi = {
