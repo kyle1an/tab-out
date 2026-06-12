@@ -28,7 +28,7 @@ function isHistoryRangeValue(value: unknown): value is string {
   return typeof value === 'string' && HISTORY_RANGE_OPTIONS.some((option) => option.value === value)
 }
 
-function HistoryRangeSelect({
+export function HistoryRangeSelect({
   value,
   onValueChange
 }: {
@@ -44,14 +44,13 @@ function HistoryRangeSelect({
   return (
     <Select value={value} items={HISTORY_RANGE_OPTIONS} onValueChange={handleValueChange}>
       <SelectTrigger
-        className="h-(--header-control-height) rounded-(--header-control-radius) border-(--warm-gray) bg-[rgba(115,115,115,0.06)] text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
+        className="h-(--header-control-height) rounded-(--header-control-radius) border-(--warm-gray) bg-tab-card text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
         aria-label="History search range"
       >
         <SelectValue />
       </SelectTrigger>
       <SelectContent
         align="start"
-        alignItemWithTrigger={false}
         className="rounded-(--header-control-radius) [corner-shape:squircle]"
       >
         <SelectGroup>
@@ -76,9 +75,7 @@ interface HeaderBarProps {
   filter: string
   filterFocusRequest?: number
   historyRange: string
-  showHistoryRange?: boolean
   onFilterChange: (filter: string) => void
-  onHistoryRangeChange?: (historyRange: string) => void
   onCloseFiltered: () => void | Promise<void>
   onDedupAll: () => void | Promise<void>
   onSourceChange: (source: DashboardSource) => void | Promise<void>
@@ -125,9 +122,7 @@ export function HeaderBar({
   filter,
   filterFocusRequest = 0,
   historyRange,
-  showHistoryRange = false,
   onFilterChange,
-  onHistoryRangeChange,
   onCloseFiltered,
   onDedupAll,
   onSourceChange,
@@ -208,12 +203,6 @@ export function HeaderBar({
         </div>
         <div className="header-controls inline-flex items-center gap-2.5">
           <SourceSwitch source={source} onSourceChange={onSourceChange} />
-          {showHistoryRange && (
-            <HistoryRangeSelect
-              value={historyRange}
-              onValueChange={(nextRange) => onHistoryRangeChange?.(nextRange)}
-            />
-          )}
         </div>
       </div>
     </header>

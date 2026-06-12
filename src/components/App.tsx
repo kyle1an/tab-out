@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type ReactNode, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
 import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
@@ -15,7 +15,7 @@ import { usePinnedPageChips } from '../hooks/usePinnedPageChips'
 import { usePinnedSections } from '../hooks/usePinnedSections'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
-import { HeaderBar } from './HeaderBar'
+import { HeaderBar, HistoryRangeSelect } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
@@ -76,6 +76,7 @@ type DashboardMissionSectionsOptions = {
   primaryMissionsRef: Ref<HTMLDivElement>
   showBookmarkMatches: boolean
   showHistoryMatches: boolean
+  showHistoryRange: boolean
   showOtherTabs: boolean
   showPrimaryEmptyState: boolean
   source: DashboardSource
@@ -84,6 +85,7 @@ type DashboardMissionSectionsOptions = {
 }
 type DashboardMissionsListProps = {
   filter: string
+  historyRangeAction?: ReactNode
   sections: DashboardMissionSection[]
 }
 type ProgressiveCardsOptions = {
@@ -168,11 +170,14 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
   return refs.map((ref) => ref.current)
 }
 
-function MissionsDivider({ label }: { label: string }) {
+function MissionsDivider({ action, label }: { action?: ReactNode; label: string }) {
   return (
-    <div className="missions-divider pointer-events-none mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase">
-      <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
-      <span className="missions-divider-label shrink-0 whitespace-nowrap">{label}</span>
+    <div className={cn('missions-divider mb-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase', action && 'min-h-(--header-control-height)')}>
+      <div className={cn('missions-divider-line flex min-w-0 items-center', action && 'gap-2')}>
+        {action && <div className="missions-divider-action shrink-0 text-tab-ink normal-case tracking-normal font-normal">{action}</div>}
+        <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
+      </div>
+      <span className="missions-divider-label pointer-events-none shrink-0 whitespace-nowrap">{label}</span>
       <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
     </div>
   )
@@ -283,6 +288,7 @@ function dashboardMissionSections({
   primaryMissionsRef,
   showBookmarkMatches,
   showHistoryMatches,
+  showHistoryRange,
   showOtherTabs,
   showPrimaryEmptyState,
   source,
@@ -302,7 +308,7 @@ function dashboardMissionSections({
     }
   ]
 
-  if (showHistoryMatches) {
+  if (showHistoryRange || showHistoryMatches) {
     sections.push({
       cards: historyMatchedCards,
       gridId: 'historyMatchesMissions',
@@ -344,7 +350,7 @@ function dashboardMissionSections({
   return sections
 }
 
-function DashboardMissionsList({ filter, sections }: DashboardMissionsListProps) {
+function DashboardMissionsList({ filter, historyRangeAction, sections }: DashboardMissionsListProps) {
   if (sections.length === 0) return null
 
   return (
@@ -364,9 +370,10 @@ function DashboardMissionsList({ filter, sections }: DashboardMissionsListProps)
         )
 
         if (!section.label) return block
+        const action = section.sectionId === 'historyMatchesSection' ? historyRangeAction : undefined
         return (
           <div className={section.sectionClassName} id={section.sectionId} key={section.sectionId}>
-            <MissionsDivider label={section.label} />
+            <MissionsDivider action={action} label={section.label} />
             {block}
           </div>
         )
@@ -478,9 +485,7 @@ function DashboardShell({
               filter={filterInput}
               filterFocusRequest={filterFocusRequest}
               historyRange={historyRange}
-              showHistoryRange={showHistoryRange}
               onFilterChange={setFilterInput}
-              onHistoryRangeChange={setHistoryRange}
               onSourceChange={onSourceChange}
               onCloseFiltered={onCloseFiltered}
               onDedupAll={onDedupAll}
@@ -499,6 +504,12 @@ function DashboardShell({
           >
             <DashboardMissionsList
               filter={filter}
+              historyRangeAction={showHistoryRange ? (
+                <HistoryRangeSelect
+                  value={historyRange}
+                  onValueChange={setHistoryRange}
+                />
+              ) : undefined}
               sections={missionSections}
             />
           </div>
@@ -691,9 +702,10 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   }
 
   const primaryMissionsEmpty = matchedCards.length === 0
-  const bookmarkMatchesFlush = primaryMissionsEmpty
-  const historyMatchesFlush = primaryMissionsEmpty && !showBookmarkMatches
-  const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistoryMatches
+  const showHistorySection = showHistoryRange || showHistoryMatches
+  const bookmarkMatchesFlush = primaryMissionsEmpty && !showHistorySection
+  const historyMatchesFlush = primaryMissionsEmpty
+  const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistorySection
   // react-doctor-disable-next-line react-hooks-js/refs -- the mission grid refs are forwarded to the masonry container elements; they're attached by React, not read for render output.
   const missionSections = dashboardMissionSections({
     bookmarkMatchedCards,
@@ -710,6 +722,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     primaryMissionsRef,
     showBookmarkMatches,
     showHistoryMatches,
+    showHistoryRange,
     showOtherTabs,
     showPrimaryEmptyState,
     source,
