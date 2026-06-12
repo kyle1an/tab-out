@@ -1055,6 +1055,32 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     if (!moved) await openTabUrl(targetUrl, { active: activate })
   }
 
+  function defaultTitleVariantChip() {
+    if (!isTitleVariantGroup) return undefined
+    return titleVariantChips.find((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
+      || titleVariantChips.find((variant) => !!variant.activeInOtherWindow)
+      || titleVariantChips[0]
+  }
+
+  function previewDefaultTitleVariant() {
+    const variant = defaultTitleVariantChip()
+    if (!variant) return
+    setPreview(variant.tabUrl, previewUrlsForChip(variant))
+  }
+
+  function clearDefaultTitleVariantPreview() {
+    setPreview('')
+  }
+
+  function titleVariantEventTargetsExactVariant(target: EventTarget | null) {
+    return target instanceof Element && !!target.closest('.chip-title-variant, .chip-title-variant-actions, .chip-title-variant-action')
+  }
+
+  function titleVariantGroupContainsRelatedTarget(currentTarget: Element, relatedTarget: EventTarget | null) {
+    const groupEl = currentTarget.closest('.chip-title-variant-content')
+    return !!groupEl && relatedTarget instanceof Node && groupEl.contains(relatedTarget)
+  }
+
   async function onFocus(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
     if (isFolded) return
     await activateChipTarget(e, chip.tabUrl, chip.sourceType, chip)
@@ -1078,6 +1104,39 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     // browser's native text selection for that gesture only so the chip behaves
     // like a link (a plain click still drag-selects). See chip-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+  }
+
+  async function onTitleVariantSurfaceClick(e: MouseEvent<HTMLSpanElement>) {
+    const variant = defaultTitleVariantChip()
+    if (!variant) return
+    e.stopPropagation()
+    await activateChipTarget(e, variant.tabUrl, variant.sourceType, variant)
+  }
+
+  function onTitleVariantSurfaceMouseDown(e: MouseEvent<HTMLSpanElement>) {
+    if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
+  }
+
+  function onTitleVariantSurfaceMouseEnter() {
+    previewDefaultTitleVariant()
+  }
+
+  function onTitleVariantSurfaceMouseLeave(e: MouseEvent<HTMLSpanElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    if (titleVariantGroupContainsRelatedTarget(e.currentTarget, e.relatedTarget)) return
+    if (contextMenuOpenRef.current) return
+    clearDefaultTitleVariantPreview()
+  }
+
+  function onTitleVariantGroupMouseEnter(e: MouseEvent<HTMLSpanElement>) {
+    if (titleVariantEventTargetsExactVariant(e.target)) return
+    previewDefaultTitleVariant()
+  }
+
+  function onTitleVariantGroupMouseLeave(e: MouseEvent<HTMLSpanElement>) {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    if (contextMenuOpenRef.current) return
+    clearDefaultTitleVariantPreview()
   }
 
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
@@ -1379,6 +1438,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function onTitleVariantMouseLeave(e: MouseEvent<HTMLElement>) {
+    if (titleVariantGroupContainsRelatedTarget(e.currentTarget, e.relatedTarget)) {
+      if (!titleVariantEventTargetsExactVariant(e.relatedTarget)) previewDefaultTitleVariant()
+      return
+    }
     const chipEl = e.currentTarget.closest('.page-chip')
     if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) return
     setPreview('')
@@ -1787,6 +1850,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantActive = !!(variant.activeChipFrame || variant.activeInOtherWindow)
     const variantCurrent = !!variant.activeChipFrame && !variant.activeInOtherWindow
     const variantHoverMatched = externalHoverActive && chipMatchesActiveHover(variant)
+    // Static marker consumed only by base.css: hovering the group's non-URL
+    // surface highlights this pill via :hover CSS so it swaps with the exact
+    // pill's own :hover inside one style recalc. Routing this highlight
+    // through React state paints a one-frame rest-background flash instead.
+    const variantIsDefaultTarget = defaultTitleVariantChip() === variant
     const variantDupeCount = variant.dupeCount || 1
     const variantIsHistorySource = variant.sourceType === 'history'
     const variantClosedSaved = variant.sourceType === 'saved-page' || !!variant.closedSaved
@@ -1815,12 +1883,13 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantFocusButton = (
       <button
         type="button"
+        data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
         className={cn(
           'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
           variantActive && 'bg-neutral-600/[0.075] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
           variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
-          variantHoverMatched && 'shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]'
+          variantHoverMatched && 'bg-neutral-600/[0.14] text-tab-ink'
         )}
         aria-label={variantLabel}
         onClick={(e) => onTitleVariantFocus(e, variant)}
@@ -2011,19 +2080,43 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   )
 
   const titleVariantTitleExpansionTriggerElement = (
+    // react-doctor-disable-next-line react-doctor/click-events-have-key-events, react-doctor/no-static-element-interactions -- URL variant buttons remain the keyboard targets; this title-only span handles blank/title mouse fallback clicks.
     <span
-      className="chip-text-expansion-hit-area -my-[5px] flex min-w-0 py-[5px]"
+      data-tabout-part="default-variant-trigger"
+      className="chip-text-expansion-hit-area -my-[5px] flex w-full min-w-0 cursor-default py-[5px]"
+      onClick={onTitleVariantSurfaceClick}
+      onMouseDown={onTitleVariantSurfaceMouseDown}
+      onMouseEnter={onTitleVariantSurfaceMouseEnter}
+      onMouseLeave={onTitleVariantSurfaceMouseLeave}
+    >
+      {titleVariantTitleRowNode('chip')}
+    </span>
+  )
+
+  const titleVariantTitleRestTriggerElement = (
+    // react-doctor-disable-next-line react-doctor/click-events-have-key-events, react-doctor/no-static-element-interactions -- URL variant buttons remain the keyboard targets; this title-only span handles blank/title mouse fallback clicks.
+    <span
+      data-tabout-part="default-variant-trigger"
+      className="chip-title-variant-default-trigger block w-full min-w-0 cursor-default"
+      onClick={onTitleVariantSurfaceClick}
+      onMouseDown={onTitleVariantSurfaceMouseDown}
+      onMouseEnter={onTitleVariantSurfaceMouseEnter}
+      onMouseLeave={onTitleVariantSurfaceMouseLeave}
     >
       {titleVariantTitleRowNode('chip')}
     </span>
   )
 
   const titleVariantChipTextContent = (
-    <span className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0.5">
+    <span
+      className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0.5"
+      onMouseEnter={onTitleVariantGroupMouseEnter}
+      onMouseLeave={onTitleVariantGroupMouseLeave}
+    >
       {shouldExpandChip ? (
         titleVariantTitleExpansionTriggerElement
       ) : (
-        titleVariantTitleRowNode('chip')
+        titleVariantTitleRestTriggerElement
       )}
       {titleVariantListNode('chip')}
     </span>

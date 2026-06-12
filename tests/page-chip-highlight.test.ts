@@ -769,7 +769,8 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
   const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"([^>]*)>/)
   const chipTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)"/)
-  const titleVariantContentMatch = html.match(/<span class="([^"]*\bchip-title-variant-content\b[^"]*)"/)
+  const titleVariantContentMatch = html.match(/<span[^>]*class="([^"]*\bchip-title-variant-content\b[^"]*)"/)
+  const defaultVariantTriggerMatch = html.match(/<span[^>]*data-tabout-part="default-variant-trigger"[^>]*class="([^"]*)"/)
   const titleVariantListMatch = html.match(/<span class="([^"]*\bchip-title-variant-list\b[^"]*)"/)
   const titleVariantShellMatch = html.match(/<span class="([^"]*\bchip-title-variant-shell\b[^"]*)"/)
   const titleVariantButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant\b[^"]*)"/)
@@ -778,6 +779,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(chipTextMatch, 'chip text should render')
   assert.ok(titleVariantContentMatch, 'title variant content should render')
+  assert.ok(defaultVariantTriggerMatch, 'default variant trigger should render on title surface')
   assert.ok(titleVariantListMatch, 'title variant list should render')
   assert.ok(titleVariantShellMatch, 'title variant shell should render')
   assert.ok(titleVariantButtonMatch, 'title variant button should render')
@@ -805,6 +807,10 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bflex-col\b/)
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bitems-stretch\b/)
   assert.match(titleVariantContentMatch[1], /\bgap-0\.5\b/)
+  assert.doesNotMatch(titleVariantContentMatch[1], /\bcursor-default\b/)
+  assert.match(defaultVariantTriggerMatch[1], /\bcursor-default\b/)
+  assert.match(defaultVariantTriggerMatch[1], /\bw-full\b/)
+  assert.match(html, /data-tabout-part="default-variant-trigger"/)
   assert.match(titleVariantListMatch[1], /\bgap-0\.5\b/)
   assert.match(titleVariantListMatch[1], /(?:^|\s)pr-\[5px\](?:\s|$)/)
   assert.match(titleVariantListMatch[1], /(?:^|\s)pb-1(?:\s|$)/)
@@ -839,6 +845,21 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.1\)\]/)
   assert.match(titleVariantButtonMatch[1], /hover:bg-neutral-600\/\[0\.14\]/)
   assert.doesNotMatch(titleVariantButtonMatch[1], /\bcursor-pointer\b/)
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /function defaultTitleVariantChip\(\) \{[\s\S]*activeChipFrame[\s\S]*!variant\.activeInOtherWindow[\s\S]*activeInOtherWindow[\s\S]*titleVariantChips\[0\]/)
+  assert.match(pageChipSource, /onTitleVariantSurfaceClick[\s\S]*activateChipTarget\(e, variant\.tabUrl, variant\.sourceType, variant\)/)
+  assert.match(pageChipSource, /onTitleVariantSurfaceMouseEnter[\s\S]*previewDefaultTitleVariant\(\)/)
+  assert.match(pageChipSource, /function onTitleVariantGroupMouseEnter\(e: MouseEvent<HTMLSpanElement>\)[\s\S]*titleVariantEventTargetsExactVariant\(e\.target\)[\s\S]*previewDefaultTitleVariant\(\)/)
+  assert.match(pageChipSource, /function onTitleVariantGroupMouseLeave\(e: MouseEvent<HTMLSpanElement>\)[\s\S]*clearDefaultTitleVariantPreview\(\)/)
+  assert.match(pageChipSource, /function onTitleVariantMouseLeave\(e: MouseEvent<HTMLElement>\)[\s\S]*titleVariantGroupContainsRelatedTarget\(e\.currentTarget, e\.relatedTarget\)[\s\S]*!titleVariantEventTargetsExactVariant\(e\.relatedTarget\)[\s\S]*previewDefaultTitleVariant\(\)/)
+  assert.match(pageChipSource, /function previewDefaultTitleVariant\(\) \{[\s\S]*?setPreview\(variant\.tabUrl, previewUrlsForChip\(variant\)\)[\s\S]*?\}/)
+  assert.match(pageChipSource, /className="chip-title-variant-content[^"]*"[\s\S]*onMouseEnter=\{onTitleVariantGroupMouseEnter\}[\s\S]*onMouseLeave=\{onTitleVariantGroupMouseLeave\}/)
+  assert.doesNotMatch(pageChipSource, /defaultTitleVariantHoverUrl/)
+  assert.doesNotMatch(pageChipSource, /chipMatchesDefaultTitleVariantHover/)
+  assert.match(pageChipSource, /variantHoverMatched = externalHoverActive && chipMatchesActiveHover\(variant\)/)
+  assert.match(pageChipSource, /variantHoverMatched && 'bg-neutral-600\/\[0\.14\] text-tab-ink'/)
+  assert.doesNotMatch(pageChipSource, /function titleVariantSurfaceEventTargetsVariant/)
+  assert.doesNotMatch(pageChipSource, /onTitleVariantSurfaceMouseMove/)
   assert.doesNotMatch(html, /\bpage-chip-tooltip(?:\s|")/)
   assert.match(html, /…\?search_id=alpha/)
   assert.match(html, /…\?search_id=bravo/)
@@ -888,6 +909,73 @@ test('PageChip drops page-chip-group once the variant-group chip is active', () 
 test('PageChip does not mark a plain (non-group) chip with page-chip-group', () => {
   const cls = pageChipClass(renderWithDomainCardContext(React.createElement(PageChip, { chip: makeChip({ sourceType: 'tab' }) })))
   assert.doesNotMatch(cls, /\bpage-chip-group\b/)
+})
+
+function titleVariantPillTags(html: string): string[] {
+  return Array.from(html.matchAll(/<button[^>]*>/g), (match) => match[0])
+    .filter((tag) => /class="chip-title-variant clickable\b/.test(tag))
+}
+
+// The default-variant hover highlight must be pure CSS keyed off a static
+// data marker. The exact pill's own :hover turns off synchronously with the
+// pointer, so a React-state highlight commits one painted frame later and
+// flashes the rest background on every pill→title crossing. A base.css rule
+// turns the group-surface highlight on in the same style recalculation instead.
+test('PageChip highlights the default variant pill via static CSS marker, not React hover state', () => {
+  const restHtml = renderWithDomainCardContext(React.createElement(PageChip, { chip: makeVariantGroupChip() }))
+  const restPills = titleVariantPillTags(restHtml)
+  assert.equal(restPills.length, 2)
+  assert.match(restPills[0], /data-tabout-default-variant="true"/)
+  assert.doesNotMatch(restPills[1], /data-tabout-default-variant/)
+
+  const currentActiveHtml = renderWithDomainCardContext(React.createElement(PageChip, {
+    chip: makeVariantGroupChip({
+      titleVariantChips: [
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true })
+      ]
+    })
+  }))
+  const currentActivePills = titleVariantPillTags(currentActiveHtml)
+  assert.doesNotMatch(currentActivePills[0], /data-tabout-default-variant/)
+  assert.match(currentActivePills[1], /data-tabout-default-variant="true"/)
+
+  const crossWindowHtml = renderWithDomainCardContext(React.createElement(PageChip, {
+    chip: makeVariantGroupChip({
+      titleVariantChips: [
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature', activeChipFrame: true, activeInOtherWindow: true }),
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true })
+      ]
+    })
+  }))
+  const crossWindowPills = titleVariantPillTags(crossWindowHtml)
+  assert.doesNotMatch(crossWindowPills[0], /data-tabout-default-variant/)
+  assert.match(crossWindowPills[1], /data-tabout-default-variant="true"/)
+
+  const otherWindowOnlyHtml = renderWithDomainCardContext(React.createElement(PageChip, {
+    chip: makeVariantGroupChip({
+      titleVariantChips: [
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/a', rawUrl: 'https://example.com/a', pathSuffix: '…/feature', tooltip: '…/feature' }),
+        makeChip({ sourceType: 'tab', tabUrl: 'https://example.com/b', rawUrl: 'https://example.com/b', pathSuffix: '…/main', tooltip: '…/main', activeChipFrame: true, activeInOtherWindow: true })
+      ]
+    })
+  }))
+  const otherWindowOnlyPills = titleVariantPillTags(otherWindowOnlyHtml)
+  assert.doesNotMatch(otherWindowOnlyPills[0], /data-tabout-default-variant/)
+  assert.match(otherWindowOnlyPills[1], /data-tabout-default-variant="true"/)
+
+  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
+  const highlightRuleStart = baseCss.indexOf('.chip-title-variant-content:hover:not(')
+  assert.notEqual(highlightRuleStart, -1, 'base.css should carry the default-variant group-surface hover rule')
+  const highlightRule = baseCss.slice(highlightRuleStart, baseCss.indexOf('}', highlightRuleStart) + 1)
+  assert.match(highlightRule, /\.chip-title-variant-content:hover:not\(\s*:has\(\.chip-title-variant:hover, \.chip-title-variant-actions:hover\)\s*\)\s*\.chip-title-variant\[data-tabout-default-variant\]/)
+  assert.match(highlightRule, /background-color: #52525224;/)
+  assert.match(highlightRule, /background-color: color-mix\(in oklab, var\(--color-neutral-600\) 14%, transparent\);/)
+  assert.match(highlightRule, /color: var\(--ink\);/)
+
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /data-tabout-default-variant=\{variantIsDefaultTarget \? 'true' : undefined\}/)
+  assert.doesNotMatch(pageChipSource, /defaultTitleVariantHoverUrl/)
 })
 
 // The base-layer overlap rule must collapse the seam for BOTH border kinds:
@@ -967,8 +1055,8 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
 
   const html = renderWithDomainCardContext(React.createElement(PageChip, { chip }))
   const chipTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)"[^>]*>/)
-  const titleVariantContentMatch = html.match(/<span class="([^"]*\bchip-title-variant-content\b[^"]*)"/)
-  const titleExpansionHitAreaMatch = html.match(/<span class="[^"]*\bchip-text-expansion-hit-area\b[^"]*"[^>]*>/)
+  const titleVariantContentMatch = html.match(/<span[^>]*class="([^"]*\bchip-title-variant-content\b[^"]*)"/)
+  const titleExpansionHitAreaMatch = html.match(/<span[^>]*class="[^"]*\bchip-text-expansion-hit-area\b[^"]*"[^>]*>/)
   const titleVariantButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-title-variant\b[^"]*)"[^>]*>/)
 
   assert.ok(chipTextMatch, 'chip text should render')

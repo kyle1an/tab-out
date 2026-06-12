@@ -283,3 +283,28 @@ body {
 .chip-slot:has(.page-chip-hover-match) {
   z-index: 3;
 }
+
+/* Hovering a same-title group's non-URL surface (title row, blank padding,
+   gaps) highlights the default URL variant — the pill the title/blank click
+   would activate. PageChip marks that pill with the static
+   `data-tabout-default-variant` attribute.
+
+   This must stay pure CSS: the exact pill's own :hover turns off in the same
+   style recalculation that turns this rule on, so the highlight hands over
+   with no gap. Driving it from React state instead commits one painted frame
+   late and flashes the pill's rest background on every pill→title crossing.
+
+   The declarations mirror the pill's own hover utilities
+   (`hover:bg-neutral-600/[0.14] hover:text-tab-ink`); the selector outranks
+   the rest/active background utilities the same way tailwind-merge dropped
+   them for the old state-driven class. The :not(:has(…)) arm keeps the
+   default pill quiet while the pointer is on an exact pill or its floating
+   action rail (a DOM descendant of the group, even though it renders outside
+   the pill's box). */
+.chip-title-variant-content:hover:not(
+  :has(.chip-title-variant:hover, .chip-title-variant-actions:hover)
+) .chip-title-variant[data-tabout-default-variant] {
+  background-color: #52525224;
+  background-color: color-mix(in oklab, var(--color-neutral-600) 14%, transparent);
+  color: var(--ink);
+}
