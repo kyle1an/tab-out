@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode } from 'react'
+import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { X } from 'lucide-react'
 import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
@@ -26,6 +26,7 @@ import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleS
 import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
+import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect } from './expanded-text-layout'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { partitionVariantCloseTargets, groupCloseActionLabel } from './chip-close-targets.js'
@@ -294,11 +295,6 @@ function getVisibleChipTextLineCount(textEl: HTMLElement | null) {
   return Math.max(1, Math.round(textHeight / lineHeight))
 }
 
-function paintedRangeRect(range: Range) {
-  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0)
-  return rects[rects.length - 1] || null
-}
-
 function chipExpansionLineIndexForRect(rect: DOMRect, textRect: DOMRect, lineHeight: number, visibleLineCount: number) {
   if (rect.width <= 0 && rect.height <= 0) return null
   const lineIndex = Math.max(0, Math.round((rect.top - textRect.top) / lineHeight))
@@ -392,10 +388,8 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
 }
 
 function expandedChipFragmentHtml(document: Document, fragment: DocumentFragment) {
-  const container = document.createElement('span')
   hydrateClonedExpandedChipFragment(document, fragment)
-  container.append(fragment)
-  return container.innerHTML
+  return fragmentHtml(document, fragment)
 }
 
 function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
@@ -496,10 +490,6 @@ function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
   return lines
 }
 
-function chipExpansionLineHtmlEquals(left: readonly string[], right: readonly string[]) {
-  return left.length === right.length && left.every((line, index) => line === right[index])
-}
-
 function chipExpansionLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
   const lastIndex = lineHtml.length - 1
   return `<span class="page-chip-expanded-lines block min-w-0 max-w-full">${lineHtml.map((html, index) => (
@@ -513,74 +503,6 @@ function chipExpansionLineMarkup(lineHtml: readonly string[], viewportConstraine
   )).join('')}</span>`
 }
 
-function chipExpansionLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
-  if (!html || typeof document === 'undefined') return html
-
-  const template = document.createElement('template')
-  template.innerHTML = html
-
-  function nodeFromDom(node: ChildNode, key: string): ReactNode {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
-    if (node.nodeType !== Node.ELEMENT_NODE) return null
-
-    const element = node as Element
-    const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
-    const className = element.getAttribute('class') || undefined
-    const ariaLabel = element.getAttribute('aria-label') || undefined
-
-    if (element.tagName.toLowerCase() === 'span') {
-      return <span key={key} className={className} aria-label={ariaLabel}>{children}</span>
-    }
-    if (element.tagName.toLowerCase() === 'mark') {
-      return <mark key={key} className={className} aria-label={ariaLabel}>{children}</mark>
-    }
-    return element.textContent || ''
-  }
-
-  return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
-}
-
-function expandedLineContentOverflows(line: HTMLElement) {
-  if (line.scrollWidth - line.clientWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX) return true
-
-  const lineRect = line.getBoundingClientRect()
-  const win = line.ownerDocument.defaultView
-  if (!win || lineRect.width <= 0) return false
-
-  const walker = line.ownerDocument.createTreeWalker(
-    line,
-    win.NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        return node.textContent
-          ? win.NodeFilter.FILTER_ACCEPT
-          : win.NodeFilter.FILTER_REJECT
-      }
-    }
-  )
-  const range = line.ownerDocument.createRange()
-
-  try {
-    while (true) {
-      const node = walker.nextNode()
-      if (!(node instanceof win.Text)) break
-      range.selectNodeContents(node)
-      for (const rect of range.getClientRects()) {
-        if (
-          rect.width > 0 &&
-          rect.right - lineRect.right > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
-        ) {
-          return true
-        }
-      }
-    }
-  } finally {
-    range.detach()
-  }
-
-  return false
-}
-
 function expandedMeasureFitsLineCount(
   measureEl: HTMLElement,
   width: number,
@@ -590,7 +512,7 @@ function expandedMeasureFitsLineCount(
   const lineHeight = getChipTextLineHeight(measureEl)
   const height = measureEl.getBoundingClientRect().height
   const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.page-chip-expanded-line:not(.page-chip-expanded-line-tail)'))
-    .some(expandedLineContentOverflows)
+    .some((line) => expandedLineContentOverflows(line, PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX))
   const markerWrapsTaller = Array.from(measureEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator'))
     .some((marker) => marker.getBoundingClientRect().height > lineHeight + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX)
   return !fixedLineOverflows && !markerWrapsTaller && height <= targetLineCount * lineHeight + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
@@ -854,7 +776,7 @@ function chipSlotSizeEqual(left: ChipSlotSize, right: ChipSlotSize) {
 
 function chipExpansionGeometryEqual(left: ChipExpansionGeometry, right: ChipExpansionGeometry) {
   return (
-    chipExpansionLineHtmlEquals(left.lineHtml, right.lineHtml) &&
+    expansionLineHtmlEquals(left.lineHtml, right.lineHtml) &&
     left.x === right.x &&
     left.y === right.y &&
     left.viewportConstrained === right.viewportConstrained &&
@@ -1899,7 +1821,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
   function expandedTitleContentNode(keyPrefix: string) {
     if (!chipExpanded || chipExpansionGeometry.lineHtml.length === 0) return null
-    return chipExpansionLineNodesFromHtml(
+    return expansionLineNodesFromHtml(
       chipExpansionLineMarkup(chipExpansionGeometry.lineHtml, chipExpansionGeometry.viewportConstrained),
       keyPrefix
     )

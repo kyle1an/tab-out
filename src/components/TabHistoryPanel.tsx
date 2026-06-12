@@ -23,6 +23,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
+import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect } from './expanded-text-layout'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -211,21 +212,6 @@ function getHistoryTitleContentWidth(titleEl: HTMLElement | null) {
   return width
 }
 
-function historyTitleExpandedLineHtmlEquals(left: readonly string[], right: readonly string[]) {
-  return left.length === right.length && left.every((line, index) => line === right[index])
-}
-
-function historyTitlePaintedRangeRect(range: Range) {
-  const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0)
-  return rects[rects.length - 1] || null
-}
-
-function historyTitleFragmentHtml(document: Document, fragment: DocumentFragment) {
-  const container = document.createElement('span')
-  container.append(fragment)
-  return container.innerHTML
-}
-
 function getHistoryTitleExpandedLineHtml(titleEl: HTMLElement | null) {
   if (!titleEl || typeof document === 'undefined') return []
 
@@ -264,7 +250,7 @@ function getHistoryTitleExpandedLineHtml(titleEl: HTMLElement | null) {
     for (let offset = 0; offset < text.length && lineStarts.length < visibleLineCount; offset += 1) {
       range.setStart(node, offset)
       range.setEnd(node, offset + 1)
-      const rect = historyTitlePaintedRangeRect(range)
+      const rect = paintedRangeRect(range)
       if (!rect) continue
 
       const lineIndex = Math.max(0, Math.round((rect.top - titleRect.top) / lineHeight))
@@ -291,52 +277,11 @@ function getHistoryTitleExpandedLineHtml(titleEl: HTMLElement | null) {
       lineRange.selectNodeContents(titleEl)
       lineRange.setStart(start.node, start.offset)
     }
-    lines.push(historyTitleFragmentHtml(ownerDocument, lineRange.cloneContents()))
+    lines.push(fragmentHtml(ownerDocument, lineRange.cloneContents()))
     lineRange.detach()
   }
 
   return lines
-}
-
-function historyTitleExpandedLineContentOverflows(line: HTMLElement) {
-  if (line.scrollWidth - line.clientWidth > HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX) return true
-
-  const lineRect = line.getBoundingClientRect()
-  const win = line.ownerDocument.defaultView
-  if (!win || lineRect.width <= 0) return false
-
-  const walker = line.ownerDocument.createTreeWalker(
-    line,
-    win.NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        return node.textContent
-          ? win.NodeFilter.FILTER_ACCEPT
-          : win.NodeFilter.FILTER_REJECT
-      }
-    }
-  )
-  const range = line.ownerDocument.createRange()
-
-  try {
-    while (true) {
-      const node = walker.nextNode()
-      if (!(node instanceof win.Text)) break
-      range.selectNodeContents(node)
-      for (const rect of range.getClientRects()) {
-        if (
-          rect.width > 0 &&
-          rect.right - lineRect.right > HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX
-        ) {
-          return true
-        }
-      }
-    }
-  } finally {
-    range.detach()
-  }
-
-  return false
 }
 
 function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
@@ -344,33 +289,6 @@ function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportCon
   return `<span class="${HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
     `<span class="${index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}">${html}</span>`
   )).join('')}</span>`
-}
-
-function historyTitleExpandedLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
-  if (!html || typeof document === 'undefined') return html
-
-  const template = document.createElement('template')
-  template.innerHTML = html
-
-  function nodeFromDom(node: ChildNode, key: string): ReactNode {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent || ''
-    if (node.nodeType !== Node.ELEMENT_NODE) return null
-
-    const element = node as Element
-    const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
-    const className = element.getAttribute('class') || undefined
-    const ariaLabel = element.getAttribute('aria-label') || undefined
-
-    if (element.tagName.toLowerCase() === 'span') {
-      return <span key={key} className={className} aria-label={ariaLabel}>{children}</span>
-    }
-    if (element.tagName.toLowerCase() === 'mark') {
-      return <mark key={key} className={className} aria-label={ariaLabel}>{children}</mark>
-    }
-    return element.textContent || ''
-  }
-
-  return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
 }
 
 function historyTitleExpandedMeasureFitsLineCount(
@@ -383,7 +301,7 @@ function historyTitleExpandedMeasureFitsLineCount(
   const lineHeight = Number.parseFloat(styles.lineHeight)
   if (!lineHeight || !Number.isFinite(lineHeight)) return true
   const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.history-entry-expanded-line:not(.history-entry-expanded-line-tail)'))
-    .some(historyTitleExpandedLineContentOverflows)
+    .some((line) => expandedLineContentOverflows(line, HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX))
   return !fixedLineOverflows && measureEl.getBoundingClientRect().height <=
     targetLineCount * lineHeight + HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX
 }
@@ -468,7 +386,7 @@ function getHistoryTitleExpandedTextWidth(
 function sameHistoryTitleMetrics(a: HistoryTitleMetrics, b: HistoryTitleMetrics) {
   return (
     Math.abs(a.contentWidth - b.contentWidth) < 0.1 &&
-    historyTitleExpandedLineHtmlEquals(a.expandedLineHtml, b.expandedLineHtml) &&
+    expansionLineHtmlEquals(a.expandedLineHtml, b.expandedLineHtml) &&
     Math.abs(a.expandedTextWidth - b.expandedTextWidth) < 0.1 &&
     a.expandedViewportConstrained === b.expandedViewportConstrained &&
     a.isTruncated === b.isTruncated &&
@@ -607,7 +525,7 @@ function historyEntrySlotSizeEqual(left: HistoryEntrySlotSize, right: HistoryEnt
 
 function historyEntryExpansionGeometryEqual(left: HistoryEntryExpansionGeometry, right: HistoryEntryExpansionGeometry) {
   return (
-    historyTitleExpandedLineHtmlEquals(left.lineHtml, right.lineHtml) &&
+    expansionLineHtmlEquals(left.lineHtml, right.lineHtml) &&
     left.y === right.y &&
     left.viewportConstrained === right.viewportConstrained &&
     Math.abs(left.maxWidth - right.maxWidth) < 0.1 &&
@@ -1126,7 +1044,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, ge
             key={`${index}:${html}`}
             className={index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : geometry.viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}
           >
-            {historyTitleExpandedLineNodesFromHtml(html, `history-title-line-${index}`)}
+            {expansionLineNodesFromHtml(html, `history-title-line-${index}`)}
           </span>
         ))}
       </span>
