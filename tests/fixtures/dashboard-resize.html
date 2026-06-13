@@ -513,6 +513,46 @@
         listeners.dispatch()
         await new Promise((resolve) => setTimeout(resolve, 350))
       }
+      window.__tabOutSmokeAddPlainTitleVariantTabs = async () => {
+        if (tabs.some((tab) => tab.id === 1291 || tab.id === 1292 || tab.id === 1293)) return
+        tabs.push(
+          {
+            id: 1291,
+            url: 'https://plain-title-variant.test/docs/example',
+            title: 'Plain Title Variant',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1291
+          },
+          {
+            id: 1292,
+            url: 'https://plain-title-variant.test/docs/example?focusedCommentId=667321&page=com.example.comments:comment-tabpanel&sourceType=mention#comment-667321',
+            title: 'Plain Title Variant',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1292
+          },
+          {
+            id: 1293,
+            url: 'https://plain-title-variant.test/settings',
+            title: 'Settings',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1293
+          }
+        )
+        listeners.dispatch()
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
       window.__tabOutSmokeAddWrappedTitleVariantTabs = async () => {
         if (tabs.some((tab) => tab.id === 1271 || tab.id === 1272 || tab.id === 1273 || tab.id === 1274)) return
         const sharedTitle = 'Example Store | Stylish, Affordable Glasses & Sunglasses | Example Optical'

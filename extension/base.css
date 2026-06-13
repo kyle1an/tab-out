@@ -285,9 +285,22 @@ body {
 }
 
 /* Hovering ANY non-URL surface of a same-title group chip (title row, blank
-   padding, favicon gutter, edge strips) highlights the default URL variant —
-   the pill a click on that surface activates. PageChip marks that pill with
-   the static `data-tabout-default-variant` attribute.
+   padding, favicon gutter, edge strips, AND the rounded-corner gutter)
+   highlights the default URL variant — the pill a click on that surface
+   activates. PageChip marks that pill with the static
+   `data-tabout-default-variant` attribute.
+
+   Keyed off the rectangular `.chip-slot` (a `.chip-title-variant-list`
+   uniquely marks a group's slot), NOT the `.page-chip` itself: the chip is
+   `rounded-[10px] [corner-shape:squircle]`, so hit-testing at its corners
+   falls THROUGH the rounded chip to the rectangular slot underneath, leaving
+   the corner pixels of "hover anywhere on the chip" dead when this keyed off
+   `.page-chip:hover`. The slot is the chip's 1:1 full-bleed parent (radius 0),
+   so :hover here covers those corners, and :hover propagates up from the chip
+   in every state — including while the chip is expanded `position:absolute`
+   (the pills stay DOM descendants of the slot). The slot also owns the click
+   (see `variantGroupInteractionProps` on the slot in PageChip) so hover
+   highlight and click activation stay in lockstep at the corners too.
 
    This must stay pure CSS: the exact pill's own :hover turns off in the same
    style recalculation that turns this rule on, so the highlight hands over
@@ -306,7 +319,7 @@ body {
    covers the whole frame), or the audio toggle. Each of those also stops
    click propagation, keeping hover highlight and click activation in
    lockstep. */
-.page-chip:hover:not(
+.chip-slot:has(.chip-title-variant-list):hover:not(
   :has(
     .chip-title-variant:hover,
     .chip-title-variant-actions:hover,

@@ -3887,6 +3887,138 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
   return { target, expansion, expandedVariantLabels }
 }
 
+async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddPlainTitleVariantTabs?.()`
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const chip = Array.from(document.querySelectorAll('.page-chip'))
+          .find((candidate) =>
+            candidate.textContent?.includes('Plain Title Variant') &&
+            candidate.textContent?.includes('focusedCommentId=667321') &&
+            candidate.textContent?.includes('comment-667321')
+          )
+        const chipRect = chip?.getBoundingClientRect()
+        const variantLabels = Array.from(chip?.querySelectorAll('.chip-title-variant-label') || [])
+        const labelRects = variantLabels.map((label) => label.getBoundingClientRect())
+        const overflowingLabels = variantLabels.filter((label) => label.scrollWidth - label.clientWidth > 1).length
+        if (
+          chip instanceof HTMLElement &&
+          chipRect &&
+          (chipRect.top < 24 || chipRect.bottom > window.innerHeight - 24)
+        ) {
+          chip.scrollIntoView({ block: 'center', inline: 'nearest' })
+          setTimeout(wait, 120)
+          return
+        }
+        if (
+          chip instanceof HTMLElement &&
+          chipRect &&
+          labelRects.length === 2 &&
+          labelRects.every((rect) => rect.width > 0 && rect.height > 8) &&
+          overflowingLabels > 0
+        ) {
+          const targetLabelRect = labelRects[0]
+          const titleRect = chip.querySelector('.chip-title-row')?.getBoundingClientRect()
+          resolve({
+            x: Math.round(chipRect.right - 4),
+            y: Math.round(targetLabelRect.top + targetLabelRect.height / 2),
+            chipLeft: Math.round(chipRect.left),
+            chipRight: Math.round(chipRect.right),
+            chipWidth: Math.round(chipRect.width),
+            labelClientWidths: variantLabels.map((label) => Math.round((label.clientWidth || 0) * 100) / 100),
+            labelScrollWidths: variantLabels.map((label) => Math.round((label.scrollWidth || 0) * 100) / 100),
+            overflowingLabels,
+            viewportRight: window.innerWidth,
+            surfaces: {
+              labelRightEdge: {
+                x: Math.round(chipRect.right - 4),
+                y: Math.round(targetLabelRect.top + targetLabelRect.height / 2)
+              },
+              leftGutter: {
+                x: Math.round(chipRect.left + 4),
+                y: Math.round((titleRect?.top || chipRect.top) + (titleRect?.height || chipRect.height) / 2)
+              },
+              titleRightEdge: {
+                x: Math.round(chipRect.right - 4),
+                y: Math.round((titleRect?.top || chipRect.top) + (titleRect?.height || chipRect.height) / 2)
+              }
+            }
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve({
+            chips: Array.from(document.querySelectorAll('.page-chip'))
+              .filter((candidate) => candidate.textContent?.includes('Plain Title Variant'))
+              .map((candidate) => ({
+                className: candidate.className,
+                text: candidate.textContent,
+                variantLabels: Array.from(candidate.querySelectorAll('.chip-title-variant-label')).map((label) => label.textContent)
+              })),
+            missing: true
+          })
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.ok(target?.surfaces, `expected plain same-title URL variant chip for edge expansion smoke: ${JSON.stringify(target)}`)
+
+  const surfaceResults = []
+  for (const [surface, point] of Object.entries(target.surfaces)) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: (point as { x: number; y: number }).x,
+      y: (point as { x: number; y: number }).y
+    })
+    await wait(650)
+
+    const expansion = await waitForPageChipExpansionRect(session, 'Plain Title Variant')
+    const expandedVariantLabels = await evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const chip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+          .find((candidate) => candidate.textContent?.includes('Plain Title Variant'))
+        return Array.from(chip?.querySelectorAll('.chip-title-variant-label') || []).map((label) => ({
+          clientWidth: Math.round((label.clientWidth || 0) * 100) / 100,
+          scrollWidth: Math.round((label.scrollWidth || 0) * 100) / 100,
+          text: label.textContent || ''
+        }))
+      })()`
+    }).then((result: any) => result.result.value)
+
+    surfaceResults.push({ expandedVariantLabels, expansion, point, surface })
+
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: 8,
+      y: 8
+    })
+    await wait(260)
+  }
+
+  return { target, surfaceResults }
+}
+
 async function measureWrappedTitleVariantExpansion(session: CdpSession) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width: 1000,
@@ -4666,14 +4798,13 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     0,
     `page chip expansion should not create a tooltip popup: ${JSON.stringify(originalSlotLeave)}`
   )
-  assert.equal(
+  assert.ok(
     originalSlotLeave.afterOriginalSlotLeave,
-    null,
-    `page chip should collapse when the pointer leaves the original chip slot, even inside the grown bounds: ${JSON.stringify(originalSlotLeave)}`
+    `page chip should STAY expanded while the pointer is inside the grown bounds past the original slot, so the cursor can travel onto the revealed content instead of blinking shut at the seam: ${JSON.stringify(originalSlotLeave)}`
   )
   assert.ok(
     !originalSlotLeave.afterLeaveTooltips.some((text: string) => text === originalSlotLeave.first.text),
-    `page chip expansion should stay closed after the pointer leaves the original chip slot: ${JSON.stringify(originalSlotLeave)}`
+    `page chip expansion should collapse once the pointer leaves the expanded chip entirely: ${JSON.stringify(originalSlotLeave)}`
   )
 
   const popupClickFocus = await measureTooltipPopupClickFocus(session)
@@ -4989,6 +5120,29 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     compactTitleVariantExpansion.expandedVariantLabels.every((label: { clientWidth: number; scrollWidth: number }) => label.scrollWidth - label.clientWidth <= 1),
     `compact same-title variant chip expansion should keep its URL variant labels untruncated when viewport room allows: ${JSON.stringify(compactTitleVariantExpansion)}`
+  )
+  const plainTitleVariantEdgeExpansion = await measurePlainTitleVariantEdgeExpansion(session)
+  assert.ok(
+    plainTitleVariantEdgeExpansion.target.overflowingLabels > 0,
+    `plain same-title variant smoke should start with a clipped URL distinguisher: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+  )
+  assert.ok(
+    plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: unknown }) => surface.expansion),
+    `plain same-title variant chip should expand from every highlighted hover surface: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+  )
+  assert.ok(
+    plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: { left: number; right: number } | null }) =>
+      surface.expansion &&
+        surface.expansion.left < plainTitleVariantEdgeExpansion.target.chipLeft - 1 &&
+        surface.expansion.right <= plainTitleVariantEdgeExpansion.target.viewportRight - 12
+    ),
+    `plain same-title variant chip should grow left when right-side room cannot fit the URL distinguisher: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+  )
+  assert.ok(
+    plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expandedVariantLabels: Array<{ clientWidth: number; scrollWidth: number }> }) =>
+      surface.expandedVariantLabels.every((label) => label.scrollWidth - label.clientWidth <= 1)
+    ),
+    `plain same-title variant chip expansion should keep URL distinguishers untruncated when viewport room allows: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
   )
   const wrappedTitleVariantExpansion = await measureWrappedTitleVariantExpansion(session)
   assert.equal(

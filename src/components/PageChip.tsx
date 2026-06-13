@@ -35,7 +35,7 @@ import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-t
 let chipTextResizeObserver: ResizeObserver | null = null
 const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
-  (metrics: { height: number; isTruncated: boolean; width: number }) => void
+  (metrics: { hasExpandableContent: boolean; height: number; isTruncated: boolean; width: number }) => void
 >()
 
 const PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX = 12
@@ -43,6 +43,11 @@ const PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX = 8
 const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
+// While expanded, the chip floats wider/taller than its original slot. Keep it open
+// until the pointer leaves the EXPANDED chip (plus this small grace margin) so the
+// pointer can travel onto the revealed content without the chip blinking shut at the
+// seam between the original footprint and the revealed overflow.
+const PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX = 6
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
 // Expanded chips reveal the full path suffix, so the cloned/measured copy must
@@ -84,6 +89,7 @@ type StopPropagationEvent = {
   stopPropagation: () => void
 }
 type ChipTextMetrics = {
+  hasExpandableContent: boolean
   isTruncated: boolean
   width: number
 }
@@ -113,7 +119,7 @@ type ExpandedPageChipContentMetrics = {
   viewportConstrained: boolean
   width: number
 }
-const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { isTruncated: false, width: 0 }
+const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { hasExpandableContent: false, isTruncated: false, width: 0 }
 const DEFAULT_CHIP_SLOT_SIZE: ChipSlotSize = { height: 0, width: 0 }
 
 let activeExpandedPageChipId: string | null = null
@@ -270,6 +276,23 @@ function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
     )
   }
   return Math.round(width * 100) / 100
+}
+
+function titleVariantLabelsOverflow(textEl: HTMLElement | null) {
+  if (!textEl) return false
+  return Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-variant-label'))
+    .some((label) => label.scrollWidth - label.clientWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX)
+}
+
+function titleVariantContentOverflows(textEl: HTMLElement | null) {
+  const minimumWidth = getTitleVariantMinimumContentWidth(textEl)
+  if (minimumWidth <= 0) return false
+  const visibleWidth = getChipTextExpansionBaselineWidth(textEl)
+  return minimumWidth - visibleWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
+}
+
+function chipTextHasExpandableContent(textEl: HTMLElement | null) {
+  return isChipTextTruncated(textEl) || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
 }
 
 function getChipTextHeight(textEl: HTMLElement | null) {
@@ -706,23 +729,25 @@ function getExpandedPageChipHorizontalInset(chipEl: HTMLElement, textEl: HTMLEle
 }
 
 function syncChipTextFade(textEl: HTMLElement | null) {
-  if (!textEl) return { height: 0, isTruncated: false, width: 0 }
+  if (!textEl) return { hasExpandableContent: false, height: 0, isTruncated: false, width: 0 }
 
   const isTruncated = isChipTextTruncated(textEl)
+  const hasExpandableContent = isTruncated || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
   const width = getChipTextWidth(textEl)
   const height = getChipTextHeight(textEl)
   textEl.classList.toggle('chip-text-truncated', isTruncated)
-  chipTextTruncationCallbacks.get(textEl)?.({ height, isTruncated, width })
-  return { height, isTruncated, width }
+  chipTextTruncationCallbacks.get(textEl)?.({ hasExpandableContent, height, isTruncated, width })
+  return { hasExpandableContent, height, isTruncated, width }
 }
 
 function getChipTextMetrics(textEl: HTMLElement | null): ChipTextMetrics {
-  const { isTruncated, width } = syncChipTextFade(textEl)
-  return { isTruncated, width }
+  const { hasExpandableContent, isTruncated, width } = syncChipTextFade(textEl)
+  return { hasExpandableContent, isTruncated, width }
 }
 
 function chipTextMetricsEqual(left: ChipTextMetrics, right: ChipTextMetrics) {
   return (
+    left.hasExpandableContent === right.hasExpandableContent &&
     left.isTruncated === right.isTruncated &&
     Math.abs(left.width - right.width) < 0.1
   )
@@ -735,25 +760,28 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
   const contentBoxEl = chipEl.querySelector<HTMLElement>('.chip-text') || textEl
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
-  // Always grow rightward from the chip's left edge so the collapsed text keeps a
-  // stable position when expanding; the width budget is the room to the right.
   const roomToRight = Math.max(0, viewportWidth - rect.left - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
+  const roomToLeft = Math.max(0, rect.right - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomBelow = Math.max(0, viewportHeight - rect.top - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomAbove = Math.max(0, rect.bottom - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
-  const maxWidth = Math.max(rect.width, roomToRight)
   const horizontalInset = getExpandedPageChipHorizontalInset(chipEl, contentBoxEl)
   const lineHtml = getExpandedPageChipLineHtml(textEl)
   const visibleWidthOverride = contentBoxEl && contentBoxEl !== textEl
     ? Math.max(getChipTextExpansionBaselineWidth(contentBoxEl), getTitleVariantMinimumContentWidth(contentBoxEl))
     : getTitleVariantMinimumContentWidth(textEl)
-  const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride)
   const minWidth = Math.max(1, horizontalInset + Math.max(getChipTextExpansionBaselineWidth(textEl), visibleWidthOverride))
+  const startMaxWidth = Math.max(rect.width, roomToRight)
+  const endMaxWidth = Math.max(rect.width, roomToLeft)
+  const startCannotFit = startMaxWidth + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX < minWidth
+  const shouldAnchorEnd = startCannotFit && endMaxWidth > startMaxWidth + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
+  const maxWidth = shouldAnchorEnd ? endMaxWidth : startMaxWidth
+  const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride)
   return {
     lineHtml,
     maxWidth,
     viewportConstrained: contentMetrics.viewportConstrained,
     width: Math.min(maxWidth, Math.max(rect.width, minWidth, contentMetrics.width + horizontalInset)),
-    x: 'start',
+    x: shouldAnchorEnd ? 'end' : 'start',
     y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
   }
 }
@@ -924,7 +952,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const [chipSlotSize, setChipSlotSize] = useState(DEFAULT_CHIP_SLOT_SIZE)
   const [chipExpansionGeometry, setChipExpansionGeometry] = useState(DEFAULT_CHIP_EXPANSION_GEOMETRY)
   const [chipTextMetrics, setChipTextMetrics] = useState(DEFAULT_CHIP_TEXT_METRICS)
-  const { isTruncated: isTextTruncated } = chipTextMetrics
+  const { hasExpandableContent } = chipTextMetrics
 
   const setChipExpanded = useCallback((nextExpanded: boolean) => {
     chipExpandedRef.current = nextExpanded
@@ -981,10 +1009,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
     let disposed = false
     const observer = getChipTextResizeObserver()
-    chipTextTruncationCallbacks.set(textEl, ({ isTruncated, width }) => {
+    chipTextTruncationCallbacks.set(textEl, ({ hasExpandableContent, isTruncated, width }) => {
       if (disposed) return
       setChipTextMetrics((current) => {
-        const nextMetrics = { isTruncated, width }
+        const nextMetrics = { hasExpandableContent, isTruncated, width }
         return chipTextMetricsEqual(current, nextMetrics) ? current : nextMetrics
       })
     })
@@ -1192,7 +1220,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   function openChipExpansion() {
     if (chip.iconOnly) return
     const textEl = chipTextRef.current
-    const measuredExpandable = hasTitleSuppressionMarkers || hasStructuralPlaceholders || isChipTextTruncated(textEl)
+    const measuredExpandable = hasTitleSuppressionMarkers || hasStructuralPlaceholders || chipTextHasExpandableContent(textEl)
     if (!measuredExpandable) return
     clearChipExpansionCloseTimer()
     // Only measure from the collapsed source DOM. Re-measuring while already
@@ -1232,14 +1260,21 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     }
     const closeOnPointerMove = (event: globalThis.PointerEvent) => {
       if (contextMenuOpenRef.current) return
-      const slotRect = chipSlotRef.current?.getBoundingClientRect()
-      if (!slotRect) return
-      const insideOriginalSlot =
-        event.clientX >= slotRect.left &&
-        event.clientX <= slotRect.right &&
-        event.clientY >= slotRect.top &&
-        event.clientY <= slotRect.bottom
-      if (!insideOriginalSlot) closeNow()
+      // Measure the EXPANDED chip, not the original slot: the expanded chip floats
+      // wider/taller than its 1:1 slot, so testing the slot rect collapsed the chip
+      // the instant the pointer crossed into the revealed overflow — blinking it shut
+      // at the border before the revealed content could be reached. Stay open while
+      // the pointer is over the expanded chip (plus a small grace margin).
+      const expandedChipEl = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip')
+      const rect = expandedChipEl?.getBoundingClientRect() ?? chipSlotRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const tolerance = PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX
+      const insideExpandedChip =
+        event.clientX >= rect.left - tolerance &&
+        event.clientX <= rect.right + tolerance &&
+        event.clientY >= rect.top - tolerance &&
+        event.clientY <= rect.bottom + tolerance
+      if (!insideExpandedChip) closeNow()
     }
     const closeOnVisibilityChange = () => {
       if (document.hidden) closeNow()
@@ -1572,7 +1607,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
-  const shouldExpandChip = !chip.iconOnly && (isTextTruncated || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
+  const shouldExpandChip = !chip.iconOnly && (hasExpandableContent || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
   const chipVisualOpen = chipExpanded || chipTooltipOpen
   const chipSlotStyle: CSSVariableProperties | undefined = chipExpanded && chipSlotSize.width > 0 && chipSlotSize.height > 0 ? {
     height: `${chipSlotSize.height}px`,
@@ -2122,8 +2157,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     : {}
 
   // The grouped chip stays keyboard-inert (no role/tabIndex — the URL variant
-  // buttons are the keyboard targets), but its whole mouse surface targets
-  // the default variant.
+  // buttons are the keyboard targets), but its whole mouse surface targets the
+  // default variant. These live on the rectangular `.chip-slot`, NOT the
+  // `.page-chip`: the chip is rounded (`rounded-[10px] [corner-shape:squircle]`)
+  // so clicks at its corners fall through to the slot underneath; owning them
+  // on the slot makes the corner gutter activate the default variant too (the
+  // base.css hover highlight is keyed off the slot for the same reason). The
+  // exact pills, their action rails, the favicon close, and the audio toggle
+  // each stop propagation, so only title/blank-surface clicks reach here.
   const variantGroupInteractionProps = isTitleVariantGroup
     ? {
         onClick: onVariantGroupChipClick,
@@ -2170,7 +2211,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onPointerMove={onChipPointerMove}
         onPointerLeave={onChipPointerLeave}
         {...chipInteractionProps}
-        {...variantGroupInteractionProps}
       >
       {hasActiveChipFrame && !chip.iconOnly && (
         <span
@@ -2265,6 +2305,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : 'flex w-full')}
       style={chipSlotStyle}
       ref={chipSlotRef}
+      {...variantGroupInteractionProps}
     >
       {renderedChipElement}
     </div>

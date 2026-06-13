@@ -965,8 +965,12 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   assert.match(otherWindowOnlyPills[1], /data-tabout-default-variant="true"/)
 
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
-  const highlightRuleStart = baseCss.indexOf('.page-chip:hover:not(')
-  assert.notEqual(highlightRuleStart, -1, 'base.css should carry the default-variant chip-surface hover rule')
+  // Keyed off the rectangular `.chip-slot` (scoped to a group via its
+  // `.chip-title-variant-list`), NOT `.page-chip` — the chip's rounded squircle
+  // corners drop hit-testing through to the slot, so a `.page-chip:hover` rule
+  // left the corner gutter dead. The slot is the chip's 1:1 full-bleed parent.
+  const highlightRuleStart = baseCss.indexOf('.chip-slot:has(.chip-title-variant-list):hover:not(')
+  assert.notEqual(highlightRuleStart, -1, 'base.css should key the default-variant highlight off the rectangular slot, not the rounded chip')
   const highlightRule = baseCss.slice(highlightRuleStart, baseCss.indexOf('}', highlightRuleStart) + 1)
   // The whole chip surface highlights the default pill, except over the
   // interactive islands that own their own click: exact pills, their action
@@ -984,6 +988,10 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /data-tabout-default-variant=\{variantIsDefaultTarget \? 'true' : undefined\}/)
   assert.doesNotMatch(pageChipSource, /defaultTitleVariantHoverUrl/)
+  // The variant-group click/preview handlers own the rectangular `.chip-slot`
+  // (which covers the chip's rounded-corner gutter), not the rounded chip, so
+  // clicking/hovering the very edge still activates the default variant.
+  assert.match(pageChipSource, /data-tabout-part="slot"[\s\S]*?\{\.\.\.variantGroupInteractionProps\}/)
 })
 
 // The base-layer overlap rule must collapse the seam for BOTH border kinds:
@@ -1015,6 +1023,14 @@ test('PageChip expands same-title URL variant groups in place', () => {
   assert.match(pageChipSource, /const closeOnPointerMove = \(event: globalThis\.PointerEvent\) =>/)
   assert.match(pageChipSource, /chipSlotRef\.current\?\.getBoundingClientRect\(\)/)
   assert.match(pageChipSource, /window\.addEventListener\('pointermove', closeOnPointerMove, true\)/)
+  // closeOnPointerMove must measure the EXPANDED chip, not the original slot —
+  // the expanded chip floats wider/taller than its 1:1 slot, so testing the slot
+  // rect collapsed the chip the instant the pointer reached the revealed overflow
+  // (the blink-at-the-border bug). It keeps the chip open across the whole
+  // expanded surface (plus a small grace margin) so the pointer can reach the URL.
+  assert.match(pageChipSource, /closeOnPointerMove[\s\S]*?chipSlotRef\.current\?\.querySelector<HTMLElement>\('\.page-chip'\)/)
+  assert.match(pageChipSource, /closeOnPointerMove[\s\S]*?insideExpandedChip/)
+  assert.match(pageChipSource, /PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX/)
   assert.doesNotMatch(pageChipSource, /backgroundColor: 'var\(--chip-hover-fade-bg\)'/)
   assert.match(pageChipSource, /width: chipExpandedWidth/)
   assert.match(pageChipSource, /Math\.max\(rect\.width, minWidth, contentMetrics\.width \+ horizontalInset\)/)
@@ -2243,7 +2259,7 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.ok(markerElementMatch, 'title suppression marker element should render')
   assert.doesNotMatch(markerElementMatch[0], /data-slot="tooltip-trigger"/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /const shouldExpandChip = !chip\.iconOnly && \(isTextTruncated \|\| hasTitleSuppressionMarkers \|\| hasStructuralPlaceholders\)/)
+  assert.match(pageChipSource, /const shouldExpandChip = !chip\.iconOnly && \(hasExpandableContent \|\| hasTitleSuppressionMarkers \|\| hasStructuralPlaceholders\)/)
   assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0[\s\S]*text-\[12px\][\s\S]*leading-\[inherit\][\s\S]*align-baseline/)
   assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = [\s\S]*\[box-decoration-break:clone\]/)
   assert.match(pageChipSource, /chip-title-suppression-label hidden group-\[\.page-chip-expanded\]\/page-chip:inline/)
