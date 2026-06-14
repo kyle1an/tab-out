@@ -84,6 +84,7 @@
 - A **Working Set** does not change **Domain Card** ordering; it may prioritize sibling subdomain sections, Website Path Sections, Path Groups, and Page Chips within a Domain Card, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
 - A **Working Set** excludes utility pages such as Tab Out pages and should drop non-open pages from the visible set while retaining recent activity only as historical ranking evidence.
 - A **Tab Action** may suspend the live, not-already-suspended tabs behind a **Page Chip** or **Activation History** row by redirecting them into the **Suspend Target**; folded chips suspend every matching live tab, and without a learned Suspend Target the action only reports that no suspender was detected.
+- A **Tab Action** may suspend the live, not-already-suspended tabs behind a **Title Suppression Scope** token when that token has matching ungrouped, non-preserved open tabs.
 - The **Suspend Target** is learned by observing an already-suspended open tab and is remembered across sessions; suspending never picks a suspender the user has not used.
 - A suspended **Dashboard Item** keeps its real page's favicon: chips, history rows, and Working Set rows resolve the icon from the unwrapped effective URL instead of keeping the suspender page's faded copy.
 - An **Activation History** row offers the explicit **Page Chip** context-menu actions that apply to it: copy title, copy URL, save page, and suspend.

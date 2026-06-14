@@ -1883,15 +1883,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       }
     })
 
-  // Map each suppressed-title token to the open, closable tab URLs whose title
-  // carries it, so the dashboard can offer "Close N tabs" on the token. Keyed by
-  // the normalized suppression key. Left empty for read-only sources and the
-  // unmatched grid, mirroring how every other bulk-close action is suppressed there.
-  const allowTitleSuppressionClose = displayMode !== 'unmatched' && allowMutations
-  const suppressionCloseUrlsByText: Record<string, string[]> = {}
-  if (allowTitleSuppressionClose) {
+  function suppressionUrlsByText(tabs: readonly DashboardTab[]): Record<string, string[]> {
+    const urlsByText: Record<string, string[]> = {}
     const urlSetByKey = new Map<string, Set<string>>()
-    for (const tab of closableTabs) {
+    for (const tab of tabs) {
       for (const part of titlePresentation(tab).suppressedTitleParts) {
         const key = titleSuppressionKey(part)
         let urls = urlSetByKey.get(key)
@@ -1902,8 +1897,17 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         urls.add(tab.url)
       }
     }
-    for (const [key, urls] of urlSetByKey) suppressionCloseUrlsByText[key] = [...urls]
+    for (const [key, urls] of urlSetByKey) urlsByText[key] = [...urls]
+    return urlsByText
   }
+
+  // Map each suppressed-title token to the open tab URLs whose title carries it,
+  // so the dashboard can offer token-scoped "Close N tabs" and "Suspend N tabs".
+  // Keyed by the normalized suppression key. Left empty for read-only sources and
+  // the unmatched grid, mirroring how every other bulk mutation is suppressed there.
+  const allowTitleSuppressionActions = displayMode !== 'unmatched' && allowMutations
+  const suppressionCloseUrlsByText = allowTitleSuppressionActions ? suppressionUrlsByText(closableTabs) : {}
+  const suppressionSuspendUrlsByText = allowTitleSuppressionActions ? suppressionUrlsByText(suspendableTabs) : {}
 
   const sectionsDataWithInlineSingletonSuppressions = inlineSingletonSuppressionsInSections(sectionsData, singletonSuppressionKeys)
   const hasMultipleVisibleSuppressionMeaningsAfterMerge = visibleSuppressedTitleParts.length > 1
@@ -2159,6 +2163,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     suppressedTitleParts: cardSuppressedTitleParts,
     allSuppressedTitleParts: visibleSuppressedTitleParts,
     suppressionCloseUrlsByText,
+    suppressionSuspendUrlsByText,
     sections: vmSections
   }
 }

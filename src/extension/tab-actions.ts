@@ -37,6 +37,10 @@ type CloseExactTabSectionOptions = {
   urls: string[]
 }
 
+type SuspendExactTabSectionOptions = {
+  urls: string[]
+}
+
 type DedupeTabsOptions = {
   urls: string[]
   preservePinnedTabOut?: boolean
@@ -300,6 +304,33 @@ async function applySuspendToTabs(targets: chrome.tabs.Tab[], target: SuspendTar
     } catch {}
   }
   return count
+}
+
+export async function suspendExactTabSection({ urls }: SuspendExactTabSectionOptions): Promise<{ suspendedCount: number }> {
+  if (urls.length === 0) {
+    showToast('Nothing to suspend')
+    return { suspendedCount: 0 }
+  }
+
+  const target = await getSuspendTarget()
+  if (!target) {
+    showToast('No suspender detected')
+    return { suspendedCount: 0 }
+  }
+
+  const urlSet = new Set(urls)
+  const allTabs = await chrome.tabs.query({})
+  const targets = allTabs.filter((tab) => {
+    if (isGroupedTab(tab)) return false
+    return urlSet.has(unwrapSuspenderUrl(tab.url || ''))
+  })
+  const suspendedCount = await applySuspendToTabs(targets, target)
+
+  await fetchOpenTabs()
+  // Passive refresh: suspending doesn't reorganize cards, so repaint in place.
+  await requestDashboardRefresh()
+  showToast(suspendedCount === 0 ? 'Nothing to suspend' : suspendedCount === 1 ? 'Tab suspended' : `Suspended ${suspendedCount} tabs`)
+  return { suspendedCount }
 }
 
 /**

@@ -202,6 +202,7 @@ export interface DashboardCardVM {
   suppressedTitleParts?: DashboardTitleSuppression[]
   allSuppressedTitleParts?: DashboardTitleSuppression[]
   suppressionCloseUrlsByText?: Record<string, string[]>
+  suppressionSuspendUrlsByText?: Record<string, string[]>
   sections?: DashboardSectionVM[]
 }
 

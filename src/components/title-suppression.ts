@@ -157,3 +157,7 @@ export function countHiddenSuppressedTitleMatches(hiddenChips: DashboardChipData
 export function titleSuppressionCloseLabel(count: number): string {
   return `Close ${count} tab${count === 1 ? '' : 's'}`
 }
+
+export function titleSuppressionSuspendLabel(count: number): string {
+  return `Suspend ${count} tab${count === 1 ? '' : 's'}`
+}

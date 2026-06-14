@@ -568,13 +568,13 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
   assert.equal(mergedChip.titleVariantChips?.length, 2)
 })
 
-test('computeDomainCardViewModel maps a suppression token to its closable tab URLs', () => {
+test('computeDomainCardViewModel maps a suppression token to closeable and suspendable tab URLs', () => {
   const group = {
     domain: 'example.com',
     tabs: [
       makeTab({ url: 'https://example.com/content/item?search_id=alpha', title: 'Example content item - Example Workspace' }),
       makeTab({ id: 2, url: 'https://example.com/content/item?search_id=bravo', title: 'Example content item - Example Workspace' }),
-      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace' })
+      makeTab({ id: 3, url: 'https://example.com/settings', title: 'Settings - Example Workspace', suspended: true })
     ]
   }
 
@@ -589,9 +589,15 @@ test('computeDomainCardViewModel maps a suppression token to its closable tab UR
       'https://example.com/settings'
     ]
   })
+  assert.deepEqual(vm.suppressionSuspendUrlsByText, {
+    '- example workspace': [
+      'https://example.com/content/item?search_id=alpha',
+      'https://example.com/content/item?search_id=bravo'
+    ]
+  })
 })
 
-test('suppressionCloseUrlsByText excludes grouped tabs and is empty when mutations are disallowed', () => {
+test('suppression token action URL maps exclude grouped tabs and are empty when mutations are disallowed', () => {
   const group = {
     domain: 'example.com',
     tabs: [
@@ -605,9 +611,13 @@ test('suppressionCloseUrlsByText excludes grouped tabs and is empty when mutatio
   assert.deepEqual(vm.suppressionCloseUrlsByText, {
     '- example workspace': ['https://example.com/a', 'https://example.com/b']
   })
+  assert.deepEqual(vm.suppressionSuspendUrlsByText, {
+    '- example workspace': ['https://example.com/a', 'https://example.com/b']
+  })
 
   const readOnlyVm = computeDomainCardViewModel(group, { allowMutations: false })
   assert.deepEqual(readOnlyVm.suppressionCloseUrlsByText, {})
+  assert.deepEqual(readOnlyVm.suppressionSuspendUrlsByText, {})
 })
 
 test('computeDomainCardViewModel skips path suffixes for duplicate titles in different rendered path groups', () => {

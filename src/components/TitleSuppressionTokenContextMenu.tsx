@@ -10,16 +10,23 @@ type TitleSuppressionTokenContextMenuTriggerElement = ReactElement<{ className?:
 
 interface TitleSuppressionTokenContextMenuProps {
   closableCount: number
+  suspendableCount?: number
+  onSuspend?: (event: StopPropagationEvent) => void | Promise<void>
   onClose: (event: StopPropagationEvent) => void | Promise<void>
   onOpenChange?: (open: boolean) => void
   children: TitleSuppressionTokenContextMenuTriggerElement
 }
 
-export function TitleSuppressionTokenContextMenu({ closableCount, onClose, onOpenChange, children }: TitleSuppressionTokenContextMenuProps) {
+export function TitleSuppressionTokenContextMenu({ closableCount, suspendableCount = 0, onSuspend, onClose, onOpenChange, children }: TitleSuppressionTokenContextMenuProps) {
   return (
     <ContextMenu onOpenChange={(open) => onOpenChange?.(open)}>
       <ContextMenuTrigger render={children} />
-      <TitleSuppressionTokenContextMenuContent closableCount={closableCount} onClose={onClose} />
+      <TitleSuppressionTokenContextMenuContent
+        closableCount={closableCount}
+        suspendableCount={suspendableCount}
+        onSuspend={onSuspend}
+        onClose={onClose}
+      />
     </ContextMenu>
   )
 }

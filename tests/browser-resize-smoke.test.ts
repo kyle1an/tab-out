@@ -5210,6 +5210,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(suppressionTokenClose.onHover, 3, `hovering the "— Shared Workspace" token should highlight its 3 chips: ${JSON.stringify(suppressionTokenClose)}`)
   assert.equal(suppressionTokenClose.onRightClick.highlightedChips, 3, `right-clicking the token must keep its 3 chips highlighted while the close menu is open: ${JSON.stringify(suppressionTokenClose)}`)
   assert.ok(suppressionTokenClose.onRightClick.menuOpen, `right-clicking the token should open the close menu: ${JSON.stringify(suppressionTokenClose)}`)
+  assert.ok(suppressionTokenClose.onRightClick.itemTexts.includes('Suspend 3 tabs'), `token close menu should offer "Suspend 3 tabs": ${JSON.stringify(suppressionTokenClose)}`)
   assert.ok(suppressionTokenClose.onRightClick.itemTexts.includes('Close 3 tabs'), `token close menu should offer "Close 3 tabs": ${JSON.stringify(suppressionTokenClose)}`)
   assert.equal(suppressionTokenClose.afterClickAway.menuOpen, false, `clicking elsewhere should close the token close menu: ${JSON.stringify(suppressionTokenClose)}`)
   assert.equal(suppressionTokenClose.afterClickAway.highlightedChips, 0, `closing the menu by clicking away must clear the suppression highlight even though focus returns to the token: ${JSON.stringify(suppressionTokenClose)}`)

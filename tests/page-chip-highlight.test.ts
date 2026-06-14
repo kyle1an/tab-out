@@ -56,7 +56,8 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Ren
     activeSuppressedTitle: overrides.activeSuppressedTitle ?? '',
     setActiveSuppressedTitle: overrides.setActiveSuppressedTitle ?? (() => {}),
     dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false,
-    suppressionCloseUrlsByText: overrides.suppressionCloseUrlsByText ?? {}
+    suppressionCloseUrlsByText: overrides.suppressionCloseUrlsByText ?? {},
+    suppressionSuspendUrlsByText: overrides.suppressionSuspendUrlsByText ?? {}
   }
   const hoverState = {
     url: overrides.activeHoverUrl ?? '',

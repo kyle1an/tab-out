@@ -8,13 +8,15 @@ export type DomainCardContextValue = {
   setActiveSuppressedTitle: (text: string) => void
   dedupeBadgesClosing: boolean
   suppressionCloseUrlsByText: Record<string, string[]>
+  suppressionSuspendUrlsByText: Record<string, string[]>
 }
 
 const defaultDomainCardContext: DomainCardContextValue = {
   activeSuppressedTitle: '',
   setActiveSuppressedTitle: () => {},
   dedupeBadgesClosing: false,
-  suppressionCloseUrlsByText: {}
+  suppressionCloseUrlsByText: {},
+  suppressionSuspendUrlsByText: {}
 }
 
 const DomainCardContext = createContext(defaultDomainCardContext)
