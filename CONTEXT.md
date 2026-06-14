@@ -86,7 +86,7 @@
 - A **Tab Action** may suspend the live, not-already-suspended tabs behind a **Page Chip** or **Activation History** row by redirecting them into the **Suspend Target**; folded chips suspend every matching live tab, and without a learned Suspend Target the action only reports that no suspender was detected.
 - The **Suspend Target** is learned by observing an already-suspended open tab and is remembered across sessions; suspending never picks a suspender the user has not used.
 - A suspended **Dashboard Item** keeps its real page's favicon: chips, history rows, and Working Set rows resolve the icon from the unwrapped effective URL instead of keeping the suspender page's faded copy.
-- An **Activation History** row offers the explicit **Page Chip** context-menu actions that apply to it: copy title, save page, and suspend.
+- An **Activation History** row offers the explicit **Page Chip** context-menu actions that apply to it: copy title, copy URL, save page, and suspend.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.
 - Repeated title noise inside a visible **Website Path Section** is scoped to that section when no narrower **Path Group** owns it.
 - A **Title Suppression Scope** owns its summary tokens and matching chip markers; visible scopes coordinate palette colors within a **Domain Card** so two visible suppression meanings do not use the same color.

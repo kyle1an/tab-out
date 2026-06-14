@@ -1447,6 +1447,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     }
   }
 
+  async function onCopyUrlText(e: StopPropagationEvent, urlText: string) {
+    e.stopPropagation()
+    if (!urlText) return
+
+    try {
+      await navigator.clipboard.writeText(urlText)
+      showToast('Page URL copied')
+    } catch {
+      showToast('Could not copy page URL')
+    }
+  }
+
   async function onTitleVariantFocus(e: MouseEvent<HTMLButtonElement>, variant: DashboardChipData) {
     e.stopPropagation()
     await activateChipTarget(e, variant.tabUrl, variant.sourceType, variant)
@@ -1569,6 +1581,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const savedActionLabel = chip.saved ? 'Remove saved page' : 'Save page'
   const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
   const chipTitleText = titleTextForChip(chip)
+  const chipUrlText = pageTargetUrl(chip)
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
   // Unlike the other can* flags, canShowSuspend intentionally does NOT gate on
@@ -1579,6 +1592,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const canCloseFoldedGroup = isFolded && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const canCloseVariantGroup = isTitleVariantGroup && variantCloseCount > 0
+  const canUseCopyContextMenu = parentInteractive && (!!chipTitleText || !!chipUrlText)
   const showFaviconCloseAction = !chip.iconOnly && (canCloseChip || canCloseFoldedGroup || canCloseVariantGroup)
   const showDefaultFavicon = !chip.faviconUrl && (!isReadOnlySource || chip.sourceType === 'saved-page')
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
@@ -1790,13 +1804,16 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         {highlightedTextNodes(env.prefix, highlightTerms, `env-${env.prefix}`)}
       </button>
     )
-    const envFocusTarget = canToggleSavedEnv ? (
+    const envCanUseContextMenu = canToggleSavedEnv || !!envTitleText || !!env.tabUrl
+    const envFocusTarget = envCanUseContextMenu ? (
       <PageChipContextMenu
-        savedActionLabel={envSavedActionLabel}
+        savedActionLabel={canToggleSavedEnv ? envSavedActionLabel : undefined}
         saved={!!env.saved}
-        onSavedSelect={(e) => onToggleSavedEnv(e, env)}
+        onSavedSelect={canToggleSavedEnv ? (e) => onToggleSavedEnv(e, env) : undefined}
         titleText={envTitleText}
         onCopyTitle={(e) => onCopyTitleText(e, envTitleText)}
+        urlText={env.tabUrl}
+        onCopyUrl={(e) => onCopyUrlText(e, env.tabUrl)}
         onOpenChange={(open) => onEnvContextMenuOpenChange(open, env)}
       >
         {envFocusButton}
@@ -1885,6 +1902,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantPagePinActionLabel = variant.pagePinned ? 'Unpin' : 'Pin'
     const variantCanTogglePagePin = !!variant.pagePinId && typeof onTogglePinnedPageChip === 'function'
     const variantTitleText = titleTextForChip(variant)
+    const variantCanUseContextMenu = variantCanToggleSaved || variantCanTogglePagePin || !!variantTitleText || !!variant.tabUrl
     const variantPinnedLabel = variant.pagePinned ? 'Pinned' : ''
     const variantLabel = [variant.tooltip, variantPinnedLabel, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     const labelContent = (
@@ -1920,7 +1938,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         {labelContent}
       </button>
     )
-    const variantFocusTarget = variantCanToggleSaved || variantCanTogglePagePin ? (
+    const variantFocusTarget = variantCanUseContextMenu ? (
       <PageChipContextMenu
         savedActionLabel={variantCanToggleSaved ? variantSavedActionLabel : undefined}
         saved={!!variant.saved}
@@ -1930,6 +1948,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onPagePinSelect={variantCanTogglePagePin ? (e) => onTogglePinnedTitleVariant(e, variant) : undefined}
         titleText={variantTitleText}
         onCopyTitle={(e) => onCopyTitleText(e, variantTitleText)}
+        urlText={variant.tabUrl}
+        onCopyUrl={(e) => onCopyUrlText(e, variant.tabUrl)}
         onOpenChange={(open) => onTitleVariantContextMenuOpenChange(open, variant)}
       >
         {variantFocusButton}
@@ -2268,7 +2288,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       )}
       </div>
   )
-  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin || canShowSuspend) ? (
+  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin || canShowSuspend || canUseCopyContextMenu) ? (
     <PageChipContextMenu
       savedActionLabel={canToggleSavedPage ? savedActionLabel : undefined}
       saved={!!chip.saved}
@@ -2280,6 +2300,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       onSuspendSelect={canShowSuspend ? onToggleChipSuspend : undefined}
       titleText={chipTitleText}
       onCopyTitle={(e) => onCopyTitleText(e, chipTitleText)}
+      urlText={chipUrlText}
+      onCopyUrl={(e) => onCopyUrlText(e, chipUrlText)}
       onOpenChange={onChipContextMenuOpenChange}
     >
       {chipElement}

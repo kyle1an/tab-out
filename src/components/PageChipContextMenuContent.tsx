@@ -14,6 +14,8 @@ export type PageChipContextMenuContentProps = {
   pagePinned?: boolean
   onPagePinSelect?: (event: StopPropagationEvent) => void | Promise<void>
   onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
+  urlText: string
+  onCopyUrl: (event: StopPropagationEvent) => void | Promise<void>
   suspendEnabled?: boolean
   onSuspendSelect?: (event: StopPropagationEvent) => void | Promise<void>
 }
@@ -27,6 +29,8 @@ export function PageChipContextMenuContent({
   pagePinned,
   onPagePinSelect,
   onCopyTitle,
+  urlText,
+  onCopyUrl,
   suspendEnabled,
   onSuspendSelect
 }: PageChipContextMenuContentProps) {
@@ -71,6 +75,15 @@ export function PageChipContextMenuContent({
       >
         <svg className="icon-[ooui--copy-ltr] size-3.5" aria-hidden="true" />
         <span className="min-w-0 flex-1">Copy page title text</span>
+      </ContextMenuItem>
+      <ContextMenuItem
+        className="page-chip-copy-url-menu-item"
+        disabled={!urlText}
+        label="Copy URL"
+        onClick={onCopyUrl}
+      >
+        <span className="icon-[lucide--link] size-3.5" aria-hidden="true" />
+        <span className="min-w-0 flex-1">Copy URL</span>
       </ContextMenuItem>
     </ContextMenuContent>
   )

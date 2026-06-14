@@ -27,6 +27,8 @@ export function PageChipContextMenu({
   pagePinned,
   onPagePinSelect,
   onCopyTitle,
+  urlText,
+  onCopyUrl,
   suspendEnabled,
   onSuspendSelect,
   onOpenChange
@@ -77,6 +79,8 @@ export function PageChipContextMenu({
         onPagePinSelect={onPagePinSelect}
         titleText={titleText}
         onCopyTitle={onCopyTitle}
+        urlText={urlText}
+        onCopyUrl={onCopyUrl}
         suspendEnabled={suspendEnabled}
         onSuspendSelect={onSuspendSelect}
       />

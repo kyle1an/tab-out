@@ -1136,11 +1136,12 @@ type HistoryEntryContextMenuProps = {
 
 /**
  * HistoryEntryContextMenu — wraps a history row in the shared page-chip
- * context menu (Copy title / Save page / Suspend) when at least one action
+ * context menu (Copy title / Copy URL / Save page / Suspend) when at least one action
  * applies; otherwise renders the row untouched.
  */
 function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: HistoryEntryContextMenuProps) {
   const copyTitleText = entry.title
+  const copyUrlText = entry.url
   const saveEligible = isHistoryEntrySaveEligible(entry)
   const saved = historyEntrySaved(entry, savedKeys)
   const savedActionLabel = saved ? 'Remove saved page' : 'Save page'
@@ -1154,6 +1155,16 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
       showToast('Page title copied')
     } catch {
       showToast('Could not copy page title')
+    }
+  }
+
+  async function onCopyEntryUrl(e: StopPropagationEvent) {
+    e.stopPropagation()
+    try {
+      await navigator.clipboard.writeText(copyUrlText)
+      showToast('Page URL copied')
+    } catch {
+      showToast('Could not copy page URL')
     }
   }
 
@@ -1173,11 +1184,13 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
     void suspendHistoryEntry(entry.tabId)
   }
 
-  if (!copyTitleText && !saveEligible && !canShowSuspend) return children
+  if (!copyTitleText && !copyUrlText && !saveEligible && !canShowSuspend) return children
   return (
     <PageChipContextMenu
       titleText={copyTitleText}
       onCopyTitle={onCopyEntryTitle}
+      urlText={copyUrlText}
+      onCopyUrl={onCopyEntryUrl}
       saved={saved}
       savedActionLabel={saveEligible ? savedActionLabel : undefined}
       onSavedSelect={saveEligible ? onToggleEntrySaved : undefined}
@@ -1627,4 +1640,3 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
     />
   )
 }
-
