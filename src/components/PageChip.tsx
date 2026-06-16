@@ -1143,6 +1143,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   function onVariantGroupChipMouseEnter(e: MouseEvent<HTMLDivElement>) {
     if (titleVariantEventTargetsExactVariant(e.target)) return
     previewDefaultTitleVariant()
+    openChipExpansion()
+  }
+
+  function onVariantGroupChipMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (chipExpandedRef.current) return
+    if (titleVariantEventTargetsExactVariant(e.target)) return
+    previewDefaultTitleVariant()
+    openChipExpansion()
   }
 
   function onVariantGroupChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
@@ -2190,6 +2198,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onClick: onVariantGroupChipClick,
         onMouseDown: onVariantGroupChipMouseDown,
         onMouseEnter: onVariantGroupChipMouseEnter,
+        onMouseMove: onVariantGroupChipMouseMove,
         onMouseLeave: onVariantGroupChipMouseLeave
       } as const
     : {}

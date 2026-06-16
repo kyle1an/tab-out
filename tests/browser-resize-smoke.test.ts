@@ -3935,6 +3935,26 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
           labelRects.every((rect) => rect.width > 0 && rect.height > 8) &&
           overflowingLabels > 0
         ) {
+          const slot = chip.closest('[data-tabout-part="slot"]')
+          const slotOnlyPoint = (() => {
+            if (!(slot instanceof HTMLElement)) return null
+            const slotRect = slot.getBoundingClientRect()
+            const points = [
+              { x: chipRect.left + 1, y: chipRect.top + 1 },
+              { x: chipRect.right - 1, y: chipRect.top + 1 },
+              { x: chipRect.left + 1, y: chipRect.bottom - 1 },
+              { x: chipRect.right - 1, y: chipRect.bottom - 1 },
+              { x: chipRect.left + 2, y: chipRect.top + 2 },
+              { x: chipRect.right - 2, y: chipRect.top + 2 },
+              { x: chipRect.left + 2, y: chipRect.bottom - 2 },
+              { x: chipRect.right - 2, y: chipRect.bottom - 2 }
+            ]
+            return points.find((point) => {
+              if (point.x < slotRect.left || point.x > slotRect.right || point.y < slotRect.top || point.y > slotRect.bottom) return false
+              const hit = document.elementFromPoint(point.x, point.y)
+              return hit instanceof Element && slot.contains(hit) && !chip.contains(hit)
+            }) || null
+          })()
           const targetLabelRect = labelRects[0]
           const titleRect = chip.querySelector('.chip-title-row')?.getBoundingClientRect()
           resolve({
@@ -3948,6 +3968,12 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
             overflowingLabels,
             viewportRight: window.innerWidth,
             surfaces: {
+              ...(slotOnlyPoint ? {
+                slotOnlyDefaultSurface: {
+                  x: Math.round(slotOnlyPoint.x),
+                  y: Math.round(slotOnlyPoint.y)
+                }
+              } : {}),
               labelRightEdge: {
                 x: Math.round(chipRect.right - 4),
                 y: Math.round(targetLabelRect.top + targetLabelRect.height / 2)
@@ -4005,8 +4031,32 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
         }))
       })()`
     }).then((result: any) => result.result.value)
+    const hoverState = await evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const point = ${JSON.stringify(point)}
+        const slot = Array.from(document.querySelectorAll('[data-tabout-part="slot"]'))
+          .find((candidate) => candidate.textContent?.includes('Plain Title Variant'))
+        const chip = slot?.querySelector('.page-chip')
+        const defaultVariant = slot?.querySelector('.chip-title-variant[data-tabout-default-variant]')
+        const hit = document.elementFromPoint(point.x, point.y)
+        const defaultVariantStyle = defaultVariant instanceof HTMLElement
+          ? window.getComputedStyle(defaultVariant)
+          : null
+        return {
+          defaultVariantBackground: defaultVariantStyle?.backgroundColor || '',
+          defaultVariantColor: defaultVariantStyle?.color || '',
+          hitClassName: hit instanceof Element ? hit.className : '',
+          hitInsideChip: !!(chip && hit instanceof Node && chip.contains(hit)),
+          hitInsideSlot: !!(slot && hit instanceof Node && slot.contains(hit)),
+          hitTagName: hit instanceof Element ? hit.tagName : '',
+          chipHovered: !!(chip instanceof HTMLElement && chip.matches(':hover')),
+          slotHovered: !!(slot instanceof HTMLElement && slot.matches(':hover'))
+        }
+      })()`
+    }).then((result: any) => result.result.value)
 
-    surfaceResults.push({ expandedVariantLabels, expansion, point, surface })
+    surfaceResults.push({ expandedVariantLabels, expansion, hoverState, point, surface })
 
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
@@ -5123,8 +5173,17 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
   const plainTitleVariantEdgeExpansion = await measurePlainTitleVariantEdgeExpansion(session)
   assert.ok(
+    plainTitleVariantEdgeExpansion.target.surfaces.slotOnlyDefaultSurface,
+    `plain same-title variant smoke should find a slot-only default surface outside the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+  )
+  assert.ok(
     plainTitleVariantEdgeExpansion.target.overflowingLabels > 0,
     `plain same-title variant smoke should start with a clipped URL distinguisher: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+  )
+  const slotOnlyTitleVariantSurface = plainTitleVariantEdgeExpansion.surfaceResults.find((surface: { surface: string }) => surface.surface === 'slotOnlyDefaultSurface')
+  assert.ok(
+    slotOnlyTitleVariantSurface?.hoverState?.hitInsideSlot && !slotOnlyTitleVariantSurface?.hoverState?.hitInsideChip && slotOnlyTitleVariantSurface?.hoverState?.slotHovered,
+    `plain same-title variant slot-only surface should hover the slot without entering the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
   )
   assert.ok(
     plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: unknown }) => surface.expansion),

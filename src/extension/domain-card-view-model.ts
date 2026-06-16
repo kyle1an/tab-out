@@ -1288,10 +1288,18 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     }
     for (const collided of sameTitle.values()) {
       if (collided.length < 2) continue
-      const suffixes = disambiguatingPaths(collided.map((t) => t.url))
+      const collidedUrls = collided.map((t) => t.url)
+      if (new Set(collidedUrls).size < 2) continue
+      const suffixes = uniqueTitleVariantPathSuffixes(collidedUrls)
       collided.forEach((t, i) => pathByUrl.set(t.url, suffixes[i] ?? ''))
     }
     return pathByUrl
+  }
+
+  function duplicateLabels(labels: readonly string[]): Set<string> {
+    const counts = new Map<string, number>()
+    for (const label of labels) counts.set(label, (counts.get(label) || 0) + 1)
+    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([label]) => label))
   }
 
   function titleVariantLabelForUrl(url: string): string {
@@ -1301,6 +1309,38 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     } catch {
       return url || '/'
     }
+  }
+
+  function titleVariantHostLabelForUrl(url: string): string {
+    try {
+      const parsed = new URL(url)
+      return `${parsed.host}${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || url || '/'
+    } catch {
+      return url || '/'
+    }
+  }
+
+  function uniqueTitleVariantFallbackLabels(urls: readonly string[]): string[] {
+    const pathLabels = urls.map(titleVariantLabelForUrl)
+    if (duplicateLabels(pathLabels).size === 0) return pathLabels
+
+    const hostLabels = urls.map(titleVariantHostLabelForUrl)
+    if (duplicateLabels(hostLabels).size === 0) return hostLabels
+
+    return urls.map((url) => url || '/')
+  }
+
+  function uniqueTitleVariantPathSuffixes(urls: readonly string[]): string[] {
+    const suffixes = disambiguatingPaths([...urls])
+    const duplicatedSuffixes = duplicateLabels(suffixes)
+    if (duplicatedSuffixes.size === 0) return suffixes
+
+    const fallbackLabels = uniqueTitleVariantFallbackLabels(urls)
+    return suffixes.map((suffix, index) => (
+      duplicatedSuffixes.has(suffix)
+        ? fallbackLabels[index] || suffix || '/'
+        : suffix
+    ))
   }
 
   function titleVariantGroupChip(variants: DashboardChipData[]): DashboardChipData {

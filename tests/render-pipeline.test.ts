@@ -496,6 +496,22 @@ test('computeDomainCardViewModel uses query crumbs for same-title URL variants o
   assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…?search_id=alpha', '…?search_id=bravo'])
 })
 
+test('computeDomainCardViewModel keeps same-title URL variant labels unique when paths only differ by trailing slash', () => {
+  const group = {
+    domain: 'atlassian.net',
+    tabs: [
+      makeTab({ url: 'https://example.atlassian.net/jira/your-work', title: '[CO] Work item search - JIRA' }),
+      makeTab({ id: 2, url: 'https://example.atlassian.net/jira/your-work/', title: '[CO] Work item search - JIRA' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chips = vm.sections[0].flatVisibleChips
+
+  assert.equal(chips.length, 1)
+  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['/jira/your-work', '/jira/your-work/'])
+})
+
 test('computeDomainCardViewModel keeps saved state scoped to same-title URL variants', () => {
   const group = {
     domain: 'example.com',
