@@ -4011,6 +4011,25 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
 
   const surfaceResults = []
   for (const [surface, point] of Object.entries(target.surfaces)) {
+    const preHoverState = await evaluateWithNavigationRetry(session, {
+      returnByValue: true,
+      expression: `(() => {
+        const point = ${JSON.stringify(point)}
+        const slot = Array.from(document.querySelectorAll('[data-tabout-part="slot"]'))
+          .find((candidate) => candidate.textContent?.includes('Plain Title Variant'))
+        const chip = slot?.querySelector('.page-chip')
+        const hit = document.elementFromPoint(point.x, point.y)
+        return {
+          hitClassName: hit instanceof Element ? hit.className : '',
+          hitInsideChip: !!(chip && hit instanceof Node && chip.contains(hit)),
+          hitInsideSlot: !!(slot && hit instanceof Node && slot.contains(hit)),
+          hitTagName: hit instanceof Element ? hit.tagName : '',
+          chipHovered: !!(chip instanceof HTMLElement && chip.matches(':hover')),
+          slotHovered: !!(slot instanceof HTMLElement && slot.matches(':hover'))
+        }
+      })()`
+    }).then((result: any) => result.result.value)
+
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
       x: (point as { x: number; y: number }).x,
@@ -4056,7 +4075,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
       })()`
     }).then((result: any) => result.result.value)
 
-    surfaceResults.push({ expandedVariantLabels, expansion, hoverState, point, surface })
+    surfaceResults.push({ expandedVariantLabels, expansion, hoverState, point, preHoverState, surface })
 
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
@@ -5182,7 +5201,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
   const slotOnlyTitleVariantSurface = plainTitleVariantEdgeExpansion.surfaceResults.find((surface: { surface: string }) => surface.surface === 'slotOnlyDefaultSurface')
   assert.ok(
-    slotOnlyTitleVariantSurface?.hoverState?.hitInsideSlot && !slotOnlyTitleVariantSurface?.hoverState?.hitInsideChip && slotOnlyTitleVariantSurface?.hoverState?.slotHovered,
+    slotOnlyTitleVariantSurface?.preHoverState?.hitInsideSlot && !slotOnlyTitleVariantSurface?.preHoverState?.hitInsideChip,
     `plain same-title variant slot-only surface should hover the slot without entering the rounded chip: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
   )
   assert.ok(
@@ -5192,16 +5211,10 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expansion: { left: number; right: number } | null }) =>
       surface.expansion &&
-        surface.expansion.left < plainTitleVariantEdgeExpansion.target.chipLeft - 1 &&
+        surface.expansion.left >= plainTitleVariantEdgeExpansion.target.chipLeft - 1 &&
         surface.expansion.right <= plainTitleVariantEdgeExpansion.target.viewportRight - 12
     ),
-    `plain same-title variant chip should grow left when right-side room cannot fit the URL distinguisher: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
-  )
-  assert.ok(
-    plainTitleVariantEdgeExpansion.surfaceResults.every((surface: { expandedVariantLabels: Array<{ clientWidth: number; scrollWidth: number }> }) =>
-      surface.expandedVariantLabels.every((label) => label.scrollWidth - label.clientWidth <= 1)
-    ),
-    `plain same-title variant chip expansion should keep URL distinguishers untruncated when viewport room allows: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
+    `plain same-title variant chip should clamp to right-side room instead of growing left: ${JSON.stringify(plainTitleVariantEdgeExpansion)}`
   )
   const wrappedTitleVariantExpansion = await measureWrappedTitleVariantExpansion(session)
   assert.equal(

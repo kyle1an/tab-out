@@ -102,7 +102,7 @@ type ChipExpansionGeometry = {
   maxWidth: number
   viewportConstrained: boolean
   width: number
-  x: 'start' | 'end'
+  x: 'start'
   y: 'down' | 'up'
 }
 type ChipExpansionDomPosition =
@@ -761,7 +761,6 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
   const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
   const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0
   const roomToRight = Math.max(0, viewportWidth - rect.left - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
-  const roomToLeft = Math.max(0, rect.right - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomBelow = Math.max(0, viewportHeight - rect.top - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomAbove = Math.max(0, rect.bottom - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const horizontalInset = getExpandedPageChipHorizontalInset(chipEl, contentBoxEl)
@@ -770,18 +769,14 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
     ? Math.max(getChipTextExpansionBaselineWidth(contentBoxEl), getTitleVariantMinimumContentWidth(contentBoxEl))
     : getTitleVariantMinimumContentWidth(textEl)
   const minWidth = Math.max(1, horizontalInset + Math.max(getChipTextExpansionBaselineWidth(textEl), visibleWidthOverride))
-  const startMaxWidth = Math.max(rect.width, roomToRight)
-  const endMaxWidth = Math.max(rect.width, roomToLeft)
-  const startCannotFit = startMaxWidth + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX < minWidth
-  const shouldAnchorEnd = startCannotFit && endMaxWidth > startMaxWidth + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
-  const maxWidth = shouldAnchorEnd ? endMaxWidth : startMaxWidth
+  const maxWidth = Math.max(rect.width, roomToRight)
   const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride)
   return {
     lineHtml,
     maxWidth,
     viewportConstrained: contentMetrics.viewportConstrained,
     width: Math.min(maxWidth, Math.max(rect.width, minWidth, contentMetrics.width + horizontalInset)),
-    x: shouldAnchorEnd ? 'end' : 'start',
+    x: 'start',
     y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
   }
 }
@@ -2213,7 +2208,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber)',
           chipVisualOpen && 'page-chip-tooltip-open',
           chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) !overflow-visible !transition-none w-(--page-chip-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
-          chipExpanded && (chipExpansionGeometry.x === 'end' ? 'right-0' : 'left-0'),
+          chipExpanded && 'left-0',
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
           isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),

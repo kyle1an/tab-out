@@ -35,6 +35,7 @@ Update this section in the same patch when a change intentionally alters one of 
 - History companion results are controlled by the history range menu: off, last day, last week, last month, or last 3 months.
 - A page open at the same path across two or more named subdomains folds into one headerless shared chip at the top of the card. Env pills focus the exact tab for that subdomain, and closing the folded chip closes every env copy.
 - Chip hover/focus updates the bottom-left URL preview for the exact target URL, including env pills.
+- Page Chip hover/focus expansion stays anchored to the chip's left edge. When expanded content cannot fit to the right, it clamps to the right-side viewport budget instead of growing left.
 - Plain click focuses a chip's or history row's existing tab. Cmd-click (macOS) / Ctrl-click moves that tab into the current window in the background, adding Shift also switches to it, and when no live tab exists the same gesture opens the URL in a new tab instead. The move gesture suppresses native text selection on the chip/row surface.
 - Activating a suspended page from Tab Out asks the owning suspender extension to unsuspend that exact tab first, then falls back to navigating the same tab to the unwrapped target URL if the extension cannot be messaged.
 - Undo for close/dedupe actions restores tabs with `chrome.tabs.create({ active: false })` so the dashboard does not lose focus. Do not switch to `chrome.sessions.restore()` unless intentionally changing that UX contract.
