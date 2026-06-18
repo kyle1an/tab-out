@@ -302,10 +302,10 @@ body {
    (see `variantGroupInteractionProps` on the slot in PageChip) so hover
    highlight and click activation stay in lockstep at the corners too.
 
-   This must stay pure CSS: the exact pill's own :hover turns off in the same
-   style recalculation that turns this rule on, so the highlight hands over
-   with no gap. Driving it from React state instead commits one painted frame
-   late and flashes the pill's rest background on every pill→title crossing.
+   The slot also carries a synchronous data marker while the pointer is on a
+   default-variant surface. That bridges expansion/layout handoff frames where
+   :hover can temporarily land on newly revealed children before the user's
+   pointer intent has changed. Exact variant/action mouse handlers clear it.
 
    The declarations mirror the pill's own hover utilities
    (`hover:bg-neutral-600/[0.14] hover:text-tab-ink`); the selector outranks
@@ -319,6 +319,7 @@ body {
    covers the whole frame), or the audio toggle. Each of those also stops
    click propagation, keeping hover highlight and click activation in
    lockstep. */
+.chip-slot[data-tabout-default-surface-hover] .chip-title-variant[data-tabout-default-variant],
 .chip-slot:has(.chip-title-variant-list):hover:not(
   :has(
     .chip-title-variant:hover,

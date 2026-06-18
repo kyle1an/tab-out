@@ -1095,6 +1095,28 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return target instanceof Element && !!target.closest('.chip-title-variant, .chip-title-variant-actions, .chip-title-variant-action')
   }
 
+  function titleVariantEventTargetsDefaultSurfaceBlocker(target: EventTarget | null) {
+    if (!(target instanceof Element)) return false
+    if (titleVariantEventTargetsExactVariant(target)) return true
+    if (target.closest('[data-tabout-part="audio-toggle"]')) return true
+    const faviconFrame = target.closest('.chip-favicon-frame')
+    return !!faviconFrame?.querySelector('.chip-close-favicon')
+  }
+
+  function setDefaultVariantSurfaceHover(active: boolean) {
+    chipSlotRef.current?.toggleAttribute('data-tabout-default-surface-hover', active)
+  }
+
+  function previewDefaultTitleVariantSurface(target: EventTarget | null) {
+    if (titleVariantEventTargetsDefaultSurfaceBlocker(target)) {
+      setDefaultVariantSurfaceHover(false)
+      return false
+    }
+    setDefaultVariantSurfaceHover(true)
+    previewDefaultTitleVariant()
+    return true
+  }
+
   async function onFocus(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
     if (isFolded) return
     await activateChipTarget(e, chip.tabUrl, chip.sourceType, chip)
@@ -1136,21 +1158,20 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function onVariantGroupChipMouseEnter(e: MouseEvent<HTMLDivElement>) {
-    if (titleVariantEventTargetsExactVariant(e.target)) return
-    previewDefaultTitleVariant()
+    if (!previewDefaultTitleVariantSurface(e.target)) return
     openChipExpansion()
   }
 
   function onVariantGroupChipMouseMove(e: MouseEvent<HTMLDivElement>) {
+    if (!previewDefaultTitleVariantSurface(e.target)) return
     if (chipExpandedRef.current) return
-    if (titleVariantEventTargetsExactVariant(e.target)) return
-    previewDefaultTitleVariant()
     openChipExpansion()
   }
 
   function onVariantGroupChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     if (contextMenuOpenRef.current) return
+    setDefaultVariantSurfaceHover(false)
     setPreview('')
   }
 
@@ -1468,26 +1489,34 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function onTitleVariantMouseEnter(variant: DashboardChipData) {
+    setDefaultVariantSurfaceHover(false)
     setPreview(variant.tabUrl, previewUrlsForChip(variant))
   }
 
   function onTitleVariantMouseLeave(e: MouseEvent<HTMLElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
-      if (!titleVariantEventTargetsExactVariant(e.relatedTarget)) previewDefaultTitleVariant()
+      if (!titleVariantEventTargetsDefaultSurfaceBlocker(e.relatedTarget)) {
+        previewDefaultTitleVariantSurface(e.relatedTarget)
+      } else {
+        setDefaultVariantSurfaceHover(false)
+      }
       return
     }
     if (contextMenuOpenRef.current) return
+    setDefaultVariantSurfaceHover(false)
     setPreview('')
   }
 
   function onTitleVariantFocusIn(variant: DashboardChipData) {
+    setDefaultVariantSurfaceHover(false)
     setPreview(variant.tabUrl, previewUrlsForChip(variant))
   }
 
   function onTitleVariantBlur(e: FocusEvent<HTMLElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) return
+    setDefaultVariantSurfaceHover(false)
     setPreview('')
   }
 
