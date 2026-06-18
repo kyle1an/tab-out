@@ -25,14 +25,13 @@ export function pickFavicon(tab?: Pick<DashboardTab, 'favIconUrl' | 'url'> | nul
 }
 
 /**
- * pickTabFavicon(tab) — favicon for an OPEN tab. A live tab's own favIconUrl is
- * authoritative, but a suspended tab reports the suspender page's icon — a
- * faded data: copy of the original (or the suspender's default) — so the cache
- * lookup by the unwrapped url must win over the tab's own favIconUrl. The
- * data: short-circuit in pickFavicon would keep the faded copy, hence the
- * direct cache lookup here; the tab's own icon is only the no-API fallback.
+ * pickTabFavicon(tab) — favicon for an OPEN tab. Chrome's tab.favIconUrl is
+ * the source of truth for the browser-visible favicon, including suspended
+ * tabs. Suspended tabs only fall back to the unwrapped page's favicon cache
+ * when Chrome has no favicon URL yet.
  */
 export function pickTabFavicon(tab: Pick<DashboardTab, 'favIconUrl' | 'url' | 'suspended'>): string {
-  if (tab.suspended) return faviconCacheUrl(tab.url || '') || tab.favIconUrl || ''
+  if (tab.favIconUrl) return tab.favIconUrl
+  if (tab.suspended) return faviconCacheUrl(tab.url || '')
   return tab.favIconUrl || ''
 }

@@ -21,15 +21,13 @@ test('pickTabFavicon: a suspended tab recovers the real favicon from the unwrapp
   assert.match(result, /\/_favicon\/\?pageUrl=https%3A%2F%2Freal\.example%2Fpage&size=32$/)
 })
 
-test('pickTabFavicon: a suspended tab replaces the suspender data: favicon with the cache lookup', () => {
-  // Suspenders set their page favicon to a faded data: copy of the original,
-  // so a suspended tab's own favIconUrl must never win over the cache lookup.
+test('pickTabFavicon: a suspended tab uses Chrome tab favicon when provided', () => {
   const result = pickTabFavicon({
     favIconUrl: 'data:image/png;base64,AAAA',
     url: 'https://real.example/page',
     suspended: true
   })
-  assert.match(result, /\/_favicon\/\?pageUrl=https%3A%2F%2Freal\.example%2Fpage&size=32$/)
+  assert.equal(result, 'data:image/png;base64,AAAA')
 })
 
 test('pickTabFavicon: a suspended tab falls back to its own favicon without the favicon API', () => {

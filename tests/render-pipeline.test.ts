@@ -1361,6 +1361,26 @@ test('computeDomainCardViewModel keeps live tab favicons aligned with Chrome tab
   assert.equal(chip.faviconUrl, '')
 })
 
+test('computeDomainCardViewModel keeps suspended tab favicons aligned with Chrome tab state', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({
+        url: 'https://example.test/docs',
+        rawUrl: 'chrome-extension://suspender/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.test%2Fdocs',
+        title: 'Example Docs',
+        suspended: true,
+        favIconUrl: 'data:image/png;base64,suspended'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const chip = vm.sections[0].flatVisibleChips[0]
+
+  assert.equal(chip.faviconUrl, 'data:image/png;base64,suspended')
+})
+
 test('computeDomainCardViewModel can use Chrome favicon cache for read-only source chips', () => {
   const group = {
     domain: 'example.com',
@@ -1886,9 +1906,7 @@ test('normalizeTabHistorySnapshot resolves history favicons from Chrome cache', 
   assert.equal(snapshot.entries[1].favIconUrl, 'data:image/png;base64,abc')
 })
 
-test('normalizeTabHistorySnapshot recovers suspended-row favicons from the unwrapped url', () => {
-  // A suspended row's favIconUrl is the suspender page's faded data: icon, so
-  // the data: short-circuit must not keep it — recover via the unwrapped url.
+test('normalizeTabHistorySnapshot keeps suspended-row favicons aligned with Chrome tab state', () => {
   const snapshot = normalizeTabHistorySnapshot({
     entries: [
       {
@@ -1899,6 +1917,25 @@ test('normalizeTabHistorySnapshot recovers suspended-row favicons from the unwra
         url: 'https://charlie.example/docs',
         rawUrl: 'chrome-extension://suspenderid/suspended.html#ttl=Charlie&uri=https://charlie.example/docs',
         favIconUrl: 'data:image/png;base64,faded',
+        exists: true
+      }
+    ] as any
+  })
+
+  assert.equal(snapshot.entries[0].favIconUrl, 'data:image/png;base64,faded')
+})
+
+test('normalizeTabHistorySnapshot falls back to Chrome favicon cache for suspended rows without a tab favicon', () => {
+  const snapshot = normalizeTabHistorySnapshot({
+    entries: [
+      {
+        index: 0,
+        tabId: 21,
+        windowId: 1,
+        title: 'Charlie',
+        url: 'https://charlie.example/docs',
+        rawUrl: 'chrome-extension://suspenderid/suspended.html#ttl=Charlie&uri=https://charlie.example/docs',
+        favIconUrl: '',
         exists: true
       }
     ] as any
@@ -1924,7 +1961,7 @@ test('normalizeTabHistorySnapshot honors the explicit suspended flag over url co
   })
 
   assert.equal(snapshot.entries[0].suspended, true)
-  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fdelta.example%2Fdocs&size=32')
+  assert.equal(snapshot.entries[0].favIconUrl, 'data:image/png;base64,faded')
 })
 
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {

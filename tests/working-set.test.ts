@@ -134,7 +134,7 @@ test('buildWorkingSetSnapshot carries each tab audible and muted state independe
   assert.equal(byTab.get(3)?.muted, false)
 })
 
-test('buildWorkingSetSnapshot keeps live tab favicons aligned with Chrome tab state', () => {
+test('buildWorkingSetSnapshot keeps tab favicons aligned with Chrome tab state', () => {
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [
     makeTab({ id: 1, url: 'https://example.com/issues/alpha', title: 'Alpha issue' }),
@@ -143,12 +143,21 @@ test('buildWorkingSetSnapshot keeps live tab favicons aligned with Chrome tab st
       url: 'https://example.com/issues/bravo',
       title: 'Bravo issue',
       favIconUrl: 'data:image/png;base64,abc'
+    }),
+    makeTab({
+      id: 3,
+      url: 'https://example.com/issues/charlie',
+      rawUrl: 'chrome-extension://suspender/suspended.html#ttl=Charlie&uri=https%3A%2F%2Fexample.com%2Fissues%2Fcharlie',
+      suspended: true,
+      title: 'Charlie issue',
+      favIconUrl: 'data:image/png;base64,suspended'
     })
   ]
 
   let store = emptyWorkingSetActivity()
   store = record(store, tabs[0], 'activation', now - 60_000)
   store = record(store, tabs[1], 'activation', now - 120_000)
+  store = record(store, tabs[2], 'activation', now - 180_000)
 
   const snapshot = buildWorkingSetSnapshot({
     tabs,
@@ -156,9 +165,11 @@ test('buildWorkingSetSnapshot keeps live tab favicons aligned with Chrome tab st
     now,
     minItems: 1
   })
+  const byTabId = new Map(snapshot.items.map((item) => [item.tabId, item]))
 
-  assert.equal(snapshot.items[0].faviconUrl, '')
-  assert.equal(snapshot.items[1].faviconUrl, 'data:image/png;base64,abc')
+  assert.equal(byTabId.get(1)?.faviconUrl, '')
+  assert.equal(byTabId.get(2)?.faviconUrl, 'data:image/png;base64,abc')
+  assert.equal(byTabId.get(3)?.faviconUrl, 'data:image/png;base64,suspended')
 })
 
 test('buildWorkingSetSnapshot excludes Google Search result pages from working set items', () => {
