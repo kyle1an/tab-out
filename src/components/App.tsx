@@ -595,8 +595,11 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   }
-  const { pinnedDomains, pinsLoaded, togglePinnedDomain } = usePinnedDomains({
-    onBeforeApplyPinnedDomains: resetMissionOrder,
+  const { pinnedDomains, pinsLoaded, togglePinnedDomain, reorderPinnedDomain } = usePinnedDomains({
+    onBeforeApplyPinnedDomains: ({ animate }) => {
+      resetMissionOrder()
+      if (animate) primeCardMoveAnimation()
+    },
     onSaveError: () => showToast('Could not save pinned domain')
   })
   const { pinnedSections, togglePinnedSection } = usePinnedSections({
@@ -746,6 +749,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
         onHoverUrlChange: handleHoverUrlChange,
         onLayoutChange: scheduleMissionsMasonry,
         onTogglePinnedDomain: togglePinnedDomain,
+        onReorderPinnedDomain: reorderPinnedDomain,
         onTogglePinnedSection: togglePinnedSection,
         onTogglePinnedPageChip: togglePinnedPageChip
       }}

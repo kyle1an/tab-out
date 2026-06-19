@@ -96,6 +96,15 @@ test('source switch keeps one primed card-move refresh', () => {
   assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
 })
 
+test('user-driven pinned domain order changes prime card move animation', () => {
+  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const pinnedDomainHookSource = readFileSync(new URL('../src/hooks/usePinnedDomains.ts', import.meta.url), 'utf8')
+
+  assert.match(appSource, /onBeforeApplyPinnedDomains:\s*\(\{ animate \}\) => \{[\s\S]*resetMissionOrder\(\)[\s\S]*if \(animate\) primeCardMoveAnimation\(\)/)
+  assert.match(pinnedDomainHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: false \}\)/)
+  assert.match(pinnedDomainHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: true \}\)/)
+})
+
 test('working set is merged into the history panel instead of rendering a top strip', () => {
   const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
 

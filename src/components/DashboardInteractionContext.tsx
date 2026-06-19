@@ -3,6 +3,7 @@ import type {
   HoverUrlChangeHandler,
   HoverUrlSource,
   LayoutChangeHandler,
+  ReorderPinnedDomainHandler,
   TogglePinnedDomainHandler,
   TogglePinnedPageChipHandler,
   TogglePinnedSectionHandler
@@ -23,6 +24,7 @@ export type DashboardActions = {
   onHoverUrlChange: HoverUrlChangeHandler
   onLayoutChange: LayoutChangeHandler
   onTogglePinnedDomain: TogglePinnedDomainHandler
+  onReorderPinnedDomain: ReorderPinnedDomainHandler
   onTogglePinnedSection: TogglePinnedSectionHandler
   onTogglePinnedPageChip: TogglePinnedPageChipHandler
 }
@@ -37,6 +39,7 @@ const defaultDashboardActions: DashboardActions = {
   onHoverUrlChange: () => {},
   onLayoutChange: () => {},
   onTogglePinnedDomain: () => {},
+  onReorderPinnedDomain: () => {},
   onTogglePinnedSection: () => {},
   onTogglePinnedPageChip: () => {}
 }

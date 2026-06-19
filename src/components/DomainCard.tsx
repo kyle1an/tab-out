@@ -9,7 +9,7 @@ import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useRef, useState } from 'react'
-import type { MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
 import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup } from './types'
@@ -18,6 +18,33 @@ interface DomainCardProps {
   group: DomainGroup
   vm: DashboardCardVM
   filter?: string
+}
+
+const DOMAIN_REORDER_DRAG_THRESHOLD_PX = 4
+const DOMAIN_CARD_SELECTOR = '[data-tabout="domain-card"][data-tabout-domain]'
+const PINNED_DOMAIN_CARD_SELECTOR = `${DOMAIN_CARD_SELECTOR}[data-tabout-domain-pinned="true"]`
+
+type DomainReorderPlacement = 'before' | 'after'
+
+function clearReorderTarget(block: HTMLElement | null) {
+  if (!block) return
+  block.removeAttribute('data-tabout-reorder-target')
+  block.removeAttribute('data-tabout-reorder-placement')
+}
+
+function domainBlockFromNode(node: Element | null): HTMLElement | null {
+  return node?.closest<HTMLElement>(DOMAIN_CARD_SELECTOR) ?? null
+}
+
+function reorderPlacementForPoint(block: HTMLElement, y: number): DomainReorderPlacement {
+  const rect = block.getBoundingClientRect()
+  return y < rect.top + rect.height / 2 ? 'before' : 'after'
+}
+
+function pinnedDomainBlockAtPoint(container: Element, sourceBlock: HTMLElement, x: number, y: number): HTMLElement | null {
+  const block = domainBlockFromNode(document.elementFromPoint(x, y))
+  if (!block || block === sourceBlock || block.closest('.missions') !== container) return null
+  return block.matches(PINNED_DOMAIN_CARD_SELECTOR) ? block : null
 }
 
 function TabBadge({ label }: { label?: string | number }) {
@@ -77,6 +104,31 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
         <svg className="size-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
         </svg>
+      </button>
+    </TooltipAnchor>
+  )
+}
+
+function ReorderPinnedDomainButton({
+  displayName,
+  onKeyDown,
+  onPointerDown
+}: {
+  displayName: string
+  onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => void | Promise<void>
+  onPointerDown: (e: PointerEvent<HTMLButtonElement>) => void
+}) {
+  return (
+    <TooltipAnchor content={`Drag to reorder ${displayName}`}>
+      <button
+        type="button"
+        data-tabout-part="reorder-handle"
+        className="domain-reorder-handle inline-flex size-[22px] min-w-[22px] cursor-grab touch-none items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.45] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100 active:cursor-grabbing focus-visible:border-(--warm-gray) focus-visible:bg-[rgba(82,82,82,0.06)] focus-visible:text-tab-ink focus-visible:opacity-100"
+        aria-label={`Reorder pinned card ${displayName}`}
+        onKeyDown={onKeyDown}
+        onPointerDown={onPointerDown}
+      >
+        <span className="icon-[lucide--grip-vertical] size-[14px]" aria-hidden="true" />
       </button>
     </TooltipAnchor>
   )
@@ -199,7 +251,7 @@ function buildCardSuppressionTones(
 }
 
 export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
-  const { onTogglePinnedDomain, onTogglePinnedSection } = useDashboardActions()
+  const { onReorderPinnedDomain, onTogglePinnedDomain, onTogglePinnedSection } = useDashboardActions()
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const blockRef = useRef<HTMLDivElement>(null)
@@ -265,11 +317,109 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
     await onTogglePinnedDomain?.(group.domain)
   }
 
+  function onReorderPinnedDomainKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    if (!group.pinned) return
+    const direction = e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+      ? 'previous'
+      : e.key === 'ArrowDown' || e.key === 'ArrowRight'
+        ? 'next'
+        : null
+    if (!direction) return
+    e.preventDefault()
+    e.stopPropagation()
+    void onReorderPinnedDomain?.(group.domain, { direction })
+  }
+
+  function onReorderPinnedDomainPointerDown(e: PointerEvent<HTMLButtonElement>) {
+    if (!group.pinned || e.button !== 0) return
+    const sourceBlock = blockRef.current
+    const container = sourceBlock?.closest('.missions')
+    if (!sourceBlock || !container) return
+    const dragSourceBlock = sourceBlock
+    const dragContainer = container
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    const startX = e.clientX
+    const startY = e.clientY
+    let dragging = false
+    let lastTarget: HTMLElement | null = null
+    let lastPlacement: DomainReorderPlacement | null = null
+    const controller = new AbortController()
+
+    function setReorderTarget(nextTarget: HTMLElement | null, nextPlacement: DomainReorderPlacement | null) {
+      if (lastTarget && lastTarget !== nextTarget) clearReorderTarget(lastTarget)
+      if (!nextTarget || !nextPlacement) {
+        clearReorderTarget(lastTarget)
+        lastTarget = null
+        lastPlacement = null
+        return
+      }
+
+      nextTarget.setAttribute('data-tabout-reorder-target', 'true')
+      nextTarget.setAttribute('data-tabout-reorder-placement', nextPlacement)
+      lastTarget = nextTarget
+      lastPlacement = nextPlacement
+    }
+
+    function clearDragState() {
+      controller.abort()
+      dragSourceBlock.removeAttribute('data-tabout-reorder-source')
+      document.body.removeAttribute('data-tabout-domain-reorder-active')
+      clearReorderTarget(lastTarget)
+      lastTarget = null
+      lastPlacement = null
+    }
+
+    function updateReorderTarget(event: globalThis.PointerEvent) {
+      const nextTarget = pinnedDomainBlockAtPoint(dragContainer, dragSourceBlock, event.clientX, event.clientY)
+      if (!nextTarget) {
+        setReorderTarget(null, null)
+        return
+      }
+      setReorderTarget(nextTarget, reorderPlacementForPoint(nextTarget, event.clientY))
+    }
+
+    function onPointerMove(event: globalThis.PointerEvent) {
+      if (!dragging) {
+        const moved = Math.hypot(event.clientX - startX, event.clientY - startY)
+        if (moved < DOMAIN_REORDER_DRAG_THRESHOLD_PX) return
+        dragging = true
+        dragSourceBlock.setAttribute('data-tabout-reorder-source', 'true')
+        document.body.setAttribute('data-tabout-domain-reorder-active', 'true')
+      }
+
+      event.preventDefault()
+      updateReorderTarget(event)
+    }
+
+    function onPointerUp(event: globalThis.PointerEvent) {
+      if (dragging && lastTarget && lastPlacement) {
+        event.preventDefault()
+        const targetDomain = lastTarget.dataset.taboutDomain
+        if (targetDomain) void onReorderPinnedDomain?.(group.domain, { targetDomain, position: lastPlacement })
+      }
+      clearDragState()
+    }
+
+    function onPointerCancel() {
+      clearDragState()
+    }
+
+    window.addEventListener('pointermove', onPointerMove, { capture: true, signal: controller.signal })
+    window.addEventListener('pointerup', onPointerUp, { capture: true, signal: controller.signal })
+    window.addEventListener('pointercancel', onPointerCancel, { capture: true, signal: controller.signal })
+    window.addEventListener('blur', onPointerCancel, { signal: controller.signal })
+  }
+
   return (
     <DomainCardProvider value={cardContext}>
       <div
         ref={blockRef}
         data-tabout="domain-card"
+        data-tabout-domain={group.domain}
+        data-tabout-domain-pinned={group.pinned ? 'true' : undefined}
         className={cn(
           'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-250 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
@@ -282,6 +432,13 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
           <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-tab-ink">
             <DomainTitle displayName={displayName} subdomainKey={inlineSubdomainKey} />
           </span>
+          {group.pinned && (
+            <ReorderPinnedDomainButton
+              displayName={displayName}
+              onKeyDown={onReorderPinnedDomainKeyDown}
+              onPointerDown={onReorderPinnedDomainPointerDown}
+            />
+          )}
           {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
           {vm.singleSubdomainKey && !inlineSubdomainKey && (
             <span

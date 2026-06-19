@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadPinnedDomains, savePinnedDomains, togglePinnedDomainInList } from '../extension/domain-pins.js'
+import {
+  loadPinnedDomains,
+  movePinnedDomainInList,
+  reorderPinnedDomainInList,
+  savePinnedDomains,
+  togglePinnedDomainInList
+} from '../extension/domain-pins.js'
+import type { PinnedDomainReorderPlacement } from '../extension/domain-pins.js'
 
 type UsePinnedDomainsOptions = {
-  onBeforeApplyPinnedDomains?: () => void
+  onBeforeApplyPinnedDomains?: (options: { animate: boolean }) => void
   onSaveError?: () => void
+}
+
+function sameDomainOrder(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((domain, index) => domain === b[index])
 }
 
 export function usePinnedDomains({ onBeforeApplyPinnedDomains, onSaveError }: UsePinnedDomainsOptions = {}) {
@@ -21,7 +32,7 @@ export function usePinnedDomains({ onBeforeApplyPinnedDomains, onSaveError }: Us
     let cancelled = false
     loadPinnedDomains().then((domains) => {
       if (cancelled) return
-      onBeforeApplyPinnedDomainsRef.current?.()
+      onBeforeApplyPinnedDomainsRef.current?.({ animate: false })
       setPinnedDomains(domains)
       setPinsLoaded(true)
     })
@@ -30,9 +41,9 @@ export function usePinnedDomains({ onBeforeApplyPinnedDomains, onSaveError }: Us
     }
   }, [])
 
-  async function togglePinnedDomain(domain: string) {
-    const nextPinnedDomains = togglePinnedDomainInList(pinnedDomains, domain)
-    onBeforeApplyPinnedDomainsRef.current?.()
+  async function applyPinnedDomains(nextPinnedDomains: string[]) {
+    if (sameDomainOrder(nextPinnedDomains, pinnedDomains)) return
+    onBeforeApplyPinnedDomainsRef.current?.({ animate: true })
     setPinnedDomains(nextPinnedDomains)
     try {
       await savePinnedDomains(nextPinnedDomains)
@@ -42,5 +53,16 @@ export function usePinnedDomains({ onBeforeApplyPinnedDomains, onSaveError }: Us
     }
   }
 
-  return { pinnedDomains, pinsLoaded, togglePinnedDomain }
+  async function togglePinnedDomain(domain: string) {
+    await applyPinnedDomains(togglePinnedDomainInList(pinnedDomains, domain))
+  }
+
+  async function reorderPinnedDomain(domain: string, placement: PinnedDomainReorderPlacement) {
+    const nextPinnedDomains = 'direction' in placement
+      ? movePinnedDomainInList(pinnedDomains, domain, placement.direction)
+      : reorderPinnedDomainInList(pinnedDomains, domain, placement.targetDomain, placement.position)
+    await applyPinnedDomains(nextPinnedDomains)
+  }
+
+  return { pinnedDomains, pinsLoaded, togglePinnedDomain, reorderPinnedDomain }
 }

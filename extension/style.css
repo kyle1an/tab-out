@@ -11,6 +11,41 @@
   border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--warm-gray));
 }
 
+.domain-block[data-tabout-reorder-source='true'] > .mission-card {
+  border-color: color-mix(in srgb, var(--accent-amber) 48%, var(--warm-gray));
+  box-shadow: 0 4px 12px rgba(10, 10, 10, 0.08);
+}
+
+.domain-block[data-tabout-reorder-target='true'] > .mission-card {
+  border-color: color-mix(in srgb, var(--accent-amber) 42%, var(--warm-gray));
+}
+
+.domain-block[data-tabout-reorder-target='true']::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 5;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--accent-amber);
+  box-shadow: 0 1px 3px rgba(10, 10, 10, 0.12);
+  pointer-events: none;
+}
+
+.domain-block[data-tabout-reorder-placement='before']::before {
+  top: -6px;
+}
+
+.domain-block[data-tabout-reorder-placement='after']::before {
+  bottom: -6px;
+}
+
+body[data-tabout-domain-reorder-active='true'] {
+  cursor: grabbing;
+  user-select: none;
+}
+
 .working-set-item.is-active-working-set-item {
   border-color: color-mix(in srgb, var(--accent-slate) 45%, var(--warm-gray));
 }

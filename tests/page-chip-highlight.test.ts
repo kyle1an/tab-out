@@ -7,7 +7,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { DomainCard } from '../src/components/DomainCard.js'
 import { DomainCardProvider, type DomainCardContextValue } from '../src/components/DomainCardContext.js'
 import { DashboardActionsProvider, HoverStateProvider } from '../src/components/DashboardInteractionContext.js'
-import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TogglePinnedDomainHandler, TogglePinnedPageChipHandler, TogglePinnedSectionHandler } from '../src/components/types.js'
+import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, ReorderPinnedDomainHandler, TogglePinnedDomainHandler, TogglePinnedPageChipHandler, TogglePinnedSectionHandler } from '../src/components/types.js'
 import { FlatSection } from '../src/components/FlatSection.js'
 import { PageChip } from '../src/components/PageChip.js'
 import { PAGE_CHIP_CLOSE_ANIMATION_MS, startPageChipCloseAnimation } from '../src/components/PageChipCloseAnimation.js'
@@ -47,6 +47,7 @@ type RenderContextOverrides = Partial<DomainCardContextValue> & {
   onHoverUrlChange?: HoverUrlChangeHandler | null
   onLayoutChange?: LayoutChangeHandler | null
   onTogglePinnedDomain?: TogglePinnedDomainHandler | null
+  onReorderPinnedDomain?: ReorderPinnedDomainHandler | null
   onTogglePinnedSection?: TogglePinnedSectionHandler | null
   onTogglePinnedPageChip?: TogglePinnedPageChipHandler | null
 }
@@ -68,6 +69,7 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Ren
     onHoverUrlChange: overrides.onHoverUrlChange ?? (() => {}),
     onLayoutChange: overrides.onLayoutChange ?? (() => {}),
     onTogglePinnedDomain: overrides.onTogglePinnedDomain ?? (() => {}),
+    onReorderPinnedDomain: overrides.onReorderPinnedDomain ?? (() => {}),
     onTogglePinnedSection: overrides.onTogglePinnedSection ?? (() => {}),
     onTogglePinnedPageChip: overrides.onTogglePinnedPageChip ?? (() => {})
   }
@@ -98,6 +100,7 @@ function renderTabHistoryPanel(
     onHoverUrlChange: () => {},
     onLayoutChange: () => {},
     onTogglePinnedDomain: () => {},
+    onReorderPinnedDomain: () => {},
     onTogglePinnedSection: () => {},
     onTogglePinnedPageChip: () => {}
   }
