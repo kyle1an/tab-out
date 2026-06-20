@@ -42,6 +42,14 @@ test('reorderPinnedDomainInList ignores unknown, invalid, and same-domain target
   assert.deepEqual(reorderPinnedDomainInList(domains, '__private__', 'bravo.test', 'before'), domains)
 })
 
+test('reorderPinnedDomainInList preserves order for adjacent equivalent placements', () => {
+  const domains = ['alpha.test', 'bravo.test', 'charlie.test']
+
+  assert.deepEqual(reorderPinnedDomainInList(domains, 'alpha.test', 'bravo.test', 'before'), domains)
+  assert.deepEqual(reorderPinnedDomainInList(domains, 'bravo.test', 'alpha.test', 'after'), domains)
+  assert.deepEqual(reorderPinnedDomainInList(domains, 'bravo.test', 'charlie.test', 'before'), domains)
+})
+
 test('movePinnedDomainInList moves adjacent to the previous or next pinned domain', () => {
   const domains = ['alpha.test', 'bravo.test', 'charlie.test']
 

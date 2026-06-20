@@ -105,6 +105,17 @@ test('user-driven pinned domain order changes prime card move animation', () => 
   assert.match(pinnedDomainHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: true \}\)/)
 })
 
+test('no-op pinned domain drag targets use a muted placement state', () => {
+  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+
+  assert.match(domainCardSource, /data-tabout-reorder-noop/)
+  assert.match(domainCardSource, /previousPinnedDomainBlock\(targetBlock\) === sourceBlock/)
+  assert.match(domainCardSource, /nextPinnedDomainBlock\(targetBlock\) === sourceBlock/)
+  assert.match(css, /\.domain-block\[data-tabout-reorder-target='true'\]\[data-tabout-reorder-noop='true'\] > \.mission-card/)
+  assert.match(css, /\.domain-block\[data-tabout-reorder-target='true'\]\[data-tabout-reorder-noop='true'\]::before/)
+})
+
 test('working set is merged into the history panel instead of rendering a top strip', () => {
   const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
 

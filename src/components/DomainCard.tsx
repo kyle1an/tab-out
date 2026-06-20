@@ -30,6 +30,7 @@ function clearReorderTarget(block: HTMLElement | null) {
   if (!block) return
   block.removeAttribute('data-tabout-reorder-target')
   block.removeAttribute('data-tabout-reorder-placement')
+  block.removeAttribute('data-tabout-reorder-noop')
 }
 
 function domainBlockFromNode(node: Element | null): HTMLElement | null {
@@ -45,6 +46,30 @@ function pinnedDomainBlockAtPoint(container: Element, sourceBlock: HTMLElement, 
   const block = domainBlockFromNode(document.elementFromPoint(x, y))
   if (!block || block === sourceBlock || block.closest('.missions') !== container) return null
   return block.matches(PINNED_DOMAIN_CARD_SELECTOR) ? block : null
+}
+
+function previousPinnedDomainBlock(block: HTMLElement): HTMLElement | null {
+  let previous = block.previousElementSibling
+  while (previous) {
+    if (previous instanceof HTMLElement && previous.matches(PINNED_DOMAIN_CARD_SELECTOR)) return previous
+    previous = previous.previousElementSibling
+  }
+  return null
+}
+
+function nextPinnedDomainBlock(block: HTMLElement): HTMLElement | null {
+  let next = block.nextElementSibling
+  while (next) {
+    if (next instanceof HTMLElement && next.matches(PINNED_DOMAIN_CARD_SELECTOR)) return next
+    next = next.nextElementSibling
+  }
+  return null
+}
+
+function reorderKeepsPinnedDomainOrder(sourceBlock: HTMLElement, targetBlock: HTMLElement, placement: DomainReorderPlacement): boolean {
+  return placement === 'before'
+    ? previousPinnedDomainBlock(targetBlock) === sourceBlock
+    : nextPinnedDomainBlock(targetBlock) === sourceBlock
 }
 
 function TabBadge({ label }: { label?: string | number }) {
@@ -360,6 +385,11 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
 
       nextTarget.setAttribute('data-tabout-reorder-target', 'true')
       nextTarget.setAttribute('data-tabout-reorder-placement', nextPlacement)
+      if (reorderKeepsPinnedDomainOrder(dragSourceBlock, nextTarget, nextPlacement)) {
+        nextTarget.setAttribute('data-tabout-reorder-noop', 'true')
+      } else {
+        nextTarget.removeAttribute('data-tabout-reorder-noop')
+      }
       lastTarget = nextTarget
       lastPlacement = nextPlacement
     }
