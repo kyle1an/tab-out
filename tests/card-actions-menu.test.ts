@@ -56,6 +56,25 @@ test('DomainCard renders the kebab actions menu (not the old close button) when 
   assert.doesNotMatch(html, /data-tabout-part="close-button"/)
 })
 
+test('DomainCard keeps the actions menu in the first header row flow', () => {
+  const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
+  const menuSource = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
+  const triggerClass = menuSource.match(/card-actions-menu-trigger[^"]*/)?.[0] ?? ''
+  const group: DomainGroup = { domain: 'google.com', tabs: [] }
+  const html = renderToStaticMarkup(React.createElement(DomainCard, { group, vm: makeClosableCardVM() }))
+  const header = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? ''
+
+  assert.match(domainCardSource, /domain-header min-w-0 p-0/)
+  assert.match(domainCardSource, /grid-cols-\[minmax\(0,1fr\)_auto\]/)
+  assert.match(domainCardSource, /domain-header-flow flex min-w-0 flex-row flex-wrap/)
+  assert.ok(domainCardSource.indexOf('domain-header-flow') < domainCardSource.indexOf('<CardActionsMenu'))
+  assert.match(header, /<div class="domain-header-flow[\s\S]*<\/div><button[\s\S]*data-tabout-part="card-menu"/)
+  assert.doesNotMatch(triggerClass, /\babsolute\b/)
+  assert.doesNotMatch(triggerClass, /\b(?:top-0|right-0)\b/)
+  assert.match(triggerClass, /\bshrink-0\b/)
+  assert.match(triggerClass, /\bjustify-self-end\b/)
+})
+
 test('CardActionsMenu orders suspend before close', () => {
   const source = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
 

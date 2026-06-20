@@ -274,6 +274,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
   const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
+  const showCardActions = !hideCardClose && closableCount > 0
   const { cardSuppressionToneScope, renderedSections } = buildCardSuppressionTones(suppressedTitleParts, sections)
 
   async function onCloseDomain() {
@@ -428,33 +429,40 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         )}
         data-domain-id={vm.stableId}
       >
-        <header className="domain-header flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1 p-0">
-          <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-tab-ink">
-            <DomainTitle displayName={displayName} subdomainKey={inlineSubdomainKey} />
-          </span>
-          {group.pinned && (
-            <ReorderPinnedDomainButton
-              displayName={displayName}
-              onKeyDown={onReorderPinnedDomainKeyDown}
-              onPointerDown={onReorderPinnedDomainPointerDown}
-            />
+        <header
+          className={cn(
+            'domain-header min-w-0 p-0',
+            showCardActions && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1'
           )}
-          {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
-          {vm.singleSubdomainKey && !inlineSubdomainKey && (
-            <span
-              className={cn(
-                'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
-                vm.singleSubdomainIsPort
-                  ? "before:font-normal before:opacity-45 before:content-[':']"
-                  : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
-              )}
-            >
-              {vm.singleSubdomainKey}
+        >
+          <div className="domain-header-flow flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1">
+            <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-tab-ink">
+              <DomainTitle displayName={displayName} subdomainKey={inlineSubdomainKey} />
             </span>
-          )}
-          <TabBadge label={vm.tabCountLabel} />
-          {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
-          {!hideCardClose && closableCount > 0 && (
+            {group.pinned && (
+              <ReorderPinnedDomainButton
+                displayName={displayName}
+                onKeyDown={onReorderPinnedDomainKeyDown}
+                onPointerDown={onReorderPinnedDomainPointerDown}
+              />
+            )}
+            {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
+            {vm.singleSubdomainKey && !inlineSubdomainKey && (
+              <span
+                className={cn(
+                  'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
+                  vm.singleSubdomainIsPort
+                    ? "before:font-normal before:opacity-45 before:content-[':']"
+                    : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
+                )}
+              >
+                {vm.singleSubdomainKey}
+              </span>
+            )}
+            <TabBadge label={vm.tabCountLabel} />
+            {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
+          </div>
+          {showCardActions && (
             <CardActionsMenu
               displayName={displayName}
               label={vm.closableCountLabel}
