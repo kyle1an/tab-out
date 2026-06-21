@@ -25,7 +25,7 @@
     "@base-ui/react": "^1.6.0",
     "class-variance-authority": "^0.7.1",
     "cnfast": "^0.0.6",
-    "effect": "4.0.0-beta.59",
+    "effect": "4.0.0-beta.83",
     "foxact": "^0.3.7",
     "lucide-react": "^1.21.0",
     "react": "^19.2.7",
@@ -37,7 +37,6 @@
     "@iconify-json/lucide": "^1.2.109",
     "@iconify-json/mingcute": "^1.2.7",
     "@iconify-json/ooui": "^1.2.14",
-    "@iconify-json/tabler": "^1.2.35",
     "@iconify/tailwind4": "^1.2.3",
     "@rolldown/plugin-babel": "^0.2.3",
     "@tailwindcss/vite": "^4.2.4",
@@ -57,6 +56,6 @@
     "type-fest": "^5.6.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.1",
-    "vite": "^8.0.10"
+    "vite": "^8.0.16"
   }
 }
