@@ -839,10 +839,11 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
   return (
     <span
       className={cn(
-        'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center self-start',
+        'chip-favicon-frame group/favicon-frame relative grid size-4 shrink-0 place-items-center',
+        chip.iconOnly ? 'self-center' : 'self-start',
         !chip.isApp && 'min-h-4 min-w-4 max-h-4 max-w-4',
         !chip.iconOnly && dupeCount > 1 && 'chip-favicon-stack',
-        chip.isApp && 'is-app box-border h-6 w-6 rounded-xl border border-[rgba(115,115,115,0.32)] p-1 [corner-shape:squircle]'
+        chip.isApp && 'is-app'
       )}
     >
       {!chip.iconOnly && dupeCount > 2 && (
@@ -2254,8 +2255,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chip.saved && 'page-chip-saved',
           hoverMatched && 'page-chip-hover-match',
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
-          chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 overflow-hidden rounded-xl border-0 bg-transparent p-0 [corner-shape:squircle] [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-1 before:hidden after:hidden',
-          chip.iconOnly && chip.isApp && 'overflow-visible outline-none',
+          chip.iconOnly && cn(
+            'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 rounded-xl bg-transparent p-0 [corner-shape:squircle] before:hidden after:hidden',
+            chip.isApp
+              ? 'overflow-visible border border-[rgba(115,115,115,0.32)] outline-none'
+              : 'overflow-hidden border-0 [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-1'
+          ),
           chip.iconOnly && hasActiveChipFrame && 'bg-(--chip-rest-bg) [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
         )}
         aria-label={chipLabel}

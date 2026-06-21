@@ -499,6 +499,32 @@ test('PageChip renders a default favicon for live tabs without favIconUrl', () =
   assert.doesNotMatch(html, /<img class="chip-favicon\b/)
 })
 
+test('PageChip keeps app icon-only favicons centered in the app tile', () => {
+  const html = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        sourceType: 'tab',
+        iconOnly: true,
+        isApp: true,
+        faviconUrl: 'https://example.com/favicon.ico'
+      })
+    })
+  )
+  const chipMatch = html.match(/<div[^>]*class="([^"]*\bpage-chip\b[^"]*)"/)
+  const faviconFrameMatch = html.match(/<span class="([^"]*\bchip-favicon-frame\b[^"]*)"/)
+  const faviconContentMatch = html.match(/<span class="([^"]*\bchip-favicon-content\b[^"]*)"/)
+
+  assert.ok(chipMatch, 'icon-only chip should render')
+  assert.ok(faviconFrameMatch, 'favicon frame should render')
+  assert.ok(faviconContentMatch, 'favicon content should render')
+  assert.match(chipMatch[1], /\bpage-chip-icon-only\b/)
+  assert.match(chipMatch[1], /\bborder\b/)
+  assert.match(faviconFrameMatch[1], /\bsize-4\b/)
+  assert.match(faviconFrameMatch[1], /\bself-center\b/)
+  assert.doesNotMatch(faviconFrameMatch[1], /\bh-6\b|\bw-6\b|\bp-1\b|\bborder\b/)
+  assert.match(faviconContentMatch[1], /\bsize-4\b/)
+})
+
 test('PageChip does not invent live-tab favicons for read-only chips', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
