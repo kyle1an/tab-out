@@ -943,8 +943,8 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   }
 
   function onEntryMouseDown(e: MouseEvent<HTMLDivElement>) {
-    // ⌘/⌃(+⇧)-click moves the tab into this window; cancel the browser's native
-    // text selection for that gesture only so the row behaves like a link
+    // Shift-click/⌘-click/⌃-click moves the tab into this window; cancel the
+    // browser's native text selection for that gesture only so the row behaves like a link
     // (a plain click still drag-selects). See chip-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }

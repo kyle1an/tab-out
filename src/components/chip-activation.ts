@@ -18,14 +18,13 @@ export interface ChipActivationModifiers {
 
 /**
  * chipActivationMode(e, platform) — resolve a click/keydown into an intent:
- *   • no primary modifier        → 'focus'            (switch to the existing tab)
- *   • primary modifier, no Shift  → 'bring-background' (move the tab into the current window)
- *   • primary modifier + Shift    → 'bring-foreground' (move it here and switch to it)
+ *   • no move modifier             → 'focus'            (switch to the existing tab)
+ *   • primary modifier, no Shift    → 'bring-background' (move the tab into the current window)
+ *   • Shift                         → 'bring-foreground' (move it here and switch to it)
  *
  * The primary modifier is Cmd on macOS, Ctrl elsewhere, and the opposite key
  * must NOT be held — matching isFilterFocusShortcut so a cross-platform key
- * combo can't satisfy both branches. Shift on its own is intentionally neutral
- * (the browser's new-window gesture is out of scope).
+ * combo can't satisfy both branches. Shift is the foreground move gesture.
  *
  * @param {{ metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean } | null | undefined} e
  * @param {string} [platform]
@@ -33,10 +32,11 @@ export interface ChipActivationModifiers {
  */
 export function chipActivationMode(e: ChipActivationModifiers | null | undefined, platform = ''): ChipActivationMode {
   if (!e) return 'focus'
+  if (e.shiftKey) return 'bring-foreground'
   const isMac = /mac|iphone|ipad|ipod/i.test(platform)
   const hasPrimaryModifier = isMac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey
   if (!hasPrimaryModifier) return 'focus'
-  return e.shiftKey ? 'bring-foreground' : 'bring-background'
+  return 'bring-background'
 }
 
 /**
@@ -46,8 +46,8 @@ export function chipActivationMode(e: ChipActivationModifiers | null | undefined
  * The chip and history-row click targets are <div role="button"> whose title is
  * ordinary selectable text — unlike a real <a>/<button>, a <div> has no
  * activation behavior, so the browser starts a native text selection on the same
- * ⌘/⌃(+⇧)-click we've overloaded to MOVE the tab. Calling preventDefault() on
- * mousedown when this returns true cancels that default for the move gesture
+ * Shift-click and ⌘/⌃-click gestures we've overloaded to MOVE the tab.
+ * Calling preventDefault() on mousedown when this returns true cancels that default for the move gesture
  * only, so the surface behaves like a link while a plain click still drag-selects.
  *
  * @param {{ metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean } | null | undefined} e

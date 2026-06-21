@@ -20,8 +20,9 @@ test('chipActivationMode: Cmd-click brings the tab into the current window (back
   assert.equal(chipActivationMode({ metaKey: true }, MAC), 'bring-background')
 })
 
-test('chipActivationMode: Cmd+Shift-click brings the tab in and switches (foreground) on macOS', () => {
-  assert.equal(chipActivationMode({ metaKey: true, shiftKey: true }, MAC), 'bring-foreground')
+test('chipActivationMode: Shift-click brings the tab in and switches (foreground) on every platform', () => {
+  assert.equal(chipActivationMode({ shiftKey: true }, MAC), 'bring-foreground')
+  assert.equal(chipActivationMode({ shiftKey: true }, WIN), 'bring-foreground')
 })
 
 test('chipActivationMode: Ctrl is not the primary modifier on macOS', () => {
@@ -32,17 +33,13 @@ test('chipActivationMode: Ctrl-click brings the tab into the current window (bac
   assert.equal(chipActivationMode({ ctrlKey: true }, WIN), 'bring-background')
 })
 
-test('chipActivationMode: Ctrl+Shift-click brings the tab in and switches (foreground) off macOS', () => {
+test('chipActivationMode: Shift wins over a primary modifier for foreground move', () => {
+  assert.equal(chipActivationMode({ metaKey: true, shiftKey: true }, MAC), 'bring-foreground')
   assert.equal(chipActivationMode({ ctrlKey: true, shiftKey: true }, WIN), 'bring-foreground')
 })
 
 test('chipActivationMode: Cmd is not the primary modifier off macOS', () => {
   assert.equal(chipActivationMode({ metaKey: true }, WIN), 'focus')
-})
-
-test('chipActivationMode: Shift alone stays focus (new-window gesture is out of scope)', () => {
-  assert.equal(chipActivationMode({ shiftKey: true }, MAC), 'focus')
-  assert.equal(chipActivationMode({ shiftKey: true }, WIN), 'focus')
 })
 
 test('chipActivationMode: holding both Cmd and Ctrl is ambiguous and stays focus', () => {
@@ -60,16 +57,13 @@ test('shouldSuppressSelectionForGesture: a plain click keeps selection (so drag-
 test('shouldSuppressSelectionForGesture: the move gestures suppress native selection on macOS', () => {
   assert.equal(shouldSuppressSelectionForGesture({ metaKey: true }, MAC), true)
   assert.equal(shouldSuppressSelectionForGesture({ metaKey: true, shiftKey: true }, MAC), true)
+  assert.equal(shouldSuppressSelectionForGesture({ shiftKey: true }, MAC), true)
 })
 
 test('shouldSuppressSelectionForGesture: the move gestures suppress native selection off macOS', () => {
   assert.equal(shouldSuppressSelectionForGesture({ ctrlKey: true }, WIN), true)
   assert.equal(shouldSuppressSelectionForGesture({ ctrlKey: true, shiftKey: true }, WIN), true)
-})
-
-test('shouldSuppressSelectionForGesture: Shift alone keeps selection (not a move gesture)', () => {
-  assert.equal(shouldSuppressSelectionForGesture({ shiftKey: true }, MAC), false)
-  assert.equal(shouldSuppressSelectionForGesture({ shiftKey: true }, WIN), false)
+  assert.equal(shouldSuppressSelectionForGesture({ shiftKey: true }, WIN), true)
 })
 
 test('shouldSuppressSelectionForGesture: a wrong-platform primary modifier keeps selection', () => {

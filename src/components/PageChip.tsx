@@ -1136,8 +1136,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function onChipPointerDown(e: MouseEvent<HTMLDivElement>) {
-    // ⌘/⌃(+⇧)-click is our "move tab into this window" gesture; cancel the
-    // browser's native text selection for that gesture only so the chip behaves
+    // Shift-click/⌘-click/⌃-click are our "move tab into this window"
+    // gestures; cancel the browser's native text selection for that gesture only so the chip behaves
     // like a link (a plain click still drag-selects). See chip-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }
