@@ -73,10 +73,12 @@ test('DomainCard keeps the actions menu in the first header row flow', () => {
   assert.doesNotMatch(triggerClass, /\b(?:top-0|right-0)\b/)
   assert.match(triggerClass, /\bshrink-0\b/)
   assert.match(triggerClass, /\bjustify-self-end\b/)
+  assert.doesNotMatch(menuSource, /from '\.\/ui\/menu'/)
+  assert.match(menuSource, /lazy\(\(\) => import\('\.\/CardActionsMenuLoaded'\)/)
 })
 
 test('CardActionsMenu orders suspend before close', () => {
-  const source = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../src/components/CardActionsMenuLoaded.tsx', import.meta.url), 'utf8')
 
   assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-button"'))
 })
