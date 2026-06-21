@@ -8,6 +8,7 @@ import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY } from '../src/extension/page-chip-pins.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY } from '../src/extension/section-pins.js'
+import { addCurrentTabOutPageToStartupSnapshot } from '../src/extension/startup-view-model.js'
 
 const now = Date.now()
 
@@ -169,6 +170,84 @@ test('startup snapshot cache falls back to the durable local snapshot when the s
   // A durable copy older than the cap is ignored rather than shown very stale.
   durableCached.savedAt = now - (DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS + 1)
   assert.equal(await loadCachedDashboardStartup(now), null)
+})
+
+test('startup snapshot can include the current Tab Out page before live hydration', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const oldTabOutPage = {
+    id: 2,
+    url: tabOutUrl,
+    rawUrl: tabOutUrl,
+    suspended: false,
+    title: 'Tab Out',
+    favIconUrl: '',
+    windowId: 1,
+    active: false,
+    pinned: false,
+    groupId: -1,
+    isTabOut: true,
+    isApp: false,
+    index: 1
+  }
+  const snapshot = {
+    dashboard: {
+      realTabs: [oldTabOutPage],
+      domainGroups: [{ domain: '__tab-out__', label: 'New tabs', tabs: [oldTabOutPage] }],
+      currentWindowId: 1
+    },
+    tabHistory: { entries: [] },
+    workingSet: { items: [] },
+    closedTabs: []
+  } as any
+  const currentTab = {
+    ...makeChromeTab(3, tabOutUrl, 'Tab Out'),
+    active: true,
+    selected: true
+  }
+  const localState = {
+    loaded: true,
+    pinnedDomains: [],
+    pinnedSectionIds: [],
+    pinnedPageChipIds: []
+  }
+
+  const patched = addCurrentTabOutPageToStartupSnapshot(snapshot, currentTab, localState)
+
+  assert.equal(patched.dashboard.realTabs.length, 2)
+  assert.equal(patched.dashboard.domainGroups.find((group) => group.domain === '__tab-out__')?.tabs.length, 2)
+  assert.equal(patched.startupViewModel?.viewModel.stats.totalTabs, 2)
+  assert.equal(patched.startupViewModel?.viewModel.stats.dedupCount, 1)
+})
+
+test('startup snapshot preserves New tabs pin when adding the current Tab Out page', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const snapshot = {
+    dashboard: {
+      realTabs: [],
+      domainGroups: [],
+      currentWindowId: 1
+    },
+    tabHistory: { entries: [] },
+    workingSet: { items: [] },
+    closedTabs: []
+  } as any
+  const currentTab = {
+    ...makeChromeTab(3, tabOutUrl, 'Tab Out'),
+    active: true,
+    selected: true
+  }
+  const localState = {
+    loaded: true,
+    pinnedDomains: ['__tab-out__'],
+    pinnedSectionIds: [],
+    pinnedPageChipIds: []
+  }
+
+  const patched = addCurrentTabOutPageToStartupSnapshot(snapshot, currentTab, localState)
+  const newTabsGroup = patched.dashboard.domainGroups.find((group) => group.domain === '__tab-out__')
+
+  assert.equal(newTabsGroup?.pinned, true)
+  assert.equal(patched.startupViewModel?.viewModel.matchedCards[0]?.group.domain, '__tab-out__')
 })
 
 test('startup snapshot commits dashboard, history, working set, and closed tabs from one startup path', async () => {

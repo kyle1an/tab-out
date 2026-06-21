@@ -6,6 +6,7 @@ import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.js'
+import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
@@ -15,6 +16,23 @@ recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 
 let refreshTimer: number | null = null
 let refreshTimerOptions: RefreshOptions = {}
+
+function isTabOutStartupUrl(url: string): boolean {
+  const tabOutUrl = chrome.runtime.getURL('index.html')
+  return url === tabOutUrl || url.startsWith(`${tabOutUrl}?`) || url.startsWith(`${tabOutUrl}#`) || url === 'chrome://newtab/'
+}
+
+async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null> {
+  try {
+    const tab = await chrome.tabs.getCurrent()
+    if (!tab) return null
+    const rawUrl = tab.url || window.location.href
+    if (!isTabOutStartupUrl(rawUrl)) return null
+    return { ...tab, url: rawUrl }
+  } catch {
+    return null
+  }
+}
 
 function scheduleDashboardRefresh(options: RefreshOptions = {}) {
   refreshTimerOptions = {
@@ -126,19 +144,25 @@ async function initializeApp() {
     }
   })
   const startupSnapshot = cachedStartup?.snapshot ?? null
+  const currentTabOutPagePromise = startupSnapshot ? getCurrentTabOutPageForStartup() : Promise.resolve(null)
   const localStateStartedAt = startupDebugNow()
   const localState = cachedStartup?.localState ?? await loadDashboardLocalState()
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
     ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
     detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
   })
+  const currentTabOutPage = await currentTabOutPagePromise
+  const fallbackStartupSnapshot = startupSnapshot && currentTabOutPage
+    ? addCurrentTabOutPageToStartupSnapshot(startupSnapshot, currentTabOutPage, localState)
+    : startupSnapshot
+  const initialStartupSnapshot = fallbackStartupSnapshot
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'mount-app', {
     detail: {
       localStateReady: !!localState,
-      startupSnapshot: !!startupSnapshot
+      startupSnapshot: !!initialStartupSnapshot
     }
   })
-  mountApp(startupSnapshot, localState)
+  mountApp(initialStartupSnapshot, localState)
 }
 
 initializeApp()
