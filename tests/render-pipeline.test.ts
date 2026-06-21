@@ -17,6 +17,7 @@ import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlF
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
 import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
+import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
@@ -1617,6 +1618,108 @@ test('buildDashboardViewModel ranks working-set-priority chips before remembered
     vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/?page=charlie', 'https://example.test/?page=alpha', 'https://example.test/?page=bravo']
   )
+})
+
+test('buildDashboardViewModel keeps remembered order across saved-page and raw-url startup identity drift', () => {
+  const rawUrl = 'chrome-extension://suspender/suspended.html?url=https%3A%2F%2Fexample.test%2Fbravo'
+  const tabs = [
+    makeTab({ url: 'https://example.test/alpha', title: 'Alpha page' }),
+    makeTab({ id: 2, url: 'https://example.test/bravo', rawUrl, title: 'Zulu page' })
+  ]
+  const groups = buildDomainGroups(tabs)
+  const previousChipOrder = new Map([
+    [
+      domainCardId('example.test'),
+      new Map([
+        [dashboardChipOrderKeyForTab({ ...tabs[1], sourceType: 'saved-page', url: rawUrl }), 0],
+        [dashboardChipOrderKeyForTab(tabs[0]), 1]
+      ])
+    ]
+  ])
+
+  const vm = buildDashboardViewModel({
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    chipOrder: previousChipOrder
+  })
+
+  assert.deepEqual(
+    vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://example.test/bravo', 'https://example.test/alpha']
+  )
+})
+
+test('useDashboardViewModels holds tabs chip order during the startup freeze and resumes after it', () => {
+  const tabs = [
+    makeTab({ id: 1, url: 'https://example.test/alpha', title: 'Alpha' }),
+    makeTab({ id: 2, url: 'https://example.test/bravo', title: 'Bravo' })
+  ]
+  const groups = buildDomainGroups(tabs)
+  const dashboard = {
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    currentWindowId: 1
+  } as any
+  // Remembered chip order that disagrees with the deterministic label fallback (bravo first).
+  const rememberedChipOrder = {
+    tabs: new Map([[domainCardId('example.test'), new Map([
+      [dashboardChipOrderKeyForTab(tabs[1]), 0],
+      [dashboardChipOrderKeyForTab(tabs[0]), 1]
+    ])]]),
+    bookmarks: new Map(),
+    history: new Map()
+  }
+  const base = {
+    dashboard,
+    source: 'tabs' as const,
+    filter: '',
+    historyRange: DEFAULT_HISTORY_RANGE,
+    historyFilterEnabled: false,
+    isReady: true,
+    chipOrder: rememberedChipOrder
+  }
+
+  // During the startup freeze the remembered order is ignored, so first paint and live
+  // hydration both render the stable fallback order instead of re-sorting the chip window.
+  const frozen = useDashboardViewModels({ ...base, freezeTabsChipOrder: true })
+  assert.deepEqual(
+    frozen.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://example.test/alpha', 'https://example.test/bravo']
+  )
+
+  // Once the freeze lifts (filter/source change) the remembered order is honored again.
+  const live = useDashboardViewModels({ ...base, freezeTabsChipOrder: false })
+  assert.deepEqual(
+    live.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    ['https://example.test/bravo', 'https://example.test/alpha']
+  )
+})
+
+test('computeDomainCardViewModel applies working-set priority before remembered Jira block order', () => {
+  const tabs = [
+    makeTab({ url: 'https://example.atlassian.net/browse/DOC-201', title: '[DOC-201] Example checklist - JIRA' }),
+    makeTab({ id: 2, url: 'https://example.atlassian.net/browse/TASK-1001', title: '[TASK-1001] Account settings - JIRA' }),
+    makeTab({ id: 3, url: 'https://example.atlassian.net/jira/your-work', title: 'Work item search - JIRA' }),
+    makeTab({ id: 4, url: 'https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha', title: 'Platform notes - Confluence' })
+  ]
+  const chipOrder = new Map(tabs.map((tab, index) => [dashboardChipOrderKeyForTab(tab), index]))
+
+  const vm = computeDomainCardViewModel(
+    { domain: 'atlassian.net', tabs },
+    {
+      chipOrder,
+      chipPriority: new Map([
+        ['https://example.atlassian.net/browse/TASK-1001', 90],
+        ['https://example.atlassian.net/wiki/spaces/KB/pages/page-alpha', 100]
+      ])
+    }
+  )
+
+  const rootSection = vm.sections[0]
+  const browseSection = rootSection.websitePathSections.find((section) => section.label === '/browse')
+
+  assert.deepEqual(rootSection.websitePathSections.map((section) => section.label), ['/wiki', '/browse', '/jira'])
+  assert.deepEqual(browseSection?.clusters.map((cluster) => cluster.label), ['TASK', 'DOC'])
 })
 
 test('computeDomainCardViewModel applies chip priority before the overflow split', () => {

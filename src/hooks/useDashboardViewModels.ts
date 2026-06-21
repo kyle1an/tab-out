@@ -1,6 +1,6 @@
-import { useEffect, type RefObject } from 'react'
+import { useLayoutEffect, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
-import { dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
+import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
 import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { buildDashboardViewModel } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DomainGroup, WorkingSetSnapshot } from '../extension/types'
@@ -26,6 +26,7 @@ type DashboardViewModelOptions = {
   workingSet?: WorkingSetSnapshot | null
   pinnedSections?: ReadonlySet<string>
   pinnedPageChips?: PinnedPageChipIndex
+  freezeTabsChipOrder?: boolean
 }
 
 function chipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | undefined): DashboardChipPriorityMap {
@@ -44,7 +45,7 @@ function chipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | unde
   return priority
 }
 
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips }: DashboardViewModelOptions) {
+export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
@@ -54,6 +55,11 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const historyTabs = dashboard?.historyTabs || EMPTY_TABS
   const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
   const chipPriority = source === 'tabs' ? chipPriorityFromWorkingSet(workingSet) : EMPTY_CHIP_PRIORITY
+  // During the startup priority freeze, frozen Working Set priority plus the deterministic
+  // fallback already fix the chip order. Remembered chip-order memory is empty at first paint
+  // but populated by the time live hydration re-renders, so honoring it there re-sorts the
+  // visible chip window and shifts Website Path sections. Hold it off until the freeze lifts.
+  const mainChipOrder = freezeTabsChipOrder && source === 'tabs' ? EMPTY_CHIP_ORDER_BY_CARD : chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD
 
   const dashboardVm = buildDashboardViewModel({
     realTabs,
@@ -61,7 +67,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     filter,
     source,
     currentWindowId,
-    chipOrder: chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD,
+    chipOrder: mainChipOrder,
     chipPriority,
     pinnedSections,
     pinnedPageChips
@@ -145,10 +151,20 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
     let index = 0
     for (const chip of renderedChipsInCard(vm)) {
       const key = dashboardChipOrderKeyForChip(chip)
-      if (!order.has(key)) order.set(key, index++)
+      const altKey = dashboardChipOrderAltKeyForChip(chip)
+      if (!order.has(key)) {
+        order.set(key, index)
+        if (altKey && !order.has(altKey)) order.set(altKey, index)
+        index++
+      }
       for (const variant of chip.titleVariantChips || []) {
         const variantKey = dashboardChipOrderKeyForChip(variant)
-        if (!order.has(variantKey)) order.set(variantKey, index++)
+        const variantAltKey = dashboardChipOrderAltKeyForChip(variant)
+        if (!order.has(variantKey)) {
+          order.set(variantKey, index)
+          if (variantAltKey && !order.has(variantAltKey)) order.set(variantAltKey, index)
+          index++
+        }
       }
     }
     if (order.size > 0) orderByCard.set(domainGroupCardId(group), order)
@@ -157,7 +173,7 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
 }
 
 export function useMissionOrderMemory({ previousOrderRef, chipOrderRef, source, filter, matchedCards, bookmarkMatchedCards, historyMatchedCards }: MissionOrderMemoryOptions): void {
-  useEffect(() => {
+  useLayoutEffect(() => {
     previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
     if (filter.trim() === '') {
       chipOrderRef.current[source] = chipOrderFromCards(matchedCards)

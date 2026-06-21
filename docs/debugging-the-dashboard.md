@@ -43,3 +43,55 @@ layout math.
 `tests/browser-resize-smoke.test.ts` (run with `pnpm test:browser`) is the
 automated form of the same idea: it serves the repo, loads the fixture in
 headless Chrome, and asserts on layout / expansion behavior.
+
+## Debugging startup order / CLS
+
+Startup layout shifts — chips or Website Path sections re-sorting between the
+cached first paint and live hydration — are hard to see by eye. Tab Out ships an
+opt-in capture for this, plus a tight reload-diff loop you can drive over CDP /
+Chrome DevTools MCP against the **real** extension page. The fake-data fixture
+above can't reproduce the cache → hydration transition, so use a real Tab Out
+tab here.
+
+### Enable the capture
+
+In the Tab Out page console, *before* reloading:
+
+```js
+localStorage.setItem('tab-out:debug-startup-order', '1')
+// Optional: focus on specific cards by case-insensitive RegExp (domain/title
+// fragment). Unset captures every card.
+localStorage.setItem('tab-out:debug-startup-order-filter', 'example\\.com')
+```
+
+(`?taboutStartupOrderDebug` in the URL works too.) Reload, then read it:
+
+```js
+window.__tabOutStartupOrderDebug        // { samples: [...], shifts: [...] }
+window.__tabOutSaveStartupOrderDebug()  // download it as JSON
+window.__tabOutCopyStartupOrderDebug()  // copy it to the clipboard
+```
+
+Each `vm` sample records the rendered card/section/chip order for one render;
+`shifts` records `layout-shift` PerformanceObserver entries (global, not filtered).
+The first `vm` sample is the cached first paint; later ones are live hydration and
+refreshes. Disable with `localStorage.removeItem('tab-out:debug-startup-order')`.
+
+### The reload-diff loop
+
+Diff the **first** `vm` sample (cached first paint) against the **last**
+(post-hydration): the visible chip order per Website Path section should be
+identical, and `shifts` inside the startup window should be empty.
+
+- **Bring the tab to the foreground first.** Startup hydration short-circuits on
+  `document.visibilityState !== 'visible'`, so a backgrounded reload never hydrates
+  and the diff is meaningless. Over CDP, `Page.bringToFront` before reloading.
+- Reload, wait for hydration (a second `vm` sample), then compare.
+
+Invariants the dashboard guarantees today (see the startup contract in `AGENTS.md`):
+
+- First paint reuses any structurally valid same-session cached snapshot regardless
+  of age, so reopens never flash empty → populated.
+- During the startup Working Set priority freeze the tabs chip order is held
+  (remembered chip-order memory is ignored), so hydration cannot re-sort the visible
+  chip window. The order resumes from memory once a filter/source change lifts the freeze.

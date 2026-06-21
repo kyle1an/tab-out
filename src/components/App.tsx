@@ -8,7 +8,7 @@ import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/hist
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
-import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
+import { useDashboardLocalState, type DashboardLocalState } from '../hooks/useDashboardLocalState'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
@@ -19,6 +19,7 @@ import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
 import { DashboardActionsProvider, HoverStateProvider } from './DashboardInteractionContext'
+import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupOrderDebugVmSample, startStartupOrderDebugDomSampling } from './startup-order-debug'
 import { cn } from '@/lib/utils'
 import type {
   DashboardCardEntry,
@@ -120,14 +121,14 @@ type AppDashboardAction =
       workingSet: WorkingSetSnapshot | null
     }
 
-function initialAppDashboardState(dashboard: DashboardData | null): AppDashboardState {
+function initialAppDashboardState(snapshot: DashboardStartupSnapshot | null): AppDashboardState {
   return {
-    closedTabs: [],
-    dashboard,
+    closedTabs: snapshot?.closedTabs ?? [],
+    dashboard: snapshot?.dashboard ?? null,
     historyRange: DEFAULT_HISTORY_RANGE,
     source: 'tabs',
-    tabHistory: null,
-    workingSet: null
+    tabHistory: snapshot?.tabHistory ?? null,
+    workingSet: snapshot?.workingSet ?? null
   }
 }
 
@@ -519,8 +520,14 @@ function DashboardShell({
   )
 }
 
-export function App({ initialDashboard = null }: { initialDashboard?: DashboardData | null }) {
-  const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialDashboard, initialAppDashboardState)
+export function App({
+  initialStartupSnapshot = null,
+  initialLocalState = null
+}: {
+  initialStartupSnapshot?: DashboardStartupSnapshot | null
+  initialLocalState?: DashboardLocalState | null
+}) {
+  const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialStartupSnapshot, initialAppDashboardState)
   const { closedTabs, dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
   const { hoverMatch, urlPreview, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
@@ -544,6 +551,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
   }
   const closedTabsSeqRef = useRef(0)
+  const startupRefreshRequestedRef = useRef(false)
   const refreshClosedTabs = useCallback(async function refreshClosedTabs() {
     if (isClosedTabFetchSuppressed()) return
     const seq = ++closedTabsSeqRef.current
@@ -588,13 +596,20 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
   }, [currentMissionContainers])
 
-  const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: primeCardMoveAnimation })
+  const [startupPriorityWorkingSet, setStartupPriorityWorkingSet] = useState<WorkingSetSnapshot | null>(() => initialStartupSnapshot?.workingSet ?? null)
+  const handleBeforeFilterCommit = useCallback(function handleBeforeFilterCommit() {
+    setStartupPriorityWorkingSet(null)
+    primeCardMoveAnimation()
+  }, [primeCardMoveAnimation])
+  const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
+  const effectiveStartupPriorityWorkingSet = source === 'tabs' && filter.trim() === '' ? startupPriorityWorkingSet : null
   function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   }
   const {
     localStateLoaded,
+    localState,
     pinnedDomains,
     pinnedSections,
     pinnedPageChips,
@@ -603,6 +618,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     togglePinnedSection,
     togglePinnedPageChip
   } = useDashboardLocalState({
+    initialState: initialLocalState,
     onBeforeApplyPinnedDomains: ({ animate }) => {
       resetMissionOrder()
       if (animate) primeCardMoveAnimation()
@@ -620,6 +636,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyFilterEnabled,
     pinnedDomains,
     localStateLoaded,
+    localState,
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
     setDashboard,
@@ -662,10 +679,26 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     isReady,
     // react-doctor-disable-next-line react-hooks-js/refs -- chipOrder is a mutable per-source ordering cache read at view-model build time, not render-derived state.
     chipOrder: chipOrderRef.current,
-    workingSet,
+    workingSet: effectiveStartupPriorityWorkingSet ?? workingSet,
+    freezeTabsChipOrder: !!effectiveStartupPriorityWorkingSet,
     pinnedSections,
     pinnedPageChips
   })
+
+  useLayoutEffect(() => {
+    recordStartupOrderDebugVmSample(STARTUP_ORDER_DEBUG_CAPTURE, {
+      dashboard,
+      source,
+      filter,
+      isReady,
+      matchedCards,
+      workingSet: effectiveStartupPriorityWorkingSet ?? workingSet
+    })
+  }, [dashboard, effectiveStartupPriorityWorkingSet, filter, isReady, matchedCards, source, workingSet])
+
+  useLayoutEffect(() => {
+    return startStartupOrderDebugDomSampling(STARTUP_ORDER_DEBUG_CAPTURE)
+  }, [])
 
   async function onCloseFiltered() {
     await closeFilteredTabs(dashboardVm.filteredCloseUrls)
@@ -679,6 +712,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
+    setStartupPriorityWorkingSet(null)
     clearHoverUrlNow()
     void (async () => {
       try {
@@ -746,6 +780,12 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyMatchedCards
   })
 
+  useEffect(() => {
+    if (startupRefreshRequestedRef.current || !localStateLoaded) return
+    startupRefreshRequestedRef.current = true
+    void refreshDashboard({ startupSnapshot: true })
+  }, [localStateLoaded, refreshDashboard])
+
   return (
     <DashboardActionsProvider
       value={{
@@ -788,8 +828,8 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
   )
 }
 
-export function mountApp(initialDashboard: DashboardData | null = null) {
+export function mountApp(initialStartupSnapshot: DashboardStartupSnapshot | null = null, initialLocalState: DashboardLocalState | null = null) {
   const el = document.getElementById('appRoot')
   if (!el) return
-  createRoot(el).render(<App initialDashboard={initialDashboard} />)
+  createRoot(el).render(<App initialStartupSnapshot={initialStartupSnapshot} initialLocalState={initialLocalState} />)
 }

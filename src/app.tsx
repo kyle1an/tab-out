@@ -3,8 +3,10 @@ import { mountToast } from './components/mountToast'
 import { mountApp } from './components/App'
 import { requestDashboardRefresh } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'
+import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
+import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 
-type RefreshOptions = { animateCards?: boolean }
+type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
 
 let refreshTimer: number | null = null
 let refreshTimerOptions: RefreshOptions = {}
@@ -101,11 +103,10 @@ document.addEventListener(
 
 async function initializeApp() {
   mountToast()
-  mountApp()
-
-  if (document.visibilityState === 'visible') {
-    requestDashboardRefresh()
-  }
+  const cachedStartup = await loadCachedDashboardStartup()
+  const startupSnapshot = cachedStartup?.snapshot ?? null
+  const localState = cachedStartup?.localState ?? await loadDashboardLocalState()
+  mountApp(startupSnapshot, localState)
 }
 
 initializeApp()

@@ -11,13 +11,14 @@ import {
 import { createPinnedPageChipIndex, normalizePinnedPageChips, PAGE_CHIP_PIN_STORAGE_KEY, savePinnedPageChips, togglePinnedPageChipInList, type PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import { normalizePinnedSections, savePinnedSections, SECTION_PIN_STORAGE_KEY, togglePinnedSectionInList } from '../extension/section-pins.js'
 
-type DashboardLocalState = {
+export type DashboardLocalState = {
   loaded: boolean
   pinnedDomains: string[]
   pinnedSectionIds: string[]
   pinnedPageChipIds: string[]
 }
 type UseDashboardLocalStateOptions = {
+  initialState?: DashboardLocalState | null
   onBeforeApplyPinnedDomains?: (options: { animate: boolean }) => void
   onDomainPinSaveError?: () => void
   onSectionPinSaveError?: () => void
@@ -64,12 +65,13 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
 }
 
 export function useDashboardLocalState({
+  initialState = null,
   onBeforeApplyPinnedDomains,
   onDomainPinSaveError,
   onSectionPinSaveError,
   onPageChipPinSaveError
 }: UseDashboardLocalStateOptions = {}) {
-  const [state, setState] = useState<DashboardLocalState>(EMPTY_DASHBOARD_LOCAL_STATE)
+  const [state, setState] = useState<DashboardLocalState>(initialState ?? EMPTY_DASHBOARD_LOCAL_STATE)
   const onBeforeApplyPinnedDomainsRef = useRef(onBeforeApplyPinnedDomains)
   const onDomainPinSaveErrorRef = useRef(onDomainPinSaveError)
   const onSectionPinSaveErrorRef = useRef(onSectionPinSaveError)
@@ -83,6 +85,7 @@ export function useDashboardLocalState({
   }, [onBeforeApplyPinnedDomains, onDomainPinSaveError, onSectionPinSaveError, onPageChipPinSaveError])
 
   useEffect(() => {
+    if (state.loaded) return
     let cancelled = false
     loadDashboardLocalState().then((nextState) => {
       if (cancelled) return
@@ -92,7 +95,7 @@ export function useDashboardLocalState({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [state.loaded])
 
   const pinnedSections = useMemo<ReadonlySet<string>>(
     () => state.pinnedSectionIds.length === 0 ? EMPTY_PINNED_SECTIONS : new Set(state.pinnedSectionIds),
@@ -153,6 +156,7 @@ export function useDashboardLocalState({
 
   return {
     localStateLoaded: state.loaded,
+    localState: state,
     pinnedDomains: state.pinnedDomains,
     pinnedSections,
     pinnedPageChips,

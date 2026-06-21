@@ -96,7 +96,8 @@ const TITLE_BOUNDARY_SEPARATOR_RE = /^[-\u2013\u2014\u00b7|:]/
 const TITLE_BOUNDARY_TRAILING_SEPARATOR_RE = /[-\u2013\u2014\u00b7|:]$/
 
 function dashboardChipOrderKey(sourceType: DashboardTab['sourceType'] | undefined, kind: 'url' | 'fold', value: string): string {
-  return `${sourceType || 'tab'}:${kind}:${value}`
+  const orderSource = sourceType === 'saved-page' ? 'tab' : sourceType || 'tab'
+  return `${orderSource}:${kind}:${value}`
 }
 
 function dashboardFoldChipOrderKey(sourceType: DashboardTab['sourceType'] | undefined, urls: readonly string[]): string {
@@ -107,10 +108,19 @@ export function dashboardChipOrderKeyForTab(tab: Pick<DashboardTab, 'sourceType'
   return dashboardChipOrderKey(tab.sourceType, 'url', tab.url)
 }
 
+export function dashboardChipOrderAltKeyForTab(tab: Pick<DashboardTab, 'sourceType' | 'rawUrl' | 'url'>): string | null {
+  return tab.rawUrl && tab.rawUrl !== tab.url ? dashboardChipOrderKey(tab.sourceType, 'url', tab.rawUrl) : null
+}
+
 export function dashboardChipOrderKeyForChip(chip: Pick<DashboardChipData, 'sourceType' | 'tabUrl' | 'envs'>): string {
   const envUrls = chip.envs?.map((env) => env.tabUrl).filter(Boolean)
   if (envUrls?.length) return dashboardFoldChipOrderKey(chip.sourceType, envUrls)
   return dashboardChipOrderKey(chip.sourceType, 'url', chip.tabUrl)
+}
+
+export function dashboardChipOrderAltKeyForChip(chip: Pick<DashboardChipData, 'sourceType' | 'rawUrl' | 'tabUrl' | 'envs'>): string | null {
+  if (chip.envs?.length) return null
+  return chip.rawUrl && chip.rawUrl !== chip.tabUrl ? dashboardChipOrderKey(chip.sourceType, 'url', chip.rawUrl) : null
 }
 
 function pickDashboardChipFavicon(tab: DashboardTab): string {
@@ -1022,7 +1032,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return typeof score === 'number' && Number.isFinite(score) ? score : 0
   }
 
-  function chipPriorityScoreForTabs(priorityTabs: DashboardTab[]): number {
+  function chipPriorityScoreForTabs(priorityTabs: readonly DashboardTab[]): number {
     return priorityTabs.reduce((max, tab) => Math.max(max, chipPriorityScore(tab)), 0)
   }
 
@@ -1034,11 +1044,15 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     return comparePriorityScores(aPriority, bPriority) || fallback()
   }
 
-  function compareWithPriorityThenRememberedChipOrder(aKey: string, bKey: string, aPriority: number, bPriority: number, fallback: () => number): number {
+  function chipOrderForKey(key: string, altKey: string | null = null): number | undefined {
+    return chipOrder?.get(key) ?? (altKey ? chipOrder?.get(altKey) : undefined)
+  }
+
+  function compareWithPriorityThenRememberedChipOrder(aKey: string, bKey: string, aPriority: number, bPriority: number, fallback: () => number, aAltKey: string | null = null, bAltKey: string | null = null): number {
     const priorityDelta = comparePriorityScores(aPriority, bPriority)
     if (priorityDelta !== 0) return priorityDelta
-    const aOrder = chipOrder?.get(aKey)
-    const bOrder = chipOrder?.get(bKey)
+    const aOrder = chipOrderForKey(aKey, aAltKey)
+    const bOrder = chipOrderForKey(bKey, bAltKey)
     if (aOrder !== undefined && bOrder !== undefined && aOrder !== bOrder) return aOrder - bOrder
     if (aOrder !== undefined && bOrder === undefined) return -1
     if (aOrder === undefined && bOrder !== undefined) return 1
@@ -1083,7 +1097,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     dashboardChipOrderKeyForTab(b),
     chipPriorityScore(a),
     chipPriorityScore(b),
-    () => tabOpenStateRank(a) - tabOpenStateRank(b) || sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true })
+    () => tabOpenStateRank(a) - tabOpenStateRank(b) || sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }),
+    dashboardChipOrderAltKeyForTab(a),
+    dashboardChipOrderAltKeyForTab(b)
   ))
 
   // Detect cross-subdomain shared paths — the "same page in dev2us +
