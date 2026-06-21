@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
+import { DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
 import { loadDashboardLocalState } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
@@ -118,6 +118,33 @@ test('startup snapshot cache paints any structurally valid session snapshot', as
   assert.equal(await loadCachedDashboardStartup(), null)
 })
 
+test('startup snapshot cache falls back to the durable local snapshot when the session copy is gone', async () => {
+  const durableCached: Record<string, unknown> = {
+    savedAt: now,
+    snapshot: {
+      dashboard: { realTabs: [], domainGroups: [] },
+      tabHistory: { entries: [] },
+      workingSet: { items: [] },
+      closedTabs: []
+    }
+  }
+
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => ({}) },
+      local: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: durableCached }) }
+    }
+  }
+
+  // Session cleared by a browser restart, durable copy still fresh → first open paints warm.
+  const restored = await loadCachedDashboardStartup(now)
+  assert.equal(restored?.snapshot.dashboard, (durableCached.snapshot as { dashboard: unknown }).dashboard)
+
+  // A durable copy older than the cap is ignored rather than shown very stale.
+  durableCached.savedAt = now - (DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS + 1)
+  assert.equal(await loadCachedDashboardStartup(now), null)
+})
+
 test('startup snapshot commits dashboard, history, working set, and closed tabs from one startup path', async () => {
   let tabsQueryCount = 0
   let windowsGetAllCount = 0
@@ -125,6 +152,7 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   let tabGroupsQueryCount = 0
   let sessionsGetRecentlyClosedCount = 0
   let cachedStartupSnapshot: Record<string, unknown> | null = null
+  let durableStartupSnapshot: Record<string, unknown> | null = null
   const runtimeMessages: string[] = []
   const openTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
@@ -221,12 +249,16 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
     },
     storage: {
       session: {
+        get: async () => ({}),
         set: async (value: Record<string, unknown>) => {
           cachedStartupSnapshot = value
         }
       },
       local: {
-        get: async () => ({})
+        get: async () => ({}),
+        set: async (value: Record<string, unknown>) => {
+          durableStartupSnapshot = value
+        }
       }
     }
   }
@@ -261,11 +293,15 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   assert.equal(windowsGetCurrentCount, 1)
   assert.equal(tabGroupsQueryCount, 1)
   assert.equal(sessionsGetRecentlyClosedCount, 1)
+  await new Promise((resolve) => setTimeout(resolve, 0))
   const cachedSnapshot = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
   assert.equal(cachedSnapshot?.snapshot, snapshot)
   assert.deepEqual(cachedSnapshot?.localState?.pinnedDomains, ['example.test'])
   assert.deepEqual(cachedSnapshot?.localState?.pinnedSectionIds, ['section-alpha'])
   assert.deepEqual(cachedSnapshot?.localState?.pinnedPageChipIds, ['chip-alpha'])
+  const durableSnapshot = durableStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
+  assert.equal(durableSnapshot?.snapshot, snapshot)
+  assert.deepEqual(durableSnapshot?.localState?.pinnedDomains, ['example.test'])
   assert.deepEqual(runtimeMessages, ['tab-out:get-dashboard-service-state'])
 })
 

@@ -1,16 +1,20 @@
 import { useEffect, useRef } from 'react'
-import { fetchClosedTabs, isClosedTabFetchSuppressed, type ClosedTabEntry } from '../extension/closed-tabs.js'
+import { fetchClosedTabs, isClosedTabFetchSuppressed } from '../extension/closed-tabs.js'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { fetchDashboardServiceState } from '../extension/dashboard-service-state.js'
 import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { buildDashboardDataFromTabs, fetchDashboardData, getCurrentWindowId } from '../extension/render.js'
-import { fetchTabHistorySnapshot, normalizeTabHistorySnapshot } from '../extension/tab-history.js'
+import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs } from '../extension/tabs.js'
 import { buildWorkingSetSnapshot } from '../extension/working-set.js'
-import { fetchWorkingSetSnapshot, normalizeWorkingSetSnapshot } from '../extension/working-set-client.js'
+import { fetchWorkingSetSnapshot } from '../extension/working-set-client.js'
 import { loadSavedPagesStore, type SavedPagesStore } from '../extension/saved-pages.js'
+import { buildTabsDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 import type { DashboardLocalState } from './useDashboardLocalState'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
+
+export { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../extension/startup-snapshot.js'
+export type { DashboardStartupSnapshot, CachedDashboardStartup } from '../extension/startup-snapshot.js'
 
 export type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
@@ -25,26 +29,10 @@ type DashboardSnapshotOptions = {
   savedPagesStore?: SavedPagesStore
   previousOrder: MissionOrderMap
 }
-export type DashboardStartupSnapshot = {
-  dashboard: DashboardData
-  tabHistory: TabHistorySnapshot
-  workingSet: WorkingSetSnapshot
-  closedTabs: readonly ClosedTabEntry[]
-}
 type DashboardRefreshSnapshot = {
   dashboard: DashboardData
   tabHistory: TabHistorySnapshot
   workingSet: WorkingSetSnapshot
-}
-type CachedDashboardStartupSnapshot = {
-  savedAt: number
-  workingSetSavedAt?: number
-  snapshot: DashboardStartupSnapshot
-  localState?: DashboardLocalState
-}
-export type CachedDashboardStartup = {
-  snapshot: DashboardStartupSnapshot
-  localState: DashboardLocalState | null
 }
 
 type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
@@ -59,108 +47,7 @@ type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
   onBeforePinnedRefresh?: () => void
 }
 
-export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1'
-// How long the first-paint Working Set priority stays frozen across reopens before the next
-// live hydration adopts a fresh Working Set. Longer keeps chip/section ordering stable across
-// reopens at the cost of staler prioritization; capped in practice by the browser session
-// because chrome.storage.session clears on restart.
-export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 let startupSnapshotFlight: { key: string; promise: Promise<DashboardStartupSnapshot> } | null = null
-
-function startupSnapshotCacheStorage(): chrome.storage.StorageArea | null {
-  return typeof chrome === 'undefined' ? null : chrome.storage?.session || null
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object'
-}
-
-function isDashboardStartupSnapshot(value: unknown): value is DashboardStartupSnapshot {
-  if (!isObject(value) || !isObject(value.dashboard)) return false
-  return (
-    Array.isArray(value.dashboard.realTabs) &&
-    Array.isArray(value.dashboard.domainGroups) &&
-    (value.tabHistory == null || isObject(value.tabHistory)) &&
-    (value.workingSet == null || isObject(value.workingSet)) &&
-    Array.isArray(value.closedTabs)
-  )
-}
-
-function stringArray(value: unknown): string[] | null {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? [...value] : null
-}
-
-function cachedDashboardLocalState(value: unknown): DashboardLocalState | null {
-  if (!isObject(value) || value.loaded !== true) return null
-  const pinnedDomains = stringArray(value.pinnedDomains)
-  const pinnedSectionIds = stringArray(value.pinnedSectionIds)
-  const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
-  if (!pinnedDomains || !pinnedSectionIds || !pinnedPageChipIds) return null
-  return {
-    loaded: true,
-    pinnedDomains,
-    pinnedSectionIds,
-    pinnedPageChipIds
-  }
-}
-
-function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashboardStartupSnapshot {
-  return isObject(value) && typeof value.savedAt === 'number' && isDashboardStartupSnapshot(value.snapshot)
-}
-
-async function cachedStartupWorkingSetForSave(storage: chrome.storage.StorageArea, now: number): Promise<{ workingSet: WorkingSetSnapshot; savedAt: number } | null> {
-  try {
-    const stored = await storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-    if (!isCachedDashboardStartupSnapshot(cached)) return null
-    const savedAt = typeof cached.workingSetSavedAt === 'number' ? cached.workingSetSavedAt : cached.savedAt
-    if (now - savedAt > DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS) return null
-    return {
-      workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet),
-      savedAt
-    }
-  } catch {
-    return null
-  }
-}
-
-export async function loadCachedDashboardStartup(): Promise<CachedDashboardStartup | null> {
-  const storage = startupSnapshotCacheStorage()
-  if (!storage) return null
-  try {
-    const stored = await storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-    if (!isCachedDashboardStartupSnapshot(cached)) return null
-    // chrome.storage.session is cleared on browser restart, so any structurally valid
-    // snapshot belongs to the current session and is safe to paint immediately; live
-    // hydration replaces it within the same load. A display-side freshness TTL here only
-    // forces an empty-to-populated first paint when Tab Out is reopened slower than it.
-    return {
-      snapshot: {
-        ...cached.snapshot,
-        tabHistory: normalizeTabHistorySnapshot(cached.snapshot.tabHistory),
-        workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet)
-      },
-      localState: cachedDashboardLocalState(cached.localState)
-    }
-  } catch {
-    return null
-  }
-}
-
-export async function loadCachedDashboardStartupSnapshot(): Promise<DashboardStartupSnapshot | null> {
-  return (await loadCachedDashboardStartup())?.snapshot ?? null
-}
-
-async function saveCachedDashboardStartupSnapshot(snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null, now = Date.now()): Promise<void> {
-  const storage = startupSnapshotCacheStorage()
-  if (!storage) return
-  const cachedWorkingSet = await cachedStartupWorkingSetForSave(storage, now)
-  const cacheSnapshot = cachedWorkingSet ? { ...snapshot, workingSet: cachedWorkingSet.workingSet } : snapshot
-  try {
-    await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: { savedAt: now, workingSetSavedAt: cachedWorkingSet?.savedAt ?? now, snapshot: cacheSnapshot, ...(localState?.loaded ? { localState } : {}) } })
-  } catch {}
-}
 
 function startupSnapshotFlightKey({ source, filter, historyRange, historyFilterEnabled, pinnedDomains }: DashboardSnapshotOptions): string {
   return JSON.stringify({
@@ -225,11 +112,23 @@ export async function fetchDashboardSnapshot({ source, filter, historyRange, his
 
 async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {
   const closedTabsPromise = isClosedTabFetchSuppressed() ? Promise.resolve([]) : fetchClosedTabs()
-  const [snapshot, closedTabs] = await Promise.all([
-    fetchTabsDashboardSnapshot(options),
+  const [openTabs, currentWindowId, serviceState, savedPagesStore, closedTabs] = await Promise.all([
+    fetchOpenTabsSnapshot(),
+    getCurrentWindowId(),
+    fetchDashboardServiceState(),
+    options.savedPagesStore ? Promise.resolve(options.savedPagesStore) : loadSavedPagesStore(),
     closedTabsPromise
   ])
-  return { ...snapshot, closedTabs }
+  return buildTabsDashboardStartupSnapshot({
+    dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
+    currentWindowId,
+    tabHistory: serviceState.tabHistory,
+    workingSetActivity: serviceState.workingSetActivity,
+    savedPagesStore,
+    closedTabs,
+    pinnedDomains: options.pinnedDomains,
+    tabPreviousOrder: options.previousOrder.tabs || new Map()
+  })
 }
 
 export async function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {

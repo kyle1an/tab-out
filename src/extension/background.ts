@@ -25,11 +25,18 @@ import {
   createTabHistoryService
 } from './background/tab-history-service.js'
 import { createWorkingSetService } from './background/working-set-service.js'
+import { createStartupSnapshotService } from './background/startup-snapshot-service.js'
 import { WORKING_SET_DISMISS_MESSAGE, WORKING_SET_GET_MESSAGE } from './working-set.js'
 
 const chromeApi = createChromeApi(chrome)
 const tabHistoryService = createTabHistoryService(chromeApi)
 const workingSetService = createWorkingSetService(chromeApi)
+// Keep the cached dashboard startup snapshot warm so the next Tab Out open (even the first
+// after a browser restart, before any page has run) paints populated instead of empty.
+const startupSnapshotService = createStartupSnapshotService({
+  getTabHistorySnapshot: () => tabHistoryService.getTabHistorySnapshot(),
+  getWorkingSetActivity: () => workingSetService.getWorkingSetActivity()
+})
 
 function refreshBadge() {
   updateBadge(chromeApi)
@@ -40,16 +47,19 @@ function refreshBadge() {
 // Update badge when the extension is first installed
 chromeApi.runtime.onInstalled.addListener(() => {
   refreshBadge()
+  void startupSnapshotService.refreshNow()
 })
 
 // Update badge when Chrome starts up
 chromeApi.runtime.onStartup.addListener(() => {
   refreshBadge()
+  void startupSnapshotService.refreshNow()
 })
 
 // Update badge whenever a tab is opened
 chromeApi.tabs.onCreated.addListener(() => {
   refreshBadge()
+  startupSnapshotService.scheduleRefresh()
 })
 
 // Track tab activation history so commands and close-redirect can
@@ -57,6 +67,7 @@ chromeApi.tabs.onCreated.addListener(() => {
 chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
   tabHistoryService.recordTabActivation(windowId, tabId)
   workingSetService.recordTabActivation(windowId, tabId)
+  startupSnapshotService.scheduleRefresh()
 })
 
 chromeApi.windows.onFocusChanged.addListener((windowId) => {
@@ -69,6 +80,7 @@ chromeApi.windows.onFocusChanged.addListener((windowId) => {
         if (typeof activeTab?.id === 'number') await workingSetService.recordTabActivation(windowId, activeTab.id)
       } catch {}
     })()
+    startupSnapshotService.scheduleRefresh()
   }
 })
 
@@ -76,12 +88,14 @@ chromeApi.windows.onFocusChanged.addListener((windowId) => {
 chromeApi.tabs.onRemoved.addListener((tabId, removeInfo) => {
   refreshBadge()
   tabHistoryService.restorePreviousTabAfterClose(tabId, removeInfo)
+  startupSnapshotService.scheduleRefresh()
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
 chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   refreshBadge()
   workingSetService.recordTabNavigation(tabId, changeInfo, tab)
+  if (changeInfo.url || changeInfo.status === 'complete') startupSnapshotService.scheduleRefresh()
 })
 
 chromeApi.commands?.onCommand.addListener((command) => {

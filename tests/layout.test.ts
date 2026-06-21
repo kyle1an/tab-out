@@ -159,6 +159,7 @@ test('app bootstrap paints cached startup snapshot before live startup refresh',
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const localStateSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
   const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
+  const startupSnapshotSource = readFileSync(new URL('../src/extension/startup-snapshot.ts', import.meta.url), 'utf8')
   const viewModelSource = readFileSync(new URL('../src/hooks/useDashboardViewModels.ts', import.meta.url), 'utf8')
 
   assert.match(appEntrySource, /loadCachedDashboardStartup/)
@@ -180,16 +181,34 @@ test('app bootstrap paints cached startup snapshot before live startup refresh',
   assert.match(localStateSource, /initialState/)
   assert.match(localStateSource, /if \(state\.loaded\) return/)
   assert.match(refreshSource, /localState\?: DashboardLocalState \| null/)
-  assert.match(refreshSource, /type CachedDashboardStartup =/)
-  assert.match(refreshSource, /localState: cachedDashboardLocalState\(cached\.localState\)/)
   assert.match(refreshSource, /startupRefreshPendingRef/)
   assert.match(refreshSource, /animatedRefreshPendingRef/)
+  assert.match(refreshSource, /buildTabsDashboardStartupSnapshot\(/)
   assert.match(viewModelSource, /useLayoutEffect\(\(\) => \{[\s\S]*previousOrderRef\.current\[source\]/)
-  // Startup paints any valid session snapshot (no display-side freshness TTL) and holds the
-  // tabs chip order while the Working Set priority freeze is active so hydration cannot re-sort.
-  assert.doesNotMatch(refreshSource, /cached\.savedAt > DASHBOARD_STARTUP_SNAPSHOT_CACHE_TTL_MS/)
+  // The cache layer + snapshot builder live in the non-React startup-snapshot module (shared with
+  // the service worker): any valid session snapshot paints, with a durable chrome.storage.local fallback.
+  assert.match(startupSnapshotSource, /export type CachedDashboardStartup =/)
+  assert.match(startupSnapshotSource, /localState: cachedDashboardLocalState\(cached\.localState\)/)
+  assert.match(startupSnapshotSource, /DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS/)
+  assert.match(startupSnapshotSource, /export async function buildTabsDashboardStartupSnapshot/)
   assert.match(appSource, /freezeTabsChipOrder: !!effectiveStartupPriorityWorkingSet/)
   assert.match(viewModelSource, /freezeTabsChipOrder && source === 'tabs'/)
+})
+
+test('service worker maintains the startup snapshot on browser startup and tab events', () => {
+  const backgroundSource = readFileSync(new URL('../src/extension/background.ts', import.meta.url), 'utf8')
+  const serviceSource = readFileSync(new URL('../src/extension/background/startup-snapshot-service.ts', import.meta.url), 'utf8')
+  const appEntrySource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
+
+  assert.match(backgroundSource, /createStartupSnapshotService\(/)
+  assert.match(backgroundSource, /onStartup\.addListener/)
+  assert.match(backgroundSource, /startupSnapshotService\.refreshNow\(\)/)
+  assert.match(backgroundSource, /startupSnapshotService\.scheduleRefresh\(\)/)
+  assert.match(serviceSource, /buildTabsDashboardStartupSnapshot/)
+  assert.match(serviceSource, /saveCachedDashboardStartupSnapshot/)
+  assert.match(serviceSource, /LOCAL_PATH_GROUPERS_ACTIVE_KEY/)
+  // The page tells the worker whether function path groupers are active so it can defer grouping.
+  assert.match(appEntrySource, /persistLocalPathGroupersActive\(readLocalPathGroupers\(\)\.length > 0\)/)
 })
 
 test('recently closed rows do not fetch independently before initial dashboard readiness', () => {
