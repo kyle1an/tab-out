@@ -10,11 +10,12 @@ import { buildWorkingSetSnapshot } from '../extension/working-set.js'
 import { fetchWorkingSetSnapshot } from '../extension/working-set-client.js'
 import { loadSavedPagesStore, type SavedPagesStore } from '../extension/saved-pages.js'
 import { buildTabsDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
+import { buildDashboardStartupViewModel } from '../extension/startup-view-model.js'
 import type { DashboardLocalState } from './useDashboardLocalState'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
 
 export { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../extension/startup-snapshot.js'
-export type { DashboardStartupSnapshot, CachedDashboardStartup } from '../extension/startup-snapshot.js'
+export type { DashboardStartupSnapshot, CachedDashboardStartup, DashboardStartupViewModel } from '../extension/startup-snapshot.js'
 
 export type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
@@ -139,7 +140,9 @@ export async function fetchDashboardStartupSnapshot(options: DashboardSnapshotOp
   startupSnapshotFlight = { key, promise }
   try {
     const snapshot = await promise
-    void saveCachedDashboardStartupSnapshot(snapshot, options.localState ?? null)
+    void saveCachedDashboardStartupSnapshot(snapshot, options.localState ?? null, {
+      buildStartupViewModel: buildDashboardStartupViewModel
+    })
     return snapshot
   } finally {
     if (startupSnapshotFlight?.promise === promise) startupSnapshotFlight = null

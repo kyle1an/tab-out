@@ -1678,6 +1678,11 @@ test('useDashboardViewModels holds tabs chip order during the startup freeze and
     isReady: true,
     chipOrder: rememberedChipOrder
   }
+  const startupViewModel = buildDashboardViewModel({ realTabs: [], domainGroups: [] })
+  startupViewModel.stats.totalTabs = 99
+  const cached = useDashboardViewModels({ ...base, freezeTabsChipOrder: true, startupViewModel })
+  assert.equal(cached.dashboardVm, startupViewModel)
+  assert.equal(cached.stats.totalTabs, 99)
 
   // During the startup freeze the remembered order is ignored, so first paint and live
   // hydration both render the stable fallback order instead of re-sorting the chip window.

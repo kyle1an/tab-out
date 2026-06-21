@@ -5,14 +5,20 @@ import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { buildWorkingSetSnapshot } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPagesStore } from './saved-pages.js'
-import type { DashboardData, DashboardTab, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
+import type { DashboardData, DashboardTab, DashboardViewModel, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
 import type { DashboardLocalState } from '../hooks/useDashboardLocalState'
 
+export type DashboardStartupViewModel = {
+  pinnedPageChipIds: readonly string[]
+  pinnedSectionIds: readonly string[]
+  viewModel: DashboardViewModel
+}
 export type DashboardStartupSnapshot = {
   dashboard: DashboardData
   tabHistory: TabHistorySnapshot
   workingSet: WorkingSetSnapshot
   closedTabs: readonly ClosedTabEntry[]
+  startupViewModel?: DashboardStartupViewModel
 }
 export type CachedDashboardStartup = {
   snapshot: DashboardStartupSnapshot
@@ -23,6 +29,10 @@ type CachedDashboardStartupSnapshot = {
   workingSetSavedAt?: number
   snapshot: DashboardStartupSnapshot
   localState?: DashboardLocalState
+}
+type SaveCachedDashboardStartupOptions = {
+  buildStartupViewModel?: (snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null) => DashboardStartupViewModel
+  now?: number
 }
 
 export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1'
@@ -93,6 +103,28 @@ function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashbo
   return isObject(value) && typeof value.savedAt === 'number' && isDashboardStartupSnapshot(value.snapshot)
 }
 
+function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | undefined {
+  if (!isObject(value) || !isObject(value.viewModel)) return undefined
+  const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
+  const pinnedSectionIds = stringArray(value.pinnedSectionIds)
+  if (!pinnedPageChipIds || !pinnedSectionIds) return undefined
+  const viewModel = value.viewModel as Partial<DashboardViewModel>
+  if (
+    viewModel.source !== 'tabs' ||
+    !isObject(viewModel.stats) ||
+    !Array.isArray(viewModel.matchedCards) ||
+    !Array.isArray(viewModel.unmatchedCards) ||
+    typeof viewModel.showOtherTabs !== 'boolean' ||
+    !Array.isArray(viewModel.globalDedupeUrls) ||
+    !Array.isArray(viewModel.filteredCloseUrls)
+  ) return undefined
+  return {
+    pinnedPageChipIds,
+    pinnedSectionIds,
+    viewModel: viewModel as DashboardViewModel
+  }
+}
+
 async function cachedStartupWorkingSetForSave(storage: chrome.storage.StorageArea | null, now: number): Promise<{ workingSet: WorkingSetSnapshot; savedAt: number } | null> {
   if (!storage) return null
   try {
@@ -117,11 +149,14 @@ async function readCachedDashboardStartup(storage: chrome.storage.StorageArea | 
     const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
     if (!isCachedDashboardStartupSnapshot(cached)) return null
     if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) return null
+    const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
+    const startupViewModel = cachedStartupViewModel(rawStartupViewModel)
     return {
       snapshot: {
-        ...cached.snapshot,
-        tabHistory: normalizeTabHistorySnapshot(cached.snapshot.tabHistory),
-        workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet)
+        ...snapshot,
+        tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
+        workingSet: normalizeWorkingSetSnapshot(snapshot.workingSet),
+        ...(startupViewModel ? { startupViewModel } : {})
       },
       localState: cachedDashboardLocalState(cached.localState)
     }
@@ -147,14 +182,28 @@ async function writeStartupSnapshotCache(storage: chrome.storage.StorageArea | n
   if (!storage) return
   try {
     await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: payload })
-  } catch {}
+  } catch {
+    if (!payload.snapshot.startupViewModel) return
+    const { startupViewModel: _startupViewModel, ...snapshot } = payload.snapshot
+    try {
+      await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: { ...payload, snapshot } })
+    } catch {}
+  }
 }
 
-export async function saveCachedDashboardStartupSnapshot(snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null, now = Date.now()): Promise<void> {
+export async function saveCachedDashboardStartupSnapshot(snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null, { buildStartupViewModel, now = Date.now() }: SaveCachedDashboardStartupOptions = {}): Promise<void> {
   // The freeze epoch is in-session, so preserve the previously cached Working Set priority
   // from the session copy only; both copies then receive the same payload.
   const cachedWorkingSet = await cachedStartupWorkingSetForSave(startupSnapshotCacheStorage(), now)
-  const cacheSnapshot = cachedWorkingSet ? { ...snapshot, workingSet: cachedWorkingSet.workingSet } : snapshot
+  const cacheSnapshotBase = cachedWorkingSet ? { ...snapshot, workingSet: cachedWorkingSet.workingSet } : snapshot
+  let startupViewModel: DashboardStartupViewModel | undefined
+  try {
+    startupViewModel = buildStartupViewModel?.(cacheSnapshotBase, localState)
+  } catch {}
+  const cacheSnapshot = {
+    ...cacheSnapshotBase,
+    ...(startupViewModel ? { startupViewModel } : {})
+  }
   const payload: CachedDashboardStartupSnapshot = {
     savedAt: now,
     workingSetSavedAt: cachedWorkingSet?.savedAt ?? now,

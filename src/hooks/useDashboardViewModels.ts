@@ -2,8 +2,8 @@ import { useLayoutEffect, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
 import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
-import { buildDashboardViewModel } from '../extension/render.js'
-import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DomainGroup, WorkingSetSnapshot } from '../extension/types'
+import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet } from '../extension/render.js'
+import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import type { MissionOrderMap } from './useDashboardRefresh'
 
@@ -11,7 +11,6 @@ const EMPTY_TABS: DashboardData['realTabs'] = []
 const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []
 const EMPTY_CARD_ENTRIES: DashboardCardEntry[] = []
 const EMPTY_CHIP_ORDER_BY_CARD: DashboardChipOrderByCard = new Map()
-const EMPTY_CHIP_PRIORITY: DashboardChipPriorityMap = new Map()
 
 export type DashboardChipOrderMemoryMap = Record<DashboardSource, DashboardChipOrderByCard>
 
@@ -27,25 +26,10 @@ type DashboardViewModelOptions = {
   pinnedSections?: ReadonlySet<string>
   pinnedPageChips?: PinnedPageChipIndex
   freezeTabsChipOrder?: boolean
+  startupViewModel?: DashboardViewModel | null
 }
 
-function chipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | undefined): DashboardChipPriorityMap {
-  if (!workingSet?.items?.length) return EMPTY_CHIP_PRIORITY
-  const priority = new Map<string, number>()
-  function addPriorityKey(key: string, score: number) {
-    if (!key) return
-    priority.set(key, Math.max(priority.get(key) || 0, score))
-  }
-  for (const item of workingSet.items) {
-    if (!Number.isFinite(item.score) || item.score <= 0) continue
-    addPriorityKey(item.key, item.score)
-    addPriorityKey(item.tabUrl, item.score)
-    addPriorityKey(item.rawUrl, item.score)
-  }
-  return priority
-}
-
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder }: DashboardViewModelOptions) {
+export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder, startupViewModel }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
@@ -54,14 +38,14 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || EMPTY_DOMAIN_GROUPS
   const historyTabs = dashboard?.historyTabs || EMPTY_TABS
   const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
-  const chipPriority = source === 'tabs' ? chipPriorityFromWorkingSet(workingSet) : EMPTY_CHIP_PRIORITY
+  const chipPriority = source === 'tabs' ? dashboardChipPriorityFromWorkingSet(workingSet) : undefined
   // During the startup priority freeze, frozen Working Set priority plus the deterministic
   // fallback already fix the chip order. Remembered chip-order memory is empty at first paint
   // but populated by the time live hydration re-renders, so honoring it there re-sorts the
   // visible chip window and shifts Website Path sections. Hold it off until the freeze lifts.
   const mainChipOrder = freezeTabsChipOrder && source === 'tabs' ? EMPTY_CHIP_ORDER_BY_CARD : chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD
 
-  const dashboardVm = buildDashboardViewModel({
+  const dashboardVm = startupViewModel ?? buildDashboardViewModel({
     realTabs,
     domainGroups,
     filter,

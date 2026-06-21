@@ -113,6 +113,19 @@ test('startup snapshot cache paints any structurally valid session snapshot', as
 
   cached = {
     savedAt: now,
+    snapshot: {
+      ...snapshot,
+      startupViewModel: {
+        pinnedPageChipIds: [],
+        pinnedSectionIds: [],
+        viewModel: { matchedCards: [], unmatchedCards: [] }
+      }
+    }
+  }
+  assert.equal((await loadCachedDashboardStartup())?.snapshot.startupViewModel, undefined)
+
+  cached = {
+    savedAt: now,
     snapshot: { dashboard: {} }
   }
   assert.equal(await loadCachedDashboardStartup(), null)
@@ -295,12 +308,16 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   assert.equal(sessionsGetRecentlyClosedCount, 1)
   await new Promise((resolve) => setTimeout(resolve, 0))
   const cachedSnapshot = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-  assert.equal(cachedSnapshot?.snapshot, snapshot)
+  assert.equal(cachedSnapshot?.snapshot.dashboard, snapshot.dashboard)
+  assert.equal(cachedSnapshot?.snapshot.startupViewModel?.viewModel.matchedCards.length, 2)
+  assert.deepEqual(cachedSnapshot?.snapshot.startupViewModel?.pinnedSectionIds, ['section-alpha'])
+  assert.deepEqual(cachedSnapshot?.snapshot.startupViewModel?.pinnedPageChipIds, ['chip-alpha'])
   assert.deepEqual(cachedSnapshot?.localState?.pinnedDomains, ['example.test'])
   assert.deepEqual(cachedSnapshot?.localState?.pinnedSectionIds, ['section-alpha'])
   assert.deepEqual(cachedSnapshot?.localState?.pinnedPageChipIds, ['chip-alpha'])
   const durableSnapshot = durableStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-  assert.equal(durableSnapshot?.snapshot, snapshot)
+  assert.equal(durableSnapshot?.snapshot.dashboard, snapshot.dashboard)
+  assert.equal(durableSnapshot?.snapshot.startupViewModel?.viewModel.matchedCards.length, 2)
   assert.deepEqual(durableSnapshot?.localState?.pinnedDomains, ['example.test'])
   assert.deepEqual(runtimeMessages, ['tab-out:get-dashboard-service-state'])
 })

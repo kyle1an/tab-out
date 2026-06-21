@@ -30,7 +30,7 @@ import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './da
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import { readLocalCustomGroups } from './local-config.js'
 import { unwrapSuspenderUrl } from './suspension.js'
-import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup } from './types'
+import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
 export { pickFavicon } from './favicons.js'
@@ -133,6 +133,22 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
     globalDedupeUrls,
     filteredCloseUrls
   }
+}
+
+export function dashboardChipPriorityFromWorkingSet(workingSet: WorkingSetSnapshot | null | undefined): DashboardChipPriorityMap {
+  if (!workingSet?.items?.length) return new Map()
+  const priority = new Map<string, number>()
+  function addPriorityKey(key: string, score: number) {
+    if (!key) return
+    priority.set(key, Math.max(priority.get(key) || 0, score))
+  }
+  for (const item of workingSet.items) {
+    if (!Number.isFinite(item.score) || item.score <= 0) continue
+    addPriorityKey(item.key, item.score)
+    addPriorityKey(item.tabUrl, item.score)
+    addPriorityKey(item.rawUrl, item.score)
+  }
+  return priority
 }
 
 /**

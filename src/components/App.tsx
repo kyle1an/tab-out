@@ -165,6 +165,17 @@ function appDashboardReducer(state: AppDashboardState, action: AppDashboardActio
   }
 }
 
+function sameStringList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function startupViewModelMatchesLocalState(startupViewModel: DashboardStartupSnapshot['startupViewModel'], localState: DashboardLocalState | null): startupViewModel is NonNullable<DashboardStartupSnapshot['startupViewModel']> {
+  return !!startupViewModel &&
+    localState?.loaded === true &&
+    sameStringList(startupViewModel.pinnedSectionIds, localState.pinnedSectionIds) &&
+    sameStringList(startupViewModel.pinnedPageChipIds, localState.pinnedPageChipIds)
+}
+
 function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer[] {
   return refs.map((ref) => ref.current)
 }
@@ -636,6 +647,15 @@ export function App({
     onSectionPinSaveError: () => showToast('Could not save pinned section'),
     onPageChipPinSaveError: () => showToast('Could not save pinned page')
   })
+  const initialStartupViewModel = initialStartupSnapshot?.startupViewModel
+  const startupDashboardViewModel =
+    dashboard === initialStartupSnapshot?.dashboard &&
+    source === 'tabs' &&
+    filter.trim() === '' &&
+    !!effectiveStartupPriorityWorkingSet &&
+    startupViewModelMatchesLocalState(initialStartupViewModel, localState)
+      ? initialStartupViewModel.viewModel
+      : null
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
   const refreshDashboard = useDashboardRefresh({
     dashboard,
@@ -690,6 +710,7 @@ export function App({
     chipOrder: chipOrderRef.current,
     workingSet: effectiveStartupPriorityWorkingSet ?? workingSet,
     freezeTabsChipOrder: !!effectiveStartupPriorityWorkingSet,
+    startupViewModel: startupDashboardViewModel,
     pinnedSections,
     pinnedPageChips
   })
@@ -705,10 +726,11 @@ export function App({
         matchedCards: matchedCards.length,
         realTabs: dashboard.realTabs.length,
         source,
+        startupViewModel: !!startupDashboardViewModel,
         workingSet: (effectiveStartupPriorityWorkingSet ?? workingSet)?.items.length ?? 0
       }
     })
-  }, [dashboard, effectiveStartupPriorityWorkingSet, filter, initialStartupSnapshot, matchedCards.length, source, workingSet])
+  }, [dashboard, effectiveStartupPriorityWorkingSet, filter, initialStartupSnapshot, matchedCards.length, source, startupDashboardViewModel, workingSet])
 
   useLayoutEffect(() => {
     recordStartupOrderDebugVmSample(STARTUP_ORDER_DEBUG_CAPTURE, {
