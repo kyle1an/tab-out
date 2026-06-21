@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
-import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, LOCAL_PATH_GROUPERS_ACTIVE_KEY } from '../src/extension/startup-snapshot.js'
+import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, LOCAL_GROUPING_CONFIG_ACTIVE_KEY } from '../src/extension/startup-snapshot.js'
 
 function makeChromeTab(id: number, url: string, title: string): chrome.tabs.Tab {
   return {
@@ -82,7 +82,7 @@ test('startup snapshot service writes session + durable caches from worker-side 
   assert.deepEqual(writes.local.snapshot.dashboard.realTabs.map((tab: any) => tab.url), openTabs.map((tab) => tab.url))
 })
 
-test('startup snapshot service defers grouping when function path groupers are active', async () => {
+test('startup snapshot service defers grouping when local grouping config is active', async () => {
   let sessionWritten = false
   let tabsQueried = false
 
@@ -92,7 +92,7 @@ test('startup snapshot service defers grouping when function path groupers are a
     tabs: { query: async () => { tabsQueried = true; return [] } },
     storage: {
       session: { get: async () => ({}), set: async () => { sessionWritten = true } },
-      local: { get: async () => ({ [LOCAL_PATH_GROUPERS_ACTIVE_KEY]: true }), set: async () => {} }
+      local: { get: async () => ({ [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: true }), set: async () => {} }
     }
   }
 
@@ -103,5 +103,5 @@ test('startup snapshot service defers grouping when function path groupers are a
   await service.refreshNow()
 
   assert.equal(tabsQueried, false, 'does not gather tabs when deferring to the page')
-  assert.equal(sessionWritten, false, 'does not write a snapshot when path groupers are active')
+  assert.equal(sessionWritten, false, 'does not write a snapshot when page-only grouping config is active')
 })

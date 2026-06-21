@@ -44,17 +44,15 @@ function startupSnapshotDurableStorage(): chrome.storage.StorageArea | null {
   return typeof chrome === 'undefined' ? null : chrome.storage?.local || null
 }
 
-// The service worker has no `window` and cannot run function-based LOCAL_PATH_GROUPERS, so the
-// page records whether any are active. When set, the worker defers grouping to the page-written
-// cache instead of writing a snapshot that would group differently and shift on hydration. Stored
-// durably so the decision survives a browser restart before any page has run this session.
-export const LOCAL_PATH_GROUPERS_ACTIVE_KEY = 'tab-out:local-path-groupers-active'
+// The service worker has no `window`, so it cannot read config.local.js grouping hooks.
+// Keep the legacy key name so existing local installs keep the same persisted guard.
+export const LOCAL_GROUPING_CONFIG_ACTIVE_KEY = 'tab-out:local-path-groupers-active'
 
-export async function persistLocalPathGroupersActive(active: boolean): Promise<void> {
+export async function persistLocalGroupingConfigActive(active: boolean): Promise<void> {
   const storage = startupSnapshotDurableStorage()
   if (!storage) return
   try {
-    await storage.set({ [LOCAL_PATH_GROUPERS_ACTIVE_KEY]: active })
+    await storage.set({ [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: active })
   } catch {}
 }
 

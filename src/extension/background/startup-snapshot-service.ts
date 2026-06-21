@@ -2,7 +2,7 @@ import { fetchClosedTabs, isClosedTabFetchSuppressed } from '../closed-tabs.js'
 import { loadPinnedDomains } from '../domain-pins.js'
 import { getCurrentWindowId } from '../render.js'
 import { loadSavedPagesStore } from '../saved-pages.js'
-import { buildTabsDashboardStartupSnapshot, LOCAL_PATH_GROUPERS_ACTIVE_KEY, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
+import { buildTabsDashboardStartupSnapshot, LOCAL_GROUPING_CONFIG_ACTIVE_KEY, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs } from '../tabs.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
 
@@ -24,17 +24,17 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let inFlight: Promise<void> | null = null
 
-  async function pathGroupersActive(): Promise<boolean> {
+  async function localGroupingConfigActive(): Promise<boolean> {
     try {
-      const stored = await globalThis.chrome?.storage?.local?.get(LOCAL_PATH_GROUPERS_ACTIVE_KEY)
-      return stored?.[LOCAL_PATH_GROUPERS_ACTIVE_KEY] === true
+      const stored = await globalThis.chrome?.storage?.local?.get(LOCAL_GROUPING_CONFIG_ACTIVE_KEY)
+      return stored?.[LOCAL_GROUPING_CONFIG_ACTIVE_KEY] === true
     } catch {
       return false
     }
   }
 
   async function compute(): Promise<void> {
-    if (await pathGroupersActive()) return
+    if (await localGroupingConfigActive()) return
     const [openTabs, currentWindowId, tabHistory, workingSetActivity, savedPagesStore, pinnedDomains, closedTabs] = await Promise.all([
       fetchOpenTabsSnapshot(),
       getCurrentWindowId(),

@@ -5,8 +5,8 @@ import { requestDashboardRefresh } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
-import { persistLocalPathGroupersActive } from './extension/startup-snapshot.js'
-import { readLocalPathGroupers } from './extension/local-config.js'
+import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.js'
+import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
 
 type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
 
@@ -105,9 +105,8 @@ document.addEventListener(
 
 async function initializeApp() {
   mountToast()
-  // Tell the service worker whether function-based path groupers are active, so it knows
-  // whether it can safely pre-warm the startup snapshot or must defer grouping to the page.
-  void persistLocalPathGroupersActive(readLocalPathGroupers().length > 0)
+  // Tell the service worker whether page-only local grouping config is active.
+  void persistLocalGroupingConfigActive(readLocalCustomGroups().length > 0 || readLocalPathGroupers().length > 0)
   const cachedStartup = await loadCachedDashboardStartup()
   const startupSnapshot = cachedStartup?.snapshot ?? null
   const localState = cachedStartup?.localState ?? await loadDashboardLocalState()

@@ -19,6 +19,7 @@ import { createChromeApi } from './background/chrome-api.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
+import { groupColorChanged } from './groups.js'
 import {
   TAB_HISTORY_GET_MESSAGE,
   TAB_HISTORY_SWITCH_MESSAGE,
@@ -42,6 +43,10 @@ function refreshBadge() {
   updateBadge(chromeApi)
 }
 
+function scheduleStartupSnapshotRefresh() {
+  startupSnapshotService.scheduleRefresh()
+}
+
 // ─── Event listeners ──────────────────────────────────────────────────────────
 
 // Update badge when the extension is first installed
@@ -59,7 +64,7 @@ chromeApi.runtime.onStartup.addListener(() => {
 // Update badge whenever a tab is opened
 chromeApi.tabs.onCreated.addListener(() => {
   refreshBadge()
-  startupSnapshotService.scheduleRefresh()
+  scheduleStartupSnapshotRefresh()
 })
 
 // Track tab activation history so commands and close-redirect can
@@ -67,7 +72,7 @@ chromeApi.tabs.onCreated.addListener(() => {
 chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
   tabHistoryService.recordTabActivation(windowId, tabId)
   workingSetService.recordTabActivation(windowId, tabId)
-  startupSnapshotService.scheduleRefresh()
+  scheduleStartupSnapshotRefresh()
 })
 
 chromeApi.windows.onFocusChanged.addListener((windowId) => {
@@ -80,23 +85,45 @@ chromeApi.windows.onFocusChanged.addListener((windowId) => {
         if (typeof activeTab?.id === 'number') await workingSetService.recordTabActivation(windowId, activeTab.id)
       } catch {}
     })()
-    startupSnapshotService.scheduleRefresh()
+    scheduleStartupSnapshotRefresh()
   }
 })
+
+chromeApi.tabs.onMoved?.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabs.onAttached?.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabs.onDetached?.addListener(scheduleStartupSnapshotRefresh)
 
 // Update badge whenever a tab is closed
 chromeApi.tabs.onRemoved.addListener((tabId, removeInfo) => {
   refreshBadge()
   tabHistoryService.restorePreviousTabAfterClose(tabId, removeInfo)
-  startupSnapshotService.scheduleRefresh()
+  scheduleStartupSnapshotRefresh()
 })
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
 chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   refreshBadge()
   workingSetService.recordTabNavigation(tabId, changeInfo, tab)
-  if (changeInfo.url || changeInfo.status === 'complete') startupSnapshotService.scheduleRefresh()
+  if (
+    changeInfo.title !== undefined ||
+    changeInfo.url !== undefined ||
+    changeInfo.favIconUrl !== undefined ||
+    changeInfo.groupId !== undefined ||
+    changeInfo.pinned !== undefined ||
+    changeInfo.discarded !== undefined ||
+    changeInfo.audible !== undefined ||
+    changeInfo.mutedInfo !== undefined ||
+    changeInfo.status === 'complete'
+  )
+    scheduleStartupSnapshotRefresh()
 })
+
+chromeApi.tabGroups?.onCreated.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabGroups?.onUpdated.addListener((group) => {
+  if (groupColorChanged(group)) scheduleStartupSnapshotRefresh()
+})
+chromeApi.tabGroups?.onRemoved.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabGroups?.onMoved.addListener(scheduleStartupSnapshotRefresh)
 
 chromeApi.commands?.onCommand.addListener((command) => {
   if (command === 'switch-to-last-tab') {

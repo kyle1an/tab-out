@@ -204,11 +204,14 @@ test('service worker maintains the startup snapshot on browser startup and tab e
   assert.match(backgroundSource, /onStartup\.addListener/)
   assert.match(backgroundSource, /startupSnapshotService\.refreshNow\(\)/)
   assert.match(backgroundSource, /startupSnapshotService\.scheduleRefresh\(\)/)
+  assert.match(backgroundSource, /onMoved\?\.addListener\(scheduleStartupSnapshotRefresh\)/)
+  assert.match(backgroundSource, /changeInfo\.favIconUrl !== undefined/)
+  assert.match(backgroundSource, /chromeApi\.tabGroups\?\.onUpdated/)
   assert.match(serviceSource, /buildTabsDashboardStartupSnapshot/)
   assert.match(serviceSource, /saveCachedDashboardStartupSnapshot/)
-  assert.match(serviceSource, /LOCAL_PATH_GROUPERS_ACTIVE_KEY/)
-  // The page tells the worker whether function path groupers are active so it can defer grouping.
-  assert.match(appEntrySource, /persistLocalPathGroupersActive\(readLocalPathGroupers\(\)\.length > 0\)/)
+  assert.match(serviceSource, /LOCAL_GROUPING_CONFIG_ACTIVE_KEY/)
+  // The page tells the worker whether page-only local grouping config is active.
+  assert.match(appEntrySource, /persistLocalGroupingConfigActive\(readLocalCustomGroups\(\)\.length > 0 \|\| readLocalPathGroupers\(\)\.length > 0\)/)
 })
 
 test('recently closed rows do not fetch independently before initial dashboard readiness', () => {
