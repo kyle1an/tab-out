@@ -105,9 +105,9 @@ pnpm setup:hooks
 pnpm dev
 ```
 
-Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/` or the extension stylesheets; the repo watcher runs Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
+Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/`, the extension stylesheets, package metadata, or the manifest writer; the repo watcher runs manifest generation plus Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
 
-Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `extension/manifest.json`, permissions, or service-worker behavior. Changes to `extension/style.css` and `extension/base.css` now flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Changes to `extension/index.html` still need a page or extension reload to be picked up.
+Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `src/extension/manifest.ts`, permissions, or service-worker behavior. `pnpm build` regenerates `extension/manifest.json`. Changes to `extension/style.css` and `extension/base.css` now flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Changes to `extension/index.html` still need a page or extension reload to be picked up.
 
 The `extension/` folder is the unpacked Chrome package surface. Runtime source lives under `src/`; generated bundles live under `extension/dist/`.
 

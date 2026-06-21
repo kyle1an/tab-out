@@ -45,12 +45,13 @@ Update this section in the same patch when a change intentionally alters one of 
 
 - Runtime source lives under `src/`.
 - The unpacked Chrome extension surface is `extension/`.
+- Manifest source lives in `src/extension/manifest.ts`; `pnpm build` regenerates `extension/manifest.json`.
 - Vite builds:
   - `src/app.tsx` to `extension/dist/app.js`
   - `src/extension/background.ts` to `extension/dist/background.js`
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
 - `pnpm build` intentionally runs entry-specific Vite builds so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
-- `extension/base.css`, `extension/style.css`, and `vite.config.ts` are watched by `pnpm dev`.
+- `src/`, `extension/base.css`, `extension/style.css`, `package.json`, `scripts/write-manifest.ts`, and `vite.config.ts` are watched by `pnpm dev`.
 - `extension/index.html` and `extension/manifest.json` are runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
 - Do not hand-edit `extension/dist/*` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
 - When source or style changes legitimately alter `extension/dist/*`, include the generated bundle changes in the final ready-to-commit diff.

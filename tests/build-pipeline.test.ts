@@ -2,12 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 
+import { createExtensionManifest } from '../src/extension/manifest.js'
+
 test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('scripts/build-extension.mjs'), 'scripts/build-extension.mjs should build extension entries without shared runtime chunks')
+  assert.ok(existsSync('scripts/write-manifest.ts'), 'scripts/write-manifest.ts should generate the committed manifest package file')
   assert.ok(existsSync('scripts/watch-build.mjs'), 'scripts/watch-build.mjs should drive local rebuilds without watching dist output')
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
   assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
+  assert.ok(existsSync('src/extension/manifest.ts'), 'src/extension/manifest.ts should be the manifest source')
   assert.ok(existsSync('components.json'), 'components.json should define the shadcn project setup')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
@@ -62,11 +66,19 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.doesNotMatch(indexHtml, /src="app\.js"/)
 
   const manifest = JSON.parse(readFileSync('extension/manifest.json', 'utf8'))
+  assert.deepEqual(manifest, createExtensionManifest({ version: pkg.version }))
   assert.equal(manifest.background?.service_worker, 'dist/background.js')
+  assert.equal(manifest.version, pkg.version)
 
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   const buildScript = readFileSync('scripts/build-extension.mjs', 'utf8')
+  const writeManifestScript = readFileSync('scripts/write-manifest.ts', 'utf8')
+  const manifestSource = readFileSync('src/extension/manifest.ts', 'utf8')
   const watchScript = readFileSync('scripts/watch-build.mjs', 'utf8')
+  assert.match(writeManifestScript, /createExtensionManifest/)
+  assert.match(writeManifestScript, /extension\/manifest\.json/)
+  assert.match(manifestSource, /chrome\.runtime\.ManifestV3/)
+  assert.match(manifestSource, /permissions: \['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'favicon'\]/)
   assert.match(viteConfig, /reactCompilerPreset/)
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
   assert.match(viteConfig, /@tailwindcss\/vite/)
@@ -75,9 +87,12 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(viteConfig, /chunkFileNames: 'assets\/\[name\]-\[hash\]\.js'/)
   assert.match(viteConfig, /alias:\s*\{\n\s+'@': resolve\(__dirname, 'src'\)/)
   assert.match(viteConfig, /src\/extension\/background\.ts/)
+  assert.match(buildScript, /write-manifest\.ts/)
   assert.match(buildScript, /runBuild\('app'\)/)
   assert.match(buildScript, /runBuild\('background'\)/)
   assert.match(watchScript, /WATCH_TARGETS/)
+  assert.match(watchScript, /package\.json/)
+  assert.match(watchScript, /scripts\/write-manifest\.ts/)
   assert.match(watchScript, /\['build'\]/)
   assert.match(watchScript, /POLL_MS/)
   assert.doesNotMatch(watchScript, /extension\/dist/)

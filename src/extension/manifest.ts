@@ -1,0 +1,41 @@
+export type ExtensionManifestInput = {
+  version: string
+}
+
+export function createExtensionManifest(input: ExtensionManifestInput): chrome.runtime.ManifestV3 {
+  return {
+    manifest_version: 3,
+    name: 'Tab Out',
+    version: input.version,
+    description: 'Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.',
+    permissions: ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'favicon'],
+    chrome_url_overrides: { newtab: 'index.html' },
+    background: { service_worker: 'dist/background.js' },
+    commands: {
+      'switch-to-last-tab': {
+        description: 'Switch to the previous tab in global activation history'
+      },
+      'switch-to-next-tab': {
+        description: 'Switch forward to the next tab in global activation history'
+      },
+      'open-filter-tab': {
+        description: 'Open Tab Out with the filter focused'
+      },
+      'open-new-tab': {
+        description: 'Open a new Tab Out tab'
+      }
+    },
+    action: {
+      default_title: 'Tab Out',
+      default_icon: {
+        16: 'icons/icon16.png',
+        48: 'icons/icon48.png'
+      }
+    },
+    icons: {
+      16: 'icons/blank16.png',
+      48: 'icons/icon48.png',
+      128: 'icons/blank128.png'
+    }
+  }
+}
