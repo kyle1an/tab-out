@@ -1,6 +1,9 @@
 import type { ClosedTabEntry } from './closed-tabs.js'
+import { DOMAIN_PIN_STORAGE_KEY, normalizePinnedDomains } from './domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from './history-source.js'
+import { PAGE_CHIP_PIN_STORAGE_KEY, normalizePinnedPageChips } from './page-chip-pins.js'
 import { buildDashboardDataFromTabs } from './render.js'
+import { SECTION_PIN_STORAGE_KEY, normalizePinnedSections } from './section-pins.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { buildWorkingSetSnapshot } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
@@ -99,6 +102,15 @@ function cachedDashboardLocalState(value: unknown): DashboardLocalState | null {
   }
 }
 
+function dashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState {
+  return {
+    loaded: true,
+    pinnedDomains: normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY]),
+    pinnedSectionIds: normalizePinnedSections(stored[SECTION_PIN_STORAGE_KEY]),
+    pinnedPageChipIds: normalizePinnedPageChips(stored[PAGE_CHIP_PIN_STORAGE_KEY])
+  }
+}
+
 function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashboardStartupSnapshot {
   return isObject(value) && typeof value.savedAt === 'number' && isDashboardStartupSnapshot(value.snapshot)
 }
@@ -142,10 +154,12 @@ async function cachedStartupWorkingSetForSave(storage: chrome.storage.StorageAre
   }
 }
 
-async function readCachedDashboardStartup(storage: chrome.storage.StorageArea | null, maxAgeMs: number | null, now: number): Promise<CachedDashboardStartup | null> {
+async function readCachedDashboardStartup(storage: chrome.storage.StorageArea | null, maxAgeMs: number | null, now: number, includeLocalStateKeys = false): Promise<CachedDashboardStartup | null> {
   if (!storage) return null
   try {
-    const stored = await storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
+    const stored = await storage.get(includeLocalStateKeys
+      ? [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DOMAIN_PIN_STORAGE_KEY, SECTION_PIN_STORAGE_KEY, PAGE_CHIP_PIN_STORAGE_KEY]
+      : DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
     const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
     if (!isCachedDashboardStartupSnapshot(cached)) return null
     if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) return null
@@ -158,7 +172,7 @@ async function readCachedDashboardStartup(storage: chrome.storage.StorageArea | 
         workingSet: normalizeWorkingSetSnapshot(snapshot.workingSet),
         ...(startupViewModel ? { startupViewModel } : {})
       },
-      localState: cachedDashboardLocalState(cached.localState)
+      localState: cachedDashboardLocalState(cached.localState) ?? (includeLocalStateKeys ? dashboardLocalStateFromStorage(stored) : null)
     }
   } catch {
     return null
@@ -171,7 +185,7 @@ export async function loadCachedDashboardStartup(now = Date.now()): Promise<Cach
   const sessionStartup = await readCachedDashboardStartup(startupSnapshotCacheStorage(), null, now)
   if (sessionStartup) return sessionStartup
   // Fall back to the durable snapshot so the first open after a restart still paints warm.
-  return readCachedDashboardStartup(startupSnapshotDurableStorage(), DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, now)
+  return readCachedDashboardStartup(startupSnapshotDurableStorage(), DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, now, true)
 }
 
 export async function loadCachedDashboardStartupSnapshot(now = Date.now()): Promise<DashboardStartupSnapshot | null> {

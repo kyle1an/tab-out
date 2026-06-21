@@ -132,6 +132,7 @@ test('startup snapshot cache paints any structurally valid session snapshot', as
 })
 
 test('startup snapshot cache falls back to the durable local snapshot when the session copy is gone', async () => {
+  const localGetKeys: unknown[] = []
   const durableCached: Record<string, unknown> = {
     savedAt: now,
     snapshot: {
@@ -145,13 +146,25 @@ test('startup snapshot cache falls back to the durable local snapshot when the s
   ;(globalThis as any).chrome = {
     storage: {
       session: { get: async () => ({}) },
-      local: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: durableCached }) }
+      local: {
+        get: async (keys: unknown) => {
+          localGetKeys.push(keys)
+          return {
+            [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: durableCached,
+            [DOMAIN_PIN_STORAGE_KEY]: ['example.test'],
+            [SECTION_PIN_STORAGE_KEY]: ['section-alpha'],
+            [PAGE_CHIP_PIN_STORAGE_KEY]: ['chip-alpha']
+          }
+        }
+      }
     }
   }
 
   // Session cleared by a browser restart, durable copy still fresh → first open paints warm.
   const restored = await loadCachedDashboardStartup(now)
   assert.equal(restored?.snapshot.dashboard, (durableCached.snapshot as { dashboard: unknown }).dashboard)
+  assert.deepEqual(restored?.localState?.pinnedDomains, ['example.test'])
+  assert.deepEqual(localGetKeys, [[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DOMAIN_PIN_STORAGE_KEY, SECTION_PIN_STORAGE_KEY, PAGE_CHIP_PIN_STORAGE_KEY]])
 
   // A durable copy older than the cap is ignored rather than shown very stale.
   durableCached.savedAt = now - (DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS + 1)
