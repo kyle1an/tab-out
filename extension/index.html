@@ -19,6 +19,7 @@
     <!-- Vite bundles Tailwind plus the semantic extension styles from
        base.css/style.css into one packaged stylesheet. Component class
        names remain stable for code and design discussion. -->
+    <link rel="modulepreload" href="dist/app.js" />
     <link rel="stylesheet" href="dist/assets/app.css" />
   </head>
   <body>
@@ -31,7 +32,7 @@
      If the file doesn't exist, Chrome logs a harmless 404; the bundled dashboard
      falls back to built-in defaults. We can't silence the 404 with onerror="..." because
      Manifest V3's CSP forbids inline event handlers. -->
-    <script src="config.local.js"></script>
+    <script defer src="config.local.js"></script>
 
     <!-- Main dashboard logic — Vite builds React + TSX source into this
      packaged local ES module. `type="module"` defers execution until

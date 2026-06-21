@@ -55,7 +55,9 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(shadcnConfig.aliases?.lib, '@/lib')
 
   const indexHtml = readFileSync('extension/index.html', 'utf8')
+  assert.match(indexHtml, /rel="modulepreload" href="dist\/app\.js"/)
   assert.match(indexHtml, /href="dist\/assets\/app\.css"/)
+  assert.match(indexHtml, /<script defer src="config\.local\.js"><\/script>/)
   assert.match(indexHtml, /src="dist\/app\.js"/)
   assert.doesNotMatch(indexHtml, /src="app\.js"/)
 
