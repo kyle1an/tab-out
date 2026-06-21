@@ -19,7 +19,7 @@ import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
 import { DashboardActionsProvider, HoverStateProvider } from './DashboardInteractionContext'
-import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupOrderDebugVmSample, startStartupOrderDebugDomSampling } from './startup-order-debug'
+import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupOrderDebugVmSample, recordStartupTiming, startStartupOrderDebugDomSampling } from './startup-order-debug'
 import { cn } from '@/lib/utils'
 import type {
   DashboardCardEntry,
@@ -539,6 +539,14 @@ export function App({
     dispatchAppDashboard({ type: 'dashboard', dashboard: nextDashboard })
   }
   function setStartupSnapshot(snapshot: DashboardStartupSnapshot) {
+    recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-snapshot-applied', {
+      detail: {
+        closedTabs: snapshot.closedTabs.length,
+        domainGroups: snapshot.dashboard.domainGroups.length,
+        realTabs: snapshot.dashboard.realTabs.length,
+        workingSet: snapshot.workingSet.items.length
+      }
+    })
     dispatchAppDashboard({ type: 'startupSnapshot', snapshot })
   }
   function setHistoryRange(nextHistoryRange: string) {
@@ -551,6 +559,7 @@ export function App({
     dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
   }
   const closedTabsSeqRef = useRef(0)
+  const firstDashboardLayoutRecordedRef = useRef(false)
   const startupRefreshRequestedRef = useRef(false)
   const refreshClosedTabs = useCallback(async function refreshClosedTabs() {
     if (isClosedTabFetchSuppressed()) return
@@ -686,6 +695,22 @@ export function App({
   })
 
   useLayoutEffect(() => {
+    if (firstDashboardLayoutRecordedRef.current || !dashboard) return
+    firstDashboardLayoutRecordedRef.current = true
+    recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'first-dashboard-layout', {
+      detail: {
+        cachedStartupSnapshot: !!initialStartupSnapshot,
+        domainGroups: dashboard.domainGroups.length,
+        filterActive: filter.trim() !== '',
+        matchedCards: matchedCards.length,
+        realTabs: dashboard.realTabs.length,
+        source,
+        workingSet: (effectiveStartupPriorityWorkingSet ?? workingSet)?.items.length ?? 0
+      }
+    })
+  }, [dashboard, effectiveStartupPriorityWorkingSet, filter, initialStartupSnapshot, matchedCards.length, source, workingSet])
+
+  useLayoutEffect(() => {
     recordStartupOrderDebugVmSample(STARTUP_ORDER_DEBUG_CAPTURE, {
       dashboard,
       source,
@@ -783,6 +808,9 @@ export function App({
   useEffect(() => {
     if (startupRefreshRequestedRef.current || !localStateLoaded) return
     startupRefreshRequestedRef.current = true
+    recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-refresh-requested', {
+      detail: { localStateLoaded }
+    })
     void refreshDashboard({ startupSnapshot: true })
   }, [localStateLoaded, refreshDashboard])
 

@@ -67,15 +67,18 @@ localStorage.setItem('tab-out:debug-startup-order-filter', 'example\\.com')
 (`?taboutStartupOrderDebug` in the URL works too.) Reload, then read it:
 
 ```js
-window.__tabOutStartupOrderDebug        // { samples: [...], shifts: [...] }
+window.__tabOutStartupOrderDebug        // { timings: [...], samples: [...], shifts: [...] }
 window.__tabOutSaveStartupOrderDebug()  // download it as JSON
 window.__tabOutCopyStartupOrderDebug()  // copy it to the clipboard
 ```
 
-Each `vm` sample records the rendered card/section/chip order for one render;
-`shifts` records `layout-shift` PerformanceObserver entries (global, not filtered).
-The first `vm` sample is the cached first paint; later ones are live hydration and
-refreshes. Disable with `localStorage.removeItem('tab-out:debug-startup-order')`.
+`timings` records the startup phase sequence (`startup-cache-loaded`,
+`local-state-ready`, `first-dashboard-layout`, and live hydration marks) with
+`durationMs` on async storage reads. Each `vm` sample records the rendered
+card/section/chip order for one render; `shifts` records `layout-shift`
+PerformanceObserver entries (global, not filtered). The first `vm` sample is the
+cached first paint; later ones are live hydration and refreshes. Disable with
+`localStorage.removeItem('tab-out:debug-startup-order')`.
 
 ### The reload-diff loop
 

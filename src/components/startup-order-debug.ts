@@ -10,6 +10,18 @@ export type StartupOrderDebugCapture = {
   enabledAt: string
   samples: unknown[]
   shifts: unknown[]
+  timings: StartupTiming[]
+}
+export type StartupTiming = {
+  kind: 'timing'
+  label: string
+  t: number
+  durationMs?: number
+  detail?: Record<string, unknown>
+}
+type StartupTimingOptions = {
+  startedAt?: number
+  detail?: Record<string, unknown>
 }
 type StartupOrderDebugWindow = Window & {
   __tabOutStartupOrderDebug?: StartupOrderDebugCapture
@@ -65,6 +77,10 @@ function rectSnapshot(rect?: DOMRectReadOnly) {
     x: Math.round(rect.x),
     y: Math.round(rect.y)
   }
+}
+
+export function startupDebugNow(): number {
+  return typeof performance === 'undefined' ? Date.now() : performance.now()
 }
 
 function debugChips(root: Element, blockedSelector = '') {
@@ -239,7 +255,8 @@ function startupOrderDebugCapture(): StartupOrderDebugCapture | null {
   const capture: StartupOrderDebugCapture = {
     enabledAt: new Date().toISOString(),
     samples: [],
-    shifts: []
+    shifts: [],
+    timings: []
   }
   debugWindow.__tabOutStartupOrderDebug = capture
   debugWindow.__tabOutCopyStartupOrderDebug = async () => {
@@ -290,6 +307,19 @@ function startupOrderDebugCapture(): StartupOrderDebugCapture | null {
 }
 
 export const STARTUP_ORDER_DEBUG_CAPTURE = typeof window === 'undefined' ? null : startupOrderDebugCapture()
+
+export function recordStartupTiming(capture: StartupOrderDebugCapture | null, label: string, options: StartupTimingOptions = {}): void {
+  if (!capture) return
+  const now = startupDebugNow()
+  const timing: StartupTiming = {
+    kind: 'timing',
+    label,
+    t: Math.round(now)
+  }
+  if (options.startedAt !== undefined) timing.durationMs = Math.max(0, Math.round(now - options.startedAt))
+  if (options.detail) timing.detail = options.detail
+  capture.timings.push(timing)
+}
 
 export function recordStartupOrderDebugVmSample(capture: StartupOrderDebugCapture | null, options: StartupOrderVmSampleOptions): void {
   if (!capture) return

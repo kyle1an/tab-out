@@ -7,8 +7,11 @@ import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.js'
 import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
+import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
 type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
+
+recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 
 let refreshTimer: number | null = null
 let refreshTimerOptions: RefreshOptions = {}
@@ -104,12 +107,37 @@ document.addEventListener(
 )
 
 async function initializeApp() {
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
   mountToast()
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'toast-mounted')
   // Tell the service worker whether page-only local grouping config is active.
-  void persistLocalGroupingConfigActive(readLocalCustomGroups().length > 0 || readLocalPathGroupers().length > 0)
+  const localGroupingConfigActive = readLocalCustomGroups().length > 0 || readLocalPathGroupers().length > 0
+  void persistLocalGroupingConfigActive(localGroupingConfigActive)
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-grouping-guard-scheduled', {
+    detail: { localGroupingConfigActive }
+  })
+  const cacheStartedAt = startupDebugNow()
   const cachedStartup = await loadCachedDashboardStartup()
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded', {
+    startedAt: cacheStartedAt,
+    detail: {
+      localStateHit: !!cachedStartup?.localState,
+      snapshotHit: !!cachedStartup?.snapshot
+    }
+  })
   const startupSnapshot = cachedStartup?.snapshot ?? null
+  const localStateStartedAt = startupDebugNow()
   const localState = cachedStartup?.localState ?? await loadDashboardLocalState()
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
+    ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
+    detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
+  })
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'mount-app', {
+    detail: {
+      localStateReady: !!localState,
+      startupSnapshot: !!startupSnapshot
+    }
+  })
   mountApp(startupSnapshot, localState)
 }
 
