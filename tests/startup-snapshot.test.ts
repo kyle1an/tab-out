@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
+import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
 import { loadDashboardLocalState } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
@@ -377,7 +377,7 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
   assert.equal(cachedSnapshot?.workingSetSavedAt, now)
 
   cachedStartupSnapshot = null
-  existingCache.workingSetSavedAt = Date.now() - 60_001
+  existingCache.workingSetSavedAt = Date.now() - (DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS + 1)
   await fetchDashboardStartupSnapshot({
     source: 'tabs',
     filter: '',

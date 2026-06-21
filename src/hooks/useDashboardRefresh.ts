@@ -60,7 +60,11 @@ type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
 }
 
 export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1'
-const DASHBOARD_STARTUP_SNAPSHOT_CACHE_TTL_MS = 60_000
+// How long the first-paint Working Set priority stays frozen across reopens before the next
+// live hydration adopts a fresh Working Set. Longer keeps chip/section ordering stable across
+// reopens at the cost of staler prioritization; capped in practice by the browser session
+// because chrome.storage.session clears on restart.
+export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 let startupSnapshotFlight: { key: string; promise: Promise<DashboardStartupSnapshot> } | null = null
 
 function startupSnapshotCacheStorage(): chrome.storage.StorageArea | null {
@@ -110,7 +114,7 @@ async function cachedStartupWorkingSetForSave(storage: chrome.storage.StorageAre
     const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
     if (!isCachedDashboardStartupSnapshot(cached)) return null
     const savedAt = typeof cached.workingSetSavedAt === 'number' ? cached.workingSetSavedAt : cached.savedAt
-    if (now - savedAt > DASHBOARD_STARTUP_SNAPSHOT_CACHE_TTL_MS) return null
+    if (now - savedAt > DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS) return null
     return {
       workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet),
       savedAt
