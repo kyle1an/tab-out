@@ -71,7 +71,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
   assert.match(viteConfig, /@tailwindcss\/vite/)
   assert.match(viteConfig, /TAB_OUT_BUILD_ENTRY/)
-  assert.match(viteConfig, /codeSplitting: false/)
+  assert.match(viteConfig, /buildEntry === 'background' \? \{ codeSplitting: false \} : \{\}/)
+  assert.match(viteConfig, /chunkFileNames: 'assets\/\[name\]-\[hash\]\.js'/)
   assert.match(viteConfig, /alias:\s*\{\n\s+'@': resolve\(__dirname, 'src'\)/)
   assert.match(viteConfig, /src\/extension\/background\.ts/)
   assert.match(buildScript, /runBuild\('app'\)/)
@@ -625,8 +626,11 @@ test('built extension bundle is packaged locally', () => {
   assert.ok(existsSync('extension/dist/assets/app.css'), 'extension/dist/assets/app.css should be committed stylesheet output')
 
   const distFiles = readdirSync('extension/dist').sort()
+  const assetFiles = readdirSync('extension/dist/assets').sort()
   assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js'])
-  assert.deepEqual(readdirSync('extension/dist/assets').sort(), ['app.css'])
+  assert.equal(assetFiles[0], 'app.css')
+  assert.equal(assetFiles.length, 2)
+  assert.match(assetFiles[1], /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/)
   assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), ['config.local.js'])
 
   const bundle = readFileSync('extension/dist/app.js', 'utf8')

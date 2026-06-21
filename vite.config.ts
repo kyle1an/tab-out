@@ -14,7 +14,6 @@ const buildInputs: Record<string, string> =
           app: resolve(__dirname, 'src/app.tsx'),
           background: resolve(__dirname, 'src/extension/background.ts')
         }
-const isSingleEntryBuild = buildEntry === 'app' || buildEntry === 'background'
 
 export default defineConfig({
   plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
@@ -33,7 +32,8 @@ export default defineConfig({
       input: buildInputs,
       output: {
         entryFileNames: '[name].js',
-        ...(isSingleEntryBuild ? { codeSplitting: false } : {}),
+        chunkFileNames: 'assets/[name]-[hash].js',
+        ...(buildEntry === 'background' ? { codeSplitting: false } : {}),
         assetFileNames: 'assets/[name][extname]'
       }
     }
