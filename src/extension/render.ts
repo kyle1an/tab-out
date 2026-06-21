@@ -20,8 +20,7 @@
    ================================================================ */
 
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
-import { fetchBookmarksSourceItems } from './bookmarks.js'
-import { DEFAULT_HISTORY_RANGE, fetchHistorySourceItems } from './history-source.js'
+import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, savedPagesStoresEqual, saveSavedPagesStore, type SavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
@@ -71,6 +70,8 @@ type FetchDashboardDataOptions = {
   searchQuery?: string
   historyRange?: string
   dashboardTabs?: DashboardTab[]
+  bookmarkTabs?: DashboardTab[]
+  historyTabs?: DashboardTab[]
   currentWindowId?: number | null
   savedPagesStore?: SavedPagesStore
 }
@@ -214,25 +215,25 @@ export async function buildDashboardDataFromTabs(
     includeHistoryMatches = false,
     searchQuery = '',
     historyRange = DEFAULT_HISTORY_RANGE,
+    bookmarkTabs = [],
+    historyTabs = [],
     savedPagesStore
   }: FetchDashboardDataOptions = {}
 ): Promise<Required<DashboardData>> {
   const groupingConfig = getDashboardGroupingConfig()
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
-  const [resolvedSavedPagesStore, bookmarkTabs, historyTabs] = await Promise.all([
-    savedPagesStore ? Promise.resolve(savedPagesStore) : loadSavedPagesStore(),
-    includeBookmarkMatches ? fetchBookmarksSourceItems() : Promise.resolve([]),
-    includeHistoryMatches ? fetchHistorySourceItems(searchQuery, historyRange) : Promise.resolve([])
-  ])
+  const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
+  const companionBookmarkTabs = includeBookmarkMatches ? bookmarkTabs : []
+  const companionHistoryTabs = includeHistoryMatches ? historyTabs : []
   const savedPagesMerge = mergeSavedPagesWithTabs(dashboardTabs, resolvedSavedPagesStore)
   if (!savedPagesStoresEqual(resolvedSavedPagesStore, savedPagesMerge.store)) {
     void saveSavedPagesStoreBestEffort(savedPagesMerge.store)
   }
   const realTabs = savedPagesMerge.tabs
-  const annotatedBookmarkTabs = annotateSavedPageHints(bookmarkTabs, savedPagesMerge.store)
+  const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)
   const priorCompanionKeys = new Set<string>()
   addMatchingItemIdentityKeys(priorCompanionKeys, realTabs, searchQuery)
-  const dedupedHistoryTabs = includeHistoryMatches ? removePriorSourceMatches(historyTabs, priorCompanionKeys) : historyTabs
+  const dedupedHistoryTabs = includeHistoryMatches ? removePriorSourceMatches(companionHistoryTabs, priorCompanionKeys) : companionHistoryTabs
   addMatchingItemIdentityKeys(priorCompanionKeys, dedupedHistoryTabs, searchQuery)
   const dedupedBookmarkTabs = includeBookmarkMatches ? removePriorSourceMatches(annotatedBookmarkTabs, priorCompanionKeys) : annotatedBookmarkTabs
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
@@ -274,16 +275,15 @@ export async function fetchDashboardData(
     searchQuery = '',
     historyRange = DEFAULT_HISTORY_RANGE,
     dashboardTabs,
+    bookmarkTabs = [],
+    historyTabs = [],
     currentWindowId,
     savedPagesStore
   }: FetchDashboardDataOptions = {}
 ): Promise<Required<DashboardData>> {
   const groupingConfig = getDashboardGroupingConfig()
   if (source === 'bookmarks') {
-    const [bookmarkTabs, resolvedSavedPagesStore] = await Promise.all([
-      fetchBookmarksSourceItems(),
-      savedPagesStore ? Promise.resolve(savedPagesStore) : loadSavedPagesStore()
-    ])
+    const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
     const realTabs = annotateSavedPageHints(bookmarkTabs, resolvedSavedPagesStore)
     const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
     return {
@@ -316,6 +316,8 @@ export async function fetchDashboardData(
     includeHistoryMatches,
     searchQuery,
     historyRange,
+    bookmarkTabs,
+    historyTabs,
     savedPagesStore
   })
 }

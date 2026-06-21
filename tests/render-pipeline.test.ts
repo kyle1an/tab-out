@@ -2237,63 +2237,47 @@ test('filter search readiness rejects stale side-search snapshots', () => {
 })
 
 test('filter companion results dedupe by tabs, then history, then bookmarks', async () => {
-  const originalBookmarks = (globalThis.chrome as any).bookmarks
-  const originalHistory = (globalThis.chrome as any).history
-  ;(globalThis.chrome as any).bookmarks = {
-    async getTree() {
-      return [
-        {
-          id: 'root',
-          title: 'Bookmarks',
-          children: [
-            { id: 'b1', title: 'World Open Bookmark', url: 'https://priority.test/open' },
-            { id: 'b2', title: 'World History Bookmark', url: 'https://priority.test/history' },
-            { id: 'b3', title: 'World Bookmark', url: 'https://priority.test/bookmark' }
-          ]
-        }
+  const bookmarkTabs = flattenBookmarkNodes([
+    {
+      id: 'root',
+      title: 'Bookmarks',
+      children: [
+        { id: 'b1', title: 'World Open Bookmark', url: 'https://priority.test/open' },
+        { id: 'b2', title: 'World History Bookmark', url: 'https://priority.test/history' },
+        { id: 'b3', title: 'World Bookmark', url: 'https://priority.test/bookmark' }
       ]
     }
-  }
-  ;(globalThis.chrome as any).history = {
-    async search() {
-      return [
-        { id: 'h1', title: 'World Open History', url: 'https://priority.test/open' },
-        { id: 'h2', title: 'World History', url: 'https://priority.test/history' }
-      ]
+  ])
+  const historyTabs = flattenHistoryItems([
+    { id: 'h1', title: 'World Open History', url: 'https://priority.test/open' },
+    { id: 'h2', title: 'World History', url: 'https://priority.test/history' }
+  ])
+  const dashboard = await buildDashboardDataFromTabs(
+    [makeTab({ url: 'https://priority.test/open', title: 'World Open' })],
+    1,
+    new Map(),
+    {
+      includeBookmarkMatches: true,
+      includeHistoryMatches: true,
+      searchQuery: 'world',
+      historyRange: '7d',
+      bookmarkTabs,
+      historyTabs
     }
-  }
+  )
 
-  try {
-    const dashboard = await buildDashboardDataFromTabs(
-      [makeTab({ url: 'https://priority.test/open', title: 'World Open' })],
-      1,
-      new Map(),
-      {
-        includeBookmarkMatches: true,
-        includeHistoryMatches: true,
-        searchQuery: 'world',
-        historyRange: '7d'
-      }
-    )
-
-    assert.deepEqual(
-      dashboard.historyTabs.map((tab) => tab.url),
-      ['https://priority.test/history']
-    )
-    assert.deepEqual(
-      dashboard.bookmarkTabs.map((tab) => tab.url),
-      ['https://priority.test/bookmark']
-    )
-    assert.deepEqual(
-      dashboard.bookmarkDomainGroups.flatMap((group) => group.tabs.map((tab) => tab.url)),
-      ['https://priority.test/bookmark']
-    )
-  } finally {
-    if (originalBookmarks === undefined) delete (globalThis.chrome as any).bookmarks
-    else (globalThis.chrome as any).bookmarks = originalBookmarks
-    if (originalHistory === undefined) delete (globalThis.chrome as any).history
-    else (globalThis.chrome as any).history = originalHistory
-  }
+  assert.deepEqual(
+    dashboard.historyTabs.map((tab) => tab.url),
+    ['https://priority.test/history']
+  )
+  assert.deepEqual(
+    dashboard.bookmarkTabs.map((tab) => tab.url),
+    ['https://priority.test/bookmark']
+  )
+  assert.deepEqual(
+    dashboard.bookmarkDomainGroups.flatMap((group) => group.tabs.map((tab) => tab.url)),
+    ['https://priority.test/bookmark']
+  )
 })
 
 test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {

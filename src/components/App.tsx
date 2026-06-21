@@ -4,7 +4,7 @@ import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges,
 import { useMissionsMasonry } from '../extension/layout.js'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
-import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-source.js'
+import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-range.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'

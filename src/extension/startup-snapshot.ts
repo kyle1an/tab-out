@@ -1,6 +1,6 @@
 import type { ClosedTabEntry } from './closed-tabs.js'
 import { DOMAIN_PIN_STORAGE_KEY, normalizePinnedDomains } from './domain-pins.js'
-import { DEFAULT_HISTORY_RANGE } from './history-source.js'
+import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, normalizePinnedPageChips } from './page-chip-pins.js'
 import { buildDashboardDataFromTabs } from './render.js'
 import { SECTION_PIN_STORAGE_KEY, normalizePinnedSections } from './section-pins.js'

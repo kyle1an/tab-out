@@ -1,7 +1,6 @@
 import { requestDashboardRefresh } from './dashboard-controller.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
-import { deleteHistorySourceUrl } from './history-source.js'
 import { buildSuspendUrl, getSuspendTarget, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
 import { closeDuplicateTabs, closeTabsExact, fetchOpenTabs, snapshotChromeTabs } from './tabs.js'
 import { showToast } from './toast.js'
@@ -214,6 +213,7 @@ export async function closeChipTarget({ tabUrl, tabId, envs = null, onAfterClose
 export async function deleteHistoryUrls({ urls, onAfterDelete }: DeleteHistoryUrlsOptions): Promise<HistoryDeleteResult> {
   if (urls.length === 0) return { deletedCount: 0 }
 
+  const { deleteHistorySourceUrl } = await import('./history-source.js')
   const results = await Promise.all(urls.map((url) => deleteHistorySourceUrl(url)))
   const deletedCount = results.filter(Boolean).length
   const result = { deletedCount }

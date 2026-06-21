@@ -1,4 +1,4 @@
-import { DEFAULT_HISTORY_RANGE } from './history-source.js'
+import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { dashboardSourceAllowsSideSearches } from './dashboard-source.js'
 import type { DashboardData, DashboardSource } from './types'
 

@@ -1,0 +1,1 @@
+import{g as e}from"../app.js";function t(t){let n=[];function r(t){t&&(t.url&&n.push(e({id:t.id,url:t.url,title:t.title||``,sourceType:`bookmark`})),Array.isArray(t.children)&&t.children.forEach(r))}return t.forEach(r),n}async function n(){if(!chrome.bookmarks?.getTree)return[];try{return t(await chrome.bookmarks.getTree())}catch{return[]}}export{n as fetchBookmarksSourceItems};

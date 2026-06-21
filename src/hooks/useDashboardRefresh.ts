@@ -50,6 +50,16 @@ type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
 
 let startupSnapshotFlight: { key: string; promise: Promise<DashboardStartupSnapshot> } | null = null
 
+async function fetchBookmarksSourceItemsLazy(): Promise<DashboardData['realTabs']> {
+  const { fetchBookmarksSourceItems } = await import('../extension/bookmarks.js')
+  return fetchBookmarksSourceItems()
+}
+
+async function fetchHistorySourceItemsLazy(query: string, range: string): Promise<DashboardData['realTabs']> {
+  const { fetchHistorySourceItems } = await import('../extension/history-source.js')
+  return fetchHistorySourceItems(query, range)
+}
+
 function startupSnapshotFlightKey({ source, filter, historyRange, historyFilterEnabled, pinnedDomains }: DashboardSnapshotOptions): string {
   return JSON.stringify({
     source,
@@ -62,11 +72,13 @@ function startupSnapshotFlightKey({ source, filter, historyRange, historyFilterE
 
 async function fetchTabsDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, savedPagesStore, previousOrder }: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
-  const [openTabs, currentWindowId, serviceState, resolvedSavedPagesStore] = await Promise.all([
+  const [openTabs, currentWindowId, serviceState, resolvedSavedPagesStore, bookmarkTabs, historyTabs] = await Promise.all([
     fetchOpenTabsSnapshot(),
     getCurrentWindowId(),
     fetchDashboardServiceState(),
-    savedPagesStore ? Promise.resolve(savedPagesStore) : loadSavedPagesStore()
+    savedPagesStore ? Promise.resolve(savedPagesStore) : loadSavedPagesStore(),
+    filterSearch.includeBookmarkMatches ? fetchBookmarksSourceItemsLazy() : Promise.resolve([]),
+    filterSearch.includeHistoryMatches ? fetchHistorySourceItemsLazy(filterSearch.query, filterSearch.historyRange) : Promise.resolve([])
   ])
   const dashboardTabs = getDashboardTabsFromOpenTabs(openTabs)
   const dashboard = await buildDashboardDataFromTabs(dashboardTabs, currentWindowId, previousOrder[source] || new Map(), {
@@ -77,6 +89,8 @@ async function fetchTabsDashboardSnapshot({ source, filter, historyRange, histor
     includeHistoryMatches: filterSearch.includeHistoryMatches,
     searchQuery: filterSearch.query,
     historyRange: filterSearch.historyRange,
+    bookmarkTabs,
+    historyTabs,
     savedPagesStore: resolvedSavedPagesStore
   })
   const workingSet = buildWorkingSetSnapshot({
@@ -95,15 +109,16 @@ export async function fetchDashboardSnapshot({ source, filter, historyRange, his
 
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
   const [dashboard, tabHistory, workingSet] = await Promise.all([
-    fetchDashboardData(previousOrder[source] || new Map(), source, {
+    (async () => fetchDashboardData(previousOrder[source] || new Map(), source, {
       pinnedDomains,
       bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
       historyPreviousOrder: previousOrder.history || new Map(),
       includeBookmarkMatches: filterSearch.includeBookmarkMatches,
       includeHistoryMatches: filterSearch.includeHistoryMatches,
       searchQuery: filterSearch.query,
-      historyRange: filterSearch.historyRange
-    }),
+      historyRange: filterSearch.historyRange,
+      bookmarkTabs: source === 'bookmarks' ? await fetchBookmarksSourceItemsLazy() : []
+    }))(),
     fetchTabHistorySnapshot(),
     fetchWorkingSetSnapshot()
   ])

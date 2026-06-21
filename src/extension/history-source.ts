@@ -1,23 +1,12 @@
 import { makeDashboardItem } from './dashboard-item.js'
+import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from './history-range.js'
 import type { DashboardTab } from './types'
+
+export { DEFAULT_HISTORY_RANGE, HISTORY_FILTER_OFF, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from './history-range.js'
 
 type HistoryItemLike = Pick<chrome.history.HistoryItem, 'id' | 'title' | 'url'>
 
 const HISTORY_MAX_RESULTS = 30
-
-export const DEFAULT_HISTORY_RANGE = '1d'
-export const HISTORY_FILTER_OFF = 'off'
-export const HISTORY_RANGE_OPTIONS = [
-  { value: HISTORY_FILTER_OFF, label: 'History off', days: 0 },
-  { value: '1d', label: 'Last day', days: 1 },
-  { value: '7d', label: 'Last week', days: 7 },
-  { value: '30d', label: 'Last month', days: 30 },
-  { value: '90d', label: 'Last 3 months', days: 90 }
-]
-
-export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE): boolean {
-  return range !== HISTORY_FILTER_OFF
-}
 
 function historyRangeDays(range = DEFAULT_HISTORY_RANGE): number {
   return HISTORY_RANGE_OPTIONS.find((option) => option.value === range)?.days || 90
