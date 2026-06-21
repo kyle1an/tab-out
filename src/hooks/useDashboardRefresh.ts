@@ -165,6 +165,7 @@ export function useDashboardRefresh({
 }: UseDashboardRefreshOptions) {
   const callbacksRef = useRef({ onBeforeAnimatedRefresh, onBeforePinnedRefresh })
   const refreshRef = useRef<(options?: RefreshOptions) => Promise<void>>(async () => {})
+  const startupRefreshFlightRef = useRef<Promise<void> | null>(null)
   const startupRefreshPendingRef = useRef(false)
   const animatedRefreshPendingRef = useRef(false)
 
@@ -180,18 +181,27 @@ export function useDashboardRefresh({
     const shouldAnimate = animatedRefreshPendingRef.current
     if (shouldAnimate) callbacksRef.current.onBeforeAnimatedRefresh?.()
     if (source === 'tabs' && (!dashboard || startupRefreshPendingRef.current)) {
-      const nextStartup = await fetchDashboardStartupSnapshot({
-        source,
-        filter,
-        historyRange,
-        historyFilterEnabled,
-        pinnedDomains,
-        localState,
-        previousOrder
-      })
-      startupRefreshPendingRef.current = false
-      animatedRefreshPendingRef.current = false
-      setStartupSnapshot(nextStartup)
+      if (startupRefreshFlightRef.current) return startupRefreshFlightRef.current
+      const startupRefreshFlight = (async () => {
+        const nextStartup = await fetchDashboardStartupSnapshot({
+          source,
+          filter,
+          historyRange,
+          historyFilterEnabled,
+          pinnedDomains,
+          localState,
+          previousOrder
+        })
+        startupRefreshPendingRef.current = false
+        animatedRefreshPendingRef.current = false
+        setStartupSnapshot(nextStartup)
+      })()
+      startupRefreshFlightRef.current = startupRefreshFlight
+      try {
+        await startupRefreshFlight
+      } finally {
+        if (startupRefreshFlightRef.current === startupRefreshFlight) startupRefreshFlightRef.current = null
+      }
       return
     }
     const next = await fetchDashboardSnapshot({
