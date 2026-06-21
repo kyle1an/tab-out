@@ -8,11 +8,9 @@ import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/hist
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
+import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
-import { usePinnedDomains } from '../hooks/usePinnedDomains'
-import { usePinnedPageChips } from '../hooks/usePinnedPageChips'
-import { usePinnedSections } from '../hooks/usePinnedSections'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar, HistoryRangeSelect } from './HeaderBar'
@@ -595,18 +593,23 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
   }
-  const { pinnedDomains, pinsLoaded, togglePinnedDomain, reorderPinnedDomain } = usePinnedDomains({
+  const {
+    localStateLoaded,
+    pinnedDomains,
+    pinnedSections,
+    pinnedPageChips,
+    togglePinnedDomain,
+    reorderPinnedDomain,
+    togglePinnedSection,
+    togglePinnedPageChip
+  } = useDashboardLocalState({
     onBeforeApplyPinnedDomains: ({ animate }) => {
       resetMissionOrder()
       if (animate) primeCardMoveAnimation()
     },
-    onSaveError: () => showToast('Could not save pinned domain')
-  })
-  const { pinnedSections, togglePinnedSection } = usePinnedSections({
-    onSaveError: () => showToast('Could not save pinned section')
-  })
-  const { pinnedPageChips, togglePinnedPageChip } = usePinnedPageChips({
-    onSaveError: () => showToast('Could not save pinned page')
+    onDomainPinSaveError: () => showToast('Could not save pinned domain'),
+    onSectionPinSaveError: () => showToast('Could not save pinned section'),
+    onPageChipPinSaveError: () => showToast('Could not save pinned page')
   })
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
   const refreshDashboard = useDashboardRefresh({
@@ -616,7 +619,7 @@ export function App({ initialDashboard = null }: { initialDashboard?: DashboardD
     historyRange,
     historyFilterEnabled,
     pinnedDomains,
-    pinsLoaded,
+    localStateLoaded,
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
     setDashboard,

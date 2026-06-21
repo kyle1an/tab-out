@@ -8,6 +8,7 @@ import { fetchTabHistorySnapshot } from '../extension/tab-history.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs } from '../extension/tabs.js'
 import { buildWorkingSetSnapshot } from '../extension/working-set.js'
 import { fetchWorkingSetSnapshot } from '../extension/working-set-client.js'
+import { loadSavedPagesStore, type SavedPagesStore } from '../extension/saved-pages.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
 
 export type RefreshOptions = { animateCards?: boolean }
@@ -19,6 +20,7 @@ type DashboardSnapshotOptions = {
   historyRange: string
   historyFilterEnabled: boolean
   pinnedDomains: string[]
+  savedPagesStore?: SavedPagesStore
   previousOrder: MissionOrderMap
 }
 export type DashboardStartupSnapshot = {
@@ -35,7 +37,7 @@ type DashboardRefreshSnapshot = {
 
 type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
   dashboard: DashboardData | null
-  pinsLoaded: boolean
+  localStateLoaded: boolean
   setDashboard: (dashboard: DashboardData | null) => void
   setStartupSnapshot: (snapshot: DashboardStartupSnapshot) => void
   setTabHistory: (tabHistory: TabHistorySnapshot | null) => void
@@ -56,12 +58,13 @@ function startupSnapshotFlightKey({ source, filter, historyRange, historyFilterE
   })
 }
 
-async function fetchTabsDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
+async function fetchTabsDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, savedPagesStore, previousOrder }: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
-  const [openTabs, currentWindowId, serviceState] = await Promise.all([
+  const [openTabs, currentWindowId, serviceState, resolvedSavedPagesStore] = await Promise.all([
     fetchOpenTabsSnapshot(),
     getCurrentWindowId(),
-    fetchDashboardServiceState()
+    fetchDashboardServiceState(),
+    savedPagesStore ? Promise.resolve(savedPagesStore) : loadSavedPagesStore()
   ])
   const dashboardTabs = getDashboardTabsFromOpenTabs(openTabs)
   const dashboard = await buildDashboardDataFromTabs(dashboardTabs, currentWindowId, previousOrder[source] || new Map(), {
@@ -71,7 +74,8 @@ async function fetchTabsDashboardSnapshot({ source, filter, historyRange, histor
     includeBookmarkMatches: filterSearch.includeBookmarkMatches,
     includeHistoryMatches: filterSearch.includeHistoryMatches,
     searchQuery: filterSearch.query,
-    historyRange: filterSearch.historyRange
+    historyRange: filterSearch.historyRange,
+    savedPagesStore: resolvedSavedPagesStore
   })
   const workingSet = buildWorkingSetSnapshot({
     tabs: dashboardTabs,
@@ -134,7 +138,7 @@ export function useDashboardRefresh({
   historyRange,
   historyFilterEnabled,
   pinnedDomains,
-  pinsLoaded,
+  localStateLoaded,
   previousOrder,
   setDashboard,
   setStartupSnapshot,
@@ -152,7 +156,7 @@ export function useDashboardRefresh({
 
   refreshRef.current = async ({ animateCards = false }: RefreshOptions = {}) => {
     if (document.visibilityState !== 'visible') return
-    if (!pinsLoaded) return
+    if (!localStateLoaded) return
     if (animateCards) callbacksRef.current.onBeforeAnimatedRefresh?.()
     if (!dashboard && source === 'tabs') {
       const nextStartup = await fetchDashboardStartupSnapshot({
@@ -182,16 +186,16 @@ export function useDashboardRefresh({
   useEffect(() => registerDashboardRefresh((options?: RefreshOptions) => refreshRef.current(options)), [])
 
   useEffect(() => {
-    if (!pinsLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return
+    if (!localStateLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return
     const frame = requestAnimationFrame(() => refreshRef.current())
     return () => cancelAnimationFrame(frame)
-  }, [dashboard, filter, historyRange, historyFilterEnabled, pinsLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
+  }, [dashboard, filter, historyRange, historyFilterEnabled, localStateLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
 
   useEffect(() => {
-    if (!pinsLoaded) return
+    if (!localStateLoaded) return
     callbacksRef.current.onBeforePinnedRefresh?.()
     requestAnimationFrame(() => refreshRef.current())
-  }, [pinnedDomains, pinsLoaded])
+  }, [pinnedDomains, localStateLoaded])
 
   return (options?: RefreshOptions) => refreshRef.current(options)
 }

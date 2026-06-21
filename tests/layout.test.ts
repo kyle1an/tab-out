@@ -98,11 +98,11 @@ test('source switch keeps one primed card-move refresh', () => {
 
 test('user-driven pinned domain order changes prime card move animation', () => {
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
-  const pinnedDomainHookSource = readFileSync(new URL('../src/hooks/usePinnedDomains.ts', import.meta.url), 'utf8')
+  const localStateHookSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
 
   assert.match(appSource, /onBeforeApplyPinnedDomains:\s*\(\{ animate \}\) => \{[\s\S]*resetMissionOrder\(\)[\s\S]*if \(animate\) primeCardMoveAnimation\(\)/)
-  assert.match(pinnedDomainHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: false \}\)/)
-  assert.match(pinnedDomainHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: true \}\)/)
+  assert.match(localStateHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: false \}\)/)
+  assert.match(localStateHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: true \}\)/)
 })
 
 test('no-op pinned domain drag targets use a muted placement state', () => {

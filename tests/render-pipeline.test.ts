@@ -1878,7 +1878,7 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
   assert.equal(snapshot.entries[2].nextTarget, true)
 })
 
-test('normalizeTabHistorySnapshot resolves history favicons from Chrome cache', () => {
+test('normalizeTabHistorySnapshot resolves live history favicons from Chrome tab state or cache', () => {
   const snapshot = normalizeTabHistorySnapshot({
     entries: [
       {

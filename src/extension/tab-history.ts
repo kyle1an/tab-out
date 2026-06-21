@@ -63,7 +63,7 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     url,
     rawUrl,
     displayUrl: String(entry?.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
-    favIconUrl: suspended ? pickTabFavicon({ favIconUrl, url, suspended }) : pickFavicon({ favIconUrl, url }),
+    favIconUrl: pickTabFavicon({ favIconUrl, url, suspended }) || pickFavicon({ favIconUrl, url }),
     lastActivatedAt: integerOrNull(entry?.lastActivatedAt)
   }
 }

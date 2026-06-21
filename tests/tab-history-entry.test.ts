@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { makeHistoryEntry } from '../src/extension/tab-history.js'
+import { makeHistoryEntry, normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 
 const SUSPENDER_RAW = 'chrome-extension://aaaabbbbccccddddeeeeffffgggghhhh/suspended.html#ttl=T&uri=https://real.example/page'
 
@@ -43,4 +43,16 @@ test('makeHistoryEntry: explicit fields win over defaults', () => {
   assert.equal(entry.exists, true)
   assert.equal(entry.current, true)
   assert.equal(entry.lastActivatedAt, 1234)
+})
+
+test('normalizeTabHistorySnapshot: live rows keep Chrome tab favIconUrl', () => {
+  const snapshot = normalizeTabHistorySnapshot({
+    entries: [
+      makeHistoryEntry(coreFields({
+        favIconUrl: 'https://site.example/icon.png'
+      }))
+    ]
+  })
+
+  assert.equal(snapshot.entries[0]?.favIconUrl, 'https://site.example/icon.png')
 })

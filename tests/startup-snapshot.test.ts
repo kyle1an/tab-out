@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { fetchDashboardSnapshot, fetchDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
+import { loadDashboardLocalState } from '../src/hooks/useDashboardLocalState.js'
+import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
+import { PAGE_CHIP_PIN_STORAGE_KEY } from '../src/extension/page-chip-pins.js'
+import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
+import { SECTION_PIN_STORAGE_KEY } from '../src/extension/section-pins.js'
 
 const now = Date.now()
 
@@ -169,6 +174,99 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   assert.equal(tabGroupsQueryCount, 1)
   assert.equal(sessionsGetRecentlyClosedCount, 1)
   assert.deepEqual(runtimeMessages, ['tab-out:get-dashboard-service-state'])
+})
+
+test('startup path reads ordering before saved pages without losing saved rows', async () => {
+  const storageGetKeys: unknown[] = []
+  const savedPageUrl = 'https://saved.example/report'
+  const openTabs = [
+    makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
+    makeChromeTab(2, 'https://example.test/report', 'Example Report')
+  ]
+
+  ;(globalThis as any).window = {
+    LOCAL_CUSTOM_GROUPS: [],
+    LOCAL_PATH_GROUPERS: []
+  }
+  ;(globalThis as any).chrome = {
+    runtime: {
+      id: 'tab-out',
+      getURL: (path: string) => `chrome-extension://tab-out${path}`,
+      sendMessage: async () => ({
+        ok: true,
+        tabHistory: {
+          stackSize: 0,
+          maxSize: 24,
+          cursorIndex: -1,
+          currentIndex: -1,
+          previousIndex: -1,
+          nextIndex: -1,
+          activeTabId: null,
+          activeWindowId: null,
+          activeWasInserted: false,
+          entries: []
+        },
+        workingSetActivity: { version: 1, records: {} }
+      })
+    },
+    tabs: {
+      query: async () => openTabs
+    },
+    windows: {
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+    },
+    tabGroups: {
+      query: async () => []
+    },
+    sessions: {
+      getRecentlyClosed: async () => []
+    },
+    storage: {
+      local: {
+        get: async (keys: unknown) => {
+          storageGetKeys.push(keys)
+          return {
+            [DOMAIN_PIN_STORAGE_KEY]: ['example.test'],
+            [SAVED_PAGES_STORAGE_KEY]: {
+              version: 1,
+              pages: {
+                [savedPageUrl]: {
+                  key: savedPageUrl,
+                  url: savedPageUrl,
+                  title: 'Saved Report',
+                  savedAt: now,
+                  updatedAt: now
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const localState = await loadDashboardLocalState()
+  const snapshot = await fetchDashboardStartupSnapshot({
+    source: 'tabs',
+    filter: '',
+    historyRange: DEFAULT_HISTORY_RANGE,
+    historyFilterEnabled: false,
+    pinnedDomains: localState.pinnedDomains,
+    previousOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  })
+
+  assert.deepEqual(storageGetKeys, [[
+    DOMAIN_PIN_STORAGE_KEY,
+    SECTION_PIN_STORAGE_KEY,
+    PAGE_CHIP_PIN_STORAGE_KEY
+  ], SAVED_PAGES_STORAGE_KEY])
+  assert.equal(snapshot.dashboard.domainGroups[0]?.domain, 'example.test')
+  assert.ok(snapshot.dashboard.realTabs.some((tab) => tab.url === savedPageUrl && tab.closedSaved))
 })
 
 test('tabs refresh snapshot derives dashboard and working set from the same open-tab read', async () => {

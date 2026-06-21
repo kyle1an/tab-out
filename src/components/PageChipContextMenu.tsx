@@ -1,5 +1,5 @@
 import { cloneElement, useEffect, useRef, useState } from 'react'
-import type { ReactElement } from 'react'
+import type { FocusEventHandler, MouseEventHandler, PointerEventHandler, ReactElement } from 'react'
 import { cn } from '@/lib/utils'
 import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
 import { PageChipContextMenuContent } from './PageChipContextMenuContent'
@@ -10,6 +10,9 @@ const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 export type PageChipContextMenuTriggerElement = ReactElement<{
   className?: string
   'data-context-menu-open'?: string
+  onFocus?: FocusEventHandler
+  onMouseDown?: MouseEventHandler
+  onPointerEnter?: PointerEventHandler
 }>
 
 type PageChipContextMenuProps = PageChipContextMenuContentProps & {
@@ -33,6 +36,7 @@ export function PageChipContextMenu({
   onSuspendSelect,
   onOpenChange
 }: PageChipContextMenuProps) {
+  const [armed, setArmed] = useState(false)
   const [visualOpen, setVisualOpen] = useState(false)
   const visualCloseTimerRef = useRef<number | null>(null)
 
@@ -60,12 +64,28 @@ export function PageChipContextMenu({
     }
     onOpenChange?.(nextOpen)
   }
+  const armedTrigger = cloneElement(children, {
+    onFocus: (event) => {
+      children.props.onFocus?.(event)
+      setArmed(true)
+    },
+    onMouseDown: (event) => {
+      children.props.onMouseDown?.(event)
+      if (event.button === 2) setArmed(true)
+    },
+    onPointerEnter: (event) => {
+      children.props.onPointerEnter?.(event)
+      setArmed(true)
+    }
+  })
   const trigger = visualOpen
-    ? cloneElement(children, {
-        className: cn(children.props.className, 'page-chip-context-menu-open'),
+    ? cloneElement(armedTrigger, {
+        className: cn(armedTrigger.props.className, 'page-chip-context-menu-open'),
         'data-context-menu-open': ''
       })
-    : children
+    : armedTrigger
+
+  if (!armed) return trigger
 
   return (
     <ContextMenu onOpenChange={handleOpenChange}>
