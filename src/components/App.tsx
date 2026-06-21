@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type ReactNode, type Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type ReactNode, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
 import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
@@ -13,7 +13,7 @@ import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderM
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
-import { HeaderBar, HistoryRangeSelect } from './HeaderBar'
+import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
@@ -39,6 +39,8 @@ type MissionContainerRef = {
 const PROGRESSIVE_CARD_THRESHOLD = 80
 const PROGRESSIVE_CARD_INITIAL_COUNT = 24
 const PROGRESSIVE_CARD_CHUNK_SIZE = 24
+
+const HistoryRangeSelect = lazy(() => import('./HistoryRangeSelect').then((module) => ({ default: module.HistoryRangeSelect })))
 
 type MissionBlockProps = {
   cards: DashboardCardEntry[]
@@ -515,10 +517,12 @@ function DashboardShell({
             <DashboardMissionsList
               filter={filter}
               historyRangeAction={showHistoryRange ? (
-                <HistoryRangeSelect
-                  value={historyRange}
-                  onValueChange={setHistoryRange}
-                />
+                <Suspense fallback={null}>
+                  <HistoryRangeSelect
+                    value={historyRange}
+                    onValueChange={setHistoryRange}
+                  />
+                </Suspense>
               ) : undefined}
               sections={missionSections}
             />
