@@ -1,11 +1,8 @@
-import { cloneElement, useEffect, useRef, useState } from 'react'
+import { cloneElement, lazy, Suspense, useState } from 'react'
 import type { FocusEventHandler, MouseEventHandler, PointerEventHandler, ReactElement } from 'react'
-import { cn } from '@/lib/utils'
-import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
-import { PageChipContextMenuContent } from './PageChipContextMenuContent'
 import type { PageChipContextMenuContentProps } from './PageChipContextMenuContent'
 
-const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
+const PageChipContextMenuLoaded = lazy(() => import('./PageChipContextMenuLoaded').then((module) => ({ default: module.PageChipContextMenuLoaded })))
 
 export type PageChipContextMenuTriggerElement = ReactElement<{
   className?: string
@@ -37,33 +34,6 @@ export function PageChipContextMenu({
   onOpenChange
 }: PageChipContextMenuProps) {
   const [armed, setArmed] = useState(false)
-  const [visualOpen, setVisualOpen] = useState(false)
-  const visualCloseTimerRef = useRef<number | null>(null)
-
-  function clearVisualCloseTimer() {
-    if (visualCloseTimerRef.current === null) return
-    window.clearTimeout(visualCloseTimerRef.current)
-    visualCloseTimerRef.current = null
-  }
-
-  useEffect(() => () => {
-    if (visualCloseTimerRef.current !== null) {
-      window.clearTimeout(visualCloseTimerRef.current)
-    }
-  }, [])
-
-  function handleOpenChange(nextOpen: boolean) {
-    clearVisualCloseTimer()
-    if (nextOpen) {
-      setVisualOpen(true)
-    } else {
-      visualCloseTimerRef.current = window.setTimeout(() => {
-        visualCloseTimerRef.current = null
-        setVisualOpen(false)
-      }, PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS)
-    }
-    onOpenChange?.(nextOpen)
-  }
   const armedTrigger = cloneElement(children, {
     onFocus: (event) => {
       children.props.onFocus?.(event)
@@ -78,19 +48,12 @@ export function PageChipContextMenu({
       setArmed(true)
     }
   })
-  const trigger = visualOpen
-    ? cloneElement(armedTrigger, {
-        className: cn(armedTrigger.props.className, 'page-chip-context-menu-open'),
-        'data-context-menu-open': ''
-      })
-    : armedTrigger
 
-  if (!armed) return trigger
+  if (!armed) return armedTrigger
 
   return (
-    <ContextMenu onOpenChange={handleOpenChange}>
-      <ContextMenuTrigger render={trigger} />
-      <PageChipContextMenuContent
+    <Suspense fallback={armedTrigger}>
+      <PageChipContextMenuLoaded
         savedActionLabel={savedActionLabel}
         saved={saved}
         onSavedSelect={onSavedSelect}
@@ -103,7 +66,10 @@ export function PageChipContextMenu({
         onCopyUrl={onCopyUrl}
         suspendEnabled={suspendEnabled}
         onSuspendSelect={onSuspendSelect}
-      />
-    </ContextMenu>
+        onOpenChange={onOpenChange}
+      >
+        {armedTrigger}
+      </PageChipContextMenuLoaded>
+    </Suspense>
   )
 }

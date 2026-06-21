@@ -627,10 +627,14 @@ test('built extension bundle is packaged locally', () => {
 
   const distFiles = readdirSync('extension/dist').sort()
   const assetFiles = readdirSync('extension/dist/assets').sort()
+  const assetJsFiles = assetFiles.filter((name) => name.endsWith('.js'))
   assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js'])
-  assert.equal(assetFiles[0], 'app.css')
-  assert.equal(assetFiles.length, 2)
-  assert.match(assetFiles[1], /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/)
+  assert.ok(assetFiles.includes('app.css'))
+  assert.equal(assetJsFiles.length, 4)
+  assert.ok(assetJsFiles.some((name) => /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^PageChipContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^TitleSuppressionTokenContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(assetJsFiles.some((name) => /^context-menu-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), ['config.local.js'])
 
   const bundle = readFileSync('extension/dist/app.js', 'utf8')

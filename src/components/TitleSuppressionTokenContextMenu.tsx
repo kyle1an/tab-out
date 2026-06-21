@@ -1,6 +1,5 @@
+import { lazy, Suspense } from 'react'
 import type { ReactElement } from 'react'
-import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
-import { TitleSuppressionTokenContextMenuContent } from './TitleSuppressionTokenContextMenuContent'
 
 type StopPropagationEvent = {
   stopPropagation: () => void
@@ -8,7 +7,7 @@ type StopPropagationEvent = {
 
 type TitleSuppressionTokenContextMenuTriggerElement = ReactElement<{ className?: string }>
 
-interface TitleSuppressionTokenContextMenuProps {
+export interface TitleSuppressionTokenContextMenuProps {
   closableCount: number
   suspendableCount?: number
   onSuspend?: (event: StopPropagationEvent) => void | Promise<void>
@@ -17,16 +16,12 @@ interface TitleSuppressionTokenContextMenuProps {
   children: TitleSuppressionTokenContextMenuTriggerElement
 }
 
-export function TitleSuppressionTokenContextMenu({ closableCount, suspendableCount = 0, onSuspend, onClose, onOpenChange, children }: TitleSuppressionTokenContextMenuProps) {
+const TitleSuppressionTokenContextMenuLoaded = lazy(() => import('./TitleSuppressionTokenContextMenuLoaded').then((module) => ({ default: module.TitleSuppressionTokenContextMenuLoaded })))
+
+export function TitleSuppressionTokenContextMenu(props: TitleSuppressionTokenContextMenuProps) {
   return (
-    <ContextMenu onOpenChange={(open) => onOpenChange?.(open)}>
-      <ContextMenuTrigger render={children} />
-      <TitleSuppressionTokenContextMenuContent
-        closableCount={closableCount}
-        suspendableCount={suspendableCount}
-        onSuspend={onSuspend}
-        onClose={onClose}
-      />
-    </ContextMenu>
+    <Suspense fallback={props.children}>
+      <TitleSuppressionTokenContextMenuLoaded {...props} />
+    </Suspense>
   )
 }
