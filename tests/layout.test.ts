@@ -121,6 +121,7 @@ test('working set is merged into the history panel instead of rendering a top st
 
   assert.match(source, /const historyWorkingSet = source === 'tabs' \? workingSet : null/)
   assert.match(source, /workingSet=\{historyWorkingSet\}/)
+  assert.match(source, /workingSet=\{effectiveStartupPriorityWorkingSet \?\? workingSet\}/)
   assert.doesNotMatch(source, /<WorkingSetPanel\b/)
   assert.doesNotMatch(source, /workingSetLayoutRectsRef|primeWorkingSetLayoutChange|animateWorkingSetLayoutChange/)
 })
@@ -204,6 +205,10 @@ test('app bootstrap paints cached startup snapshot before live startup refresh',
   assert.match(startupOrderDebugSource, /timings: StartupTiming\[\]/)
   assert.match(startupOrderDebugSource, /export function recordStartupTiming/)
   assert.match(startupOrderDebugSource, /durationMs/)
+  assert.match(startupOrderDebugSource, /STARTUP_ORDER_DEBUG_DURATION_MS = 3000/)
+  assert.match(startupOrderDebugSource, /debugWindow\.__tabOutSaveStartupOrderDebug\?\.\(\)/)
+  assert.match(startupOrderDebugSource, /function debugHistoryRows/)
+  assert.match(startupOrderDebugSource, /historyRows: debugHistoryRows\(\)/)
   assert.match(appSource, /freezeTabsChipOrder: !!effectiveStartupPriorityWorkingSet/)
   assert.match(viewModelSource, /freezeTabsChipOrder && source === 'tabs'/)
 })

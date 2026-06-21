@@ -849,7 +849,7 @@ export function App({
           stats={stats}
           tabHistory={tabHistory}
           urlPreview={urlPreview}
-          workingSet={workingSet}
+          workingSet={effectiveStartupPriorityWorkingSet ?? workingSet}
         />
       </HoverStateProvider>
     </DashboardActionsProvider>

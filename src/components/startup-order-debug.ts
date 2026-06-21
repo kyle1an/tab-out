@@ -3,7 +3,7 @@ import type { WorkingSetSnapshot } from '../extension/types'
 
 const STARTUP_ORDER_DEBUG_KEY = 'tab-out:debug-startup-order'
 const STARTUP_ORDER_DEBUG_FILTER_KEY = 'tab-out:debug-startup-order-filter'
-const STARTUP_ORDER_DEBUG_DURATION_MS = 7000
+const STARTUP_ORDER_DEBUG_DURATION_MS = 3000
 const STARTUP_ORDER_DEBUG_STEP_MS = 100
 
 export type StartupOrderDebugCapture = {
@@ -157,6 +157,23 @@ function debugDomCards() {
   return cards
 }
 
+function debugHistoryRows() {
+  const rows = []
+  const rowEls = document.querySelectorAll<HTMLElement>('[data-tabout="activation-history-entry"]')
+  for (const [index, row] of rowEls.entries()) {
+    const rect = row.getBoundingClientRect()
+    rows.push({
+      index,
+      text: textFromElement(row).slice(0, 180),
+      top: Math.round(rect.top),
+      height: Math.round(rect.height),
+      lowScore: row.dataset.lowScore === 'true',
+      workingSetExtra: row.dataset.workingSetExtra === 'true'
+    })
+  }
+  return rows
+}
+
 function debugChipVm(chip: {
   title?: string
   tabUrl?: string
@@ -300,7 +317,7 @@ function startupOrderDebugCapture(): StartupOrderDebugCapture | null {
   }
 
   window.setTimeout(() => {
-    console.log('Tab Out startup order debug ready. Run: window.__tabOutSaveStartupOrderDebug?.()')
+    debugWindow.__tabOutSaveStartupOrderDebug?.()
   }, STARTUP_ORDER_DEBUG_DURATION_MS + 100)
 
   return capture
@@ -343,7 +360,8 @@ export function startStartupOrderDebugDomSampling(capture: StartupOrderDebugCapt
     activeCapture.samples.push({
       kind: 'dom',
       t: Math.round(performance.now()),
-      cards: debugDomCards()
+      cards: debugDomCards(),
+      historyRows: debugHistoryRows()
     })
   }
   sampleDom()
