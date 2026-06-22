@@ -57,13 +57,11 @@ const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path text-xs font-normal text-t
 const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
-const PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 94%, var(--color-neutral-600) 6%)'
 const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const PAGE_CHIP_GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
 const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
-const PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const PAGE_CHIP_GROUP_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
 const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
@@ -1634,12 +1632,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipInteractionBg = isCurrentTabOutFrame
     ? 'var(--color-neutral-100)'
     : isCurrentActiveFrame
-    ? 'var(--color-neutral-50)'
-    : hasActiveChipFrame
-      ? PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG
-      : isClosedSavedPage
-        ? PAGE_CHIP_CLOSED_SAVED_INTERACTION_BG
-        : isFolded || isTitleVariantGroup
+      ? 'var(--color-neutral-50)'
+      : hasActiveChipFrame
+        ? PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG
+        : isClosedSavedPage || isFolded || isTitleVariantGroup
           ? PAGE_CHIP_GROUP_INTERACTION_BG
           : PAGE_CHIP_CLICKABLE_INTERACTION_BG
   const style: CSSVariableProperties = {
@@ -2241,7 +2237,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           chipExpanded && 'left-0',
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted', PAGE_CHIP_CLOSED_SAVED_INTERACTION_CLASSES),
+          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted', PAGE_CHIP_GROUP_INTERACTION_CLASSES),
           hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
