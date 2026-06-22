@@ -90,9 +90,8 @@ pnpm dev
 
 - Do not stage files unless the user explicitly asks to stage, commit, or prepare a commit.
 - Do not commit, amend, rewrite history, or push unless explicitly requested.
-- When asked to commit, use a concise scoped subject that makes the touched product or code area obvious.
+- When asked to commit, use a Conventional Commit subject that makes the touched product or code area obvious, such as `fix(page-chip): keep expansion anchored`, `perf(filter): focus input before app mount`, or `build: generate typed extension manifest`.
 - Prefer domain-specific scopes over broad buckets like `ui`; examples include `page-chip`, `domain-card`, `activation-history`, `working-set`, `suspend`, `build`, or another clear repo-local area.
-- Accepted subject forms are conventional scoped subjects such as `fix(page-chip): keep expansion anchored` and scope-first subjects such as `page-chip: keep expansion anchored`; choose the form that best preserves the useful scope in the subject line.
 - For Codex-authored or Codex-assisted commits, include `Co-authored-by: Codex <noreply@openai.com>` as the final non-empty line.
 - Do not leave an extra blank line after the `Co-authored-by` trailer. GitHub may fail to render the co-author even when local `git interpret-trailers` still parses it.
 - For metadata-only commit-message rewrites, preserve author and committer timestamps.
