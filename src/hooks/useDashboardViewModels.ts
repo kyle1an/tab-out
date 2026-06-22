@@ -108,6 +108,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
 type MissionOrderMemoryOptions = {
   previousOrderRef: RefObject<MissionOrderMap>
   chipOrderRef: RefObject<DashboardChipOrderMemoryMap>
+  enabled: boolean
   source: DashboardSource
   filter: string
   matchedCards: DashboardCardEntry[]
@@ -156,8 +157,9 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
   return orderByCard
 }
 
-export function useMissionOrderMemory({ previousOrderRef, chipOrderRef, source, filter, matchedCards, bookmarkMatchedCards, historyMatchedCards }: MissionOrderMemoryOptions): void {
+export function useMissionOrderMemory({ previousOrderRef, chipOrderRef, enabled, source, filter, matchedCards, bookmarkMatchedCards, historyMatchedCards }: MissionOrderMemoryOptions): void {
   useLayoutEffect(() => {
+    if (!enabled) return
     previousOrderRef.current[source] = new Map(matchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
     if (filter.trim() === '') {
       chipOrderRef.current[source] = chipOrderFromCards(matchedCards)
@@ -170,5 +172,5 @@ export function useMissionOrderMemory({ previousOrderRef, chipOrderRef, source, 
       previousOrderRef.current.history = new Map(historyMatchedCards.map(({ group }, index) => [domainGroupCardId(group), index]))
       chipOrderRef.current.history = chipOrderFromCards(historyMatchedCards)
     }
-  }, [bookmarkMatchedCards, chipOrderRef, filter, historyMatchedCards, matchedCards, previousOrderRef, source])
+  }, [bookmarkMatchedCards, chipOrderRef, enabled, filter, historyMatchedCards, matchedCards, previousOrderRef, source])
 }

@@ -23,7 +23,32 @@
     <link rel="stylesheet" href="dist/assets/app.css" />
   </head>
   <body>
-    <div id="appRoot"></div>
+    <div id="appRoot">
+      <div
+        id="filterFocusBootShell"
+        class="relative z-1 flex min-h-0 flex-auto flex-col [&[hidden]]:hidden"
+        hidden
+      >
+        <div class="relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] items-stretch gap-4 max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:grid-cols-[minmax(0,1fr)] max-[900px]:gap-0">
+          <div class="max-[900px]:hidden" aria-hidden="true"></div>
+          <div class="col-start-2 flex min-h-0 min-w-0 flex-col pr-(--dashboard-page-gutter) max-[900px]:col-start-1 max-[900px]:px-(--dashboard-page-gutter)">
+            <div class="relative z-10 -ml-14 mr-[calc(0px_-_var(--dashboard-edge-bleed))] flex-none py-3 pr-[calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scroll-gutter)_+_var(--dashboard-scrollbar-size))] pl-14 max-[900px]:ml-[calc(0px_-_var(--dashboard-edge-bleed))] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scrollbar-size))] max-[900px]:pl-(--dashboard-edge-bleed)">
+              <input
+                id="filterFocusBootInput"
+                class="box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-(--warm-gray) bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-(--ink) outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-(--muted) focus:border-(--accent-amber) focus:bg-tab-card focus-visible:ring-3 focus-visible:ring-ring/50 min-[900px]:max-[960px]:w-[220px] md:text-sm [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
+                type="search"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Filter tabs"
+                placeholder="Filter tabs, bookmarks, history…"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="dist/filter-focus-boot.js"></script>
 
     <!-- Base UI toast mount point for action confirmations. -->
     <div id="toastRoot"></div>

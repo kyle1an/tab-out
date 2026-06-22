@@ -14,6 +14,7 @@ import {
   isHistoryFilterEnabled
 } from '../src/extension/history-source.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
+import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
 import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
 import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
@@ -1932,6 +1933,17 @@ test('filter focus shortcut matches Cmd+K on macOS and Ctrl+K elsewhere', () => 
   assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true }, 'Win32'), false)
   assert.equal(isFilterFocusShortcut({ key: 'k', metaKey: true, shiftKey: true }, 'MacIntel'), false)
   assert.equal(isFilterFocusShortcut({ key: 'j', metaKey: true }, 'MacIntel'), false)
+})
+
+test('filter focus pending input adopts and releases the pre-app boot value', () => {
+  const originalWindow = globalThis.window
+  globalThis.window = { __tabOutFilterFocusBootValue: 'git' } as unknown as Window & typeof globalThis
+  assert.equal(readFilterFocusPendingInput(''), 'git')
+  assert.equal(readFilterFocusPendingInput('docs'), 'git')
+  releaseFilterFocusBootValue()
+  assert.equal(readFilterFocusPendingInput('docs'), 'docs')
+  globalThis.window = originalWindow
+  assert.equal(readFilterFocusPendingInput('docs'), 'docs')
 })
 
 test('filtering ignores Tab Out keywords injected by the active filter title and URL', () => {

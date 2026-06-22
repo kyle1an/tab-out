@@ -5,6 +5,7 @@
 @import "../../extension/style.css";
 
 @source "../";
+@source "../../extension/index.html";
 
 @plugin "@iconify/tailwind4" {
   scale: 1;

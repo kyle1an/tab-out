@@ -605,7 +605,13 @@ export function App({
   const bookmarkMissionsRef = useRef<HTMLDivElement | null>(null)
   const historyMissionsRef = useRef<HTMLDivElement | null>(null)
   const unmatchedMissionsRef = useRef<HTMLDivElement | null>(null)
-  const isReady = !!dashboard
+  const [dashboardContentVisible, setDashboardContentVisible] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setDashboardContentVisible(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  const visibleDashboard = dashboardContentVisible ? dashboard : null
+  const isReady = !!visibleDashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
     onBeforePack: prepareDomainCardMoveAnimation,
@@ -627,6 +633,7 @@ export function App({
   }, [primeCardMoveAnimation])
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
   const effectiveStartupPriorityWorkingSet = source === 'tabs' && filter.trim() === '' ? startupPriorityWorkingSet : null
+  const visibleWorkingSet = dashboardContentVisible ? effectiveStartupPriorityWorkingSet ?? workingSet : null
   function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
@@ -653,7 +660,7 @@ export function App({
   })
   const initialStartupViewModel = initialStartupSnapshot?.startupViewModel
   const startupDashboardViewModel =
-    dashboard === initialStartupSnapshot?.dashboard &&
+    visibleDashboard === initialStartupSnapshot?.dashboard &&
     source === 'tabs' &&
     filter.trim() === '' &&
     !!effectiveStartupPriorityWorkingSet &&
@@ -689,7 +696,7 @@ export function App({
     if (!previousRects) cancelDomainCardMoves(containers)
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
-  }, [dashboard, filter, source, isReady, clearHoverUrlNow, packMissionsMasonryNow])
+  }, [visibleDashboard, filter, source, isReady, clearHoverUrlNow, packMissionsMasonryNow])
 
   const {
     dashboardVm,
@@ -704,7 +711,7 @@ export function App({
     showHistoryRange,
     showPrimaryEmptyState
   } = useDashboardViewModels({
-    dashboard,
+    dashboard: visibleDashboard,
     source,
     filter,
     historyRange,
@@ -712,40 +719,40 @@ export function App({
     isReady,
     // react-doctor-disable-next-line react-hooks-js/refs -- chipOrder is a mutable per-source ordering cache read at view-model build time, not render-derived state.
     chipOrder: chipOrderRef.current,
-    workingSet: effectiveStartupPriorityWorkingSet ?? workingSet,
-    freezeTabsChipOrder: !!effectiveStartupPriorityWorkingSet,
+    workingSet: visibleWorkingSet,
+    freezeTabsChipOrder: dashboardContentVisible && !!effectiveStartupPriorityWorkingSet,
     startupViewModel: startupDashboardViewModel,
     pinnedSections,
     pinnedPageChips
   })
 
   useLayoutEffect(() => {
-    if (firstDashboardLayoutRecordedRef.current || !dashboard) return
+    if (firstDashboardLayoutRecordedRef.current || !visibleDashboard) return
     firstDashboardLayoutRecordedRef.current = true
     recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'first-dashboard-layout', {
       detail: {
         cachedStartupSnapshot: !!initialStartupSnapshot,
-        domainGroups: dashboard.domainGroups.length,
+        domainGroups: visibleDashboard.domainGroups.length,
         filterActive: filter.trim() !== '',
         matchedCards: matchedCards.length,
-        realTabs: dashboard.realTabs.length,
+        realTabs: visibleDashboard.realTabs.length,
         source,
         startupViewModel: !!startupDashboardViewModel,
-        workingSet: (effectiveStartupPriorityWorkingSet ?? workingSet)?.items.length ?? 0
+        workingSet: visibleWorkingSet?.items.length ?? 0
       }
     })
-  }, [dashboard, effectiveStartupPriorityWorkingSet, filter, initialStartupSnapshot, matchedCards.length, source, startupDashboardViewModel, workingSet])
+  }, [visibleDashboard, filter, initialStartupSnapshot, matchedCards.length, source, startupDashboardViewModel, visibleWorkingSet])
 
   useLayoutEffect(() => {
     recordStartupOrderDebugVmSample(STARTUP_ORDER_DEBUG_CAPTURE, {
-      dashboard,
+      dashboard: visibleDashboard,
       source,
       filter,
       isReady,
       matchedCards,
-      workingSet: effectiveStartupPriorityWorkingSet ?? workingSet
+      workingSet: visibleWorkingSet
     })
-  }, [dashboard, effectiveStartupPriorityWorkingSet, filter, isReady, matchedCards, source, workingSet])
+  }, [visibleDashboard, filter, isReady, matchedCards, source, visibleWorkingSet])
 
   useLayoutEffect(() => {
     return startStartupOrderDebugDomSampling(STARTUP_ORDER_DEBUG_CAPTURE)
@@ -824,6 +831,7 @@ export function App({
   useMissionOrderMemory({
     previousOrderRef,
     chipOrderRef,
+    enabled: dashboardContentVisible,
     source,
     filter,
     matchedCards,
@@ -832,13 +840,13 @@ export function App({
   })
 
   useEffect(() => {
-    if (startupRefreshRequestedRef.current || !localStateLoaded) return
+    if (startupRefreshRequestedRef.current || !dashboardContentVisible || !localStateLoaded) return
     startupRefreshRequestedRef.current = true
     recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-refresh-requested', {
       detail: { localStateLoaded }
     })
     void refreshDashboard({ startupSnapshot: true })
-  }, [localStateLoaded, refreshDashboard])
+  }, [dashboardContentVisible, localStateLoaded, refreshDashboard])
 
   return (
     <DashboardActionsProvider
@@ -853,8 +861,8 @@ export function App({
     >
       <HoverStateProvider value={hoverMatch}>
         <DashboardShell
-          closedTabs={closedTabs}
-          savedKeys={dashboard?.savedKeys}
+          closedTabs={dashboardContentVisible ? closedTabs : []}
+          savedKeys={visibleDashboard?.savedKeys}
           filter={filter}
           filterFocusRequest={filterFocusRequest}
           filterInput={filterInput}
@@ -873,9 +881,9 @@ export function App({
           showHistoryRange={showHistoryRange}
           source={source}
           stats={stats}
-          tabHistory={tabHistory}
+          tabHistory={dashboardContentVisible ? tabHistory : null}
           urlPreview={urlPreview}
-          workingSet={effectiveStartupPriorityWorkingSet ?? workingSet}
+          workingSet={visibleWorkingSet}
         />
       </HoverStateProvider>
     </DashboardActionsProvider>

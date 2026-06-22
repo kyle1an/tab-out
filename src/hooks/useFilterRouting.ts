@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FOCUS_FILTER_PARAM, filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/app-url.js'
+import { readFilterFocusPendingInput } from '../extension/filter-focus-buffer.js'
 
 const FILTER_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
@@ -10,6 +11,10 @@ type UseFilterRoutingOptions = {
 
 function filterInputFromCurrentUrl() {
   return filterInputFromSearch(window.location.search)
+}
+
+function initialFilterInput() {
+  return readFilterFocusPendingInput(filterInputFromCurrentUrl())
 }
 
 function syncFilterInputToUrl(filterInput: string) {
@@ -33,8 +38,8 @@ function clearFocusFilterParam() {
 }
 
 export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptions = {}) {
-  const [filterInput, setFilterInput] = useState(filterInputFromCurrentUrl)
-  const [filter, setFilter] = useState(filterInputFromCurrentUrl)
+  const [filterInput, setFilterInput] = useState(initialFilterInput)
+  const [filter, setFilter] = useState(initialFilterInput)
   const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
   const onBeforeFilterCommitRef = useRef(onBeforeFilterCommit)
 
@@ -45,6 +50,13 @@ export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptio
   useEffect(() => {
     clearFocusFilterParam()
   }, [])
+
+  useLayoutEffect(() => {
+    if (filterFocusRequest <= 0) return
+    const next = initialFilterInput()
+    setFilterInput(next)
+    setFilter(next)
+  }, [filterFocusRequest])
 
   useEffect(() => {
     if (filterInput === filter) return

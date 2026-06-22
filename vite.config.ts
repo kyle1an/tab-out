@@ -7,7 +7,10 @@ import tailwindcss from '@tailwindcss/vite'
 const buildEntry = process.env.TAB_OUT_BUILD_ENTRY
 const buildInputs: Record<string, string> =
   buildEntry === 'app'
-    ? { app: resolve(__dirname, 'src/app.tsx') }
+    ? {
+        app: resolve(__dirname, 'src/app.tsx'),
+        'filter-focus-boot': resolve(__dirname, 'src/extension/filter-focus-boot.ts')
+      }
     : buildEntry === 'background'
       ? { background: resolve(__dirname, 'src/extension/background.ts') }
       : {

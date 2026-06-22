@@ -121,7 +121,7 @@ test('working set is merged into the history panel instead of rendering a top st
 
   assert.match(source, /const historyWorkingSet = source === 'tabs' \? workingSet : null/)
   assert.match(source, /workingSet=\{historyWorkingSet\}/)
-  assert.match(source, /workingSet=\{effectiveStartupPriorityWorkingSet \?\? workingSet\}/)
+  assert.match(source, /workingSet=\{visibleWorkingSet\}/)
   assert.doesNotMatch(source, /<WorkingSetPanel\b/)
   assert.doesNotMatch(source, /workingSetLayoutRectsRef|primeWorkingSetLayoutChange|animateWorkingSetLayoutChange/)
 })
@@ -155,7 +155,7 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
   assert.match(refreshSource, /startupSnapshotFlight/)
 })
 
-test('app bootstrap paints cached startup snapshot before live startup refresh', () => {
+test('app bootstrap paints filter shell before cached startup content and live refresh', () => {
   const appEntrySource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const localStateSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
@@ -182,12 +182,19 @@ test('app bootstrap paints cached startup snapshot before live startup refresh',
   assert.match(appSource, /initialLocalState/)
   assert.match(appSource, /startupRefreshRequestedRef/)
   assert.match(appSource, /firstDashboardLayoutRecordedRef/)
+  assert.match(appSource, /const \[dashboardContentVisible, setDashboardContentVisible\] = useState\(false\)/)
+  assert.match(appSource, /requestAnimationFrame\(\(\) => setDashboardContentVisible\(true\)\)/)
+  assert.match(appSource, /const visibleDashboard = dashboardContentVisible \? dashboard : null/)
   assert.match(appSource, /startupPriorityWorkingSet/)
-  assert.match(appSource, /workingSet: effectiveStartupPriorityWorkingSet \?\? workingSet/)
+  assert.match(appSource, /dashboard: visibleDashboard/)
+  assert.match(appSource, /workingSet: visibleWorkingSet/)
+  assert.match(appSource, /freezeTabsChipOrder: dashboardContentVisible && !!effectiveStartupPriorityWorkingSet/)
   assert.match(appSource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'first-dashboard-layout'/)
   assert.match(appSource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-refresh-requested'/)
   assert.match(appSource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-snapshot-applied'/)
   assert.match(appSource, /refreshDashboard\(\{ startupSnapshot: true \}\)/)
+  assert.match(appSource, /enabled: dashboardContentVisible/)
+  assert.match(appSource, /startupRefreshRequestedRef\.current \|\| !dashboardContentVisible \|\| !localStateLoaded/)
   assert.match(appSource, /useMissionOrderMemory\(\{[\s\S]*useEffect\(\(\) => \{[\s\S]*refreshDashboard\(\{ startupSnapshot: true \}\)/)
   assert.match(appSource, /localState,\s*pinnedDomains/)
   assert.match(appSource, /localStateLoaded,\s*localState,/)
@@ -215,7 +222,7 @@ test('app bootstrap paints cached startup snapshot before live startup refresh',
   assert.match(startupOrderDebugHeavySource, /debugWindow\.__tabOutSaveStartupOrderDebug\?\.\(\)/)
   assert.match(startupOrderDebugHeavySource, /function debugHistoryRows/)
   assert.match(startupOrderDebugHeavySource, /historyRows: debugHistoryRows\(\)/)
-  assert.match(appSource, /freezeTabsChipOrder: !!effectiveStartupPriorityWorkingSet/)
+  assert.match(appSource, /freezeTabsChipOrder: dashboardContentVisible && !!effectiveStartupPriorityWorkingSet/)
   assert.match(viewModelSource, /freezeTabsChipOrder && source === 'tabs'/)
 })
 
@@ -277,11 +284,45 @@ test('header controls share one size and corner radius contract', () => {
   assert.match(historyRangeSelectSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.doesNotMatch(historyRangeSelectSource, /aria-selected:bg-accent|aria-selected:text-accent-foreground/)
   assert.match(headerBarSource, /tab-filter[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
+  assert.doesNotMatch(headerBarSource, /tab-filter[^"]*md:!text|tab-filter[^"]*md:!leading/)
   assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
   assert.doesNotMatch(selectSource, /data-\[size=header\]|in-data-\[size=header\]|SelectPrimitive\.Popup[\s\S]*data-size=\{size\}|SelectPrimitive\.List[\s\S]*data-size=\{size\}/)
   assert.doesNotMatch(headerBarSource, /source-switch-root[^"]*rounded-\[16px\]|tab-filter[^"]*rounded-\[12px\]|source-switch-(?:option|indicator)[^"]*_-_[457]px/)
   assert.doesNotMatch(headerStatsSource, /action-btn[^"]*rounded-\[10px\]/)
+})
+
+test('pre-app filter focus shell uses the same stable header input sizing', () => {
+  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
+  const appCssSource = readFileSync(new URL('../src/styles/app.css', import.meta.url), 'utf8')
+  const indexHtml = readFileSync(new URL('../extension/index.html', import.meta.url), 'utf8')
+  const bootRootClass = indexHtml.match(/id="filterFocusBootShell"[\s\S]*?class="([^"]+)"/)?.[1]
+  const bootShellClass = indexHtml.match(/<div class="([^"]*grid-cols-\[minmax\(calc\(220px_[^"]*)"/)?.[1]
+  const bootInputClass = indexHtml.match(/id="filterFocusBootInput"[\s\S]*?class="([^"]+)"/)?.[1]
+
+  assert.ok(bootRootClass)
+  assert.ok(bootShellClass)
+  assert.ok(bootInputClass)
+  assert.match(appCssSource, /@source "\.\.\/\.\.\/extension\/index\.html";/)
+  assert.match(indexHtml, /placeholder="Filter tabs, bookmarks, history…"/)
+  assert.ok(bootRootClass.includes('[&[hidden]]:hidden'))
+  assert.ok(bootShellClass.includes('grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)]'))
+  for (const token of [
+    'w-[280px]',
+    'h-(--header-control-height)',
+    'rounded-(--header-control-radius)',
+    'text-(length:--header-control-font-size)',
+    'leading-(--header-control-line-height)',
+    'placeholder:text-(--muted)',
+    'focus-visible:ring-3',
+    'focus-visible:ring-ring/50',
+    'min-[900px]:max-[960px]:w-[220px]',
+    'md:text-sm'
+  ]) {
+    assert.ok(bootInputClass.includes(token), token)
+  }
+  assert.doesNotMatch(bootInputClass, /md:!text|md:!leading/)
+  assert.doesNotMatch(baseCss, /filter-focus-boot/)
 })
 
 test('masonry resize observer rebinds after conditional mission grids mount', () => {

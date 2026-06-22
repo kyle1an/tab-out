@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
 import { Input } from './ui/input'
@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 import { TooltipAnchor } from './ui/tooltip'
 import { isHistoryFilterEnabled } from '../extension/history-range.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
+import { releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
 import { cn } from '@/lib/utils'
 import type { DashboardSource, DashboardStats } from './types'
 
@@ -89,9 +90,10 @@ export function HeaderBar({
     onFilterChange(nextValue)
   }
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (filterFocusRequest <= 0) return
     inputRef.current?.focus()
+    queueMicrotask(releaseFilterFocusBootValue)
   }, [filterFocusRequest])
 
   useEffect(() => {
@@ -127,6 +129,7 @@ export function HeaderBar({
               data-tabout-part="input"
               className="tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-(--warm-gray) bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-(--ink) outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-(--muted) focus:border-(--accent-amber) focus:bg-tab-card min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
               autoComplete="off"
+              autoFocus={filterFocusRequest > 0}
               spellCheck="false"
               placeholder={filterPlaceholder}
               value={filter}
