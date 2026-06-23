@@ -29,7 +29,7 @@ import type { ChipActivationModifiers } from './chip-activation'
 import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect } from './expanded-text-layout'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
-import { partitionVariantCloseTargets, groupCloseActionLabel } from './chip-close-targets.js'
+import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
 import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
 
 let chipTextResizeObserver: ResizeObserver | null = null
@@ -923,6 +923,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const isTitleVariantGroup = titleVariantChips.length > 1
   const variantCloseTargets = partitionVariantCloseTargets(titleVariantChips)
   const variantCloseCount = variantCloseTargets.historyUrls.length + variantCloseTargets.tabEnvs.length
+  const chipCloseLeavesSavedPage = isTitleVariantGroup
+    ? titleVariantChips.some((variant) => variantClosable(variant) && closeTargetLeavesSavedPage(variant))
+    : isFolded
+      ? envs.some(closeTargetLeavesSavedPage)
+      : closeTargetLeavesSavedPage(chip)
   const parentInteractive = !isFolded && !isTitleVariantGroup
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
@@ -1396,7 +1401,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       tabId: chip.tabId,
       envs,
       onAfterClose: async ({ shouldAnimateRemoval }) => {
-        if (shouldAnimateRemoval && chipEl) {
+        if (shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl) {
           if (startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
         }
         setPreview('')
@@ -1547,7 +1552,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     if (tabEnvs.length > 0) await closeChipTarget({ tabUrl: chip.tabUrl, envs: tabEnvs })
     if (historyUrls.length > 0) await deleteHistoryUrls({ urls: historyUrls })
 
-    if (chipEl && startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
+    if (!chipCloseLeavesSavedPage && chipEl && startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
     setPreview('')
   }
 

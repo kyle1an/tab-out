@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  closeTargetLeavesSavedPage,
   variantClosable,
   partitionVariantCloseTargets,
   groupCloseActionLabel,
@@ -16,6 +17,15 @@ test('variantClosable: bookmarks, saved pages, and closed-saved tabs are not clo
   assert.equal(variantClosable({ sourceType: 'bookmark', tabUrl: 'https://a', rawUrl: 'https://a' }), false)
   assert.equal(variantClosable({ sourceType: 'saved-page', tabUrl: 'https://a', rawUrl: 'https://a' }), false)
   assert.equal(variantClosable({ sourceType: 'tab', closedSaved: true, tabUrl: 'https://a', rawUrl: 'https://a' }), false)
+})
+
+test('closeTargetLeavesSavedPage: only saved open tab targets remain visible after close', () => {
+  assert.equal(closeTargetLeavesSavedPage({ sourceType: 'tab', saved: true }), true)
+  assert.equal(closeTargetLeavesSavedPage({ saved: true }), true)
+  assert.equal(closeTargetLeavesSavedPage({ sourceType: 'tab', saved: false }), false)
+  assert.equal(closeTargetLeavesSavedPage({ sourceType: 'tab', saved: true, closedSaved: true }), false)
+  assert.equal(closeTargetLeavesSavedPage({ sourceType: 'saved-page', saved: true, closedSaved: true }), false)
+  assert.equal(closeTargetLeavesSavedPage({ sourceType: 'history', saved: true }), false)
 })
 
 test('partitionVariantCloseTargets: splits closable variants into history urls and tab envs', () => {

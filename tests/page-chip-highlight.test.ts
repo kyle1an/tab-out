@@ -744,6 +744,14 @@ test('PageChip close animation collapses the measured row height', () => {
   assert.deepEqual(layoutOptions, { animate: true })
 })
 
+test('PageChip skips close removal animation when a saved open chip remains as a closed saved page', () => {
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+
+  assert.match(pageChipSource, /const chipCloseLeavesSavedPage =/)
+  assert.match(pageChipSource, /shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl/)
+  assert.match(pageChipSource, /!chipCloseLeavesSavedPage && chipEl && startPageChipCloseAnimation/)
+})
+
 test('PageChip outlines matching live chips when an external row owns the match', () => {
   const chip = makeChip({
     tabUrl: 'https://example.com/docs',
