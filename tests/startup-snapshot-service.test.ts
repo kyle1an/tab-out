@@ -25,7 +25,7 @@ function makeChromeTab(id: number, url: string, title: string): chrome.tabs.Tab 
 
 const emptyTabHistory = {
   stackSize: 0,
-  maxSize: 24,
+  maxSize: 48,
   cursorIndex: -1,
   currentIndex: -1,
   previousIndex: -1,

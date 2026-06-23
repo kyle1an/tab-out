@@ -18,7 +18,7 @@ export interface UseHistoryPanelRowsArgs {
   dismissedClosedGhosts?: ClosedGhostDismissals | null
 }
 
-const DEFAULT_HISTORY_PANEL_ROW_LIMIT = 24
+const DEFAULT_HISTORY_PANEL_ROW_LIMIT = 48
 
 function historyPanelRowLimit(snapshot: TabHistorySnapshot | null): number {
   const maxSize = snapshot?.maxSize

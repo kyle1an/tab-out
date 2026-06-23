@@ -1,6 +1,6 @@
 import { unwrapSuspenderUrl } from '../suspension.js'
 
-export const MAX_TAB_HISTORY = 24
+export const MAX_TAB_HISTORY = 48
 
 export type GlobalTabHistoryEntry = {
   windowId: number

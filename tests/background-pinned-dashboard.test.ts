@@ -773,6 +773,7 @@ test('tab history snapshot exposes previous and next command targets', async () 
 
   const initialResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
   assert.equal(initialResponse.ok, true)
+  assert.equal(initialResponse.snapshot.maxSize, 48)
   assert.equal(initialResponse.snapshot.currentIndex, 2)
   assert.equal(initialResponse.snapshot.previousIndex, 1)
   assert.equal(initialResponse.snapshot.nextIndex, -1)

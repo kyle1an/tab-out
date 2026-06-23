@@ -282,7 +282,7 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
             ok: true,
             tabHistory: {
               stackSize: 0,
-              maxSize: 24,
+              maxSize: 48,
               cursorIndex: -1,
               currentIndex: -1,
               previousIndex: -1,
@@ -454,7 +454,7 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
         ok: true,
         tabHistory: {
           stackSize: 0,
-          maxSize: 24,
+          maxSize: 48,
           cursorIndex: -1,
           currentIndex: -1,
           previousIndex: -1,
@@ -566,7 +566,7 @@ test('startup path reads ordering before saved pages without losing saved rows',
         ok: true,
         tabHistory: {
           stackSize: 0,
-          maxSize: 24,
+          maxSize: 48,
           cursorIndex: -1,
           currentIndex: -1,
           previousIndex: -1,
@@ -664,7 +664,7 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
           ok: true,
           tabHistory: {
             stackSize: 1,
-            maxSize: 24,
+            maxSize: 48,
             cursorIndex: 0,
             currentIndex: 0,
             previousIndex: -1,
