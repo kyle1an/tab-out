@@ -58,16 +58,37 @@ async function requestSuspenderUnsuspend(chromeApi: ChromeTabFocusApi, tab: chro
   }
 }
 
+async function applyUnsuspend(chromeApi: ChromeTabFocusApi, tab: chrome.tabs.Tab, targetEffective: string, updateProperties?: chrome.tabs.UpdateProperties): Promise<boolean> {
+  if (typeof tab.id !== 'number') return false
+  if (!isSuspendedUrlForTarget(tab.url, targetEffective)) return false
+  const didRequestUnsuspend = await requestSuspenderUnsuspend(chromeApi, tab, targetEffective)
+  if (didRequestUnsuspend) return true
+  if (updateProperties) {
+    updateProperties.url = targetEffective
+  } else {
+    await chromeApi.tabs.update(tab.id, { url: targetEffective })
+  }
+  return true
+}
+
 async function focusMatchedTab(chromeApi: ChromeTabFocusApi, match: chrome.tabs.Tab, targetEffective: string): Promise<boolean> {
   if (typeof match.id !== 'number') return false
-  const didRequestUnsuspend = await requestSuspenderUnsuspend(chromeApi, match, targetEffective)
   const updateProperties: chrome.tabs.UpdateProperties = { active: true }
-  if (!didRequestUnsuspend && isSuspendedUrlForTarget(match.url, targetEffective)) {
-    updateProperties.url = targetEffective
-  }
+  await applyUnsuspend(chromeApi, match, targetEffective, updateProperties)
   await chromeApi.tabs.update(match.id, updateProperties)
   await chromeApi.windows.update(match.windowId, { focused: true })
   return true
+}
+
+export async function unsuspendExistingTab(tab: chrome.tabs.Tab, target: PageTarget, chromeApi?: ChromeTabFocusApi): Promise<boolean> {
+  const api = chromeApiOrNull(chromeApi)
+  if (!api || typeof tab.id !== 'number') return false
+
+  try {
+    return applyUnsuspend(api, tab, tabTargetEffectiveUrl(target, tab.url || ''))
+  } catch {
+    return false
+  }
 }
 
 export async function focusExistingTabTarget(target: ExistingTabTarget, chromeApi?: ChromeTabFocusApi): Promise<boolean> {

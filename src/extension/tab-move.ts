@@ -12,7 +12,7 @@
    ================================================================ */
 
 import { unwrapSuspenderUrl } from './suspension.js'
-import { focusExistingTabTarget } from './tab-focus.js'
+import { focusExistingTabTarget, unsuspendExistingTab } from './tab-focus.js'
 
 type ChromeTabMoveApi = {
   tabs: {
@@ -86,6 +86,8 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
       // even if this activation no-ops (e.g. the tab was closed mid-gesture) —
       // returning false here would make the caller open a duplicate tab.
       await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
+    } else {
+      await unsuspendExistingTab(match, { url: target.tabUrl, rawUrl: target.rawUrl })
     }
 
     return true

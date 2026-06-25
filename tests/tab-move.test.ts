@@ -155,3 +155,22 @@ test('moveTabToCurrentWindow unsuspends a suspended tab when foregrounding', asy
   assert.deepEqual(calls.runtimeMessages, [{ extensionId: 'marvellous', message: { action: 'unsuspend', tabId: 2 } }])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
 })
+
+test('moveTabToCurrentWindow unsuspends a suspended tab when moving in the background', async () => {
+  const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: TAB_OUT },
+    { id: 2, windowId: 2, url: suspendedUrl }
+  ])
+
+  const moved = await moveTabToCurrentWindow(
+    { tabId: 2, tabUrl: 'https://example.com/docs', rawUrl: suspendedUrl },
+    { activate: false }
+  )
+
+  assert.equal(moved, true)
+  assert.deepEqual(calls.move, [{ tabId: 2, moveProperties: { windowId: 1, index: -1 } }])
+  assert.deepEqual(calls.runtimeMessages, [{ extensionId: 'marvellous', message: { action: 'unsuspend', tabId: 2 } }])
+  assert.deepEqual(calls.tabsUpdate, [])
+  assert.deepEqual(calls.windowsUpdate, [])
+})
