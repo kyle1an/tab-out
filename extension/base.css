@@ -237,26 +237,29 @@ body {
    no suppression of any side.
 
    A chip-slot is overlapped when its chip either carries an active frame
-   (.active-chip-frame, inset box-shadow) OR is a group chip (.page-chip-group)
-   that draws an interaction outline on hover / tooltip-open / context-menu-
-   open. Crucially the overlap is keyed off the STATIC marker, not the hover
-   state: a group chip reserves the -1px at rest too, so hovering it only
-   reveals the (already-overlapping) outline instead of pulling the chip up —
-   the run's total height stays stable, with no layout shift on hover.
+   (.active-chip-frame, inset box-shadow) OR draws an interaction outline on
+   hover / tooltip-open / context-menu-open (.page-chip-group,
+   .page-chip-saved-closed). Crucially the overlap is keyed off the STATIC
+   marker, not the hover state: an outline-capable chip reserves the -1px at
+   rest too, so hovering it only reveals the (already-overlapping) outline
+   instead of pulling the chip up — the run's total height stays stable, with
+   no layout shift on hover.
 
-   At rest a group chip has no border, so the -1px overlap is invisible (its
-   transparent top edge just sits over the neighbour's intact border). On
-   interaction the outline appears already aligned to the seam.
+   At rest an outline-capable chip has no border, so the -1px overlap is
+   invisible (its transparent top edge just sits over the neighbour's intact
+   border). On interaction the outline appears already aligned to the seam.
 
    The z-index rule below lifts the interacting slot so its strengthened
    frame paints on top of the neighbour at the shared seam. */
 
 :is(
   .chip-slot:has(.active-chip-frame),
-  .chip-slot:has(.page-chip-group)
+  .chip-slot:has(.page-chip-group),
+  .chip-slot:has(.page-chip-saved-closed)
 ) + :is(
   .chip-slot:has(.active-chip-frame),
-  .chip-slot:has(.page-chip-group)
+  .chip-slot:has(.page-chip-group),
+  .chip-slot:has(.page-chip-saved-closed)
 ) {
   margin-top: -1px;
 }

@@ -1034,20 +1034,22 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   assert.match(pageChipSource, /data-tabout-part="slot"[\s\S]*?\{\.\.\.variantGroupInteractionProps\}/)
 })
 
-// The base-layer overlap rule must collapse the seam for BOTH border kinds:
-// active frames and the group chip's interaction outline. It must also key off
-// the STATIC `.page-chip-group` marker — NOT the hover/menu/tooltip state — so
-// that hovering a group chip reveals its (already-overlapping) outline instead
-// of pulling the slot up, keeping the run's total height stable on hover.
+// The base-layer overlap rule must collapse the seam for both border kinds:
+// active frames and interaction outlines from group or closed-saved chips. It
+// must also key off STATIC markers — NOT the hover/menu/tooltip state — so that
+// hovering an outline chip reveals its (already-overlapping) outline instead of
+// pulling the slot up, keeping the run's total height stable on hover.
 // A regression here brings back either the doubled border (between an active
-// chip and a hovered group chip) or the 1px height shift on hover.
-test('base.css statically overlaps adjacent active and group chip-slots', () => {
+// chip and a hovered outline chip) or the 1px height shift on hover.
+test('base.css statically overlaps adjacent active and outline chip-slots', () => {
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const overlapRule = baseCss.slice(baseCss.indexOf(':is('), baseCss.indexOf('margin-top: -1px'))
   assert.match(overlapRule, /\.chip-slot:has\(\.active-chip-frame\)/)
   assert.match(overlapRule, /\.chip-slot:has\(\.page-chip-group\)/)
+  assert.match(overlapRule, /\.chip-slot:has\(\.page-chip-saved-closed\)/)
   // Overlap must not be gated on hover/interaction state, or height shifts.
   assert.doesNotMatch(overlapRule, /\.page-chip-group:is\(/)
+  assert.doesNotMatch(overlapRule, /\.page-chip-saved-closed:is\(/)
 })
 
 test('PageChip expands same-title URL variant groups in place', () => {
