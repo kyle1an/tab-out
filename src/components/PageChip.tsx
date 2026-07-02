@@ -5,8 +5,8 @@ import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
-import { moveTabToCurrentWindow } from '../extension/tab-move.js'
-import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
+import { moveTabToCurrentWindow, moveTabToNewWindow } from '../extension/tab-move.js'
+import { focusExactTab, focusTab, openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
 import { nextMutedForAudioState } from '../extension/tab-audio.js'
@@ -1077,6 +1077,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       await focusChipUrl(targetUrl, sourceType, target)
       return
     }
+    if (mode === 'open-window') {
+      const moved = await moveTabToNewWindow({ tabId: target?.tabId, tabUrl: targetUrl, rawUrl: target?.rawUrl })
+      if (!moved) await openTabUrlInNewWindow(targetUrl)
+      return
+    }
     const activate = mode === 'bring-foreground'
     const moved = await moveTabToCurrentWindow({ tabId: target?.tabId, tabUrl: targetUrl, rawUrl: target?.rawUrl }, { activate })
     if (!moved) await openTabUrl(targetUrl, { active: activate })
@@ -1140,8 +1145,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   }
 
   function onChipPointerDown(e: MouseEvent<HTMLDivElement>) {
-    // Shift-click/⌘-click/⌃-click are our "move tab into this window"
-    // gestures; cancel the browser's native text selection for that gesture only so the chip behaves
+    // Shift-click moves the tab into a new window; ⌘/⌃-click moves it into this window.
+    // Cancel the browser's native text selection for those gestures only so the chip behaves
     // like a link (a plain click still drag-selects). See chip-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }

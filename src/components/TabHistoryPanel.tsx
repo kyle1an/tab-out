@@ -12,12 +12,12 @@ import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../e
 import { unwrapSuspenderUrl } from '../extension/suspension.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
-import { moveTabToCurrentWindow } from '../extension/tab-move.js'
+import { moveTabToCurrentWindow, moveTabToNewWindow } from '../extension/tab-move.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { historyEntrySaveTarget, historyEntrySaved, isHistoryEntrySaveEligible } from '../extension/history-saved-page.js'
 import { PageChipContextMenu } from './PageChipContextMenu'
 import type { PageChipContextMenuTriggerElement } from './PageChipContextMenu'
-import { openTabUrl } from '../extension/tabs.js'
+import { openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { TabAudioButton } from './TabAudioButton'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
@@ -921,13 +921,19 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   async function activateHistoryEntry(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
     const mode = chipActivationMode(e, navigator.platform)
     const hasLiveTab = !!workingSetItem || entry.exists
-    if (mode === 'focus' || !hasLiveTab) {
-      await onFocusEntry()
-      return
-    }
     const tabId = workingSetItem ? workingSetItem.tabId : entry.tabId
     const tabUrl = workingSetItem ? workingSetItem.tabUrl : entry.url
     const rawUrl = workingSetItem ? workingSetItem.rawUrl : entry.rawUrl
+    if (mode === 'focus' || (!hasLiveTab && mode !== 'open-window')) {
+      await onFocusEntry()
+      return
+    }
+    if (mode === 'open-window') {
+      const moved = hasLiveTab ? await moveTabToNewWindow({ tabId, tabUrl, rawUrl }) : false
+      if (!moved) await openTabUrlInNewWindow(tabUrl)
+      await refreshAfterMutation()
+      return
+    }
     const activate = mode === 'bring-foreground'
     const moved = await moveTabToCurrentWindow({ tabId, tabUrl, rawUrl }, { activate })
     if (!moved) await openTabUrl(tabUrl, { active: activate })
@@ -943,8 +949,8 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   }
 
   function onEntryMouseDown(e: MouseEvent<HTMLDivElement>) {
-    // Shift-click/⌘-click/⌃-click moves the tab into this window; cancel the
-    // browser's native text selection for that gesture only so the row behaves like a link
+    // Shift-click moves the tab into a new window; ⌘/⌃-click moves it into this window.
+    // Cancel the browser's native text selection for those gestures only so the row behaves like a link
     // (a plain click still drag-selects). See chip-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }

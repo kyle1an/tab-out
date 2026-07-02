@@ -1,11 +1,11 @@
 /* ================================================================
-   Move a page's open tab into the current window.
+   Move a page's open tab into another window.
 
    Resolves the live tab (by numeric tabId, else by effective URL,
-   preferring a tab in another window), relocates it to the end of
-   the current window, and optionally switches to it by reusing the
-   shared focus/activation path. Returns false when no live tab
-   exists, so callers can fall back to opening the page.
+   preferring a tab in another window for current-window moves),
+   relocates it, and reuses the shared focus/activation path where
+   needed. Returns false when no live tab exists, so callers can fall
+   back to opening the page.
 
    Reads globalThis.chrome (tests assign it), mirroring how the
    tab-focus tests drive the chrome API.
@@ -20,6 +20,7 @@ type ChromeTabMoveApi = {
     move: (tabId: number, moveProperties: chrome.tabs.MoveProperties) => Promise<chrome.tabs.Tab | chrome.tabs.Tab[] | undefined>
   }
   windows: {
+    create?: (createData: chrome.windows.CreateData) => Promise<chrome.windows.Window | undefined>
     getCurrent?: () => Promise<chrome.windows.Window>
   }
 }
@@ -90,6 +91,35 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
       await unsuspendExistingTab(match, { url: target.tabUrl, rawUrl: target.rawUrl })
     }
 
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * moveTabToNewWindow(target) — relocate the page's open tab into a new focused
+ * Chrome window. Resolves the tab by numeric tabId, else by effective URL.
+ *
+ * @param {{ tabId?: number | string, tabUrl?: string, rawUrl?: string }} target
+ * @returns {Promise<boolean>} true if a live tab was moved; false if none found
+ */
+export async function moveTabToNewWindow(target: MoveTabTarget): Promise<boolean> {
+  const api = chromeApiOrNull()
+  if (!api?.windows.create) return false
+
+  try {
+    const tabs = await api.tabs.query({})
+    let currentWindowId = -1
+    try {
+      currentWindowId = (await api.windows.getCurrent?.())?.id ?? -1
+    } catch {}
+
+    const match = findTabForTarget(tabs, target, currentWindowId)
+    if (!match || typeof match.id !== 'number') return false
+
+    await api.windows.create({ tabId: match.id, focused: true, type: 'normal' })
+    await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
     return true
   } catch {
     return false

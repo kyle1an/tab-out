@@ -1,14 +1,14 @@
 /* ================================================================
    Chip activation mode — classifies a (modifier) click/keydown on a
-   page chip into one of three intents: focus the existing tab, or
-   bring the tab into the current window (in the background, or in the
-   foreground and switch to it).
+   page chip into one of four intents: focus the existing tab,
+   move or open the URL in a new window, or bring the tab into the current
+   window (in the background, or in the foreground and switch to it).
 
    Pure and platform-injected (like isFilterFocusShortcut in
    app-url.ts) so it is unit-testable without a real `navigator`.
    ================================================================ */
 
-export type ChipActivationMode = 'focus' | 'bring-background' | 'bring-foreground'
+export type ChipActivationMode = 'focus' | 'open-window' | 'bring-background' | 'bring-foreground'
 
 export interface ChipActivationModifiers {
   metaKey?: boolean
@@ -19,12 +19,14 @@ export interface ChipActivationModifiers {
 /**
  * chipActivationMode(e, platform) — resolve a click/keydown into an intent:
  *   • no move modifier             → 'focus'            (switch to the existing tab)
+ *   • Shift only                   → 'open-window'      (move/open in a new window)
  *   • primary modifier, no Shift    → 'bring-background' (move the tab into the current window)
- *   • Shift                         → 'bring-foreground' (move it here and switch to it)
+ *   • primary modifier + Shift      → 'bring-foreground' (move it here and switch to it)
  *
  * The primary modifier is Cmd on macOS, Ctrl elsewhere, and the opposite key
  * must NOT be held — matching isFilterFocusShortcut so a cross-platform key
- * combo can't satisfy both branches. Shift is the foreground move gesture.
+ * combo can't satisfy both branches. Shift on its own follows Chrome's
+ * link-style new-window gesture, moving the live tab when one exists.
  *
  * @param {{ metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean } | null | undefined} e
  * @param {string} [platform]
@@ -32,22 +34,21 @@ export interface ChipActivationModifiers {
  */
 export function chipActivationMode(e: ChipActivationModifiers | null | undefined, platform = ''): ChipActivationMode {
   if (!e) return 'focus'
-  if (e.shiftKey) return 'bring-foreground'
   const isMac = /mac|iphone|ipad|ipod/i.test(platform)
   const hasPrimaryModifier = isMac ? !!e.metaKey && !e.ctrlKey : !!e.ctrlKey && !e.metaKey
-  if (!hasPrimaryModifier) return 'focus'
-  return 'bring-background'
+  if (!hasPrimaryModifier) return e.shiftKey && !e.metaKey && !e.ctrlKey ? 'open-window' : 'focus'
+  return e.shiftKey ? 'bring-foreground' : 'bring-background'
 }
 
 /**
  * shouldSuppressSelectionForGesture(e, platform) — true when a pointer event
- * carries one of the move modifiers (i.e. chipActivationMode is not 'focus').
+ * carries one of the special modifiers (i.e. chipActivationMode is not 'focus').
  *
  * The chip and history-row click targets are <div role="button"> whose title is
  * ordinary selectable text — unlike a real <a>/<button>, a <div> has no
  * activation behavior, so the browser starts a native text selection on the same
- * Shift-click and ⌘/⌃-click gestures we've overloaded to MOVE the tab.
- * Calling preventDefault() on mousedown when this returns true cancels that default for the move gesture
+ * Shift-click and ⌘/⌃-click gestures we've overloaded.
+ * Calling preventDefault() on mousedown when this returns true cancels that default for the gesture
  * only, so the surface behaves like a link while a plain click still drag-selects.
  *
  * @param {{ metaKey?: boolean, ctrlKey?: boolean, shiftKey?: boolean } | null | undefined} e

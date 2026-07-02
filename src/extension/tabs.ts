@@ -279,6 +279,19 @@ export async function openTabUrl(url: string, opts: { active?: boolean } = {}): 
   } catch {}
 }
 
+/**
+ * openTabUrlInNewWindow(url) — open a URL in a new focused Chrome window.
+ *
+ * @param {string} url
+ * @returns {Promise<void>}
+ */
+export async function openTabUrlInNewWindow(url: string): Promise<void> {
+  if (!url) return
+  try {
+    await chrome.windows.create({ url, focused: true, type: 'normal' })
+  } catch {}
+}
+
 function isTabOutUrl(url?: string): boolean {
   const extensionId = globalThis.chrome?.runtime?.id
   if (url === 'chrome://newtab/') return true

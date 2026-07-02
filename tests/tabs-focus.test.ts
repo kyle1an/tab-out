@@ -4,7 +4,7 @@ import test from 'node:test'
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
 import { closeChipTarget } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntry } from '../src/extension/tab-history.js'
-import { focusTab, openTabUrl, snapshotChromeTabs } from '../src/extension/tabs.js'
+import { focusTab, openTabUrl, openTabUrlInNewWindow, snapshotChromeTabs } from '../src/extension/tabs.js'
 import { markClosure, undoLastClose } from '../src/extension/undo.js'
 import { focusWorkingSetItem } from '../src/extension/working-set-client.js'
 
@@ -15,6 +15,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
     remove: [],
     runtimeMessages: [],
     tabsUpdate: [],
+    windowsCreate: [],
     windowsUpdate: []
   }
 
@@ -87,6 +88,23 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       },
       async getAll() {
         return Array.from(new Set(tabs.map((tab) => tab.windowId))).map((id) => ({ id, type: 'normal' }))
+      },
+      async create(createProperties) {
+        calls.windowsCreate.push({ ...createProperties })
+        const windowId = Math.max(0, ...tabs.map((tab) => Number(tab.windowId) || 0)) + 1
+        const nextId = Math.max(0, ...tabs.map((tab) => Number(tab.id) || 0)) + 1
+        const tab = {
+          id: nextId,
+          windowId,
+          url: createProperties.url || 'chrome://newtab/',
+          title: '',
+          active: true,
+          pinned: false,
+          groupId: -1,
+          index: 0
+        }
+        tabs.push(tab)
+        return { id: windowId, type: createProperties.type || 'normal', focused: !!createProperties.focused, tabs: [{ ...tab }] }
       },
       async update(windowId, updateProperties) {
         calls.windowsUpdate.push({ windowId, updateProperties: { ...updateProperties } })
@@ -453,4 +471,25 @@ test('openTabUrl creates no tab for an empty URL', async () => {
   await openTabUrl('')
 
   assert.deepEqual(calls.create, [])
+})
+
+test('openTabUrlInNewWindow opens a focused normal window', async () => {
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+
+  await openTabUrlInNewWindow('https://example.com/new')
+
+  assert.deepEqual(calls.windowsCreate, [{ url: 'https://example.com/new', focused: true, type: 'normal' }])
+  assert.deepEqual(calls.create, [])
+})
+
+test('openTabUrlInNewWindow creates no window for an empty URL', async () => {
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+
+  await openTabUrlInNewWindow('')
+
+  assert.deepEqual(calls.windowsCreate, [])
 })

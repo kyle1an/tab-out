@@ -28,7 +28,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
 - **Pin domain cards** to keep important sites at the top of the dashboard, plus per-card section and page-chip pins that keep important pages first inside their card
 - **Click any tab to jump to it** across Chrome windows
-- **Move a tab here with a modifier-click** — Cmd/Ctrl-click any chip or history row to pull that tab into the current window in the background, or Shift-click to pull it here and switch to it; if the page has no live tab, the same gesture opens it in a new tab
+- **Move or open with a modifier-click** — Cmd/Ctrl-click any chip or history row to pull that tab into the current window in the background, Cmd/Ctrl+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window
 - **Activation history column** — your chronological tab-switching path with working-set hints and recently closed rows you can restore or forget
 - **Saved pages** — explicitly keep a page on its card after the tab closes, and reopen it with one click (local state, not a Chrome bookmark)
 - **Audio at a glance** — chips and history rows show Chrome-style play/mute indicators with a click-to-mute toggle

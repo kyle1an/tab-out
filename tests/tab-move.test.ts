@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { moveTabToCurrentWindow } from '../src/extension/tab-move.js'
+import { moveTabToCurrentWindow, moveTabToNewWindow } from '../src/extension/tab-move.js'
 
 function createChromeMock(initialTabs: any[], currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
-  const calls: any = { move: [], tabsUpdate: [], windowsUpdate: [], runtimeMessages: [] }
+  const calls: any = { move: [], tabsUpdate: [], windowsCreate: [], windowsUpdate: [], runtimeMessages: [] }
 
   ;(globalThis as any).chrome = {
     runtime: {
@@ -34,6 +34,15 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       }
     },
     windows: {
+      async create(createProperties: any) {
+        calls.windowsCreate.push({ ...createProperties })
+        const windowId = Math.max(0, ...tabs.map((tab) => Number(tab.windowId) || 0)) + 1
+        if (typeof createProperties.tabId === 'number') {
+          const tab = tabs.find((candidate) => candidate.id === createProperties.tabId)
+          if (tab) tab.windowId = windowId
+        }
+        return { id: windowId, type: createProperties.type || 'normal', focused: !!createProperties.focused }
+      },
       async getCurrent() {
         return { id: currentWindowId, type: 'normal' }
       },
@@ -173,4 +182,63 @@ test('moveTabToCurrentWindow unsuspends a suspended tab when moving in the backg
   assert.deepEqual(calls.runtimeMessages, [{ extensionId: 'marvellous', message: { action: 'unsuspend', tabId: 2 } }])
   assert.deepEqual(calls.tabsUpdate, [])
   assert.deepEqual(calls.windowsUpdate, [])
+})
+
+test('moveTabToNewWindow moves a live tab into a focused new window', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: TAB_OUT },
+    { id: 2, windowId: 1, url: 'https://example.com/docs' }
+  ])
+
+  const moved = await moveTabToNewWindow({ tabId: 2, tabUrl: 'https://example.com/docs' })
+
+  assert.equal(moved, true)
+  assert.deepEqual(calls.windowsCreate, [{ tabId: 2, focused: true, type: 'normal' }])
+  assert.deepEqual(calls.move, [])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+  assert.equal(tabs.find((tab) => tab.id === 2)?.windowId, 2)
+})
+
+test('moveTabToNewWindow resolves by URL when no tabId', async () => {
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: TAB_OUT },
+    { id: 2, windowId: 2, url: 'https://example.com/docs' }
+  ])
+
+  const moved = await moveTabToNewWindow({ tabUrl: 'https://example.com/docs' })
+
+  assert.equal(moved, true)
+  assert.deepEqual(calls.windowsCreate, [{ tabId: 2, focused: true, type: 'normal' }])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 3, updateProperties: { focused: true } }])
+  assert.equal(tabs.find((tab) => tab.id === 2)?.windowId, 3)
+})
+
+test('moveTabToNewWindow returns false when no open tab matches', async () => {
+  const { calls } = createChromeMock([{ id: 1, windowId: 1, url: TAB_OUT }])
+
+  const moved = await moveTabToNewWindow({ tabUrl: 'https://nope.example/' })
+
+  assert.equal(moved, false)
+  assert.deepEqual(calls.windowsCreate, [])
+  assert.deepEqual(calls.tabsUpdate, [])
+  assert.deepEqual(calls.windowsUpdate, [])
+})
+
+test('moveTabToNewWindow unsuspends a suspended tab after moving it', async () => {
+  const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+  const { calls, tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: TAB_OUT },
+    { id: 2, windowId: 1, url: suspendedUrl }
+  ])
+
+  const moved = await moveTabToNewWindow({ tabId: 2, tabUrl: 'https://example.com/docs', rawUrl: suspendedUrl })
+
+  assert.equal(moved, true)
+  assert.deepEqual(calls.windowsCreate, [{ tabId: 2, focused: true, type: 'normal' }])
+  assert.deepEqual(calls.runtimeMessages, [{ extensionId: 'marvellous', message: { action: 'unsuspend', tabId: 2 } }])
+  assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
+  assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+  assert.equal(tabs.find((tab) => tab.id === 2)?.windowId, 2)
 })
