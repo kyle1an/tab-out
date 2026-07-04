@@ -260,6 +260,32 @@ test('PageChip skips bionic reading when title text is a URL', () => {
   assert.doesNotMatch(hostUrlHtml, /chip-title-fixation/)
 })
 
+test('PageChip lets URL titles wrap at path boundaries instead of overflowing', () => {
+  const urlChipHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['example.com/resource/contentKeys/master/landing/en-US.json'],
+        tooltip: 'example.com/resource/contentKeys/master/landing/en-US.json'
+      })
+    })
+  )
+  const proseChipHtml = renderToStaticMarkup(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        displaySegments: ['Example Article Title'],
+        tooltip: 'Example Article Title'
+      })
+    })
+  )
+
+  // URL titles carry an overflow-wrap:break-word wrapper so a long path-only URL
+  // wraps at its "/" boundaries instead of overflowing the chip on one line and
+  // stranding a tiny tail ("US.json") alone on the second line under the fade mask.
+  assert.match(urlChipHtml, /<span class="chip-url-title[^"]*\bwrap-break-word\b[^"]*">[^<]*example\.com\/resource/)
+  // Prose titles keep the tuned break-normal + bionic path — no url-break wrapper.
+  assert.doesNotMatch(proseChipHtml, /chip-url-title/)
+})
+
 test('PageChip skips bionic reading inside Jira ticket references', () => {
   const ticketOnlyHtml = renderToStaticMarkup(
     React.createElement(PageChip, {

@@ -1888,8 +1888,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         )}
         {target.displaySegments.map((seg, index) => {
           if (typeof seg === 'string') {
+            // A URL title has no spaces and only structural break points (/, -).
+            // Under the chip's default `break-normal` it refuses to break at "/"
+            // and overflows one clipped line, stranding a short tail (e.g.
+            // "US.json") alone on line 2. overflow-wrap:break-word lets it wrap at
+            // the "/" boundaries into balanced lines. Prose titles keep bionic +
+            // the tuned break-normal path so short words never break awkwardly.
             return isUrlLikeTitle(seg)
-              ? highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`)
+              ? (
+                <span key={`${keyPrefix}-url-${seg}`} className="chip-url-title wrap-break-word">
+                  {highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`)}
+                </span>
+              )
               : highlightedTextNodes(seg, highlightTerms, `${keyPrefix}-segment-${index}`, createBionicTitleTextRenderer(seg))
           }
           if (isTitleSuppressionSegment(seg)) return suppressionMarkerNode(seg.titleSuppression, mode, `${keyPrefix}-inline-title-suppression-${index}`)
