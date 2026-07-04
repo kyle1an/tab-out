@@ -62,6 +62,12 @@ export interface PathGroupRule {
   extract(url: URL): PathGroupResult | null
 }
 
+export interface UrlCanonicalizerRule {
+  hostname?: string
+  hostnameEndsWith?: string
+  canonicalize(url: URL): string | null
+}
+
 export interface WebsitePathSectionResult {
   key: string
   label: string
@@ -359,6 +365,7 @@ declare global {
   interface Window {
     LOCAL_CUSTOM_GROUPS?: CustomGroupRule[]
     LOCAL_PATH_GROUPERS?: PathGroupRule[]
+    LOCAL_URL_CANONICALIZERS?: UrlCanonicalizerRule[]
   }
 }
 

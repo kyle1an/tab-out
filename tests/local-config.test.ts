@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   normalizeLocalCustomGroups,
   normalizeLocalPathGroupers,
+  normalizeLocalUrlCanonicalizers,
   readLocalCustomGroups,
   type LocalConfigWarning
 } from '../src/extension/local-config.js'
@@ -274,5 +275,53 @@ test('resolvePathGroup still runs built-ins after invalid local path groupers', 
         category: 'pull'
       })
     })
+  })
+})
+
+test('normalizeLocalUrlCanonicalizers keeps valid data rules and wraps canonicalize results', () => {
+  const warnings: LocalConfigWarning[] = []
+  const rules = normalizeLocalUrlCanonicalizers([
+    {
+      hostname: 'example.com',
+      canonicalize: (url: URL) => `${url.origin}/canonical`
+    }
+  ], warnings)
+
+  assert.equal(rules.length, 1)
+  assert.equal(rules[0]?.canonicalize(new URL('https://example.com/x?y=1')), 'https://example.com/canonical')
+  assert.deepEqual(warnings, [])
+})
+
+test('normalizeLocalUrlCanonicalizers filters invalid and mixed local rules', () => {
+  const warnings: LocalConfigWarning[] = []
+  const rules = normalizeLocalUrlCanonicalizers([
+    { hostname: 'example.com', canonicalize: () => 'https://example.com/ok' },
+    { hostname: 'example.test', canonicalize: 'not-a-function' },
+    { groupKey: 'wrong-shape', canonicalize: () => 'https://example.org/ok' },
+    null
+  ], warnings)
+
+  assert.equal(rules.length, 1)
+  assert.deepEqual(warnings.map((warning) => warning.index), [1, 2, 3])
+})
+
+test('normalizeLocalUrlCanonicalizers ignores non-array values with a source warning', () => {
+  const warnings: LocalConfigWarning[] = []
+
+  assert.deepEqual(normalizeLocalUrlCanonicalizers({ hostname: 'example.com' }, warnings), [])
+  assert.deepEqual(warnings, [
+    { source: 'LOCAL_URL_CANONICALIZERS', index: null, reason: 'expected an array' }
+  ])
+})
+
+test('normalizeLocalUrlCanonicalizers returns null for throwing rules and invalid results', () => {
+  const rules = normalizeLocalUrlCanonicalizers([
+    { hostname: 'example.com', canonicalize: () => '' },
+    { hostname: 'example.com', canonicalize: () => { throw new Error('bad local rule') } }
+  ])
+
+  withoutConsoleWarn(() => {
+    assert.equal(rules[0]?.canonicalize(new URL('https://example.com/x')), null)
+    assert.equal(rules[1]?.canonicalize(new URL('https://example.com/x')), null)
   })
 })

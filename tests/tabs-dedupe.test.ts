@@ -283,3 +283,18 @@ test('fetchOpenTabs recognizes filter-focus dashboard URLs as Tab Out pages', as
   assert.equal(openTabs[0].rawUrl, tabOutUrl)
   assert.equal(openTabs[0].isTabOut, true)
 })
+
+test('closeDuplicateTabs collapses two Jira URL forms of the same comment', async () => {
+  const canonical = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100'
+  const longForm =
+    'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-100'
+  const shortForm = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: longForm, title: 'ABC-123', windowId: 1, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
+    { id: 2, url: shortForm, title: 'ABC-123', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
+  ])
+
+  await closeDuplicateTabs([canonical], true)
+
+  assert.deepEqual(removedIds, [1])
+})

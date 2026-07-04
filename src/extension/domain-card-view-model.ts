@@ -8,6 +8,7 @@ import { resolvePathGroup } from './path-groups.js'
 import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './website-path-sections.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
+import { canonicalDedupeKey } from './url-canonical.js'
 import { dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
 import { pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
@@ -667,12 +668,14 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
 
   // Count duplicates per URL and delegate the closeability rules to the
   // shared dedupe policy so dashboard counts mirror tab mutation behavior.
+  const keyOf = (t: DashboardTab) => canonicalDedupeKey(t.url)
   const urlCounts: Record<string, number> = {}
   const tabsByUrl = new Map<string, DashboardTab[]>()
   for (const tab of openTabs) {
-    urlCounts[tab.url] = (urlCounts[tab.url] || 0) + 1
-    if (!tabsByUrl.has(tab.url)) tabsByUrl.set(tab.url, [])
-    tabsByUrl.get(tab.url)?.push(tab)
+    const key = keyOf(tab)
+    urlCounts[key] = (urlCounts[key] || 0) + 1
+    if (!tabsByUrl.has(key)) tabsByUrl.set(key, [])
+    tabsByUrl.get(key)?.push(tab)
   }
 
   function closableForUrl(u: string): number {
@@ -684,8 +687,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const tabOutDisplayMeta = new WeakMap<DashboardTab, TabOutDisplayMeta>()
   const displayTabsByUrl = new Map<string, DashboardTab[]>()
   for (const tab of tabs) {
-    if (!displayTabsByUrl.has(tab.url)) displayTabsByUrl.set(tab.url, [])
-    displayTabsByUrl.get(tab.url)?.push(tab)
+    const key = keyOf(tab)
+    if (!displayTabsByUrl.has(key)) displayTabsByUrl.set(key, [])
+    displayTabsByUrl.get(key)?.push(tab)
   }
 
   function tabOutBucketForTab(tab: DashboardTab): { key: string; kind: TabOutDisplayBucketKind; rank: number; groupId: number } {
@@ -750,8 +754,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   } else {
     const seen = new Set<string>()
     for (const tab of tabs) {
-      if (!seen.has(tab.url)) {
-        seen.add(tab.url)
+      const key = keyOf(tab)
+      if (!seen.has(key)) {
+        seen.add(key)
         uniqueTabs.push(tab)
       }
     }
@@ -1232,7 +1237,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const tooltip = [leadPrefix, label, pathSuffix].filter(Boolean).join(' · ')
     const grouped = isGroupedTab(tab)
     const tabOutMeta = tabOutDisplayMeta.get(tab)
-    const duplicateTabs = tabOutMeta?.tabs || tabsByUrl.get(tab.url) || [tab]
+    const duplicateTabs = tabOutMeta?.tabs || tabsByUrl.get(keyOf(tab)) || [tab]
     const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(duplicateTabs, currentWindowId)
     return {
       tabId: tab.id,
@@ -1250,7 +1255,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       suppressedTitleParts: presentation.suppressedTitleParts,
       pathSuffix: pathSuffix || '',
       tooltip,
-      dupeCount: tabOutMeta?.tabs.length || urlCounts[tab.url] || 1,
+      dupeCount: tabOutMeta?.tabs.length || urlCounts[keyOf(tab)] || 1,
       faviconUrl: pickDashboardChipFavicon(tab),
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,

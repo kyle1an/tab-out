@@ -11,6 +11,7 @@
 import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
+import { canonicalDedupeKey } from './url-canonical.js'
 import { focusExactTabTarget, focusTabTarget } from './tab-focus.js'
 import type { DashboardTab, TabSnapshot } from './types'
 
@@ -325,7 +326,7 @@ export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: D
   const toCloseTabs: chrome.tabs.Tab[] = []
 
   for (const url of urls) {
-    const matching = allTabs.filter((t) => unwrapSuspenderUrl(t.url) === url)
+    const matching = allTabs.filter((t) => canonicalDedupeKey(unwrapSuspenderUrl(t.url)) === url)
     toCloseTabs.push(
       ...pickDuplicateTabsToClose(matching, {
         keepOne,

@@ -1,9 +1,9 @@
 import { z } from 'zod/v4-mini'
 import type { RequireAtLeastOne, Simplify } from 'type-fest'
 
-import type { CustomGroupRule, PathGroupResult, PathGroupRule } from './types'
+import type { CustomGroupRule, PathGroupResult, PathGroupRule, UrlCanonicalizerRule } from './types'
 
-type LocalConfigSource = 'LOCAL_CUSTOM_GROUPS' | 'LOCAL_PATH_GROUPERS'
+type LocalConfigSource = 'LOCAL_CUSTOM_GROUPS' | 'LOCAL_PATH_GROUPERS' | 'LOCAL_URL_CANONICALIZERS'
 type LocalConfigSchema<T> = {
   safeParse(value: unknown):
     | { success: true; data: T }
@@ -17,6 +17,7 @@ type LocalCustomGroupRuleData = Simplify<
   LocalConfigHostSelector & Pick<CustomGroupRule, 'pathPrefix' | 'groupKey' | 'groupLabel'>
 >
 type LocalPathGroupRuleData = LocalConfigHostSelector
+type LocalUrlCanonicalizerRuleData = LocalConfigHostSelector
 
 export type LocalConfigWarning = {
   source: LocalConfigSource
@@ -46,6 +47,13 @@ const pathGroupRuleDataSchema = z
   })
   .check(z.refine(hasHostnameSelector, { message: 'expected hostname or hostnameEndsWith' }))
 
+const urlCanonicalizerRuleDataSchema = z
+  .object({
+    hostname: z.optional(nonEmptyStringSchema),
+    hostnameEndsWith: z.optional(nonEmptyStringSchema)
+  })
+  .check(z.refine(hasHostnameSelector, { message: 'expected hostname or hostnameEndsWith' }))
+
 const pathGroupResultSchema = z.object({
   key: nonEmptyStringSchema,
   label: nonEmptyStringSchema,
@@ -59,6 +67,8 @@ let cachedCustomGroupsInput: unknown = unsetLocalConfigCache
 let cachedCustomGroups: CustomGroupRule[] = []
 let cachedPathGroupersInput: unknown = unsetLocalConfigCache
 let cachedPathGroupers: PathGroupRule[] = []
+let cachedUrlCanonicalizersInput: unknown = unsetLocalConfigCache
+let cachedUrlCanonicalizers: UrlCanonicalizerRule[] = []
 
 function warningKey(warning: LocalConfigWarning) {
   return `${warning.source}:${warning.index ?? 'source'}:${warning.reason}`
@@ -129,6 +139,20 @@ function normalizePathGroupResult(source: LocalConfigSource, index: number, valu
   return null
 }
 
+function normalizeUrlCanonicalKey(source: LocalConfigSource, index: number, value: unknown): string | null {
+  if (value == null) return null
+
+  const result = nonEmptyStringSchema.safeParse(value)
+  if (result.success) return result.data
+
+  warnLocalConfigOnce({
+    source,
+    index,
+    reason: result.error.issues[0]?.message || 'expected a non-empty canonical key'
+  })
+  return null
+}
+
 function isLocalCustomGroupRuleData(rule: z.infer<typeof customGroupRuleSchema>): rule is LocalCustomGroupRuleData {
   return hasHostnameSelector(rule)
 }
@@ -154,6 +178,34 @@ function pathGroupRuleFromLocalRule(rule: LocalPathGroupRuleData, index: number,
           source: 'LOCAL_PATH_GROUPERS',
           index,
           reason: 'extract threw'
+        })
+        return null
+      }
+    }
+  }
+}
+
+function urlCanonicalizerRuleFromLocalRule(rule: LocalUrlCanonicalizerRuleData, index: number, value: unknown): UrlCanonicalizerRule | null {
+  if (value === null || typeof value !== 'object') return null
+
+  const canonicalize = (value as { canonicalize?: unknown }).canonicalize
+  if (typeof canonicalize !== 'function') return null
+
+  return {
+    ...('hostname' in rule && rule.hostname ? { hostname: rule.hostname } : {}),
+    ...('hostnameEndsWith' in rule && rule.hostnameEndsWith ? { hostnameEndsWith: rule.hostnameEndsWith } : {}),
+    canonicalize: (url: URL) => {
+      try {
+        return normalizeUrlCanonicalKey(
+          'LOCAL_URL_CANONICALIZERS',
+          index,
+          (canonicalize as (url: URL) => unknown)(url)
+        )
+      } catch {
+        warnLocalConfigOnce({
+          source: 'LOCAL_URL_CANONICALIZERS',
+          index,
+          reason: 'canonicalize threw'
         })
         return null
       }
@@ -194,6 +246,33 @@ export function normalizeLocalPathGroupers(input: unknown, warnings?: LocalConfi
     .filter((rule): rule is PathGroupRule => rule !== null)
 }
 
+export function normalizeLocalUrlCanonicalizers(input: unknown, warnings?: LocalConfigWarning[]): UrlCanonicalizerRule[] {
+  return normalizeLocalConfigArray('LOCAL_URL_CANONICALIZERS', input, warnings)
+    .map((value, index) => {
+      if (value === null || typeof value !== 'object') {
+        pushWarning(warnings, {
+          source: 'LOCAL_URL_CANONICALIZERS',
+          index,
+          reason: 'expected an object'
+        })
+        return null
+      }
+
+      if (typeof (value as { canonicalize?: unknown }).canonicalize !== 'function') {
+        pushWarning(warnings, {
+          source: 'LOCAL_URL_CANONICALIZERS',
+          index,
+          reason: 'expected canonicalize function'
+        })
+        return null
+      }
+
+      const rule = parseItem('LOCAL_URL_CANONICALIZERS', index, value, urlCanonicalizerRuleDataSchema, warnings)
+      return rule && hasHostnameSelector(rule) ? urlCanonicalizerRuleFromLocalRule(rule, index, value) : null
+    })
+    .filter((rule): rule is UrlCanonicalizerRule => rule !== null)
+}
+
 function warnLocalConfigWarnings(warnings: LocalConfigWarning[]) {
   warnings.forEach(warnLocalConfigOnce)
 }
@@ -220,4 +299,16 @@ export function readLocalPathGroupers(): PathGroupRule[] {
   cachedPathGroupersInput = input
   cachedPathGroupers = groupers
   return groupers
+}
+
+export function readLocalUrlCanonicalizers(): UrlCanonicalizerRule[] {
+  const input = typeof window === 'undefined' ? undefined : (window.LOCAL_URL_CANONICALIZERS as unknown)
+  if (input === cachedUrlCanonicalizersInput) return cachedUrlCanonicalizers
+
+  const warnings: LocalConfigWarning[] = []
+  const canonicalizers = normalizeLocalUrlCanonicalizers(input, warnings)
+  warnLocalConfigWarnings(warnings)
+  cachedUrlCanonicalizersInput = input
+  cachedUrlCanonicalizers = canonicalizers
+  return canonicalizers
 }
