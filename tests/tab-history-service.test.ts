@@ -45,7 +45,10 @@ function makeChromeApi(state: {
 }
 
 test('getTabHistorySnapshot populates lastActivatedAt from the activity log', async () => {
-  const now = Date.UTC(2026, 5, 1, 12)
+  // Anchor to the live clock: getTabHistorySnapshot prunes activity older than
+  // ACTIVITY_RETENTION_MS (30 days) relative to Date.now(), so a hardcoded past
+  // date rots out of the window and the record disappears.
+  const now = Date.now()
   let activity = emptyWorkingSetActivity()
   activity = recordWorkingSetActivity(activity, {
     kind: 'activation',
@@ -75,7 +78,10 @@ test('getTabHistorySnapshot sets lastActivatedAt to null when the URL has no act
 })
 
 test('getTabHistorySnapshot can use an already-read activity snapshot', async () => {
-  const now = Date.UTC(2026, 5, 1, 12)
+  // Anchor to the live clock: getTabHistorySnapshot prunes activity older than
+  // ACTIVITY_RETENTION_MS (30 days) relative to Date.now(), so a hardcoded past
+  // date rots out of the window and the record disappears.
+  const now = Date.now()
   let activity = emptyWorkingSetActivity()
   activity = recordWorkingSetActivity(activity, {
     kind: 'activation',
