@@ -369,7 +369,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
   }
 
   for (const list of Array.from(fragment.querySelectorAll('.chip-title-variant-list'))) {
-    list.className = 'chip-title-variant-list inline-flex max-w-full flex-col items-start gap-0.5 pr-[5px] pb-1 align-top'
+    list.className = 'chip-title-variant-list inline-flex max-w-full flex-col items-stretch pr-[5px] pb-1 align-top divide-y divide-neutral-500/15'
   }
 
   for (const shell of Array.from(fragment.querySelectorAll('.chip-title-variant-shell'))) {
@@ -377,7 +377,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
   }
 
   for (const variant of Array.from(fragment.querySelectorAll('.chip-title-variant'))) {
-    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]'
+    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-none bg-transparent px-1.5 py-[3px] text-xs leading-tight font-medium text-tab-muted'
   }
 
   for (const marker of Array.from(fragment.querySelectorAll('.chip-title-suppression-marker'))) {
@@ -1961,10 +1961,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         type="button"
         data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
         className={cn(
-          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle] hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] text-xs leading-tight font-medium text-tab-muted hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
-          variantActive && 'bg-neutral-600/[0.075] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]',
-          variantCurrent && 'bg-neutral-100 shadow-[inset_0_0_0_1px_rgba(82,82,82,0.42)]',
+          variantActive && 'bg-neutral-600/[0.075] text-tab-ink',
+          variantCurrent && 'bg-neutral-100 text-tab-ink shadow-[inset_2px_0_0_0_var(--accent-amber)]',
           variantHoverMatched && 'bg-neutral-600/[0.14] text-tab-ink'
         )}
         aria-label={variantLabel}
@@ -2055,7 +2055,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   function titleVariantListNode(mode: ChipTextRenderMode) {
     if (!isTitleVariantGroup) return null
     return (
-      <span className="chip-title-variant-list flex w-full max-w-full flex-col items-stretch gap-0.5 pr-[5px] pb-1">
+      <span className="chip-title-variant-list flex w-full max-w-full flex-col items-stretch pr-[5px] pb-1 divide-y divide-neutral-500/15">
         {titleVariantChips.map((variant, index) => titleVariantNode(variant, index, mode))}
       </span>
     )
