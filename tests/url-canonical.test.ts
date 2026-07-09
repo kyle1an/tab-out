@@ -94,3 +94,38 @@ test('a throwing local canonicalizer falls back to the built-in rule', () => {
     })
   })
 })
+
+function withExtensionId<T>(id: string, fn: () => T): T {
+  const g = globalThis as { chrome?: unknown }
+  const previous = g.chrome
+  g.chrome = { runtime: { id } }
+  try {
+    return fn()
+  } finally {
+    if (previous === undefined) delete g.chrome
+    else g.chrome = previous
+  }
+}
+
+test('Tab Out dashboard variants collapse to a single dedupe key', () => {
+  withExtensionId('tab-out', () => {
+    const base = 'chrome-extension://tab-out/index.html'
+    assert.equal(canonicalDedupeKey(base), base)
+    assert.equal(canonicalDedupeKey(`${base}?filter=github`), base)
+    assert.equal(canonicalDedupeKey(`${base}?focusFilter=1`), base)
+    assert.equal(canonicalDedupeKey(`${base}#frag`), base)
+  })
+})
+
+test('chrome://newtab/ is not folded into the Tab Out dashboard key', () => {
+  withExtensionId('tab-out', () => {
+    assert.equal(canonicalDedupeKey('chrome://newtab/'), 'chrome://newtab/')
+  })
+})
+
+test('other chrome-extension pages are left unchanged', () => {
+  withExtensionId('tab-out', () => {
+    const other = 'chrome-extension://tab-out/suspended.html#uri=https%3A%2F%2Fx.com'
+    assert.equal(canonicalDedupeKey(other), other)
+  })
+})

@@ -12,6 +12,7 @@ import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderTitle, unwra
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
+import { isTabOutPageUrl } from './tab-out-url.js'
 import { focusExactTabTarget, focusTabTarget } from './tab-focus.js'
 import type { DashboardTab, TabSnapshot } from './types'
 
@@ -66,7 +67,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
       if (!s.url) return false
       if (s.url.startsWith('chrome://')) return includeTabOutUrls && s.url === 'chrome://newtab/'
       if (!s.url.startsWith('chrome-extension://')) return true
-      return includeTabOutUrls && isTabOutUrl(s.url)
+      return includeTabOutUrls && isTabOutPageUrl(s.url)
     })
 }
 
@@ -105,7 +106,7 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
       active: t.active,
       pinned: t.pinned,
       groupId: typeof t.groupId === 'number' ? t.groupId : -1,
-      isTabOut: isTabOutUrl(rawUrl),
+      isTabOut: isTabOutPageUrl(rawUrl),
       isApp: windowType === 'app' || windowType === 'popup',
       index: t.index
     }
@@ -293,14 +294,6 @@ export async function openTabUrlInNewWindow(url: string): Promise<void> {
   } catch {}
 }
 
-function isTabOutUrl(url?: string): boolean {
-  const extensionId = globalThis.chrome?.runtime?.id
-  if (url === 'chrome://newtab/') return true
-  if (!extensionId) return false
-  const tabOutUrl = `chrome-extension://${extensionId}/index.html`
-  return url === tabOutUrl || !!url?.startsWith(`${tabOutUrl}?`) || !!url?.startsWith(`${tabOutUrl}#`)
-}
-
 /**
  * closeDuplicateTabs(urls, keepOne) — closes duplicate tabs of each
  * URL according to the dedup policy (mirrors renderDomainCard's button
@@ -333,7 +326,7 @@ export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: D
         currentWindowId,
         preservePinned,
         preservePinnedTabOut,
-        isTabOutUrl
+        isTabOutUrl: isTabOutPageUrl
       })
     )
   }

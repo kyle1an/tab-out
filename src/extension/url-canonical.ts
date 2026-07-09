@@ -19,6 +19,7 @@
    ================================================================ */
 
 import { readLocalUrlCanonicalizers } from './local-config.js'
+import { isTabOutDashboardUrl, tabOutDashboardCanonicalUrl } from './tab-out-url.js'
 import type { UrlCanonicalizerRule } from './types'
 
 const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
@@ -42,6 +43,11 @@ const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
 
 export function canonicalDedupeKey(url: string): string {
   if (!url) return url
+
+  // Tab Out's own dashboard: collapse every filter/search/hash variant to a
+  // single identity so redundant dashboards are counted + closable as dupes.
+  // chrome://newtab/ is intentionally left as-is (see tab-out-url.ts).
+  if (isTabOutDashboardUrl(url)) return tabOutDashboardCanonicalUrl() ?? url
 
   let parsed: URL
   try {

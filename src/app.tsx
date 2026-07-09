@@ -8,6 +8,7 @@ import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
+import { isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
 type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
@@ -17,17 +18,12 @@ recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 let refreshTimer: number | null = null
 let refreshTimerOptions: RefreshOptions = {}
 
-function isTabOutStartupUrl(url: string): boolean {
-  const tabOutUrl = chrome.runtime.getURL('index.html')
-  return url === tabOutUrl || url.startsWith(`${tabOutUrl}?`) || url.startsWith(`${tabOutUrl}#`) || url === 'chrome://newtab/'
-}
-
 async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null> {
   try {
     const tab = await chrome.tabs.getCurrent()
     if (!tab) return null
     const rawUrl = tab.url || window.location.href
-    if (!isTabOutStartupUrl(rawUrl)) return null
+    if (!isTabOutPageUrl(rawUrl)) return null
     return { ...tab, url: rawUrl }
   } catch {
     return null

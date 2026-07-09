@@ -66,3 +66,27 @@ test('different focused comments on the same issue are not treated as duplicates
   const jiraChips = collectChips(vm).filter((chip) => chip.tabUrl.includes('/browse/ABC-123'))
   assert.equal(jiraChips.length, 2)
 })
+
+test('dashboards with different filter params collapse into one closable Tab Out duplicate', () => {
+  const g = globalThis as { chrome?: unknown }
+  const previous = g.chrome
+  g.chrome = { runtime: { id: 'tab-out' } }
+  try {
+    const base = 'chrome-extension://tab-out/index.html'
+    const group: DomainGroup = {
+      domain: '__tab-out__',
+      tabs: [
+        makeTab({ id: 1, url: `${base}?filter=github`, title: 'Tab Out', windowId: 1, active: true, isTabOut: true }),
+        makeTab({ id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 1, isTabOut: true })
+      ]
+    }
+
+    const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+
+    assert.deepEqual(vm.closableDupeUrls, [base])
+    assert.equal(vm.closableExtras, 1)
+  } finally {
+    if (previous === undefined) delete g.chrome
+    else g.chrome = previous
+  }
+})

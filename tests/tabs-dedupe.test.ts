@@ -284,6 +284,31 @@ test('fetchOpenTabs recognizes filter-focus dashboard URLs as Tab Out pages', as
   assert.equal(openTabs[0].isTabOut, true)
 })
 
+test('global dedupe collapses dashboards with different filter params, keeping the active one', async () => {
+  const base = 'chrome-extension://tab-out/index.html'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: `${base}?filter=github`, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
+    { id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 1, index: 1, active: false, pinned: false, groupId: -1 },
+    { id: 3, url: base, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+  ])
+
+  await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
+
+  assert.deepEqual(removedIds.slice().sort((a, b) => a - b), [2, 3])
+})
+
+test('global dedupe preserves a pinned dashboard even when filters differ', async () => {
+  const base = 'chrome-extension://tab-out/index.html'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: `${base}?filter=github`, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: true, groupId: -1 },
+    { id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
+  ])
+
+  await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
+
+  assert.deepEqual(removedIds, [2])
+})
+
 test('closeDuplicateTabs collapses two Jira URL forms of the same comment', async () => {
   const canonical = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100'
   const longForm =
