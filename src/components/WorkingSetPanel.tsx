@@ -350,7 +350,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           <span className="flex min-w-0 flex-auto items-center">
             <span
               ref={titleRef}
-              className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(var(--title-fade-end,100%)_-_60px),rgba(0,0,0,0.35)_calc(var(--title-fade-end,100%)_-_20px),transparent_var(--title-fade-end,100%))]"
+              className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:var(--title-fade-mask)]"
             >
               {titleClamp && titleClamp.key === item.title && titleClamp.lineHtml.length > 1
                 ? clampedTitleLineNodes(titleClamp.lineHtml, `working-set-title-${item.key}`)

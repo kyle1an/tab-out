@@ -2276,7 +2276,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipTextElement = (
     <span
       className={cn(
-        "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(var(--title-fade-end,100%)_-_60px),rgba(0,0,0,0.35)_calc(var(--title-fade-end,100%)_-_20px),transparent_var(--title-fade-end,100%))]",
+        "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:var(--title-fade-mask)]",
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none !overflow-visible',

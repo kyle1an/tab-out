@@ -493,7 +493,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /focus-within:shadow-\[inset_0_0_0_1px_rgba\(234,179,8,0\.42\)\]/)
   assert.match(tabHistoryPanelSource, /history-entry group\/history-entry[^"]*rounded-\[10px\][^"]*border-0[^"]*bg-transparent/)
   assert.match(tabHistoryPanelSource, /history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-\[calc\(2lh\)\]/)
-  assert.match(tabHistoryPanelSource, /\[\&\.history-entry-title-truncated\]:\[mask-image:linear-gradient\(to_bottom,black_0,black_calc\(100%_-_1lh\),transparent_calc\(100%_-_1lh\)\),linear-gradient\(to_right,black_0,black_calc\(var\(--title-fade-end,100%\)_-_60px\),rgba\(0,0,0,0\.35\)_calc\(var\(--title-fade-end,100%\)_-_20px\),transparent_var\(--title-fade-end,100%\)\)\]/)
+  assert.match(tabHistoryPanelSource, /\[\&\.history-entry-title-truncated\]:\[mask-image:var\(--title-fade-mask\)\]/)
   assert.doesNotMatch(tabHistoryPanelSource, /history-entry-title line-clamp-2/)
   assert.match(tabHistoryPanelSource, /group-hover\/history-row:bg-\(--history-entry-interaction-bg\)/)
   assert.doesNotMatch(tabHistoryPanelSource, /border border-\(--warm-gray\)/)

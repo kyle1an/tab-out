@@ -86,7 +86,7 @@ export function expandedLineContentOverflows(line: HTMLElement, tolerancePx: num
  */
 export const TITLE_FADE_END_PROPERTY = '--title-fade-end'
 
-/** Longest ramp in the fade gradients — keep in sync with the mask classes. */
+/** Fade ramp length — keep in sync with --title-fade-mask in base.css. */
 const TITLE_FADE_RAMP_PX = 60
 const TITLE_LINE_TOP_TOLERANCE_PX = 2
 const TITLE_CLIP_BOTTOM_TOLERANCE_PX = 1

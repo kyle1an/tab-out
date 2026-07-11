@@ -45,6 +45,29 @@
   --header-control-radius: 16px;
   --header-control-font-size: 13px;
   --header-control-line-height: 16px;
+  /* Truncated-title fade mask, shared by history entries, page chips, and
+     working-set titles (each applies it under its own `*-truncated` class).
+     Layer 1 hides everything below the last visible line; layer 2 fades that
+     line out over a 60px smoothstep ramp ending at --title-fade-end (set
+     per-element by the truncation sync; falls back to the box edge). The
+     eased stops hold legibility deep into the ramp and remove the hard
+     onset edge a linear ramp paints. Keep the 60px ramp in sync with
+     TITLE_FADE_RAMP_PX in expanded-text-layout.tsx. */
+  --title-fade-mask:
+    linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
+    linear-gradient(
+      to right,
+      black 0,
+      black calc(var(--title-fade-end, 100%) - 60px),
+      rgba(0, 0, 0, 0.96) calc(var(--title-fade-end, 100%) - 50px),
+      rgba(0, 0, 0, 0.85) calc(var(--title-fade-end, 100%) - 40px),
+      rgba(0, 0, 0, 0.66) calc(var(--title-fade-end, 100%) - 30px),
+      rgba(0, 0, 0, 0.48) calc(var(--title-fade-end, 100%) - 22px),
+      rgba(0, 0, 0, 0.3) calc(var(--title-fade-end, 100%) - 15px),
+      rgba(0, 0, 0, 0.15) calc(var(--title-fade-end, 100%) - 9px),
+      rgba(0, 0, 0, 0.05) calc(var(--title-fade-end, 100%) - 4px),
+      transparent var(--title-fade-end, 100%)
+    );
 }
 
 * {

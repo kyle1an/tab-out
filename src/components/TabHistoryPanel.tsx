@@ -1040,7 +1040,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, ge
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
         <span
           className={cn(
-            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(var(--title-fade-end,100%)_-_60px),rgba(0,0,0,0.35)_calc(var(--title-fade-end,100%)_-_20px),transparent_var(--title-fade-end,100%))]",
+            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:var(--title-fade-mask)]",
             expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
           )}
           ref={expanded ? undefined : titleRef}
