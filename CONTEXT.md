@@ -13,6 +13,7 @@
 - **Website Path Section**: A visible group inside a Domain Card keyed by the shortest meaningful website path prefix on a known host.
 - **Path Group**: A visible group inside a Website Path Section or subdomain section keyed by a site-specific object such as a repository, project key, space key, or environment.
 - **Title Suppression Scope**: The smallest visible group that owns suppressed title tokens and their matching chip markers.
+- **Title Expansion**: The truncated-title treatment shared by Page Chips, Activation History rows, and Working Set rows: a clamped title fades out at the end of its last visible line, and hover-expandable titles reveal their full text in place.
 - **Filter Query**: The user's parsed filter intent for app-owned matching, first applied to open-tab and bookmark Dashboard Items.
 - **Filter Match**: A decision that a Dashboard Item satisfies the current Filter Query.
 - **Companion Results**: Bookmark and history results shown alongside open-tab Filter Matches.
@@ -97,6 +98,8 @@
 - Title suppression color assignment is stable across collapsed and expanded child groups.
 - Title suppression colors may be reused only after the available palette colors are exhausted within a **Domain Card**.
 - Neutral single-token **Title Suppression Scopes** do not consume palette colors.
+- **Title Expansion** opens at most one expanded title per surface kind at a time, and an expanded title survives a brief pointer-leave grace before closing.
+- Working Set rows use only the clamped-fade half of **Title Expansion**; Page Chip and Activation History titles are the hover-expandable surfaces.
 
 ## Flagged Ambiguities
 
