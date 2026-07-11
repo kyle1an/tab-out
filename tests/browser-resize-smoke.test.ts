@@ -278,12 +278,15 @@ async function measureTruncatedTitleTailFill(session: CdpSession) {
           })
         }
       }
+      const clampedPills = Array.from(document.querySelectorAll('.clamped-title-line .chip-title-suppression-marker'))
       return {
         history: summarize(Array.from(document.querySelectorAll('.history-entry-title.history-entry-title-truncated'))),
         chips: summarize(Array.from(document.querySelectorAll('.chip-text.chip-text-truncated')).filter((el) => (
           !el.closest('.page-chip-expanded') &&
-          !el.querySelector('.chip-title-suppression-marker, .chip-strip-indicator, .chip-title-variant-list, .chip-folded-content')
+          !el.querySelector('.chip-title-variant-list, .chip-folded-content')
         ))),
+        clampedPillCount: clampedPills.length,
+        clampedPillsKeepGlyph: clampedPills.every((pill) => !!pill.querySelector('svg.chip-title-suppression-glyph')),
         untruncatedWithClamp: document.querySelectorAll('.history-entry-title:not(.history-entry-title-truncated) .clamped-title-line').length
       }
     })()), 120))))`
@@ -1206,6 +1209,7 @@ async function measurePageChipTooltipLineCount(
     returnByValue: true,
     expression: `new Promise((resolve) => {
       const start = Date.now()
+      let forceSettled = false
       const wait = () => {
         const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
@@ -1218,6 +1222,14 @@ async function measurePageChipTooltipLineCount(
         }
         if (${JSON.stringify(!!options.forcedMaxLines)} && chipText instanceof HTMLElement) {
           chipText.style.maxHeight = 'calc(${options.forcedMaxLines || 1}lh)'
+        }
+        if (${JSON.stringify(!!(options.forcedTextWidth || options.forcedMaxLines))} && !forceSettled) {
+          // Forced geometry changes re-run the clamped-title capture (observer
+          // -> invalidate -> re-capture); give it a couple frames to settle
+          // before reading line counts.
+          forceSettled = true
+          setTimeout(wait, 160)
+          return
         }
         const rect = chipText?.getBoundingClientRect()
         if (
@@ -4364,9 +4376,10 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(tailFill.history.clampedCount, tailFill.history.truncatedCount, `every truncated history title should swap to captured clamped lines: ${JSON.stringify(tailFill)}`)
   assert.ok(tailFill.history.tailOverflows, `each clamped history title's last line should overflow the box so the fade lands on glyphs: ${JSON.stringify(tailFill)}`)
   assert.ok(tailFill.history.headsFit, `clamped history head lines should reproduce the natural wrap without overflowing: ${JSON.stringify(tailFill)}`)
-  assert.ok(tailFill.chips.truncatedCount > 0, `smoke fixture should render truncated plain-text page chips for the tail-fill check: ${JSON.stringify(tailFill)}`)
-  assert.equal(tailFill.chips.clampedCount, tailFill.chips.truncatedCount, `every truncated plain-text page chip should swap to captured clamped lines: ${JSON.stringify(tailFill)}`)
+  assert.ok(tailFill.chips.truncatedCount > 0, `smoke fixture should render truncated page chips for the tail-fill check: ${JSON.stringify(tailFill)}`)
+  assert.equal(tailFill.chips.clampedCount, tailFill.chips.truncatedCount, `every truncated non-variant page chip should swap to captured clamped lines: ${JSON.stringify(tailFill)}`)
   assert.ok(tailFill.chips.tailOverflows, `each clamped page chip's last line should overflow the box so the fade lands on glyphs: ${JSON.stringify(tailFill)}`)
+  assert.ok(tailFill.clampedPillsKeepGlyph, `suppression pills inside clamped rows should keep their live glyph: ${JSON.stringify(tailFill)}`)
   assert.equal(tailFill.untruncatedWithClamp, 0, `titles that fit should keep their natural rendering: ${JSON.stringify(tailFill)}`)
 
   const horizontalScroll = await measureHorizontalScrollLock(session)

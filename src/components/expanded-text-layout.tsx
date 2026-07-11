@@ -273,10 +273,18 @@ export function captureVisibleLineHtml(el: HTMLElement, visibleLineCount: number
  */
 export const CLAMPED_TITLE_LINE_CLASS_NAME = 'clamped-title-line block whitespace-nowrap'
 
-export function clampedTitleLineNodes(lineHtml: readonly string[], keyPrefix: string): ReactNode {
+/**
+ * Rebuild hook for captured elements that must come back to life as real
+ * React nodes instead of serialized markup — e.g. suppression-marker pills,
+ * whose SVG glyph and context-driven tone classes a static rebuild would
+ * freeze or drop. Return undefined to fall through to the static rebuild.
+ */
+export type CapturedElementRebuilder = (element: Element, key: string) => ReactNode | undefined
+
+export function clampedTitleLineNodes(lineHtml: readonly string[], keyPrefix: string, rebuildElement?: CapturedElementRebuilder): ReactNode {
   return lineHtml.map((html, index) => (
     <span key={`${keyPrefix}-${index}:${html}`} className={CLAMPED_TITLE_LINE_CLASS_NAME}>
-      {expansionLineNodesFromHtml(html, `${keyPrefix}-clamped-${index}`)}
+      {expansionLineNodesFromHtml(html, `${keyPrefix}-clamped-${index}`, rebuildElement)}
     </span>
   ))
 }
@@ -286,7 +294,7 @@ export function clampedTitleLineNodes(lineHtml: readonly string[], keyPrefix: st
  * HTML as React nodes, preserving only the span/mark structure (classes and
  * aria-labels) the engines themselves serialized.
  */
-export function expansionLineNodesFromHtml(html: string, keyPrefix: string): ReactNode {
+export function expansionLineNodesFromHtml(html: string, keyPrefix: string, rebuildElement?: CapturedElementRebuilder): ReactNode {
   if (!html || typeof document === 'undefined') return html
 
   const template = document.createElement('template')
@@ -297,6 +305,8 @@ export function expansionLineNodesFromHtml(html: string, keyPrefix: string): Rea
     if (node.nodeType !== Node.ELEMENT_NODE) return null
 
     const element = node as Element
+    const rebuilt = rebuildElement?.(element, key)
+    if (rebuilt !== undefined) return rebuilt
     const children = Array.from(element.childNodes).map((child, index) => nodeFromDom(child, `${key}-${index}`))
     const className = element.getAttribute('class') || undefined
     const ariaLabel = element.getAttribute('aria-label') || undefined

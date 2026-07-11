@@ -26,7 +26,7 @@ import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleS
 import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
-import { captureVisibleLineHtml, clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
+import { clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -420,7 +420,21 @@ function expandedChipFragmentHtml(document: Document, fragment: DocumentFragment
   return fragmentHtml(document, fragment)
 }
 
-function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
+// Clamped rows keep the raw captured markup: markers stay as-is so the
+// clamped-row renderer can rebuild them as live React nodes, instead of the
+// expansion pipeline's hydrated text-label presentation.
+function clampedChipFragmentHtml(document: Document, fragment: DocumentFragment) {
+  unwrapClampedTitleLines(fragment)
+  return fragmentHtml(document, fragment)
+}
+
+function getClampedPageChipLineHtml(textEl: HTMLElement | null) {
+  return getExpandedPageChipLineHtml(textEl, clampedChipFragmentHtml)
+}
+
+type ChipLineFragmentSerializer = (document: Document, fragment: DocumentFragment) => string
+
+function getExpandedPageChipLineHtml(textEl: HTMLElement | null, serializeFragment: ChipLineFragmentSerializer = expandedChipFragmentHtml) {
   if (!textEl || typeof document === 'undefined') return []
 
   const visibleLineCount = getVisibleChipTextLineCount(textEl)
@@ -511,7 +525,7 @@ function getExpandedPageChipLineHtml(textEl: HTMLElement | null) {
       lineRange.selectNodeContents(textEl)
       setRangeStartAtChipExpansionPosition(lineRange, start)
     }
-    lines.push(expandedChipFragmentHtml(ownerDocument, lineRange.cloneContents()))
+    lines.push(serializeFragment(ownerDocument, lineRange.cloneContents()))
     lineRange.detach()
   }
 
@@ -947,7 +961,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
-  const chipTextClampEligible = !chip.iconOnly && !isFolded && !isTitleVariantGroup && suppressedTitleParts.length === 0 && chip.displaySegments.every((segment) => typeof segment === 'string')
+  const chipTextClampEligible = !chip.iconOnly && !isFolded && !isTitleVariantGroup
   const chipTextClampKey = JSON.stringify([chip.displaySegments, chip.leadPrefix ?? '', chip.pathGroupLabel ?? '', chip.pathSuffix ?? '', suppressedTitleParts, highlightTerms])
   const chipExpansionId = useId()
   const chipSlotRef = useRef<HTMLDivElement | null>(null)
@@ -1013,13 +1027,13 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return () => cancelAnimationFrame(frameId)
   })
 
-  // Truncated plain-text chips swap to captured-line rows so the tail fills to
-  // the box edge under the fade (see the matching history-title clamp effect
-  // for the invalidate-then-recapture contract). Chips whose flow holds
-  // non-text segments (suppression markers, placeholders) or alternate
-  // layouts (folded, variant groups) never capture: their inline elements
-  // carry interactivity a captured-HTML swap would drop, and their render
-  // branches ignore any clamp a prior eligible shape left behind.
+  // Truncated chips swap to captured-line rows so the tail fills to the box
+  // edge under the fade (see the matching history-title clamp effect for the
+  // invalidate-then-recapture contract). The capture keeps marker elements
+  // raw and the row renderer revives suppression pills as live React nodes,
+  // so their glyph and hover tone survive the swap. Folded and variant-group
+  // chips never clamp (their layouts are unclamped by design), and their
+  // render branches ignore any clamp a prior eligible shape left behind.
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl || chipExpandedRef.current) return
@@ -1033,44 +1047,61 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
 
     const metrics = syncChipTextFade(textEl)
     if (!metrics.isTruncated) return
-    const visibleLineCount = getVisibleChipTextLineCount(textEl)
-    if (visibleLineCount <= 1) return
-    const lineHtml = captureVisibleLineHtml(textEl, visibleLineCount)
+    const lineHtml = getClampedPageChipLineHtml(textEl)
     if (lineHtml.length <= 1) return
     setChipTextClamp({ key: chipTextClampKey, lineHtml, width })
     // chipTextMetrics carries the observer-reported width, so width changes
     // re-run this effect even though the effect reads the live rect itself.
   }, [chipTextClamp, chipTextClampEligible, chipTextClampKey, chipTextMetrics])
 
+  // The chip-text span REMOUNTS when shouldExpandChip flips (it moves inside
+  // the expansion hit-area wrapper), so a mount-once registration would keep
+  // observing the dead element and resize-driven metric updates would stop.
+  // Re-register against the current element on every render instead.
+  const observedChipTextElRef = useRef<HTMLElement | null>(null)
   useEffect(() => {
     const textEl = chipTextRef.current
+    const previous = observedChipTextElRef.current
+    if (previous === textEl) return
+
+    const observer = getChipTextResizeObserver()
+    if (previous) {
+      observer.unobserve(previous)
+      chipTextTruncationCallbacks.delete(previous)
+    }
+    observedChipTextElRef.current = textEl
     if (!textEl) return
 
-    let disposed = false
-    const observer = getChipTextResizeObserver()
     chipTextTruncationCallbacks.set(textEl, ({ hasExpandableContent, isTruncated, width }) => {
-      if (disposed) return
       setChipTextMetrics((current) => {
         const nextMetrics = { hasExpandableContent, isTruncated, width }
         return chipTextMetricsEqual(current, nextMetrics) ? current : nextMetrics
       })
     })
     observer.observe(textEl)
+  })
 
+  // react-doctor-disable-next-line react-doctor/exhaustive-deps -- the cleanup reads observedChipTextElRef at unmount time deliberately: it must unobserve whichever element is registered THEN, not the mount-time one.
+  useEffect(() => {
+    let disposed = false
     const fontSet = document.fonts
     const onFontsDone = () => {
       if (disposed) return
       setChipTextClamp(null)
-      updateChipTextMeasurementsRef.current(textEl)
+      updateChipTextMeasurementsRef.current(chipTextRef.current)
     }
     fontSet.addEventListener('loadingdone', onFontsDone)
     fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true
-      observer.unobserve(textEl)
-      chipTextTruncationCallbacks.delete(textEl)
       fontSet.removeEventListener('loadingdone', onFontsDone)
+      const observed = observedChipTextElRef.current
+      if (observed) {
+        getChipTextResizeObserver().unobserve(observed)
+        chipTextTruncationCallbacks.delete(observed)
+        observedChipTextElRef.current = null
+      }
     }
   }, [])
 
@@ -2167,12 +2198,23 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     }
 
     if (mode === 'chip' && !chipExpanded && chipTextClamp && chipTextClamp.key === chipTextClampKey && chipTextClamp.lineHtml.length > 1) {
-      return clampedTitleLineNodes(chipTextClamp.lineHtml, 'chip-text')
+      return clampedTitleLineNodes(chipTextClamp.lineHtml, 'chip-text', rebuildClampedChipMarker)
     }
 
     return (
       titleRowContentNode(mode, `${mode}-expanded-title`)
     )
+  }
+
+  // Captured suppression pills come back as live nodes: the static rebuild
+  // would drop their SVG glyph and freeze the context-driven hover tone. The
+  // trailing-marker spacing class rides along from the captured element.
+  function rebuildClampedChipMarker(element: Element, key: string) {
+    if (!element.classList.contains('chip-title-suppression-marker')) return undefined
+    const part = (element.getAttribute('aria-label') || '').replace(/^Suppressed title text:\s*/, '')
+    if (!part) return undefined
+    const markerSpacingClass = element.classList.contains('ml-1') ? 'ml-1' : element.classList.contains('ml-0.5') ? 'ml-0.5' : ''
+    return suppressionMarkerNode(part, 'chip', key, markerSpacingClass)
   }
 
   const chipTooltipContent = chip.iconOnly ? (
