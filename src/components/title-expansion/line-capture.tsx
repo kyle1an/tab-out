@@ -1,17 +1,16 @@
 import type { ReactNode } from 'react'
 
 /* ================================================================
-   Expanded-text layout primitives — the shared core of the two
-   hover-expansion engines (page-chip titles in PageChip.tsx and
-   history-row titles in TabHistoryPanel.tsx). Both engines measure
-   rendered title text with DOM Range APIs, capture each visual line
-   as an HTML string, and re-render those lines as React nodes; these
-   are the pieces that were function-for-function identical.
+   Line capture and clamp/fade — Title Expansion internals. Rendered
+   title text is measured with DOM Range APIs, each visual line is
+   captured as an HTML string, and captured lines re-render as React
+   nodes; the truncation fade anchors to the last visible line.
 
-   The per-surface drivers (line capture, measure elements, width
-   search, caches) still live with their engines — they differ in
-   marker handling, line classes, and cache keys. Converge them here
-   only when a change proves the bodies are genuinely the same.
+   Surfaces consume these through the module interface (index.ts).
+   The per-surface capture engines in PageChip.tsx and
+   TabHistoryPanel.tsx still differ in marker handling and caches;
+   converge them here only when a change proves the bodies are
+   genuinely the same.
    ================================================================ */
 
 /** Last painted (non-empty) client rect of a Range — where its text visually ends. */
@@ -287,6 +286,26 @@ export function clampedTitleLineNodes(lineHtml: readonly string[], keyPrefix: st
       {expansionLineNodesFromHtml(html, `${keyPrefix}-clamped-${index}`, rebuildElement)}
     </span>
   ))
+}
+
+export type ExpansionLineClasses = {
+  wrapper: string
+  line: string
+  constrainedLine: string
+  tailLine: string
+}
+
+/**
+ * expansionLineMarkup(lineHtml, classes, viewportConstrained) — serialize
+ * captured lines for the expanded overlay and its measure clone: earlier
+ * lines hold their captured break (or wrap, when viewport-constrained),
+ * the tail line carries the remainder and always wraps.
+ */
+export function expansionLineMarkup(lineHtml: readonly string[], classes: ExpansionLineClasses, viewportConstrained = false): string {
+  const lastIndex = lineHtml.length - 1
+  return `<span class="${classes.wrapper}">${lineHtml.map((html, index) => (
+    `<span class="${index === lastIndex ? classes.tailLine : viewportConstrained ? classes.constrainedLine : classes.line}">${html}</span>`
+  )).join('')}</span>`
 }
 
 /**

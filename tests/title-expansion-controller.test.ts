@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createTitleExpansionController, createTitleExpansionLane } from '../src/components/title-expansion/controller.js'
-import type { TitleExpansionScheduler } from '../src/components/title-expansion/controller.js'
+import { createTitleExpansionController, createTitleExpansionLane } from '../src/components/title-expansion/index.js'
+import type { TitleExpansionScheduler } from '../src/components/title-expansion/index.js'
 
 type ScheduledTask = { fn: () => void; delayMs: number; cleared: boolean }
 

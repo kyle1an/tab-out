@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { truncatedTitleFadeEndPx } from '../src/components/expanded-text-layout.js'
+import { truncatedTitleFadeEndPx } from '../src/components/title-expansion/index.js'
 
 // Geometry captured from the dashboard fixture: a 174px-wide history title
 // clamped to two 16.25px lines (clientHeight 33), where hyphenation ends the

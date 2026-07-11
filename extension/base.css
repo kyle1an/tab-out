@@ -52,7 +52,7 @@
      per-element by the truncation sync; falls back to the box edge). The
      eased stops hold legibility deep into the ramp and remove the hard
      onset edge a linear ramp paints. Keep the 60px ramp in sync with
-     TITLE_FADE_RAMP_PX in expanded-text-layout.tsx. */
+     TITLE_FADE_RAMP_PX in title-expansion/line-capture.tsx. */
   --title-fade-mask:
     linear-gradient(to bottom, black 0, black calc(100% - 1lh), transparent calc(100% - 1lh)),
     linear-gradient(

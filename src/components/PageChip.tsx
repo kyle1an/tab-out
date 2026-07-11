@@ -26,8 +26,7 @@ import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleS
 import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
-import { clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
-import { createTitleExpansionLane, useTitleExpansionController } from './title-expansion'
+import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -519,17 +518,15 @@ function getExpandedPageChipLineHtml(textEl: HTMLElement | null, serializeFragme
   return lines
 }
 
+const PAGE_CHIP_EXPANSION_LINE_CLASSES: ExpansionLineClasses = {
+  wrapper: 'page-chip-expanded-lines block min-w-0 max-w-full',
+  line: 'page-chip-expanded-line block min-w-0 max-w-full whitespace-nowrap',
+  constrainedLine: 'page-chip-expanded-line page-chip-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word',
+  tailLine: 'page-chip-expanded-line page-chip-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
+}
+
 function chipExpansionLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
-  const lastIndex = lineHtml.length - 1
-  return `<span class="page-chip-expanded-lines block min-w-0 max-w-full">${lineHtml.map((html, index) => (
-    `<span class="${
-      index === lastIndex
-        ? 'page-chip-expanded-line page-chip-expanded-line-tail block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
-        : viewportConstrained
-          ? 'page-chip-expanded-line page-chip-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
-          : 'page-chip-expanded-line block min-w-0 max-w-full whitespace-nowrap'
-    }">${html}</span>`
-  )).join('')}</span>`
+  return expansionLineMarkup(lineHtml, PAGE_CHIP_EXPANSION_LINE_CLASSES, viewportConstrained)
 }
 
 function expandedMeasureFitsLineCount(
@@ -565,61 +562,26 @@ function getExpandedSingleLineNaturalWidth(measureEl: HTMLElement) {
   }
 }
 
-function guardedExpandedSplitLineWidth(width: number, maxContentWidth: number, lineHtml: readonly string[]) {
-  const guardedWidth = lineHtml.length > 0
-    ? width + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
-    : width
-  return Math.round(Math.min(guardedWidth, maxContentWidth) * 100) / 100
+function expandedPageChipMeasureMarkup(textEl: HTMLElement, lineHtml: readonly string[]) {
+  if (lineHtml.length > 0) return chipExpansionLineMarkup(lineHtml)
+
+  const ownerDocument = textEl.ownerDocument
+  const fragment = ownerDocument.createDocumentFragment()
+  for (const child of Array.from(textEl.childNodes)) {
+    fragment.append(child.cloneNode(true))
+  }
+  hydrateClonedExpandedChipFragment(ownerDocument, fragment)
+  return fragmentHtml(ownerDocument, fragment)
 }
 
 function createExpandedPageChipMeasureElement(
   textEl: HTMLElement,
   lineHtml: readonly string[]
 ) {
-  const ownerDocument = textEl.ownerDocument
-  if (!ownerDocument.body) return null
-
-  const ownerWindow = ownerDocument.defaultView
-  if (!ownerWindow) return null
-
-  const measureEl = ownerDocument.createElement('span')
-  const styles = ownerWindow.getComputedStyle(textEl)
-  measureEl.className = 'page-chip-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-(--ink) [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word'
-  measureEl.setAttribute('aria-hidden', 'true')
-  Object.assign(measureEl.style, {
-    display: 'block',
-    font: styles.font,
-    left: '0',
-    letterSpacing: styles.letterSpacing,
-    lineHeight: styles.lineHeight,
-    maxHeight: 'none',
-    maxWidth: 'none',
-    overflow: 'visible',
-    pointerEvents: 'none',
-    position: 'fixed',
-    top: '0',
-    visibility: 'hidden',
-    whiteSpace: 'normal',
-    width: 'max-content'
+  return createExpansionMeasureElement(textEl, {
+    className: 'page-chip-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-(--ink) [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
+    markup: expandedPageChipMeasureMarkup(textEl, lineHtml)
   })
-  measureEl.style.setProperty('-webkit-mask-image', 'none')
-  measureEl.style.setProperty('hyphenate-character', '')
-  measureEl.style.setProperty('mask-image', 'none')
-  measureEl.style.setProperty('overflow-wrap', 'break-word')
-  if (lineHtml.length > 0) {
-    measureEl.innerHTML = chipExpansionLineMarkup(lineHtml)
-  } else {
-    const fragment = ownerDocument.createDocumentFragment()
-    for (const child of Array.from(textEl.childNodes)) {
-      fragment.append(child.cloneNode(true))
-    }
-    hydrateClonedExpandedChipFragment(ownerDocument, fragment)
-    const container = ownerDocument.createElement('span')
-    container.append(fragment)
-    measureEl.innerHTML = container.innerHTML
-  }
-  ownerDocument.body.appendChild(measureEl)
-  return measureEl
 }
 
 function getExpandedTitleVariantContentWidth(textEl: HTMLElement, visibleWidth: number, maxContentWidth: number) {
@@ -655,23 +617,13 @@ function getExpandedWrappedPageChipContentWidth(
   // can fall below it, avoids widening a chip whose content already fits at its current
   // width. Only widen when it genuinely can't fit in the resting line count.
   const lowerBound = Math.min(maxContentWidth, Math.max(visibleWidth, getChipTextWidth(textEl)))
-  if (expandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
-    return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
-  }
-
-  if (!expandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
-    return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
-  }
-
-  let low = lowerBound
-  let high = maxContentWidth
-  for (let index = 0; index < PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS; index += 1) {
-    const mid = (low + high) / 2
-    if (expandedMeasureFitsLineCount(measureEl, mid, targetLineCount)) high = mid
-    else low = mid
-  }
-
-  return { viewportConstrained: false, width: guardedExpandedSplitLineWidth(high, maxContentWidth, lineHtml) }
+  return searchExpandedWidth({
+    lowerBound,
+    maxContentWidth,
+    steps: PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS,
+    guardPx: lineHtml.length > 0 ? PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX : 0,
+    fits: (width) => expandedMeasureFitsLineCount(measureEl, width, targetLineCount)
+  })
 }
 
 function getExpandedPageChipContentWidth(

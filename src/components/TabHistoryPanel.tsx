@@ -23,8 +23,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
-import { captureVisibleLineHtml, clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
-import { createTitleExpansionLane, useTitleExpansionController } from './title-expansion'
+import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -201,11 +200,15 @@ function getHistoryTitleExpandedLineHtml(titleEl: HTMLElement | null) {
   return captureVisibleLineHtml(titleEl, getHistoryTitleVisibleLineCount(titleEl))
 }
 
+const HISTORY_ENTRY_EXPANSION_LINE_CLASSES: ExpansionLineClasses = {
+  wrapper: HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME,
+  line: HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME,
+  constrainedLine: HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME,
+  tailLine: HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME
+}
+
 function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
-  const lastIndex = lineHtml.length - 1
-  return `<span class="${HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME}">${lineHtml.map((html, index) => (
-    `<span class="${index === lastIndex ? HISTORY_ENTRY_EXPANDED_TAIL_LINE_CLASS_NAME : viewportConstrained ? HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME : HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME}">${html}</span>`
-  )).join('')}</span>`
+  return expansionLineMarkup(lineHtml, HISTORY_ENTRY_EXPANSION_LINE_CLASSES, viewportConstrained)
 }
 
 function historyTitleExpandedMeasureFitsLineCount(
@@ -224,36 +227,10 @@ function historyTitleExpandedMeasureFitsLineCount(
 }
 
 function createHistoryTitleExpandedMeasureElement(titleEl: HTMLElement, lineHtml: readonly string[]) {
-  const ownerDocument = titleEl.ownerDocument
-  if (!ownerDocument.body) return null
-
-  const styles = window.getComputedStyle(titleEl)
-  const measureEl = ownerDocument.createElement('span')
-  measureEl.className = 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word'
-  measureEl.setAttribute('aria-hidden', 'true')
-  Object.assign(measureEl.style, {
-    display: 'block',
-    font: styles.font,
-    left: '0',
-    letterSpacing: styles.letterSpacing,
-    lineHeight: styles.lineHeight,
-    maxHeight: 'none',
-    maxWidth: 'none',
-    overflow: 'visible',
-    pointerEvents: 'none',
-    position: 'fixed',
-    top: '0',
-    visibility: 'hidden',
-    whiteSpace: 'normal',
-    width: 'max-content'
+  return createExpansionMeasureElement(titleEl, {
+    className: 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
+    markup: lineHtml.length > 0 ? historyTitleExpandedLineMarkup(lineHtml) : titleEl.innerHTML
   })
-  measureEl.style.setProperty('-webkit-mask-image', 'none')
-  measureEl.style.setProperty('hyphenate-character', '')
-  measureEl.style.setProperty('mask-image', 'none')
-  measureEl.style.setProperty('overflow-wrap', 'break-word')
-  measureEl.innerHTML = lineHtml.length > 0 ? historyTitleExpandedLineMarkup(lineHtml) : titleEl.innerHTML
-  ownerDocument.body.append(measureEl)
-  return measureEl
 }
 
 function getHistoryTitleExpandedTextWidth(
@@ -276,25 +253,12 @@ function getHistoryTitleExpandedTextWidth(
 
   try {
     const lowerBound = Math.min(Math.max(1, visibleWidth), maxContentWidth)
-    if (historyTitleExpandedMeasureFitsLineCount(measureEl, lowerBound, targetLineCount)) {
-      return { viewportConstrained: false, width: Math.round(lowerBound * 100) / 100 }
-    }
-
-    if (!historyTitleExpandedMeasureFitsLineCount(measureEl, maxContentWidth, targetLineCount)) {
-      return { viewportConstrained: true, width: Math.round(maxContentWidth * 100) / 100 }
-    }
-
-    let low = lowerBound
-    let high = maxContentWidth
-    for (let i = 0; i < HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS; i += 1) {
-      const mid = (low + high) / 2
-      if (historyTitleExpandedMeasureFitsLineCount(measureEl, mid, targetLineCount)) {
-        high = mid
-      } else {
-        low = mid
-      }
-    }
-    return { viewportConstrained: false, width: Math.round(high * 100) / 100 }
+    return searchExpandedWidth({
+      lowerBound,
+      maxContentWidth,
+      steps: HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS,
+      fits: (width) => historyTitleExpandedMeasureFitsLineCount(measureEl, width, targetLineCount)
+    })
   } finally {
     measureEl.remove()
   }

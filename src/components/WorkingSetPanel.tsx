@@ -5,7 +5,7 @@ import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } f
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { bionicTitleTextNodes } from './bionic-title-text'
-import { captureVisibleLineHtml, clampedTitleLineNodes, syncTruncatedTitleFadeEnd } from './expanded-text-layout'
+import { captureVisibleLineHtml, clampedTitleLineNodes, syncTruncatedTitleFadeEnd } from './title-expansion'
 import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
