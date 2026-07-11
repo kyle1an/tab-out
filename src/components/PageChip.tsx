@@ -27,6 +27,7 @@ import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
 import { clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
+import { createTitleExpansionLane, useTitleExpansionController } from './title-expansion'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -126,21 +127,7 @@ type ExpandedPageChipContentMetrics = {
 const DEFAULT_CHIP_TEXT_METRICS: ChipTextMetrics = { hasExpandableContent: false, isTruncated: false, width: 0 }
 const DEFAULT_CHIP_SLOT_SIZE: ChipSlotSize = { height: 0, width: 0 }
 
-let activeExpandedPageChipId: string | null = null
-const expandedPageChipSubscribers = new Set<(activeId: string | null) => void>()
-
-function setActiveExpandedPageChip(id: string | null) {
-  if (activeExpandedPageChipId === id) return
-  activeExpandedPageChipId = id
-  for (const subscriber of expandedPageChipSubscribers) subscriber(activeExpandedPageChipId)
-}
-
-function subscribeToExpandedPageChip(subscriber: (activeId: string | null) => void) {
-  expandedPageChipSubscribers.add(subscriber)
-  return () => {
-    expandedPageChipSubscribers.delete(subscriber)
-  }
-}
+const pageChipExpansionLane = createTitleExpansionLane()
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`
@@ -969,7 +956,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const updateChipTextMeasurementsRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
   const contextMenuOpenRef = useRef(false)
   const chipExpandedRef = useRef(false)
-  const chipExpansionCloseTimerRef = useRef<number | null>(null)
   const [chipTooltipOpen, setChipTooltipOpen] = useState(false)
   const [chipExpanded, setChipExpandedState] = useState(false)
   const [chipSlotSize, setChipSlotSize] = useState(DEFAULT_CHIP_SLOT_SIZE)
@@ -982,6 +968,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     chipExpandedRef.current = nextExpanded
     setChipExpandedState(nextExpanded)
   }, [])
+
+  // Page Chips keep an expansion open while their context menu is up: the
+  // veto holds inside close (re-checked when a pending close fires) and
+  // against lane steals, unlike history rows which guard at call sites.
+  const chipExpansionController = useTitleExpansionController({
+    id: chipExpansionId,
+    lane: pageChipExpansionLane,
+    closeDelayMs: PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS,
+    onExpandedChange: setChipExpanded,
+    shouldCancelClose: () => contextMenuOpenRef.current,
+    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current
+  })
 
   const updateChipTextMeasurements = useCallback((textEl: HTMLElement | null) => {
     const nextMetrics = getChipTextMetrics(textEl)
@@ -1002,21 +1000,6 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     updateChipTextMeasurementsRef.current = updateChipTextMeasurements
   }, [updateChipTextMeasurements])
 
-  useEffect(() => subscribeToExpandedPageChip((activeId) => {
-    if (activeId === chipExpansionId) return
-    if (contextMenuOpenRef.current) return
-    if (!chipExpandedRef.current) return
-    setChipExpanded(false)
-  }), [chipExpansionId, setChipExpanded])
-
-  useEffect(() => () => {
-    if (chipExpansionCloseTimerRef.current !== null) {
-      window.clearTimeout(chipExpansionCloseTimerRef.current)
-    }
-    if (activeExpandedPageChipId === chipExpansionId) {
-      setActiveExpandedPageChip(null)
-    }
-  }, [chipExpansionId])
 
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
@@ -1316,18 +1299,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
-  function clearChipExpansionCloseTimer() {
-    if (chipExpansionCloseTimerRef.current === null) return
-    window.clearTimeout(chipExpansionCloseTimerRef.current)
-    chipExpansionCloseTimerRef.current = null
-  }
-
   function openChipExpansion() {
     if (chip.iconOnly) return
     const textEl = chipTextRef.current
     const measuredExpandable = hasTitleSuppressionMarkers || hasStructuralPlaceholders || chipTextHasExpandableContent(textEl)
     if (!measuredExpandable) return
-    clearChipExpansionCloseTimer()
     // Only measure from the collapsed source DOM. Re-measuring while already
     // expanded feeds the hydrated expanded markers (whose suppressed text is now
     // a real text node) back into getExpandedPageChipLineHtml, which re-captures
@@ -1336,32 +1312,17 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       updateChipTextMeasurements(textEl)
       updateChipSlotMeasurements()
     }
-    setActiveExpandedPageChip(chipExpansionId)
-    setChipExpanded(true)
+    chipExpansionController.open()
   }
 
   function closeChipExpansion({ delayed = true } = {}) {
-    clearChipExpansionCloseTimer()
-    if (contextMenuOpenRef.current) return
-    if (!delayed) {
-      if (activeExpandedPageChipId === chipExpansionId) setActiveExpandedPageChip(null)
-      setChipExpanded(false)
-      return
-    }
-    chipExpansionCloseTimerRef.current = window.setTimeout(() => {
-      chipExpansionCloseTimerRef.current = null
-      if (contextMenuOpenRef.current) return
-      if (activeExpandedPageChipId === chipExpansionId) setActiveExpandedPageChip(null)
-      setChipExpanded(false)
-    }, PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS)
+    chipExpansionController.close({ delayed })
   }
 
   useEffect(() => {
     if (!chipExpanded) return
     const closeNow = () => {
-      clearChipExpansionCloseTimer()
-      if (activeExpandedPageChipId === chipExpansionId) setActiveExpandedPageChip(null)
-      setChipExpanded(false)
+      chipExpansionController.closeNow()
     }
     const closeOnPointerMove = (event: globalThis.PointerEvent) => {
       if (contextMenuOpenRef.current) return
@@ -1392,7 +1353,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       window.removeEventListener('pointermove', closeOnPointerMove, true)
       document.removeEventListener('visibilitychange', closeOnVisibilityChange)
     }
-  }, [chipExpanded, chipExpansionId, setChipExpanded])
+  }, [chipExpanded, chipExpansionController])
 
   function onChipTextPointerEnter(e: PointerEvent<HTMLSpanElement>) {
     updateChipTextMeasurements(e.currentTarget)

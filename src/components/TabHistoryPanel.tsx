@@ -24,6 +24,7 @@ import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import { captureVisibleLineHtml, clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
+import { createTitleExpansionLane, useTitleExpansionController } from './title-expansion'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -78,21 +79,7 @@ const EMPTY_HIGHLIGHT_TERMS: readonly string[] = []
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
 const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
 const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
-let activeExpandedHistoryEntryId: string | null = null
-const expandedHistoryEntrySubscribers = new Set<(activeId: string | null) => void>()
-
-function setActiveExpandedHistoryEntry(id: string | null) {
-  if (activeExpandedHistoryEntryId === id) return
-  activeExpandedHistoryEntryId = id
-  for (const subscriber of expandedHistoryEntrySubscribers) subscriber(activeExpandedHistoryEntryId)
-}
-
-function subscribeToExpandedHistoryEntry(subscriber: (activeId: string | null) => void) {
-  expandedHistoryEntrySubscribers.add(subscriber)
-  return () => {
-    expandedHistoryEntrySubscribers.delete(subscriber)
-  }
-}
+const historyEntryExpansionLane = createTitleExpansionLane()
 
 type HistoryTitleMetrics = {
   contentWidth: number
@@ -576,7 +563,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   const entryRef = useRef<HTMLDivElement | null>(null)
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const titleExpandedRef = useRef(false)
-  const titleExpansionCloseTimerRef = useRef<number | null>(null)
   const [titleClamp, setTitleClamp] = useState<HistoryTitleClamp | null>(null)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     contentWidth: 0,
@@ -595,6 +581,16 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     titleExpandedRef.current = nextExpanded
     setTitleExpandedState(nextExpanded)
   }
+
+  // History rows pass no close veto: their context menu guards closes at the
+  // call sites instead (unlike Page Chips, which veto inside close itself).
+  const titleExpansionController = useTitleExpansionController({
+    id: entryExpansionId,
+    lane: historyEntryExpansionLane,
+    closeDelayMs: HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS,
+    onExpandedChange: setTitleExpanded,
+    shouldIgnoreLaneSteal: () => contextMenuOpenRef.current
+  })
 
   function updateHistoryEntryExpansionMeasurements() {
     const entryEl = entryRef.current
@@ -691,58 +687,22 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     }
   }, [])
 
-  useEffect(() => subscribeToExpandedHistoryEntry((activeId) => {
-    if (activeId === entryExpansionId) return
-    if (contextMenuOpenRef.current) return
-    if (!titleExpandedRef.current) return
-    setTitleExpanded(false)
-  }), [entryExpansionId, contextMenuOpenRef])
-
-  useEffect(() => () => {
-    if (titleExpansionCloseTimerRef.current !== null) {
-      window.clearTimeout(titleExpansionCloseTimerRef.current)
-    }
-    if (activeExpandedHistoryEntryId === entryExpansionId) {
-      setActiveExpandedHistoryEntry(null)
-    }
-  }, [entryExpansionId])
-
-  function clearTitleExpansionCloseTimer() {
-    if (titleExpansionCloseTimerRef.current === null) return
-    window.clearTimeout(titleExpansionCloseTimerRef.current)
-    titleExpansionCloseTimerRef.current = null
-  }
-
   function openTitleExpansion() {
     const titleEl = titleRef.current
     if (!isHistoryTitleTruncated(titleEl)) return
-    clearTitleExpansionCloseTimer()
     updateTitleTruncation(titleEl, setTitleMetrics)
     updateHistoryEntryExpansionMeasurements()
-    setActiveExpandedHistoryEntry(entryExpansionId)
-    setTitleExpanded(true)
+    titleExpansionController.open()
   }
 
   function closeTitleExpansion({ delayed = true } = {}) {
-    clearTitleExpansionCloseTimer()
-    if (!delayed) {
-      if (activeExpandedHistoryEntryId === entryExpansionId) setActiveExpandedHistoryEntry(null)
-      setTitleExpanded(false)
-      return
-    }
-    titleExpansionCloseTimerRef.current = window.setTimeout(() => {
-      titleExpansionCloseTimerRef.current = null
-      if (activeExpandedHistoryEntryId === entryExpansionId) setActiveExpandedHistoryEntry(null)
-      setTitleExpanded(false)
-    }, HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS)
+    titleExpansionController.close({ delayed })
   }
 
   useEffect(() => {
     if (!titleExpanded) return
     const closeNow = () => {
-      clearTitleExpansionCloseTimer()
-      if (activeExpandedHistoryEntryId === entryExpansionId) setActiveExpandedHistoryEntry(null)
-      setTitleExpanded(false)
+      titleExpansionController.closeNow()
     }
     const closeOnPointerMove = (event: globalThis.PointerEvent) => {
       if (contextMenuOpenRef.current) return
@@ -766,7 +726,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       window.removeEventListener('pointermove', closeOnPointerMove, true)
       document.removeEventListener('visibilitychange', closeOnVisibilityChange)
     }
-  }, [entryExpansionId, titleExpanded, contextMenuOpenRef])
+  }, [titleExpansionController, titleExpanded, contextMenuOpenRef])
 
   // Unlike PageChip (which force-opens the title expansion when its menu opens),
   // history rows only keep an already-open expansion from collapsing while the
@@ -774,7 +734,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   // driven separately by the row's onMouseEnter/onMouseLeave.
   function onHistoryEntryContextMenuOpenChange(open: boolean) {
     contextMenuOpenRef.current = open
-    if (open) clearTitleExpansionCloseTimer()
+    if (open) titleExpansionController.cancelPendingClose()
     else closeTitleExpansion()
   }
 
@@ -1499,7 +1459,7 @@ export function TabHistoryPanel({
   // Track which entry is expanded as React state so the DOM read below is
   // correctly ordered against React's mount/unmount of the expansion element.
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null)
-  useEffect(() => subscribeToExpandedHistoryEntry(setExpandedEntryId), [])
+  useEffect(() => historyEntryExpansionLane.subscribe(setExpandedEntryId), [])
 
   // After React commits the open/close, hand the expanded element (or null) to
   // the scrollbar so it can carve that popup's band out of itself. The bar's
