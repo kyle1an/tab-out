@@ -23,7 +23,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
-import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd } from './expanded-text-layout'
+import { captureVisibleLineHtml, clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -38,6 +38,7 @@ const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
 const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
+const HISTORY_TITLE_CLAMP_WIDTH_TOLERANCE_PX = 0.5
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
 const HISTORY_ENTRY_EXPANDED_CONSTRAINED_LINE_CLASS_NAME = 'history-entry-expanded-line history-entry-expanded-line-constrained block min-w-0 max-w-full whitespace-normal break-normal wrap-break-word'
@@ -103,11 +104,6 @@ type HistoryTitleMetrics = {
   width: number
 }
 type HistoryTitleExpandedLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'>
-
-type HistoryTitleExpandedDomPosition = {
-  node: Text
-  offset: number
-}
 
 type HistoryEntryExpansionGeometry = {
   lineHtml: string[]
@@ -188,6 +184,7 @@ function getHistoryTitleContentWidth(titleEl: HTMLElement | null) {
   const styles = window.getComputedStyle(titleEl)
   const clone = titleEl.cloneNode(true) as HTMLElement
   clone.classList.remove('history-entry-title-truncated')
+  unwrapClampedTitleLines(clone)
   Object.assign(clone.style, {
     display: 'inline-block',
     font: styles.font,
@@ -214,74 +211,7 @@ function getHistoryTitleContentWidth(titleEl: HTMLElement | null) {
 
 function getHistoryTitleExpandedLineHtml(titleEl: HTMLElement | null) {
   if (!titleEl || typeof document === 'undefined') return []
-
-  const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
-  if (visibleLineCount <= 1) return []
-
-  const ownerDocument = titleEl.ownerDocument
-  const win = ownerDocument.defaultView
-  if (!win) return []
-
-  const titleRect = titleEl.getBoundingClientRect()
-  const styles = win.getComputedStyle(titleEl)
-  const lineHeight = Number.parseFloat(styles.lineHeight)
-  if (titleRect.height <= 0 || !lineHeight || !Number.isFinite(lineHeight)) return []
-
-  const walker = ownerDocument.createTreeWalker(
-    titleEl,
-    win.NodeFilter.SHOW_TEXT,
-    {
-      acceptNode(node) {
-        return node.textContent
-          ? win.NodeFilter.FILTER_ACCEPT
-          : win.NodeFilter.FILTER_REJECT
-      }
-    }
-  )
-  const range = ownerDocument.createRange()
-  const lineStarts: HistoryTitleExpandedDomPosition[] = []
-  let lastLineIndex = -1
-
-  while (lineStarts.length < visibleLineCount) {
-    const node = walker.nextNode()
-    if (!(node instanceof win.Text)) break
-
-    const text = node.data
-    for (let offset = 0; offset < text.length && lineStarts.length < visibleLineCount; offset += 1) {
-      range.setStart(node, offset)
-      range.setEnd(node, offset + 1)
-      const rect = paintedRangeRect(range)
-      if (!rect) continue
-
-      const lineIndex = Math.max(0, Math.round((rect.top - titleRect.top) / lineHeight))
-      if (lineIndex >= visibleLineCount) break
-      if (lineIndex > lastLineIndex) {
-        lineStarts.push({ node, offset })
-        lastLineIndex = lineIndex
-      }
-    }
-  }
-
-  range.detach()
-  if (lineStarts.length <= 1) return []
-
-  const lines: string[] = []
-  for (let index = 0; index < lineStarts.length; index += 1) {
-    const lineRange = ownerDocument.createRange()
-    const start = lineStarts[index]
-    lineRange.setStart(start.node, start.offset)
-    const next = lineStarts[index + 1]
-    if (next) {
-      lineRange.setEnd(next.node, next.offset)
-    } else {
-      lineRange.selectNodeContents(titleEl)
-      lineRange.setStart(start.node, start.offset)
-    }
-    lines.push(fragmentHtml(ownerDocument, lineRange.cloneContents()))
-    lineRange.detach()
-  }
-
-  return lines
+  return captureVisibleLineHtml(titleEl, getHistoryTitleVisibleLineCount(titleEl))
 }
 
 function historyTitleExpandedLineMarkup(lineHtml: readonly string[], viewportConstrained = false) {
@@ -615,12 +545,19 @@ function formatRelativeMinutes(now: number, ts: number): string {
   return `${days} days ago`
 }
 
+type HistoryTitleClamp = {
+  key: string
+  lineHtml: string[]
+  width: number
+}
+
 type HistoryEntryExpansion = {
   entryExpansionId: string
   entrySlotRef: RefObject<HTMLDivElement | null>
   entryRef: RefObject<HTMLDivElement | null>
   titleRef: RefObject<HTMLSpanElement | null>
   titleMetrics: HistoryTitleMetrics
+  titleClamp: HistoryTitleClamp | null
   titleExpanded: boolean
   entrySlotSize: HistoryEntrySlotSize
   entryExpansionGeometry: HistoryEntryExpansionGeometry
@@ -633,13 +570,14 @@ type HistoryEntryExpansion = {
   onHistoryEntryContextMenuOpenChange: (open: boolean) => void
 }
 
-function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>): HistoryEntryExpansion {
+function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleClampKey: string): HistoryEntryExpansion {
   const entryExpansionId = useId()
   const entrySlotRef = useRef<HTMLDivElement | null>(null)
   const entryRef = useRef<HTMLDivElement | null>(null)
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const titleExpandedRef = useRef(false)
   const titleExpansionCloseTimerRef = useRef<number | null>(null)
+  const [titleClamp, setTitleClamp] = useState<HistoryTitleClamp | null>(null)
   const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
     contentWidth: 0,
     expandedLineHtml: [],
@@ -681,6 +619,33 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>): Histo
     return () => cancelAnimationFrame(frameId)
   })
 
+  // Truncated titles swap to captured-line rows (clampedTitleLineNodes) so the
+  // tail runs to the box edge under the fade. The capture is only valid for the
+  // content and width it was measured at: on mismatch, drop it first — that
+  // commit restores the natural wrapped rendering, and the re-run of this
+  // effect measures and re-captures from that natural layout before paint.
+  // While the swap is live the tail's horizontal overflow keeps the element's
+  // truncation detection true, so the mask class cannot oscillate.
+  useLayoutEffect(() => {
+    const titleEl = titleRef.current
+    if (!titleEl || titleExpandedRef.current) return
+
+    const width = getHistoryTitleWidth(titleEl)
+    if (titleClamp && (titleClamp.key !== titleClampKey || Math.abs(titleClamp.width - width) >= HISTORY_TITLE_CLAMP_WIDTH_TOLERANCE_PX)) {
+      setTitleClamp(null)
+      return
+    }
+    if (titleClamp || width <= 0) return
+
+    const metrics = syncHistoryTitleFade(titleEl)
+    if (!metrics.isTruncated || metrics.visibleLineCount <= 1) return
+    const lineHtml = captureVisibleLineHtml(titleEl, metrics.visibleLineCount)
+    if (lineHtml.length <= 1) return
+    setTitleClamp({ key: titleClampKey, lineHtml, width })
+    // titleMetrics carries the observer-reported width, so width changes re-run
+    // this effect even though the effect reads the live rect itself.
+  }, [titleClamp, titleClampKey, titleMetrics])
+
   useLayoutEffect(() => {
     const entryEl = entryRef.current
     if (!entryEl) return
@@ -711,6 +676,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>): Histo
     const onFontsDone = () => {
       if (disposed) return
       if (titleExpandedRef.current) return
+      setTitleClamp(null)
       updateTitleTruncation(titleEl, setTitleMetrics)
       updateHistoryEntryExpansionMeasurementsRef.current()
     }
@@ -853,6 +819,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>): Histo
     entryRef,
     titleRef,
     titleMetrics,
+    titleClamp,
     titleExpanded,
     entrySlotSize,
     entryExpansionGeometry,
@@ -1038,10 +1005,11 @@ type HistoryEntryTitleProps = {
   badges: readonly string[]
   dimmed: boolean
   geometry: HistoryEntryExpansionGeometry
+  clampedLineHtml: readonly string[] | null
   titleRef: RefObject<HTMLSpanElement | null>
 }
 
-function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, geometry, titleRef }: HistoryEntryTitleProps) {
+function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
   function expandedLinesNode() {
     const lastIndex = geometry.lineHtml.length - 1
     return (
@@ -1059,7 +1027,9 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, ge
   }
   const titleContent = expanded && geometry.lineHtml.length > 0
     ? expandedLinesNode()
-    : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
+    : !expanded && clampedLineHtml && clampedLineHtml.length > 1
+      ? clampedTitleLineNodes(clampedLineHtml, 'history-entry-title')
+      : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
   return (
     <span
       className={cn(
@@ -1212,11 +1182,13 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
 
 function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
+  const titleClampKey = JSON.stringify([entry.title, highlightTerms])
   const {
     entrySlotRef,
     entryRef,
     titleRef,
     titleMetrics,
+    titleClamp,
     titleExpanded,
     entrySlotSize,
     entryExpansionGeometry,
@@ -1226,7 +1198,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     onHistoryEntryFocus,
     onHistoryEntryBlur,
     onHistoryEntryContextMenuOpenChange
-  } = useHistoryEntryExpansion(contextMenuOpenRef)
+  } = useHistoryEntryExpansion(contextMenuOpenRef, titleClampKey)
   // Stable per-mount "now" for the relative closed-time label; reading Date.now()
   // directly in render is an impurity the React Compiler flags (react-hooks-js/purity).
   const [renderedAtMs] = useState(() => Date.now())
@@ -1403,6 +1375,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
             badges={badges}
             dimmed={dimmed}
             geometry={entryExpansionGeometry}
+            clampedLineHtml={titleClamp?.key === titleClampKey ? titleClamp.lineHtml : null}
             titleRef={titleRef}
           />
         </div>

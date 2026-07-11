@@ -26,7 +26,7 @@ import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleS
 import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
-import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd } from './expanded-text-layout'
+import { captureVisibleLineHtml, clampedTitleLineNodes, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines } from './expanded-text-layout'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -40,6 +40,7 @@ const chipTextTruncationCallbacks = new WeakMap<
 
 const PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX = 12
 const PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX = 8
+const CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX = 0.5
 const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
 const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
@@ -89,6 +90,11 @@ type StopPropagationEvent = {
 type ChipTextMetrics = {
   hasExpandableContent: boolean
   isTruncated: boolean
+  width: number
+}
+type ChipTextClamp = {
+  key: string
+  lineHtml: string[]
   width: number
 }
 type ChipSlotSize = {
@@ -409,6 +415,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
 }
 
 function expandedChipFragmentHtml(document: Document, fragment: DocumentFragment) {
+  unwrapClampedTitleLines(fragment)
   hydrateClonedExpandedChipFragment(document, fragment)
   return fragmentHtml(document, fragment)
 }
@@ -940,6 +947,8 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const suppressionHighlighted = activeSuppressedTitleKey !== '' && suppressedTitleParts.some((part) => part.toLowerCase() === activeSuppressedTitleKey)
+  const chipTextClampEligible = !chip.iconOnly && !isFolded && !isTitleVariantGroup && suppressedTitleParts.length === 0 && chip.displaySegments.every((segment) => typeof segment === 'string')
+  const chipTextClampKey = JSON.stringify([chip.displaySegments, chip.leadPrefix ?? '', chip.pathGroupLabel ?? '', chip.pathSuffix ?? '', suppressedTitleParts, highlightTerms])
   const chipExpansionId = useId()
   const chipSlotRef = useRef<HTMLDivElement | null>(null)
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
@@ -952,6 +961,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const [chipSlotSize, setChipSlotSize] = useState(DEFAULT_CHIP_SLOT_SIZE)
   const [chipExpansionGeometry, setChipExpansionGeometry] = useState(DEFAULT_CHIP_EXPANSION_GEOMETRY)
   const [chipTextMetrics, setChipTextMetrics] = useState(DEFAULT_CHIP_TEXT_METRICS)
+  const [chipTextClamp, setChipTextClamp] = useState<ChipTextClamp | null>(null)
   const { hasExpandableContent } = chipTextMetrics
 
   const setChipExpanded = useCallback((nextExpanded: boolean) => {
@@ -1003,6 +1013,35 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     return () => cancelAnimationFrame(frameId)
   })
 
+  // Truncated plain-text chips swap to captured-line rows so the tail fills to
+  // the box edge under the fade (see the matching history-title clamp effect
+  // for the invalidate-then-recapture contract). Chips whose flow holds
+  // non-text segments (suppression markers, placeholders) or alternate
+  // layouts (folded, variant groups) never capture: their inline elements
+  // carry interactivity a captured-HTML swap would drop, and their render
+  // branches ignore any clamp a prior eligible shape left behind.
+  useLayoutEffect(() => {
+    const textEl = chipTextRef.current
+    if (!textEl || chipExpandedRef.current) return
+
+    const width = getChipTextWidth(textEl)
+    if (chipTextClamp && (chipTextClamp.key !== chipTextClampKey || Math.abs(chipTextClamp.width - width) >= CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX)) {
+      setChipTextClamp(null)
+      return
+    }
+    if (chipTextClamp || width <= 0 || !chipTextClampEligible) return
+
+    const metrics = syncChipTextFade(textEl)
+    if (!metrics.isTruncated) return
+    const visibleLineCount = getVisibleChipTextLineCount(textEl)
+    if (visibleLineCount <= 1) return
+    const lineHtml = captureVisibleLineHtml(textEl, visibleLineCount)
+    if (lineHtml.length <= 1) return
+    setChipTextClamp({ key: chipTextClampKey, lineHtml, width })
+    // chipTextMetrics carries the observer-reported width, so width changes
+    // re-run this effect even though the effect reads the live rect itself.
+  }, [chipTextClamp, chipTextClampEligible, chipTextClampKey, chipTextMetrics])
+
   useEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl) return
@@ -1021,6 +1060,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const fontSet = document.fonts
     const onFontsDone = () => {
       if (disposed) return
+      setChipTextClamp(null)
       updateChipTextMeasurementsRef.current(textEl)
     }
     fontSet.addEventListener('loadingdone', onFontsDone)
@@ -2124,6 +2164,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           {titleVariantListNode(mode)}
         </span>
       )
+    }
+
+    if (mode === 'chip' && !chipExpanded && chipTextClamp && chipTextClamp.key === chipTextClampKey && chipTextClamp.lineHtml.length > 1) {
+      return clampedTitleLineNodes(chipTextClamp.lineHtml, 'chip-text')
     }
 
     return (

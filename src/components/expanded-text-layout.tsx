@@ -165,6 +165,122 @@ export function syncTruncatedTitleFadeEnd(titleEl: HTMLElement, isTruncated: boo
   titleEl.style.setProperty(TITLE_FADE_END_PROPERTY, `${fadeEnd}px`)
 }
 
+type CapturedLineDomPosition = {
+  node: Text
+  offset: number
+}
+
+/**
+ * unwrapClampedTitleLines(root) — strip clamped-title-line wrappers from a
+ * cloned fragment before serializing it. The wrapper is a resting-state
+ * presentation artifact; its block/no-wrap classes must not leak into
+ * captured line HTML, where they would stop the expansion's tail line from
+ * wrapping and leave the expanded element permanently "truncated".
+ */
+export function unwrapClampedTitleLines(root: ParentNode) {
+  for (const line of Array.from(root.querySelectorAll('.clamped-title-line'))) {
+    line.replaceWith(...Array.from(line.childNodes))
+  }
+}
+
+/**
+ * captureVisibleLineHtml(el, visibleLineCount) — serialize what line breaking
+ * put on each visible line of a clamped title: one HTML string per line, where
+ * the LAST entry runs from its line start through the end of the content
+ * (including anything clipped below the clamp). Walks per-character Range
+ * rects, so it only suits text-flow titles (text nodes plus inline span/mark
+ * wrappers); surfaces with element markers keep their own capture engines.
+ */
+export function captureVisibleLineHtml(el: HTMLElement, visibleLineCount: number): string[] {
+  if (visibleLineCount <= 1) return []
+
+  const ownerDocument = el.ownerDocument
+  const win = ownerDocument.defaultView
+  if (!win) return []
+
+  const elRect = el.getBoundingClientRect()
+  const styles = win.getComputedStyle(el)
+  const lineHeight = Number.parseFloat(styles.lineHeight)
+  if (elRect.height <= 0 || !lineHeight || !Number.isFinite(lineHeight)) return []
+
+  const walker = ownerDocument.createTreeWalker(
+    el,
+    win.NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        return node.textContent
+          ? win.NodeFilter.FILTER_ACCEPT
+          : win.NodeFilter.FILTER_REJECT
+      }
+    }
+  )
+  const range = ownerDocument.createRange()
+  const lineStarts: CapturedLineDomPosition[] = []
+  let lastLineIndex = -1
+
+  while (lineStarts.length < visibleLineCount) {
+    const node = walker.nextNode()
+    if (!(node instanceof win.Text)) break
+
+    const text = node.data
+    for (let offset = 0; offset < text.length && lineStarts.length < visibleLineCount; offset += 1) {
+      range.setStart(node, offset)
+      range.setEnd(node, offset + 1)
+      const rect = paintedRangeRect(range)
+      if (!rect) continue
+
+      const lineIndex = Math.max(0, Math.round((rect.top - elRect.top) / lineHeight))
+      if (lineIndex >= visibleLineCount) break
+      if (lineIndex > lastLineIndex) {
+        lineStarts.push({ node, offset })
+        lastLineIndex = lineIndex
+      }
+    }
+  }
+
+  range.detach()
+  if (lineStarts.length <= 1) return []
+
+  const lines: string[] = []
+  for (let index = 0; index < lineStarts.length; index += 1) {
+    const lineRange = ownerDocument.createRange()
+    const start = lineStarts[index]
+    lineRange.setStart(start.node, start.offset)
+    const next = lineStarts[index + 1]
+    if (next) {
+      lineRange.setEnd(next.node, next.offset)
+    } else {
+      lineRange.selectNodeContents(el)
+      lineRange.setStart(start.node, start.offset)
+    }
+    const lineContents = lineRange.cloneContents()
+    unwrapClampedTitleLines(lineContents)
+    lines.push(fragmentHtml(ownerDocument, lineContents))
+    lineRange.detach()
+  }
+
+  return lines
+}
+
+/**
+ * Clamped-title rows rendered from captured lines. Each row is a no-wrap
+ * block holding exactly one captured line, so earlier lines can never
+ * re-wrap; the last row carries the remainder of the title and overflows
+ * the clamp box horizontally. That overflow is the point: the truncation
+ * fade mask always lands on glyphs instead of the gap line breaking would
+ * have left, and the element keeps scroll overflow so truncation detection
+ * stays true while this presentation is active.
+ */
+export const CLAMPED_TITLE_LINE_CLASS_NAME = 'clamped-title-line block whitespace-nowrap'
+
+export function clampedTitleLineNodes(lineHtml: readonly string[], keyPrefix: string): ReactNode {
+  return lineHtml.map((html, index) => (
+    <span key={`${keyPrefix}-${index}:${html}`} className={CLAMPED_TITLE_LINE_CLASS_NAME}>
+      {expansionLineNodesFromHtml(html, `${keyPrefix}-clamped-${index}`)}
+    </span>
+  ))
+}
+
 /**
  * expansionLineNodesFromHtml(html, keyPrefix) — rebuild a captured line's
  * HTML as React nodes, preserving only the span/mark structure (classes and

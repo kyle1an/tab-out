@@ -5,7 +5,7 @@ import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } f
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { bionicTitleTextNodes } from './bionic-title-text'
-import { syncTruncatedTitleFadeEnd } from './expanded-text-layout'
+import { captureVisibleLineHtml, clampedTitleLineNodes, syncTruncatedTitleFadeEnd } from './expanded-text-layout'
 import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
@@ -21,6 +21,12 @@ const workingSetTitleTruncationCallbacks = new WeakMap<
 
 type WorkingSetTitleMetrics = {
   isTruncated: boolean
+  width: number
+}
+
+type WorkingSetTitleClamp = {
+  key: string
+  lineHtml: string[]
   width: number
 }
 
@@ -42,6 +48,7 @@ interface WorkingSetPanelProps {
 }
 
 const EMPTY_HOVER_URLS: readonly string[] = []
+const WORKING_SET_TITLE_CLAMP_WIDTH_TOLERANCE_PX = 0.5
 
 function isWorkingSetTitleTruncated(titleEl: HTMLElement | null) {
   if (!titleEl) return false
@@ -171,6 +178,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
     isTruncated: false,
     width: 0
   })
+  const [titleClamp, setTitleClamp] = useState<WorkingSetTitleClamp | null>(null)
 
   useLayoutEffect(() => {
     const titleEl = titleRef.current
@@ -179,6 +187,35 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
     const frameId = requestAnimationFrame(() => updateWorkingSetTitleTruncation(titleEl, setTitleMetrics))
     return () => cancelAnimationFrame(frameId)
   })
+
+  // Same invalidate-then-recapture contract as the history-title clamp effect:
+  // a truncated title swaps to captured-line rows whose overflowing tail keeps
+  // the fade mask over glyphs; stale captures drop first so the re-capture
+  // always measures the natural wrapped layout.
+  useLayoutEffect(() => {
+    const titleEl = titleRef.current
+    if (!titleEl) return
+
+    const width = getWorkingSetTitleWidth(titleEl)
+    if (titleClamp && (titleClamp.key !== item.title || Math.abs(titleClamp.width - width) >= WORKING_SET_TITLE_CLAMP_WIDTH_TOLERANCE_PX)) {
+      setTitleClamp(null)
+      return
+    }
+    if (titleClamp || width <= 0) return
+
+    const metrics = syncWorkingSetTitleFade(titleEl)
+    if (!metrics.isTruncated) return
+    const styles = window.getComputedStyle(titleEl)
+    const lineHeight = Number.parseFloat(styles.lineHeight)
+    if (!lineHeight || !Number.isFinite(lineHeight)) return
+    const visibleLineCount = Math.max(1, Math.round(titleEl.getBoundingClientRect().height / lineHeight))
+    if (visibleLineCount <= 1) return
+    const lineHtml = captureVisibleLineHtml(titleEl, visibleLineCount)
+    if (lineHtml.length <= 1) return
+    setTitleClamp({ key: item.title, lineHtml, width })
+    // titleMetrics carries the observer-reported width, so width changes re-run
+    // this effect even though the effect reads the live rect itself.
+  }, [titleClamp, item.title, titleMetrics])
 
   useEffect(() => {
     const titleEl = titleRef.current
@@ -194,7 +231,9 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
 
     const fontSet = document.fonts
     const onFontsDone = () => {
-      if (!disposed) updateWorkingSetTitleTruncation(titleEl, setTitleMetrics)
+      if (disposed) return
+      setTitleClamp(null)
+      updateWorkingSetTitleTruncation(titleEl, setTitleMetrics)
     }
     fontSet.addEventListener('loadingdone', onFontsDone)
     fontSet.ready.then(onFontsDone)
@@ -313,7 +352,9 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
               ref={titleRef}
               className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(var(--title-fade-end,100%)_-_60px),rgba(0,0,0,0.35)_calc(var(--title-fade-end,100%)_-_20px),transparent_var(--title-fade-end,100%))]"
             >
-              {bionicTitleTextNodes(item.title, `working-set-title-${item.key}`)}
+              {titleClamp && titleClamp.key === item.title && titleClamp.lineHtml.length > 1
+                ? clampedTitleLineNodes(titleClamp.lineHtml, `working-set-title-${item.key}`)
+                : bionicTitleTextNodes(item.title, `working-set-title-${item.key}`)}
             </span>
           </span>
         </button>
