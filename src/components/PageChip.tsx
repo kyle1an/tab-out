@@ -26,7 +26,7 @@ import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleS
 import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
-import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect } from './expanded-text-layout'
+import { expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, syncTruncatedTitleFadeEnd } from './expanded-text-layout'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -734,6 +734,7 @@ function syncChipTextFade(textEl: HTMLElement | null) {
   const width = getChipTextWidth(textEl)
   const height = getChipTextHeight(textEl)
   textEl.classList.toggle('chip-text-truncated', isTruncated)
+  syncTruncatedTitleFadeEnd(textEl, isTruncated)
   chipTextTruncationCallbacks.get(textEl)?.({ hasExpandableContent, height, isTruncated, width })
   return { hasExpandableContent, height, isTruncated, width }
 }
@@ -2189,7 +2190,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const chipTextElement = (
     <span
       className={cn(
-        "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]",
+        "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(var(--title-fade-end,100%)_-_60px),rgba(0,0,0,0.35)_calc(var(--title-fade-end,100%)_-_20px),transparent_var(--title-fade-end,100%))]",
         hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none !overflow-visible',

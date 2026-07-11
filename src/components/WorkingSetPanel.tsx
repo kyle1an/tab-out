@@ -5,6 +5,7 @@ import { dismissWorkingSetItem, fetchWorkingSetSnapshot, focusWorkingSetItem } f
 import { animateWorkingSetItemMoves, cancelWorkingSetItemMoves, snapshotWorkingSetItemPositions } from '../extension/working-set-move-animation.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { bionicTitleTextNodes } from './bionic-title-text'
+import { syncTruncatedTitleFadeEnd } from './expanded-text-layout'
 import type { HoverUrlChangeHandler, HoverUrlSource, LayoutChangeHandler, TabsChangeHandler } from './types'
 import type { WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import type { WorkingSetItemPosition, WorkingSetItemPositionMap } from '../extension/working-set-move-animation.js'
@@ -66,6 +67,7 @@ function syncWorkingSetTitleFade(titleEl: HTMLElement | null) {
   const width = getWorkingSetTitleWidth(titleEl)
   const metrics = { isTruncated, width }
   titleEl.classList.toggle('working-set-title-truncated', isTruncated)
+  syncTruncatedTitleFadeEnd(titleEl, isTruncated)
   workingSetTitleTruncationCallbacks.get(titleEl)?.(metrics)
   return metrics
 }
@@ -309,7 +311,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           <span className="flex min-w-0 flex-auto items-center">
             <span
               ref={titleRef}
-              className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(100%_-_60px),rgba(0,0,0,0.35)_calc(100%_-_20px),transparent)]"
+              className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:linear-gradient(to_bottom,black_0,black_calc(100%_-_1lh),transparent_calc(100%_-_1lh)),linear-gradient(to_right,black_0,black_calc(var(--title-fade-end,100%)_-_60px),rgba(0,0,0,0.35)_calc(var(--title-fade-end,100%)_-_20px),transparent_var(--title-fade-end,100%))]"
             >
               {bionicTitleTextNodes(item.title, `working-set-title-${item.key}`)}
             </span>
