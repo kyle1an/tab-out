@@ -254,36 +254,29 @@ body {
   display: contents;
 }
 
-/* When two potentially-bordered chip-slots sit adjacent, overlap them by
-   -1px so that whenever both show a 1px frame the seam borders coincide as a
+/* Adjacent full-width chip-slots ALWAYS overlap by -1px, so that whenever
+   two neighbours both paint a 1px frame at the seam (active frame,
+   interaction outline, expanded-overlay edge) the borders coincide as a
    single line. Each chip keeps its FULL 4-sided rounded frame at all times —
    no suppression of any side.
 
-   A chip-slot is overlapped when its chip either carries an active frame
-   (.active-chip-frame, inset box-shadow) OR draws an interaction outline on
-   hover / tooltip-open / context-menu-open (.page-chip-group,
-   .page-chip-saved-closed). Crucially the overlap is keyed off the STATIC
-   marker, not the hover state: an outline-capable chip reserves the -1px at
-   rest too, so hovering it only reveals the (already-overlapping) outline
-   instead of pulling the chip up — the run's total height stays stable, with
-   no layout shift on hover.
+   The overlap is unconditional — keyed off the STATIC .chip-slot-row marker,
+   never off a chip's border sources or its hover state. Border capability is
+   app state: a saved page opens and its chip flips saved-closed → plain; a
+   tab activates and flips plain → active-framed. An overlap gated on border
+   markers (:has(.active-chip-frame / .page-chip-group /
+   .page-chip-saved-closed)) made the run's height shift 1px on those flips,
+   and stacked two visible borders at the seam whenever only one side
+   qualified. At rest an unbordered edge is transparent, so the overlap
+   paints nothing; a revealed frame is already aligned to the seam.
 
-   At rest an outline-capable chip has no border, so the -1px overlap is
-   invisible (its transparent top edge just sits over the neighbour's intact
-   border). On interaction the outline appears already aligned to the seam.
+   Icon-only slots are inline-flex and wrap horizontally in overflow rows —
+   they never carry the marker, so their rows keep their vertical rhythm.
 
    The z-index rule below lifts the interacting slot so its strengthened
    frame paints on top of the neighbour at the shared seam. */
 
-:is(
-  .chip-slot:has(.active-chip-frame),
-  .chip-slot:has(.page-chip-group),
-  .chip-slot:has(.page-chip-saved-closed)
-) + :is(
-  .chip-slot:has(.active-chip-frame),
-  .chip-slot:has(.page-chip-group),
-  .chip-slot:has(.page-chip-saved-closed)
-) {
+.chip-slot-row + .chip-slot-row {
   margin-top: -1px;
 }
 

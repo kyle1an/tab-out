@@ -961,28 +961,24 @@ function pageChipClass(html: string): string {
   return match[1]
 }
 
-// An inactive group chip draws its seam border as a hover/menu/tooltip OUTLINE
-// (not an .active-chip-frame), so the adjacent-chip overlap rule keys off the
-// `page-chip-group` marker. Without it, an active chip next to a hovered
-// inactive group chip shows a doubled (un-overlapped) seam.
-test('PageChip marks an inactive variant-group chip with page-chip-group', () => {
+// An inactive group chip draws its seam border as a hover/menu/tooltip
+// OUTLINE (not an .active-chip-frame). The seam overlap itself is
+// unconditional (see the base.css test below), so the chip only carries the
+// outline utilities — no marker class.
+test('PageChip gives an inactive variant-group chip the interaction outline', () => {
   const cls = pageChipClass(renderWithDomainCardContext(React.createElement(PageChip, { chip: makeVariantGroupChip() })))
-  assert.match(cls, /\bpage-chip-group\b/)
-  // The outline-on-interaction classes the marker accompanies.
   assert.match(cls, /hover:outline-1/)
 })
 
-test('PageChip drops page-chip-group once the variant-group chip is active', () => {
+test('PageChip drops the group outline once the variant-group chip is active', () => {
   const cls = pageChipClass(renderWithDomainCardContext(React.createElement(PageChip, { chip: makeVariantGroupChip({ activeChipFrame: true }) })))
-  // Active chips use .active-chip-frame for the seam, not the group outline,
-  // so the marker (and the hover outline) must not be present.
-  assert.doesNotMatch(cls, /\bpage-chip-group\b/)
+  // Active chips use .active-chip-frame for the seam border instead.
   assert.doesNotMatch(cls, /hover:outline-1/)
 })
 
-test('PageChip does not mark a plain (non-group) chip with page-chip-group', () => {
+test('PageChip does not give a plain (non-group) chip the group outline', () => {
   const cls = pageChipClass(renderWithDomainCardContext(React.createElement(PageChip, { chip: makeChip({ sourceType: 'tab' }) })))
-  assert.doesNotMatch(cls, /\bpage-chip-group\b/)
+  assert.doesNotMatch(cls, /hover:outline-1/)
 })
 
 function titleVariantPillTags(html: string): string[] {
@@ -1068,22 +1064,29 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   assert.match(pageChipSource, /data-tabout-part="slot"[\s\S]*?\{\.\.\.variantGroupInteractionProps\}/)
 })
 
-// The base-layer overlap rule must collapse the seam for both border kinds:
-// active frames and interaction outlines from group or closed-saved chips. It
-// must also key off STATIC markers — NOT the hover/menu/tooltip state — so that
-// hovering an outline chip reveals its (already-overlapping) outline instead of
-// pulling the slot up, keeping the run's total height stable on hover.
-// A regression here brings back either the doubled border (between an active
-// chip and a hovered outline chip) or the 1px height shift on hover.
-test('base.css statically overlaps adjacent active and outline chip-slots', () => {
+// The base-layer seam rule must overlap ALL adjacent full-width chip slots
+// unconditionally. Border capability is app state — a saved page opens and
+// its chip flips saved-closed → plain; a tab activates and gains an active
+// frame — so an overlap gated on border markers (:has(.active-chip-frame /
+// .page-chip-group / .page-chip-saved-closed)) shifted the run's height by
+// 1px on those flips and stacked two visible borders at the seam whenever
+// only one side qualified. It must also stay keyed off the STATIC slot
+// marker — NOT hover/menu/tooltip state — so interactions reveal an
+// already-overlapping frame instead of pulling the slot up.
+test('base.css statically overlaps ALL adjacent full-width chip-slots', () => {
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
-  const overlapRule = baseCss.slice(baseCss.indexOf(':is('), baseCss.indexOf('margin-top: -1px'))
-  assert.match(overlapRule, /\.chip-slot:has\(\.active-chip-frame\)/)
-  assert.match(overlapRule, /\.chip-slot:has\(\.page-chip-group\)/)
-  assert.match(overlapRule, /\.chip-slot:has\(\.page-chip-saved-closed\)/)
-  // Overlap must not be gated on hover/interaction state, or height shifts.
-  assert.doesNotMatch(overlapRule, /\.page-chip-group:is\(/)
-  assert.doesNotMatch(overlapRule, /\.page-chip-saved-closed:is\(/)
+  const ruleStart = baseCss.indexOf('.chip-slot-row + .chip-slot-row')
+  assert.notEqual(ruleStart, -1, 'the unconditional seam-overlap rule should exist')
+  const overlapRule = baseCss.slice(ruleStart, baseCss.indexOf('}', ruleStart) + 1)
+  assert.match(overlapRule, /margin-top: -1px/)
+  // Overlap must not be gated on border sources or interaction state.
+  assert.doesNotMatch(overlapRule, /:has\(/)
+  assert.doesNotMatch(overlapRule, /:hover/)
+
+  // The marker rides on full-width slots only — icon-only slots wrap
+  // horizontally in overflow rows and must keep their vertical rhythm.
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /chip\.iconOnly \? 'inline-flex' : 'chip-slot-row flex w-full'/)
 })
 
 test('PageChip expands same-title URL variant groups in place', () => {

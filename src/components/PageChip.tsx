@@ -2289,10 +2289,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
           hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES,
-          // `page-chip-group` is an unstyled marker consumed only by base.css's seam-overlap
-          // rule (`.chip-slot:has(.page-chip-group)`). Keep it — a TSX-only dead-code scan
-          // (knip/refactor-cleaner) can't see the CSS reference and may flag it as unused.
-          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && cn('page-chip-group', PAGE_CHIP_GROUP_INTERACTION_CLASSES),
+          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_GROUP_INTERACTION_CLASSES,
           isTitleVariantGroup && 'cursor-default',
           isFolded && 'page-chip-folded cursor-default after:hidden',
           chip.saved && 'page-chip-saved',
@@ -2405,7 +2402,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   return (
     <div
       data-tabout-part="slot"
-      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : 'flex w-full')}
+      // `chip-slot-row` is an unstyled marker consumed only by base.css's
+      // unconditional seam-overlap rule (`.chip-slot-row + .chip-slot-row`);
+      // icon-only slots wrap horizontally, so they must not carry it.
+      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : 'chip-slot-row flex w-full')}
       style={chipSlotStyle}
       ref={chipSlotRef}
       {...variantGroupInteractionProps}
