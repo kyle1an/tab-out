@@ -473,6 +473,57 @@
         listeners.dispatch()
         await new Promise((resolve) => setTimeout(resolve, 350))
       }
+      window.__tabOutSmokeAddMarkerWrapPathGroupTabs = async () => {
+        if (tabs.some((tab) => tab.id === 1301)) return
+        tabs.push(
+          {
+            id: 1301,
+            url: 'https://app.contentful.com/spaces/marker-wrap-space/environments/dev2/views/entries',
+            title: 'Content: All content overview — Example Website — dev2 — Contentful',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1301
+          },
+          {
+            id: 1302,
+            url: 'https://app.contentful.com/spaces/marker-wrap-space/environments/dev2/views/assets',
+            title: 'Media: All assets — Example Website — dev2 — Contentful',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1302
+          },
+          {
+            id: 1303,
+            url: 'https://app.contentful.com/spaces/marker-wrap-space/environments/master/views/apps',
+            title: 'Apps: Marketplace — Example Website — master — Contentful',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1303
+          },
+          {
+            id: 1304,
+            url: 'https://app.contentful.com/spaces/marker-wrap-space/environments/master/content_types',
+            title: 'Content model — Example Website — master — Contentful',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1304
+          }
+        )
+        listeners.dispatch()
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
       window.__tabOutSmokeAddCompactTitleVariantTabs = async () => {
         if (tabs.some((tab) => tab.id === 1261 || tab.id === 1262 || tab.id === 1263)) return
         tabs.push(
