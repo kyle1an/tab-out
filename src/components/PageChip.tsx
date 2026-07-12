@@ -58,6 +58,14 @@ const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path text-xs font-normal text-t
 const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
 const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
+// Translucent equivalent of the clickable fill (10% neutral composited on the
+// card bg renders identically to the 90/10 opaque mix). In-flow plain chips
+// must use this one: adjacent chip-slots overlap by 1px (base.css seam rule),
+// so an opaque fill on the z-lifted hovered slot would paint over — visually
+// delete — a bordered neighbour's line on the shared row. Chips with their
+// own seam chrome redraw that line; a plain chip's fill must let it show
+// through.
+const PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const PAGE_CHIP_GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
 const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
@@ -66,6 +74,7 @@ const PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION
 const PAGE_CHIP_GROUP_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
 const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
+  grewTaller: false,
   lineHtml: [],
   maxWidth: 0,
   viewportConstrained: false,
@@ -102,6 +111,9 @@ type ChipSlotSize = {
   width: number
 }
 type ChipExpansionGeometry = {
+  /** The expansion wraps to MORE lines than the resting chip, so the overlay
+      extends past the resting slot instead of revealing in place. */
+  grewTaller: boolean
   lineHtml: string[]
   maxWidth: number
   viewportConstrained: boolean
@@ -120,6 +132,10 @@ type ChipExpansionDomPosition =
     kind: 'element'
   }
 type ExpandedPageChipContentMetrics = {
+  /** True only when a single-line resting title must WRAP on reveal — the
+      expanded overlay then grows taller than the resting slot. Multi-line
+      resting chips reveal in place (frozen lines), so they never set this. */
+  grewTaller?: boolean
   viewportConstrained: boolean
   width: number
 }
@@ -692,10 +708,10 @@ function getExpandedPageChipContentWidth(
       const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
       if (naturalWidth > maxContentWidth) {
         if (!expansionRevealsHydratingPills(textEl)) {
-          return { viewportConstrained: true, width: Math.round(Math.min(visibleWidth, maxContentWidth) * 100) / 100 }
+          return { grewTaller: true, viewportConstrained: true, width: Math.round(Math.min(visibleWidth, maxContentWidth) * 100) / 100 }
         }
         const packedWidth = measureConstrainedPackedWidth(measureEl, maxContentWidth)
-        return { viewportConstrained: true, width: Math.round(Math.min(Math.max(visibleWidth, packedWidth), maxContentWidth) * 100) / 100 }
+        return { grewTaller: true, viewportConstrained: true, width: Math.round(Math.min(Math.max(visibleWidth, packedWidth), maxContentWidth) * 100) / 100 }
       }
       return { viewportConstrained: false, width: Math.round(Math.min(maxContentWidth, Math.max(visibleWidth, naturalWidth)) * 100) / 100 }
     }
@@ -758,6 +774,7 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
   const maxWidth = Math.max(rect.width, roomToRight)
   const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride)
   return {
+    grewTaller: !!contentMetrics.grewTaller,
     lineHtml,
     maxWidth,
     viewportConstrained: contentMetrics.viewportConstrained,
@@ -1660,11 +1677,22 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         : isClosedSavedPage || isFolded || isTitleVariantGroup
           ? PAGE_CHIP_GROUP_INTERACTION_BG
           : PAGE_CHIP_CLICKABLE_INTERACTION_BG
+  const isPlainClickableChip = !hasActiveChipFrame && !isClosedSavedPage && !isFolded && !isTitleVariantGroup
+  // A plain chip's own fill is ALWAYS the translucent overlay so a bordered
+  // neighbour's line survives on the overlapped seam rows — plain chips never
+  // draw chrome of their own. While expanded, the opaque coverage over
+  // foreign content comes from the dedicated fill layer (see
+  // chipExpandedFillElement), which stays clear of flush seam rows. The fade
+  // var always stays opaque — it exists to hide chip text under the action
+  // rail.
+  const chipInteractionFillBg = isPlainClickableChip
+    ? PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG
+    : chipInteractionBg
   const style: CSSVariableProperties = {
     '--chip-hover-fade-bg': chipInteractionBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-group-hover-border': PAGE_CHIP_GROUP_HOVER_BORDER,
-    '--chip-interaction-bg': chipInteractionBg,
+    '--chip-interaction-bg': chipInteractionFillBg,
     '--chip-rest-bg': hasActiveChipFrame && !isCurrentTabOutFrame
         ? PAGE_CHIP_ACTIVE_OTHER_REST_BG
         : 'transparent',
@@ -2310,6 +2338,26 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onPointerLeave={onChipPointerLeave}
         {...chipInteractionProps}
       >
+      {/* Expanded plain chips paint their opaque fill on this inner layer
+          instead of the chip itself: plain chips draw no chrome, so an edge
+          that is FLUSH with the resting seam must not cover the overlapped
+          row where a bordered neighbour's line paints — the layer stays 1px
+          clear of flush edges, while a grown edge (the overlay floating over
+          foreign content) extends fully so nothing bleeds through. The chip's
+          own translucent fill still tints the spared rows, matching the
+          resting hover look. Negative z keeps the layer under the group
+          colour strip and all content while sitting above the chip's bg. */}
+      {chipExpanded && isPlainClickableChip && !chip.iconOnly && (
+        <span
+          aria-hidden="true"
+          className="page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1 rounded-[9px] [corner-shape:squircle]"
+          style={{
+            top: chipExpansionGeometry.y === 'up' && chipExpansionGeometry.grewTaller ? '0px' : '1px',
+            bottom: chipExpansionGeometry.y === 'down' && chipExpansionGeometry.grewTaller ? '0px' : '1px',
+            backgroundColor: chipInteractionBg
+          }}
+        />
+      )}
       {hasActiveChipFrame && !chip.iconOnly && (
         <span
           className={cn(

@@ -486,7 +486,11 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
   assert.match(chipMatch[1], /after:w-\(--chip-hover-fade-width\)/)
   assert.match(chipMatch[1], /var\(--chip-hover-fade-bg\)_34%/)
-  assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)/)
+  // Plain chips fill with the TRANSLUCENT overlay (a bordered neighbour's
+  // line on the overlapped seam row must show through), while the fade stays
+  // the OPAQUE mix so it can hide chip text under the action rail.
+  assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
+  assert.match(html, /--chip-hover-fade-bg:color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)/)
   assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
@@ -508,8 +512,23 @@ test('PageChip keeps clickable hover background on expandable chips before expan
   assert.ok(chipMatch, 'expandable page chip should render')
   assert.match(chipMatch[1], /\bhover:bg-\(--chip-interaction-bg\)/)
   assert.match(chipMatch[1], /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
-  assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)/)
+  assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
+
+  // Plain chips draw no chrome in ANY state — no outline/border may be added
+  // to them, expanded or not. Their translucent fill is unconditional; while
+  // expanded, opaque coverage over foreign content comes from the dedicated
+  // fill layer, which stays 1px clear of edges flush with the resting seam
+  // (so a bordered neighbour's line on the overlapped row survives) and
+  // extends fully on grown edges (so nothing bleeds through the overlay).
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(chipMatch[1], /page-chip-expanded\]:outline/)
+  assert.match(pageChipSource, /isPlainClickableChip\s*\n?\s*\? PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG/)
+  assert.match(pageChipSource, /PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)'/)
+  assert.match(pageChipSource, /chipExpanded && isPlainClickableChip && !chip\.iconOnly && \(/)
+  assert.match(pageChipSource, /page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1/)
+  assert.match(pageChipSource, /top: chipExpansionGeometry\.y === 'up' && chipExpansionGeometry\.grewTaller \? '0px' : '1px'/)
+  assert.match(pageChipSource, /bottom: chipExpansionGeometry\.y === 'down' && chipExpansionGeometry\.grewTaller \? '0px' : '1px'/)
 })
 
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
