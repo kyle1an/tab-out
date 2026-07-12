@@ -8,6 +8,7 @@
    extension pages).
    ================================================================ */
 
+import { getAllWindows, getCurrentWindow, queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
 import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
@@ -72,7 +73,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
 }
 
 export async function fetchChromeOpenTabsSnapshot(): Promise<ChromeOpenTabsSnapshot> {
-  const [tabs, windows] = await Promise.all([chrome.tabs.query({}), chrome.windows.getAll(), fetchTabGroupColors()])
+  const [tabs, windows] = await Promise.all([queryAllTabs(), getAllWindows(), fetchTabGroupColors()])
   return { tabs, windows }
 }
 
@@ -202,7 +203,7 @@ export async function closeTabsByUrls(urls: string[], opts: CloseOptions = {}): 
     }
   }
 
-  const allTabs = await chrome.tabs.query({})
+  const allTabs = await queryAllTabs()
   const toCloseTabs = allTabs.filter((tab) => {
     if (preserveGroups && isGroupedTab(tab)) return false
     const tabUrl = unwrapSuspenderUrl(tab.url || '')
@@ -216,7 +217,7 @@ export async function closeTabsByUrls(urls: string[], opts: CloseOptions = {}): 
   })
 
   const snapshot = snapshotChromeTabs(toCloseTabs)
-  if (toCloseTabs.length > 0) await chrome.tabs.remove(tabIds(toCloseTabs))
+  await removeTabs(tabIds(toCloseTabs))
   await fetchOpenTabs()
   return snapshot
 }
@@ -234,10 +235,10 @@ export async function closeTabsExact(urls: string[], opts: CloseOptions = {}): P
   if (!urls || urls.length === 0) return []
   const { preserveGroups = false } = opts
   const urlSet = new Set(urls)
-  const allTabs = await chrome.tabs.query({})
+  const allTabs = await queryAllTabs()
   const toCloseTabs = allTabs.filter((t) => !(preserveGroups && isGroupedTab(t)) && urlSet.has(unwrapSuspenderUrl(t.url)))
   const snapshot = snapshotChromeTabs(toCloseTabs)
-  if (toCloseTabs.length > 0) await chrome.tabs.remove(tabIds(toCloseTabs))
+  await removeTabs(tabIds(toCloseTabs))
   await fetchOpenTabs()
   return snapshot
 }
@@ -311,11 +312,8 @@ export async function openTabUrlInNewWindow(url: string): Promise<void> {
  */
 export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: DedupeOptions = {}): Promise<TabSnapshot[]> {
   const { preservePinned = false, preservePinnedTabOut = false } = opts
-  const allTabs = await chrome.tabs.query({})
-  let currentWindowId = -1
-  try {
-    currentWindowId = (await chrome.windows.getCurrent()).id ?? -1
-  } catch {}
+  const allTabs = await queryAllTabs()
+  const currentWindowId = (await getCurrentWindow())?.id ?? -1
   const toCloseTabs: chrome.tabs.Tab[] = []
 
   for (const url of urls) {
@@ -332,7 +330,7 @@ export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: D
   }
 
   const snapshot = snapshotChromeTabs(toCloseTabs, { includeTabOutUrls: preservePinnedTabOut })
-  if (toCloseTabs.length > 0) await chrome.tabs.remove(tabIds(toCloseTabs))
+  await removeTabs(tabIds(toCloseTabs))
   await fetchOpenTabs()
   return snapshot
 }

@@ -1,6 +1,8 @@
+import { getTab, queryAllTabs, removeTabs, updateTab } from './browser-tabs-gateway.js'
 import { requestDashboardRefresh } from './dashboard-controller.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
+import { liveTabsMatchingTarget } from './live-tab-matching.js'
 import { buildSuspendUrl, getSuspendTarget, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
 import { closeDuplicateTabs, closeTabsExact, fetchOpenTabs, snapshotChromeTabs } from './tabs.js'
 import { showToast } from './toast.js'
@@ -124,7 +126,7 @@ export async function suspendDomainTabs(options: SuspendDomainTabsOptions): Prom
 
   const urlSet = new Set(urls)
   const isTabOutGroup = options.group.domain === '__tab-out__'
-  const allTabs = await chrome.tabs.query({})
+  const allTabs = await queryAllTabs()
   const targets = allTabs.filter((tab) => {
     if (isGroupedTab(tab) || (isTabOutGroup && tab.pinned)) return false
     return urlSet.has(unwrapSuspenderUrl(tab.url || ''))
@@ -158,38 +160,20 @@ export async function dedupeTabs({ urls, preservePinnedTabOut = false, onAfterCl
 }
 
 export async function closeChipTarget({ tabUrl, tabId, envs = null, onAfterClose }: CloseChipTargetOptions): Promise<ChipCloseResult> {
-  const foldedEnvs = Array.isArray(envs) ? envs : []
-  const isFolded = foldedEnvs.length > 0
-  const allTabs = await chrome.tabs.query({})
-  let toCloseList: chrome.tabs.Tab[] = []
-  let matchCount = 0
+  const isFolded = Array.isArray(envs) && envs.length > 0
+  const matches = liveTabsMatchingTarget(await queryAllTabs(), { tabUrl, envs })
+  const matchCount = matches.length
 
+  let toCloseList: chrome.tabs.Tab[]
   if (isFolded) {
-    const targetEffectives = new Set(foldedEnvs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
-    const targetUrls = new Set(foldedEnvs.map((env) => env.tabUrl))
-    toCloseList = allTabs.filter((tab) => {
-      const openTabUrl = tab.url || ''
-      return targetUrls.has(openTabUrl) || targetEffectives.has(unwrapSuspenderUrl(openTabUrl))
-    })
-    matchCount = toCloseList.length
+    toCloseList = matches
   } else {
-    const targetEffective = unwrapSuspenderUrl(tabUrl)
-    const matches = allTabs.filter((tab) => {
-      const openTabUrl = tab.url || ''
-      return openTabUrl === tabUrl || unwrapSuspenderUrl(openTabUrl) === targetEffective
-    })
     const exactTab = typeof tabId === 'number' ? matches.find((tab) => tab.id === tabId) : null
     toCloseList = exactTab ? [exactTab] : matches.slice(0, 1)
-    matchCount = matches.length
   }
 
   const snapshot = toCloseList.length > 0 ? snapshotChromeTabs(toCloseList) : []
-  for (const tab of toCloseList) {
-    if (typeof tab.id !== 'number') continue
-    try {
-      await chrome.tabs.remove(tab.id)
-    } catch {}
-  }
+  await removeTabs(toCloseList.map((tab) => tab.id).filter((id): id is number => typeof id === 'number'))
   await fetchOpenTabs()
 
   const result = {
@@ -238,9 +222,7 @@ type SetChipMutedOptions = {
 async function applyMutedToTabs(targets: chrome.tabs.Tab[], muted: boolean): Promise<void> {
   for (const tab of targets) {
     if (typeof tab.id !== 'number') continue
-    try {
-      await chrome.tabs.update(tab.id, { muted })
-    } catch {}
+    await updateTab(tab.id, { muted })
   }
 }
 
@@ -250,24 +232,7 @@ async function applyMutedToTabs(targets: chrome.tabs.Tab[], muted: boolean): Pro
  * acts on ALL matches so a noisy duplicate can't survive a mute.
  */
 export async function setChipTargetMuted({ tabUrl, envs = null, muted }: SetChipMutedOptions): Promise<void> {
-  const foldedEnvs = Array.isArray(envs) ? envs : []
-  const allTabs = await chrome.tabs.query({})
-
-  let targets: chrome.tabs.Tab[]
-  if (foldedEnvs.length > 0) {
-    const targetEffectives = new Set(foldedEnvs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
-    const targetUrls = new Set(foldedEnvs.map((env) => env.tabUrl))
-    targets = allTabs.filter((tab) => {
-      const openUrl = tab.url || ''
-      return targetUrls.has(openUrl) || targetEffectives.has(unwrapSuspenderUrl(openUrl))
-    })
-  } else {
-    const targetEffective = unwrapSuspenderUrl(tabUrl)
-    targets = allTabs.filter((tab) => {
-      const openUrl = tab.url || ''
-      return openUrl === tabUrl || unwrapSuspenderUrl(openUrl) === targetEffective
-    })
-  }
+  const targets = liveTabsMatchingTarget(await queryAllTabs(), { tabUrl, envs })
 
   await applyMutedToTabs(targets, muted)
   await fetchOpenTabs()
@@ -278,9 +243,7 @@ export async function setChipTargetMuted({ tabUrl, envs = null, muted }: SetChip
 /** setHistoryEntryMuted — mute/unmute the single tab behind a history row. */
 export async function setHistoryEntryMuted(tabId: number, muted: boolean): Promise<void> {
   if (!Number.isInteger(tabId)) return
-  try {
-    await chrome.tabs.update(tabId, { muted })
-  } catch {}
+  await updateTab(tabId, { muted })
   await fetchOpenTabs()
   // Passive refresh: muting doesn't reorganize cards, so repaint in place (no card animation).
   await requestDashboardRefresh()
@@ -296,12 +259,10 @@ async function applySuspendToTabs(targets: chrome.tabs.Tab[], target: SuspendTar
   for (const tab of targets) {
     if (typeof tab.id !== 'number') continue
     if (isSuspended(tab.url)) continue
-    try {
-      await chrome.tabs.update(tab.id, {
-        url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
-      })
-      count += 1
-    } catch {}
+    const updated = await updateTab(tab.id, {
+      url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
+    })
+    if (updated) count += 1
   }
   return count
 }
@@ -319,7 +280,7 @@ export async function suspendExactTabSection({ urls }: SuspendExactTabSectionOpt
   }
 
   const urlSet = new Set(urls)
-  const allTabs = await chrome.tabs.query({})
+  const allTabs = await queryAllTabs()
   const targets = allTabs.filter((tab) => {
     if (isGroupedTab(tab)) return false
     return urlSet.has(unwrapSuspenderUrl(tab.url || ''))
@@ -345,24 +306,7 @@ export async function suspendChipTarget({ tabUrl, envs = null }: SuspendChipTarg
     return
   }
 
-  const foldedEnvs = Array.isArray(envs) ? envs : []
-  const allTabs = await chrome.tabs.query({})
-
-  let matches: chrome.tabs.Tab[]
-  if (foldedEnvs.length > 0) {
-    const targetEffectives = new Set(foldedEnvs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
-    const targetUrls = new Set(foldedEnvs.map((env) => env.tabUrl))
-    matches = allTabs.filter((tab) => {
-      const openUrl = tab.url || ''
-      return targetUrls.has(openUrl) || targetEffectives.has(unwrapSuspenderUrl(openUrl))
-    })
-  } else {
-    const targetEffective = unwrapSuspenderUrl(tabUrl)
-    matches = allTabs.filter((tab) => {
-      const openUrl = tab.url || ''
-      return openUrl === tabUrl || unwrapSuspenderUrl(openUrl) === targetEffective
-    })
-  }
+  const matches = liveTabsMatchingTarget(await queryAllTabs(), { tabUrl, envs })
 
   const count = await applySuspendToTabs(matches, target)
   await fetchOpenTabs()
@@ -379,16 +323,19 @@ export async function suspendHistoryEntry(tabId: number): Promise<void> {
     showToast('No suspender detected')
     return
   }
-  try {
-    const tab = await chrome.tabs.get(tabId)
-    if (isSuspended(tab.url)) {
-      showToast('Already suspended')
-      return
-    }
-    await chrome.tabs.update(tabId, {
-      url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
-    })
-  } catch {
+  const tab = await getTab(tabId)
+  if (!tab) {
+    showToast('Could not suspend tab')
+    return
+  }
+  if (isSuspended(tab.url)) {
+    showToast('Already suspended')
+    return
+  }
+  const updated = await updateTab(tabId, {
+    url: buildSuspendUrl(target, { url: tab.url || '', title: tab.title || '' })
+  })
+  if (!updated) {
     showToast('Could not suspend tab')
     return
   }
