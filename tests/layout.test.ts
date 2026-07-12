@@ -55,18 +55,21 @@ test('shouldAnimateMasonryResize only changes when the column count changes', ()
 test('masonry card motion uses transform instead of layout-property transitions', () => {
   const css = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
+  const moveAnimationSource = readFileSync(new URL('../src/extension/move-animation.ts', import.meta.url), 'utf8')
 
-  assert.match(domainCardSource, /\[\.missions\.is-packed_&\.layout-moving\.layout-moving-active\]:\[transition:transform_0\.28s_cubic-bezier\(0\.2,0,0,1\)\]/)
+  assert.match(moveAnimationSource, /transform \$\{config\.duration\}ms var\(--ease-swift\)/)
+  assert.doesNotMatch(domainCardSource, /layout-moving[^'"]*\[transition:/)
   assert.doesNotMatch(domainCardSource, /\b(?:top|left|width)_0\.\d+s/)
   assert.doesNotMatch(css, /\.missions\.is-packed \.domain-block\s*\{[^}]*transition:[^}]*\b(top|left|width)\b/s)
 })
 
 test('card move animation preserves previous rect starts while allowing temporary history-pane bleed', () => {
   const animationSource = readFileSync(new URL('../src/extension/card-move-animation.ts', import.meta.url), 'utf8')
+  const moveAnimationSource = readFileSync(new URL('../src/extension/move-animation.ts', import.meta.url), 'utf8')
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
 
-  assert.match(animationSource, /const dx = previous\.left - next\.left/)
-  assert.match(animationSource, /const dy = previous\.top - next\.top/)
+  assert.match(moveAnimationSource, /const dx = previousPosition\.left - next\.left/)
+  assert.match(moveAnimationSource, /const dy = previousPosition\.top - next\.top/)
   assert.doesNotMatch(animationSource, /constrainCardMoveStart/)
   assert.match(animationSource, /CARD_MOVE_BLEED_CLASS = 'card-motion-bleed'/)
   assert.match(animationSource, /scrollRegion\.classList\.add\(CARD_MOVE_BLEED_CLASS\)/)

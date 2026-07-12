@@ -1,0 +1,241 @@
+/* ================================================================
+   Move animation — the one FLIP lifecycle behind both movers
+   (Domain Card blocks, Working Set items).
+
+   snapshot(roots) BEFORE layout changes captures each item's visual
+   position (including any in-flight transform, so interruptions keep
+   continuity), keyed by config.keyOf with multiple positions per key
+   (duplicate Domain Card ids across mission containers) resolved by
+   closest-match at animate time. animate(roots, previous) cancels
+   stale moves, inverts (<1px deltas skipped), forces a reflow, then
+   plays on the next frame with a module-owned inline transition on
+   the shared motion token: `transform <duration>ms var(--ease-swift)`.
+   Cleanup runs on transitionend or a duration+grace timeout,
+   whichever lands first. Reduced motion disables the whole lifecycle.
+
+   Coordinate space is per-adapter: 'viewport' when items fly across
+   roots (cards over the history pane), 'root' when items stay inside
+   one scrolling container (working-set grid).
+   ================================================================ */
+
+export type MovePosition = { left: number; top: number; width: number; height: number }
+export type MovePositionMap = Map<string, MovePosition[]>
+
+export type MoveAnimatorHooks = {
+  /** Override config.beforePlay for one animate() call; null suppresses it. */
+  beforePlay?: ((roots: HTMLElement[]) => void) | null
+}
+
+export type MoveAnimatorConfig = {
+  itemSelector: string
+  keyOf: (item: HTMLElement) => string
+  duration: number
+  movingClass: string
+  activeClass: string
+  coordinateSpace: 'viewport' | 'root'
+  /** Inline z-index while an item is moving (consumers may prefer a class on movingClass instead). */
+  moveZIndex?: string
+  /** Runs once per animate() call that has movers, before the play frame. */
+  beforePlay?: (roots: HTMLElement[]) => void
+  /** Runs per item after its move finishes (transitionend or timeout). */
+  afterCleanup?: (item: HTMLElement) => void
+  /** Runs per item whenever a move is cancelled or reset. */
+  onCancel?: (item: HTMLElement) => void
+}
+
+export type MoveAnimator = {
+  snapshot(roots: ReadonlyArray<HTMLElement | null>): MovePositionMap
+  cancel(roots: ReadonlyArray<HTMLElement | null>): void
+  animate(roots: ReadonlyArray<HTMLElement | null>, previous: MovePositionMap | null, hooks?: MoveAnimatorHooks): void
+}
+
+type ActiveMove = {
+  frameId: number
+  timeoutId: number
+  onTransitionEnd: (e: TransitionEvent) => void
+}
+
+const CLEANUP_GRACE_MS = 80
+
+const requestFrame: (cb: () => void) => number =
+  typeof requestAnimationFrame === 'function'
+    ? (cb) => requestAnimationFrame(() => cb())
+    : (cb) => Number(setTimeout(cb, 16))
+
+const cancelFrame: (id: number) => void = typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : (id) => clearTimeout(id)
+
+function shouldReduceMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function roundPosition(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.round(value * 100) / 100
+}
+
+export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
+  const activeMoves = new WeakMap<HTMLElement, ActiveMove>()
+
+  function itemsIn(root: HTMLElement): HTMLElement[] {
+    return Array.from(root.querySelectorAll<HTMLElement>(config.itemSelector))
+  }
+
+  function originOf(root: HTMLElement): { left: number; top: number } {
+    if (config.coordinateSpace === 'root') {
+      const rect = root.getBoundingClientRect()
+      return { left: rect.left, top: rect.top }
+    }
+    return { left: 0, top: 0 }
+  }
+
+  function positionOf(item: HTMLElement, origin: { left: number; top: number }): MovePosition {
+    const rect = item.getBoundingClientRect()
+    return {
+      left: roundPosition(rect.left - origin.left),
+      top: roundPosition(rect.top - origin.top),
+      width: roundPosition(rect.width),
+      height: roundPosition(rect.height)
+    }
+  }
+
+  function snapshot(roots: ReadonlyArray<HTMLElement | null>): MovePositionMap {
+    const positions: MovePositionMap = new Map()
+    if (shouldReduceMotion()) return positions
+
+    for (const root of roots) {
+      if (!root) continue
+      const origin = originOf(root)
+      for (const item of itemsIn(root)) {
+        const key = config.keyOf(item)
+        if (!key) continue
+        let list = positions.get(key)
+        if (!list) {
+          list = []
+          positions.set(key, list)
+        }
+        list.push(positionOf(item, origin))
+      }
+    }
+
+    return positions
+  }
+
+  function cancelItem(item: HTMLElement): void {
+    const active = activeMoves.get(item)
+    if (active) {
+      cancelFrame(active.frameId)
+      clearTimeout(active.timeoutId)
+      item.removeEventListener('transitionend', active.onTransitionEnd)
+      activeMoves.delete(item)
+    }
+
+    item.classList.remove(config.movingClass, config.activeClass)
+    item.style.transform = ''
+    item.style.transition = ''
+    item.style.willChange = ''
+    if (config.moveZIndex) item.style.zIndex = ''
+    config.onCancel?.(item)
+  }
+
+  function cancel(roots: ReadonlyArray<HTMLElement | null>): void {
+    for (const root of roots) {
+      if (!root) continue
+      itemsIn(root).forEach(cancelItem)
+    }
+  }
+
+  function takeClosestPrevious(previous: MovePositionMap, key: string, next: MovePosition): MovePosition | null {
+    const candidates = previous.get(key)
+    if (!candidates || candidates.length === 0) return null
+
+    let closestIndex = 0
+    let closestDistance = Infinity
+    candidates.forEach((candidate, index) => {
+      const dx = candidate.left - next.left
+      const dy = candidate.top - next.top
+      const distance = dx * dx + dy * dy
+      if (distance < closestDistance) {
+        closestDistance = distance
+        closestIndex = index
+      }
+    })
+
+    const [closest] = candidates.splice(closestIndex, 1)
+    if (!closest) return null
+    if (candidates.length === 0) previous.delete(key)
+    return closest
+  }
+
+  function animate(roots: ReadonlyArray<HTMLElement | null>, previous: MovePositionMap | null, hooks?: MoveAnimatorHooks): void {
+    if (!previous || previous.size === 0 || shouldReduceMotion()) return
+
+    const presentRoots: HTMLElement[] = []
+    const moving: HTMLElement[] = []
+    for (const root of roots) {
+      if (!root) continue
+      presentRoots.push(root)
+      const origin = originOf(root)
+      for (const item of itemsIn(root)) {
+        const key = config.keyOf(item)
+        cancelItem(item)
+        if (!key) continue
+
+        const next = positionOf(item, origin)
+        const previousPosition = takeClosestPrevious(previous, key, next)
+        if (!previousPosition) continue
+
+        const dx = previousPosition.left - next.left
+        const dy = previousPosition.top - next.top
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue
+
+        item.classList.add(config.movingClass)
+        item.style.transition = 'none'
+        item.style.transform = `translate(${dx}px, ${dy}px)`
+        item.style.willChange = 'transform'
+        if (config.moveZIndex) item.style.zIndex = config.moveZIndex
+        moving.push(item)
+      }
+    }
+
+    if (moving.length === 0) return
+
+    const beforePlay = hooks && 'beforePlay' in hooks ? hooks.beforePlay : config.beforePlay
+    beforePlay?.(presentRoots)
+
+    presentRoots.forEach((root) => root.getBoundingClientRect())
+
+    moving.forEach((item) => {
+      function cleanup() {
+        if (activeMoves.get(item) !== active) return
+        activeMoves.delete(item)
+        item.removeEventListener('transitionend', onTransitionEnd)
+        item.classList.remove(config.movingClass, config.activeClass)
+        item.style.transform = ''
+        item.style.transition = ''
+        item.style.willChange = ''
+        if (config.moveZIndex) item.style.zIndex = ''
+        config.afterCleanup?.(item)
+      }
+      function onTransitionEnd(e: TransitionEvent) {
+        if (e.target === item && e.propertyName === 'transform') cleanup()
+      }
+      const active: ActiveMove = {
+        frameId: 0,
+        timeoutId: 0,
+        onTransitionEnd
+      }
+
+      item.addEventListener('transitionend', onTransitionEnd)
+      active.frameId = requestFrame(() => {
+        if (activeMoves.get(item) !== active) return
+        item.classList.add(config.activeClass)
+        item.style.transition = `transform ${config.duration}ms var(--ease-swift)`
+        item.style.transform = 'translate(0, 0)'
+      })
+      active.timeoutId = Number(setTimeout(cleanup, config.duration + CLEANUP_GRACE_MS))
+      activeMoves.set(item, active)
+    })
+  }
+
+  return { snapshot, cancel, animate }
+}

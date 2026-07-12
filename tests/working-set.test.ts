@@ -495,7 +495,6 @@ test('WorkingSetPanel emits an external hover source for matching open tab chips
 
 test('WorkingSetPanel uses transform snapshots for item move animation', () => {
   const panelSource = readFileSync(new URL('../src/components/WorkingSetPanel.tsx', import.meta.url), 'utf8')
-  const animationSource = readFileSync(new URL('../src/extension/working-set-move-animation.ts', import.meta.url), 'utf8')
 
   assert.match(panelSource, /const nextPositions = snapshotWorkingSetItemPositions\(grid\)[\s\S]*animateWorkingSetItemMoves\(grid, itemPositionsRef\.current\)[\s\S]*itemPositionsRef\.current = nextPositions/)
   assert.match(panelSource, /function workingSetVisibleLayoutSignature\(items: WorkingSetItem\[\], hasMore: boolean, expanded: boolean\)/)
@@ -511,13 +510,14 @@ test('WorkingSetPanel uses transform snapshots for item move animation', () => {
   assert.match(panelSource, /function startCollapseExitAnimation\(\) \{[\s\S]*items[\s\S]*\.slice\(defaultLimit, visibleLimit\)[\s\S]*setExitingItems\(outgoingItems\)[\s\S]*\}/)
   assert.match(panelSource, /function onToggleExpanded\(\) \{[\s\S]*const nextExpanded = !expanded[\s\S]*pendingLayoutChangeRef\.current = true[\s\S]*onBeforeLayoutChange\?\.\(\{ animate: true \}\)[\s\S]*startCollapseExitAnimation\(\)[\s\S]*setExpanded\(nextExpanded\)[\s\S]*\}/)
   assert.match(panelSource, /onClick=\{onToggleExpanded\}/)
-  assert.match(animationSource, /item\.style\.transform = `translate\(\$\{dx\}px, \$\{dy\}px\)`/)
-  assert.match(animationSource, /item\.style\.transition = `transform \$\{WORKING_SET_ITEM_MOVE_MS\}ms cubic-bezier\(0\.2, 0, 0, 1\)`/)
-  assert.match(animationSource, /item\.getBoundingClientRect\(\)/)
-  assert.match(animationSource, /grid\.getBoundingClientRect\(\)/)
-  assert.doesNotMatch(animationSource, /\.offsetLeft|\.offsetTop/)
-  assert.match(animationSource, /prefers-reduced-motion: reduce/)
-  assert.doesNotMatch(animationSource, /transition[^=]*=.*\b(?:top|left|width)\b/)
+  const moveAnimationSource = readFileSync(new URL('../src/extension/move-animation.ts', import.meta.url), 'utf8')
+  assert.match(moveAnimationSource, /item\.style\.transform = `translate\(\$\{dx\}px, \$\{dy\}px\)`/)
+  assert.match(moveAnimationSource, /item\.style\.transition = `transform \$\{config\.duration\}ms var\(--ease-swift\)`/)
+  assert.match(moveAnimationSource, /item\.getBoundingClientRect\(\)/)
+  assert.match(moveAnimationSource, /root\.getBoundingClientRect\(\)/)
+  assert.doesNotMatch(moveAnimationSource, /\.offsetLeft|\.offsetTop/)
+  assert.match(moveAnimationSource, /prefers-reduced-motion: reduce/)
+  assert.doesNotMatch(moveAnimationSource, /transition[^=]*=.*\b(?:top|left|width)\b/)
 })
 
 test('snapshotWorkingSetItemPositions reads stable grid-local rects by layout key', () => {

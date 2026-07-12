@@ -1,82 +1,25 @@
-export type WorkingSetItemPosition = { left: number; top: number; width: number; height: number }
-export type WorkingSetItemPositionMap = Map<string, WorkingSetItemPosition>
+/* ================================================================
+   Working Set move adapter — configures the shared move-animation
+   module for row moves inside the working-set grid: root-relative
+   coordinates (positions stay stable while the panel scrolls), one
+   position per layout key, and the settle phase that keeps the
+   toggle's interaction chrome suppressed while it lands (the
+   suppression CSS in extension/base.css keys off the marker classes
+   written here).
+   ================================================================ */
 
-type WorkingSetItemMoveAnimation = {
-  frameId: number
-  timeoutId: number
-  onTransitionEnd: (e: TransitionEvent) => void
-}
+import { createMoveAnimator } from './move-animation.js'
+import type { MovePosition, MovePositionMap } from './move-animation.js'
+
+export type WorkingSetItemPosition = MovePosition
+export type WorkingSetItemPositionMap = Map<string, WorkingSetItemPosition>
 
 const WORKING_SET_ITEM_MOVE_MS = 220
 const WORKING_SET_ITEM_SETTLE_MS = 80
 const WORKING_SET_LAYOUT_SELECTOR = '.working-set-layout-item[data-working-set-layout-key]'
 const WORKING_SET_TOGGLE_SELECTOR = '.working-set-toggle'
 const WORKING_SET_ITEM_SETTLING_CLASS = 'working-set-layout-settling'
-const activeWorkingSetItemMoves = new WeakMap<HTMLElement, WorkingSetItemMoveAnimation>()
 const activeWorkingSetItemSettles = new WeakMap<HTMLElement, number>()
-
-function shouldReduceMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
-function workingSetLayoutItems(grid: HTMLElement): HTMLElement[] {
-  return Array.from(grid.querySelectorAll<HTMLElement>(WORKING_SET_LAYOUT_SELECTOR))
-}
-
-function workingSetLayoutKey(item: HTMLElement) {
-  return item.dataset.workingSetLayoutKey || ''
-}
-
-function roundLayoutPosition(value: number) {
-  if (!Number.isFinite(value)) return 0
-  return Math.round(value * 100) / 100
-}
-
-function workingSetLayoutPosition(item: HTMLElement, gridRect: DOMRect): WorkingSetItemPosition {
-  const itemRect = item.getBoundingClientRect()
-  return {
-    left: roundLayoutPosition(itemRect.left - gridRect.left),
-    top: roundLayoutPosition(itemRect.top - gridRect.top),
-    width: roundLayoutPosition(itemRect.width),
-    height: roundLayoutPosition(itemRect.height)
-  }
-}
-
-export function snapshotWorkingSetItemPositions(grid: HTMLElement | null): WorkingSetItemPositionMap {
-  const positions: WorkingSetItemPositionMap = new Map()
-  if (!grid || shouldReduceMotion()) return positions
-
-  const gridRect = grid.getBoundingClientRect()
-  workingSetLayoutItems(grid).forEach((item) => {
-    const key = workingSetLayoutKey(item)
-    if (!key) return
-    positions.set(key, workingSetLayoutPosition(item, gridRect))
-  })
-
-  return positions
-}
-
-function cancelWorkingSetItemMove(item: HTMLElement) {
-  const settleTimeout = activeWorkingSetItemSettles.get(item)
-  if (settleTimeout) {
-    clearTimeout(settleTimeout)
-    activeWorkingSetItemSettles.delete(item)
-  }
-
-  const active = activeWorkingSetItemMoves.get(item)
-  if (active) {
-    cancelAnimationFrame(active.frameId)
-    clearTimeout(active.timeoutId)
-    item.removeEventListener('transitionend', active.onTransitionEnd)
-    activeWorkingSetItemMoves.delete(item)
-  }
-
-  item.classList.remove('working-set-layout-moving', 'working-set-layout-moving-active', WORKING_SET_ITEM_SETTLING_CLASS)
-  item.style.transform = ''
-  item.style.transition = ''
-  item.style.willChange = ''
-  item.style.zIndex = ''
-}
 
 function settleWorkingSetItemMove(item: HTMLElement) {
   if (!item.matches(WORKING_SET_TOGGLE_SELECTOR)) return
@@ -85,73 +28,53 @@ function settleWorkingSetItemMove(item: HTMLElement) {
   if (activeSettle) clearTimeout(activeSettle)
 
   item.classList.add(WORKING_SET_ITEM_SETTLING_CLASS)
-  activeWorkingSetItemSettles.set(item, window.setTimeout(() => {
+  activeWorkingSetItemSettles.set(item, Number(setTimeout(() => {
     activeWorkingSetItemSettles.delete(item)
     item.classList.remove(WORKING_SET_ITEM_SETTLING_CLASS)
-  }, WORKING_SET_ITEM_SETTLE_MS))
+  }, WORKING_SET_ITEM_SETTLE_MS)))
+}
+
+function clearWorkingSetItemSettle(item: HTMLElement) {
+  const activeSettle = activeWorkingSetItemSettles.get(item)
+  if (activeSettle) {
+    clearTimeout(activeSettle)
+    activeWorkingSetItemSettles.delete(item)
+  }
+  item.classList.remove(WORKING_SET_ITEM_SETTLING_CLASS)
+}
+
+const workingSetItemAnimator = createMoveAnimator({
+  itemSelector: WORKING_SET_LAYOUT_SELECTOR,
+  keyOf: (item) => item.dataset.workingSetLayoutKey || '',
+  duration: WORKING_SET_ITEM_MOVE_MS,
+  movingClass: 'working-set-layout-moving',
+  activeClass: 'working-set-layout-moving-active',
+  coordinateSpace: 'root',
+  moveZIndex: '2',
+  afterCleanup: (item) => settleWorkingSetItemMove(item),
+  onCancel: (item) => clearWorkingSetItemSettle(item)
+})
+
+export function snapshotWorkingSetItemPositions(grid: HTMLElement | null): WorkingSetItemPositionMap {
+  const positions: WorkingSetItemPositionMap = new Map()
+  if (!grid) return positions
+
+  for (const [key, list] of workingSetItemAnimator.snapshot([grid])) {
+    const position = list[0]
+    if (position) positions.set(key, position)
+  }
+  return positions
 }
 
 export function cancelWorkingSetItemMoves(grid: HTMLElement | null) {
   if (!grid) return
-  workingSetLayoutItems(grid).forEach(cancelWorkingSetItemMove)
+  workingSetItemAnimator.cancel([grid])
 }
 
 export function animateWorkingSetItemMoves(grid: HTMLElement | null, previousPositions: WorkingSetItemPositionMap | null) {
-  if (!grid || !previousPositions || previousPositions.size === 0 || shouldReduceMotion()) return
+  if (!grid || !previousPositions || previousPositions.size === 0) return
 
-  const moving: HTMLElement[] = []
-  const gridRect = grid.getBoundingClientRect()
-  workingSetLayoutItems(grid).forEach((item) => {
-    const previous = previousPositions.get(workingSetLayoutKey(item))
-    if (!previous) return
-
-    const current = workingSetLayoutPosition(item, gridRect)
-    const dx = previous.left - current.left
-    const dy = previous.top - current.top
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
-
-    cancelWorkingSetItemMove(item)
-    item.classList.add('working-set-layout-moving')
-    item.style.transition = 'none'
-    item.style.transform = `translate(${dx}px, ${dy}px)`
-    item.style.willChange = 'transform'
-    item.style.zIndex = '2'
-    moving.push(item)
-  })
-
-  if (moving.length === 0) return
-
-  grid.getBoundingClientRect()
-
-  moving.forEach((item) => {
-    function cleanup() {
-      if (activeWorkingSetItemMoves.get(item) !== active) return
-      activeWorkingSetItemMoves.delete(item)
-      item.removeEventListener('transitionend', onTransitionEnd)
-      item.classList.remove('working-set-layout-moving', 'working-set-layout-moving-active')
-      item.style.transform = ''
-      item.style.transition = ''
-      item.style.willChange = ''
-      item.style.zIndex = ''
-      settleWorkingSetItemMove(item)
-    }
-    function onTransitionEnd(e: TransitionEvent) {
-      if (e.target === item && e.propertyName === 'transform') cleanup()
-    }
-    const active = {
-      frameId: 0,
-      timeoutId: 0,
-      onTransitionEnd
-    }
-
-    item.addEventListener('transitionend', onTransitionEnd)
-    active.frameId = requestAnimationFrame(() => {
-      if (activeWorkingSetItemMoves.get(item) !== active) return
-      item.classList.add('working-set-layout-moving-active')
-      item.style.transition = `transform ${WORKING_SET_ITEM_MOVE_MS}ms cubic-bezier(0.2, 0, 0, 1)`
-      item.style.transform = 'translate(0, 0)'
-    })
-    active.timeoutId = window.setTimeout(cleanup, WORKING_SET_ITEM_MOVE_MS + 80)
-    activeWorkingSetItemMoves.set(item, active)
-  })
+  const previous: MovePositionMap = new Map()
+  for (const [key, position] of previousPositions) previous.set(key, [position])
+  workingSetItemAnimator.animate([grid], previous)
 }

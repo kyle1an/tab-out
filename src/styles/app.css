@@ -30,8 +30,9 @@
   --color-muted-foreground: var(--muted);
   --color-accent: color-mix(in srgb, var(--card-bg) 92%, var(--accent-amber));
   --color-accent-foreground: var(--ink);
-  /* Signature strong ease-out. The TS animators (PageChipCloseAnimation.ts,
-     card-move-animation.ts, working-set-move-animation.ts) and the FLIP class in
-     DomainCard.tsx pin this same curve as a literal, guarded by tests — keep in sync. */
+  /* Signature strong ease-out. The FLIP move module
+     (src/extension/move-animation.ts) plays its inline transition through
+     this token; PageChipCloseAnimation.ts still pins the literal value,
+     guarded by tests — keep in sync. */
   --ease-swift: cubic-bezier(0.2, 0, 0, 1);
 }
