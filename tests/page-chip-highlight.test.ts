@@ -1093,11 +1093,11 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
 // only one side qualified. It must also stay keyed off the STATIC slot
 // marker — NOT hover/menu/tooltip state — so interactions reveal an
 // already-overlapping frame instead of pulling the slot up.
-test('base.css statically overlaps ALL adjacent full-width chip-slots', () => {
-  const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
-  const ruleStart = baseCss.indexOf('.chip-slot-row + .chip-slot-row')
+test('chip-trim.css statically overlaps ALL adjacent full-width chip-slots', () => {
+  const trimCss = readFileSync(new URL('../src/components/chip-trim/chip-trim.css', import.meta.url), 'utf8')
+  const ruleStart = trimCss.indexOf('.chip-slot-row + .chip-slot-row')
   assert.notEqual(ruleStart, -1, 'the unconditional seam-overlap rule should exist')
-  const overlapRule = baseCss.slice(ruleStart, baseCss.indexOf('}', ruleStart) + 1)
+  const overlapRule = trimCss.slice(ruleStart, trimCss.indexOf('}', ruleStart) + 1)
   assert.match(overlapRule, /margin-top: -1px/)
   // Overlap must not be gated on border sources or interaction state.
   assert.doesNotMatch(overlapRule, /:has\(/)
@@ -2287,13 +2287,23 @@ test('TabHistoryPanel keeps previous and next history targets visually neutral',
 })
 
 test('cross-surface hover match styling is outline-only', () => {
+  // The Page Chip half of the hover-match outline lives with the chip-trim
+  // module; the other hover-match surfaces stay in style.css. Both halves
+  // must remain outline-only so the surfaces highlight identically.
   const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const match = styleSource.match(/\.page-chip\.page-chip-hover-match,\n\.page-chip-overflow\.page-chip-overflow-hover-match,\n\.history-entry\.history-entry-hover-match,\n\.working-set-item\.working-set-item-hover-match\s*\{([^}]*)\}/)
+  const match = styleSource.match(/\.page-chip-overflow\.page-chip-overflow-hover-match,\n\.history-entry\.history-entry-hover-match,\n\.working-set-item\.working-set-item-hover-match\s*\{([^}]*)\}/)
 
   assert.ok(match, 'cross-surface hover match rule should exist')
   assert.match(match[1], /outline:\s*1px solid var\(--accent-amber\);/)
   assert.match(match[1], /outline-offset:\s*1px;/)
   assert.doesNotMatch(match[1], /\b(?:background|box-shadow|border):/)
+
+  const trimCss = readFileSync(new URL('../src/components/chip-trim/chip-trim.css', import.meta.url), 'utf8')
+  const trimMatch = trimCss.match(/\.page-chip\.page-chip-hover-match\s*\{([^}]*)\}/)
+  assert.ok(trimMatch, 'chip-trim hover match rule should exist')
+  assert.match(trimMatch[1], /outline:\s*1px solid var\(--accent-amber\);/)
+  assert.match(trimMatch[1], /outline-offset:\s*1px;/)
+  assert.doesNotMatch(trimMatch[1], /\b(?:background|box-shadow|border):/)
 })
 
 test('domain card frames itself when a history hover highlights one of its chips', () => {

@@ -1,0 +1,57 @@
+/* Chip Trim — the CSS rump of the module (see index.ts for the full
+   contract). Exactly the rules that cannot ride in the class strings
+   chipTrim() emits: the slot seam overlap is an adjacent-sibling rule,
+   and everything else is keyed on :hover, which must swap inside one
+   style recalculation (the hover-flash lesson, 2026-06-13 — a React
+   state class commits a frame later than CSS hover and flashes).
+   Selectors here use only CHIP_TRIM_TOKENS names from trim.ts. */
+
+/* Adjacent full-width chip-slots ALWAYS overlap by -1px, so that whenever
+   two neighbours both paint a 1px trim line at the seam (active frame,
+   interaction outline, expanded-overlay edge) the lines coincide as a
+   single line. Each chip keeps its FULL 4-sided rounded frame at all
+   times — no suppression of any side.
+
+   The overlap is unconditional — keyed off the STATIC .chip-slot-row
+   marker, never off a chip's trim sources or its hover state. Trim
+   capability is app state: a saved page opens and its chip flips
+   saved-closed → plain; a tab activates and flips plain → active-framed.
+   An overlap gated on trim markers made the run's height shift 1px on
+   those flips, and stacked two visible lines at the seam whenever only
+   one side qualified. At rest an untrimmed edge is transparent, so the
+   overlap paints nothing; a revealed frame is already aligned to the seam.
+
+   Icon-only slots are inline-flex and wrap horizontally in overflow
+   rows — they never carry the marker, so their rows keep their vertical
+   rhythm. */
+
+.chip-slot-row + .chip-slot-row {
+  margin-top: -1px;
+}
+
+/* Lift the interacting slot above its neighbours so its frame draws on top
+   at the seam. The chip-slot already has `position: relative` via the
+   component class, so z-index applies. Above .page-chip-hover-match (z:3)
+   so a deliberate interaction always wins over passive hover-match. */
+.chip-slot:has(.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open)) {
+  z-index: 4;
+}
+
+/* Hover strengthens the frame's alpha so the border stays crisp against
+   the darker interaction bg. Applied to every active-frame chip on hover —
+   the shape is always the full 4-sided rounded frame. */
+.page-chip:is(:hover, .page-chip-context-menu-open, .page-chip-tooltip-open) > .active-chip-frame {
+  box-shadow: inset 0 0 0 1px rgba(38, 38, 38, 0.55);
+}
+
+/* The hover-match outline is drawn at the chip's edge with a 1px offset.
+   Without overlap there's no neighbor-occlusion risk, but raising the slot
+   still ensures the outline draws above any adjacent chip's inset border. */
+.page-chip.page-chip-hover-match {
+  outline: 1px solid var(--accent-amber);
+  outline-offset: 1px;
+}
+
+.chip-slot:has(.page-chip-hover-match) {
+  z-index: 3;
+}
