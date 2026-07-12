@@ -360,14 +360,9 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.doesNotMatch(pageChipSource, /getChipTooltipAnchor/)
   assert.doesNotMatch(pageChipSource, /chip-text-tooltip-hit-area/)
   assert.match(pageChipSource, /page-chip-tooltip-open/)
-  // Chip Trim owns the interaction-fill and outline strings now; PageChip
-  // consumes them through the chipTrim interface.
-  const chipTrimSource = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
-  assert.match(chipTrimSource, /SURFACE_INTERACTION_CLASSES = 'hover:bg-\(--chip-interaction-bg\)/)
-  assert.match(chipTrimSource, /\[\&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
-  assert.match(chipTrimSource, /GROUP_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)'/)
-  assert.match(chipTrimSource, /GROUP_HOVER_BORDER = 'color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)'/)
-  assert.match(chipTrimSource, /GROUP_INTERACTION_CLASSES = `\$\{SURFACE_INTERACTION_CLASSES\} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-\(--chip-group-hover-border\)/)
+  // The interaction-fill and outline strings live behind the chip-trim
+  // interface and are covered by tests/chip-trim.test.ts; here we only pin
+  // that PageChip consumes the module's vars.
   assert.match(pageChipSource, /--chip-group-hover-border': trim\.styleVars\.groupHoverBorder/)
   assert.match(pageChipSource, /page-chip-expanded absolute z-30/)
   assert.match(pageChipSource, /page-chip-expanded absolute z-30 min-w-0/)
@@ -380,10 +375,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /window\.addEventListener\('pointermove', closeOnPointerMove, true\)/)
   assert.match(pageChipSource, /window\.removeEventListener\('pointermove', closeOnPointerMove, true\)/)
   assert.match(pageChipSource, /'--page-chip-expanded-width': chipExpandedWidth/)
-  assert.match(chipTrimSource, /const fadeBg = isCurrentTabOutFrame/)
-  assert.match(chipTrimSource, /: isCurrentActiveFrame/)
-  assert.match(chipTrimSource, /CLICKABLE_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)'/)
-  assert.match(chipTrimSource, /ACTIVE_OTHER_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 88%, var\(--color-neutral-600\) 12%\)'/)
+  assert.match(pageChipSource, /'--chip-interaction-bg': trim\.styleVars\.interactionBg/)
   assert.doesNotMatch(pageChipSource, /backgroundColor: 'var\(--chip-hover-fade-bg\)'/)
   assert.match(pageChipSource, /width: chipExpandedWidth/)
   assert.match(pageChipSource, /page-chip-expanded-line/)

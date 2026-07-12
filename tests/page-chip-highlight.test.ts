@@ -515,21 +515,10 @@ test('PageChip keeps clickable hover background on expandable chips before expan
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
 
-  // Plain chips draw no trim in ANY state — no outline/border may be added
-  // to them, expanded or not. Their translucent fill is unconditional; while
-  // expanded, opaque coverage over foreign content comes from the dedicated
-  // fill layer, which stays 1px clear of edges flush with the resting seam
-  // (so a bordered neighbour's line on the overlapped row survives) and
-  // extends fully on grown edges (so nothing bleeds through the overlay).
-  // The rules themselves live behind the chip-trim interface.
-  const chipTrimSource = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
+  // Plain chips draw no trim in ANY state — the rules themselves live behind
+  // the chip-trim interface and are covered by the decision-table suite
+  // (tests/chip-trim.test.ts); this render check only pins the wiring.
   assert.doesNotMatch(chipMatch[1], /page-chip-expanded\]:outline/)
-  assert.match(chipTrimSource, /isPlainClickable \? CLICKABLE_INTERACTION_OVERLAY_BG/)
-  assert.match(chipTrimSource, /CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)'/)
-  assert.match(chipTrimSource, /facts\.expanded && isPlainClickable && !facts\.iconOnly/)
-  assert.match(chipTrimSource, /page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1/)
-  assert.match(chipTrimSource, /top: facts\.expanded\.y === 'up' && facts\.expanded\.grewTaller \? '0px' : '1px'/)
-  assert.match(chipTrimSource, /bottom: facts\.expanded\.y === 'down' && facts\.expanded\.grewTaller \? '0px' : '1px'/)
 })
 
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
@@ -1084,30 +1073,10 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   assert.match(pageChipSource, /data-tabout-part="slot"[\s\S]*?\{\.\.\.variantGroupInteractionProps\}/)
 })
 
-// The base-layer seam rule must overlap ALL adjacent full-width chip slots
-// unconditionally. Border capability is app state — a saved page opens and
-// its chip flips saved-closed → plain; a tab activates and gains an active
-// frame — so an overlap gated on border markers (:has(.active-chip-frame /
-// .page-chip-group / .page-chip-saved-closed)) shifted the run's height by
-// 1px on those flips and stacked two visible borders at the seam whenever
-// only one side qualified. It must also stay keyed off the STATIC slot
-// marker — NOT hover/menu/tooltip state — so interactions reveal an
-// already-overlapping frame instead of pulling the slot up.
-test('chip-trim.css statically overlaps ALL adjacent full-width chip-slots', () => {
-  const trimCss = readFileSync(new URL('../src/components/chip-trim/chip-trim.css', import.meta.url), 'utf8')
-  const ruleStart = trimCss.indexOf('.chip-slot-row + .chip-slot-row')
-  assert.notEqual(ruleStart, -1, 'the unconditional seam-overlap rule should exist')
-  const overlapRule = trimCss.slice(ruleStart, trimCss.indexOf('}', ruleStart) + 1)
-  assert.match(overlapRule, /margin-top: -1px/)
-  // Overlap must not be gated on border sources or interaction state.
-  assert.doesNotMatch(overlapRule, /:has\(/)
-  assert.doesNotMatch(overlapRule, /:hover/)
-
-  // The marker rides on full-width slots only — icon-only slots wrap
-  // horizontally in overflow rows and must keep their vertical rhythm.
-  // chip-trim owns the marker decision; PageChip applies it to the slot.
-  const chipTrimSource = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
-  assert.match(chipTrimSource, /slotClasses: facts\.iconOnly \? '' : CHIP_TRIM_TOKENS\.slotRow/)
+// The seam-overlap rule and the slot-marker decision are covered by the
+// chip-trim decision-table suite (tests/chip-trim.test.ts); this test only
+// pins that PageChip wires the module's slot output onto the slot element.
+test('PageChip applies the chip-trim slot marker to full-width slots', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /chip\.iconOnly \? 'inline-flex' : `\$\{trim\.slotClasses\} flex w-full`/)
 })
@@ -1262,14 +1231,12 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuContentSource, /onClick=\{onCopyUrl\}/)
 
   // PageChip keeps the ref coordination and clipboard handler; the
-  // interaction styling itself lives behind the chip-trim interface.
+  // interaction styling itself lives behind the chip-trim interface and is
+  // covered by the decision-table suite (tests/chip-trim.test.ts).
   assert.match(pageChipSource, /page-chip-context-menu-open/)
   assert.match(pageChipSource, /page-chip-tooltip-open/)
   assert.match(pageChipSource, /contextMenuOpenRef\.current/)
   assert.match(pageChipSource, /if \(contextMenuOpenRef\.current\) return/)
-  const trimSourceForMenus = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
-  assert.match(trimSourceForMenus, /\[\&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
-  assert.match(trimSourceForMenus, /\[\&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(pageChipSource, /onOpenChange=\{onChipTooltipOpenChange\}/)
   assert.match(pageChipSource, /group-\[\.page-chip-context-menu-open\]\/page-chip:opacity-100/)
   assert.match(pageChipSource, /group-\[\.page-chip-tooltip-open\]\/page-chip:opacity-100/)
