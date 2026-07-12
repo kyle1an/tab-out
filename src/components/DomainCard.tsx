@@ -509,7 +509,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         </header>
         <div
           className={cn(
-            'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-(--warm-gray) bg-tab-card transition-[box-shadow,transform] duration-250 ease-[ease] [corner-shape:squircle]',
+            'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-(--warm-gray) bg-tab-card transition-[box-shadow,border-color] duration-150 ease-swift [corner-shape:squircle]',
             // The card frames itself when a cross-surface hover highlights one
             // of its chips, and during pinned-domain drag reorder (data attrs
             // written imperatively by the drag controller on .domain-block).
