@@ -217,7 +217,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       windowId: tab.windowId,
       url: unwrapSuspenderUrl(tab.url || ''),
       rawUrl: tab.url || ''
-    }, chromeApi)
+    })
     if (!focused) {
       await removeTabFromHistory(tab.id)
     }
@@ -339,7 +339,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     })
 
     if (!restoreAction?.targetId) return
-    const focused = await focusExistingTabTarget({ tabId: restoreAction.targetId }, chromeApi)
+    const focused = await focusExistingTabTarget({ tabId: restoreAction.targetId })
     if (!focused) {
       await removeTabFromHistory(restoreAction.targetId)
     }

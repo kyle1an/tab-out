@@ -1,3 +1,4 @@
+import { queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
 import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isSuspended } from './suspension.js'
@@ -182,17 +183,15 @@ export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean
 }
 
 export async function closeHistoryEntry(entry: TabHistoryEntry): Promise<{ closed: boolean; snapshot: TabSnapshot[] }> {
-  if (!entry?.exists || !Number.isInteger(entry.tabId)) return { closed: false, snapshot: [] }
+  const tabId = entry?.tabId
+  if (!entry?.exists || typeof tabId !== 'number' || !Number.isInteger(tabId)) return { closed: false, snapshot: [] }
 
-  try {
-    const allTabs = await chrome.tabs.query({})
-    const tab = allTabs.find((candidate) => candidate.id === entry.tabId)
-    if (!tab) return { closed: false, snapshot: [] }
+  const allTabs = await queryAllTabs()
+  const tab = allTabs.find((candidate) => candidate.id === tabId)
+  if (!tab) return { closed: false, snapshot: [] }
 
-    const snapshot = snapshotChromeTabs([tab])
-    await chrome.tabs.remove(entry.tabId)
-    return { closed: true, snapshot }
-  } catch {
-    return { closed: false, snapshot: [] }
-  }
+  const snapshot = snapshotChromeTabs([tab])
+  const removed = await removeTabs([tabId])
+  if (removed === 0) return { closed: false, snapshot: [] }
+  return { closed: true, snapshot }
 }

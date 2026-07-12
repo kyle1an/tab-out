@@ -8,7 +8,7 @@
    extension pages).
    ================================================================ */
 
-import { getAllWindows, getCurrentWindow, queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
+import { createTab, createWindow, getAllWindows, getCurrentWindow, queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
 import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
@@ -277,9 +277,7 @@ export async function focusExactTab(url: string): Promise<boolean> {
 export async function openTabUrl(url: string, opts: { active?: boolean } = {}): Promise<void> {
   if (!url) return
   const { active = true } = opts
-  try {
-    await chrome.tabs.create({ url, active })
-  } catch {}
+  await createTab({ url, active })
 }
 
 /**
@@ -290,9 +288,7 @@ export async function openTabUrl(url: string, opts: { active?: boolean } = {}): 
  */
 export async function openTabUrlInNewWindow(url: string): Promise<void> {
   if (!url) return
-  try {
-    await chrome.windows.create({ url, focused: true, type: 'normal' })
-  } catch {}
+  await createWindow({ url, focused: true, type: 'normal' })
 }
 
 /**

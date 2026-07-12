@@ -19,6 +19,7 @@
                    chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
+import { getCurrentWindow } from './browser-tabs-gateway.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, savedPagesStoresEqual, saveSavedPagesStore, type SavedPagesStore } from './saved-pages.js'
@@ -162,12 +163,8 @@ function getDashboardGroupingConfig(): { customGroups: CustomGroupRule[] } {
 }
 
 export async function getCurrentWindowId(): Promise<number | null> {
-  try {
-    const currentWindow = await chrome.windows.getCurrent()
-    return typeof currentWindow.id === 'number' ? currentWindow.id : null
-  } catch {
-    return null
-  }
+  const currentWindow = await getCurrentWindow()
+  return typeof currentWindow?.id === 'number' ? currentWindow.id : null
 }
 
 async function saveSavedPagesStoreBestEffort(store: Parameters<typeof saveSavedPagesStore>[0]): Promise<void> {

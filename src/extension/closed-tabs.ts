@@ -1,3 +1,4 @@
+import { getRecentlyClosed, restoreSession } from './browser-tabs-gateway.js'
 import { unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 
 let closedTabFetchSuppressUntilMs = 0
@@ -81,17 +82,13 @@ function normalizeClosedTab(tab: chrome.tabs.Tab | undefined, lastModifiedMs: nu
 
 export async function restoreClosedTab(sessionId: string): Promise<boolean> {
   if (!sessionId) return false
-  const sessionsApi = globalThis.chrome?.sessions
-  if (!sessionsApi?.restore) return false
-  try {
-    await sessionsApi.restore(sessionId)
-    closedTabFetchSuppressUntilMs = Date.now() + CLOSED_TAB_RESTORE_SUPPRESS_MS
-    return true
-  } catch {
-    return false
-  }
+  const restored = await restoreSession(sessionId)
+  if (restored) closedTabFetchSuppressUntilMs = Date.now() + CLOSED_TAB_RESTORE_SUPPRESS_MS
+  return restored
 }
 
+// Event subscriptions stay on the ambient global: the Browser Tabs Gateway
+// covers commands only (see plans/005), listeners are out of its scope.
 export function subscribeClosedTabChanges(handler: () => void): () => void {
   const sessionsApi = globalThis.chrome?.sessions
   const tabsApi = globalThis.chrome?.tabs
@@ -105,15 +102,7 @@ export function subscribeClosedTabChanges(handler: () => void): () => void {
 }
 
 export async function fetchClosedTabs(): Promise<ClosedTabEntry[]> {
-  const sessionsApi = globalThis.chrome?.sessions
-  if (!sessionsApi?.getRecentlyClosed) return []
-
-  let sessions: chrome.sessions.Session[]
-  try {
-    sessions = await sessionsApi.getRecentlyClosed()
-  } catch {
-    return []
-  }
+  const sessions = await getRecentlyClosed()
 
   const entries: ClosedTabEntry[] = []
   for (const session of sessions) {

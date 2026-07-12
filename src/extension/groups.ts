@@ -10,6 +10,7 @@
                        canonical copy of a duplicated URL
    ================================================================ */
 
+import { queryTabGroups } from './browser-tabs-gateway.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 
 type GroupedTabLike = {
@@ -59,25 +60,18 @@ const GROUP_DOT_COLORS = ['#5a9cff', '#ff9f43', '#2ecc71', '#d35400', '#9b59b6',
 let groupColorCache: Record<number, string> = {} // { groupId: '#hex' } from chrome.tabGroups.query
 
 /**
- * fetchTabGroupColors() — populates the cache from the tabGroups API.
- * No-ops if the permission isn't granted (cache stays empty; dots fall
- * back to the deterministic palette).
+ * fetchTabGroupColors() — populates the cache from the tabGroups API via
+ * the Browser Tabs Gateway. When the API is unavailable (permission not
+ * granted) the gateway reports no groups, the cache clears, and dots fall
+ * back to the deterministic palette.
  */
 export async function fetchTabGroupColors(): Promise<void> {
-  if (!chrome.tabGroups) {
-    groupColorCache = {}
-    return
+  const groups = await queryTabGroups()
+  const next: Record<number, string> = {}
+  for (const g of groups) {
+    next[g.id] = CHROME_GROUP_COLOR_HEX[g.color as keyof typeof CHROME_GROUP_COLOR_HEX] || '#999'
   }
-  try {
-    const groups = await chrome.tabGroups.query({})
-    const next: Record<number, string> = {}
-    for (const g of groups) {
-      next[g.id] = CHROME_GROUP_COLOR_HEX[g.color as keyof typeof CHROME_GROUP_COLOR_HEX] || '#999'
-    }
-    groupColorCache = next
-  } catch {
-    // Permission missing or API unavailable — keep last cache as best-effort
-  }
+  groupColorCache = next
 }
 
 /**

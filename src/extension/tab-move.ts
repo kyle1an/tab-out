@@ -5,25 +5,13 @@
    preferring a tab in another window for current-window moves),
    relocates it, and reuses the shared focus/activation path where
    needed. Returns false when no live tab exists, so callers can fall
-   back to opening the page.
-
-   Reads globalThis.chrome (tests assign it), mirroring how the
-   tab-focus tests drive the chrome API.
+   back to opening the page. All browser access goes through the
+   Browser Tabs Gateway.
    ================================================================ */
 
+import { createWindow, getCurrentWindow, moveTab, queryAllTabs } from './browser-tabs-gateway.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import { focusExistingTabTarget, unsuspendExistingTab } from './tab-focus.js'
-
-type ChromeTabMoveApi = {
-  tabs: {
-    query: (queryInfo: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>
-    move: (tabId: number, moveProperties: chrome.tabs.MoveProperties) => Promise<chrome.tabs.Tab | chrome.tabs.Tab[] | undefined>
-  }
-  windows: {
-    create?: (createData: chrome.windows.CreateData) => Promise<chrome.windows.Window | undefined>
-    getCurrent?: () => Promise<chrome.windows.Window>
-  }
-}
 
 export type MoveTabTarget = {
   // A real open tab has a numeric id; saved/history chips carry a synthetic
@@ -34,10 +22,6 @@ export type MoveTabTarget = {
   tabId?: number | string
   tabUrl?: string
   rawUrl?: string
-}
-
-function chromeApiOrNull(): ChromeTabMoveApi | null {
-  return (globalThis.chrome as ChromeTabMoveApi | undefined) || null
 }
 
 function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, currentWindowId: number): chrome.tabs.Tab | null {
@@ -63,38 +47,30 @@ function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, curren
  * @returns {Promise<boolean>} true if a live tab was moved/activated; false if none found
  */
 export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { activate?: boolean } = {}): Promise<boolean> {
-  const api = chromeApiOrNull()
-  if (!api) return false
   const { activate = false } = opts
 
-  try {
-    const tabs = await api.tabs.query({})
-    let currentWindowId = -1
-    try {
-      currentWindowId = (await api.windows.getCurrent?.())?.id ?? -1
-    } catch {}
-    if (currentWindowId === -1) return false
+  const tabs = await queryAllTabs()
+  const currentWindowId = (await getCurrentWindow())?.id ?? -1
+  if (currentWindowId === -1) return false
 
-    const match = findTabForTarget(tabs, target, currentWindowId)
-    if (!match || typeof match.id !== 'number') return false
+  const match = findTabForTarget(tabs, target, currentWindowId)
+  if (!match || typeof match.id !== 'number') return false
 
-    if (match.windowId !== currentWindowId) {
-      await api.tabs.move(match.id, { windowId: currentWindowId, index: -1 })
-    }
-
-    if (activate) {
-      // The move (the primary effect) has already happened, so we report success
-      // even if this activation no-ops (e.g. the tab was closed mid-gesture) —
-      // returning false here would make the caller open a duplicate tab.
-      await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
-    } else {
-      await unsuspendExistingTab(match, { url: target.tabUrl, rawUrl: target.rawUrl })
-    }
-
-    return true
-  } catch {
-    return false
+  if (match.windowId !== currentWindowId) {
+    const moved = await moveTab(match.id, { windowId: currentWindowId, index: -1 })
+    if (!moved) return false
   }
+
+  if (activate) {
+    // The move (the primary effect) has already happened, so we report success
+    // even if this activation no-ops (e.g. the tab was closed mid-gesture) —
+    // returning false here would make the caller open a duplicate tab.
+    await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
+  } else {
+    await unsuspendExistingTab(match, { url: target.tabUrl, rawUrl: target.rawUrl })
+  }
+
+  return true
 }
 
 /**
@@ -105,23 +81,15 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
  * @returns {Promise<boolean>} true if a live tab was moved; false if none found
  */
 export async function moveTabToNewWindow(target: MoveTabTarget): Promise<boolean> {
-  const api = chromeApiOrNull()
-  if (!api?.windows.create) return false
+  const tabs = await queryAllTabs()
+  const currentWindowId = (await getCurrentWindow())?.id ?? -1
 
-  try {
-    const tabs = await api.tabs.query({})
-    let currentWindowId = -1
-    try {
-      currentWindowId = (await api.windows.getCurrent?.())?.id ?? -1
-    } catch {}
+  const match = findTabForTarget(tabs, target, currentWindowId)
+  if (!match || typeof match.id !== 'number') return false
 
-    const match = findTabForTarget(tabs, target, currentWindowId)
-    if (!match || typeof match.id !== 'number') return false
+  const created = await createWindow({ tabId: match.id, focused: true, type: 'normal' })
+  if (!created) return false
 
-    await api.windows.create({ tabId: match.id, focused: true, type: 'normal' })
-    await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
-    return true
-  } catch {
-    return false
-  }
+  await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
+  return true
 }

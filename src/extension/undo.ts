@@ -14,6 +14,7 @@
    place, so we use it exclusively.
    ================================================================ */
 
+import { createTabWithFallbackUrl, focusWindow, getTab, groupTabs, updateTab } from './browser-tabs-gateway.js'
 import { showToast } from './toast.js'
 import { requestDashboardRefresh } from './dashboard-controller.js'
 import type { TabSnapshot } from './types'
@@ -46,18 +47,12 @@ export async function undoLastClose(): Promise<void> {
 
   const restoredTabIds: number[] = []
   for (const t of tabsInRestoreOrder(closure.tabs)) {
-    try {
-      const created = await restoreSnapshotTab(t)
-      if (created && created.id != null) restoredTabIds.push(created.id)
-      if (created.id != null && t.groupId !== undefined && t.groupId !== -1 && chrome.tabs.group) {
-        try {
-          await chrome.tabs.group({ tabIds: [created.id], groupId: t.groupId })
-        } catch {
-          /* group may have been dissolved — ignore */
-        }
-      }
-    } catch {
-      /* tab create failed (e.g., bad URL) — skip */
+    const created = await restoreSnapshotTab(t)
+    if (!created || created.id == null) continue
+    restoredTabIds.push(created.id)
+    if (t.groupId !== undefined && t.groupId !== -1) {
+      // group may have been dissolved — the gateway reports false; ignore
+      await groupTabs([created.id], t.groupId)
     }
   }
 
@@ -71,11 +66,10 @@ export async function undoLastClose(): Promise<void> {
       label: 'Switch',
       description: 'Switch to the restored tab.',
       onClick: async () => {
-        try {
-          const tab = await chrome.tabs.get(firstId)
-          await chrome.tabs.update(firstId, { active: true })
-          await chrome.windows.update(tab.windowId, { focused: true })
-        } catch {}
+        const tab = await getTab(firstId)
+        if (!tab) return
+        await updateTab(firstId, { active: true })
+        await focusWindow(tab.windowId)
       }
     })
   } else {
@@ -83,7 +77,7 @@ export async function undoLastClose(): Promise<void> {
   }
 }
 
-async function restoreSnapshotTab(tab: TabSnapshot): Promise<chrome.tabs.Tab> {
+async function restoreSnapshotTab(tab: TabSnapshot): Promise<chrome.tabs.Tab | null> {
   const restoreUrl = tab.rawUrl || tab.url
   const createProperties: chrome.tabs.CreateProperties = {
     url: restoreUrl,
@@ -93,12 +87,7 @@ async function restoreSnapshotTab(tab: TabSnapshot): Promise<chrome.tabs.Tab> {
     active: false
   }
 
-  try {
-    return await chrome.tabs.create(createProperties)
-  } catch (error) {
-    if (!tab.url || restoreUrl === tab.url) throw error
-    return chrome.tabs.create({ ...createProperties, url: tab.url })
-  }
+  return createTabWithFallbackUrl(createProperties, tab.url)
 }
 
 function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {

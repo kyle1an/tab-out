@@ -37,6 +37,7 @@ export type ChromeTabsApi = {
   }
   sessions?: {
     getRecentlyClosed?(filter?: chrome.sessions.Filter): Promise<chrome.sessions.Session[]>
+    restore?(sessionId?: string): Promise<chrome.sessions.Session>
   }
   runtime?: {
     id?: string
@@ -54,12 +55,14 @@ export function setChromeTabsApi(api: ChromeTabsApi | null): void {
 function chromeTabsApi(): ChromeTabsApi | null {
   if (injectedChromeTabsApi) return injectedChromeTabsApi
   const globalChrome = (globalThis as { chrome?: ChromeTabsApi }).chrome
-  return globalChrome && globalChrome.tabs ? globalChrome : null
+  // Partial fakes are common in tests (a sessions-only or tabs-only patch);
+  // every op fully-chains its own guard, so any chrome-shaped object is fine.
+  return globalChrome ?? null
 }
 
 export async function queryAllTabs(): Promise<chrome.tabs.Tab[]> {
   const api = chromeTabsApi()
-  if (!api) return []
+  if (!api?.tabs?.query) return []
   try {
     return await api.tabs.query({})
   } catch {
@@ -69,7 +72,7 @@ export async function queryAllTabs(): Promise<chrome.tabs.Tab[]> {
 
 export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
   const api = chromeTabsApi()
-  if (!api?.tabs.get) return null
+  if (!api?.tabs?.get) return null
   try {
     return (await api.tabs.get(tabId)) ?? null
   } catch {
@@ -79,7 +82,7 @@ export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
 
 export async function getCurrentTab(): Promise<chrome.tabs.Tab | null> {
   const api = chromeTabsApi()
-  if (!api?.tabs.getCurrent) return null
+  if (!api?.tabs?.getCurrent) return null
   try {
     return (await api.tabs.getCurrent()) ?? null
   } catch {
@@ -94,7 +97,7 @@ export async function getCurrentTab(): Promise<chrome.tabs.Tab | null> {
  */
 export async function removeTabs(tabIds: number[]): Promise<number> {
   const api = chromeTabsApi()
-  if (!api?.tabs.remove || tabIds.length === 0) return 0
+  if (!api?.tabs?.remove || tabIds.length === 0) return 0
   try {
     await api.tabs.remove(tabIds)
     return tabIds.length
@@ -114,7 +117,7 @@ export async function removeTabs(tabIds: number[]): Promise<number> {
 
 export async function updateTab(tabId: number, updateProperties: chrome.tabs.UpdateProperties): Promise<chrome.tabs.Tab | null> {
   const api = chromeTabsApi()
-  if (!api?.tabs.update) return null
+  if (!api?.tabs?.update) return null
   try {
     return (await api.tabs.update(tabId, updateProperties)) ?? null
   } catch {
@@ -124,7 +127,7 @@ export async function updateTab(tabId: number, updateProperties: chrome.tabs.Upd
 
 export async function createTab(createProperties: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab | null> {
   const api = chromeTabsApi()
-  if (!api?.tabs.create) return null
+  if (!api?.tabs?.create) return null
   try {
     return await api.tabs.create(createProperties)
   } catch {
@@ -139,7 +142,7 @@ export async function createTab(createProperties: chrome.tabs.CreateProperties):
  */
 export async function createTabWithFallbackUrl(createProperties: chrome.tabs.CreateProperties, fallbackUrl: string): Promise<chrome.tabs.Tab | null> {
   const api = chromeTabsApi()
-  if (!api?.tabs.create) return null
+  if (!api?.tabs?.create) return null
   try {
     return await api.tabs.create(createProperties)
   } catch {
@@ -155,7 +158,7 @@ export async function createTabWithFallbackUrl(createProperties: chrome.tabs.Cre
 /** groupTabs — re-attach tabs to a Chrome tab group; false when grouping is unavailable or the group is gone. */
 export async function groupTabs(tabIds: number[], groupId: number): Promise<boolean> {
   const api = chromeTabsApi()
-  if (!api?.tabs.group || tabIds.length === 0) return false
+  if (!api?.tabs?.group || tabIds.length === 0) return false
   try {
     await api.tabs.group({ tabIds, groupId })
     return true
@@ -166,7 +169,7 @@ export async function groupTabs(tabIds: number[], groupId: number): Promise<bool
 
 export async function moveTab(tabId: number, moveProperties: chrome.tabs.MoveProperties): Promise<chrome.tabs.Tab | chrome.tabs.Tab[] | null> {
   const api = chromeTabsApi()
-  if (!api?.tabs.move) return null
+  if (!api?.tabs?.move) return null
   try {
     return (await api.tabs.move(tabId, moveProperties)) ?? null
   } catch {
@@ -232,6 +235,18 @@ export async function getRecentlyClosed(filter?: chrome.sessions.Filter): Promis
     return (await api.sessions.getRecentlyClosed(filter)) ?? []
   } catch {
     return []
+  }
+}
+
+/** restoreSession — reopen a recently-closed session entry; false when unavailable or already gone. */
+export async function restoreSession(sessionId?: string): Promise<boolean> {
+  const api = chromeTabsApi()
+  if (!api?.sessions?.restore) return false
+  try {
+    await api.sessions.restore(sessionId)
+    return true
+  } catch {
+    return false
   }
 }
 

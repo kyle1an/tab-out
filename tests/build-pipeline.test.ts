@@ -136,7 +136,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageTargetSource, /export function pageTargetMatchUrls/)
   assert.match(pageTargetSource, /export function pageTargetMatchesHover/)
   assert.match(tabFocusSource, /export async function focusExistingTabTarget/)
-  assert.match(tabFocusSource, /chromeApi\.runtime\.sendMessage\(extensionId, \{ action: 'unsuspend', tabId: tab\.id \}\)/)
+  assert.match(readFileSync('src/extension/browser-tabs-gateway.ts', 'utf8'), /sendMessage\(extensionId, \{ action: 'unsuspend', tabId \}\)/)
   assert.match(tabFocusSource, /updateProperties\.url = targetEffective/)
   assert.match(tabHistorySource, /focusExistingTabTarget/)
   assert.match(workingSetClientSource, /focusExistingTabTarget/)

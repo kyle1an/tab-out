@@ -159,7 +159,14 @@ export function createFakeChromeApi({
       onMoved: createFakeChromeEvent()
     },
     sessions: {
-      getRecentlyClosed: async () => recentlyClosed.slice()
+      getRecentlyClosed: async () => recentlyClosed.slice(),
+      restore: async (sessionId) => {
+        const index = recentlyClosed.findIndex((session) => session.tab?.sessionId === sessionId || session.window?.sessionId === sessionId)
+        if (index < 0) throw new Error(`No session with id: ${sessionId}.`)
+        const [session] = recentlyClosed.splice(index, 1)
+        if (session.tab) tabs.push({ ...session.tab, id: nextId++ })
+        return session
+      }
     },
     runtime: {
       id: runtimeId,
