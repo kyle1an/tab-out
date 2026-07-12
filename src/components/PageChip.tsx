@@ -27,6 +27,7 @@ import type { TitleSuppressionTone } from './title-suppression'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import type { ChipActivationModifiers } from './chip-activation'
 import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
+import { chipTrim, CHIP_TRIM_TOKENS } from './chip-trim'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -55,24 +56,6 @@ const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inl
 // wrap (and break long, space-free query strings) instead of staying on the
 // single nowrap line it uses while collapsed — otherwise it overflows the chip.
 const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path text-xs font-normal text-tab-muted opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
-const PAGE_CHIP_INTERACTION_FADE_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
-const PAGE_CHIP_SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
-const PAGE_CHIP_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
-// Translucent equivalent of the clickable fill (10% neutral composited on the
-// card bg renders identically to the 90/10 opaque mix). In-flow plain chips
-// must use this one: adjacent chip-slots overlap by 1px (base.css seam rule),
-// so an opaque fill on the z-lifted hovered slot would paint over — visually
-// delete — a bordered neighbour's line on the shared row. Chips with their
-// own seam chrome redraw that line; a plain chip's fill must let it show
-// through.
-const PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
-const PAGE_CHIP_GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
-const PAGE_CHIP_GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
-const PAGE_CHIP_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
-const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
-const PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
-const PAGE_CHIP_GROUP_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
-const PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES = `${PAGE_CHIP_SURFACE_INTERACTION_CLASSES} ${PAGE_CHIP_INTERACTION_FADE_CLASSES}`
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   grewTaller: false,
   lineHtml: [],
@@ -1632,9 +1615,17 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     setPreview('')
   }
 
-  const hasActiveChipFrame = !!(chip.activeChipFrame || chip.activeInOtherWindow)
-  const isCurrentTabOutFrame = !!chip.isCurrentTabOut && !!chip.activeChipFrame && !chip.activeInOtherWindow
-  const isCurrentActiveFrame = !!chip.activeChipFrame && !chip.activeInOtherWindow && !isCurrentTabOutFrame
+  const trim = chipTrim({
+    activeChipFrame: !!chip.activeChipFrame,
+    activeInOtherWindow: !!chip.activeInOtherWindow,
+    isCurrentTabOut: !!chip.isCurrentTabOut,
+    closedSavedPage: isClosedSavedPage,
+    folded: isFolded,
+    titleVariantGroup: isTitleVariantGroup,
+    iconOnly: !!chip.iconOnly,
+    isApp: !!chip.isApp,
+    expanded: chipExpanded ? { grewTaller: chipExpansionGeometry.grewTaller, y: chipExpansionGeometry.y } : null
+  })
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
   const pinnedLabel = chip.pagePinned ? 'Pinned' : ''
@@ -1668,34 +1659,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const showFaviconFrame = !!chip.faviconUrl || showDefaultFavicon || dupeCount > 1 || showFaviconCloseAction
   const rightActionCount = showSavedHint ? 1 : 0
   const chipHoverFadeWidth = rightActionCount === 0 ? '0px' : rightActionCount === 1 ? '56px' : '88px'
-  const chipInteractionBg = isCurrentTabOutFrame
-    ? 'var(--color-neutral-100)'
-    : isCurrentActiveFrame
-      ? 'var(--color-neutral-50)'
-      : hasActiveChipFrame
-        ? PAGE_CHIP_ACTIVE_OTHER_INTERACTION_BG
-        : isClosedSavedPage || isFolded || isTitleVariantGroup
-          ? PAGE_CHIP_GROUP_INTERACTION_BG
-          : PAGE_CHIP_CLICKABLE_INTERACTION_BG
-  const isPlainClickableChip = !hasActiveChipFrame && !isClosedSavedPage && !isFolded && !isTitleVariantGroup
-  // A plain chip's own fill is ALWAYS the translucent overlay so a bordered
-  // neighbour's line survives on the overlapped seam rows — plain chips never
-  // draw chrome of their own. While expanded, the opaque coverage over
-  // foreign content comes from the dedicated fill layer (see
-  // chipExpandedFillElement), which stays clear of flush seam rows. The fade
-  // var always stays opaque — it exists to hide chip text under the action
-  // rail.
-  const chipInteractionFillBg = isPlainClickableChip
-    ? PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG
-    : chipInteractionBg
   const style: CSSVariableProperties = {
-    '--chip-hover-fade-bg': chipInteractionBg,
+    '--chip-hover-fade-bg': trim.styleVars.fadeBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
-    '--chip-group-hover-border': PAGE_CHIP_GROUP_HOVER_BORDER,
-    '--chip-interaction-bg': chipInteractionFillBg,
-    '--chip-rest-bg': hasActiveChipFrame && !isCurrentTabOutFrame
-        ? PAGE_CHIP_ACTIVE_OTHER_REST_BG
-        : 'transparent',
+    '--chip-group-hover-border': trim.styleVars.groupHoverBorder,
+    '--chip-interaction-bg': trim.styleVars.interactionBg,
+    '--chip-rest-bg': trim.styleVars.restBg,
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
   }
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
@@ -2307,29 +2276,18 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-(--ink) [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           !chip.iconOnly && 'w-full',
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber)',
-          chipVisualOpen && 'page-chip-tooltip-open',
+          chipVisualOpen && CHIP_TRIM_TOKENS.tooltipOpen,
           chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) !overflow-visible !transition-none w-(--page-chip-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           chipExpanded && 'left-0',
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
-          !isClosedSavedPage && !isFolded && !isTitleVariantGroup && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_CLICKABLE_INTERACTION_CLASSES,
-          isClosedSavedPage && !isFolded && !isTitleVariantGroup && cn('page-chip-saved-closed text-tab-muted', PAGE_CHIP_GROUP_INTERACTION_CLASSES),
-          hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
-          isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-          hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_ACTIVE_OTHER_INTERACTION_CLASSES,
-          (isTitleVariantGroup || isFolded) && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && PAGE_CHIP_GROUP_INTERACTION_CLASSES,
+          trim.chipClasses,
           isTitleVariantGroup && 'cursor-default',
-          isFolded && 'page-chip-folded cursor-default after:hidden',
+          isFolded && `${CHIP_TRIM_TOKENS.folded} cursor-default after:hidden`,
           chip.saved && 'page-chip-saved',
-          hoverMatched && 'page-chip-hover-match',
+          hoverMatched && CHIP_TRIM_TOKENS.hoverMatch,
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
-          chip.iconOnly && cn(
-            'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 rounded-xl bg-transparent p-0 [corner-shape:squircle] before:hidden after:hidden',
-            chip.isApp
-              ? 'overflow-visible border border-[rgba(115,115,115,0.32)] outline-none'
-              : 'overflow-hidden border-0 [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-1'
-          ),
-          chip.iconOnly && hasActiveChipFrame && 'bg-(--chip-rest-bg) [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
+          chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 rounded-xl bg-transparent p-0 [corner-shape:squircle] before:hidden after:hidden',
+          trim.iconChipClasses
         )}
         aria-label={chipLabel}
         style={chipStyle}
@@ -2338,38 +2296,19 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         onPointerLeave={onChipPointerLeave}
         {...chipInteractionProps}
       >
-      {/* Expanded plain chips paint their opaque fill on this inner layer
-          instead of the chip itself: plain chips draw no chrome, so an edge
-          that is FLUSH with the resting seam must not cover the overlapped
-          row where a bordered neighbour's line paints — the layer stays 1px
-          clear of flush edges, while a grown edge (the overlay floating over
-          foreign content) extends fully so nothing bleeds through. The chip's
-          own translucent fill still tints the spared rows, matching the
-          resting hover look. Negative z keeps the layer under the group
-          colour strip and all content while sitting above the chip's bg. */}
-      {chipExpanded && isPlainClickableChip && !chip.iconOnly && (
+      {trim.expandedFill && (
         <span
           aria-hidden="true"
-          className="page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1 rounded-[9px] [corner-shape:squircle]"
+          className={trim.expandedFill.classes}
           style={{
-            top: chipExpansionGeometry.y === 'up' && chipExpansionGeometry.grewTaller ? '0px' : '1px',
-            bottom: chipExpansionGeometry.y === 'down' && chipExpansionGeometry.grewTaller ? '0px' : '1px',
-            backgroundColor: chipInteractionBg
+            top: trim.expandedFill.top,
+            bottom: trim.expandedFill.bottom,
+            backgroundColor: trim.expandedFill.background
           }}
         />
       )}
-      {hasActiveChipFrame && !chip.iconOnly && (
-        <span
-          className={cn(
-            'active-chip-frame pointer-events-none absolute inset-0 z-2 rounded-[inherit] [corner-shape:squircle]',
-            isCurrentTabOutFrame
-              ? 'active-history-entry-frame current-tab-out-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
-              : isCurrentActiveFrame
-              ? 'current-active-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
-              : 'shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]'
-          )}
-          aria-hidden="true"
-        />
+      {trim.frame && (
+        <span className={trim.frame.classes} aria-hidden="true" />
       )}
       {showFaviconFrame && (
         <ChipFaviconFrame
@@ -2450,10 +2389,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   return (
     <div
       data-tabout-part="slot"
-      // `chip-slot-row` is an unstyled marker consumed only by base.css's
-      // unconditional seam-overlap rule (`.chip-slot-row + .chip-slot-row`);
-      // icon-only slots wrap horizontally, so they must not carry it.
-      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : 'chip-slot-row flex w-full')}
+      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : `${trim.slotClasses} flex w-full`)}
       style={chipSlotStyle}
       ref={chipSlotRef}
       {...variantGroupInteractionProps}

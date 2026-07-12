@@ -515,20 +515,21 @@ test('PageChip keeps clickable hover background on expandable chips before expan
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
 
-  // Plain chips draw no chrome in ANY state — no outline/border may be added
+  // Plain chips draw no trim in ANY state — no outline/border may be added
   // to them, expanded or not. Their translucent fill is unconditional; while
   // expanded, opaque coverage over foreign content comes from the dedicated
   // fill layer, which stays 1px clear of edges flush with the resting seam
   // (so a bordered neighbour's line on the overlapped row survives) and
   // extends fully on grown edges (so nothing bleeds through the overlay).
-  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  // The rules themselves live behind the chip-trim interface.
+  const chipTrimSource = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
   assert.doesNotMatch(chipMatch[1], /page-chip-expanded\]:outline/)
-  assert.match(pageChipSource, /isPlainClickableChip\s*\n?\s*\? PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG/)
-  assert.match(pageChipSource, /PAGE_CHIP_CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)'/)
-  assert.match(pageChipSource, /chipExpanded && isPlainClickableChip && !chip\.iconOnly && \(/)
-  assert.match(pageChipSource, /page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1/)
-  assert.match(pageChipSource, /top: chipExpansionGeometry\.y === 'up' && chipExpansionGeometry\.grewTaller \? '0px' : '1px'/)
-  assert.match(pageChipSource, /bottom: chipExpansionGeometry\.y === 'down' && chipExpansionGeometry\.grewTaller \? '0px' : '1px'/)
+  assert.match(chipTrimSource, /isPlainClickable \? CLICKABLE_INTERACTION_OVERLAY_BG/)
+  assert.match(chipTrimSource, /CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)'/)
+  assert.match(chipTrimSource, /facts\.expanded && isPlainClickable && !facts\.iconOnly/)
+  assert.match(chipTrimSource, /page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1/)
+  assert.match(chipTrimSource, /top: facts\.expanded\.y === 'up' && facts\.expanded\.grewTaller \? '0px' : '1px'/)
+  assert.match(chipTrimSource, /bottom: facts\.expanded\.y === 'down' && facts\.expanded\.grewTaller \? '0px' : '1px'/)
 })
 
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
@@ -1104,8 +1105,11 @@ test('base.css statically overlaps ALL adjacent full-width chip-slots', () => {
 
   // The marker rides on full-width slots only — icon-only slots wrap
   // horizontally in overflow rows and must keep their vertical rhythm.
+  // chip-trim owns the marker decision; PageChip applies it to the slot.
+  const chipTrimSource = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
+  assert.match(chipTrimSource, /slotClasses: facts\.iconOnly \? '' : CHIP_TRIM_TOKENS\.slotRow/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /chip\.iconOnly \? 'inline-flex' : 'chip-slot-row flex w-full'/)
+  assert.match(pageChipSource, /chip\.iconOnly \? 'inline-flex' : `\$\{trim\.slotClasses\} flex w-full`/)
 })
 
 test('PageChip expands same-title URL variant groups in place', () => {
@@ -1257,13 +1261,15 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuContentSource, /onClick=\{onCopyTitle\}/)
   assert.match(contextMenuContentSource, /onClick=\{onCopyUrl\}/)
 
-  // PageChip keeps the interaction styling, ref coordination, and clipboard handler
+  // PageChip keeps the ref coordination and clipboard handler; the
+  // interaction styling itself lives behind the chip-trim interface.
   assert.match(pageChipSource, /page-chip-context-menu-open/)
   assert.match(pageChipSource, /page-chip-tooltip-open/)
   assert.match(pageChipSource, /contextMenuOpenRef\.current/)
   assert.match(pageChipSource, /if \(contextMenuOpenRef\.current\) return/)
-  assert.match(pageChipSource, /\[\&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
-  assert.match(pageChipSource, /\[\&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
+  const trimSourceForMenus = readFileSync(new URL('../src/components/chip-trim/trim.ts', import.meta.url), 'utf8')
+  assert.match(trimSourceForMenus, /\[\&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
+  assert.match(trimSourceForMenus, /\[\&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(pageChipSource, /onOpenChange=\{onChipTooltipOpenChange\}/)
   assert.match(pageChipSource, /group-\[\.page-chip-context-menu-open\]\/page-chip:opacity-100/)
   assert.match(pageChipSource, /group-\[\.page-chip-tooltip-open\]\/page-chip:opacity-100/)

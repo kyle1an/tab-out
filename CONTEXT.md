@@ -10,6 +10,7 @@
 - **Domain Card**: A dashboard group for one registrable domain or fixed system group.
 - **Domain Card Identity**: The stable `domain-*` key shared by card order memory, Domain Card view data, React keys, and card move animation DOM hooks.
 - **Page Chip**: A clickable row or icon inside a Domain Card that represents one page, duplicate set, app, or folded cross-subdomain page.
+- **Chip Trim**: The per-kind surface paint and seam participation of a Page Chip — active frames, group and saved-page interaction outlines, interaction fills, slot seam overlap, and interaction z-order — decided by one decision table.
 - **Website Path Section**: A visible group inside a Domain Card keyed by the shortest meaningful website path prefix on a known host.
 - **Path Group**: A visible group inside a Website Path Section or subdomain section keyed by a site-specific object such as a repository, project key, space key, or environment.
 - **Title Suppression Scope**: The smallest visible group that owns suppressed title tokens and their matching chip markers.
@@ -33,6 +34,8 @@
 - A **Page Chip** shows a URL path suffix only when another chip in the same rendered group has the same visible title; sibling Website Path Sections and Path Groups already provide enough context.
 - Same-title **Page Chips** with different effective URLs inside the same rendered group merge visually into one title row with per-URL distinguishers; the distinguishers remain the focus, close/delete, and page-pin targets, and the merged row's favicon close action closes or deletes every closable variant at once.
 - Clicking anywhere on a same-title **Page Chip** group outside a distinguisher or another self-owned action affordance activates a default distinguisher: active in the current window first, then active in another window, then the first visible variant.
+- A **Page Chip** kind that draws no **Chip Trim** at rest never gains a border or outline from hover, context menu, or **Title Expansion**; interaction feedback for trim-less chips is fill-only.
+- Adjacent full-width **Page Chips** overlap by one pixel so coinciding **Chip Trim** lines render as a single line; anything painting on the shared row either draws its own line there or lets the neighbour's line show through — fills are translucent or spare the shared row.
 - A **Page Chip** pin is Tabs-source ordering state for an exact page identity inside one rendered sibling scope; pinned chips sort before Working Set priority but do not move across Domain Cards, subdomain sections, Website Path Sections, Path Groups, or Sources. Pinned chips show a favicon-corner pin marker. Pinned same-title URL distinguishers promote into that local sibling list, while remaining unpinned variants may stay visually grouped.
 - For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
 - For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira`, and `/servicedesk`.

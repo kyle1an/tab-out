@@ -1,0 +1,156 @@
+/* Chip Trim implementation — the decision table. See index.ts for the
+   contract; this file is implementation and may only be imported from
+   there. */
+
+const FADE_INTERACTION_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
+const SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
+const CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
+// Translucent equivalent of the clickable fill (10% neutral composited on the
+// card bg renders identically to the 90/10 opaque mix). In-flow plain chips
+// must use this one: adjacent chip-slots overlap by 1px (the seam rule), so
+// an opaque fill on the z-lifted hovered slot would paint over — visually
+// delete — a bordered neighbour's line on the shared row. Chips with their
+// own trim redraw that line; a plain chip's fill must let it show through.
+const CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
+const GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
+const GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
+const ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
+const ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
+const CLICKABLE_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${FADE_INTERACTION_CLASSES}`
+const GROUP_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
+const ACTIVE_OTHER_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${FADE_INTERACTION_CLASSES}`
+
+/** Class-name tokens that cross the TS↔CSS line: the trim CSS rump's
+    selectors reference exactly these names, and PageChip applies the
+    state-class tokens. One source for every shared name. */
+export const CHIP_TRIM_TOKENS = {
+  slotRow: 'chip-slot-row',
+  frame: 'active-chip-frame',
+  tooltipOpen: 'page-chip-tooltip-open',
+  contextMenuOpen: 'page-chip-context-menu-open',
+  expanded: 'page-chip-expanded',
+  hoverMatch: 'page-chip-hover-match',
+  savedClosed: 'page-chip-saved-closed',
+  folded: 'page-chip-folded'
+} as const
+
+export type ChipTrimFacts = {
+  activeChipFrame: boolean
+  activeInOtherWindow: boolean
+  isCurrentTabOut: boolean
+  closedSavedPage: boolean
+  folded: boolean
+  titleVariantGroup: boolean
+  iconOnly: boolean
+  isApp: boolean
+  expanded: null | { grewTaller: boolean; y: 'down' | 'up' }
+}
+
+export type ChipTrim = {
+  /** Kind-driven trim for the chip element (interaction fills/outlines,
+      rest bg + rings for framed kinds, the saved-closed marker). */
+  chipClasses: string
+  /** Icon-only trim (border/outline/active bg). Separate from chipClasses
+      because it merges AFTER hover-match/suppression classes in the chip's
+      class order — tailwind-merge conflict resolution is order-sensitive. */
+  iconChipClasses: string
+  /** Seam-participation marker for the slot ('' for icon-only slots, which
+      wrap horizontally in overflow rows and must not join vertical runs). */
+  slotClasses: string
+  /** The inset ring overlay for framed kinds; null when the kind draws none. */
+  frame: null | { classes: string }
+  /** CSS vars for fills. The fade bg stays the opaque mix in every kind —
+      the fade exists to hide chip text under the action rail. */
+  styleVars: {
+    interactionBg: string
+    restBg: string
+    fadeBg: string
+    groupHoverBorder: string
+  }
+  /** The expanded plain chip's opaque fill layer. Edges FLUSH with the
+      resting seam stay 1px clear (a bordered neighbour's line paints on the
+      overlapped row and must show through the chip's translucent fill);
+      grown edges extend fully so nothing bleeds through the overlay. */
+  expandedFill: null | { classes: string; top: string; bottom: string; background: string }
+}
+
+const EXPANDED_FILL_CLASSES = 'page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1 rounded-[9px] [corner-shape:squircle]'
+
+export function chipTrim(facts: ChipTrimFacts): ChipTrim {
+  const hasActiveChipFrame = facts.activeChipFrame || facts.activeInOtherWindow
+  const isCurrentTabOutFrame = facts.isCurrentTabOut && facts.activeChipFrame && !facts.activeInOtherWindow
+  const isCurrentActiveFrame = facts.activeChipFrame && !facts.activeInOtherWindow && !isCurrentTabOutFrame
+  const isGroupKind = facts.titleVariantGroup || facts.folded
+  const isPlainClickable = !hasActiveChipFrame && !facts.closedSavedPage && !isGroupKind
+
+  const chipClasses = [
+    !facts.closedSavedPage && !isGroupKind && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && CLICKABLE_INTERACTION_CLASSES,
+    facts.closedSavedPage && !isGroupKind && `${CHIP_TRIM_TOKENS.savedClosed} text-tab-muted ${GROUP_INTERACTION_CLASSES}`,
+    hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
+    isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
+    isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
+    hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && ACTIVE_OTHER_INTERACTION_CLASSES,
+    isGroupKind && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && GROUP_INTERACTION_CLASSES
+  ].filter(Boolean).join(' ')
+
+  const iconChipClasses = facts.iconOnly
+    ? [
+        facts.isApp
+          ? 'overflow-visible border border-[rgba(115,115,115,0.32)] outline-none'
+          : 'overflow-hidden border-0 [outline:1px_solid_rgba(115,115,115,0.18)] outline-offset-1',
+        hasActiveChipFrame && 'bg-(--chip-rest-bg) [outline:1px_solid_rgba(82,82,82,0.32)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.22)]'
+      ].filter(Boolean).join(' ')
+    : ''
+
+  const frame = hasActiveChipFrame && !facts.iconOnly
+    ? {
+        classes: [
+          `${CHIP_TRIM_TOKENS.frame} pointer-events-none absolute inset-0 z-2 rounded-[inherit] [corner-shape:squircle]`,
+          isCurrentTabOutFrame
+            ? 'active-history-entry-frame current-tab-out-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
+            : isCurrentActiveFrame
+              ? 'current-active-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
+              : 'shadow-[inset_0_0_0_1px_rgba(115,115,115,0.2)]'
+        ].join(' ')
+      }
+    : null
+
+  const fadeBg = isCurrentTabOutFrame
+    ? 'var(--color-neutral-100)'
+    : isCurrentActiveFrame
+      ? 'var(--color-neutral-50)'
+      : hasActiveChipFrame
+        ? ACTIVE_OTHER_INTERACTION_BG
+        : facts.closedSavedPage || isGroupKind
+          ? GROUP_INTERACTION_BG
+          : CLICKABLE_INTERACTION_BG
+
+  const styleVars = {
+    // A plain chip's own fill is ALWAYS the translucent overlay so a bordered
+    // neighbour's line survives on the overlapped seam rows — plain chips
+    // never draw trim of their own. While expanded, the opaque coverage over
+    // foreign content comes from expandedFill below.
+    interactionBg: isPlainClickable ? CLICKABLE_INTERACTION_OVERLAY_BG : fadeBg,
+    restBg: hasActiveChipFrame && !isCurrentTabOutFrame ? ACTIVE_OTHER_REST_BG : 'transparent',
+    fadeBg,
+    groupHoverBorder: GROUP_HOVER_BORDER
+  }
+
+  const expandedFill = facts.expanded && isPlainClickable && !facts.iconOnly
+    ? {
+        classes: EXPANDED_FILL_CLASSES,
+        top: facts.expanded.y === 'up' && facts.expanded.grewTaller ? '0px' : '1px',
+        bottom: facts.expanded.y === 'down' && facts.expanded.grewTaller ? '0px' : '1px',
+        background: fadeBg
+      }
+    : null
+
+  return {
+    chipClasses,
+    iconChipClasses,
+    slotClasses: facts.iconOnly ? '' : CHIP_TRIM_TOKENS.slotRow,
+    frame,
+    styleVars,
+    expandedFill
+  }
+}
