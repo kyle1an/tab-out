@@ -1,3 +1,5 @@
+import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-tones.js'
+
 export type TabAudioState = 'playing' | 'muted' | null
 
 export interface DashboardTab {
@@ -150,6 +152,9 @@ export interface DashboardClusterVM {
   count: number
   closableUrls: string[]
   suppressedTitleParts?: DashboardTitleSuppression[]
+  /** Populated by computeDomainCardViewModel's tone allocation walk. */
+  titleSuppressionToneScope?: TitleSuppressionToneScope
+  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
@@ -166,6 +171,9 @@ export interface DashboardWebsitePathSectionVM {
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
   suppressedTitleParts?: DashboardTitleSuppression[]
+  /** Populated by computeDomainCardViewModel's tone allocation walk. */
+  titleSuppressionToneScope?: TitleSuppressionToneScope
+  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
   clusters: DashboardClusterVM[]
   isPinned?: boolean
 }
@@ -182,6 +190,9 @@ export interface DashboardSectionVM {
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
   suppressedTitleParts?: DashboardTitleSuppression[]
+  /** Populated by computeDomainCardViewModel's tone allocation walk. */
+  titleSuppressionToneScope?: TitleSuppressionToneScope
+  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
   clusters: DashboardClusterVM[]
   websitePathSections: DashboardWebsitePathSectionVM[]
   isPinned?: boolean
@@ -209,6 +220,8 @@ export interface DashboardCardVM {
   allSuppressedTitleParts?: DashboardTitleSuppression[]
   suppressionCloseUrlsByText?: Record<string, string[]>
   suppressionSuspendUrlsByText?: Record<string, string[]>
+  /** Populated by computeDomainCardViewModel's tone allocation walk. */
+  cardSuppressionToneScope?: TitleSuppressionToneScope
   sections?: DashboardSectionVM[]
 }
 

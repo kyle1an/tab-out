@@ -10,9 +10,8 @@ import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { useRef, useState } from 'react'
 import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
-import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
-import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
-import type { DashboardCardVM, DashboardClusterVM, DashboardSectionVM, DashboardWebsitePathSectionVM, DomainGroup } from './types'
+import { emptyTitleSuppressionToneScope } from './title-suppression'
+import type { DashboardCardVM, DomainGroup } from './types'
 
 interface DomainCardProps {
   group: DomainGroup
@@ -172,109 +171,6 @@ function DomainTitle({ displayName, subdomainKey = '' }: { displayName: string; 
   )
 }
 
-type RenderClusterVM = DashboardClusterVM & {
-  titleSuppressionToneScope: TitleSuppressionToneScope
-  suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
-}
-
-type RenderWebsitePathSectionVM = DashboardWebsitePathSectionVM & {
-  titleSuppressionToneScope: TitleSuppressionToneScope
-  suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
-  clusters: RenderClusterVM[]
-}
-
-type RenderSectionVM = DashboardSectionVM & {
-  titleSuppressionToneScope: TitleSuppressionToneScope
-  suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
-  clusters: RenderClusterVM[]
-  websitePathSections: RenderWebsitePathSectionVM[]
-}
-
-type CardSuppressionTones = {
-  cardSuppressionToneScope: TitleSuppressionToneScope
-  renderedSections: RenderSectionVM[]
-}
-
-// Builds the per-card title-suppression tone scopes for the card and every nested
-// section/website-path/cluster, threading a single running tone index across the whole
-// tree. Kept module-level (not in render) so the running-index mutation stays pure from
-// React's perspective (react-hooks-js/immutability).
-function buildCardSuppressionTones(
-  suppressedTitleParts: readonly { text: string; spansRenderedChildGroups?: boolean }[],
-  sections: readonly DashboardSectionVM[]
-): CardSuppressionTones {
-  let nextTitleSuppressionToneIndex = 0
-
-  function allocateTitleSuppressionToneScope(parts: readonly { text: string; spansRenderedChildGroups?: boolean }[]) {
-    const scope = createTitleSuppressionToneScope(parts, { startToneIndex: nextTitleSuppressionToneIndex })
-    nextTitleSuppressionToneIndex += scope.usedToneCount
-    return scope
-  }
-
-  const cardSuppressionToneScope = allocateTitleSuppressionToneScope(suppressedTitleParts)
-  const renderedSections: RenderSectionVM[] = sections.map((section) => {
-    const sectionSuppressedTitleParts = section.suppressedTitleParts ?? []
-    const sectionSuppressionToneScope = allocateTitleSuppressionToneScope(sectionSuppressedTitleParts)
-    const sectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
-      cardSuppressionToneScope.suppressedTitleToneByText,
-      sectionSuppressionToneScope.suppressedTitleToneByText
-    )
-    const renderedWebsitePathSections = (section.websitePathSections ?? []).map((websitePathSection) => {
-      const websitePathSectionSuppressedTitleParts = websitePathSection.suppressedTitleParts ?? []
-      const websitePathSectionSuppressionToneScope = allocateTitleSuppressionToneScope(websitePathSectionSuppressedTitleParts)
-      const websitePathSectionSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
-        sectionSuppressedTitleToneByText,
-        websitePathSectionSuppressionToneScope.suppressedTitleToneByText
-      )
-      const renderedWebsitePathClusters = websitePathSection.clusters.map((cluster) => {
-        const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
-        const clusterSuppressionToneScope = allocateTitleSuppressionToneScope(clusterSuppressedTitleParts)
-        const clusterSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
-          websitePathSectionSuppressedTitleToneByText,
-          clusterSuppressionToneScope.suppressedTitleToneByText
-        )
-
-        return {
-          ...cluster,
-          titleSuppressionToneScope: clusterSuppressionToneScope,
-          suppressedTitleToneByText: clusterSuppressedTitleToneByText
-        }
-      })
-
-      return {
-        ...websitePathSection,
-        titleSuppressionToneScope: websitePathSectionSuppressionToneScope,
-        suppressedTitleToneByText: websitePathSectionSuppressedTitleToneByText,
-        clusters: renderedWebsitePathClusters
-      }
-    })
-    const renderedClusters = section.clusters.map((cluster) => {
-      const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
-      const clusterSuppressionToneScope = allocateTitleSuppressionToneScope(clusterSuppressedTitleParts)
-      const clusterSuppressedTitleToneByText = mergeTitleSuppressionToneMaps(
-        sectionSuppressedTitleToneByText,
-        clusterSuppressionToneScope.suppressedTitleToneByText
-      )
-
-      return {
-        ...cluster,
-        titleSuppressionToneScope: clusterSuppressionToneScope,
-        suppressedTitleToneByText: clusterSuppressedTitleToneByText
-      }
-    })
-
-    return {
-      ...section,
-      titleSuppressionToneScope: sectionSuppressionToneScope,
-      suppressedTitleToneByText: sectionSuppressedTitleToneByText,
-      clusters: renderedClusters,
-      websitePathSections: renderedWebsitePathSections
-    }
-  })
-
-  return { cardSuppressionToneScope, renderedSections }
-}
-
 export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const { onReorderPinnedDomain, onTogglePinnedDomain, onTogglePinnedSection } = useDashboardActions()
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
@@ -300,7 +196,9 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
   const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
   const showCardActions = !hideCardClose && closableCount > 0
-  const { cardSuppressionToneScope, renderedSections } = buildCardSuppressionTones(suppressedTitleParts, sections)
+  // Tone allocation happens in computeDomainCardViewModel's walk; each
+  // section/cluster arrives carrying its scope and merged tone map.
+  const cardSuppressionToneScope = vm.cardSuppressionToneScope ?? emptyTitleSuppressionToneScope()
 
   async function onCloseDomain() {
     const block = blockRef.current
@@ -527,7 +425,8 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
             suppressedTitleToneIndexByText={cardSuppressionToneScope.suppressedTitleToneIndexByText}
           />
           <div className="mission-pages flex flex-col gap-0">
-            {renderedSections.map((section, index) => {
+            {sections.map((section, index) => {
+              const sectionToneScope = section.titleSuppressionToneScope ?? emptyTitleSuppressionToneScope()
               return (
                 <SubdomainSection
                   key={section.key || '__root__'}
@@ -549,8 +448,8 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
                   websitePathSections={section.websitePathSections}
                   clusters={section.clusters}
                   filter={highlightFilter}
-                  useSuppressionTokenTones={section.titleSuppressionToneScope.useSuppressionTokenTones}
-                  suppressedTitleToneIndexByText={section.titleSuppressionToneScope.suppressedTitleToneIndexByText}
+                  useSuppressionTokenTones={sectionToneScope.useSuppressionTokenTones}
+                  suppressedTitleToneIndexByText={sectionToneScope.suppressedTitleToneIndexByText}
                   suppressedTitleToneByText={section.suppressedTitleToneByText}
                 />
               )

@@ -15,7 +15,15 @@ import { PathgroupSection } from '../src/components/PathgroupSection.js'
 import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
+import { allocateCardSuppressionTones } from '../src/extension/title-suppression-tones.js'
 import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistorySnapshot, WorkingSetSnapshot } from '../src/extension/types'
+
+// Hand-built card VMs skip computeDomainCardViewModel, so run them through
+// the same tone allocation the compute walk applies before rendering.
+function withSuppressionTones(vm: DashboardCardVM): DashboardCardVM {
+  const { cardSuppressionToneScope, sections } = allocateCardSuppressionTones(vm.suppressedTitleParts ?? [], vm.sections ?? [])
+  return { ...vm, cardSuppressionToneScope, sections }
+}
 
 function makeChip(overrides: Partial<DashboardChipData> = {}): DashboardChipData {
   return {
@@ -2746,7 +2754,7 @@ test('DomainCard renders docs.google.com website path sections through WebsitePa
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
 
@@ -2914,7 +2922,7 @@ test('DomainCard shows common suppressed title text above the chips without a su
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
 
@@ -2952,7 +2960,7 @@ test('DomainCard renders the public suffix as less prominent title text', () => 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
 
@@ -2981,7 +2989,7 @@ test('DomainCard inlines a single non-port subdomain into the title', () => {
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
 
@@ -3010,7 +3018,7 @@ test('DomainCard keeps a single localhost port in the subdomain pill', () => {
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
 
@@ -3088,7 +3096,7 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
 
@@ -3160,7 +3168,7 @@ test('DomainCard colors section-scoped single suppressed title text when it span
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
@@ -3233,7 +3241,7 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
@@ -3300,7 +3308,7 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
@@ -3370,7 +3378,7 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
@@ -3443,7 +3451,7 @@ test('DomainCard displays suppression tokens in title order while coloring highe
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenMatches = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"[^>]*aria-label="Suppressed in \d+ titles: ([^"]+)"/g)]
@@ -3528,7 +3536,7 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
@@ -3585,7 +3593,7 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, {
       group,
-      vm
+      vm: withSuppressionTones(vm)
     })
   )
   const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])

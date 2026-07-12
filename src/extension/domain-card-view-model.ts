@@ -6,6 +6,7 @@ import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './website-path-sections.js'
+import { allocateCardSuppressionTones } from './title-suppression-tones.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
@@ -2203,6 +2204,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       }))
     : scopedSectionsData
 
+  const { cardSuppressionToneScope, sections: tonedSections } = allocateCardSuppressionTones(cardSuppressedTitleParts, vmSections)
+
   return {
     stableId,
     isHidden: false,
@@ -2225,6 +2228,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     allSuppressedTitleParts: visibleSuppressedTitleParts,
     suppressionCloseUrlsByText,
     suppressionSuspendUrlsByText,
-    sections: vmSections
+    cardSuppressionToneScope,
+    sections: tonedSections
   }
 }

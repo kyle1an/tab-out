@@ -7,7 +7,7 @@ import { SectionPinButton } from './SectionPinButton'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
-import { createTitleSuppressionToneScope, mergeTitleSuppressionToneMaps } from './title-suppression'
+import { emptyTitleSuppressionToneScope } from './title-suppression'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression'
 import type { DashboardChipData, DashboardClusterVM, DashboardTitleSuppression, TogglePinnedSectionHandler } from './types'
 
@@ -146,11 +146,8 @@ export function WebsitePathSection({
       )}
       {clusters.map((cluster, index) => {
         const clusterSuppressedTitleParts = cluster.suppressedTitleParts ?? []
-        const clusterSuppressionToneScope = cluster.titleSuppressionToneScope ?? createTitleSuppressionToneScope(clusterSuppressedTitleParts)
-        const clusterSuppressedTitleToneByText = cluster.suppressedTitleToneByText ?? mergeTitleSuppressionToneMaps(
-          suppressedTitleToneByText,
-          clusterSuppressionToneScope.suppressedTitleToneByText
-        )
+        const clusterSuppressionToneScope = cluster.titleSuppressionToneScope ?? emptyTitleSuppressionToneScope()
+        const clusterSuppressedTitleToneByText = cluster.suppressedTitleToneByText ?? suppressedTitleToneByText
         return (
           <PathgroupSection
             key={cluster.key}
