@@ -562,32 +562,6 @@ function getExpandedSingleLineNaturalWidth(measureEl: HTMLElement) {
   }
 }
 
-/**
- * True when a NON-TAIL captured line MIXES a hydrating pill with other
- * content. Suppression markers hydrate from a ~14px squiggle to their full
- * suppressed text, and structural placeholders swap their "/" glyph for the
- * label when one exists — so a break captured around the resting glyph
- * displaces everything after the pill once it hydrates mid-flow, and the
- * expansion must re-wrap naturally instead of freezing stale breaks.
- *
- * A line holding ONLY pills is the opposite case: nothing shares the line,
- * so the pills hydrate in place, growing rightward from the same anchor the
- * resting glyph occupied. Those lines keep the frozen structure — reflowing
- * them would visibly teleport a marker onto the previous line. Tail-line
- * pills never invalidate anything — the tail always reflows.
- */
-function expansionCapturedLinesRewrapOnExpand(lineHtml: readonly string[]) {
-  if (lineHtml.length < 2 || typeof document === 'undefined') return false
-  const template = document.createElement('template')
-  return lineHtml.slice(0, -1).some((html) => {
-    template.innerHTML = html
-    const pills = Array.from(template.content.querySelectorAll('.chip-title-suppression-marker, .chip-strip-indicator[aria-label]'))
-    if (pills.length === 0) return false
-    for (const pill of pills) pill.remove()
-    return (template.content.textContent || '').trim() !== ''
-  })
-}
-
 /** The expansion swaps glyph pills for full-text labels, growing the visible content itself. */
 function expansionRevealsHydratingPills(textEl: HTMLElement) {
   return !!textEl.querySelector('.chip-title-suppression-marker, .chip-strip-indicator[aria-label]')
@@ -655,27 +629,8 @@ function getExpandedWrappedPageChipContentWidth(
   visibleWidth: number,
   maxContentWidth: number,
   targetLineCount: number,
-  lineHtml: readonly string[],
-  rewrapOnExpand = false
+  lineHtml: readonly string[]
 ): ExpandedPageChipContentMetrics {
-  if (rewrapOnExpand) {
-    // The captured breaks are stale (a non-tail pill hydrates wider than its
-    // resting glyph), so minimizing width around them just re-strands the tail
-    // at an arbitrary break. Reveal on one line when the viewport allowance
-    // holds the hydrated content; otherwise take the full allowance and let
-    // the content wrap naturally, so a pill drops to the next line only when
-    // it truly lacks room.
-    const naturalWidth = getExpandedSingleLineNaturalWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
-    if (naturalWidth <= maxContentWidth) {
-      return {
-        viewportConstrained: false,
-        width: Math.round(Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth) * 100) / 100
-      }
-    }
-    const packedWidth = measureConstrainedPackedWidth(measureEl, maxContentWidth)
-    return { viewportConstrained: true, width: Math.round(Math.min(Math.max(visibleWidth, packedWidth), maxContentWidth) * 100) / 100 }
-  }
-
   // Try the resting width first: if the revealed content still fits within the resting
   // line count there, keep the resting width and don't grow (no guard padding). Flooring
   // the lower bound at the resting box width, rather than a painted-content estimate that
@@ -695,8 +650,7 @@ function getExpandedPageChipContentWidth(
   textEl: HTMLElement | null,
   lineHtml: readonly string[],
   maxContentWidth: number,
-  visibleWidthOverride = 0,
-  rewrapOnExpand = false
+  visibleWidthOverride = 0
 ): ExpandedPageChipContentMetrics {
   if (!textEl) return { viewportConstrained: false, width: 0 }
 
@@ -715,7 +669,7 @@ function getExpandedPageChipContentWidth(
   try {
     if (textEl.classList.contains('chip-title-row')) {
       if (targetLineCount > 1) {
-        return getExpandedWrappedPageChipContentWidth(textEl, measureEl, visibleWidth, maxContentWidth, targetLineCount, lineHtml, rewrapOnExpand)
+        return getExpandedWrappedPageChipContentWidth(textEl, measureEl, visibleWidth, maxContentWidth, targetLineCount, lineHtml)
       }
       const naturalWidth = getChipTextPaintedContentWidth(measureEl) + PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX
       const width = Math.min(Math.max(visibleWidth, naturalWidth), maxContentWidth)
@@ -746,7 +700,7 @@ function getExpandedPageChipContentWidth(
       return { viewportConstrained: false, width: Math.round(Math.min(maxContentWidth, Math.max(visibleWidth, naturalWidth)) * 100) / 100 }
     }
 
-    return getExpandedWrappedPageChipContentWidth(textEl, measureEl, visibleWidth, maxContentWidth, targetLineCount, lineHtml, rewrapOnExpand)
+    return getExpandedWrappedPageChipContentWidth(textEl, measureEl, visibleWidth, maxContentWidth, targetLineCount, lineHtml)
   } finally {
     measureEl.remove()
   }
@@ -796,18 +750,13 @@ function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLEl
   const roomBelow = Math.max(0, viewportHeight - rect.top - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const roomAbove = Math.max(0, rect.bottom - PAGE_CHIP_EXPANDED_VIEWPORT_MARGIN_PX)
   const horizontalInset = getExpandedPageChipHorizontalInset(chipEl, contentBoxEl)
-  const capturedLineHtml = getExpandedPageChipLineHtml(textEl)
-  // Stale captures (a hydrating pill on a non-tail line) drop their line
-  // structure entirely: the overlay renders the live children in natural
-  // flow and the sizing below switches to fewest-lines-first.
-  const rewrapOnExpand = expansionCapturedLinesRewrapOnExpand(capturedLineHtml)
-  const lineHtml = rewrapOnExpand ? [] : capturedLineHtml
+  const lineHtml = getExpandedPageChipLineHtml(textEl)
   const visibleWidthOverride = contentBoxEl && contentBoxEl !== textEl
     ? Math.max(getChipTextExpansionBaselineWidth(contentBoxEl), getTitleVariantMinimumContentWidth(contentBoxEl))
     : getTitleVariantMinimumContentWidth(textEl)
   const minWidth = Math.max(1, horizontalInset + Math.max(getChipTextExpansionBaselineWidth(textEl), visibleWidthOverride))
   const maxWidth = Math.max(rect.width, roomToRight)
-  const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride, rewrapOnExpand)
+  const contentMetrics = getExpandedPageChipContentWidth(textEl, lineHtml, Math.max(1, maxWidth - horizontalInset), visibleWidthOverride)
   return {
     lineHtml,
     maxWidth,

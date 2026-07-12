@@ -478,11 +478,12 @@ async function waitForTooltipRect(session: CdpSession) {
 const MARKER_WRAP_REFLOW_SMOKE_LABEL = 'Content: All content overview'
 
 /**
- * Marker-wrap reflow smoke: a path-group chip whose resting title wraps into
- * two lines around compact suppression/placeholder pills. On expansion the
- * pills hydrate to full-text labels, so the resting line break is stale; the
- * expanded title must re-wrap instead of stranding a pill at the start of a
- * continuation line while the previous line has viewport room for it.
+ * Marker-wrap smoke: a path-group chip whose resting title wraps around
+ * compact suppression/placeholder pills. Multi-line resting chips reveal in
+ * place (pills hydrate on their resting lines); single-line resting chips
+ * whose hydrated reveal exceeds the viewport allowance wrap at the packed
+ * allowance instead of the resting width, so a pill starts a continuation
+ * line only when the previous line has no room for it.
  */
 async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { forcedTextWidth?: number; viewportWidth?: number } = {}) {
   await evaluateWithNavigationRetry(session, {
@@ -552,7 +553,11 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
             y: Math.round(rect.top + Math.min(rect.height / 2, 10)),
             chipLineCount: Math.max(1, Math.round(rect.height / lineHeight)),
             suppressionPillCount: chipText.querySelectorAll('.chip-title-suppression-marker').length,
-            labeledPlaceholderCount: chipText.querySelectorAll('.chip-strip-indicator[aria-label]').length
+            labeledPlaceholderCount: chipText.querySelectorAll('.chip-strip-indicator[aria-label]').length,
+            pillLines: Array.from(chipText.querySelectorAll('.chip-title-suppression-marker, .chip-strip-indicator[aria-label]')).map((pill) => {
+              const pillRect = pill.getBoundingClientRect()
+              return Math.round((pillRect.top - rect.top) / lineHeight)
+            })
           })
         } else if (Date.now() - start > 5000) {
           resolve(null)
@@ -607,6 +612,8 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
       const lines = Array.from(chip.querySelectorAll('.page-chip-expanded-line'))
       const lineContentRights = lines.map((line) => Math.round(paintedContentRight(line) * 100) / 100)
       const viewportAllowanceRight = window.innerWidth - 12
+      const textRect = textEl.getBoundingClientRect()
+      const lineHeight = Number.parseFloat(window.getComputedStyle(textEl).lineHeight) || 16.25
       const pills = Array.from(textEl.querySelectorAll('.chip-title-suppression-marker, .chip-strip-indicator[aria-label]')).map((pill) => {
         const rect = pill.getBoundingClientRect()
         const lineIndex = lines.findIndex((line) => line.contains(pill))
@@ -619,6 +626,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
           text: pill.textContent || '',
           width: Math.round(rect.width * 100) / 100,
           lineIndex,
+          visualLine: Math.round((rect.top - textRect.top) / lineHeight),
           startsLine,
           previousLineFreeRoom
         }
@@ -758,6 +766,127 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
         text: (textEl.textContent || '').slice(0, 160)
       }
     })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
+  await wait(450)
+
+  return { target, expansion }
+}
+
+const VARIANT_TITLE_ROW_SMOKE_LABEL = 'Skills for Real Engineers'
+
+/**
+ * Variant-group title-row stability smoke: the merged same-title chip's
+ * title row starts with a labeled structural indicator and rests as two
+ * lines. Hydrating the indicator label must widen line 1 in place — the
+ * second line's text stays on the second line instead of reflowing up.
+ */
+async function measureVariantTitleRowStability(session: CdpSession) {
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`
+  })
+  // Wide viewport: the hydrated indicator label needs rightward room on its
+  // frozen first line wherever the masonry parks this card; the scenario
+  // pins line stability, not the viewport-constrained wrap.
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1600,
+    height: 900,
+    deviceScaleFactor: 2,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const probeExpression = (mode: 'rest' | 'expanded') => `new Promise((resolve) => {
+    const start = Date.now()
+    let forceSettled = ${JSON.stringify(mode === 'expanded')}
+    const wait = () => {
+      const root = ${mode === 'rest'
+        ? `Array.from(document.querySelectorAll('.page-chip:not(.page-chip-expanded) .chip-title-row'))
+            .find((candidate) => candidate.textContent?.includes(${JSON.stringify(VARIANT_TITLE_ROW_SMOKE_LABEL)}))`
+        : `Array.from(document.querySelectorAll('.page-chip-expanded .chip-title-row'))
+            .find((candidate) => candidate.textContent?.includes(${JSON.stringify(VARIANT_TITLE_ROW_SMOKE_LABEL)}))`}
+      const chipText = root?.closest('.chip-text')
+      if (root instanceof HTMLElement && chipText instanceof HTMLElement && !forceSettled) {
+        chipText.style.flex = '0 0 260px'
+        chipText.style.maxWidth = '260px'
+        forceSettled = true
+        setTimeout(wait, 160)
+        return
+      }
+      const rect = root?.getBoundingClientRect()
+      if (root instanceof HTMLElement && rect && (rect.top < 24 || rect.bottom > window.innerHeight - 24)) {
+        root.scrollIntoView({ block: 'center', inline: 'nearest' })
+        setTimeout(wait, 120)
+        return
+      }
+      if (root instanceof HTMLElement && rect && rect.width > 80 && rect.height > 8) {
+        const lineHeight = Number.parseFloat(window.getComputedStyle(root).lineHeight) || 16.25
+        const indicator = root.querySelector('.chip-strip-indicator')
+        const indicatorRect = indicator?.getBoundingClientRect()
+        // Bionic rendering splits words across text nodes, so bucket painted
+        // characters into visual lines and find the anchor phrase per line.
+        const lineTexts = []
+        const range = document.createRange()
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+          acceptNode(node) {
+            return node.textContent ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+          }
+        })
+        while (true) {
+          const node = walker.nextNode()
+          if (!node) break
+          const text = node.textContent || ''
+          for (let offset = 0; offset < text.length; offset += 1) {
+            range.setStart(node, offset)
+            range.setEnd(node, offset + 1)
+            const rects = Array.from(range.getClientRects()).filter((candidate) => candidate.width > 0 || candidate.height > 0)
+            const charRect = rects[rects.length - 1]
+            if (!charRect) continue
+            const line = Math.max(0, Math.round((charRect.top - rect.top) / lineHeight))
+            lineTexts[line] = (lineTexts[line] || '') + text[offset]
+          }
+        }
+        resolve({
+          x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+          y: Math.round(rect.top + Math.min(rect.height / 2, 10)),
+          titleRowLines: Math.max(1, Math.round(rect.height / lineHeight)),
+          indicatorLine: indicatorRect ? Math.round((indicatorRect.top - rect.top) / lineHeight) : null,
+          indicatorText: (indicator?.textContent || '').slice(0, 40),
+          anchorLine: lineTexts.findIndex((text) => (text || '').includes('from my'))
+        })
+      } else if (Date.now() - start > 5000) {
+        resolve(null)
+      } else {
+        setTimeout(wait, 50)
+      }
+    }
+    wait()
+  })`
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: probeExpression('rest')
+  }).then((result: any) => result.result.value)
+
+  if (!target) return { target, expansion: null }
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const expansion = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: probeExpression('expanded')
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
@@ -5005,24 +5134,24 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     forcedMaxLines: 2
   })
   assert.ok(structuralTailTooltip.tooltip, `structural-tail tooltip should open: ${JSON.stringify(structuralTailTooltip)}`)
-  // A suppression pill sits on the FIRST captured line here, so its hydration
-  // invalidates the resting line break; with viewport room for the whole
-  // hydrated title, the expansion reflows onto a single line instead of
-  // stranding the structural tail at the stale break.
   assert.equal(
     structuralTailTooltip.tooltip.tooltipLineCount,
-    1,
-    `structural-tail tooltip should reflow to one line when non-tail pills hydrate and the viewport allowance fits the title: ${JSON.stringify(structuralTailTooltip)}`
+    structuralTailTooltip.target.chipLineCount,
+    `structural-tail tooltip should keep the visible chip line count: ${JSON.stringify(structuralTailTooltip)}`
   )
   assert.ok(
     structuralTailTooltip.tooltip.text.includes('Example Website') && structuralTailTooltip.tooltip.text.includes('Contentful'),
     `structural-tail tooltip should expand compact suppression markers into text: ${JSON.stringify(structuralTailTooltip)}`
   )
   assert.ok(
-    structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Example Website') &&
-      structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-alpha') &&
-      structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Contentful'),
-    `structural-tail tooltip should carry the whole hydrated title on the reflowed line: ${JSON.stringify(structuralTailTooltip)}`
+    structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('Example Website'),
+    `structural-tail tooltip should widen enough for expanded non-tail suppression text instead of clipping it: ${JSON.stringify(structuralTailTooltip)}`
+  )
+  assert.ok(
+    !structuralTailTooltip.tooltip.tooltipLineTexts[0]?.includes('env-alpha') &&
+      structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('env-alpha') &&
+      structuralTailTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `structural-tail tooltip should split before the structural marker without duplicating it: ${JSON.stringify(structuralTailTooltip)}`
   )
   assert.ok(
     structuralTailTooltip.tooltip.width > structuralTailTooltip.target.chipWidth + 20,
@@ -5055,19 +5184,16 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     2,
     `wrapped Contentful smoke target should render as two visible chip lines so line 2 carries only the trailing marker: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
   )
-  // Chip line 1 ends in hydrating pills here, so the captured break is stale
-  // on expansion; with a 1600px viewport the whole hydrated title fits one
-  // line, and the trailing marker must not stay stranded on a second row.
   assert.equal(
     wrappedContentfulScreenshotTooltip.tooltip.tooltipLineCount,
-    1,
-    `wrapped Contentful tooltip should reflow to one line when its non-tail pills hydrate and the allowance fits: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+    2,
+    `wrapped Contentful tooltip should split the expanded title into two rows even when chip line 2 has no text node: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
   )
   assert.ok(
-    wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[0]?.includes('Example Website') &&
-      wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[0]?.includes('dev2') &&
-      wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[0]?.includes('Contentful'),
-    `wrapped Contentful tooltip should carry the markers and structural label together on the reflowed line: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
+    wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[0]?.includes('dev2') &&
+      !wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('dev2') &&
+      wrappedContentfulScreenshotTooltip.tooltip.tooltipLineTexts[1]?.includes('Contentful'),
+    `wrapped Contentful tooltip should keep dev2 on row 1 and Contentful on row 2: ${JSON.stringify(wrappedContentfulScreenshotTooltip)}`
   )
   const wrappedTrailingMarkerTooltip = await measurePageChipTooltipLineCount(session, 'Wrap Trailing Marker Alpha', {
     forcedTextWidth: 230,
@@ -5637,25 +5763,28 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(suppressionTokenClose.afterClickAway.menuOpen, false, `clicking elsewhere should close the token close menu: ${JSON.stringify(suppressionTokenClose)}`)
   assert.equal(suppressionTokenClose.afterClickAway.highlightedChips, 0, `closing the menu by clicking away must clear the suppression highlight even though focus returns to the token: ${JSON.stringify(suppressionTokenClose)}`)
 
-  const markerWrapReflow = await measureMarkerWrapExpansionReflow(session, { forcedTextWidth: 205 })
-  assert.ok(markerWrapReflow.target, `marker-wrap reflow smoke should find its path-group chip: ${JSON.stringify(markerWrapReflow)}`)
+  // Multi-line resting chips reveal in place: every pill hydrates on the
+  // visible line it occupied at rest, whatever mix of text and pills shares
+  // that line — the expansion widens lines, it does not re-deal them.
+  const markerWrapStability = await measureMarkerWrapExpansionReflow(session, { forcedTextWidth: 205 })
+  assert.ok(markerWrapStability.target, `marker-wrap stability smoke should find its path-group chip: ${JSON.stringify(markerWrapStability)}`)
   assert.ok(
-    markerWrapReflow.target.chipLineCount >= 2,
-    `marker-wrap reflow smoke target should rest as a wrapped multi-line title: ${JSON.stringify(markerWrapReflow.target)}`
+    markerWrapStability.target.chipLineCount >= 2,
+    `marker-wrap stability smoke target should rest as a wrapped multi-line title: ${JSON.stringify(markerWrapStability.target)}`
   )
   assert.ok(
-    markerWrapReflow.target.suppressionPillCount >= 2,
-    `marker-wrap reflow smoke target should carry two suppression pills at rest: ${JSON.stringify(markerWrapReflow.target)}`
+    markerWrapStability.target.suppressionPillCount >= 2,
+    `marker-wrap stability smoke target should carry two suppression pills at rest: ${JSON.stringify(markerWrapStability.target)}`
   )
-  assert.ok(markerWrapReflow.expansion, `marker-wrap chip should expand in place: ${JSON.stringify(markerWrapReflow)}`)
+  assert.ok(markerWrapStability.expansion, `marker-wrap chip should expand in place: ${JSON.stringify(markerWrapStability)}`)
   assert.ok(
-    ['Example Website', 'Contentful', 'dev2'].every((part) => markerWrapReflow.expansion.text.includes(part)),
-    `marker-wrap expansion should reveal every suppressed/placeholder label: ${JSON.stringify(markerWrapReflow.expansion)}`
+    ['Example Website', 'Contentful', 'dev2'].every((part) => markerWrapStability.expansion.text.includes(part)),
+    `marker-wrap expansion should reveal every suppressed/placeholder label: ${JSON.stringify(markerWrapStability.expansion)}`
   )
-  assert.equal(
-    markerWrapReflow.expansion.strandedPills.length,
-    0,
-    `expanded suppression pills must not start a continuation line while the previous line has viewport room for them (stale captured break): ${JSON.stringify(markerWrapReflow.expansion)}`
+  assert.deepEqual(
+    markerWrapStability.expansion.pills.map((pill: { visualLine: number }) => pill.visualLine),
+    markerWrapStability.target.pillLines,
+    `expanded pills must stay on the visible lines they occupied at rest: ${JSON.stringify(markerWrapStability)}`
   )
 
   // Single-line-resting variant of the same defect: the compact glyph title
@@ -5697,6 +5826,33 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.ok(
     markerOnlyLine.expansion.text.includes('assignee=712020'),
     `marker-only-line expansion should reveal the full URL suffix: ${JSON.stringify(markerOnlyLine.expansion)}`
+  )
+
+  const variantTitleRow = await measureVariantTitleRowStability(session)
+  assert.ok(variantTitleRow.target, `variant title-row smoke should find its merged chip: ${JSON.stringify(variantTitleRow)}`)
+  assert.equal(
+    variantTitleRow.target.titleRowLines,
+    2,
+    `variant title-row smoke target should rest as two title lines: ${JSON.stringify(variantTitleRow.target)}`
+  )
+  assert.ok(
+    variantTitleRow.target.indicatorLine === 0 && variantTitleRow.target.anchorLine === 1,
+    `variant title-row smoke target should rest with the indicator on line 1 and "from my" on line 2: ${JSON.stringify(variantTitleRow.target)}`
+  )
+  assert.ok(variantTitleRow.expansion, `variant title-row chip should expand in place: ${JSON.stringify(variantTitleRow)}`)
+  assert.ok(
+    variantTitleRow.expansion.indicatorText.includes('example-owner/skills'),
+    `variant title-row expansion should hydrate the structural indicator label: ${JSON.stringify(variantTitleRow.expansion)}`
+  )
+  assert.equal(
+    variantTitleRow.expansion.anchorLine,
+    variantTitleRow.target.anchorLine,
+    `text after the hydrating indicator must stay on its resting line when the title expands: ${JSON.stringify(variantTitleRow)}`
+  )
+  assert.equal(
+    variantTitleRow.expansion.indicatorLine,
+    0,
+    `the hydrated indicator should stay on the first title line: ${JSON.stringify(variantTitleRow.expansion)}`
   )
 
   const largeBookmarks = await measureLargeBookmarkProgressiveRender(session)
