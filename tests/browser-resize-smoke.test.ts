@@ -43,7 +43,7 @@ function serveRepo(): Promise<{ server: Server; origin: string }> {
       res.writeHead(404).end()
       return
     }
-    const contentType = target.endsWith('.js') ? 'text/javascript' : target.endsWith('.css') ? 'text/css' : target.endsWith('.html') ? 'text/html' : 'application/octet-stream'
+    const contentType = target.endsWith('.js') || target.endsWith('.mjs') ? 'text/javascript' : target.endsWith('.css') ? 'text/css' : target.endsWith('.html') ? 'text/html' : 'application/octet-stream'
     res.writeHead(200, { 'Content-Type': contentType })
     createReadStream(target).pipe(res)
   })

@@ -10,7 +10,9 @@
     <div id="appRoot"></div>
     <div id="toastRoot"></div>
 
-    <script>
+    <script type="module">
+      import { createFakeChromeApi } from '/tests/helpers/fake-chrome.mjs'
+
       window.__tabOutSmokeErrors = []
       window.addEventListener('error', (event) => {
         window.__tabOutSmokeErrors.push(event.message)
@@ -19,23 +21,6 @@
         window.__tabOutSmokeErrors.push(String(event.reason?.message || event.reason))
       })
 
-      function createListeners() {
-        const handlers = []
-        return {
-          addListener(handler) {
-            handlers.push(handler)
-          },
-          removeListener(handler) {
-            const index = handlers.indexOf(handler)
-            if (index >= 0) handlers.splice(index, 1)
-          },
-          dispatch(...args) {
-            for (const handler of handlers.slice()) handler(...args)
-          }
-        }
-      }
-      const listeners = createListeners()
-      const tabActivatedListeners = createListeners()
       const workingSetSnapshot = {
         defaultLimit: 8,
         expandedLimit: 16,
@@ -365,83 +350,32 @@
         return { version: 1, records }
       }
 
-      window.chrome = {
-        bookmarks: {
-          getTree: async () => bookmarkTree,
-          onCreated: listeners,
-          onRemoved: listeners,
-          onChanged: listeners,
-          onMoved: listeners,
-          onChildrenReordered: listeners,
-          onImportEnded: listeners
-        },
-        history: {
-          search: async () => [],
-          deleteUrl: async () => {},
-          onVisited: listeners,
-          onVisitRemoved: listeners
-        },
-        runtime: {
-          getURL: (path) => `${window.location.origin}${path}`,
-          sendMessage: async (message) => {
-            if (message?.type === 'tab-out:get-dashboard-service-state') {
-              return {
-                ok: true,
-                tabHistory: tabHistorySnapshot,
-                workingSetActivity: workingSetActivityFromTabs()
-              }
-            }
-            if (message?.type === 'tab-out:get-tab-history') {
-              return { ok: true, snapshot: tabHistorySnapshot }
-            }
-            if (message?.type === 'tab-out:get-working-set') {
-              return { ok: true, snapshot: workingSetSnapshot }
-            }
-            return { ok: false }
-          }
-        },
-        storage: {
-          local: {
-            get: async (keys) => {
-              if (keys == null) return { ...localStorageStore }
-              const names = typeof keys === 'string' ? [keys] : Array.isArray(keys) ? keys : Object.keys(keys)
-              const result = {}
-              for (const name of names) {
-                if (name in localStorageStore) result[name] = localStorageStore[name]
-              }
-              return result
-            },
-            set: async (items) => {
-              Object.assign(localStorageStore, items)
+      window.chrome = createFakeChromeApi({
+        tabs,
+        getBookmarkTree: () => bookmarkTree,
+        storageSeed: localStorageStore,
+        getURL: (path) => `${window.location.origin}${path}`,
+        sendMessage: async (message) => {
+          if (message?.type === 'tab-out:get-dashboard-service-state') {
+            return {
+              ok: true,
+              tabHistory: tabHistorySnapshot,
+              workingSetActivity: workingSetActivityFromTabs()
             }
           }
-        },
-        tabGroups: {
-          query: async () => [],
-          onCreated: listeners,
-          onUpdated: listeners,
-          onRemoved: listeners,
-          onMoved: listeners
-        },
-        tabs: {
-          query: async () => tabs,
-          remove: async () => {},
-          update: async () => {},
-          onCreated: listeners,
-          onActivated: tabActivatedListeners,
-          onRemoved: listeners,
-          onMoved: listeners,
-          onAttached: listeners,
-          onDetached: listeners,
-          onUpdated: listeners
-        },
-        windows: {
-          getAll: async () => [{ id: 1, type: 'normal', focused: true }],
-          getCurrent: async () => ({ id: 1, type: 'normal', focused: true }),
-          update: async () => {},
-          onFocusChanged: listeners
+          if (message?.type === 'tab-out:get-tab-history') {
+            return { ok: true, snapshot: tabHistorySnapshot }
+          }
+          if (message?.type === 'tab-out:get-working-set') {
+            return { ok: true, snapshot: workingSetSnapshot }
+          }
+          return { ok: false }
         }
-      }
+      })
+      // The smoke helpers below poke "something changed" / "tab activated"
+      // the way the old shared listener objects did.
+      const listeners = { dispatch: (...args) => window.chrome.tabs.onCreated.dispatch(...args) }
+      const tabActivatedListeners = { dispatch: (...args) => window.chrome.tabs.onActivated.dispatch(...args) }
       const originalWindowIds = new Map(tabs.map((tab) => [tab.id, tab.windowId]))
       window.__tabOutSmokeSetBookmarks = (count = 0) => {
         bookmarkTree = [{
