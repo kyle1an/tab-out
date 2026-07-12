@@ -68,7 +68,7 @@ export function usePageChipOverflow({
         <PageChip key={chip.rawUrl} chip={chip} filter={filter} suppressedTitleToneByText={suppressedTitleToneByText} />
       ))}
       {hiddenCount > 0 && (
-        <div className={cn('page-chips-overflow', resolveClassName(overflowContainerClassName, expanded))}>
+        <div className={cn('page-chips-overflow', resolveClassName(overflowContainerClassName, expanded), expanded ? 'contents' : 'hidden')}>
           {hiddenChips.map((chip) => (
             <PageChip key={chip.rawUrl} chip={chip} filter={filter} suppressedTitleToneByText={suppressedTitleToneByText} />
           ))}
@@ -79,7 +79,7 @@ export function usePageChipOverflow({
           type="button"
           className={cn(
             OVERFLOW_BUTTON_CLASS_NAME,
-            hiddenHoverMatched && 'page-chip-overflow-hover-match',
+            hiddenHoverMatched && 'page-chip-overflow-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)',
             hiddenSuppressionCoversAll && cn('page-chip-overflow-suppression-highlighted', titleSuppressionOverflowHighlightClass(activeSuppressionTone)),
             overflowButtonClassName
           )}

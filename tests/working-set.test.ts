@@ -448,23 +448,27 @@ test('WorkingSetPanel matches chip hover against raw tab URLs', () => {
 })
 
 test('WorkingSetPanel active item hover keeps one border layer with stronger contrast', () => {
-  const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
-  const activeMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item\s*\{([^}]*)\}/)
-  const activeHoverMatch = styleSource.match(/\.working-set-item\.is-active-working-set-item:hover,\n\.working-set-item-shell:hover > \.working-set-item\.is-active-working-set-item,\n\.working-set-item-shell:focus-within > \.working-set-item\.is-active-working-set-item\s*\{([^}]*)\}/)
+  // The active-item border/hover styling rides as conditional utilities on
+  // the item button (previously a raw CSS rule over the shell/item pair).
+  const workingSetSource = readFileSync(new URL('../src/components/WorkingSetPanel.tsx', import.meta.url), 'utf8')
+  const activeConditional = workingSetSource.match(/item\.active && '([^']*)'/)
 
-  assert.ok(activeMatch, 'active working set item rule should exist')
-  assert.ok(activeHoverMatch, 'active working set item hover rule should exist')
-  assert.match(activeMatch[1], /border-color:\s*color-mix\(in srgb, var\(--accent-slate\) 45%, var\(--warm-gray\)\);/)
-  assert.doesNotMatch(activeMatch[1], /\bring\b/)
-  assert.doesNotMatch(activeMatch[1], /\boutline\b/)
-  assert.match(activeHoverMatch[1], /border-color:\s*var\(--accent-amber\);/)
-  assert.match(activeHoverMatch[1], /background:\s*color-mix\(in srgb, var\(--card-bg\) 88%, var\(--accent-amber\)\);/)
-  assert.doesNotMatch(activeHoverMatch[1], /\bring\b/)
-  assert.doesNotMatch(activeHoverMatch[1], /\boutline\b/)
+  assert.ok(activeConditional, 'active working set item conditional should exist')
+  assert.match(activeConditional[1], /border-\[color-mix\(in_srgb,var\(--accent-slate\)_45%,var\(--warm-gray\)\)\]/)
+  assert.match(activeConditional[1], /hover:border-\(--accent-amber\)/)
+  assert.match(activeConditional[1], /hover:bg-\[color-mix\(in_srgb,var\(--card-bg\)_88%,var\(--accent-amber\)\)\]/)
+  assert.match(activeConditional[1], /group-hover\/working-set-item:border-\(--accent-amber\)/)
+  assert.match(activeConditional[1], /group-hover\/working-set-item:bg-\[color-mix\(in_srgb,var\(--card-bg\)_88%,var\(--accent-amber\)\)\]/)
+  assert.match(activeConditional[1], /group-focus-within\/working-set-item:border-\(--accent-amber\)/)
+  assert.match(activeConditional[1], /group-focus-within\/working-set-item:bg-\[color-mix\(in_srgb,var\(--card-bg\)_88%,var\(--accent-amber\)\)\]/)
+  assert.doesNotMatch(activeConditional[1], /ring-\d/)
+  assert.doesNotMatch(activeConditional[1], /outline/)
 })
 
 test('WorkingSetPanel keeps the moving show toggle visually neutral through cleanup', () => {
-  const styleSource = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  // Deliberately raw CSS (see the base.css comment): the suppression must
+  // outrank every interaction pseudo-state for two imperative markers.
+  const styleSource = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const animationSource = readFileSync(new URL('../src/extension/working-set-move-animation.ts', import.meta.url), 'utf8')
   const toggleMoveMatch = styleSource.match(/\.working-set-toggle\.working-set-layout-moving,[\s\S]*?\.working-set-toggle\.working-set-layout-settling:focus-visible\s*\{([^}]*)\}/)
 

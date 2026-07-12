@@ -2284,7 +2284,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
           isTitleVariantGroup && 'cursor-default',
           isFolded && `${CHIP_TRIM_TOKENS.folded} cursor-default after:hidden`,
           chip.saved && 'page-chip-saved',
-          hoverMatched && CHIP_TRIM_TOKENS.hoverMatch,
+          hoverMatched && `${CHIP_TRIM_TOKENS.hoverMatch} outline outline-1 outline-offset-1 outline-(--accent-amber)`,
           suppressionHighlighted && cn('page-chip-suppression-highlighted', titleSuppressionChipHighlightClass(activeSuppressionTone)),
           chip.iconOnly && 'page-chip-icon-only h-6 min-h-6 w-6 min-w-6 items-center justify-center gap-0 rounded-xl bg-transparent p-0 [corner-shape:squircle] before:hidden after:hidden',
           trim.iconChipClasses
@@ -2389,7 +2389,10 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   return (
     <div
       data-tabout-part="slot"
-      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : `${trim.slotClasses} flex w-full`)}
+      // The hover-match slot lift (z-3) stays below the interacting-slot
+      // lift (z-4, inside trim.slotClasses) by specificity, so a deliberate
+      // interaction always wins over passive hover-match at the seam.
+      className={cn('chip-slot relative min-w-0', chip.iconOnly ? 'inline-flex' : `${trim.slotClasses} flex w-full`, hoverMatched && 'z-3')}
       style={chipSlotStyle}
       ref={chipSlotRef}
       {...variantGroupInteractionProps}

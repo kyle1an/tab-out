@@ -53,7 +53,7 @@ test('shouldAnimateMasonryResize only changes when the column count changes', ()
 })
 
 test('masonry card motion uses transform instead of layout-property transitions', () => {
-  const css = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
 
   assert.match(domainCardSource, /\[\.missions\.is-packed_&\.layout-moving\.layout-moving-active\]:\[transition:transform_0\.28s_cubic-bezier\(0\.2,0,0,1\)\]/)
@@ -107,13 +107,14 @@ test('user-driven pinned domain order changes prime card move animation', () => 
 
 test('no-op pinned domain drag targets use a muted placement state', () => {
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
-  const css = readFileSync(new URL('../extension/style.css', import.meta.url), 'utf8')
 
   assert.match(domainCardSource, /data-tabout-reorder-noop/)
   assert.match(domainCardSource, /previousPinnedDomainBlock\(targetBlock\) === sourceBlock/)
   assert.match(domainCardSource, /nextPinnedDomainBlock\(targetBlock\) === sourceBlock/)
-  assert.match(css, /\.domain-block\[data-tabout-reorder-target='true'\]\[data-tabout-reorder-noop='true'\] > \.mission-card/)
-  assert.match(css, /\.domain-block\[data-tabout-reorder-target='true'\]\[data-tabout-reorder-noop='true'\]::before/)
+  // The muted indicator and card border ride as data-variant utilities on
+  // the domain block / mission card (the drag controller writes the attrs).
+  assert.match(domainCardSource, /data-\[tabout-reorder-noop=true\]:before:bg-\[color-mix\(in_srgb,var\(--accent-amber\)_36%,var\(--warm-gray\)\)\]/)
+  assert.match(domainCardSource, /group-data-\[tabout-reorder-noop=true\]\/domain-block:border-\[color-mix\(in_srgb,var\(--accent-amber\)_20%,var\(--warm-gray\)\)\]/)
 })
 
 test('working set is merged into the history panel instead of rendering a top strip', () => {

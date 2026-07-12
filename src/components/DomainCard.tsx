@@ -453,6 +453,11 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         data-tabout-domain-pinned={group.pinned ? 'true' : undefined}
         className={cn(
           'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-250 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
+          // The pinned-domain drag controller drives reorder feedback through
+          // data attributes on this block (imperative dataset writes, not
+          // React state); the indicator bar and its noop/placement variants
+          // react to them below.
+          "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-[3px] data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_3px_rgba(10,10,10,0.12)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_2px_rgba(10,10,10,0.06)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
           isAppsCard && 'domain-block-apps',
           group.pinned && 'domain-block-pinned'
@@ -505,6 +510,11 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         <div
           className={cn(
             'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-(--warm-gray) bg-tab-card transition-[box-shadow,transform] duration-250 ease-[ease] [corner-shape:squircle]',
+            // The card frames itself when a cross-surface hover highlights one
+            // of its chips, and during pinned-domain drag reorder (data attrs
+            // written imperatively by the drag controller on .domain-block).
+            'group-has-[.page-chip.page-chip-hover-match]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_42%,var(--warm-gray))] group-has-[.page-chip-overflow.page-chip-overflow-hover-match]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_42%,var(--warm-gray))]',
+            'group-data-[tabout-reorder-source=true]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_48%,var(--warm-gray))] group-data-[tabout-reorder-source=true]/domain-block:shadow-[0_4px_12px_rgba(10,10,10,0.08)] group-[[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_42%,var(--warm-gray))] group-data-[tabout-reorder-noop=true]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_20%,var(--warm-gray))]',
             isAppsCard ? 'p-[7px]' : 'p-2',
             group.pinned && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
           )}

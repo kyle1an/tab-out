@@ -1240,7 +1240,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           expanded && (entryExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
           !entry.current && historyEntryInteractionClasses,
-          hoverMatched && 'history-entry-hover-match'
+          hoverMatched && 'history-entry-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)'
         )}
         style={expanded ? entryOverlayStyle : entryBaseStyle}
         ref={expanded ? undefined : entryRef}

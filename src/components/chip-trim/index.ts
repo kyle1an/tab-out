@@ -26,11 +26,13 @@
      through (translucent fills; the expanded fill layer spares edges
      flush with the resting seam).
 
-   • The CSS rump (chip-trim.css) is part of this interface: exactly
-     the rules that must stay CSS — the slot seam overlap (an
-     adjacent-sibling rule) and everything keyed on :hover, which must
-     swap inside one style recalculation (the hover-flash lesson,
-     2026-06-13). Its selectors use only CHIP_TRIM_TOKENS names.
+   • The module is single-language: the seam rules that used to live in
+     a CSS rump (slot overlap, interacting z-lift, hover frame
+     strengthen) ride in the emitted class strings as previous-sibling /
+     has-[] / group-hover arbitrary variants. They still compile to
+     plain CSS selectors, so interaction chrome swaps inside one style
+     recalculation (the hover-flash lesson, 2026-06-13) — never own an
+     interaction highlight from React state.
    ================================================================ */
 
 export { chipTrim, CHIP_TRIM_TOKENS } from './trim'

@@ -238,25 +238,45 @@ body {
   background-clip: content-box;
 }
 
-/* Overflow containers inside flat-sections and pathgroup-sections:
-   hidden by default; shown (as display: contents) when the parent
-   sub-section's data-expanded="true". The parent's expand state
-   is local useState in <FlatSection> / <PathgroupSection>.
-   Filter-scoped visibility is handled inside the VM (matching chips
-   land in visibleChips, hidden=[] while filtering) — no inline style
-   override needed. */
-.flat-section > .page-chips-overflow,
-.pathgroup-section > .page-chips-overflow {
-  display: none;
-}
-.flat-section[data-expanded='true'] > .page-chips-overflow,
-.pathgroup-section[data-expanded='true'] > .page-chips-overflow {
-  display: contents;
-}
+/* Overflow-container visibility (hidden vs display:contents on expand)
+   rides as conditional utilities inside <PageChipOverflow> — the component
+   owns the expand state. Filter-scoped visibility is handled inside the VM
+   (matching chips land in visibleChips, hidden=[] while filtering). */
 
 /* The Page Chip seam rules (slot overlap, interaction z-lift, hover frame
-   strengthen, hover-match outline) live with their module:
-   src/components/chip-trim/chip-trim.css. */
+   strengthen, hover-match outline) live with their module as emitted
+   utility classes: src/components/chip-trim/trim.ts. */
+
+/* Body isn't a React element, so the drag-reorder cursor rides here. The
+   attribute is written imperatively by DomainCard's pinned-domain drag
+   controller. */
+body[data-tabout-domain-reorder-active='true'] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* While the working-set FLIP animation moves or settles the toggle
+   (classes written imperatively by working-set-move-animation.ts), every
+   interaction state's styling is suppressed so the flying element doesn't
+   flash hover/focus chrome mid-animation. Kept as raw CSS: expressing
+   this as utilities means re-stating four properties across five
+   pseudo-states for two markers (~40 compound arbitrary variants) and
+   still fighting the hover-utility specificity tie. */
+.working-set-toggle.working-set-layout-moving,
+.working-set-toggle.working-set-layout-settling,
+.working-set-toggle.working-set-layout-moving:hover,
+.working-set-toggle.working-set-layout-settling:hover,
+.working-set-toggle.working-set-layout-moving:active,
+.working-set-toggle.working-set-layout-settling:active,
+.working-set-toggle.working-set-layout-moving:focus,
+.working-set-toggle.working-set-layout-settling:focus,
+.working-set-toggle.working-set-layout-moving:focus-visible,
+.working-set-toggle.working-set-layout-settling:focus-visible {
+  border-color: var(--warm-gray);
+  background: var(--card-bg);
+  color: var(--muted);
+  box-shadow: none;
+}
 
 /* Hovering ANY non-URL surface of a same-title group chip (title row, blank
    padding, favicon gutter, edge strips, AND the rounded-corner gutter)

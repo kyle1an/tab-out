@@ -1,6 +1,11 @@
 /* Chip Trim implementation — the decision table. See index.ts for the
    contract; this file is implementation and may only be imported from
-   there. */
+   there.
+
+   Every class that needs CSS emitted for it appears as a FULL LITERAL in
+   this file — Tailwind's scanner reads source text, so interpolated
+   candidates never emit. Marker names (no CSS of their own) may ride
+   through CHIP_TRIM_TOKENS. */
 
 const FADE_INTERACTION_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
@@ -20,9 +25,9 @@ const CLICKABLE_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${FADE_INT
 const GROUP_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
 const ACTIVE_OTHER_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${FADE_INTERACTION_CLASSES}`
 
-/** Class-name tokens that cross the TS↔CSS line: the trim CSS rump's
-    selectors reference exactly these names, and PageChip applies the
-    state-class tokens. One source for every shared name. */
+/** Class-name tokens shared across the trim class strings (arbitrary
+    variants key off them as literals below) and PageChip, which applies
+    the state-class tokens. One source for every shared name. */
 export const CHIP_TRIM_TOKENS = {
   slotRow: 'chip-slot-row',
   frame: 'active-chip-frame',
@@ -102,10 +107,14 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
       ].filter(Boolean).join(' ')
     : ''
 
+  // On interaction the frame's alpha strengthens so the line stays crisp
+  // against the darker fill — via group variants so it swaps in the same
+  // style recalculation as CSS :hover (the hover-flash lesson, 2026-06-13).
   const frame = hasActiveChipFrame && !facts.iconOnly
     ? {
         classes: [
           `${CHIP_TRIM_TOKENS.frame} pointer-events-none absolute inset-0 z-2 rounded-[inherit] [corner-shape:squircle]`,
+          'group-hover/page-chip:shadow-[inset_0_0_0_1px_rgba(38,38,38,0.55)] group-[.page-chip-context-menu-open]/page-chip:shadow-[inset_0_0_0_1px_rgba(38,38,38,0.55)] group-[.page-chip-tooltip-open]/page-chip:shadow-[inset_0_0_0_1px_rgba(38,38,38,0.55)]',
           isCurrentTabOutFrame
             ? 'active-history-entry-frame current-tab-out-chip-frame shadow-[inset_0_0_0_1px_rgba(82,82,82,0.48)]'
             : isCurrentActiveFrame
@@ -145,10 +154,25 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
       }
     : null
 
+  // Full-width slots carry the seam behaviour:
+  // • adjacent slot-rows ALWAYS overlap by -1px, so whenever two neighbours
+  //   both paint a 1px trim line at the seam the lines coincide as one.
+  //   Unconditional — trim capability is app state (saved page opens:
+  //   saved-closed → plain; tab activates: plain → framed), and an overlap
+  //   gated on trim markers shifted run heights 1px on those flips.
+  // • the interacting slot lifts (z-4) so its strengthened frame paints on
+  //   top of the neighbour at the shared seam; specificity keeps it above
+  //   the hover-match slot lift (z-3, applied by PageChip).
+  // Icon-only slots wrap horizontally in overflow rows — no seams, no
+  // marker, no lift.
+  const slotClasses = facts.iconOnly
+    ? ''
+    : 'chip-slot-row [.chip-slot-row+&]:-mt-px has-[.page-chip:hover]:z-4 has-[.page-chip-context-menu-open]:z-4 has-[.page-chip-tooltip-open]:z-4'
+
   return {
     chipClasses,
     iconChipClasses,
-    slotClasses: facts.iconOnly ? '' : CHIP_TRIM_TOKENS.slotRow,
+    slotClasses,
     frame,
     styleVars,
     expandedFill

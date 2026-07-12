@@ -39,7 +39,7 @@ test('chip-trim: plain chips get the translucent fill and no trim', () => {
   assert.equal(trim.frame, null)
   assert.equal(trim.expandedFill, null)
   assert.equal(trim.iconChipClasses, '')
-  assert.equal(trim.slotClasses, CHIP_TRIM_TOKENS.slotRow)
+  assert.match(trim.slotClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.slotRow}\\b`))
   assert.equal(trim.styleVars.interactionBg, TRANSLUCENT_CLICKABLE)
   assert.equal(trim.styleVars.fadeBg, OPAQUE_CLICKABLE)
   assert.equal(trim.styleVars.restBg, 'transparent')
@@ -166,6 +166,31 @@ test('chip-trim: the fade fill is never the translucent overlay', () => {
   }
 })
 
+test('chip-trim: full-width slots carry the seam overlap and interaction lift', () => {
+  const slot = chipTrim(facts()).slotClasses
+  // Unconditional adjacent-sibling overlap: trim capability is app state,
+  // so the -1px must never key off trim markers or hover state.
+  assert.match(slot, /\[\.chip-slot-row\+&\]:-mt-px/)
+  assert.match(slot, new RegExp(`\\b${CHIP_TRIM_TOKENS.slotRow}\\b`))
+  // The interacting slot lifts above neighbours so its strengthened frame
+  // paints on top at the shared seam — for hover, menu, and expansion.
+  assert.match(slot, /has-\[\.page-chip:hover\]:z-4/)
+  assert.match(slot, /has-\[\.page-chip-context-menu-open\]:z-4/)
+  assert.match(slot, /has-\[\.page-chip-tooltip-open\]:z-4/)
+  // Identical for every full-width kind — seam participation is not
+  // kind-dependent.
+  assert.equal(chipTrim(facts({ closedSavedPage: true })).slotClasses, slot)
+  assert.equal(chipTrim(facts({ activeChipFrame: true })).slotClasses, slot)
+})
+
+test('chip-trim: framed chips strengthen their line on interaction', () => {
+  const frame = chipTrim(facts({ activeChipFrame: true, activeInOtherWindow: true })).frame
+  assert.ok(frame)
+  assert.match(frame.classes, /group-hover\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
+  assert.match(frame.classes, /group-\[\.page-chip-context-menu-open\]\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
+  assert.match(frame.classes, /group-\[\.page-chip-tooltip-open\]\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
+})
+
 test('chip-trim: icon-only slots never join vertical seam runs', () => {
   const icon = chipTrim(facts({ iconOnly: true }))
   assert.equal(icon.slotClasses, '')
@@ -181,25 +206,14 @@ test('chip-trim: icon-only slots never join vertical seam runs', () => {
   assert.match(active.iconChipClasses, /bg-\(--chip-rest-bg\)/)
 })
 
-/* The CSS rump is part of the interface: exactly the rules that must stay
-   CSS (the adjacent-sibling seam overlap; :hover-keyed rules that must swap
-   inside one style recalculation), with selectors spelled from
-   CHIP_TRIM_TOKENS. */
-test('chip-trim: the CSS rump holds exactly the four seam rule groups', () => {
-  const css = readFileSync(new URL('../src/components/chip-trim/chip-trim.css', import.meta.url), 'utf8')
-
-  const overlapStart = css.indexOf(`.${CHIP_TRIM_TOKENS.slotRow} + .${CHIP_TRIM_TOKENS.slotRow}`)
-  assert.notEqual(overlapStart, -1, 'the unconditional seam-overlap rule should exist')
-  const overlapRule = css.slice(overlapStart, css.indexOf('}', overlapStart) + 1)
-  assert.match(overlapRule, /margin-top: -1px/)
-  assert.doesNotMatch(overlapRule, /:has\(/)
-  assert.doesNotMatch(overlapRule, /:hover/)
-
-  assert.match(css, new RegExp(`\\.chip-slot:has\\(\\.page-chip:is\\(:hover, \\.${CHIP_TRIM_TOKENS.contextMenuOpen}, \\.${CHIP_TRIM_TOKENS.tooltipOpen}\\)\\)\\s*\\{\\s*z-index: 4;`))
-  assert.match(css, new RegExp(`\\.page-chip:is\\(:hover, \\.${CHIP_TRIM_TOKENS.contextMenuOpen}, \\.${CHIP_TRIM_TOKENS.tooltipOpen}\\) > \\.${CHIP_TRIM_TOKENS.frame}\\s*\\{\\s*box-shadow: inset 0 0 0 1px rgba\\(38, 38, 38, 0\\.55\\);`))
-  assert.match(css, new RegExp(`\\.page-chip\\.${CHIP_TRIM_TOKENS.hoverMatch}\\s*\\{[^}]*outline: 1px solid var\\(--accent-amber\\);`))
-  assert.match(css, new RegExp(`\\.chip-slot:has\\(\\.${CHIP_TRIM_TOKENS.hoverMatch}\\)\\s*\\{\\s*z-index: 3;`))
-
-  const ruleCount = (css.match(/^\}/gm) || []).length
-  assert.equal(ruleCount, 5, 'the rump holds exactly five rules (overlap, z-lift, strengthen, hover-match outline, hover-match z)')
+/* The module is single-language: the seam rules ride in the emitted class
+   strings as arbitrary variants that compile to plain CSS selectors, so
+   interaction chrome still swaps inside one style recalculation. The only
+   trim classes applied outside chipTrim() output are the hover-match pair
+   (React-state-driven, owned by PageChip): the chip outline and the slot's
+   z-3 lift, which the interacting-slot z-4 outranks by specificity. */
+test('chip-trim: PageChip owns the hover-match pair with the shared outline utilities', () => {
+  const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
+  assert.match(pageChipSource, /hoverMatched && `\$\{CHIP_TRIM_TOKENS\.hoverMatch\} outline outline-1 outline-offset-1 outline-\(--accent-amber\)`/)
+  assert.match(pageChipSource, /hoverMatched && 'z-3'/)
 })

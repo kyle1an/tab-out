@@ -137,8 +137,8 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
     <div
       aria-hidden="true"
       className={cn(
-        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle]',
-        exiting && 'is-exiting'
+        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] opacity-100 [transform:translateY(0)_scale(1)] will-change-[opacity,transform] motion-safe:transition-[opacity,transform] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.2,0,0,1)]',
+        exiting && 'is-exiting opacity-0 motion-safe:[transform:translateY(-8px)_scale(0.98)]'
       )}
       style={style}
     >
@@ -320,8 +320,8 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           type="button"
           className={cn(
             "working-set-item relative flex min-h-12 w-full min-w-0 cursor-default items-center gap-2 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)] group-hover/working-set-item:border-(--accent-amber) group-hover/working-set-item:bg-[rgba(82,82,82,0.08)] group-focus-within/working-set-item:border-(--accent-amber) after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--working-set-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/working-set-item:after:opacity-100 group-focus-within/working-set-item:after:opacity-100",
-            item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)]',
-            hoverMatched && 'working-set-item-hover-match'
+            item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)] border-[color-mix(in_srgb,var(--accent-slate)_45%,var(--warm-gray))] hover:border-(--accent-amber) hover:bg-[color-mix(in_srgb,var(--card-bg)_88%,var(--accent-amber))] group-hover/working-set-item:border-(--accent-amber) group-hover/working-set-item:bg-[color-mix(in_srgb,var(--card-bg)_88%,var(--accent-amber))] group-focus-within/working-set-item:border-(--accent-amber) group-focus-within/working-set-item:bg-[color-mix(in_srgb,var(--card-bg)_88%,var(--accent-amber))]',
+            hoverMatched && 'working-set-item-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)'
           )}
           style={itemStyle}
           aria-label={itemLabel}
