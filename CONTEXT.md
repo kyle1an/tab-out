@@ -22,6 +22,7 @@
 - **Working Set**: A ranking signal over open-tab Dashboard Items that the user is likely to return to before scanning Domain Cards or using a Filter Query.
 - **Tab Action**: A user intent from the dashboard that mutates tabs or history, records undo/toast feedback, and refreshes the Dashboard.
 - **Suspend Target**: The remembered third-party suspender (extension id plus an observed suspended-page URL template) used to rebuild suspend URLs when a Tab Action suspends tabs.
+- **Browser Tabs Gateway**: The Dashboard's single crossing point to live browser tabs, windows, tab groups, and recently-closed sessions; it speaks browser vocabulary and absorbs browser quirks, while matching and action policy stay with Tab Actions.
 
 ## Relationships
 
@@ -92,6 +93,8 @@
 - The **Suspend Target** is learned by observing an already-suspended open tab and is remembered across sessions; suspending never picks a suspender the user has not used.
 - A suspended **Dashboard Item** keeps its real page's favicon: chips, history rows, and Working Set rows resolve the icon from the unwrapped effective URL instead of keeping the suspender page's faded copy.
 - An **Activation History** row offers the explicit **Page Chip** context-menu actions that apply to it: copy title, copy URL, save page, and suspend.
+- A **Tab Action** reads and mutates open tabs, windows, and recently-closed sessions only through the **Browser Tabs Gateway**; matching, dedupe, suspend-eligibility, and undo policy remain **Tab Action** decisions.
+- Live-tab matching resolves a **Dashboard Item Identity** to the live open tabs it names — suspender-aware, including folded same-title variants — and close, mute, and suspend all resolve through that one matching.
 - A **Title Suppression Scope** is owned by exactly one visible group: a **Domain Card**, Website Path Section, subdomain section, or Path Group.
 - Repeated title noise inside a visible **Website Path Section** is scoped to that section when no narrower **Path Group** owns it.
 - A **Title Suppression Scope** owns its summary tokens and matching chip markers; visible scopes coordinate palette colors within a **Domain Card** so two visible suppression meanings do not use the same color.
