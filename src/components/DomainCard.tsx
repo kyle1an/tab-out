@@ -98,7 +98,7 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
       type="button"
       data-tabout-part="dedupe-button"
       className={cn(
-        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-all duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
         closing && 'closing'
       )}
       onClick={onClick}
@@ -452,7 +452,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         data-tabout-domain={group.domain}
         data-tabout-domain-pinned={group.pinned ? 'true' : undefined}
         className={cn(
-          'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-250 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.9)]',
+          'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [.missions.is-packed_&.layout-moving]:transition-none [.missions.is-packed_&.layout-moving]:[will-change:transform] [.missions.is-packed_&.layout-moving.layout-moving-active]:[transition:transform_0.28s_cubic-bezier(0.2,0,0,1)] motion-reduce:[.missions.is-packed_&.layout-moving]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving]:transition-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transform-none motion-reduce:[.missions.is-packed_&.layout-moving.layout-moving-active]:transition-none [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
           // The pinned-domain drag controller drives reorder feedback through
           // data attributes on this block (imperative dataset writes, not
           // React state); the indicator bar and its noop/placement variants

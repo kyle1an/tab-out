@@ -835,7 +835,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
       {!chip.iconOnly && dupeCount > 2 && (
         <span
           className={cn(
-            'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-0 size-4 max-h-4 max-w-4 translate-x-1 translate-y-1 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.12)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+            'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-0 size-4 max-h-4 max-w-4 translate-x-1 translate-y-1 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.12)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
             showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
             dedupeBadgesClosing && 'closing'
           )}
@@ -845,7 +845,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
       {!chip.iconOnly && dupeCount > 1 && (
         <span
           className={cn(
-            'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-1 size-4 max-h-4 max-w-4 translate-x-0.5 translate-y-0.5 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/55 shadow-[0_1px_2px_rgba(10,10,10,0.1)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-[ease]',
+            'chip-favicon-stack-layer pointer-events-none absolute top-0 left-0 z-1 size-4 max-h-4 max-w-4 translate-x-0.5 translate-y-0.5 rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/55 shadow-[0_1px_2px_rgba(10,10,10,0.1)] [corner-shape:squircle] [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
             showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0',
             dedupeBadgesClosing && 'closing'
           )}
@@ -1825,7 +1825,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
-      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-in-out hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
+      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-[ease] hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
       env.activeInOtherWindow && 'bg-neutral-600/[0.075] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 

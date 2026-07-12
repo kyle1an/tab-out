@@ -1315,7 +1315,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       data-low-score={dimmed ? 'true' : undefined}
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       className={cn(
-        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-160 [&.closing]:ease-[ease] [&.closing]:[transform:scale(0.96)]',
+        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
         titleExpanded && 'history-entry-row-expanded-open'
       )}
       onMouseEnter={onMouseEnter}

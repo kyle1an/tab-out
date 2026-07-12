@@ -137,7 +137,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
     <div
       aria-hidden="true"
       className={cn(
-        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] opacity-100 [transform:translateY(0)_scale(1)] will-change-[opacity,transform] motion-safe:transition-[opacity,transform] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.2,0,0,1)]',
+        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] opacity-100 [transform:translateY(0)_scale(1)] will-change-[opacity,transform] motion-safe:transition-[opacity,transform] motion-safe:duration-[220ms] motion-safe:ease-swift',
         exiting && 'is-exiting opacity-0 motion-safe:[transform:translateY(-8px)_scale(0.98)]'
       )}
       style={style}
