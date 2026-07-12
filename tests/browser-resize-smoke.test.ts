@@ -644,6 +644,128 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
   return { target, expansion }
 }
 
+const MARKER_ONLY_LINE_SMOKE_LABEL = 'Platform Ops Dev 2026'
+
+/**
+ * Marker-only-line stability smoke: a chip whose resting layout puts a
+ * trailing suppression pill ALONE on a middle line (title fills line 1, the
+ * nowrap URL suffix wraps to line 3). Hydrating that pill displaces nothing
+ * on its line, so the expansion must keep it anchored on the same visible
+ * line instead of reflowing it up into the title line.
+ */
+async function measureMarkerOnlyLineExpansion(session: CdpSession) {
+  await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    expression: `window.__tabOutSmokeAddMarkerWrapPathGroupTabs?.()`
+  })
+  await session.send('Emulation.setDeviceMetricsOverride', {
+    width: 1000,
+    height: 900,
+    deviceScaleFactor: 2,
+    mobile: false
+  })
+  await evaluateWithNavigationRetry(session, {
+    expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
+  })
+  await wait(250)
+
+  const target = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      let forceSettled = false
+      let overflowExpanded = false
+      const wait = () => {
+        const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
+          .find((candidate) =>
+            !candidate.closest('.page-chip-expanded') &&
+            !candidate.closest('[data-slot="tooltip-content"]') &&
+            candidate.textContent?.includes(${JSON.stringify(MARKER_ONLY_LINE_SMOKE_LABEL)}) &&
+            candidate.textContent?.includes('assignee')
+          )
+        if (chipText instanceof HTMLElement && !overflowExpanded && chipText.closest('.page-chips-overflow')) {
+          overflowExpanded = true
+          const card = chipText.closest('.domain-block')
+          const toggle = card && Array.from(card.querySelectorAll('button')).find((button) => /more/i.test(button.textContent || ''))
+          toggle?.click()
+          setTimeout(wait, 300)
+          return
+        }
+        if (chipText instanceof HTMLElement && !forceSettled) {
+          chipText.style.flex = '0 0 276px'
+          chipText.style.maxWidth = '276px'
+          forceSettled = true
+          setTimeout(wait, 160)
+          return
+        }
+        const rect = chipText?.getBoundingClientRect()
+        if (
+          chipText instanceof HTMLElement &&
+          rect &&
+          (rect.top < 24 || rect.bottom > window.innerHeight - 24)
+        ) {
+          chipText.scrollIntoView({ block: 'center', inline: 'nearest' })
+          setTimeout(wait, 120)
+          return
+        }
+        if (chipText instanceof HTMLElement && rect && rect.width > 80 && rect.height > 8) {
+          const styles = window.getComputedStyle(chipText)
+          const lineHeight = Number.parseFloat(styles.lineHeight) || 16.25
+          const marker = chipText.querySelector('.chip-title-suppression-marker')
+          const markerRect = marker?.getBoundingClientRect()
+          resolve({
+            x: Math.round(rect.left + Math.min(24, rect.width / 2)),
+            y: Math.round(rect.top + Math.min(rect.height / 2, 10)),
+            chipLineCount: Math.max(1, Math.round(rect.height / lineHeight)),
+            markerLine: markerRect ? Math.round((markerRect.top - rect.top) / lineHeight) : null,
+            markerLeftOffset: markerRect ? Math.round(markerRect.left - rect.left) : null
+          })
+        } else if (Date.now() - start > 5000) {
+          resolve(null)
+        } else {
+          setTimeout(wait, 50)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  if (!target) return { target, expansion: null }
+
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: target.x,
+    y: target.y
+  })
+  await wait(650)
+
+  const expansion = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const chip = Array.from(document.querySelectorAll('.page-chip-expanded'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(MARKER_ONLY_LINE_SMOKE_LABEL)}))
+      const textEl = chip?.querySelector('.chip-text')
+      if (!(chip instanceof HTMLElement) || !(textEl instanceof HTMLElement)) return null
+      const textRect = textEl.getBoundingClientRect()
+      const lineHeight = Number.parseFloat(window.getComputedStyle(textEl).lineHeight) || 16.25
+      const marker = textEl.querySelector('.chip-title-suppression-marker')
+      const markerRect = marker?.getBoundingClientRect()
+      return {
+        markerLine: markerRect ? Math.round((markerRect.top - textRect.top) / lineHeight) : null,
+        markerText: marker?.textContent || '',
+        visualLineCount: Math.max(1, Math.round(textRect.height / lineHeight)),
+        text: (textEl.textContent || '').slice(0, 160)
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
+  await wait(450)
+
+  return { target, expansion }
+}
+
 async function waitForPageChipExpansionRect(session: CdpSession, text: string, timeoutMs = 2000) {
   return evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -5558,6 +5680,23 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
     markerWrapConstrainedReflow.expansion.strandedPills.length,
     0,
     `expanded suppression pills must not start a continuation line while the previous line has viewport room for them (resting-width wrap): ${JSON.stringify(markerWrapConstrainedReflow.expansion)}`
+  )
+
+  const markerOnlyLine = await measureMarkerOnlyLineExpansion(session)
+  assert.ok(markerOnlyLine.target, `marker-only-line smoke should find its suffixed chip: ${JSON.stringify(markerOnlyLine)}`)
+  assert.ok(
+    (markerOnlyLine.target.markerLine ?? 0) >= 1 && (markerOnlyLine.target.markerLeftOffset ?? 99) <= 8,
+    `marker-only-line smoke target should rest with its trailing pill starting a middle line: ${JSON.stringify(markerOnlyLine.target)}`
+  )
+  assert.ok(markerOnlyLine.expansion, `marker-only-line chip should expand in place: ${JSON.stringify(markerOnlyLine)}`)
+  assert.equal(
+    markerOnlyLine.expansion.markerLine,
+    markerOnlyLine.target.markerLine,
+    `a pill alone on its resting line must stay on that visible line when it hydrates (reveal in place): ${JSON.stringify(markerOnlyLine)}`
+  )
+  assert.ok(
+    markerOnlyLine.expansion.text.includes('assignee=712020'),
+    `marker-only-line expansion should reveal the full URL suffix: ${JSON.stringify(markerOnlyLine.expansion)}`
   )
 
   const largeBookmarks = await measureLargeBookmarkProgressiveRender(session)

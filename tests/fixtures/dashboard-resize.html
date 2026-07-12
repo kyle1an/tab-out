@@ -110,6 +110,13 @@
         ]
       }
       let bookmarkTree = []
+      const localStorageStore = {
+        tabOutPinnedPageChipsV1: [
+          'page-chip|tabs|' +
+            encodeURIComponent('scope|atlassian.net|example-team|/jira|') + '|' +
+            encodeURIComponent('url:https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A838adb9a-07e8-48f3-ac56-0db51007ac44')
+        ]
+      }
       const tabs = [
         {
           id: 9001,
@@ -395,8 +402,18 @@
         },
         storage: {
           local: {
-            get: async () => ({}),
-            set: async () => {}
+            get: async (keys) => {
+              if (keys == null) return { ...localStorageStore }
+              const names = typeof keys === 'string' ? [keys] : Array.isArray(keys) ? keys : Object.keys(keys)
+              const result = {}
+              for (const name of names) {
+                if (name in localStorageStore) result[name] = localStorageStore[name]
+              }
+              return result
+            },
+            set: async (items) => {
+              Object.assign(localStorageStore, items)
+            }
           }
         },
         tabGroups: {
@@ -519,6 +536,28 @@
             pinned: false,
             groupId: -1,
             index: 1304
+          },
+          {
+            id: 1305,
+            url: 'https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A838adb9a-07e8-48f3-ac56-0db51007ac44',
+            title: 'Platform Ops Dev 2026 (OPS2 Only) - Backlog - JIRA',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1305
+          },
+          {
+            id: 1306,
+            url: 'https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A9c1fe2b7-11a4-42d0-8e67-3aa940227b55',
+            title: 'Platform Ops Dev 2026 (OPS2 Only) - Backlog - JIRA',
+            favIconUrl: '',
+            windowId: 1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            index: 1306
           }
         )
         listeners.dispatch()

@@ -563,21 +563,28 @@ function getExpandedSingleLineNaturalWidth(measureEl: HTMLElement) {
 }
 
 /**
- * True when a NON-TAIL captured line contains a pill whose expanded rendering
- * is wider than its resting glyph: suppression markers always hydrate from a
- * ~14px squiggle to their full suppressed text, and structural placeholders
- * swap their "/" glyph for the label when one exists. Captured line breaks
- * describe the resting glyph layout; once such a pill hydrates mid-structure
- * the breaks are stale, so the expansion must re-wrap naturally instead of
- * freezing them. Tail-line pills don't invalidate anything — the tail always
- * reflows.
+ * True when a NON-TAIL captured line MIXES a hydrating pill with other
+ * content. Suppression markers hydrate from a ~14px squiggle to their full
+ * suppressed text, and structural placeholders swap their "/" glyph for the
+ * label when one exists — so a break captured around the resting glyph
+ * displaces everything after the pill once it hydrates mid-flow, and the
+ * expansion must re-wrap naturally instead of freezing stale breaks.
+ *
+ * A line holding ONLY pills is the opposite case: nothing shares the line,
+ * so the pills hydrate in place, growing rightward from the same anchor the
+ * resting glyph occupied. Those lines keep the frozen structure — reflowing
+ * them would visibly teleport a marker onto the previous line. Tail-line
+ * pills never invalidate anything — the tail always reflows.
  */
 function expansionCapturedLinesRewrapOnExpand(lineHtml: readonly string[]) {
   if (lineHtml.length < 2 || typeof document === 'undefined') return false
   const template = document.createElement('template')
   return lineHtml.slice(0, -1).some((html) => {
     template.innerHTML = html
-    return !!template.content.querySelector('.chip-title-suppression-marker, .chip-strip-indicator[aria-label]')
+    const pills = Array.from(template.content.querySelectorAll('.chip-title-suppression-marker, .chip-strip-indicator[aria-label]'))
+    if (pills.length === 0) return false
+    for (const pill of pills) pill.remove()
+    return (template.content.textContent || '').trim() !== ''
   })
 }
 
