@@ -259,7 +259,7 @@ test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
   assert.match(source, /\[transform:translateX\(var\(--active-tab-left\)\)_translateY\(-50%\)\]/)
-  assert.match(source, /\[transition:width_0\.2s_ease-in-out,transform_0\.2s_ease-in-out\]/)
+  assert.match(source, /transition-\[width,transform\] duration-200 ease-swift/)
   assert.doesNotMatch(source, /source-switch-indicator[^"]*-translate-y-1\/2/)
 })
 
