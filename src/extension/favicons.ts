@@ -25,13 +25,17 @@ export function pickFavicon(tab?: Pick<DashboardTab, 'favIconUrl' | 'url'> | nul
 }
 
 /**
- * pickTabFavicon(tab) — favicon for an OPEN tab. Chrome's tab.favIconUrl is
- * the source of truth for the browser-visible favicon, including suspended
- * tabs. Suspended tabs only fall back to the unwrapped page's favicon cache
- * when Chrome has no favicon URL yet.
+ * pickTabFavicon(tab) — favicon for an OPEN tab. data: favicons pass through
+ * verbatim (suspended tabs report faded data: icons, and data: URIs cannot be
+ * blocked cross-origin). Remote favicons resolve through Chrome's local
+ * favicon cache instead of hot-linking: sites that send
+ * Cross-Origin-Resource-Policy: same-origin (claude.ai, notion.so, …) make the
+ * browser discard their favicon bytes on extension pages, so the raw
+ * favIconUrl only serves as a fallback where the favicon API is unavailable.
  */
 export function pickTabFavicon(tab: Pick<DashboardTab, 'favIconUrl' | 'url' | 'suspended'>): string {
-  if (tab.favIconUrl) return tab.favIconUrl
-  if (tab.suspended) return faviconCacheUrl(tab.url || '')
-  return tab.favIconUrl || ''
+  const fav = tab.favIconUrl || ''
+  if (fav.startsWith('data:')) return fav
+  if (fav || tab.suspended) return faviconCacheUrl(tab.url || '') || fav
+  return ''
 }
