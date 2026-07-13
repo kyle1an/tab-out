@@ -8,8 +8,10 @@
    • width search + measure element — the sizing half
    • clamp/fade — resting truncated titles (Working Set rows use
      only this slice)
-   • capture primitives — consumed by the per-surface capture
-     engines until those converge behind this seam
+   • capture primitives — the sanctioned interface for the
+     per-surface capture engines; measurement POLICY stays with each
+     surface (docs/adr/0002 — a shared measurer was tried and
+     rejected: its config would be as wide as the code it hides)
    ================================================================ */
 
 export { createTitleExpansionController, createTitleExpansionLane } from './controller'
