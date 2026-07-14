@@ -800,7 +800,10 @@ export function App({
             workingSet: nextWorkingSet
           })
         })
-      } catch {}
+      } catch {
+        if (requestId !== sourceSwitchSeqRef.current) return
+        showToast('Could not switch source')
+      }
     })()
   }, [source, filter, historyRange, historyFilterEnabled, pinnedDomains, clearHoverUrlNow, currentMissionContainers])
 
