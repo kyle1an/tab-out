@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type ReactNode, type Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type ReactNode, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
 import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
@@ -39,6 +39,7 @@ type MissionContainerRef = {
 const PROGRESSIVE_CARD_THRESHOLD = 80
 const PROGRESSIVE_CARD_INITIAL_COUNT = 24
 const PROGRESSIVE_CARD_CHUNK_SIZE = 24
+const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
 
 const HistoryRangeSelect = lazy(() => import('./HistoryRangeSelect').then((module) => ({ default: module.HistoryRangeSelect })))
 
@@ -564,12 +565,12 @@ export function App({
     })
     dispatchAppDashboard({ type: 'startupSnapshot', snapshot })
   }
-  function setHistoryRange(nextHistoryRange: string) {
+  const setHistoryRange = useCallback(function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
-  }
-  function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
+  }, [])
+  const setTabHistory = useCallback(function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
     dispatchAppDashboard({ type: 'tabHistory', tabHistory: nextTabHistory })
-  }
+  }, [])
   function setWorkingSet(nextWorkingSet: WorkingSetSnapshot | null) {
     dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
   }
@@ -758,15 +759,19 @@ export function App({
     return startStartupOrderDebugDomSampling(STARTUP_ORDER_DEBUG_CAPTURE)
   }, [])
 
-  async function onCloseFiltered() {
+  const onCloseFiltered = useCallback(async function onCloseFiltered() {
     await closeFilteredTabs(dashboardVm.filteredCloseUrls)
-  }
+  }, [dashboardVm.filteredCloseUrls])
 
-  async function onDedupAll() {
+  const onDedupAll = useCallback(async function onDedupAll() {
     await dedupeTabs({ urls: dashboardVm.globalDedupeUrls, preservePinnedTabOut: true })
-  }
+  }, [dashboardVm.globalDedupeUrls])
 
-  function onSourceChange(nextSource: DashboardSource) {
+  const onTabsChange = useCallback(function onTabsChange() {
+    void refreshDashboard({ animateCards: true })
+  }, [refreshDashboard])
+
+  const onSourceChange = useCallback(function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === source) return
     const requestId = ++sourceSwitchSeqRef.current
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
@@ -797,7 +802,7 @@ export function App({
         })
       } catch {}
     })()
-  }
+  }, [source, filter, historyRange, historyFilterEnabled, pinnedDomains, clearHoverUrlNow, currentMissionContainers])
 
   const primaryMissionsEmpty = matchedCards.length === 0
   const showHistorySection = showHistoryRange || showHistoryMatches
@@ -805,7 +810,7 @@ export function App({
   const historyMatchesFlush = primaryMissionsEmpty
   const otherTabsFlush = primaryMissionsEmpty && !showBookmarkMatches && !showHistorySection
   // react-doctor-disable-next-line react-hooks-js/refs -- the mission grid refs are forwarded to the masonry container elements; they're attached by React, not read for render output.
-  const missionSections = dashboardMissionSections({
+  const missionSections = useMemo(() => dashboardMissionSections({
     bookmarkMatchedCards,
     bookmarkMatchesFlush,
     bookmarkMissionsRef,
@@ -826,7 +831,7 @@ export function App({
     source,
     unmatchedCards,
     unmatchedMissionsRef
-  })
+  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showPrimaryEmptyState, source, unmatchedCards])
 
   useMissionOrderMemory({
     previousOrderRef,
@@ -848,20 +853,23 @@ export function App({
     void refreshDashboard({ startupSnapshot: true })
   }, [dashboardContentVisible, localStateLoaded, refreshDashboard])
 
+  // App bails out of React Compiler (the render-time ordering-cache ref reads
+  // above are deliberate), so this context value is memoized manually — the
+  // stable-actions contract in DashboardInteractionContext depends on it.
+  const dashboardActions = useMemo(() => ({
+    onHoverUrlChange: handleHoverUrlChange,
+    onLayoutChange: scheduleMissionsMasonry,
+    onTogglePinnedDomain: togglePinnedDomain,
+    onReorderPinnedDomain: reorderPinnedDomain,
+    onTogglePinnedSection: togglePinnedSection,
+    onTogglePinnedPageChip: togglePinnedPageChip
+  }), [handleHoverUrlChange, scheduleMissionsMasonry, togglePinnedDomain, reorderPinnedDomain, togglePinnedSection, togglePinnedPageChip])
+
   return (
-    <DashboardActionsProvider
-      value={{
-        onHoverUrlChange: handleHoverUrlChange,
-        onLayoutChange: scheduleMissionsMasonry,
-        onTogglePinnedDomain: togglePinnedDomain,
-        onReorderPinnedDomain: reorderPinnedDomain,
-        onTogglePinnedSection: togglePinnedSection,
-        onTogglePinnedPageChip: togglePinnedPageChip
-      }}
-    >
+    <DashboardActionsProvider value={dashboardActions}>
       <HoverStateProvider value={hoverMatch}>
         <DashboardShell
-          closedTabs={dashboardContentVisible ? closedTabs : []}
+          closedTabs={dashboardContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
           savedKeys={visibleDashboard?.savedKeys}
           filter={filter}
           filterFocusRequest={filterFocusRequest}
@@ -874,7 +882,7 @@ export function App({
           onCloseFiltered={onCloseFiltered}
           onDedupAll={onDedupAll}
           onSourceChange={onSourceChange}
-          onTabsChange={() => refreshDashboard({ animateCards: true })}
+          onTabsChange={onTabsChange}
           setFilterInput={setFilterInput}
           setHistoryRange={setHistoryRange}
           setTabHistory={setTabHistory}

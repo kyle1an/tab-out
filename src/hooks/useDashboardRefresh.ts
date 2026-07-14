@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { fetchClosedTabs, isClosedTabFetchSuppressed } from '../extension/closed-tabs.js'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
 import { fetchDashboardServiceState } from '../extension/dashboard-service-state.js'
@@ -250,5 +250,8 @@ export function useDashboardRefresh({
     requestAnimationFrame(() => refreshRef.current())
   }, [pinnedDomains, localStateLoaded])
 
-  return (options?: RefreshOptions) => refreshRef.current(options)
+  // Stable identity: the hook itself bails out of React Compiler (the render-time
+  // refreshRef assignment is its latest-callback architecture), so the returned
+  // facade is memoized manually — consumers key effects and props on it.
+  return useCallback((options?: RefreshOptions) => refreshRef.current(options), [])
 }
