@@ -1,6 +1,23 @@
 # Plans
 
-Two waves so far: the animation audit (001-004, executed) and the architecture grilling (005-008).
+Three waves so far: the animation audit (001-004, executed), the architecture grilling (005-008), and the React audit (009-012).
+
+## React audit wave — audited 2026-07-14 at `119ec06`
+
+Written by the `improve-react` audit (React Doctor scan + React Compiler coverage check). The compiler check is the load-bearing evidence: `App`, `usePageChipElement`, `useHistoryEntryExpansion`, and `useDashboardRefresh` all bail out of React Compiler, so the "auto-memoized" assumption fails exactly on the hot path (hover + filter keystrokes).
+
+| # | Plan | Severity | Status |
+| --- | --- | --- | --- |
+| 009 | [Stabilize App's dashboard seams](009-stabilize-app-dashboard-seams.md) | HIGH | DONE (`8350a33`) |
+| 010 | [Compile the per-chip hook](010-compile-page-chip-hook.md) | HIGH | DONE (`b0ba829`) |
+| 011 | [Compile the history-row expansion hook](011-compile-history-entry-expansion-hook.md) | MEDIUM | DONE (`60b8ee8`) |
+| 012 | [Source-switch failure toast](012-source-switch-failure-toast.md) | MEDIUM | DONE (`7361a3c`) |
+
+Executed 2026-07-14. After-state: 95 functions compile, 12 bailouts remain — all settled-by-design (`App` ×5 ordering-cache refs, `useDashboardRefresh` latest-callback architecture, `use-title-expansion` lazy-init facade, `tooltip` mergeRefs ×3, `layout.ts` ×2 — each with stable returns via manual memoization).
+
+Execution order: **009 → 010 → 011** (independent diffs, but profile-verify together after all three — 009 quiets the tree, 010/011 make the remaining designed re-renders cheap), then **012** any time (independent; if it runs after 009 the catch clause lives inside a `useCallback`, noted in the plan). All four touch disjoint lines; 009 and 012 both edit `App.tsx` `onSourceChange`, so land 009 before 012 or rebase.
+
+Audit results not planned: react-doctor's 3× `no-barrel-import` on `./title-expansion` (rejected — ADR-0002 names the barrel "the sanctioned seam"; single-entry bundle, zero tree-shaking cost) and 1× `no-giant-component` on `App` (rejected — orchestrator wiring, already delegates rendering; splitting for the metric adds indirection). The `use-title-expansion`/`tooltip`/`layout.ts` compiler bailouts are settled patterns with stable returns (lazy-init facade, manual useCallbacks) — left alone. Security and a11y passes came back clean. Missed opportunities (unplanned): top-level error boundary + `createRoot` `onUncaughtError` (a render crash currently blanks the new-tab page), per-chip hover subscription via external store (measure first — after 009/010 hover still re-renders every chip by design), compiler-coverage regression check in `pnpm verify`.
 
 ## Architecture wave — grilled 2026-07-12 at `65a90ab`
 
