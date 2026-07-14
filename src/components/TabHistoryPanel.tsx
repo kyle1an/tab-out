@@ -565,8 +565,9 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
   const updateHistoryEntryExpansionMeasurementsRef = useRef(() => {})
-  // react-doctor-disable-next-line react-hooks-js/refs -- latest-callback ref pattern; the ref is only invoked later from the fonts-loaded effect, never read for render output.
-  updateHistoryEntryExpansionMeasurementsRef.current = updateHistoryEntryExpansionMeasurements
+  useEffect(() => {
+    updateHistoryEntryExpansionMeasurementsRef.current = updateHistoryEntryExpansionMeasurements
+  })
 
   useLayoutEffect(() => {
     const titleEl = titleRef.current
