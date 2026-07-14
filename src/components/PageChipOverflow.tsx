@@ -17,7 +17,7 @@ interface PageChipOverflowOptions {
   hiddenChips: DashboardChipData[]
   hiddenCount: number
   filter?: string
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   overflowContainerClassName?: OverflowContainerClassName
   overflowButtonClassName?: string
 }

@@ -49,12 +49,12 @@ interface PathgroupSectionProps {
   filter?: string
   suppressedTitleParts?: DashboardTitleSuppression[]
   useSuppressionTokenTones?: boolean
-  suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneIndexByText?: Readonly<Record<string, number>>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 }
 
 const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []
-const EMPTY_SUPPRESSION_TONE_INDEX = new Map<string, number>()
+const EMPTY_SUPPRESSION_TONE_INDEX: Readonly<Record<string, number>> = {}
 
 function pathGroupDisplayLabel(label: string): string {
   return label.startsWith('/') ? label : `/${label}`

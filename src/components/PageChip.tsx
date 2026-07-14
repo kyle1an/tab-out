@@ -69,7 +69,7 @@ const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
 interface PageChipProps {
   chip: DashboardChipData
   filter?: string
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 }
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
@@ -1708,7 +1708,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   function suppressionMarkerNode(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
     const partKey = part.trim().toLowerCase()
     const active = activeSuppressedTitleKey !== '' && partKey === activeSuppressedTitleKey
-    const tone = active ? activeSuppressionTone : suppressedTitleToneByText?.get(partKey) ?? ''
+    const tone = active ? activeSuppressionTone : titleSuppressionToneForText(part, suppressedTitleToneByText)
     const label = `Suppressed title text: ${part}`
     const marker = (
       <span

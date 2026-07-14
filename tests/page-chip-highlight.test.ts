@@ -2394,7 +2394,7 @@ test('PageChip colors title suppression markers from token tones before hover', 
         displaySegments: ['Alpha channel'],
         suppressedTitleParts: ['Example Workspace', 'JIRA']
       }),
-      suppressedTitleToneByText: new Map<string, TitleSuppressionTone | ''>([
+      suppressedTitleToneByText: Object.fromEntries<TitleSuppressionTone | ''>([
         ['example workspace', 'amber'],
         ['jira', 'teal']
       ])
@@ -2497,7 +2497,7 @@ test('PageChip marks chips affected by the active suppressed title text', () => 
         displaySegments: ['Alpha channel'],
         suppressedTitleParts: ['Example Workspace']
       }),
-      suppressedTitleToneByText: new Map<string, TitleSuppressionTone | ''>([
+      suppressedTitleToneByText: Object.fromEntries<TitleSuppressionTone | ''>([
         ['example workspace', 'teal']
       ])
     }),
@@ -2814,7 +2814,7 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
       suppressedTitleParts: ['Other Workspace']
     })
   ]
-  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>([
+  const suppressedTitleToneByText = Object.fromEntries<TitleSuppressionTone | ''>([
     ['example workspace', 'teal']
   ])
   const flatHtml = renderWithDomainCardContext(
@@ -2866,7 +2866,7 @@ test('Overflow expanders use full chip color when all hidden chips match active 
       suppressedTitleParts: ['Example Workspace']
     })
   ]
-  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>([
+  const suppressedTitleToneByText = Object.fromEntries<TitleSuppressionTone | ''>([
     ['example workspace', 'teal']
   ])
   const flatHtml = renderWithDomainCardContext(

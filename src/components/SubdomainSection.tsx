@@ -38,24 +38,24 @@ interface SubdomainSectionProps {
   suppressedTitleParts?: DashboardTitleSuppression[]
   websitePathSections: Array<DashboardWebsitePathSectionVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
-    suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+    suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
     clusters: Array<DashboardClusterVM & {
       titleSuppressionToneScope?: TitleSuppressionToneScope
-      suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+      suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
     }>
   }>
   clusters: Array<DashboardClusterVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
-    suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+    suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   }>
   filter?: string
   useSuppressionTokenTones?: boolean
-  suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneIndexByText?: Readonly<Record<string, number>>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 }
 
 const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []
-const EMPTY_SUPPRESSION_TONE_INDEX = new Map<string, number>()
+const EMPTY_SUPPRESSION_TONE_INDEX: Readonly<Record<string, number>> = {}
 
 function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
@@ -191,7 +191,7 @@ export function SubdomainSection({
           isFirstContent={isFirst && !showHeader && !hasFlat && index === 0}
           filter={filter}
           useSuppressionTokenTones={websitePathSection.titleSuppressionToneScope?.useSuppressionTokenTones ?? false}
-          suppressedTitleToneIndexByText={websitePathSection.titleSuppressionToneScope?.suppressedTitleToneIndexByText ?? new Map<string, number>()}
+          suppressedTitleToneIndexByText={websitePathSection.titleSuppressionToneScope?.suppressedTitleToneIndexByText ?? EMPTY_SUPPRESSION_TONE_INDEX}
           suppressedTitleToneByText={websitePathSection.suppressedTitleToneByText}
         />
       ))}

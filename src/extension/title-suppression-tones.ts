@@ -23,17 +23,20 @@ import type { DashboardSectionVM, DashboardTitleSuppression, DashboardWebsitePat
 export const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
 export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
 
+// Tone lookups are plain records, not Maps: tone scopes ride the view-model
+// into the startup-snapshot cache, and chrome.storage silently serializes a
+// Map to {} — a revived Map crashes the first `.get` after a page refresh.
 export interface TitleSuppressionToneScope {
   useSuppressionTokenTones: boolean
-  suppressedTitleToneIndexByText: ReadonlyMap<string, number>
-  suppressedTitleToneByText: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneIndexByText: Readonly<Record<string, number>>
+  suppressedTitleToneByText: Readonly<Record<string, TitleSuppressionTone | ''>>
   usedToneCount: number
 }
 
 const EMPTY_TITLE_SUPPRESSION_TONE_SCOPE: TitleSuppressionToneScope = {
   useSuppressionTokenTones: false,
-  suppressedTitleToneIndexByText: new Map(),
-  suppressedTitleToneByText: new Map(),
+  suppressedTitleToneIndexByText: {},
+  suppressedTitleToneByText: {},
   usedToneCount: 0
 }
 
@@ -62,9 +65,11 @@ export function titleSuppressionToneForIndex(index: number): TitleSuppressionTon
 
 export function titleSuppressionToneForText(
   text: string,
-  toneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  toneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 ): TitleSuppressionTone | '' {
-  return toneByText?.get(titleSuppressionKey(text)) ?? ''
+  // typeof guards against inherited keys ('constructor') on storage-revived records.
+  const tone = toneByText?.[titleSuppressionKey(text)]
+  return typeof tone === 'string' ? tone : ''
 }
 
 export function createTitleSuppressionToneScope(
@@ -78,15 +83,15 @@ export function createTitleSuppressionToneScope(
   const toneIndexByText = new Map<string, number>(
     toneOrderedParts.map(({ part }, toneOffset) => [titleSuppressionKey(part.text), startToneIndex + toneOffset])
   )
-  const suppressedTitleToneIndexByText = new Map<string, number>(
+  const suppressedTitleToneIndexByText = Object.fromEntries(
     parts.map((part, index) => [titleSuppressionKey(part.text), toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex + index])
-  )
-  const suppressedTitleToneByText = new Map<string, TitleSuppressionTone | ''>(
+  ) as Record<string, number>
+  const suppressedTitleToneByText = Object.fromEntries(
     parts.map((part) => [
       titleSuppressionKey(part.text),
       useSuppressionTokenTones ? titleSuppressionToneForIndex(toneIndexByText.get(titleSuppressionKey(part.text)) ?? startToneIndex) : ''
     ])
-  )
+  ) as Record<string, TitleSuppressionTone | ''>
 
   return {
     useSuppressionTokenTones,
@@ -97,12 +102,12 @@ export function createTitleSuppressionToneScope(
 }
 
 export function mergeTitleSuppressionToneMaps(
-  ...maps: Array<ReadonlyMap<string, TitleSuppressionTone | ''> | undefined>
-): ReadonlyMap<string, TitleSuppressionTone | ''> {
-  const merged = new Map<string, TitleSuppressionTone | ''>()
+  ...maps: Array<Readonly<Record<string, TitleSuppressionTone | ''>> | undefined>
+): Readonly<Record<string, TitleSuppressionTone | ''>> {
+  const merged: Record<string, TitleSuppressionTone | ''> = {}
   for (const map of maps) {
     if (!map) continue
-    for (const [key, tone] of map) merged.set(key, tone)
+    Object.assign(merged, map)
   }
   return merged
 }

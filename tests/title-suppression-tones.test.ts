@@ -39,17 +39,17 @@ test('tones are allocated by token coverage before summary position', () => {
   const scope = createTitleSuppressionToneScope([part('alpha', 1), part('beta', 5)])
 
   assert.equal(scope.useSuppressionTokenTones, true)
-  assert.equal(scope.suppressedTitleToneIndexByText.get('beta'), 0)
-  assert.equal(scope.suppressedTitleToneIndexByText.get('alpha'), 1)
-  assert.equal(scope.suppressedTitleToneByText.get('beta'), 'amber')
-  assert.equal(scope.suppressedTitleToneByText.get('alpha'), 'teal')
+  assert.equal(scope.suppressedTitleToneIndexByText['beta'], 0)
+  assert.equal(scope.suppressedTitleToneIndexByText['alpha'], 1)
+  assert.equal(scope.suppressedTitleToneByText['beta'], 'amber')
+  assert.equal(scope.suppressedTitleToneByText['alpha'], 'teal')
 })
 
 test('equal coverage keeps summary reading order', () => {
   const scope = createTitleSuppressionToneScope([part('zeta', 2), part('alpha', 2)])
 
-  assert.equal(scope.suppressedTitleToneIndexByText.get('zeta'), 0)
-  assert.equal(scope.suppressedTitleToneIndexByText.get('alpha'), 1)
+  assert.equal(scope.suppressedTitleToneIndexByText['zeta'], 0)
+  assert.equal(scope.suppressedTitleToneIndexByText['alpha'], 1)
 })
 
 test('a neutral single-token scope consumes no palette color', () => {
@@ -57,7 +57,7 @@ test('a neutral single-token scope consumes no palette color', () => {
 
   assert.equal(scope.useSuppressionTokenTones, false)
   assert.equal(scope.usedToneCount, 0)
-  assert.equal(scope.suppressedTitleToneByText.get('solo'), '')
+  assert.equal(scope.suppressedTitleToneByText['solo'], '')
 })
 
 test('a single token spanning rendered child groups keeps its tone', () => {
@@ -65,16 +65,16 @@ test('a single token spanning rendered child groups keeps its tone', () => {
 
   assert.equal(scope.useSuppressionTokenTones, true)
   assert.equal(scope.usedToneCount, 1)
-  assert.equal(scope.suppressedTitleToneByText.get('spanner'), 'amber')
+  assert.equal(scope.suppressedTitleToneByText['spanner'], 'amber')
 })
 
 test('palette colors are reused only after the four tones are exhausted', () => {
   const scope = createTitleSuppressionToneScope([part('a', 5), part('b', 4), part('c', 3), part('d', 2), part('e', 1)])
 
-  assert.equal(scope.suppressedTitleToneByText.get('a'), 'amber')
-  assert.equal(scope.suppressedTitleToneByText.get('e'), titleSuppressionToneForIndex(4))
-  assert.equal(scope.suppressedTitleToneByText.get('e'), 'amber')
-  assert.notEqual(scope.suppressedTitleToneByText.get('b'), scope.suppressedTitleToneByText.get('c'))
+  assert.equal(scope.suppressedTitleToneByText['a'], 'amber')
+  assert.equal(scope.suppressedTitleToneByText['e'], titleSuppressionToneForIndex(4))
+  assert.equal(scope.suppressedTitleToneByText['e'], 'amber')
+  assert.notEqual(scope.suppressedTitleToneByText['b'], scope.suppressedTitleToneByText['c'])
 })
 
 test('allocation is deterministic for identical inputs', () => {
@@ -82,7 +82,7 @@ test('allocation is deterministic for identical inputs', () => {
   const first = createTitleSuppressionToneScope(parts)
   const second = createTitleSuppressionToneScope(parts)
 
-  assert.deepEqual([...first.suppressedTitleToneByText], [...second.suppressedTitleToneByText])
+  assert.deepEqual(Object.entries(first.suppressedTitleToneByText), Object.entries(second.suppressedTitleToneByText))
 })
 
 test('one running tone index walks the card tree so meanings never share a color early', () => {
@@ -97,24 +97,24 @@ test('one running tone index walks the card tree so meanings never share a color
 
   const { cardSuppressionToneScope, sections: toned } = allocateCardSuppressionTones([part('card-a', 3), part('card-b', 1)], sections)
 
-  assert.equal(cardSuppressionToneScope.suppressedTitleToneByText.get('card-a'), 'amber')
-  assert.equal(cardSuppressionToneScope.suppressedTitleToneByText.get('card-b'), 'teal')
+  assert.equal(cardSuppressionToneScope.suppressedTitleToneByText['card-a'], 'amber')
+  assert.equal(cardSuppressionToneScope.suppressedTitleToneByText['card-b'], 'teal')
 
   const neutral = toned[0]!
   assert.equal(neutral.titleSuppressionToneScope?.usedToneCount, 0)
-  assert.equal(neutral.suppressedTitleToneByText?.get('quiet'), '')
+  assert.equal(neutral.suppressedTitleToneByText?.['quiet'], '')
 
   const busy = toned[1]!
-  assert.equal(busy.titleSuppressionToneScope?.suppressedTitleToneByText.get('x'), 'sky')
-  assert.equal(busy.titleSuppressionToneScope?.suppressedTitleToneByText.get('y'), 'rose')
+  assert.equal(busy.titleSuppressionToneScope?.suppressedTitleToneByText['x'], 'sky')
+  assert.equal(busy.titleSuppressionToneScope?.suppressedTitleToneByText['y'], 'rose')
 
   const pathGroup = busy.clusters[0]!
-  assert.equal(pathGroup.titleSuppressionToneScope?.suppressedTitleToneByText.get('deep'), titleSuppressionToneForIndex(4))
+  assert.equal(pathGroup.titleSuppressionToneScope?.suppressedTitleToneByText['deep'], titleSuppressionToneForIndex(4))
 
   // The merged map carries every ancestor tone down to chip markers.
-  assert.equal(pathGroup.suppressedTitleToneByText?.get('card-a'), 'amber')
-  assert.equal(pathGroup.suppressedTitleToneByText?.get('x'), 'sky')
-  assert.equal(pathGroup.suppressedTitleToneByText?.get('deep'), 'amber')
+  assert.equal(pathGroup.suppressedTitleToneByText?.['card-a'], 'amber')
+  assert.equal(pathGroup.suppressedTitleToneByText?.['x'], 'sky')
+  assert.equal(pathGroup.suppressedTitleToneByText?.['deep'], 'amber')
 })
 
 test('a child scope overrides an ancestor tone for the same token text', () => {
@@ -124,7 +124,7 @@ test('a child scope overrides an ancestor tone for the same token text', () => {
 
   const { cardSuppressionToneScope, sections: toned } = allocateCardSuppressionTones([part('shared', 2), part('card-only', 1)], sections)
 
-  assert.equal(cardSuppressionToneScope.suppressedTitleToneByText.get('shared'), 'amber')
-  assert.equal(toned[0]!.suppressedTitleToneByText?.get('shared'), 'sky')
-  assert.equal(toned[0]!.suppressedTitleToneByText?.get('card-only'), 'teal')
+  assert.equal(cardSuppressionToneScope.suppressedTitleToneByText['shared'], 'amber')
+  assert.equal(toned[0]!.suppressedTitleToneByText?.['shared'], 'sky')
+  assert.equal(toned[0]!.suppressedTitleToneByText?.['card-only'], 'teal')
 })

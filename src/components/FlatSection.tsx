@@ -9,7 +9,7 @@ interface FlatSectionProps {
   hiddenCount: number
   afterSeparator?: boolean
   filter?: string
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 }
 
 export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', suppressedTitleToneByText }: FlatSectionProps) {

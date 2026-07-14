@@ -154,7 +154,7 @@ export interface DashboardClusterVM {
   suppressedTitleParts?: DashboardTitleSuppression[]
   /** Populated by computeDomainCardViewModel's tone allocation walk. */
   titleSuppressionToneScope?: TitleSuppressionToneScope
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
@@ -173,7 +173,7 @@ export interface DashboardWebsitePathSectionVM {
   suppressedTitleParts?: DashboardTitleSuppression[]
   /** Populated by computeDomainCardViewModel's tone allocation walk. */
   titleSuppressionToneScope?: TitleSuppressionToneScope
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   clusters: DashboardClusterVM[]
   isPinned?: boolean
 }
@@ -192,7 +192,7 @@ export interface DashboardSectionVM {
   suppressedTitleParts?: DashboardTitleSuppression[]
   /** Populated by computeDomainCardViewModel's tone allocation walk. */
   titleSuppressionToneScope?: TitleSuppressionToneScope
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   clusters: DashboardClusterVM[]
   websitePathSections: DashboardWebsitePathSectionVM[]
   isPinned?: boolean

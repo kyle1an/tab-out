@@ -12,7 +12,7 @@ interface TitleSuppressionSummaryProps {
   activeSuppressedTitle: string
   setActiveSuppressedTitle: (text: string) => void
   useSuppressionTokenTones: boolean
-  suppressedTitleToneIndexByText: ReadonlyMap<string, number>
+  suppressedTitleToneIndexByText: Readonly<Record<string, number>>
   className?: string
 }
 
@@ -39,7 +39,8 @@ export function TitleSuppressionSummary({
       {suppressedTitleParts.map((part, index) => {
         const label = `Suppressed in ${part.count} title${part.count !== 1 ? 's' : ''}: ${part.text}`
         const active = activeSuppressedTitle === part.text
-        const toneIndex = suppressedTitleToneIndexByText.get(titleSuppressionKey(part.text)) ?? index
+        const allocatedToneIndex = suppressedTitleToneIndexByText[titleSuppressionKey(part.text)]
+        const toneIndex = typeof allocatedToneIndex === 'number' ? allocatedToneIndex : index
         const closableUrls = suppressionCloseUrlsByText[titleSuppressionKey(part.text)] ?? []
         const suspendableUrls = suppressionSuspendUrlsByText[titleSuppressionKey(part.text)] ?? []
         const tokenButton = (

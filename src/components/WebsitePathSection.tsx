@@ -36,18 +36,18 @@ interface WebsitePathSectionProps {
   suppressedTitleParts?: DashboardTitleSuppression[]
   clusters: Array<DashboardClusterVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
-    suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+    suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   }>
   className?: string
   isFirstContent?: boolean
   filter?: string
   useSuppressionTokenTones?: boolean
-  suppressedTitleToneIndexByText?: ReadonlyMap<string, number>
-  suppressedTitleToneByText?: ReadonlyMap<string, TitleSuppressionTone | ''>
+  suppressedTitleToneIndexByText?: Readonly<Record<string, number>>
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 }
 
 const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []
-const EMPTY_SUPPRESSION_TONE_INDEX = new Map<string, number>()
+const EMPTY_SUPPRESSION_TONE_INDEX: Readonly<Record<string, number>> = {}
 
 function WebsitePathSectionCloseButton({ count, isFirstContent = false, onClick }: WebsitePathSectionCloseButtonProps) {
   const title = `Close ${count} tab${count !== 1 ? 's' : ''}`
