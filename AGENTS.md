@@ -168,4 +168,3 @@ For Linux, use `xclip` or print the path if clipboard support is unavailable. Fo
 - Triage labels: use the default five-status vocabulary; see `docs/agents/triage-labels.md`.
 - Domain docs: this is a single-context repo with root `CONTEXT.md` and optional `docs/adr/`; see `docs/agents/domain.md`.
 - UI debugging notes: `docs/debugging-the-dashboard.md` covers running the dashboard against fake tab data without an extension reload loop; `docs/tooltip-migration-notes.md` records tooltip migration decisions and open issues.
-- `docs/superpowers/*` contains historical plans/specs; read those only when the task names them or touches that exact work.

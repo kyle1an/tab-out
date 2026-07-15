@@ -2,7 +2,6 @@ node_modules/
 *.log
 *.db
 .DS_Store
-docs/superpowers/
 .playwright-mcp/
 
 # Personal config (landing page patterns, etc.) — never push to GitHub
