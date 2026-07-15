@@ -13,7 +13,9 @@ Written by the `improve-react` audit (React Doctor scan + React Compiler coverag
 | 011 | [Compile the history-row expansion hook](011-compile-history-entry-expansion-hook.md) | MEDIUM | DONE (`60b8ee8`) |
 | 012 | [Source-switch failure toast](012-source-switch-failure-toast.md) | MEDIUM | DONE (`7361a3c`) |
 
-Executed 2026-07-14. After-state: 95 functions compile, 12 bailouts remain — all settled-by-design (`App` ×5 ordering-cache refs, `useDashboardRefresh` latest-callback architecture, `use-title-expansion` lazy-init facade, `tooltip` mergeRefs ×3, `layout.ts` ×2 — each with stable returns via manual memoization).
+Executed 2026-07-14. After-state: 96 functions compile, 12 bailouts remain — all settled-by-design (`App` ×5 ordering-cache refs, `useDashboardRefresh` latest-callback architecture, `use-title-expansion` lazy-init facade, `tooltip` mergeRefs ×3, `layout.ts` ×2 — each with stable returns via manual memoization). `pnpm verify` now gates this baseline (`scripts/react-compiler-check.mjs`).
+
+Post-wave follow-through (2026-07-15, fiber-probe measurement on the served fixture): the wave missed that `useDashboardViewModels` used no hooks at all, so the compiler silently skipped it (neither compiled nor bailed) and it rebuilt the full view model on every App render — every hover and pre-debounce keystroke re-rendered the whole tree despite 009's stable seams. Memoized in `8291d35`: keystroke sync cost 21ms → ~1ms, chips no longer render on keystrokes, `DashboardShell`'s only changing prop is `filterInput` (009's specified end state, now verified empirically). Same measurement closed the hover-store question: with the tree quiet, no hover hotspot remains — the `useSyncExternalStore` store stays unbuilt.
 
 Execution order: **009 → 010 → 011** (independent diffs, but profile-verify together after all three — 009 quiets the tree, 010/011 make the remaining designed re-renders cheap), then **012** any time (independent; if it runs after 009 the catch clause lives inside a `useCallback`, noted in the plan). All four touch disjoint lines; 009 and 012 both edit `App.tsx` `onSourceChange`, so land 009 before 012 or rebase.
 
