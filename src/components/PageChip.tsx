@@ -55,7 +55,7 @@ const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inl
 // Expanded chips reveal the full path suffix, so the cloned/measured copy must
 // wrap (and break long, space-free query strings) instead of staying on the
 // single nowrap line it uses while collapsed — otherwise it overflows the chip.
-const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path text-xs font-normal text-tab-muted opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
+const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path font-normal text-tab-muted opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   grewTaller: false,
   lineHtml: [],
@@ -368,7 +368,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
   }
 
   for (const variant of Array.from(fragment.querySelectorAll('.chip-title-variant'))) {
-    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-none bg-transparent px-1.5 py-[3px] text-xs leading-tight font-medium text-tab-muted'
+    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-none bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-tab-muted'
   }
 
   for (const marker of Array.from(fragment.querySelectorAll('.chip-title-suppression-marker'))) {
@@ -1921,7 +1921,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
             {' '}
             <span
               className={cn(
-                'chip-path text-xs font-normal text-tab-muted opacity-75',
+                'chip-path font-normal text-tab-muted opacity-75',
                 mode === 'chip'
                   ? 'inline-block whitespace-nowrap group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:whitespace-normal group-[.page-chip-expanded]/page-chip:wrap-break-word'
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal w-max wrap-break-word'
@@ -1980,7 +1980,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
         type="button"
         data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
         className={cn(
-          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] text-xs leading-tight font-medium text-tab-muted hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-tab-muted hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
           variantActive && 'bg-neutral-600/[0.075] text-tab-ink',
           variantCurrent && 'bg-neutral-100 text-tab-ink shadow-[inset_2px_0_0_0_var(--accent-amber)]',
@@ -2020,7 +2020,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
       return (
         <span
           key={variant.rawUrl || variant.tabUrl}
-          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 text-xs leading-tight font-medium text-tab-muted [corner-shape:squircle]"
+          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 leading-tight font-normal text-tab-muted [corner-shape:squircle]"
         >
           {labelContent}
         </span>
