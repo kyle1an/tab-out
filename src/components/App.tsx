@@ -18,6 +18,7 @@ import { Missions } from './Missions'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
+import { AppErrorBoundary } from './AppErrorBoundary'
 import { DashboardActionsProvider, HoverStateProvider } from './DashboardInteractionContext'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupOrderDebugVmSample, recordStartupTiming, startStartupOrderDebugDomSampling } from './startup-order-debug'
 import { cn } from '@/lib/utils'
@@ -904,5 +905,15 @@ export function App({
 export function mountApp(initialStartupSnapshot: DashboardStartupSnapshot | null = null, initialLocalState: DashboardLocalState | null = null) {
   const el = document.getElementById('appRoot')
   if (!el) return
-  createRoot(el).render(<App initialStartupSnapshot={initialStartupSnapshot} initialLocalState={initialLocalState} />)
+  createRoot(el, {
+    // Safety net for throws the boundary cannot catch (errors inside the
+    // boundary/fallback itself) — keep the evidence in the console.
+    onUncaughtError: (error, errorInfo) => {
+      console.error('[tab-out] uncaught render error', error, errorInfo.componentStack)
+    }
+  }).render(
+    <AppErrorBoundary>
+      <App initialStartupSnapshot={initialStartupSnapshot} initialLocalState={initialLocalState} />
+    </AppErrorBoundary>
+  )
 }
