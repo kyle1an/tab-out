@@ -36,4 +36,5 @@
    ================================================================ */
 
 export { chipTrim, CHIP_TRIM_TOKENS } from './trim'
+/** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type { ChipTrim, ChipTrimFacts } from './trim'

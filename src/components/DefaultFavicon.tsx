@@ -1,4 +1,4 @@
-export const DEFAULT_FAVICON_SRC = 'icons/chrome-default-favicon-16.png'
+const DEFAULT_FAVICON_SRC = 'icons/chrome-default-favicon-16.png'
 
 export function DefaultFavicon({ className = '' }: { className?: string }) {
   return (

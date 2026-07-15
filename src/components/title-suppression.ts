@@ -12,9 +12,7 @@ import type { DashboardChipData } from './types'
 
 export {
   emptyTitleSuppressionToneScope,
-  TITLE_SUPPRESSION_TONE_NAMES,
   titleSuppressionKey,
-  titleSuppressionToneForIndex,
   titleSuppressionToneForText
 } from '../extension/title-suppression-tones.js'
 export type { TitleSuppressionTone, TitleSuppressionToneScope } from '../extension/title-suppression-tones.js'

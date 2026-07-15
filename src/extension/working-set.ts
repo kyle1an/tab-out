@@ -14,7 +14,7 @@ export const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
 export const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
 export const WORKING_SET_DEFAULT_LIMIT = 8
 export const WORKING_SET_EXPANDED_LIMIT = 16
-export const WORKING_SET_MIN_ITEMS = 3
+const WORKING_SET_MIN_ITEMS = 3
 
 const WORKING_SET_ACTIVITY_VERSION = 1
 const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000

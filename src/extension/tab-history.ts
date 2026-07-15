@@ -7,7 +7,6 @@ import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot, WorkingSetItem }
 import type { ClosedTabEntry } from './closed-tabs.js'
 
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
-const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
 function emptySnapshot(): TabHistorySnapshot {
   return {
@@ -163,13 +162,6 @@ async function sendHistoryMessage(message: Record<string, unknown>): Promise<Tab
 
 export function fetchTabHistorySnapshot(): Promise<TabHistorySnapshot> {
   return sendHistoryMessage({ type: TAB_HISTORY_GET_MESSAGE })
-}
-
-export function switchTabHistoryFromDashboard(direction: number): Promise<TabHistorySnapshot> {
-  return sendHistoryMessage({
-    type: TAB_HISTORY_SWITCH_MESSAGE,
-    direction: direction === 1 ? 1 : -1
-  })
 }
 
 export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean> {

@@ -14,7 +14,7 @@
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 
-export const CLOSED_GHOST_DISMISSAL_STORAGE_KEY = 'tabOutDismissedClosedGhostsV1'
+const CLOSED_GHOST_DISMISSAL_STORAGE_KEY = 'tabOutDismissedClosedGhostsV1'
 
 // Chrome's recently-closed list itself ages out, so long-lived dismissal
 // records serve no purpose; prune anything older than this on load/save.

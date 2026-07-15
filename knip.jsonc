@@ -1,5 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Exports tagged /** @public */ are deliberate surface (seam barrels per
+  // ADR-0002, Base UI family exports) — excluded from unused-export reports.
+  "tags": ["-public"],
   "entry": [
     "src/app.tsx",
     "src/extension/background.ts",

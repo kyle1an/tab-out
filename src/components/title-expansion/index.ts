@@ -15,6 +15,7 @@
    ================================================================ */
 
 export { createTitleExpansionController, createTitleExpansionLane } from './controller'
+/** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type {
   TitleExpansionController,
   TitleExpansionControllerOptions,
@@ -22,10 +23,13 @@ export type {
   TitleExpansionScheduler
 } from './controller'
 export { useTitleExpansionController } from './use-title-expansion'
+/** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type { UseTitleExpansionControllerOptions } from './use-title-expansion'
 export { searchExpandedWidth } from './width-search'
+/** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type { ExpandedWidthSearchOptions, ExpandedWidthSearchResult } from './width-search'
 export { createExpansionMeasureElement } from './measure-dom'
+/** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type { ExpansionMeasureElementOptions } from './measure-dom'
 export {
   captureVisibleLineHtml,
@@ -40,4 +44,5 @@ export {
   truncatedTitleFadeEndPx,
   unwrapClampedTitleLines
 } from './line-capture'
+/** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
 export type { ExpansionLineClasses, TitleFadeBox, TitleLineFragmentRect } from './line-capture'

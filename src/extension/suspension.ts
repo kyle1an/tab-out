@@ -27,7 +27,7 @@
      unwrapSuspenderTitle.
    ================================================================ */
 
-export const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
+const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
 const SUSPENDED_PATH_SUFFIX = '/suspended.html'
 
 export function unwrapSuspenderUrl(url?: string): string {
@@ -143,7 +143,7 @@ function isSuspendTarget(value: unknown): value is SuspendTarget {
     && typeof candidate.template === 'string' && candidate.template !== ''
 }
 
-export async function loadSuspendTarget(): Promise<SuspendTarget | null> {
+async function loadSuspendTarget(): Promise<SuspendTarget | null> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) return null
   try {
     const stored = await chrome.storage.local.get(SUSPEND_TARGET_STORAGE_KEY)

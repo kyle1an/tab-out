@@ -13,10 +13,6 @@
                                global actions, and prebuilt card VMs
    • computeDomainCardViewModel — per-card VM, takes { filter, mode }
                                   and returns match-scoped fields
-   • getFilteredCloseableUrls — exact URLs the global filtered-close
-                                action should remove
-   • pickFavicon — tab.favIconUrl (preserves data: URIs) /
-                   chrome.runtime.getURL('/_favicon/?pageUrl=...')
    ================================================================ */
 
 import { getCurrentWindow } from './browser-tabs-gateway.js'
@@ -33,10 +29,9 @@ import { unwrapSuspenderUrl } from './suspension.js'
 import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
-export { pickFavicon } from './favicons.js'
 export { buildDomainGroups } from './domain-groups.js'
-export { computeDomainCardViewModel, dashboardChipOrderKeyForChip, dashboardChipOrderKeyForTab } from './domain-card-view-model.js'
-export { getFilteredCloseableUrls, tabMatchesFilter, tabMatchesLegacyFilter, tabMatchesSourceFilter } from './filter-match.js'
+export { computeDomainCardViewModel, dashboardChipOrderKeyForTab } from './domain-card-view-model.js'
+export { tabMatchesFilter, tabMatchesLegacyFilter } from './filter-match.js'
 
 /**
  * buildDashboardViewModel({ realTabs, domainGroups, filter }) — derives the

@@ -9,7 +9,7 @@ const HISTORY_ENTRY_SCROLLBAR_IDLE_HIDE_DELAY_MS = 2500
 // carves that popup's band out of itself.
 const HISTORY_ENTRY_SCROLLBAR_EXPANSION_CLEARANCE_PX = 0
 
-export interface HistoryScrollbarMetrics {
+interface HistoryScrollbarMetrics {
   thumbHeight: number
   thumbTop: number
   visible: boolean

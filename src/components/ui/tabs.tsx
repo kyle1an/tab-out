@@ -63,4 +63,5 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   )
 }
 
+/** @public — Base UI family surface kept whole; the app uses a subset today. */
 export { Tabs, TabsList, TabsTrigger, TabsContent }

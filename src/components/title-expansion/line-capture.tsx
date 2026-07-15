@@ -83,7 +83,7 @@ export function expandedLineContentOverflows(line: HTMLElement, tolerancePx: num
  * unbreakable tokens) can end the last visible line well short of the box,
  * where an edge-anchored gradient fades nothing and the text hard-stops.
  */
-export const TITLE_FADE_END_PROPERTY = '--title-fade-end'
+const TITLE_FADE_END_PROPERTY = '--title-fade-end'
 
 /** Fade ramp length — keep in sync with --title-fade-mask in base.css. */
 const TITLE_FADE_RAMP_PX = 60
@@ -270,7 +270,7 @@ export function captureVisibleLineHtml(el: HTMLElement, visibleLineCount: number
  * have left, and the element keeps scroll overflow so truncation detection
  * stays true while this presentation is active.
  */
-export const CLAMPED_TITLE_LINE_CLASS_NAME = 'clamped-title-line block whitespace-nowrap'
+const CLAMPED_TITLE_LINE_CLASS_NAME = 'clamped-title-line block whitespace-nowrap'
 
 /**
  * Rebuild hook for captured elements that must come back to life as real

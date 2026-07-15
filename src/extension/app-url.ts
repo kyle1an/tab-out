@@ -1,6 +1,6 @@
 export const FOCUS_FILTER_PARAM = 'focusFilter'
-export const FILTER_PARAM = 'filter'
-export const DEFAULT_PAGE_TITLE = '\u200e'
+const FILTER_PARAM = 'filter'
+const DEFAULT_PAGE_TITLE = '\u200e'
 
 type LocationParts = {
   pathname?: string

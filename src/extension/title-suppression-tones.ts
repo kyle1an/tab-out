@@ -20,7 +20,7 @@
 
 import type { DashboardSectionVM, DashboardTitleSuppression, DashboardWebsitePathSectionVM } from './types'
 
-export const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
+const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
 export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
 
 // Tone lookups are plain records, not Maps: tone scopes ride the view-model
@@ -101,7 +101,7 @@ export function createTitleSuppressionToneScope(
   }
 }
 
-export function mergeTitleSuppressionToneMaps(
+function mergeTitleSuppressionToneMaps(
   ...maps: Array<Readonly<Record<string, TitleSuppressionTone | ''>> | undefined>
 ): Readonly<Record<string, TitleSuppressionTone | ''>> {
   const merged: Record<string, TitleSuppressionTone | ''> = {}

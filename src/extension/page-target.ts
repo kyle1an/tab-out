@@ -8,7 +8,7 @@ export function pageTargetUrl(target: PageTarget | null | undefined): string {
   return target?.tabUrl || target?.url || ''
 }
 
-export function pageTargetRawUrl(target: PageTarget | null | undefined): string {
+function pageTargetRawUrl(target: PageTarget | null | undefined): string {
   return target?.rawUrl || pageTargetUrl(target)
 }
 

@@ -43,7 +43,7 @@ export function pathgroupPinId(
   return buildPinId(PIN_KIND_PATHGROUP, [domain, subdomainKey, websitePathKey, pathgroupKey])
 }
 
-export function isPinnableSectionId(id: unknown): id is string {
+function isPinnableSectionId(id: unknown): id is string {
   if (typeof id !== 'string' || id === '') return false
   const parts = id.split('|')
   const expected = PIN_KIND_FIELD_COUNTS[parts[0]]

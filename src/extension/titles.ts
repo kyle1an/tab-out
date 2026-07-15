@@ -2,13 +2,13 @@
    Domain & title cleanup helpers
 
    friendlyDomain — friendly display name for known hostnames; used
-                    inside cleanTitle to strip suffix domain noise
+                    inside cleanTitleWithRemovedSuffix to strip suffix domain noise
                     from page titles.
    stripTitleNoise — removes notification counts, email addresses,
                      X/Twitter cruft.
-   cleanTitle      — drops trailing " — Domain" / " | Domain" suffix.
-   cleanTitleWithRemovedSuffix — returns that removed suffix so the UI
-                    can keep the cleanup transparent.
+   cleanTitleWithRemovedSuffix — drops the trailing " — Domain" /
+                    " | Domain" suffix and returns what was removed so
+                    the UI can keep the cleanup transparent.
 
    No URL-based title synthesis: the chip displays (and sorts by) the
    exact title the page reports, so the read order always matches the
@@ -92,7 +92,7 @@ function capitalize(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1)
 }
 
-export function friendlyDomain(hostname: string): string {
+function friendlyDomain(hostname: string): string {
   if (!hostname) return ''
   if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname]
 
@@ -157,8 +157,4 @@ export function cleanTitleWithRemovedSuffix(title: string, hostname: string, ext
     }
   }
   return { title, removedSuffix: '' }
-}
-
-export function cleanTitle(title: string, hostname: string): string {
-  return cleanTitleWithRemovedSuffix(title, hostname).title
 }

@@ -110,7 +110,7 @@ export function dashboardChipOrderKeyForTab(tab: Pick<DashboardTab, 'sourceType'
   return dashboardChipOrderKey(tab.sourceType, 'url', tab.url)
 }
 
-export function dashboardChipOrderAltKeyForTab(tab: Pick<DashboardTab, 'sourceType' | 'rawUrl' | 'url'>): string | null {
+function dashboardChipOrderAltKeyForTab(tab: Pick<DashboardTab, 'sourceType' | 'rawUrl' | 'url'>): string | null {
   return tab.rawUrl && tab.rawUrl !== tab.url ? dashboardChipOrderKey(tab.sourceType, 'url', tab.rawUrl) : null
 }
 

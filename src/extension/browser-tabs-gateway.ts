@@ -80,16 +80,6 @@ export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
   }
 }
 
-export async function getCurrentTab(): Promise<chrome.tabs.Tab | null> {
-  const api = chromeTabsApi()
-  if (!api?.tabs?.getCurrent) return null
-  try {
-    return (await api.tabs.getCurrent()) ?? null
-  } catch {
-    return null
-  }
-}
-
 /**
  * removeTabs — bulk close with a per-id fallback: Chrome rejects the whole
  * batch when any id is already gone, so a failed batch retries one id at a

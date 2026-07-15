@@ -73,7 +73,7 @@ function parsePageChipPinId(id: unknown): ParsedPageChipPinId | null {
   return { source, scopeId, chipKey }
 }
 
-export function isPinnablePageChipId(id: unknown): id is string {
+function isPinnablePageChipId(id: unknown): id is string {
   return parsePageChipPinId(id) !== null
 }
 

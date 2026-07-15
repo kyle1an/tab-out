@@ -72,7 +72,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
     })
 }
 
-export async function fetchChromeOpenTabsSnapshot(): Promise<ChromeOpenTabsSnapshot> {
+async function fetchChromeOpenTabsSnapshot(): Promise<ChromeOpenTabsSnapshot> {
   const [tabs, windows] = await Promise.all([queryAllTabs(), getAllWindows(), fetchTabGroupColors()])
   return { tabs, windows }
 }
@@ -114,7 +114,7 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
   })
 }
 
-export function replaceOpenTabs(nextOpenTabs: DashboardTab[]): void {
+function replaceOpenTabs(nextOpenTabs: DashboardTab[]): void {
   openTabs = nextOpenTabs
 }
 
@@ -161,65 +161,6 @@ export function getDashboardTabsFromOpenTabs(tabs: readonly DashboardTab[]): Das
     const url = t.url || ''
     return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
   })
-}
-
-/**
- * getDashboardTabs() — tabs shown in the dashboard tab source:
- * real web tabs plus Tab Out / Chrome new-tab pages, so the user can
- * explicitly dedupe dashboard tabs from the page itself.
- *
- * @returns {DashboardTab[]}
- */
-export function getDashboardTabs(): DashboardTab[] {
-  return getDashboardTabsFromOpenTabs(openTabs)
-}
-
-/**
- * closeTabsByUrls(urls, opts) — closes tabs whose hostname matches any
- * of the given URLs. file:// URLs are matched exactly (no hostname).
- * Returns a snapshot of what was closed for undo.
- *
- * @param {string[]} urls
- * @param {{ preserveGroups?: boolean }} [opts]
- * @returns {Promise<TabSnapshot[]>}
- */
-export async function closeTabsByUrls(urls: string[], opts: CloseOptions = {}): Promise<TabSnapshot[]> {
-  if (!urls || urls.length === 0) return []
-  const { preserveGroups = false } = opts
-
-  // Separate file:// URLs (exact match) from regular URLs (hostname match)
-  const targetHostnames: string[] = []
-  const exactUrls = new Set<string>()
-
-  for (const u of urls) {
-    if (u.startsWith('file://')) {
-      exactUrls.add(u)
-    } else {
-      try {
-        targetHostnames.push(new URL(u).hostname)
-      } catch {
-        /* skip unparseable */
-      }
-    }
-  }
-
-  const allTabs = await queryAllTabs()
-  const toCloseTabs = allTabs.filter((tab) => {
-    if (preserveGroups && isGroupedTab(tab)) return false
-    const tabUrl = unwrapSuspenderUrl(tab.url || '')
-    if (tabUrl.startsWith('file://') && exactUrls.has(tabUrl)) return true
-    try {
-      const tabHostname = new URL(tabUrl).hostname
-      return tabHostname && targetHostnames.includes(tabHostname)
-    } catch {
-      return false
-    }
-  })
-
-  const snapshot = snapshotChromeTabs(toCloseTabs)
-  await removeTabs(tabIds(toCloseTabs))
-  await fetchOpenTabs()
-  return snapshot
 }
 
 /**
