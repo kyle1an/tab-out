@@ -19,7 +19,8 @@
     "test": "node --import tsx --test tests/*.test.ts",
     "test:browser": "RUN_BROWSER_SMOKE=1 node --import tsx --test tests/browser-resize-smoke.test.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
-    "verify": "pnpm typecheck && pnpm lint && pnpm react-doctor && pnpm build && pnpm verify:bundle && pnpm test",
+    "verify:compiler": "node scripts/react-compiler-check.mjs",
+    "verify": "pnpm typecheck && pnpm lint && pnpm react-doctor && pnpm verify:compiler && pnpm build && pnpm verify:bundle && pnpm test",
     "verify:browser": "pnpm verify && pnpm test:browser"
   },
   "dependencies": {
