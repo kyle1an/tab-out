@@ -968,18 +968,22 @@ type HistoryEntryFaviconFrameProps = {
 
 function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, isApp, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
   return (
-    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-6 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
+    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
       <span
         className={cn(
-          // The favicon column is a 24px cell for every row so all icons
-          // share one axis of symmetry: plain favicons render 16px centered
-          // in it, and standalone-app rows fill it with the exact Apps-chip
-          // geometry — 24px rounded-xl squircle, 1px ring, 16px icon. The
-          // frame keeps full strength — only the icon dims with liveness.
+          // The favicon column is the same 16px cell page chips use, so
+          // plain rows carry identical icon-to-title spacing to non-app
+          // page chips. Standalone-app rows draw the shared 20px app ring
+          // with the symmetric negative margins page chips use: the grid
+          // track auto-sizes to its content, so an oversized child alone
+          // would sit flush-left and overflow only rightward — the margins
+          // force the 2px overflow to split evenly, keeping the ring's
+          // center-line on the same axis as every plain favicon. The frame
+          // keeps full strength — only the icon dims with liveness.
           'history-entry-favicon-content grid place-items-center',
           isApp
-            ? 'history-entry-app-favicon h-full w-full overflow-hidden rounded-xl border border-[rgba(115,115,115,0.32)] p-[3px] [corner-shape:squircle]'
-            : 'size-4',
+            ? 'history-entry-app-favicon -mx-0.5 -my-0.5 size-5 overflow-hidden rounded-[8px] border border-[rgba(115,115,115,0.32)] p-[2px] [corner-shape:squircle]'
+            : 'h-full w-full',
           canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
         )}
         aria-hidden="true"
