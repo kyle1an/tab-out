@@ -354,7 +354,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   // The interaction-fill and outline strings live behind the chip-trim
   // interface and are covered by tests/chip-trim.test.ts; here we only pin
   // that PageChip consumes the module's vars.
-  assert.match(pageChipSource, /--chip-group-hover-border': trim\.styleVars\.groupHoverBorder/)
+  assert.match(pageChipSource, /--chip-hover-border': trim\.styleVars\.hoverBorder/)
   assert.match(pageChipSource, /page-chip-expanded absolute z-30/)
   assert.match(pageChipSource, /page-chip-expanded absolute z-30 min-w-0/)
   assert.match(pageChipSource, /max-w-\(--page-chip-expanded-max-width\)/)

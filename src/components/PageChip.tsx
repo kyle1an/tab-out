@@ -1673,7 +1673,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const style: CSSVariableProperties = {
     '--chip-hover-fade-bg': trim.styleVars.fadeBg,
     '--chip-hover-fade-width': chipHoverFadeWidth,
-    '--chip-group-hover-border': trim.styleVars.groupHoverBorder,
+    '--chip-hover-border': trim.styleVars.hoverBorder,
     '--chip-interaction-bg': trim.styleVars.interactionBg,
     '--chip-rest-bg': trim.styleVars.restBg,
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})

@@ -48,18 +48,24 @@ const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--car
 const HISTORY_ENTRY_ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 84%, var(--color-neutral-600) 16%)'
 const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) [&[data-context-menu-open]]:bg-(--history-entry-interaction-bg) group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100 [&[data-context-menu-open]]:after:opacity-100'
-const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
-const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
-// Closed rows (tab gone: dead stack rows and recently-closed ghosts) hover
-// like closed-saved page chips: the lighter "group" fill plus a 1px outline
-// (chip-trim's GROUP_HOVER_BORDER recipe), across the same interaction
-// states the fill responds to. Focus keeps the amber ring instead. The
-// outline color rides a CSS var (set in entryBaseStyle) exactly like the
-// chips' --chip-group-hover-border — an arbitrary color-mix() class does
-// not survive Tailwind's extractor.
+// Every hoverable row answers interaction with a 1px outline beside the
+// fill (chip-trim's hover-line recipe), across the same interaction states
+// the fill responds to. Focus keeps the amber ring instead. The outline
+// color rides a CSS var (set in entryBaseStyle) exactly like the chips'
+// --chip-hover-border — an arbitrary color-mix() class does not survive
+// Tailwind's extractor: closed rows (dead stack rows and recently-closed
+// ghosts) match closed-saved chips at 22% (their faint fill leaves the
+// line carrying the signal); open rows (2026-07-15) draw the quiet
+// fill-ink rim instead — the same 10% mix as their clickable fill, laid
+// once more at the edge — because the darkened fill already carries the
+// open-hover emphasis.
+const HISTORY_ENTRY_HOVER_OUTLINE_CLASSES = 'group-hover/history-row:outline group-hover/history-row:outline-1 group-hover/history-row:-outline-offset-1 group-hover/history-row:outline-(--history-entry-hover-border) [&.history-entry-expanded-open]:outline [&.history-entry-expanded-open]:outline-1 [&.history-entry-expanded-open]:-outline-offset-1 [&.history-entry-expanded-open]:outline-(--history-entry-hover-border) [&[data-context-menu-open]]:outline [&[data-context-menu-open]]:outline-1 [&[data-context-menu-open]]:-outline-offset-1 [&[data-context-menu-open]]:outline-(--history-entry-hover-border)'
 const HISTORY_ENTRY_CLOSED_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
-const HISTORY_ENTRY_CLOSED_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} group-hover/history-row:outline group-hover/history-row:outline-1 group-hover/history-row:-outline-offset-1 group-hover/history-row:outline-(--history-entry-hover-border) [&.history-entry-expanded-open]:outline [&.history-entry-expanded-open]:outline-1 [&.history-entry-expanded-open]:-outline-offset-1 [&.history-entry-expanded-open]:outline-(--history-entry-hover-border) [&[data-context-menu-open]]:outline [&[data-context-menu-open]]:outline-1 [&[data-context-menu-open]]:-outline-offset-1 [&[data-context-menu-open]]:outline-(--history-entry-hover-border)`
-const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES}`
+const HISTORY_ENTRY_OPEN_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
+const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
+const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
+const HISTORY_ENTRY_CLOSED_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
+const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
 const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
   lineHtml: [],
   maxWidth: 0,
@@ -1191,7 +1197,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const entryBaseStyle: CSSVariableProperties = {
     '--history-entry-fade-bg': historyEntryInteractionBg,
     '--history-entry-interaction-bg': historyEntryInteractionBg,
-    '--history-entry-hover-border': HISTORY_ENTRY_CLOSED_HOVER_BORDER,
+    '--history-entry-hover-border': entryClosed ? HISTORY_ENTRY_CLOSED_HOVER_BORDER : HISTORY_ENTRY_OPEN_HOVER_BORDER,
     '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent'
   }
   const entryOverlayStyle: CSSVariableProperties = {

@@ -690,7 +690,7 @@ test('PageChip renders closed saved pages muted with grouped hover treatment and
   assert.match(chipMatch[1], /\bpage-chip-saved-closed\b/)
   assert.doesNotMatch(chipMatch[1], /\bbg-\(--chip-rest-bg\)/)
   assert.match(chipMatch[1], /\bhover:outline\b/)
-  assert.match(chipMatch[1], /hover:outline-\(--chip-group-hover-border\)/)
+  assert.match(chipMatch[1], /hover:outline-\(--chip-hover-border\)/)
   assert.doesNotMatch(chipMatch[1], /\bopacity-75\b/)
   assert.doesNotMatch(chipMatch[1], /shadow-\[inset_0_0_0_1px/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
@@ -870,11 +870,11 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(chipMatch[1], /hover:bg-\(--chip-interaction-bg\)/)
   assert.match(chipMatch[1], /hover:outline-1/)
   assert.match(chipMatch[1], /hover:-outline-offset-1/)
-  assert.match(chipMatch[1], /hover:outline-\(--chip-group-hover-border\)/)
-  assert.match(chipMatch[1], /page-chip-context-menu-open\]:outline-\(--chip-group-hover-border\)/)
-  assert.match(chipMatch[1], /page-chip-tooltip-open\]:outline-\(--chip-group-hover-border\)/)
+  assert.match(chipMatch[1], /hover:outline-\(--chip-hover-border\)/)
+  assert.match(chipMatch[1], /page-chip-context-menu-open\]:outline-\(--chip-hover-border\)/)
+  assert.match(chipMatch[1], /page-chip-tooltip-open\]:outline-\(--chip-hover-border\)/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
-  assert.match(html, /--chip-group-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)/)
+  assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)/)
   assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.02\)\]/)
   assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
   assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.08\)\]/)
@@ -993,9 +993,14 @@ test('PageChip drops the group outline once the variant-group chip is active', (
   assert.doesNotMatch(cls, /hover:outline-1/)
 })
 
-test('PageChip does not give a plain (non-group) chip the group outline', () => {
-  const cls = pageChipClass(renderWithDomainCardContext(React.createElement(PageChip, { chip: makeChip({ sourceType: 'tab' }) })))
-  assert.doesNotMatch(cls, /hover:outline-1/)
+test('PageChip gives a plain open chip the interaction outline at the quiet open color', () => {
+  const html = renderWithDomainCardContext(React.createElement(PageChip, { chip: makeChip({ sourceType: 'tab' }) }))
+  const cls = pageChipClass(html)
+  assert.match(cls, /hover:outline-1/)
+  assert.match(cls, /hover:outline-\(--chip-hover-border\)/)
+  // The fill-ink rim: same 10% mix as the interaction fill, laid once
+  // more at the edge — the darkened fill carries the open-hover emphasis.
+  assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
 })
 
 function titleVariantPillTags(html: string): string[] {
@@ -2539,10 +2544,10 @@ test('PageChip renders folded titles before env controls', () => {
   assert.match(chipMatch[1], /hover:bg-\(--chip-interaction-bg\)/)
   assert.match(chipMatch[1], /hover:outline-1/)
   assert.match(chipMatch[1], /hover:-outline-offset-1/)
-  assert.match(chipMatch[1], /hover:outline-\(--chip-group-hover-border\)/)
+  assert.match(chipMatch[1], /hover:outline-\(--chip-hover-border\)/)
   assert.match(chipMatch[1], /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
-  assert.match(html, /--chip-group-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)/)
+  assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)/)
   assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
   assert.doesNotMatch(chipMatch[1], /page-chip-tooltip-open\]:bg-\[rgba\(82,82,82,0\.05\)\]/)
   assert.doesNotMatch(chipMatch[1], /hover:border/)

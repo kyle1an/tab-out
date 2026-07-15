@@ -22,19 +22,25 @@ function facts(overrides: Partial<ChipTrimFacts> = {}): ChipTrimFacts {
   }
 }
 
-const OUTLINE_TRIO = /hover:outline-1.*-outline-offset-1.*outline-\(--chip-group-hover-border\)/
+const OUTLINE_TRIO = /hover:outline-1.*-outline-offset-1.*outline-\(--chip-hover-border\)/
 const OPAQUE_CLICKABLE = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
 const TRANSLUCENT_CLICKABLE = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 const GROUP_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const ACTIVE_OTHER_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
 const ACTIVE_OTHER_REST = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
+const GROUP_LINE = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
+const CLICKABLE_LINE = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 
-test('chip-trim: plain chips get the translucent fill and no trim', () => {
+test('chip-trim: plain chips get the translucent fill, the quiet hover line, and no resting trim', () => {
   const trim = chipTrim(facts())
   assert.match(trim.chipClasses, /hover:bg-\(--chip-interaction-bg\)/)
   assert.match(trim.chipClasses, /\[&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(trim.chipClasses, /\[&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
-  assert.doesNotMatch(trim.chipClasses, /outline/)
+  // Open plain chips answer hover with the group kinds' 1px line at the
+  // quiet fill-ink color — the same 10% mix as their interaction fill,
+  // laid once more at the edge (the darkened fill carries the emphasis).
+  assert.match(trim.chipClasses, OUTLINE_TRIO)
+  assert.equal(trim.styleVars.hoverBorder, CLICKABLE_LINE)
   assert.doesNotMatch(trim.chipClasses, /ring-/)
   assert.equal(trim.frame, null)
   assert.equal(trim.expandedFill, null)
@@ -51,6 +57,7 @@ test('chip-trim: saved-closed chips carry the marker and the interaction outline
   assert.match(trim.chipClasses, /text-tab-muted/)
   assert.match(trim.chipClasses, OUTLINE_TRIO)
   assert.equal(trim.frame, null)
+  assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)
   assert.equal(trim.styleVars.interactionBg, GROUP_BG)
   assert.equal(trim.styleVars.fadeBg, GROUP_BG)
 })
@@ -61,8 +68,27 @@ test('chip-trim: variant-group and folded chips get the group outline', () => {
     assert.match(trim.chipClasses, OUTLINE_TRIO)
     assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.savedClosed}\\b`))
     assert.equal(trim.frame, null)
+    assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)
     assert.equal(trim.styleVars.interactionBg, GROUP_BG)
   }
+})
+
+test('chip-trim: the open hover line is the quiet fill-ink rim; icon and framed kinds opt out', () => {
+  // Two line weights by where the hover signal lives: group/saved kinds
+  // barely darken their fill, so they hover the stronger 22% line; open
+  // plain chips darken to the 10% fill, so their line is that same ink
+  // laid once more at the edge — a quiet rim (owner-tuned from 32%).
+  // Icon-only chips keep fill-only feedback (their always-on ring sits
+  // OUTSIDE via outline-offset-1 — the trio's inset offset would yank it
+  // inward on hover), and framed kinds strengthen their inset frame
+  // instead of drawing an outline.
+  assert.equal(chipTrim(facts()).styleVars.hoverBorder, CLICKABLE_LINE)
+  for (const kind of [{ closedSavedPage: true }, { folded: true }, { titleVariantGroup: true }]) {
+    assert.equal(chipTrim(facts(kind)).styleVars.hoverBorder, GROUP_LINE)
+  }
+  assert.doesNotMatch(chipTrim(facts({ iconOnly: true })).chipClasses, OUTLINE_TRIO)
+  assert.doesNotMatch(chipTrim(facts({ activeChipFrame: true })).chipClasses, /outline/)
+  assert.doesNotMatch(chipTrim(facts({ activeChipFrame: true, activeInOtherWindow: true })).chipClasses, /outline/)
 })
 
 test('chip-trim: an active frame suppresses the group outline', () => {
@@ -99,10 +125,12 @@ test('chip-trim: the three frame flavours resolve by precedence', () => {
   assert.doesNotMatch(otherWindowTabOut.chipClasses, /current-tab-out-chip /)
 })
 
-test('chip-trim: a kind with no trim at rest gains none in any state', () => {
-  // The owner's rule, executable: plain chips never gain a border or outline
-  // from expansion (hover/menu feedback is fill-only by construction — their
-  // classes carry no outline/ring/border utilities to reveal).
+test('chip-trim: a kind with no trim at rest gains none at rest in any state', () => {
+  // The owner's rule, amended 2026-07-15: plain chips still draw NOTHING at
+  // rest — no frame, and no unconditioned outline/ring/border utility in any
+  // expansion state. Interaction feedback now pairs the fill with the 1px
+  // hover line, so every outline utility must stay behind an interaction
+  // variant (hover / context-menu-open / tooltip-open).
   const expansions: ChipTrimFacts['expanded'][] = [
     null,
     { grewTaller: false, y: 'down' },
@@ -112,7 +140,9 @@ test('chip-trim: a kind with no trim at rest gains none in any state', () => {
   ]
   for (const expanded of expansions) {
     const trim = chipTrim(facts({ expanded }))
-    assert.doesNotMatch(trim.chipClasses, /outline|ring-|border(?!-0)/)
+    for (const token of trim.chipClasses.split(/\s+/)) {
+      assert.doesNotMatch(token, /^(outline|ring|border)(-|$)/, `resting trim leaked: ${token}`)
+    }
     assert.equal(trim.frame, null)
   }
 })

@@ -9,6 +9,10 @@
 
 const FADE_INTERACTION_CLASSES = '[&:has(.chip-actions):hover::after]:opacity-100 [&.page-chip-context-menu-open:has(.chip-actions)::after]:opacity-100 [&.page-chip-tooltip-open:has(.chip-actions)::after]:opacity-100'
 const SURFACE_INTERACTION_CLASSES = 'hover:bg-(--chip-interaction-bg) [&.page-chip-context-menu-open]:bg-(--chip-interaction-bg) [&.page-chip-tooltip-open]:bg-(--chip-interaction-bg)'
+// The 1px interaction line, across the same states the fill responds to.
+// The color rides --chip-hover-border (per-kind value via styleVars) — an
+// interpolated color-mix() class would not survive Tailwind's extractor.
+const HOVER_OUTLINE_CLASSES = 'hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-hover-border)'
 const CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
 // Translucent equivalent of the clickable fill (10% neutral composited on the
 // card bg renders identically to the 90/10 opaque mix). In-flow plain chips
@@ -19,10 +23,17 @@ const CLICKABLE_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 90%, var(--c
 const CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 const GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
+// Open plain chips hover on the 10% clickable fill, which already carries
+// the emphasis; their line is deliberately the SAME ink as that fill
+// (CLICKABLE_INTERACTION_OVERLAY_BG), laid once more at the edge — a quiet
+// rim, owner-tuned 2026-07-15 down from 32%. The closed/group kinds keep
+// the stronger 22% line: their 3.5% fill barely darkens, so there the
+// line, not the fill, carries the hover signal.
+const CLICKABLE_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 const ACTIVE_OTHER_REST_BG = 'color-mix(in srgb, var(--card-bg) 92.5%, var(--color-neutral-600) 7.5%)'
 const ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 88%, var(--color-neutral-600) 12%)'
 const CLICKABLE_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${FADE_INTERACTION_CLASSES}`
-const GROUP_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} hover:outline hover:outline-1 hover:-outline-offset-1 hover:outline-(--chip-group-hover-border) [&.page-chip-context-menu-open]:outline [&.page-chip-context-menu-open]:outline-1 [&.page-chip-context-menu-open]:-outline-offset-1 [&.page-chip-context-menu-open]:outline-(--chip-group-hover-border) [&.page-chip-tooltip-open]:outline [&.page-chip-tooltip-open]:outline-1 [&.page-chip-tooltip-open]:-outline-offset-1 [&.page-chip-tooltip-open]:outline-(--chip-group-hover-border)`
+const GROUP_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${HOVER_OUTLINE_CLASSES}`
 const ACTIVE_OTHER_INTERACTION_CLASSES = `${SURFACE_INTERACTION_CLASSES} ${FADE_INTERACTION_CLASSES}`
 
 /** Class-name tokens shared across the trim class strings (arbitrary
@@ -64,13 +75,16 @@ export type ChipTrim = {
   slotClasses: string
   /** The inset ring overlay for framed kinds; null when the kind draws none. */
   frame: null | { classes: string }
-  /** CSS vars for fills. The fade bg stays the opaque mix in every kind —
-      the fade exists to hide chip text under the action rail. */
+  /** CSS vars for fills and the interaction line. The fade bg stays the
+      opaque mix in every kind — the fade exists to hide chip text under the
+      action rail. Open plain chips carry the quiet fill-ink hover line;
+      group/saved kinds keep the stronger 22% line (their fill barely
+      darkens, so the line carries their hover signal). */
   styleVars: {
     interactionBg: string
     restBg: string
     fadeBg: string
-    groupHoverBorder: string
+    hoverBorder: string
   }
   /** The expanded plain chip's opaque fill layer. Edges FLUSH with the
       resting seam stay 1px clear (a bordered neighbour's line paints on the
@@ -90,6 +104,11 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
 
   const chipClasses = [
     !facts.closedSavedPage && !isGroupKind && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && CLICKABLE_INTERACTION_CLASSES,
+    // Open plain chips (2026-07-15) answer hover with the group kinds' 1px
+    // line at the quiet clickable color. Icon-only chips opt out: their
+    // always-on ring sits OUTSIDE (outline-offset-1), and the trio's inset
+    // offset would yank it inward on hover.
+    isPlainClickable && !facts.iconOnly && HOVER_OUTLINE_CLASSES,
     facts.closedSavedPage && !isGroupKind && `${CHIP_TRIM_TOKENS.savedClosed} text-tab-muted ${GROUP_INTERACTION_CLASSES}`,
     hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
     isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
@@ -142,7 +161,7 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
     interactionBg: isPlainClickable ? CLICKABLE_INTERACTION_OVERLAY_BG : fadeBg,
     restBg: hasActiveChipFrame && !isCurrentTabOutFrame ? ACTIVE_OTHER_REST_BG : 'transparent',
     fadeBg,
-    groupHoverBorder: GROUP_HOVER_BORDER
+    hoverBorder: isPlainClickable ? CLICKABLE_HOVER_BORDER : GROUP_HOVER_BORDER
   }
 
   const expandedFill = facts.expanded && isPlainClickable && !facts.iconOnly
