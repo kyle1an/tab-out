@@ -202,7 +202,8 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.equal(appsVm.displayName, 'Apps')
   assert.equal(appsVm.tabCountLabel, '2')
   assert.equal(appsVm.tabCountTitle, '2 open tabs')
-  assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => chip.iconOnly), true)
+  assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => !chip.iconOnly), true)
+  assert.deepEqual(appsVm.sections[0].flatVisibleChips.map((chip) => chip.title), ['Calendar', 'Inbox'])
   assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => !chip.activeInOtherWindow), true)
 
   const filteredAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })

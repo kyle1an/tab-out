@@ -1548,7 +1548,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   if (isAppsGroup) {
-    const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', '', { iconOnly: true }))
+    // Apps render as regular titled chips (favicon + title, stacked) — the
+    // icon-only presentation hid which window was which once several apps
+    // were open. PageChip still branches on iconOnly for callers that want
+    // the compact form.
+    const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', ''))
     const vmClosableCount = displayMode === 'unmatched' || !allowMutations ? 0 : closableCount
     const vmClosableExtras = displayMode === 'unmatched' || !allowMutations ? 0 : closableExtras
     const vmClosableDupeUrls = displayMode === 'unmatched' || !allowMutations ? [] : closableDupeUrls
