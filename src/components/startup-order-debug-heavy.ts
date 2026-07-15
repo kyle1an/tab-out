@@ -130,7 +130,6 @@ function debugHistoryRows() {
       text: textFromElement(row).slice(0, 180),
       top: Math.round(rect.top),
       height: Math.round(rect.height),
-      lowScore: row.dataset.lowScore === 'true',
       workingSetExtra: row.dataset.workingSetExtra === 'true'
     })
   }

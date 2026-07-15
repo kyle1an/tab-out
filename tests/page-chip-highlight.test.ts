@@ -1668,9 +1668,6 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   assert.match(tabHistoryPanelSource, /const \[titleExpanded, setTitleExpandedState\] = useState\(false\)/)
   assert.match(tabHistoryPanelSource, /titleExpanded && 'history-entry-expanded-open'/)
   assert.match(tabHistoryPanelSource, /titleExpanded && 'history-entry-row-expanded-open'/)
-  assert.match(tabHistoryPanelSource, /history-entry-low-score-content opacity-60 group-hover\/history-row:opacity-100 group-focus-within\/history-row:opacity-100 group-\[\.history-entry-row-expanded-open\]\/history-row:opacity-100/)
-  assert.doesNotMatch(tabHistoryPanelSource, /dimmed && 'opacity-60 hover:opacity-100 focus-within:opacity-100 \[\&\.history-entry-row-expanded-open\]:opacity-100'/)
-  assert.match(tabHistoryPanelSource, /group-\[\.history-entry-row-expanded-open\]\/history-row:text-\[rgba\(115,115,115,0\.54\)\]/)
   assert.match(tabHistoryPanelSource, /function openTitleExpansion\(\)/)
   assert.match(tabHistoryPanelSource, /function closeTitleExpansion\(\{ delayed = true \} = \{\}\)/)
   assert.match(tabHistoryPanelSource, /function onHistoryEntryPointerEnter\(\) \{[\s\S]*openTitleExpansion\(\)/)
@@ -1751,7 +1748,7 @@ test('TabHistoryPanel applies bionic title emphasis with protected title tokens'
   assert.doesNotMatch(html, /chip-title-fixation\b[^>]*>UX</)
 })
 
-test('TabHistoryPanel dims low-score history rows and omits the extras section', () => {
+test('TabHistoryPanel omits the extras section when working-set items overlap the stack', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
@@ -1778,17 +1775,7 @@ test('TabHistoryPanel dims low-score history rows and omits the extras section',
   )
 
   assert.doesNotMatch(html, /history-working-set-rail/)
-  assert.match(html, /data-low-score="true"/)
-  const lowScoreRowMatch = html.match(/<div\b(?=[^>]*data-low-score="true")(?=[^>]*class="([^"]*\bhistory-entry-row\b[^"]*)")[^>]*>/)
-  const lowScoreFaviconFrameMatch = html.match(/data-low-score="true"[\s\S]*?<span class="([^"]*\bhistory-entry-favicon-frame\b[^"]*)"/)
-  const lowScoreTitleHitAreaMatch = html.match(/data-low-score="true"[\s\S]*?<span class="([^"]*\bhistory-entry-title-expansion-hit-area\b[^"]*)"/)
-  assert.ok(lowScoreRowMatch, 'low-score row should render')
-  assert.ok(lowScoreFaviconFrameMatch, 'low-score favicon frame should render')
-  assert.ok(lowScoreTitleHitAreaMatch, 'low-score title hit area should render')
-  assert.doesNotMatch(lowScoreRowMatch[1], /\bopacity-60\b/)
-  assert.doesNotMatch(lowScoreFaviconFrameMatch[1], /\bopacity-60\b/)
-  assert.match(lowScoreTitleHitAreaMatch[1], /\bhistory-entry-low-score-content\b/)
-  assert.match(lowScoreTitleHitAreaMatch[1], /\bopacity-60\b/)
+  assert.doesNotMatch(html, /data-low-score/)
   assert.doesNotMatch(html, /data-tabout-part="working-set-extra-list"/)
 })
 
@@ -1861,7 +1848,7 @@ test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority a
   assert.equal(/data-working-set-priority="true"/.test(html), false)
 })
 
-test('TabHistoryPanel always dims browser utility history rows', () => {
+test('TabHistoryPanel renders browser utility history rows at full strength like any other row', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
@@ -1913,12 +1900,11 @@ test('TabHistoryPanel always dims browser utility history rows', () => {
       })
     })
   )
-  const lowScoreRows = Array.from(html.matchAll(/<div\b(?=[^>]*data-low-score="true")(?=[^>]*class="[^"]*\bhistory-entry-row\b[^"]*")[^>]*>/g))
-
-  assert.equal(lowScoreRows.length, 4)
+  assert.doesNotMatch(html, /data-low-score/)
+  assert.doesNotMatch(html, /history-entry-low-score-content/)
 })
 
-test('TabHistoryPanel always dims standalone app history rows', () => {
+test('TabHistoryPanel renders standalone app history rows at full strength like page chips', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
@@ -1936,27 +1922,9 @@ test('TabHistoryPanel always dims standalone app history rows', () => {
     })
   )
 
-  assert.match(html, /data-low-score="true"/)
-})
-
-test('TabHistoryPanel does not dim suspended real pages as extension utility rows', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
-  const html = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot: makeHistorySnapshot({
-        entries: [
-          {
-            ...baseEntry,
-            title: 'Suspended Docs',
-            url: 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs',
-            displayUrl: 'example.com/docs'
-          }
-        ]
-      })
-    })
-  )
-
-  assert.doesNotMatch(html, /data-low-score="true"/)
+  assert.doesNotMatch(html, /data-low-score/)
+  assert.doesNotMatch(html, /history-entry-low-score-content/)
+  assert.doesNotMatch(html, /chip-favicon-dimmed/)
 })
 
 test('TabHistoryPanel renders non-overlapping working-set items inline without a separate section', () => {

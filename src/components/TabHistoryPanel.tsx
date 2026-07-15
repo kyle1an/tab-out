@@ -9,7 +9,6 @@ import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
 import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
-import { unwrapSuspenderUrl } from '../extension/suspension.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
 import { moveTabToCurrentWindow, moveTabToNewWindow } from '../extension/tab-move.js'
@@ -61,15 +60,6 @@ const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = 
   y: 'down'
 }
 const DEFAULT_HISTORY_ENTRY_SLOT_SIZE: HistoryEntrySlotSize = { height: 0, width: 0 }
-const LOW_SCORE_HISTORY_PROTOCOLS = new Set([
-  'about:',
-  'brave:',
-  'chrome:',
-  'chrome-extension:',
-  'chrome-search:',
-  'devtools:',
-  'edge:'
-])
 const historyTitleTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: HistoryTitleMetrics) => void
@@ -117,7 +107,6 @@ interface HistoryEntryProps {
   snapshot: TabHistorySnapshot | null
   workingSetItem?: WorkingSetItem | null
   closedTab?: ClosedTabEntry | null
-  dimmed?: boolean
   savedKeys?: ReadonlySet<string>
   highlightTerms?: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
@@ -466,21 +455,6 @@ function workingSetUrls(item: WorkingSetItem | null | undefined) {
 
 function uniqueUrls(urls: readonly string[]) {
   return [...new Set(urls.filter(Boolean))]
-}
-
-function isLowScoreHistoryUrl(url = '') {
-  const effectiveUrl = unwrapSuspenderUrl(url || '')
-  if (!effectiveUrl) return false
-
-  try {
-    return LOW_SCORE_HISTORY_PROTOCOLS.has(new URL(effectiveUrl).protocol)
-  } catch {
-    return false
-  }
-}
-
-function isLowScoreHistoryEntry(entry: TabHistoryEntry) {
-  return !!entry.isApp || isLowScoreHistoryUrl(entry.url || entry.displayUrl || '')
 }
 
 function formatRelativeMinutes(now: number, ts: number): string {
@@ -894,10 +868,9 @@ type HistoryEntryMarkerCellProps = {
   closedTab: ClosedTabEntry | null
   renderedAtMs: number
   isIndexHighlighted: boolean
-  dimmed: boolean
 }
 
-function HistoryEntryMarkerCell({ kind, indexLabel, closedTab, renderedAtMs, isIndexHighlighted, dimmed }: HistoryEntryMarkerCellProps) {
+function HistoryEntryMarkerCell({ kind, indexLabel, closedTab, renderedAtMs, isIndexHighlighted }: HistoryEntryMarkerCellProps) {
   let marker: ReactNode = indexLabel
   if (kind === 'open-ghost') {
     marker = <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
@@ -915,8 +888,7 @@ function HistoryEntryMarkerCell({ kind, indexLabel, closedTab, renderedAtMs, isI
       data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
       className={cn(
         'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-        isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink',
-        dimmed && 'text-[rgba(115,115,115,0.28)] group-hover/history-row:text-[rgba(115,115,115,0.54)] group-focus-within/history-row:text-[rgba(115,115,115,0.54)] group-[.history-entry-row-expanded-open]/history-row:text-[rgba(115,115,115,0.54)]'
+        isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink'
       )}
     >
       {marker}
@@ -929,13 +901,12 @@ type HistoryEntryTitleProps = {
   title: string
   highlightTerms: readonly string[]
   badges: readonly string[]
-  dimmed: boolean
   geometry: HistoryEntryExpansionGeometry
   clampedLineHtml: readonly string[] | null
   titleRef: RefObject<HTMLSpanElement | null>
 }
 
-function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
+function HistoryEntryTitle({ expanded, title, highlightTerms, badges, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
   function expandedLinesNode() {
     const lastIndex = geometry.lineHtml.length - 1
     return (
@@ -957,12 +928,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, ge
       ? clampedTitleLineNodes(clampedLineHtml, 'history-entry-title')
       : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
   return (
-    <span
-      className={cn(
-        'history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]',
-        dimmed && 'history-entry-low-score-content opacity-60 group-hover/history-row:opacity-100 group-focus-within/history-row:opacity-100 group-[.history-entry-row-expanded-open]/history-row:opacity-100'
-      )}
-    >
+    <span className="history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]">
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
         <span
           className={cn(
@@ -1107,7 +1073,7 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
   )
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, dimmed = false, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const titleClampKey = JSON.stringify([entry.title, highlightTerms])
   const {
@@ -1186,7 +1152,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     pageTargetMatchesHover(entry, activeHoverUrl, activeHoverUrls) ||
     matchUrls.some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
   )
-  const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched)
+  const isIndexHighlighted = isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetItem?.faviconUrl || ''
   // Same liveness rule as page chips: full strength only when an awake tab
@@ -1305,7 +1271,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
             title={entry.title}
             highlightTerms={highlightTerms}
             badges={badges}
-            dimmed={dimmed}
             geometry={entryExpansionGeometry}
             clampedLineHtml={titleClamp?.key === titleClampKey ? titleClamp.lineHtml : null}
             titleRef={titleRef}
@@ -1320,7 +1285,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   return (
     <div
       data-tabout="activation-history-entry"
-      data-low-score={dimmed ? 'true' : undefined}
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
@@ -1337,7 +1301,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
         closedTab={closedTab}
         renderedAtMs={renderedAtMs}
         isIndexHighlighted={isIndexHighlighted}
-        dimmed={dimmed}
       />
       <div
         className="history-entry-slot relative min-w-0 flex-auto"
@@ -1500,7 +1463,6 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
         indexLabel={historyEntryIndexLabel(row.entry, ctx.snapshot, row.entry.index + 1)}
         snapshot={ctx.snapshot}
         kind="stack"
-        dimmed={isLowScoreHistoryEntry(row.entry)}
         savedKeys={ctx.savedKeys}
         highlightTerms={ctx.highlightTerms}
         onSnapshotChange={ctx.onSnapshotChange}
