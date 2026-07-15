@@ -28,6 +28,7 @@ import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-ac
 import type { ChipActivationModifiers } from './chip-activation'
 import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import { chipTrim, CHIP_TRIM_TOKENS } from './chip-trim'
+import { FAVICON_DIM_CLASS_NAME, VARIANT_LABEL_DIM_CLASS_NAME } from './liveness-dim'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
@@ -816,15 +817,12 @@ type ChipFaviconFrameProps = {
   onToggleAudio: () => void
 }
 
-// Favicon strength encodes liveness: full color means an awake tab is one
-// click away; suspended and closed-saved chips dim. The image itself dims —
-// not the frame — so dupe-stack rings and badges keep their weight.
-const CHIP_FAVICON_DIM_CLASS_NAME = 'chip-favicon-dimmed opacity-50 saturate-50'
-
 /**
  * ChipFaviconFrame — the chip's favicon cell: dupe-stack layers, the favicon
  * (or default), the page-pin badge, the hover-revealed close action, and the
- * icon-only audio toggle.
+ * icon-only audio toggle. The favicon image dims when no live tab backs the
+ * chip — the image itself, not the frame, so dupe-stack rings and badges
+ * keep their weight.
  */
 function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconCloseAction, dedupeBadgesClosing, closeActionLabel, onCloseAction, onToggleAudio }: ChipFaviconFrameProps) {
   const faviconDimmed = !!chip.suspended || isClosedSavedDashboardTab(chip)
@@ -867,9 +865,9 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         aria-hidden="true"
       >
         {chip.faviconUrl ? (
-          <img className={cn('chip-favicon block h-full w-full rounded-none object-cover', faviconDimmed && CHIP_FAVICON_DIM_CLASS_NAME)} src={chip.faviconUrl} alt="" />
+          <img className={cn('chip-favicon block h-full w-full rounded-none object-cover', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={chip.faviconUrl} alt="" />
         ) : showDefaultFavicon ? (
-          <DefaultFavicon className={faviconDimmed ? CHIP_FAVICON_DIM_CLASS_NAME : ''} />
+          <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} />
         ) : null}
       </span>
       {!chip.iconOnly && chip.pagePinned && (
@@ -1969,9 +1967,12 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantCanUseContextMenu = variantCanToggleSaved || variantCanTogglePagePin || !!variantTitleText || !!variant.tabUrl
     const variantPinnedLabel = variant.pagePinned ? 'Pinned' : ''
     const variantLabel = [variant.tooltip, variantPinnedLabel, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
+    // Variant rows carry no favicon, so the label text carries the liveness
+    // signal the favicon would: dim when this variant has no awake tab.
+    const variantDimmed = !!variant.suspended || variantClosedSaved
     const labelContent = (
       <>
-        <span className="chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+        <span className={cn('chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap', variantDimmed && VARIANT_LABEL_DIM_CLASS_NAME)}>
           {highlightedTextNodes(label, highlightTerms, `${mode}-title-variant-${index}`)}
         </span>
         {variantDupeCount > 1 && (

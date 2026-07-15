@@ -19,6 +19,7 @@ import { PageChipContextMenu } from './PageChipContextMenu'
 import type { PageChipContextMenuTriggerElement } from './PageChipContextMenu'
 import { openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
+import { FAVICON_DIM_CLASS_NAME } from './liveness-dim'
 import { TabAudioButton } from './TabAudioButton'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
@@ -989,6 +990,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, dimmed, ge
 type HistoryEntryFaviconFrameProps = {
   expanded: boolean
   faviconUrl: string
+  faviconDimmed: boolean
   isWorkingSetExtra: boolean
   canRemoveEntry: boolean
   canForgetClosedGhost: boolean
@@ -997,7 +999,7 @@ type HistoryEntryFaviconFrameProps = {
   onClose: (e: MouseEvent<HTMLButtonElement>) => void
 }
 
-function HistoryEntryFaviconFrame({ expanded, faviconUrl, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
+function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
   return (
     <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
       <span
@@ -1007,7 +1009,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, isWorkingSetExtra, can
         )}
         aria-hidden="true"
       >
-        {faviconUrl ? <img className="block h-full w-full object-contain" src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon /> : null}
+        {faviconUrl ? <img className={cn('block h-full w-full object-contain', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} /> : null}
       </span>
       {canRemoveEntry && (
         <button
@@ -1187,6 +1189,10 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const isIndexHighlighted = !dimmed && (isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched)
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetItem?.faviconUrl || ''
+  // Same liveness rule as page chips: full strength only when an awake tab
+  // backs the row. Open-ghost rows derive `suspended` from the suspender url
+  // (makeHistoryEntry default), closed rows are exists:false.
+  const faviconDimmed = !entry.exists || entry.suspended
   // Audio icon shows on any live (exists) row that is playing or muted — both
   // stack entries and working-set open-ghost rows (the adapter carries the
   // tab's audible/muted). Closed rows are exists:false, so a gone tab gets none.
@@ -1279,6 +1285,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
           <HistoryEntryFaviconFrame
             expanded={expanded}
             faviconUrl={faviconUrl}
+            faviconDimmed={faviconDimmed}
             isWorkingSetExtra={isWorkingSetExtra}
             canRemoveEntry={canRemoveEntry}
             canForgetClosedGhost={canForgetClosedGhost}
