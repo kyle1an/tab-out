@@ -119,6 +119,8 @@ export interface DashboardChipData {
   sourceType?: 'tab' | 'bookmark' | 'history' | 'saved-page'
   saved?: boolean
   closedSaved?: boolean
+  /** Every open tab behind this chip is suspended (none live). */
+  suspended?: boolean
   savedPageKey?: string
   pagePinId?: string
   pagePinned?: boolean

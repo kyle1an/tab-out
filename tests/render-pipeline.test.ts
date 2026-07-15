@@ -1365,7 +1365,7 @@ test('computeDomainCardViewModel keeps live tab favicons aligned with Chrome tab
   assert.equal(chip.faviconUrl, '')
 })
 
-test('computeDomainCardViewModel keeps suspended tab favicons aligned with Chrome tab state', () => {
+test('computeDomainCardViewModel resolves suspended tab favicons from the original url, not the suspender-faded copy', () => {
   const group = {
     domain: 'example.test',
     tabs: [
@@ -1382,7 +1382,7 @@ test('computeDomainCardViewModel keeps suspended tab favicons aligned with Chrom
   const vm = computeDomainCardViewModel(group)
   const chip = vm.sections[0].flatVisibleChips[0]
 
-  assert.equal(chip.faviconUrl, 'data:image/png;base64,suspended')
+  assert.equal(chip.faviconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fexample.test%2Fdocs&size=32')
 })
 
 test('computeDomainCardViewModel can use Chrome favicon cache for read-only source chips', () => {
@@ -2039,7 +2039,7 @@ test('normalizeTabHistorySnapshot resolves live history favicons from Chrome tab
   assert.equal(snapshot.entries[1].favIconUrl, 'data:image/png;base64,abc')
 })
 
-test('normalizeTabHistorySnapshot keeps suspended-row favicons aligned with Chrome tab state', () => {
+test('normalizeTabHistorySnapshot resolves suspended-row favicons from the original url, not the suspender-faded copy', () => {
   const snapshot = normalizeTabHistorySnapshot({
     entries: [
       {
@@ -2055,7 +2055,7 @@ test('normalizeTabHistorySnapshot keeps suspended-row favicons aligned with Chro
     ] as any
   })
 
-  assert.equal(snapshot.entries[0].favIconUrl, 'data:image/png;base64,faded')
+  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
 })
 
 test('normalizeTabHistorySnapshot falls back to Chrome favicon cache for suspended rows without a tab favicon', () => {
@@ -2094,7 +2094,7 @@ test('normalizeTabHistorySnapshot honors the explicit suspended flag over url co
   })
 
   assert.equal(snapshot.entries[0].suspended, true)
-  assert.equal(snapshot.entries[0].favIconUrl, 'data:image/png;base64,faded')
+  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fdelta.example%2Fdocs&size=32')
 })
 
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {

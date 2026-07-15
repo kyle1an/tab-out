@@ -36,3 +36,19 @@ export function isReadOnlyDashboardSourceType(sourceType: DashboardSourceType) {
 export function isClosedSavedDashboardTab(tab: Pick<DashboardTab, 'sourceType' | 'closedSaved'>): boolean {
   return tab.sourceType === 'saved-page' || !!tab.closedSaved
 }
+
+type SuspendedAggregateItem = Pick<DashboardTab, 'sourceType' | 'closedSaved'> & { suspended?: boolean }
+
+/**
+ * allOpenTargetsSuspended(items) — true when a chip stands for at least one
+ * open tab and every open tab behind it is suspended (no live target).
+ * Closed/read-only items are never live, but they can't make a chip
+ * "suspended" on their own either: a chip with no open tabs returns false —
+ * its non-live look comes from the saved-closed treatment instead. Accepts
+ * DashboardTabs (single/dupe/folded builds) and built chips (title-variant
+ * groups), which share the three fields it reads.
+ */
+export function allOpenTargetsSuspended(items: ReadonlyArray<SuspendedAggregateItem>): boolean {
+  const openTabs = items.filter((item) => (item.sourceType ?? 'tab') === 'tab' && !isClosedSavedDashboardTab(item))
+  return openTabs.length > 0 && openTabs.every((item) => !!item.suspended)
+}

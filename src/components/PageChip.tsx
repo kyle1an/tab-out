@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { FocusEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { X } from 'lucide-react'
-import { isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
+import { isClosedSavedDashboardTab, isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
@@ -816,12 +816,18 @@ type ChipFaviconFrameProps = {
   onToggleAudio: () => void
 }
 
+// Favicon strength encodes liveness: full color means an awake tab is one
+// click away; suspended and closed-saved chips dim. The image itself dims —
+// not the frame — so dupe-stack rings and badges keep their weight.
+const CHIP_FAVICON_DIM_CLASS_NAME = 'chip-favicon-dimmed opacity-50 saturate-50'
+
 /**
  * ChipFaviconFrame — the chip's favicon cell: dupe-stack layers, the favicon
  * (or default), the page-pin badge, the hover-revealed close action, and the
  * icon-only audio toggle.
  */
 function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconCloseAction, dedupeBadgesClosing, closeActionLabel, onCloseAction, onToggleAudio }: ChipFaviconFrameProps) {
+  const faviconDimmed = !!chip.suspended || isClosedSavedDashboardTab(chip)
   return (
     <span
       className={cn(
@@ -861,9 +867,9 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         aria-hidden="true"
       >
         {chip.faviconUrl ? (
-          <img className="chip-favicon block h-full w-full rounded-none object-cover" src={chip.faviconUrl} alt="" />
+          <img className={cn('chip-favicon block h-full w-full rounded-none object-cover', faviconDimmed && CHIP_FAVICON_DIM_CLASS_NAME)} src={chip.faviconUrl} alt="" />
         ) : showDefaultFavicon ? (
-          <DefaultFavicon />
+          <DefaultFavicon className={faviconDimmed ? CHIP_FAVICON_DIM_CLASS_NAME : ''} />
         ) : null}
       </span>
       {!chip.iconOnly && chip.pagePinned && (

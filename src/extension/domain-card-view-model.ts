@@ -10,7 +10,7 @@ import { allocateCardSuppressionTones } from './title-suppression-tones.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
-import { dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
+import { allOpenTargetsSuspended, dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
 import { pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
@@ -1247,6 +1247,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       sourceType: tab.sourceType || 'tab',
       saved: !!tab.saved,
       closedSaved: isClosedSavedDashboardTab(tab),
+      suspended: allOpenTargetsSuspended(duplicateTabs),
       savedPageKey: tab.savedPageKey,
       pagePinDisabled: !!tabOutMeta?.pagePinDisabled,
       leadPrefix,
@@ -1375,6 +1376,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       ...representative,
       saved: allVariantsSaved,
       closedSaved: allVariantsClosedSaved,
+      suspended: allOpenTargetsSuspended(variants),
       savedPageKey: undefined,
       pagePinId: undefined,
       pagePinned: undefined,
@@ -1632,6 +1634,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       tabUrl: primary.url,
       rawUrl: primary.rawUrl || primary.url,
       sourceType: primary.sourceType || 'tab',
+      suspended: allOpenTargetsSuspended(tabs),
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,
