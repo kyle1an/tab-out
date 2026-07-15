@@ -50,6 +50,15 @@ const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG = 'color-mix(in srgb, var(--card
 const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history-entry-interaction-bg) focus-within:bg-(--history-entry-interaction-bg) [&.history-entry-expanded-open]:bg-(--history-entry-interaction-bg) [&[data-context-menu-open]]:bg-(--history-entry-interaction-bg) group-hover/history-row:after:opacity-100 [&.history-entry-expanded-open]:after:opacity-100 [&[data-context-menu-open]]:after:opacity-100'
 const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
+// Closed rows (tab gone: dead stack rows and recently-closed ghosts) hover
+// like closed-saved page chips: the lighter "group" fill plus a 1px outline
+// (chip-trim's GROUP_HOVER_BORDER recipe), across the same interaction
+// states the fill responds to. Focus keeps the amber ring instead. The
+// outline color rides a CSS var (set in entryBaseStyle) exactly like the
+// chips' --chip-group-hover-border — an arbitrary color-mix() class does
+// not survive Tailwind's extractor.
+const HISTORY_ENTRY_CLOSED_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
+const HISTORY_ENTRY_CLOSED_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} group-hover/history-row:outline group-hover/history-row:outline-1 group-hover/history-row:-outline-offset-1 group-hover/history-row:outline-(--history-entry-hover-border) [&.history-entry-expanded-open]:outline [&.history-entry-expanded-open]:outline-1 [&.history-entry-expanded-open]:-outline-offset-1 [&.history-entry-expanded-open]:outline-(--history-entry-hover-border) [&[data-context-menu-open]]:outline [&[data-context-menu-open]]:outline-1 [&[data-context-menu-open]]:-outline-offset-1 [&[data-context-menu-open]]:outline-(--history-entry-hover-border)`
 const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES}`
 const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
   lineHtml: [],
@@ -901,12 +910,13 @@ type HistoryEntryTitleProps = {
   title: string
   highlightTerms: readonly string[]
   badges: readonly string[]
+  mutedTitle: boolean
   geometry: HistoryEntryExpansionGeometry
   clampedLineHtml: readonly string[] | null
   titleRef: RefObject<HTMLSpanElement | null>
 }
 
-function HistoryEntryTitle({ expanded, title, highlightTerms, badges, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
+function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
   function expandedLinesNode() {
     const lastIndex = geometry.lineHtml.length - 1
     return (
@@ -932,7 +942,8 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, geometry, 
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
         <span
           className={cn(
-            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] text-tab-ink [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:var(--title-fade-mask)]",
+            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:var(--title-fade-mask)]",
+            mutedTitle ? 'text-tab-muted' : 'text-tab-ink',
             expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
           )}
           ref={expanded ? undefined : titleRef}
@@ -1144,18 +1155,27 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
 
   const activeInOtherWindow = !!entry.activeInOtherWindow && !entry.current
   const isActiveEntry = entry.active || entry.activeInOtherWindow
+  // Closed rows (no open tab) mirror closed-saved page chips: muted title,
+  // dimmed favicon, and the group-style hover (lighter fill + outline).
+  // The closed branch outranks canActivateEntry — closed ghosts are
+  // activatable (reopen) but must not read as live clickable rows.
+  const entryClosed = !entry.exists
   const historyEntryInteractionBg = entry.current
     ? 'var(--color-neutral-100)'
     : activeInOtherWindow
       ? HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_BG
-      : canActivateEntry
-        ? HISTORY_ENTRY_CLICKABLE_INTERACTION_BG
-        : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG
+      : entryClosed
+        ? HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG
+        : canActivateEntry
+          ? HISTORY_ENTRY_CLICKABLE_INTERACTION_BG
+          : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_BG
   const historyEntryInteractionClasses = activeInOtherWindow
     ? HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES
-    : canActivateEntry
-      ? HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES
-      : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES
+    : entryClosed
+      ? HISTORY_ENTRY_CLOSED_INTERACTION_CLASSES
+      : canActivateEntry
+        ? HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES
+        : HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES
   const hoverSource: HoverUrlSource = workingSetItem ? 'working-set' : 'history'
   const matchUrls = uniqueUrls([
     ...pageTargetMatchUrls(entry),
@@ -1199,6 +1219,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   const entryBaseStyle: CSSVariableProperties = {
     '--history-entry-fade-bg': historyEntryInteractionBg,
     '--history-entry-interaction-bg': historyEntryInteractionBg,
+    '--history-entry-hover-border': HISTORY_ENTRY_CLOSED_HOVER_BORDER,
     '--history-entry-rest-bg': activeInOtherWindow ? HISTORY_ENTRY_ACTIVE_OTHER_REST_BG : 'transparent'
   }
   const entryOverlayStyle: CSSVariableProperties = {
@@ -1221,6 +1242,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
         aria-hidden={expanded ? true : undefined}
         className={cn(
           "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+          entryClosed && 'history-entry-closed text-tab-muted',
           titleExpanded && 'history-entry-expanded-open',
           expanded && 'history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-(--history-entry-expanded-max-width) cursor-default select-none !overflow-visible !transition-none w-(--history-entry-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           expanded && (entryExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
@@ -1285,6 +1307,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
             title={entry.title}
             highlightTerms={highlightTerms}
             badges={badges}
+            mutedTitle={entryClosed}
             geometry={entryExpansionGeometry}
             clampedLineHtml={titleClamp?.key === titleClampKey ? titleClamp.lineHtml : null}
             titleRef={titleRef}
