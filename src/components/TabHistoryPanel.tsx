@@ -957,6 +957,7 @@ type HistoryEntryFaviconFrameProps = {
   expanded: boolean
   faviconUrl: string
   faviconDimmed: boolean
+  isApp: boolean
   isWorkingSetExtra: boolean
   canRemoveEntry: boolean
   canForgetClosedGhost: boolean
@@ -965,12 +966,20 @@ type HistoryEntryFaviconFrameProps = {
   onClose: (e: MouseEvent<HTMLButtonElement>) => void
 }
 
-function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
+function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, isApp, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
   return (
-    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
+    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-6 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
       <span
         className={cn(
-          'history-entry-favicon-content grid h-full w-full place-items-center',
+          // The favicon column is a 24px cell for every row so all icons
+          // share one axis of symmetry: plain favicons render 16px centered
+          // in it, and standalone-app rows fill it with the exact Apps-chip
+          // geometry — 24px rounded-xl squircle, 1px ring, 16px icon. The
+          // frame keeps full strength — only the icon dims with liveness.
+          'history-entry-favicon-content grid place-items-center',
+          isApp
+            ? 'history-entry-app-favicon h-full w-full overflow-hidden rounded-xl border border-[rgba(115,115,115,0.32)] p-[3px] [corner-shape:squircle]'
+            : 'size-4',
           canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
         )}
         aria-hidden="true"
@@ -1252,6 +1261,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
             expanded={expanded}
             faviconUrl={faviconUrl}
             faviconDimmed={faviconDimmed}
+            isApp={entry.isApp}
             isWorkingSetExtra={isWorkingSetExtra}
             canRemoveEntry={canRemoveEntry}
             canForgetClosedGhost={canForgetClosedGhost}
