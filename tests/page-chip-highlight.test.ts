@@ -1803,14 +1803,15 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
       })
     })
   )
-  const indexMatches = Array.from(html.matchAll(/<span data-history-index-tone="(highlighted|muted)" class="([^"]*)"/g))
-  const highlightedIndex = indexMatches.find((match) => match[1] === 'highlighted')?.[2] || ''
-  const mutedIndex = indexMatches.find((match) => match[1] === 'muted')?.[2] || ''
+  const indexMatches = Array.from(html.matchAll(/<span data-tabout-part="history-entry-marker" class="([^"]*)"/g))
+  const highlighted = indexMatches.filter((match) => /\bfont-semibold\b/.test(match[1]))
+  const muted = indexMatches.filter((match) => !/\bfont-semibold\b/.test(match[1]))
 
-  assert.equal(indexMatches.filter((match) => match[1] === 'highlighted').length, 1)
-  assert.equal(indexMatches.filter((match) => match[1] === 'muted').length, 1)
-  assert.match(highlightedIndex, /font-semibold/)
-  assert.match(mutedIndex, /text-\[rgba\(115,115,115,0\.42\)\]/)
+  assert.equal(indexMatches.length, 2)
+  assert.equal(highlighted.length, 1)
+  assert.equal(muted.length, 1)
+  assert.match(highlighted[0][1], /\btext-tab-ink\b/)
+  assert.match(muted[0][1], /text-\[rgba\(115,115,115,0\.42\)\]/)
 })
 
 test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority attribute', () => {
@@ -1955,7 +1956,7 @@ test('TabHistoryPanel renders non-overlapping working-set items inline without a
   )
 
   assert.doesNotMatch(html, /data-tabout-part="working-set-extra-list"/)
-  assert.match(html, /data-tabout-part="history-entry-marker-open-ghost"/)
+  assert.match(html, /data-working-set-extra="true"/)
   assert.match(html, /Ext<\/span>ra[\s\S]*Cand<\/span>idate/)
   assert.match(html, /default-favicon-image/)
   // Open-ghost (Working Set) rows reference a live tab, so they expose the same
@@ -2044,7 +2045,7 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
 
   assert.equal(newsRows.length, 1, 'no history entries match so only the extra working set row renders')
   assert.doesNotMatch(newsHtml, /data-tabout-part="working-set-extra-list"/)
-  assert.match(newsHtml, /data-tabout-part="history-entry-marker-open-ghost"/)
+  assert.match(newsHtml, /data-working-set-extra="true"/)
   assert.match(newsHtml, /Dai<\/span>ly[\s\S]*<mark[^>]*class="[^"]*chip-filter-match[^"]*"[^>]*>News<\/mark>/)
   assert.doesNotMatch(newsHtml, /<mark[^>]*chip-filter-match[^>]*>GitHub/)
   assert.doesNotMatch(newsHtml, /Exa<\/span>mple/)
@@ -3604,31 +3605,8 @@ test('HistoryEntry renders open-ghost marker with data-tabout-part attribute', (
     })
   )
 
-  assert.match(html, /data-tabout-part="history-entry-marker-open-ghost"/)
-})
-
-test('closed-ghost dot has accessible label describing close time', () => {
-  const closedAt = Date.now() - 5 * 60_000
-  const html = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot: makeHistorySnapshot(),
-      closedTabs: [
-        {
-          sessionId: 'session-abc',
-          tabId: 555,
-          url: 'https://example.com/closed',
-          rawUrl: 'https://example.com/closed',
-          displayUrl: 'example.com/closed',
-          title: 'Closed Page',
-          favIconUrl: '',
-          lastClosedAt: closedAt
-        }
-      ]
-    })
-  )
-
-  assert.match(html, /data-tabout-part="history-entry-marker-closed-ghost"/)
-  assert.match(html, /aria-label="Closed (4|5|6) minutes ago"/)
+  assert.match(html, /data-working-set-extra="true"/)
+  assert.doesNotMatch(html, /history-entry-marker-(open|closed)-ghost/)
 })
 
 test('closed-ghost row exposes a forget affordance instead of a tab-close', () => {

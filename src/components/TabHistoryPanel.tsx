@@ -466,20 +466,6 @@ function uniqueUrls(urls: readonly string[]) {
   return [...new Set(urls.filter(Boolean))]
 }
 
-function formatRelativeMinutes(now: number, ts: number): string {
-  const diffMs = Math.max(0, now - ts)
-  const minutes = Math.round(diffMs / 60000)
-  if (minutes <= 0) return 'just now'
-  if (minutes === 1) return '1 minute ago'
-  if (minutes < 60) return `${minutes} minutes ago`
-  const hours = Math.round(minutes / 60)
-  if (hours === 1) return '1 hour ago'
-  if (hours < 24) return `${hours} hours ago`
-  const days = Math.round(hours / 24)
-  if (days === 1) return '1 day ago'
-  return `${days} days ago`
-}
-
 type HistoryTitleClamp = {
   key: string
   lineHtml: string[]
@@ -872,29 +858,18 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
 }
 
 type HistoryEntryMarkerCellProps = {
-  kind: HistoryEntryKind
   indexLabel: ReactNode
-  closedTab: ClosedTabEntry | null
-  renderedAtMs: number
   isIndexHighlighted: boolean
 }
 
-function HistoryEntryMarkerCell({ kind, indexLabel, closedTab, renderedAtMs, isIndexHighlighted }: HistoryEntryMarkerCellProps) {
-  let marker: ReactNode = indexLabel
-  if (kind === 'open-ghost') {
-    marker = <span data-tabout-part="history-entry-marker-open-ghost" className="block size-1.5 rounded-full bg-(--accent-amber)" aria-hidden="true" />
-  } else if (kind === 'closed-ghost') {
-    marker = (
-      <span
-        data-tabout-part="history-entry-marker-closed-ghost"
-        className="block size-1.5 rounded-full border border-(--accent-amber) bg-transparent"
-        aria-label={closedTab ? `Closed ${formatRelativeMinutes(renderedAtMs, closedTab.lastClosedAt)}` : 'Closed'}
-      />
-    )
-  }
+// Ghost rows (Working Set extras, recently-closed) render a blank marker
+// cell: their open/closed state already reads from the row itself via the
+// liveness treatment, so the old amber dot glyphs carried redundant signal.
+function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntryMarkerCellProps) {
+  const marker: ReactNode = indexLabel
   return (
     <span
-      data-history-index-tone={isIndexHighlighted ? 'highlighted' : 'muted'}
+      data-tabout-part="history-entry-marker"
       className={cn(
         'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
         isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink'
@@ -1116,9 +1091,6 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     onHistoryEntryBlur,
     onHistoryEntryContextMenuOpenChange
   } = useHistoryEntryExpansion(contextMenuOpenRef, titleClampKey)
-  // Stable per-mount "now" for the relative closed-time label; reading Date.now()
-  // directly in render is an impurity the React Compiler flags (react-hooks-js/purity).
-  const [renderedAtMs] = useState(() => Date.now())
 
   const isWorkingSetExtra = !!workingSetItem
   const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
@@ -1333,10 +1305,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
       onBlur={onMouseLeave}
     >
       <HistoryEntryMarkerCell
-        kind={kind}
         indexLabel={indexLabel}
-        closedTab={closedTab}
-        renderedAtMs={renderedAtMs}
         isIndexHighlighted={isIndexHighlighted}
       />
       <div
