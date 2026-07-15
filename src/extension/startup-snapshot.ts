@@ -38,6 +38,12 @@ type SaveCachedDashboardStartupOptions = {
   now?: number
 }
 
+// Everything cached under this key crosses chrome.storage, which is JSON-only:
+// Maps/Sets/Dates silently degrade ({} / {} / string) and revive wrong, so the
+// snapshot and its startupViewModel must stay plain JSON data (records, arrays,
+// primitives — see the title-suppression tone records). Bump the :vN suffix
+// whenever the cached shape changes in a way the readers below cannot digest;
+// old-version entries are simply never read again and age out.
 export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1'
 // How long the first-paint Working Set priority stays frozen across reopens before the next
 // live hydration adopts a fresh Working Set. Longer keeps chip/section ordering stable across
