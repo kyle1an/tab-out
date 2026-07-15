@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 import { flattenBookmarkNodes } from '../src/extension/bookmarks.js'
 import { domainCardId } from '../src/extension/domain-card-id.js'
@@ -1650,6 +1652,17 @@ test('buildDashboardViewModel keeps remembered order across saved-page and raw-u
   )
 })
 
+// useDashboardViewModels memoizes its builds with real hooks now, so it must run
+// inside a React render; a one-shot static render extracts the hook's value.
+function renderHookValue<T>(run: () => T): T {
+  let value: T | undefined
+  renderToStaticMarkup(React.createElement(() => {
+    value = run()
+    return null
+  }))
+  return value as T
+}
+
 test('useDashboardViewModels holds tabs chip order during the startup freeze and resumes after it', () => {
   const tabs = [
     makeTab({ id: 1, url: 'https://example.test/alpha', title: 'Alpha' }),
@@ -1681,20 +1694,20 @@ test('useDashboardViewModels holds tabs chip order during the startup freeze and
   }
   const startupViewModel = buildDashboardViewModel({ realTabs: [], domainGroups: [] })
   startupViewModel.stats.totalTabs = 99
-  const cached = useDashboardViewModels({ ...base, freezeTabsChipOrder: true, startupViewModel })
+  const cached = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: true, startupViewModel }))
   assert.equal(cached.dashboardVm, startupViewModel)
   assert.equal(cached.stats.totalTabs, 99)
 
   // During the startup freeze the remembered order is ignored, so first paint and live
   // hydration both render the stable fallback order instead of re-sorting the chip window.
-  const frozen = useDashboardViewModels({ ...base, freezeTabsChipOrder: true })
+  const frozen = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: true }))
   assert.deepEqual(
     frozen.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/alpha', 'https://example.test/bravo']
   )
 
   // Once the freeze lifts (filter/source change) the remembered order is honored again.
-  const live = useDashboardViewModels({ ...base, freezeTabsChipOrder: false })
+  const live = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: false }))
   assert.deepEqual(
     live.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/bravo', 'https://example.test/alpha']

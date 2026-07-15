@@ -1,4 +1,4 @@
-import { useLayoutEffect, type RefObject } from 'react'
+import { useLayoutEffect, useMemo, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
 import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
@@ -38,27 +38,39 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const bookmarkDomainGroups = dashboard?.bookmarkDomainGroups || EMPTY_DOMAIN_GROUPS
   const historyTabs = dashboard?.historyTabs || EMPTY_TABS
   const historyDomainGroups = dashboard?.historyDomainGroups || EMPTY_DOMAIN_GROUPS
-  const chipPriority = source === 'tabs' ? dashboardChipPriorityFromWorkingSet(workingSet) : undefined
+  const chipPriority = useMemo(
+    () => (source === 'tabs' ? dashboardChipPriorityFromWorkingSet(workingSet) : undefined),
+    [source, workingSet]
+  )
   // During the startup priority freeze, frozen Working Set priority plus the deterministic
   // fallback already fix the chip order. Remembered chip-order memory is empty at first paint
   // but populated by the time live hydration re-renders, so honoring it there re-sorts the
   // visible chip window and shifts Website Path sections. Hold it off until the freeze lifts.
   const mainChipOrder = freezeTabsChipOrder && source === 'tabs' ? EMPTY_CHIP_ORDER_BY_CARD : chipOrder[source] || EMPTY_CHIP_ORDER_BY_CARD
 
-  const dashboardVm = startupViewModel ?? buildDashboardViewModel({
-    realTabs,
-    domainGroups,
-    filter,
-    source,
-    currentWindowId,
-    chipOrder: mainChipOrder,
-    chipPriority,
-    pinnedSections,
-    pinnedPageChips
-  })
+  // The full view-model build walks every group/card/chip, so it must not run on
+  // unrelated App renders (hover, pre-debounce filter keystrokes): a fresh object
+  // graph here re-renders the whole compiled tree below. The chip-order maps are
+  // mutable caches with stable identity; the deps deliberately re-read their
+  // contents only when a build input (dashboard/filter/source/pins) changes,
+  // which is when reordering is meant to apply (see the startup-order contract).
+  const dashboardVm = useMemo(
+    () => startupViewModel ?? buildDashboardViewModel({
+      realTabs,
+      domainGroups,
+      filter,
+      source,
+      currentWindowId,
+      chipOrder: mainChipOrder,
+      chipPriority,
+      pinnedSections,
+      pinnedPageChips
+    }),
+    [startupViewModel, realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips]
+  )
 
-  const bookmarkSearchVm =
-    canUseBookmarkSearchResults(dashboard, filterSearchOptions)
+  const bookmarkSearchVm = useMemo(
+    () => canUseBookmarkSearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
       ? buildDashboardViewModel({
           realTabs: bookmarkTabs,
           domainGroups: bookmarkDomainGroups,
@@ -68,10 +80,12 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           pinnedSections,
           pinnedPageChips
         })
-      : null
+      : null,
+    [dashboard, source, filter, historyRange, historyFilterEnabled, bookmarkTabs, bookmarkDomainGroups, chipOrder.bookmarks, pinnedSections, pinnedPageChips]
+  )
 
-  const historySearchVm =
-    canUseHistorySearchResults(dashboard, filterSearchOptions)
+  const historySearchVm = useMemo(
+    () => canUseHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
       ? buildDashboardViewModel({
           realTabs: historyTabs,
           domainGroups: historyDomainGroups,
@@ -81,7 +95,9 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           pinnedSections,
           pinnedPageChips
         })
-      : null
+      : null,
+    [dashboard, source, filter, historyRange, historyFilterEnabled, historyTabs, historyDomainGroups, chipOrder.history, pinnedSections, pinnedPageChips]
+  )
 
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
