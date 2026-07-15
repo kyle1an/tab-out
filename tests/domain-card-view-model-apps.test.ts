@@ -40,3 +40,19 @@ test('apps card chips carry their titles instead of rendering icon-only', () => 
   }
   assert.deepEqual(chips.map((chip) => chip.title), ['Inbox - Mail', 'Week View - Calendar'])
 })
+
+test('apps card chips keep raw titles like history rows — no noise cleanup, no suppression', () => {
+  const rawTitle = 'Inbox (414) - person@example.com - Example Mail'
+  const group: DomainGroup = {
+    domain: '__standalone-apps__',
+    label: 'Apps',
+    tabs: [makeAppTab({ id: 1, url: 'https://mail.example.com/inbox', title: rawTitle })]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1, allowMutations: false })
+  const chip = (vm.sections[0]?.flatVisibleChips ?? [])[0]
+
+  assert.ok(chip)
+  assert.equal(chip.title, rawTitle)
+  assert.deepEqual(chip.suppressedTitleParts, [])
+})

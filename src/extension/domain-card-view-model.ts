@@ -1202,13 +1202,23 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     pathSuffix: string,
     pathGroupLabel: string,
     stripLabel = '',
-    { iconOnly = false }: { iconOnly?: boolean } = {}
+    { iconOnly = false, rawTitle = false }: { iconOnly?: boolean; rawTitle?: boolean } = {}
   ): DashboardChipData {
     let parsed: URL | null = null
     try {
       parsed = new URL(tab.url)
     } catch {}
-    const presentation = titlePresentation(tab)
+    // rawTitle: bypass the presentation pipeline entirely (no noise strip,
+    // no suppression pills) — app chips mirror the history list, which
+    // shows titles exactly as Chrome reports them.
+    const presentation = rawTitle
+      ? {
+          displayTitle: (tab.title || '').trim(),
+          suppressedTitleParts: [],
+          suppressedTitlePartPositions: [],
+          suppressedTitlePartsBeforeStructuralTail: []
+        }
+      : titlePresentation(tab)
     const label = presentation.displayTitle
     let subPrefix = ''
     let portPrefix = ''
@@ -1551,8 +1561,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     // Apps render as regular titled chips (favicon + title, stacked) — the
     // icon-only presentation hid which window was which once several apps
     // were open. PageChip still branches on iconOnly for callers that want
-    // the compact form.
-    const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', ''))
+    // the compact form. Titles stay RAW (rawTitle) to match history rows.
+    const appChips = uniqueTabs.map((tab) => buildChipData(tab, false, '', '', '', { rawTitle: true }))
     const vmClosableCount = displayMode === 'unmatched' || !allowMutations ? 0 : closableCount
     const vmClosableExtras = displayMode === 'unmatched' || !allowMutations ? 0 : closableExtras
     const vmClosableDupeUrls = displayMode === 'unmatched' || !allowMutations ? [] : closableDupeUrls
