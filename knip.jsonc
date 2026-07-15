@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/app.tsx",
+    "src/extension/background.ts",
+    "src/extension/filter-focus-boot.ts",
+    "tests/**/*.test.ts",
+    "tests/helpers/fake-chrome.mjs",
+    "scripts/*.mjs"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs", "tests/**/*.{ts,mjs}"],
+  "ignoreDependencies": [
+    // Icon sets are consumed by @iconify/tailwind4 through CSS class names
+    // (icon-[lucide--…] etc.) in src/styles/app.css — invisible to knip.
+    "@iconify-json/lucide",
+    "@iconify-json/mingcute",
+    "@iconify-json/ooui",
+    // Scaffolding CLI driven by components.json, run ad hoc — never imported.
+    "shadcn"
+  ]
+}
