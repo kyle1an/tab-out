@@ -84,7 +84,7 @@
 - **Working Set** activity scores should mostly come from recent days, with older activity pruned or retained only as a weak tie-breaker.
 - **Working Set** page identity should distinguish meaningful path changes while avoiding noisy query, hash, redirect, or background-update churn.
 - **Activation History** and **Working Set** may use overlapping activity evidence, but **Activation History** is chronological switching state while **Working Set** is ranked shortcut discovery.
-- **Activation History** treats browser utility pages such as Tab Out, new-tab, settings, internal Chrome, and extension pages as low-score rows even when they are current or active; suspended extension URLs unwrap to their real page before this decision.
+- **Activation History** rows share one text treatment — there is no relevance-based dimming tier; liveness is signaled by favicon strength alone. Standalone app rows draw the same ringed favicon as `Apps` chips and show raw window titles, matching the Apps card.
 - **Activation History** recently-closed rows can be focused to reopen the tab and can be forgotten with an undoable local dismissal that hides that closure from the panel; Chrome exposes no API to delete a recently-closed entry, so forgetting is local suppression keyed by effective page identity that lapses if the same page is closed again later.
 - A **Working Set** does not change **Domain Card** ordering; it may prioritize sibling subdomain sections, Website Path Sections, Path Groups, and Page Chips within a Domain Card, and any future **Filter Match** ranking use should treat Working Set activity as a tie-breaker rather than replacing match semantics.
 - A **Working Set** excludes utility pages such as Tab Out pages and should drop non-open pages from the visible set while retaining recent activity only as historical ranking evidence.
@@ -92,6 +92,7 @@
 - A **Tab Action** may suspend the live, not-already-suspended tabs behind a **Title Suppression Scope** token when that token has matching ungrouped, non-preserved open tabs.
 - The **Suspend Target** is learned by observing an already-suspended open tab and is remembered across sessions; suspending never picks a suspender the user has not used.
 - A suspended **Dashboard Item** keeps its real page's favicon: chips, history rows, and Working Set rows resolve the icon from the unwrapped effective URL instead of keeping the suspender page's faded copy.
+- A **Dashboard Item** favicon encodes liveness: full strength only when an awake open tab backs it; suspended and closed items dim the icon on **Page Chips** and **Activation History** rows, same-title variant rows dim their per-URL label instead, and read-only Bookmarks/History sources render full strength.
 - An **Activation History** row offers the explicit **Page Chip** context-menu actions that apply to it: copy title, copy URL, save page, and suspend.
 - A **Tab Action** reads and mutates open tabs, windows, and recently-closed sessions only through the **Browser Tabs Gateway**; matching, dedupe, suspend-eligibility, and undo policy remain **Tab Action** decisions.
 - Live-tab matching resolves a **Dashboard Item Identity** to the live open tabs it names — suspender-aware, including folded same-title variants — and close, mute, and suspend all resolve through that one matching.

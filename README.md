@@ -42,6 +42,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Shared-page fold** — if the same path is open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), it collapses into one chip with a row of clickable env pills; each pill jumps to that specific tab
 - **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill
 - **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally, recovers the real page favicon over the suspender's faded copy, and unsuspends through the owning suspender when activated
+- **Liveness at a glance** — favicon strength shows whether an awake tab backs each chip or history row: live pages stay full color, suspended and closed ones dim; standalone apps wear a ringed favicon with their raw window titles in both the Apps card and history
 - **Localhost grouping** shows port numbers next to each tab so you can tell your dev projects apart
 - **Path-group clusters** — GitHub repos, Jira projects, Confluence spaces, Contentful envs, Figma files, and subreddits each cluster under a labeled sub-section within their domain card
 - **Expandable sections** show the first 5 chips with a clickable "+N more" (skipped when N would be 1)
