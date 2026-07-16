@@ -1,0 +1,1 @@
+var e=[{value:`off`,label:`History off`,days:0},{value:`1d`,label:`Last day`,days:1},{value:`7d`,label:`Last week`,days:7},{value:`30d`,label:`Last month`,days:30},{value:`90d`,label:`Last 3 months`,days:90}];function t(e=`1d`){return e!==`off`}export{t as n,e as t};
