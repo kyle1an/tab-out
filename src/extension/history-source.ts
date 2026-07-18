@@ -8,8 +8,9 @@ type HistoryItemLike = Pick<chrome.history.HistoryItem, 'id' | 'title' | 'url'>
 
 const HISTORY_MAX_RESULTS = 30
 
-function historyRangeDays(range = DEFAULT_HISTORY_RANGE): number {
-  return HISTORY_RANGE_OPTIONS.find((option) => option.value === range)?.days || 90
+function historyRangeDays(range = DEFAULT_HISTORY_RANGE): number | null {
+  const option = HISTORY_RANGE_OPTIONS.find((candidate) => candidate.value === range)
+  return option ? option.days : 90
 }
 
 /**
@@ -42,12 +43,12 @@ export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTOR
   if (!text || !isHistoryFilterEnabled(range) || !globalThis.chrome?.history?.search) return []
 
   try {
-    const startTime = Date.now() - historyRangeDays(range) * 24 * 60 * 60 * 1000
-    const items = await chrome.history.search({
-      text,
-      startTime,
-      maxResults: HISTORY_MAX_RESULTS
-    })
+    const days = historyRangeDays(range)
+    const startTime = days === null
+      ? 0
+      : Date.now() - days * 24 * 60 * 60 * 1000
+    const searchQuery = { text, startTime, maxResults: HISTORY_MAX_RESULTS }
+    const items = await chrome.history.search(searchQuery)
     return flattenHistoryItems(items)
   } catch {
     return []

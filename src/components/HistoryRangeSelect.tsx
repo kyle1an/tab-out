@@ -21,7 +21,8 @@ export function HistoryRangeSelect({
   return (
     <Select value={value} items={HISTORY_RANGE_OPTIONS} onValueChange={handleValueChange}>
       <SelectTrigger
-        className="h-(--header-control-height) rounded-(--header-control-radius) border-(--warm-gray) bg-tab-card text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
+        data-tabout="history-range"
+        className="h-(--header-control-height)! rounded-(--header-control-radius) border-(--warm-gray) bg-tab-card text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
         aria-label="History search range"
       >
         <SelectValue />

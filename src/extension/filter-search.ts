@@ -52,6 +52,11 @@ export function canUseHistorySearchResults(dashboard: DashboardData | null, opti
   )
 }
 
+export function canDisplayHistorySearchResults(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
+  const request = buildFilterSearchRequest(options)
+  return request.includeHistoryMatches && !!dashboard?.historySearchQuery
+}
+
 export function dashboardNeedsFilterSearchRefresh(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
   const request = buildFilterSearchRequest(options)
   if (!dashboard || !request.includeBookmarkMatches) return false

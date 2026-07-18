@@ -281,7 +281,7 @@ test('header controls share one size and corner radius contract', () => {
   assert.match(headerBarSource, /source-switch-option[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.match(headerBarSource, /source-switch-option[^"]*before:rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
   assert.match(headerBarSource, /source-switch-indicator[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
-  assert.match(historyRangeSelectSource, /<SelectTrigger\s+className="[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*bg-tab-card[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
+  assert.match(historyRangeSelectSource, /<SelectTrigger[\s\S]*?className="[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*bg-tab-card[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.doesNotMatch(historyRangeSelectSource, /<SelectTrigger\s+className="[^"]*bg-\[rgba\(115,115,115,0\.06\)\]/)
   assert.match(historyRangeSelectSource, /<SelectContent[\s\S]*align="start"[\s\S]*className="[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(historyRangeSelectSource, /alignItemWithTrigger=\{false\}/)

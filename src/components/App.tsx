@@ -4,7 +4,7 @@ import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges,
 import { useMissionsMasonry } from '../extension/layout.js'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
-import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-range.js'
+import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-range.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import {
   animateIntraCardMoves,
@@ -48,7 +48,15 @@ const PROGRESSIVE_CARD_INITIAL_COUNT = 24
 const PROGRESSIVE_CARD_CHUNK_SIZE = 24
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
 
-const HistoryRangeSelect = lazy(() => import('./HistoryRangeSelect').then((module) => ({ default: module.HistoryRangeSelect })))
+type HistoryRangeSelectModule = typeof import('./HistoryRangeSelect')
+
+let historyRangeSelectImport: Promise<HistoryRangeSelectModule> | null = null
+
+function loadHistoryRangeSelect(): Promise<HistoryRangeSelectModule> {
+  return historyRangeSelectImport ??= import('./HistoryRangeSelect')
+}
+
+const HistoryRangeSelect = lazy(() => loadHistoryRangeSelect().then((module) => ({ default: module.HistoryRangeSelect })))
 
 type MissionBlockProps = {
   cards: DashboardCardEntry[]
@@ -61,6 +69,7 @@ type MissionBlockProps = {
 }
 type DashboardMissionSection = {
   cards: DashboardCardEntry[]
+  filter?: string
   gridEmpty?: boolean
   gridId: string
   gridRef?: Ref<HTMLDivElement>
@@ -78,6 +87,7 @@ type DashboardMissionSectionsOptions = {
   historyMatchedCards: DashboardCardEntry[]
   historyMatchesFlush: boolean
   historyMissionsRef: Ref<HTMLDivElement>
+  historyResultsFilter: string
   isReady: boolean
   matchedCards: DashboardCardEntry[]
   otherTabsFlush: boolean
@@ -192,14 +202,27 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
 
 function MissionsDivider({ action, label }: { action?: ReactNode; label: string }) {
   return (
-    <div className={cn('missions-divider mb-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase', action && 'min-h-(--header-control-height)')}>
-      <div className={cn('missions-divider-line flex min-w-0 items-center', action && 'gap-2')}>
-        {action && <div className="missions-divider-action shrink-0 text-tab-ink normal-case tracking-normal font-normal">{action}</div>}
-        <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
-      </div>
+    <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase', action && 'min-h-(--header-control-height)')}>
       <span className="missions-divider-label pointer-events-none shrink-0 whitespace-nowrap">{label}</span>
+      {action && <div className="missions-divider-action shrink-0 text-tab-ink normal-case tracking-normal font-normal">{action}</div>}
       <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
     </div>
+  )
+}
+
+function HistoryRangeSelectFallback({ value }: { value: string }) {
+  const label = HISTORY_RANGE_OPTIONS.find((option) => option.value === value)?.label || 'History range'
+  return (
+    <span
+      data-tabout="history-range"
+      className="box-border flex h-(--header-control-height) w-fit items-center justify-between gap-1.5 whitespace-nowrap rounded-(--header-control-radius) border border-(--warm-gray) bg-tab-card py-0 pr-2 pl-2.5 text-(length:--header-control-font-size) leading-(--header-control-line-height) [corner-shape:squircle]"
+      aria-hidden="true"
+    >
+      <span>{label}</span>
+      <svg className="size-4 shrink-0 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="m6 9 6 6 6-6" />
+      </svg>
+    </span>
   )
 }
 
@@ -301,6 +324,7 @@ function dashboardMissionSections({
   historyMatchedCards,
   historyMatchesFlush,
   historyMissionsRef,
+  historyResultsFilter,
   isReady,
   matchedCards,
   otherTabsFlush,
@@ -331,6 +355,7 @@ function dashboardMissionSections({
   if (showHistoryRange || showHistoryMatches) {
     sections.push({
       cards: historyMatchedCards,
+      filter: historyResultsFilter,
       gridId: 'historyMatchesMissions',
       gridRef: historyMissionsRef,
       label: 'History',
@@ -380,7 +405,7 @@ function DashboardMissionsList({ filter, historyRangeAction, sections }: Dashboa
           <MissionBlock
             key={section.gridId}
             cards={section.cards}
-            filter={filter}
+            filter={section.filter ?? filter}
             gridEmpty={section.gridEmpty}
             gridId={section.gridId}
             gridRef={section.gridRef}
@@ -525,7 +550,7 @@ function DashboardShell({
             <DashboardMissionsList
               filter={filter}
               historyRangeAction={showHistoryRange ? (
-                <Suspense fallback={null}>
+                <Suspense fallback={<HistoryRangeSelectFallback value={historyRange} />}>
                   <HistoryRangeSelect
                     value={historyRange}
                     onValueChange={setHistoryRange}
@@ -641,6 +666,10 @@ export function App({
     primeCardMoveAnimation()
   }, [primeCardMoveAnimation])
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
+  const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
+    if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
+    setFilterInput(nextFilterInput)
+  }, [setFilterInput])
   const effectiveStartupPriorityWorkingSet = source === 'tabs' && filter.trim() === '' ? startupPriorityWorkingSet : null
   const visibleWorkingSet = dashboardContentVisible ? effectiveStartupPriorityWorkingSet ?? workingSet : null
   function resetMissionOrder() {
@@ -724,6 +753,7 @@ export function App({
     unmatchedCards,
     bookmarkMatchedCards,
     historyMatchedCards,
+    historyResultsFilter,
     showOtherTabs,
     showBookmarkMatches,
     showHistoryMatches,
@@ -845,6 +875,7 @@ export function App({
     historyMatchedCards,
     historyMatchesFlush,
     historyMissionsRef,
+    historyResultsFilter,
     isReady,
     matchedCards,
     otherTabsFlush,
@@ -858,7 +889,7 @@ export function App({
     source,
     unmatchedCards,
     unmatchedMissionsRef
-  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showPrimaryEmptyState, source, unmatchedCards])
+  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showPrimaryEmptyState, source, unmatchedCards])
 
   useMissionOrderMemory({
     previousOrderRef,
@@ -910,7 +941,7 @@ export function App({
           onDedupAll={onDedupAll}
           onSourceChange={onSourceChange}
           onTabsChange={onTabsChange}
-          setFilterInput={setFilterInput}
+          setFilterInput={handleFilterInputChange}
           setHistoryRange={setHistoryRange}
           setTabHistory={setTabHistory}
           showHistoryRange={showHistoryRange}

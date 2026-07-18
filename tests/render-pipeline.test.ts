@@ -17,7 +17,7 @@ import {
 } from '../src/extension/history-source.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
-import { buildFilterSearchRequest, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
+import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
 import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
 import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
@@ -2139,7 +2139,7 @@ test('history range options default to the last day search window', () => {
   assert.equal(DEFAULT_HISTORY_RANGE, '1d')
   assert.deepEqual(
     HISTORY_RANGE_OPTIONS.map((option) => option.value),
-    [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d']
+    [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d', '180d', '365d', 'all']
   )
   assert.equal(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE).days, 1)
 })
@@ -2180,6 +2180,27 @@ test('history filter off skips Chrome history search', async () => {
     const items = await fetchHistorySourceItems('openai', HISTORY_FILTER_OFF)
     assert.deepEqual(items, [])
     assert.equal(searched, false)
+  } finally {
+    if (originalHistory === undefined) delete (globalThis.chrome as any).history
+    else (globalThis.chrome as any).history = originalHistory
+  }
+})
+
+test('all-time history search starts at the Unix epoch', async () => {
+  const originalHistory = (globalThis.chrome as any).history
+  let searchQuery: any
+  ;(globalThis.chrome as any).history = {
+    async search(query: any) {
+      searchQuery = query
+      return []
+    }
+  }
+
+  try {
+    await fetchHistorySourceItems('example', 'all')
+    assert.equal(searchQuery.text, 'example')
+    assert.equal(searchQuery.maxResults, 30)
+    assert.equal(searchQuery.startTime, 0)
   } finally {
     if (originalHistory === undefined) delete (globalThis.chrome as any).history
     else (globalThis.chrome as any).history = originalHistory
@@ -2236,11 +2257,21 @@ test('filter search request owns bookmark and history inclusion rules', () => {
   )
 })
 
-test('filter search readiness rejects stale side-search snapshots', () => {
+test('filter search retains stale history results while requiring an exact refresh', () => {
+  const historyTabs = [
+    makeTab({
+      id: 2,
+      sourceType: 'history',
+      title: 'OpenAI Docs',
+      url: 'https://example.test/openai'
+    })
+  ]
   const dashboard = {
     realTabs: [],
     domainGroups: [],
     bookmarkSearchReady: true,
+    historyTabs,
+    historyDomainGroups: buildDomainGroups(historyTabs),
     historySearchQuery: 'openai',
     historyRange: '1d'
   }
@@ -2252,9 +2283,30 @@ test('filter search readiness rejects stale side-search snapshots', () => {
   }
 
   assert.equal(canUseHistorySearchResults(dashboard, options), false)
+  assert.equal(canDisplayHistorySearchResults(dashboard, options), true)
   assert.equal(dashboardNeedsFilterSearchRefresh(dashboard, options), true)
+  const stale = renderHookValue(() => useDashboardViewModels({
+    dashboard,
+    ...options,
+    isReady: true,
+    chipOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  }))
+  assert.equal(stale.historyResultsFilter, 'openai')
+  assert.deepEqual(stale.historyMatchedCards.map(({ group }) => group.domain), ['example.test'])
+  assert.equal(stale.showHistoryMatches, true)
   assert.equal(
     dashboardNeedsFilterSearchRefresh(dashboard, {
+      ...options,
+      historyFilterEnabled: false
+    }),
+    false
+  )
+  assert.equal(
+    canDisplayHistorySearchResults(dashboard, {
       ...options,
       historyFilterEnabled: false
     }),

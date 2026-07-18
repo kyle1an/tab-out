@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
-import { canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
+import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
@@ -84,27 +84,35 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     [dashboard, source, filter, historyRange, historyFilterEnabled, bookmarkTabs, bookmarkDomainGroups, chipOrder.bookmarks, pinnedSections, pinnedPageChips]
   )
 
-  const historySearchVm = useMemo(
-    () => canUseHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
-      ? buildDashboardViewModel({
+  const historySearch = useMemo(
+    () => {
+      const displayResults = canDisplayHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
+      const resultsFilter = canUseHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
+        ? filter
+        : dashboard?.historySearchQuery || filter
+      return {
+        displayResults,
+        resultsFilter,
+        viewModel: displayResults ? buildDashboardViewModel({
           realTabs: historyTabs,
           domainGroups: historyDomainGroups,
-          filter,
+          filter: resultsFilter,
           source: 'history',
           chipOrder: chipOrder.history || EMPTY_CHIP_ORDER_BY_CARD,
           pinnedSections,
           pinnedPageChips
-        })
-      : null,
+        }) : null
+      }
+    },
     [dashboard, source, filter, historyRange, historyFilterEnabled, historyTabs, historyDomainGroups, chipOrder.history, pinnedSections, pinnedPageChips]
   )
 
   const matchedCards = dashboardVm.matchedCards
   const unmatchedCards = dashboardVm.unmatchedCards
   const bookmarkMatchedCards = bookmarkSearchVm?.matchedCards || EMPTY_CARD_ENTRIES
-  const historyMatchedCards = historySearchVm?.matchedCards || EMPTY_CARD_ENTRIES
+  const historyMatchedCards = historySearch.viewModel?.matchedCards || EMPTY_CARD_ENTRIES
   const showBookmarkMatches = isReady && canUseBookmarkSearchResults(dashboard, filterSearchOptions) && bookmarkMatchedCards.length > 0
-  const showHistoryMatches = isReady && canUseHistorySearchResults(dashboard, filterSearchOptions) && historyMatchedCards.length > 0
+  const showHistoryMatches = isReady && historySearch.displayResults && historyMatchedCards.length > 0
 
   return {
     dashboardVm,
@@ -113,6 +121,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     unmatchedCards,
     bookmarkMatchedCards,
     historyMatchedCards,
+    historyResultsFilter: historySearch.resultsFilter,
     showOtherTabs: isReady && dashboardVm.showOtherTabs,
     showBookmarkMatches,
     showHistoryMatches,

@@ -5,7 +5,10 @@ export const HISTORY_RANGE_OPTIONS = [
   { value: '1d', label: 'Last day', days: 1 },
   { value: '7d', label: 'Last week', days: 7 },
   { value: '30d', label: 'Last month', days: 30 },
-  { value: '90d', label: 'Last 3 months', days: 90 }
+  { value: '90d', label: 'Last 3 months', days: 90 },
+  { value: '180d', label: 'Last 6 months', days: 180 },
+  { value: '365d', label: 'Last year', days: 365 },
+  { value: 'all', label: 'All time', days: null }
 ]
 
 export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE): boolean {
