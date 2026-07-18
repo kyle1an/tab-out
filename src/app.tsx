@@ -7,6 +7,7 @@ import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
+import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
 import { isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
@@ -66,7 +67,8 @@ if (chrome.tabs) {
       changeInfo.pinned !== undefined ||
       changeInfo.discarded !== undefined ||
       changeInfo.audible !== undefined ||
-      changeInfo.mutedInfo !== undefined
+      changeInfo.mutedInfo !== undefined ||
+      changeInfo.status !== undefined
     )
       scheduleDashboardRefresh({
         animateCards:
@@ -132,6 +134,7 @@ async function initializeApp() {
   })
   const cacheStartedAt = startupDebugNow()
   const cachedStartup = await loadCachedDashboardStartup()
+  seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded', {
     startedAt: cacheStartedAt,
     detail: {

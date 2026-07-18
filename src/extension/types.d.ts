@@ -8,6 +8,9 @@ export interface DashboardTab {
   rawUrl: string
   suspended: boolean
   title: string
+  status?: chrome.tabs.Tab['status']
+  /** Internal lifecycle marker persisted in startup snapshots while an unsuspended tab loads. */
+  retainedSuspendedTitle?: boolean
   favIconUrl: string
   windowId: number
   active: boolean

@@ -34,6 +34,7 @@ export type ChromeOpenTabsSnapshot = {
 }
 
 export let openTabs: DashboardTab[] = []
+let seededOpenTabsTitleHistory: DashboardTab[] = []
 
 function tabIds(tabs: chrome.tabs.Tab[]): number[] {
   return tabs.map((tab) => tab.id).filter((id): id is number => typeof id === 'number')
@@ -77,8 +78,13 @@ async function fetchChromeOpenTabsSnapshot(): Promise<ChromeOpenTabsSnapshot> {
   return { tabs, windows }
 }
 
-export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapshot): DashboardTab[] {
+export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapshot, previousTabs: readonly DashboardTab[] = []): DashboardTab[] {
   const windowTypeById = new Map(windows.filter((w) => typeof w.id === 'number').map((w) => [w.id, w.type]))
+  const previousTabById = new Map(
+    previousTabs
+      .filter((tab): tab is DashboardTab & { id: number } => typeof tab.id === 'number')
+      .map((tab) => [tab.id, tab] as const)
+  )
   return tabs.map((t) => {
     const rawUrl = t.url || ''
     const effectiveUrl = unwrapSuspenderUrl(rawUrl)
@@ -93,6 +99,18 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
       const suspenderTitle = unwrapSuspenderTitle(rawUrl)
       if (suspenderTitle) title = suspenderTitle
     }
+    const previousTab = typeof t.id === 'number' ? previousTabById.get(t.id) : undefined
+    // Carry the title for the whole wake lifecycle. The marker survives page/worker startup
+    // snapshots, so a later refresh can distinguish this state from an ordinary reload.
+    const retainsSuspendedTitle =
+      !suspended &&
+      t.status === 'loading' &&
+      previousTab?.url === effectiveUrl &&
+      !!previousTab.title.replace(/\u200e/g, '').trim() &&
+      (previousTab.suspended || previousTab.retainedSuspendedTitle === true)
+    if (retainsSuspendedTitle) {
+      title = previousTab.title
+    }
     const windowType = windowTypeById.get(t.windowId)
     return {
       id: t.id,
@@ -100,6 +118,8 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
       rawUrl: rawUrl,
       suspended,
       title,
+      status: t.status,
+      ...(retainsSuspendedTitle ? { retainedSuspendedTitle: true } : {}),
       favIconUrl: t.favIconUrl || '',
       audible: !!t.audible,
       muted: !!t.mutedInfo?.muted,
@@ -118,10 +138,17 @@ function replaceOpenTabs(nextOpenTabs: DashboardTab[]): void {
   openTabs = nextOpenTabs
 }
 
+export function seedOpenTabsTitleHistory(tabs: readonly DashboardTab[]): void {
+  if (openTabs.length > 0 || seededOpenTabsTitleHistory.length > 0) return
+  seededOpenTabsTitleHistory = tabs.filter((tab) => typeof tab.id === 'number')
+}
+
 export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
   try {
     const snapshot = await fetchChromeOpenTabsSnapshot()
-    const nextOpenTabs = normalizeChromeOpenTabs(snapshot)
+    const previousTabs = openTabs.length > 0 ? openTabs : seededOpenTabsTitleHistory
+    const nextOpenTabs = normalizeChromeOpenTabs(snapshot, previousTabs)
+    seededOpenTabsTitleHistory = []
     replaceOpenTabs(nextOpenTabs)
     rememberSuspendTargetFromTabs(nextOpenTabs)
     return nextOpenTabs

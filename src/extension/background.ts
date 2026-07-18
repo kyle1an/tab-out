@@ -113,7 +113,7 @@ chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     changeInfo.discarded !== undefined ||
     changeInfo.audible !== undefined ||
     changeInfo.mutedInfo !== undefined ||
-    changeInfo.status === 'complete'
+    changeInfo.status !== undefined
   )
     scheduleStartupSnapshotRefresh()
 })

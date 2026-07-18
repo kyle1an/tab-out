@@ -123,6 +123,29 @@ test('mergeSavedPagesWithTabs does not rewrite unchanged open saved page metadat
   assert.equal(store.pages['https://example.test/open'].lastSeenOpenAt, 100)
 })
 
+test('mergeSavedPagesWithTabs retains the saved title while its matching open tab is loading', () => {
+  const savedStore = addSavedPageToStore(
+    emptySavedPagesStore(),
+    makeTab({ url: 'https://example.test/open', title: 'Full saved title', favIconUrl: 'old.ico' }),
+    100
+  )
+
+  const { tabs, store } = mergeSavedPagesWithTabs(
+    [makeTab({
+      url: 'https://example.test/open',
+      title: 'Example',
+      status: 'loading',
+      favIconUrl: 'fresh.ico'
+    })],
+    savedStore,
+    300
+  )
+
+  assert.equal(tabs[0].title, 'Full saved title')
+  assert.equal(store.pages['https://example.test/open'].title, 'Full saved title')
+  assert.equal(store.pages['https://example.test/open'].favIconUrl, 'fresh.ico')
+})
+
 test('annotateSavedPageHints marks matching bookmark items without adding closed saved rows', () => {
   const savedStore = addSavedPageToStore(
     emptySavedPagesStore(),

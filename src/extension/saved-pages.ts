@@ -133,7 +133,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     if (!key || !normalized.pages[key]) return tab
     openKeys.add(key)
     const record = normalized.pages[key]
-    const nextTitle = tab.title || record.title
+    const nextTitle = tab.status === 'loading' ? record.title : tab.title || record.title
     const nextFavIconUrl = tab.favIconUrl || record.favIconUrl
     const metadataChanged = nextTitle !== record.title || (nextFavIconUrl || '') !== (record.favIconUrl || '')
     const needsLastSeenOpenAt = typeof record.lastSeenOpenAt !== 'number' || !Number.isFinite(record.lastSeenOpenAt)
@@ -150,6 +150,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     }
     return {
       ...tab,
+      title: nextTitle,
       saved: true,
       closedSaved: false,
       savedPageKey: key
