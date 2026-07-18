@@ -52,6 +52,10 @@ export function cancelDomainCardMoves(containers: MissionContainer[]) {
   cardMoveAnimator.cancel(containers)
 }
 
+export function hasActiveDomainCardMoves(containers: MissionContainer[]) {
+  return containers.some((container) => !!container?.querySelector('.domain-block.layout-moving'))
+}
+
 export function prepareDomainCardMoveAnimation(containers: MissionContainer[]): CardPositionMap {
   const previousRects = cardMoveAnimator.snapshot(containers)
   cardMoveAnimator.cancel(containers)

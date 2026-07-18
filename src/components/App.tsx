@@ -5,7 +5,7 @@ import { useMissionsMasonry } from '../extension/layout.js'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
 import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-range.js'
-import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
+import { animateDomainCardMoves, cancelDomainCardMoves, hasActiveDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import {
   animateIntraCardMoves,
   animateQueuedPageChipRefreshMoves,
@@ -624,6 +624,7 @@ export function App({
 
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
+  const filterCardMoveRef = useRef(false)
   const intraCardMoveRef = useRef<PreparedIntraCardMove | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
     tabs: new Map(),
@@ -663,6 +664,7 @@ export function App({
   const [startupPriorityWorkingSet, setStartupPriorityWorkingSet] = useState<WorkingSetSnapshot | null>(() => initialStartupSnapshot?.workingSet ?? null)
   const handleBeforeFilterCommit = useCallback(function handleBeforeFilterCommit() {
     setStartupPriorityWorkingSet(null)
+    filterCardMoveRef.current = true
     primeCardMoveAnimation()
   }, [primeCardMoveAnimation])
   const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
@@ -737,7 +739,15 @@ export function App({
     const containers = readMissionContainers(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef)
     const previousRects = layoutMoveRectsRef.current
     layoutMoveRectsRef.current = null
-    if (!previousRects) cancelDomainCardMoves(containers)
+    // Bookmark/history matches hydrate after the local tab filter commits. Keep
+    // that data-only refresh from cancelling the filter move halfway through.
+    const preserveActiveFilterMove = !previousRects &&
+      filterCardMoveRef.current &&
+      hasActiveDomainCardMoves(containers)
+    if (!previousRects && !preserveActiveFilterMove) {
+      filterCardMoveRef.current = false
+      cancelDomainCardMoves(containers)
+    }
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
   }, [visibleDashboard, filter, source, isReady, clearHoverUrlNow, packMissionsMasonryNow])

@@ -84,6 +84,81 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('filter result cards finish one move while companion results hydrate', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+  await page.evaluate(() => {
+    return (window as unknown as {
+      __tabOutSmokeSetBookmarks: (count: number) => void
+    }).__tabOutSmokeSetBookmarks(12)
+  })
+
+  await page.evaluate(() => {
+    const targetDomain = 'tab-out-smoke-20.com'
+    const moveEvents: Array<{ active: boolean; moving: boolean; time: number }> = []
+    const states = new WeakMap<HTMLElement, { active: boolean; moving: boolean }>()
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const target = record.target
+        if (!(target instanceof HTMLElement) || target.dataset.taboutDomain !== targetDomain) continue
+        const active = target.classList.contains('layout-moving-active')
+        const moving = target.classList.contains('layout-moving')
+        const previous = states.get(target)
+        if (!previous || previous.active !== active || previous.moving !== moving) {
+          moveEvents.push({ active, moving, time: performance.now() })
+        }
+        states.set(target, { active, moving })
+      }
+    })
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true
+    })
+    ;(window as unknown as {
+      __filterMoveProbe: {
+        events: typeof moveEvents
+        observer: MutationObserver
+      }
+    }).__filterMoveProbe = { events: moveEvents, observer }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Bookmark')
+  await expect(page.locator('#bookmarkMatchesMissions [data-tabout="domain-card"]')).toHaveCount(12)
+  await expect.poll(() => page.evaluate(() => {
+    const events = (window as unknown as {
+      __filterMoveProbe: {
+        events: Array<{ active: boolean; moving: boolean; time: number }>
+      }
+    }).__filterMoveProbe.events
+    const firstStart = events.find((event) => event.active)
+    return !!firstStart && events.some((event) => event.time > firstStart.time && !event.moving)
+  })).toBe(true)
+
+  const move = await page.evaluate(() => {
+    const probe = (window as unknown as {
+      __filterMoveProbe: {
+        events: Array<{ active: boolean; moving: boolean; time: number }>
+        observer: MutationObserver
+      }
+    }).__filterMoveProbe
+    probe.observer.disconnect()
+    const starts = probe.events.filter((event) => event.active)
+    const firstStart = starts[0]
+    const firstEnd = firstStart
+      ? probe.events.find((event) => event.time > firstStart.time && !event.moving)
+      : undefined
+    return {
+      activeDuration: firstStart && firstEnd ? firstEnd.time - firstStart.time : 0,
+      starts: starts.length
+    }
+  })
+
+  expect(move.starts).toBe(1)
+  expect(move.activeDuration).toBeGreaterThanOrEqual(240)
+})
+
 test('Page Chip overflow expansion fades the expander and reveals hidden chips together', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')
   const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
