@@ -199,21 +199,31 @@ async function evaluateWithNavigationRetry(session: CdpSession, params: Record<s
   throw lastError
 }
 
-async function waitForBrowserCondition(
+type BrowserConditionOptions<Args extends readonly unknown[]> = {
+  args?: Args
+  timeoutMs?: number
+}
+
+// Predicates run in the page realm; pass Node-side values through args instead of closures.
+async function waitForBrowserCondition<Args extends readonly unknown[] = []>(
   session: CdpSession,
-  conditionExpression: string,
+  condition: (...args: Args) => boolean,
   description: string,
-  timeoutMs = 2000
+  options: BrowserConditionOptions<Args> = {}
 ) {
+  const args = options.args ?? ([] as unknown as Args)
+  const timeoutMs = options.timeoutMs ?? 2000
+  // Runtime.evaluate requires source text, so keep the CDP serialization at this boundary.
   const matched = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
     returnByValue: true,
     expression: `new Promise((resolve) => {
-      const condition = ${conditionExpression}
+      const condition = (${condition.toString()})
+      const args = ${JSON.stringify(args)}
       const start = Date.now()
       const wait = () => {
         try {
-          if (condition()) {
+          if (condition(...args)) {
             resolve(true)
             return
           }
@@ -234,12 +244,12 @@ async function waitForBrowserCondition(
 async function waitForDashboardSettled(session: CdpSession) {
   await waitForBrowserCondition(
     session,
-    `() => {
+    () => {
       const containers = Array.from(document.querySelectorAll('.missions:not(.missions-empty)'))
         .filter((container) => container.clientWidth > 0 && container.querySelector('[data-tabout="domain-card"]:not(.closing)'))
       if (containers.length === 0) return false
       const layoutsMatch = containers.every((container) => {
-        const cards = Array.from(container.querySelectorAll('[data-tabout="domain-card"]:not(.closing)'))
+        const cards = Array.from(container.querySelectorAll<HTMLElement>('[data-tabout="domain-card"]:not(.closing)'))
           .filter((card) => window.getComputedStyle(card).display !== 'none')
         if (!container.classList.contains('is-packed') || cards.length === 0 || container.querySelector('.layout-moving')) {
           return false
@@ -253,27 +263,28 @@ async function waitForDashboardSettled(session: CdpSession) {
         return cards.every((card) => Math.abs(Number.parseFloat(card.style.width) - expectedWidth) <= 1)
       })
       return layoutsMatch
-    }`,
+    },
     'dashboard masonry should settle at the requested viewport',
-    5000
+    { timeoutMs: 5000 }
   )
 }
 
 async function waitForScrollTop(session: CdpSession, selector: string, expected = 0) {
   await waitForBrowserCondition(
     session,
-    `() => {
-      const scroller = document.querySelector(${JSON.stringify(selector)})
-      return !!scroller && Math.abs(scroller.scrollTop - ${JSON.stringify(expected)}) <= 1
-    }`,
-    `${selector} should reach scrollTop ${expected}`
+    (targetSelector: string, targetScrollTop: number) => {
+      const scroller = document.querySelector(targetSelector)
+      return !!scroller && Math.abs(scroller.scrollTop - targetScrollTop) <= 1
+    },
+    `${selector} should reach scrollTop ${expected}`,
+    { args: [selector, expected] }
   )
 }
 
 async function waitForNoPageChipExpansion(session: CdpSession) {
   await waitForBrowserCondition(
     session,
-    `() => !document.querySelector('.page-chip-expanded')`,
+    () => !document.querySelector('.page-chip-expanded'),
     'page chip expansion should close'
   )
 }
@@ -281,7 +292,7 @@ async function waitForNoPageChipExpansion(session: CdpSession) {
 async function waitForNoHistoryEntryExpansion(session: CdpSession) {
   await waitForBrowserCondition(
     session,
-    `() => !document.querySelector('.history-entry-expanded')`,
+    () => !document.querySelector('.history-entry-expanded'),
     'history entry expansion should close'
   )
 }
@@ -289,10 +300,10 @@ async function waitForNoHistoryEntryExpansion(session: CdpSession) {
 async function waitForNoVisibleTooltip(session: CdpSession) {
   await waitForBrowserCondition(
     session,
-    `() => !Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).some((tooltip) => {
+    () => !Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).some((tooltip) => {
       const rect = tooltip.getBoundingClientRect()
       return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
-    })`,
+    }),
     'visible tooltip should close'
   )
 }
@@ -308,24 +319,28 @@ async function waitForNoTitleExpansion(session: CdpSession) {
 async function waitForContextMenuState(session: CdpSession, open: boolean) {
   await waitForBrowserCondition(
     session,
-    `() => {
+    (shouldBeOpen: boolean) => {
       const menu = document.querySelector('[data-slot="context-menu-content"]')
-      return ${JSON.stringify(open)}
+      return shouldBeOpen
         ? !!menu && menu.getClientRects().length > 0
         : !menu || menu.getClientRects().length === 0
-    }`,
-    `context menu should ${open ? 'open' : 'close'}`
+    },
+    `context menu should ${open ? 'open' : 'close'}`,
+    { args: [open] }
   )
 }
 
 async function waitForFocusUpdates(session: CdpSession) {
   await waitForBrowserCondition(
     session,
-    `() => {
-      const updates = window.__tabOutSmokeFocusUpdates || []
+    () => {
+      const smokeWindow = window as typeof window & {
+        __tabOutSmokeFocusUpdates?: Array<{ kind: string }>
+      }
+      const updates = smokeWindow.__tabOutSmokeFocusUpdates || []
       return updates.some((update) => update.kind === 'tab') &&
         updates.some((update) => update.kind === 'window')
-    }`,
+    },
     'tab and window focus updates should complete'
   )
 }
@@ -2850,18 +2865,23 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     })
     await waitForBrowserCondition(
       session,
-      `() => {
+      (actionLabel: string) => {
+        const smokeWindow = window as typeof window & {
+          __tabOutSmokeCopiedText?: string | null
+          __tabOutSmokeSavedSets?: unknown[]
+        }
         const menu = document.querySelector('[data-slot="context-menu-content"]')
         const menuClosed = !menu || menu.getClientRects().length === 0
-        if (${JSON.stringify(label)} === 'Copy page title text') {
-          return menuClosed && window.__tabOutSmokeCopiedText !== null
+        if (actionLabel === 'Copy page title text') {
+          return menuClosed && smokeWindow.__tabOutSmokeCopiedText !== null
         }
-        if (${JSON.stringify(label)} === 'Save page') {
-          return menuClosed && (window.__tabOutSmokeSavedSets?.length || 0) > 0
+        if (actionLabel === 'Save page') {
+          return menuClosed && (smokeWindow.__tabOutSmokeSavedSets?.length || 0) > 0
         }
         return menuClosed
-      }`,
-      `${label} context-menu action should complete`
+      },
+      `${label} context-menu action should complete`,
+      { args: [label] }
     )
 
     return item
@@ -3149,11 +3169,11 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
   })
   await waitForBrowserCondition(
     session,
-    `() => {
+    () => {
       const active = document.querySelector('.source-switch-option[data-active]')?.textContent?.trim()
       const menu = document.querySelector('[data-slot="context-menu-content"]')
       return active === 'Tabs' && (!menu || menu.getClientRects().length === 0)
-    }`,
+    },
     'outside click should close the context menu without activating Bookmarks'
   )
 
