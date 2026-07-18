@@ -62,14 +62,16 @@ test('a history chip keeps its favicon at full strength', () => {
   assert.doesNotMatch(html, /chip-favicon-dimmed/)
 })
 
-test('a suspended variant row dims its label while a live variant row does not', () => {
+test('a suspended current variant keeps a distinct fixed label color while a live variant does not', () => {
   const html = renderChip({
     titleVariantChips: [
-      makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', suspended: true }),
+      makeChip({ tabUrl: 'https://site.example/a', rawUrl: 'https://site.example/a', pathSuffix: '/a', suspended: true, activeChipFrame: true }),
       makeChip({ tabUrl: 'https://site.example/b', rawUrl: 'https://site.example/b', pathSuffix: '/b' })
     ]
   })
+  assert.match(html, /chip-title-variant clickable[^"]*text-neutral-600/)
   assert.equal((html.match(/chip-variant-label-dimmed/g) || []).length, 1)
+  assert.match(html, /chip-variant-label-dimmed[^"]*text-neutral-500[^"]*opacity-85/)
 })
 
 test('a closed-saved variant row dims its label', () => {

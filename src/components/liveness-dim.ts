@@ -11,9 +11,10 @@
 
    Variant rows inside a title-variant group carry no favicon of
    their own, so their label text carries the liveness signal
-   instead (opacity only — the label is already text-tab-muted).
+   instead. A fixed neutral-500 color keeps suspended labels
+   distinct even when the row itself becomes current or hovered.
    ================================================================ */
 
 export const FAVICON_DIM_CLASS_NAME = 'chip-favicon-dimmed opacity-65 saturate-[80%]'
 
-export const VARIANT_LABEL_DIM_CLASS_NAME = 'chip-variant-label-dimmed opacity-60'
+export const VARIANT_LABEL_DIM_CLASS_NAME = 'chip-variant-label-dimmed text-neutral-500 opacity-85'

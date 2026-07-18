@@ -370,7 +370,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
   }
 
   for (const variant of Array.from(fragment.querySelectorAll('.chip-title-variant'))) {
-    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-none bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-tab-muted'
+    variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-none bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600'
   }
 
   for (const marker of Array.from(fragment.querySelectorAll('.chip-title-suppression-marker'))) {
@@ -2004,7 +2004,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         data-tabout-removal-key={`page:${variant.rawUrl}`}
         data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
         className={cn(
-          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-tab-muted hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600 hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
           variantActive && 'bg-neutral-600/[0.075] text-tab-ink',
           variantCurrent && 'bg-neutral-100 text-tab-ink shadow-[inset_2px_0_0_0_var(--accent-amber)]',
@@ -2044,7 +2044,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       return (
         <span
           key={variant.rawUrl || variant.tabUrl}
-          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 leading-tight font-normal text-tab-muted [corner-shape:squircle]"
+          className="chip-title-variant inline-flex max-w-full items-center gap-1 rounded-lg bg-neutral-500/[0.045] px-1.5 py-0.5 leading-tight font-normal text-neutral-600 [corner-shape:squircle]"
         >
           {labelContent}
         </span>
