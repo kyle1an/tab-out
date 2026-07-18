@@ -1354,6 +1354,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
       data-tabout-layout-key={layoutKey}
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       data-loading={entry.loading ? 'true' : undefined}
+      data-pending={entry.pending ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
         titleExpanded && 'history-entry-row-expanded-open'

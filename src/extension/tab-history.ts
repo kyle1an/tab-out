@@ -11,6 +11,7 @@ const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 function emptySnapshot(): TabHistorySnapshot {
   return {
     stackSize: 0,
+    pendingSize: 0,
     maxSize: 0,
     cursorIndex: -1,
     currentIndex: -1,
@@ -57,6 +58,8 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
     loading: exists && !suspended && !!entry?.loading,
     audible: !!entry?.audible,
     muted: !!entry?.muted,
+    pending: !!entry?.pending,
+    createdAt: integerOrNull(entry?.createdAt),
     cursor: !!entry?.cursor,
     current: !!entry?.current,
     previousTarget: !!entry?.previousTarget,
@@ -90,6 +93,8 @@ export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
     discarded: false,
     suspended: isSuspended(entry.rawUrl, entry.url),
     loading: false,
+    pending: false,
+    createdAt: null,
     cursor: false,
     current: false,
     previousTarget: false,
@@ -143,6 +148,7 @@ export function normalizeTabHistorySnapshot(snapshot: Partial<TabHistorySnapshot
   const entries = snapshot.entries.map(normalizeEntry)
   return {
     stackSize: integerOr(snapshot.stackSize, entries.length),
+    pendingSize: integerOr(snapshot.pendingSize, entries.filter((entry) => entry.pending).length),
     maxSize: integerOr(snapshot.maxSize, 0),
     cursorIndex: integerOr(snapshot.cursorIndex, -1),
     currentIndex: integerOr(snapshot.currentIndex, -1),

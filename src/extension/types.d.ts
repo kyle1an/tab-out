@@ -353,6 +353,10 @@ export interface TabHistoryEntry {
   loading?: boolean
   audible?: boolean
   muted?: boolean
+  /** True when the tab was opened in the background but has not been activated yet. */
+  pending?: boolean
+  /** Creation timestamp for a pending background tab; null for activated history entries. */
+  createdAt?: number | null
   cursor: boolean
   current: boolean
   previousTarget: boolean
@@ -373,6 +377,7 @@ export interface TabHistoryEntry {
 
 export interface TabHistorySnapshot {
   stackSize: number
+  pendingSize?: number
   maxSize: number
   cursorIndex: number
   currentIndex: number

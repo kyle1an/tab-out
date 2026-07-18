@@ -73,3 +73,18 @@ test('normalizeTabHistorySnapshot: loading only survives for live awake rows', (
   assert.equal(snapshot.entries[1]?.loading, false)
   assert.equal(snapshot.entries[2]?.loading, false)
 })
+
+test('normalizeTabHistorySnapshot: preserves pending background-tab state', () => {
+  const snapshot = normalizeTabHistorySnapshot({
+    entries: [
+      makeHistoryEntry(coreFields({
+        pending: true,
+        createdAt: 1234
+      }))
+    ]
+  })
+
+  assert.equal(snapshot.pendingSize, 1)
+  assert.equal(snapshot.entries[0]?.pending, true)
+  assert.equal(snapshot.entries[0]?.createdAt, 1234)
+})

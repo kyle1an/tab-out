@@ -61,9 +61,11 @@ chromeApi.runtime.onStartup.addListener(() => {
   void startupSnapshotService.refreshNow()
 })
 
-// Update badge whenever a tab is opened
-chromeApi.tabs.onCreated.addListener(() => {
+// Track eligible background link tabs as pending history targets and update
+// the dashboard whenever any tab is opened.
+chromeApi.tabs.onCreated.addListener((tab) => {
   refreshBadge()
+  void tabHistoryService.recordTabCreation(tab)
   scheduleStartupSnapshotRefresh()
 })
 

@@ -189,7 +189,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
             ? createProperties.index
             : existingTabs.reduce((max, tab) => Math.max(max, tab.index), -1) + 1
 
-        const tab = {
+        const tab: any = {
           id: state.nextTabId++,
           windowId,
           url: createProperties.url || 'chrome://newtab/',
@@ -199,6 +199,9 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
           pinned: !!createProperties.pinned,
           groupId: -1,
           index: nextIndex
+        }
+        if (typeof createProperties.openerTabId === 'number') {
+          tab.openerTabId = createProperties.openerTabId
         }
 
         if (tab.active) {
@@ -211,6 +214,9 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         state.tabsById[tab.id] = tab
         calls.create.push(clone(createProperties))
         normalizeAllTabs(state)
+        for (const listener of tabsOnCreated.listeners) {
+          listener(clone(tab))
+        }
         return clone(tab)
       },
       async remove(tabIds) {
@@ -352,6 +358,36 @@ async function loadBackground(initialTabs: any[], options: any = {}) {
   const mock = createChromeMock(initialTabs, options)
   ;(globalThis as any).chrome = mock.chrome
   await import(`${backgroundUrl.href}?test=${backgroundImportId++}`)
+  await flushBackgroundWork()
+  return mock
+}
+
+async function loadBackgroundWithPendingLinkTabs() {
+  const mock = await loadBackground([
+    {
+      id: 81,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  assert.equal(typeof onFocusChanged, 'function')
+  onFocusChanged(1)
+  await flushBackgroundWork()
+
+  for (const url of ['https://bravo.example/', 'https://charlie.example/']) {
+    await mock.chrome.tabs.create({
+      windowId: 1,
+      url,
+      active: false,
+      openerTabId: 81
+    })
+  }
   await flushBackgroundWork()
   return mock
 }
@@ -796,6 +832,219 @@ test('tab history snapshot exposes previous and next command targets', async () 
   assert.equal(switchedResponse.snapshot.entries[0].previousTarget, true)
   assert.equal(switchedResponse.snapshot.entries[1].current, true)
   assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
+})
+
+test('background-created link tabs become FIFO indexed next history targets', async () => {
+  const mock = await loadBackgroundWithPendingLinkTabs()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+
+  assert.equal(response.ok, true)
+  assert.equal(response.snapshot.stackSize, 1)
+  assert.equal(response.snapshot.pendingSize, 2)
+  assert.equal(response.snapshot.currentIndex, 0)
+  assert.equal(response.snapshot.nextIndex, 1)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => ({
+      tabId: entry.tabId,
+      index: entry.index,
+      pending: entry.pending,
+      nextTarget: entry.nextTarget
+    }))),
+    [
+      { tabId: 81, index: 0, pending: false, nextTarget: false },
+      { tabId: 82, index: 1, pending: true, nextTarget: true },
+      { tabId: 83, index: 2, pending: true, nextTarget: false }
+    ]
+  )
+})
+
+test('forward history promotes the first pending tab and advances to the next one', async () => {
+  const mock = await loadBackgroundWithPendingLinkTabs()
+
+  const response = await sendRuntimeMessage(mock, {
+    type: 'tab-out:switch-tab-history',
+    direction: 1
+  })
+  await flushBackgroundWork()
+
+  assert.equal(response.ok, true)
+  assert.equal(mock.state.tabsById[82].active, true)
+  assert.equal(response.snapshot.stackSize, 2)
+  assert.equal(response.snapshot.pendingSize, 1)
+  assert.equal(response.snapshot.currentIndex, 1)
+  assert.equal(response.snapshot.nextIndex, 2)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => ({
+      tabId: entry.tabId,
+      index: entry.index,
+      pending: entry.pending,
+      current: entry.current,
+      nextTarget: entry.nextTarget
+    }))),
+    [
+      { tabId: 81, index: 0, pending: false, current: false, nextTarget: false },
+      { tabId: 82, index: 1, pending: false, current: true, nextTarget: false },
+      { tabId: 83, index: 2, pending: true, current: false, nextTarget: true }
+    ]
+  )
+})
+
+test('activated forward history stays ahead of pending background tabs', async () => {
+  const mock = await loadBackground([
+    {
+      id: 81,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 82,
+      windowId: 1,
+      url: 'https://bravo.example/',
+      title: 'Bravo',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 83,
+      windowId: 1,
+      url: 'https://charlie.example/',
+      title: 'Charlie',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 2
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(82, { active: true })
+  onActivated({ tabId: 82, windowId: 1 })
+  await flushBackgroundWork()
+  await mock.chrome.tabs.update(83, { active: true })
+  onActivated({ tabId: 83, windowId: 1 })
+  await flushBackgroundWork()
+  await sendRuntimeMessage(mock, { type: 'tab-out:switch-tab-history', direction: -1 })
+  await flushBackgroundWork()
+
+  await mock.chrome.tabs.create({
+    windowId: 1,
+    url: 'https://delta.example/',
+    active: false,
+    openerTabId: 82
+  })
+  await flushBackgroundWork()
+
+  const beforeSwitch = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  assert.equal(beforeSwitch.snapshot.currentIndex, 1)
+  assert.equal(beforeSwitch.snapshot.nextIndex, 2)
+  assert.equal(beforeSwitch.snapshot.entries[2].tabId, 83)
+  assert.equal(beforeSwitch.snapshot.entries[2].nextTarget, true)
+  assert.equal(beforeSwitch.snapshot.entries[3].tabId, 84)
+  assert.equal(beforeSwitch.snapshot.entries[3].pending, true)
+
+  const response = await sendRuntimeMessage(mock, {
+    type: 'tab-out:switch-tab-history',
+    direction: 1
+  })
+  await flushBackgroundWork()
+
+  assert.equal(mock.state.tabsById[83].active, true)
+  assert.equal(response.snapshot.currentIndex, 2)
+  assert.equal(response.snapshot.nextIndex, 3)
+  assert.equal(response.snapshot.entries[3].tabId, 84)
+  assert.equal(response.snapshot.entries[3].pending, true)
+  assert.equal(response.snapshot.entries[3].nextTarget, true)
+})
+
+test('manual activation promotes only the selected pending background tab', async () => {
+  const mock = await loadBackgroundWithPendingLinkTabs()
+  const onActivated = mock.listeners.tabsOnActivated[0]
+
+  await mock.chrome.tabs.update(83, { active: true })
+  onActivated({ tabId: 83, windowId: 1 })
+  await flushBackgroundWork()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+
+  assert.equal(response.snapshot.stackSize, 2)
+  assert.equal(response.snapshot.pendingSize, 1)
+  assert.equal(response.snapshot.currentIndex, 1)
+  assert.equal(response.snapshot.nextIndex, 2)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => ({
+      tabId: entry.tabId,
+      pending: entry.pending,
+      current: entry.current
+    }))),
+    [
+      { tabId: 81, pending: false, current: false },
+      { tabId: 83, pending: false, current: true },
+      { tabId: 82, pending: true, current: false }
+    ]
+  )
+})
+
+test('closing a pending background tab removes it from indexed history', async () => {
+  const mock = await loadBackgroundWithPendingLinkTabs()
+
+  await mock.chrome.tabs.remove(82)
+  await flushBackgroundWork()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+
+  assert.equal(response.snapshot.stackSize, 1)
+  assert.equal(response.snapshot.pendingSize, 1)
+  assert.equal(response.snapshot.nextIndex, 1)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    [81, 83]
+  )
+  assert.equal(response.snapshot.entries[1].pending, true)
+  assert.equal(response.snapshot.entries[1].nextTarget, true)
+})
+
+test('inactive tabs without an opener do not enter pending history', async () => {
+  const mock = await loadBackground([
+    {
+      id: 81,
+      windowId: 1,
+      url: 'https://alpha.example/',
+      title: 'Alpha',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+
+  const onFocusChanged = mock.listeners.windowsOnFocusChanged[0]
+  onFocusChanged(1)
+  await flushBackgroundWork()
+  await mock.chrome.tabs.create({
+    windowId: 1,
+    url: 'https://restored.example/',
+    active: false
+  })
+  await flushBackgroundWork()
+
+  const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+
+  assert.equal(response.snapshot.pendingSize, 0)
+  assert.deepEqual(
+    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    [81]
+  )
 })
 
 test('tab history command unsuspends the selected history target', async () => {

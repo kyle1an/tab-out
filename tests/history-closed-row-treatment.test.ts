@@ -76,6 +76,26 @@ test('a live history row keeps ink title and no closed treatment', () => {
   assert.match(titleSpanClass(html), /\btext-tab-ink\b/)
 })
 
+test('a never-activated background history row uses the existing index UI without a new badge', () => {
+  const html = renderPanel([
+    makeEntry({ current: true }),
+    makeEntry({
+      index: 1,
+      tabId: 102,
+      pending: true,
+      createdAt: 2000,
+      title: 'Background Docs',
+      url: 'https://example.com/background',
+      rawUrl: 'https://example.com/background',
+      displayUrl: 'example.com/background'
+    })
+  ])
+
+  assert.match(html, /data-pending="true"/)
+  assert.match(html, /<span>\+<\/span><span>1<\/span>/)
+  assert.doesNotMatch(html, />New</)
+})
+
 test('an open history row hovers with the closed line recipe at the quiet fill-ink color', () => {
   const html = renderPanel([makeEntry()])
   const rowMatch = html.match(/class="(history-entry group\/history-entry[^"]*)"/)

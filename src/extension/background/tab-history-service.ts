@@ -5,6 +5,7 @@ import {
   findHistoryTargetIndex,
   findTabForHistoryEntry,
   historyChanged,
+  historyForBackgroundTabCreation,
   historyForUserActivation,
   normalizeGlobalHistory,
   pruneMissingHistoryEntries,
@@ -45,6 +46,7 @@ type FocusAction = {
 export type TabHistoryService = {
   getTabHistorySnapshot: (activity?: WorkingSetActivityStore | null) => Promise<TabHistorySnapshot>
   recordFocusedWindowActiveTab: (windowId: number) => Promise<void>
+  recordTabCreation: (tab: chrome.tabs.Tab) => Promise<void>
   recordTabActivation: (windowId: number, tabId: number) => Promise<void>
   removeTabFromHistory: (tabId: number) => Promise<void>
   restorePreviousTabAfterClose: (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) => Promise<void>
@@ -75,7 +77,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     if (tabHistoryCache) return tabHistoryCache
     const storage = tabHistoryStorageArea()
     if (!storage) {
-      tabHistoryCache = { stack: [], index: -1 }
+      tabHistoryCache = { stack: [], index: -1, pending: [] }
       return tabHistoryCache
     }
 
@@ -97,7 +99,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
         } catch {}
       }
     } catch {
-      tabHistoryCache = { stack: [], index: -1 }
+      tabHistoryCache = { stack: [], index: -1, pending: [] }
     }
     return tabHistoryCache
   }
@@ -172,6 +174,27 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
         history: historyForUserActivation(history, { windowId, tabId }).history
       }
     })
+  }
+
+  async function recordTabCreation(tab: chrome.tabs.Tab): Promise<void> {
+    const tabId = tab.id
+    const windowId = tab.windowId
+    if (
+      tab.active ||
+      typeof tabId !== 'number' ||
+      typeof windowId !== 'number' ||
+      typeof tab.openerTabId !== 'number'
+    ) {
+      return
+    }
+
+    await enqueueTabHistoryMutation((history) => ({
+      history: historyForBackgroundTabCreation(history, {
+        windowId,
+        tabId,
+        createdAt: Date.now()
+      }).history
+    }))
   }
 
   async function findFocusedWindowId(): Promise<FocusedWindowLookup> {
@@ -329,7 +352,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
 
       const finalHistory = {
         stack: nextHistory.stack,
-        index: targetNewIndex
+        index: targetNewIndex,
+        pending: nextHistory.pending
       }
       const activeTab = tabsInWindow.find((tab) => tab.active)
       return {
@@ -362,16 +386,41 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
         return {
           history: {
             stack: [{ windowId: activeTab.windowId, tabId: activeTab.id }],
-            index: 0
+            index: 0,
+            pending: history.pending
           }
         }
       }
 
       const repaired = repairHistoryCursorForActiveTab(history, activeTab)
-      const navigationHistory = repaired.history
       const existingTabs = mapTabsById(tabs)
+      const navigationHistory = canonicalizeGlobalHistory(
+        pruneMissingHistoryEntries(repaired.history, existingTabs)
+      ).history
       const nextIndex = findHistoryTargetIndex(navigationHistory, direction, existingTabs, activeTab)
-      if (nextIndex === -1) return { history: navigationHistory }
+      if (nextIndex === -1) {
+        if (direction <= 0) return { history: navigationHistory }
+
+        const pendingTarget = navigationHistory.pending.find((entry) => (
+          entry.tabId !== activeTab.id &&
+          existingTabs.has(entry.tabId)
+        ))
+        if (!pendingTarget) return { history: navigationHistory }
+
+        const targetTab = existingTabs.get(pendingTarget.tabId)
+        if (typeof targetTab?.id !== 'number') return { history: navigationHistory }
+
+        return {
+          history: historyForUserActivation(navigationHistory, {
+            windowId: targetTab.windowId,
+            tabId: targetTab.id
+          }).history,
+          value: {
+            tab: targetTab,
+            openerTabId: activeTab.id
+          }
+        }
+      }
 
       const targetEntry = navigationHistory.stack[nextIndex]
       if (!targetEntry) return { history: navigationHistory }
@@ -382,7 +431,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       return {
         history: {
           stack: navigationHistory.stack.map((entry, entryIndex) => (entryIndex === nextIndex ? { windowId: targetTab.windowId, tabId: targetTabId } : entry)),
-          index: nextIndex
+          index: nextIndex,
+          pending: navigationHistory.pending
         },
         value: {
           tab: targetTab,
@@ -414,13 +464,31 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
       const prunedHistory = pruneMissingHistoryEntries(repairedHistory.history, existingTabs)
       const cleanHistory = canonicalizeGlobalHistory(prunedHistory).history
       const previousIndex = findHistoryTargetIndex(cleanHistory, -1, existingTabs, activeTab)
-      const nextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
+      const stackNextIndex = findHistoryTargetIndex(cleanHistory, 1, existingTabs, activeTab)
+      const nextIndex = stackNextIndex === -1 && cleanHistory.pending.length > 0
+        ? cleanHistory.stack.length
+        : stackNextIndex
       const activityTimestamps = activity ? activityTimestampsFromStore(activity) : await readActivityTimestamps()
+      const indexedEntries = [
+        ...cleanHistory.stack.map((entry, index) => ({
+          entry,
+          index,
+          pending: false,
+          createdAt: null
+        })),
+        ...cleanHistory.pending.map((entry, pendingIndex) => ({
+          entry,
+          index: cleanHistory.stack.length + pendingIndex,
+          pending: true,
+          createdAt: entry.createdAt
+        }))
+      ]
 
       return {
         history: cleanHistory,
         value: {
           stackSize: cleanHistory.stack.length,
+          pendingSize: cleanHistory.pending.length,
           maxSize: MAX_TAB_HISTORY,
           cursorIndex: cleanHistory.index,
           currentIndex: cleanHistory.index,
@@ -429,7 +497,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
           activeTabId: activeTab?.id ?? null,
           activeWindowId: activeTab?.windowId ?? null,
           activeWasInserted: repairedHistory.activeWasInserted,
-          entries: cleanHistory.stack.map((entry, index) => {
+          entries: indexedEntries.map(({ entry, index, pending, createdAt }) => {
             const tab = existingTabs.get(entry.tabId)
             const rawUrl = tab?.url || ''
             const url = unwrapSuspenderUrl(rawUrl)
@@ -452,6 +520,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               loading: !!tab && !suspended && tab.status === 'loading',
               audible: !!tab?.audible,
               muted: !!tab?.mutedInfo?.muted,
+              pending,
+              createdAt,
               cursor: index === cleanHistory.index,
               current: index === cleanHistory.index,
               previousTarget: index === previousIndex,
@@ -474,6 +544,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
   return {
     getTabHistorySnapshot,
     recordFocusedWindowActiveTab,
+    recordTabCreation,
     recordTabActivation,
     removeTabFromHistory,
     restorePreviousTabAfterClose,

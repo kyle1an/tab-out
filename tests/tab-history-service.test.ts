@@ -7,7 +7,11 @@ import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
 
 function makeChromeApi(state: {
-  history?: { stack: { windowId: number; tabId: number }[]; index: number }
+  history?: {
+    stack: { windowId: number; tabId: number }[]
+    index: number
+    pending?: { windowId: number; tabId: number; createdAt: number }[]
+  }
   tabs?: chrome.tabs.Tab[]
   activity?: WorkingSetActivityStore
 }): ChromeApi {
@@ -122,6 +126,37 @@ test('getTabHistorySnapshot can use an already-read activity snapshot', async ()
 
   const snapshot = await service.getTabHistorySnapshot(activity)
   assert.equal(snapshot.entries[0].lastActivatedAt, now - 500)
+})
+
+test('activated history reserves the bounded index budget before pending tabs', async () => {
+  const stack = Array.from({ length: 47 }, (_, index) => ({
+    windowId: 1,
+    tabId: index + 1
+  }))
+  const pending = Array.from({ length: 3 }, (_, index) => ({
+    windowId: 1,
+    tabId: index + 48,
+    createdAt: index + 1
+  }))
+  const tabs = Array.from({ length: 50 }, (_, index) => ({
+    id: index + 1,
+    windowId: 1,
+    url: `https://tab-${index + 1}.example/`,
+    title: `Tab ${index + 1}`,
+    active: index === 46
+  } as chrome.tabs.Tab))
+  const service = createTabHistoryService(makeChromeApi({
+    history: { stack, index: 46, pending },
+    tabs
+  }))
+
+  const snapshot = await service.getTabHistorySnapshot()
+
+  assert.equal(snapshot.stackSize, 47)
+  assert.equal(snapshot.pendingSize, 1)
+  assert.equal(snapshot.entries.length, 48)
+  assert.equal(snapshot.entries.at(-1)?.tabId, 48)
+  assert.equal(snapshot.entries.at(-1)?.pending, true)
 })
 
 test('normalizeTabHistorySnapshot preserves lastActivatedAt on entries', () => {

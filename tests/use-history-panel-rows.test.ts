@@ -135,6 +135,51 @@ test('buildHistoryPanelRows hides open-ghost when same URL exists as stack', () 
   assert.equal(rows[0].kind, 'stack')
 })
 
+test('buildHistoryPanelRows keeps every pending tab indexed even when URLs match', () => {
+  const entries = [
+    makeStackEntry({
+      index: 0,
+      tabId: 1,
+      url: 'https://example.com/current',
+      current: true
+    }),
+    makeStackEntry({
+      index: 1,
+      tabId: 2,
+      url: 'https://example.com/shared',
+      pending: true,
+      createdAt: 2000
+    }),
+    makeStackEntry({
+      index: 2,
+      tabId: 3,
+      url: 'https://example.com/shared',
+      pending: true,
+      createdAt: 3000
+    })
+  ]
+  const snapshot: TabHistorySnapshot = {
+    ...snapshotOf(entries),
+    stackSize: 1,
+    pendingSize: 2,
+    cursorIndex: 0,
+    currentIndex: 0,
+    nextIndex: 1
+  }
+
+  const rows = buildHistoryPanelRows({
+    snapshot,
+    workingSet: null,
+    closedTabs: [],
+    filter: ''
+  })
+
+  assert.deepEqual(
+    rows.map((row) => row.kind === 'stack' ? row.entry.index : -1),
+    [0, 1, 2]
+  )
+})
+
 test('buildHistoryPanelRows hides closed-ghost when same URL exists as open-ghost', () => {
   const rows = buildHistoryPanelRows({
     snapshot: snapshotOf([]),

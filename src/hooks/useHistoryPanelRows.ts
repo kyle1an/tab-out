@@ -31,7 +31,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
 
   const stackEntries = snapshot?.entries ?? []
   const stackBaseTimestamp = stackEntries.reduce(
-    (max, entry) => Math.max(max, entry.lastActivatedAt ?? 0),
+    (max, entry) => Math.max(max, entry.lastActivatedAt ?? entry.createdAt ?? 0),
     0
   )
   const stackCursorIndex = snapshot?.currentIndex ?? stackEntries.length - 1
@@ -46,17 +46,22 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
     const synthesizedTouchedAt = stackBaseTimestamp > 0
       ? stackBaseTimestamp - cursorDistance
       : -cursorDistance
-    rawStackCandidates.push({ entry, cursorDistance, base: entry.lastActivatedAt ?? synthesizedTouchedAt })
+    rawStackCandidates.push({
+      entry,
+      cursorDistance,
+      base: entry.lastActivatedAt ?? entry.createdAt ?? synthesizedTouchedAt
+    })
   }
   rawStackCandidates.sort((a, b) => a.cursorDistance - b.cursorDistance)
 
-  // The stack is the current tab's linear navigation chain, so it must read in
-  // cursor-distance order. A back entry whose URL was recently touched in
-  // ANOTHER tab carries a fresh activity-log timestamp that would otherwise
-  // float it above closer entries (the Image #11 bug). Walking outward from
-  // the cursor and clamping each effective timestamp strictly below the
-  // previous one pins the stack into navigation order, while leaving gaps
-  // where ghost rows still interleave by their own real timestamps.
+  // These indexed entries form the current tab's linear navigation chain:
+  // activated back/forward history first, followed by pending background tabs.
+  // A back entry whose URL was recently touched in ANOTHER tab carries a fresh
+  // activity-log timestamp that would otherwise float it above closer entries
+  // (the Image #11 bug). Walking outward from the cursor and clamping each
+  // effective timestamp strictly below the previous one pins the indexed rows
+  // into navigation order, while leaving gaps where ghost rows still interleave
+  // by their own real timestamps.
   const stackCandidates: Array<{ row: HistoryPanelRow; cursorDistance: number }> = []
   let previousStackEffective = Number.POSITIVE_INFINITY
   for (const { entry, cursorDistance, base } of rawStackCandidates) {
@@ -81,8 +86,8 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   const seen = new Set<string>()
   const rows: HistoryPanelRow[] = []
 
-  function consume(candidate: HistoryPanelRow, identity: string | undefined) {
-    if (identity && seen.has(identity)) return
+  function consume(candidate: HistoryPanelRow, identity: string | undefined, allowDuplicate = false) {
+    if (!allowDuplicate && identity && seen.has(identity)) return
     if (rows.length >= rowLimit) return
     if (identity) seen.add(identity)
     rows.push(candidate)
@@ -90,7 +95,11 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
 
   for (const { row } of stackCandidates) {
     if (row.kind !== 'stack') continue
-    consume(row, pageIdentityForWorkingSet(row.entry.url) || row.entry.url)
+    consume(
+      row,
+      pageIdentityForWorkingSet(row.entry.url) || row.entry.url,
+      !!row.entry.pending
+    )
   }
   for (const row of openGhostCandidates) {
     if (row.kind !== 'open-ghost') continue

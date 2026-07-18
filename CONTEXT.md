@@ -18,7 +18,8 @@
 - **Filter Query**: The user's parsed filter intent for app-owned matching, first applied to open-tab and bookmark Dashboard Items.
 - **Filter Match**: A decision that a Dashboard Item satisfies the current Filter Query.
 - **Companion Results**: Bookmark and history results shown alongside open-tab Filter Matches.
-- **Activation History**: The chronological open-tab focus path used for previous/next tab switching and close-recovery behavior.
+- **Activation History**: The chronological open-tab focus path plus the bounded queue of background link tabs that have not yet been activated, used for previous/next tab switching and close-recovery behavior.
+- **Pending History Tab**: An inactive tab Chrome created with an opener that has not yet been activated; it remains a distinct, indexed next target even when another pending tab has the same page URL.
 - **Working Set**: A ranking signal over open-tab Dashboard Items that the user is likely to return to before scanning Domain Cards or using a Filter Query.
 - **Tab Action**: A user intent from the dashboard that mutates tabs or history, records undo/toast feedback, and refreshes the Dashboard.
 - **Suspend Target**: The remembered third-party suspender (extension id plus an observed suspended-page URL template) used to rebuild suspend URLs when a Tab Action suspends tabs.
@@ -69,7 +70,8 @@
 - Removing a **Saved Page** removes saved state only and should offer undo.
 - **Saved Pages** exclude browser utility pages such as Tab Out, new-tab, settings, internal Chrome, extension pages, and standalone apps.
 - A **Working Set** is merged into **Activation History**: overlapping items mark their history rows, and high-ranked items missing from history appear as supplemental history-panel rows.
-- The rendered **Activation History** column is bounded by the tab-history max size after merging stack, **Working Set**, and recently closed rows. Stack rows reserve the budget first; supplemental rows fill any remaining slots.
+- **Pending History Tabs** follow activated forward history in FIFO creation order, carry positive relative indexes using the existing history-row treatment, and become normal activated-history entries when focused. The forward-history command reaches them only after the activated forward path is exhausted. Closing a Pending History Tab removes it from the queue; active tab creation and inactive creation without a Chrome-supplied opener do not enter it.
+- The rendered **Activation History** column is bounded by the tab-history max size after merging activated history, **Pending History Tabs**, **Working Set**, and recently closed rows. Activated history reserves the budget first, Pending History Tabs fill its remaining indexed capacity, and supplemental rows fill any remaining slots.
 - A **Working Set** is not a **Source** and does not include bookmark or history **Dashboard Items**.
 - A **Working Set** crosses **Domain Card** boundaries because it is optimized for return switching rather than domain cleanup.
 - A **Working Set** prefers currently relevant open tabs: recent activations, repeated same-day navigation/use, and repeated current-week navigation/use can all raise an item, while older or monthly habits are only weak tie-breakers.
