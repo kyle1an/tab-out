@@ -100,6 +100,8 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 
 ## Development
 
+Use the Node version pinned in `.node-version` before running the toolchain. Activate it with a version manager that reads that file. With Nub, `nub node install` provisions the pinned version and `nub run --node <script>` runs a package script through it; pnpm remains the installer and lockfile authority.
+
 ```bash
 pnpm install
 pnpm setup:hooks
@@ -119,6 +121,8 @@ pnpm verify
 ```
 
 `pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
+
+For a faster iteration-only pass, `pnpm verify:quick` runs typechecking, lint, React Doctor, and the React Compiler baseline check in parallel. It does not build bundles or run tests, so it does not replace `pnpm verify` before committing. Nub users can run the pinned-Node form with `nub run --node verify:quick`.
 
 `pnpm setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `pnpm verify` before each commit, so stale bundled output is caught before it lands.
 

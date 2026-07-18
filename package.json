@@ -21,6 +21,7 @@
     "test:browser": "RUN_BROWSER_SMOKE=1 node --import tsx --test tests/browser-resize-smoke.test.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
     "verify:compiler": "node scripts/react-compiler-check.mjs",
+    "verify:quick": "pnpm run \"/^(typecheck|lint|react-doctor|verify:compiler)$/\"",
     "verify": "pnpm typecheck && pnpm lint && pnpm react-doctor && pnpm verify:compiler && pnpm build && pnpm verify:bundle && pnpm test",
     "verify:browser": "pnpm verify && pnpm test:browser"
   },
@@ -47,7 +48,7 @@
     "@sinonjs/fake-timers": "^15.4.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/chrome": "^0.1.43",
-    "@types/node": "^25.9.5",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",

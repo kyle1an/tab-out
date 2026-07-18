@@ -64,8 +64,10 @@ pnpm setup:hooks
 pnpm dev
 ```
 
+- Use the exact Node version pinned in `.node-version`. Activate it with a version manager that reads the file. With Nub, `nub node install` provisions the pin and `nub run --node <script>` runs a package script through it; pnpm remains authoritative for installs and the lockfile.
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
+- Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
 - Refresh the Tab Out page for dashboard/UI changes.
 - Reload the extension in `chrome://extensions` for manifest, permission, service-worker, or extension package changes.
 - Use `pnpm build:debug` only when a local sourcemap is needed.
