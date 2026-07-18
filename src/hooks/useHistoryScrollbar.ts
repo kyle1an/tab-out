@@ -5,20 +5,11 @@ const HISTORY_ENTRY_SCROLLBAR_AXIS_PADDING_PX = 2
 const HISTORY_ENTRY_SCROLLBAR_MIN_THUMB_HEIGHT_PX = 33
 // How long the bar lingers after the last scroll/hover before fading out.
 const HISTORY_ENTRY_SCROLLBAR_IDLE_HIDE_DELAY_MS = 2500
-// Gap kept between the bar and an overlapping expansion popup when the bar
-// carves that popup's band out of itself.
-const HISTORY_ENTRY_SCROLLBAR_EXPANSION_CLEARANCE_PX = 0
 
 interface HistoryScrollbarMetrics {
   thumbHeight: number
   thumbTop: number
   visible: boolean
-}
-
-/** Vertical band, in the scrollbar's own coordinate space, to carve out. */
-interface ScrollbarCutout {
-  top: number
-  bottom: number
 }
 
 export interface HistoryScrollbar {
@@ -28,10 +19,6 @@ export interface HistoryScrollbar {
   active: boolean
   /** true while the thumb is being dragged (keeps it at hover width throughout) */
   dragging: boolean
-  /** clip-path for the bar so it visually yields to an overlapping expansion (or undefined) */
-  clipPath: string | undefined
-  /** attach to the scrollbar container element (the clip-path target) */
-  containerRef: RefObject<HTMLDivElement | null>
   /** attach to the scrollbar track element */
   trackRef: RefObject<HTMLDivElement | null>
   /** wire to the thumb's onPointerDown (begins a drag) */
@@ -42,8 +29,6 @@ export interface HistoryScrollbar {
   onPointerEnter: () => void
   /** wire to the track's onPointerLeave (begin idle countdown) */
   onPointerLeave: () => void
-  /** report the currently-expanded entry element (or null) so the bar can carve around it */
-  setExpandedElement: (element: HTMLElement | null) => void
 }
 
 const DEFAULT_HISTORY_SCROLLBAR_METRICS: HistoryScrollbarMetrics = {
@@ -58,42 +43,6 @@ function roundedCssPixel(value: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max))
-}
-
-/**
- * Measure the vertical band an expanded entry covers, in the scrollbar
- * container's own coordinate space. Returns null when there is no overlap, so
- * the bar paints normally.
- */
-function getScrollbarCutout(containerEl: HTMLElement | null, expandedEl: HTMLElement | null): ScrollbarCutout | null {
-  if (!containerEl || !expandedEl) return null
-  const containerRect = containerEl.getBoundingClientRect()
-  const expandedRect = expandedEl.getBoundingClientRect()
-  if (containerRect.height <= 0) return null
-  // No horizontal reach into the bar's column → nothing to carve.
-  if (expandedRect.right <= containerRect.left) return null
-
-  const clearance = HISTORY_ENTRY_SCROLLBAR_EXPANSION_CLEARANCE_PX
-  const top = clamp(expandedRect.top - containerRect.top - clearance, 0, containerRect.height)
-  const bottom = clamp(expandedRect.bottom - containerRect.top + clearance, 0, containerRect.height)
-  if (bottom - top <= 0) return null
-  return { top: roundedCssPixel(top), bottom: roundedCssPixel(bottom) }
-}
-
-/** Build a clip-path that keeps the whole bar except the cutout band. */
-function cutoutClipPath(cutout: ScrollbarCutout | null): string | undefined {
-  if (!cutout) return undefined
-  const { top, bottom } = cutout
-  // Two stacked rectangles spanning full width: [0, top] and [bottom, 100%].
-  // The band edges are px (container-space); the outer edges use 100% so no
-  // layout read is needed at render time.
-  return `polygon(0 0, 100% 0, 100% ${top}px, 0 ${top}px, 0 ${bottom}px, 100% ${bottom}px, 100% 100%, 0 100%)`
-}
-
-function scrollbarCutoutsEqual(left: ScrollbarCutout | null, right: ScrollbarCutout | null): boolean {
-  if (left === right) return true
-  if (!left || !right) return false
-  return Math.abs(left.top - right.top) < 0.1 && Math.abs(left.bottom - right.bottom) < 0.1
 }
 
 function getHistoryScrollbarMetrics(listEl: HTMLElement | null): HistoryScrollbarMetrics {
@@ -163,21 +112,17 @@ export function useHistoryScrollbar(
   listRef: RefObject<HTMLDivElement | null>,
   rowCount: number
 ): HistoryScrollbar {
-  const containerRef = useRef<HTMLDivElement | null>(null)
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [metrics, setMetrics] = useState(DEFAULT_HISTORY_SCROLLBAR_METRICS)
   const [active, setActive] = useState(false)
   // Exposed (unlike draggingRef) so the thumb can stay at hover width for the
   // whole drag, even after the pointer leaves the rail — like a native bar.
   const [dragging, setDragging] = useState(false)
-  const [cutout, setCutout] = useState<ScrollbarCutout | null>(null)
 
   // Imperative flags read inside timers/listeners (avoid stale-closure churn).
   const hideTimerRef = useRef<number | null>(null)
   const hoveringRef = useRef(false)
   const draggingRef = useRef(false)
-  // The expanded entry the bar must carve around (set imperatively by the panel).
-  const expandedElementRef = useRef<HTMLElement | null>(null)
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current === null) return
@@ -203,14 +148,13 @@ export function useHistoryScrollbar(
     if (!listEl) return
 
     let frameId = 0
+
     function updateScrollbar() {
       frameId = 0
       const nextMetrics = getHistoryScrollbarMetrics(listEl)
       setMetrics((current) => (
         historyScrollbarMetricsEqual(current, nextMetrics) ? current : nextMetrics
       ))
-      const nextCutout = getScrollbarCutout(containerRef.current, expandedElementRef.current)
-      setCutout((current) => (scrollbarCutoutsEqual(current, nextCutout) ? current : nextCutout))
     }
     function requestScrollbarUpdate() {
       if (frameId !== 0) return
@@ -295,30 +239,17 @@ export function useHistoryScrollbar(
     scheduleHide()
   }, [scheduleHide])
 
-  // The panel reports which entry (if any) is expanded; remeasure the cutout
-  // immediately so the bar carves around it on the next frame.
-  const setExpandedElement = useCallback((element: HTMLElement | null) => {
-    expandedElementRef.current = element
-    const nextCutout = getScrollbarCutout(containerRef.current, element)
-    setCutout((current) => (scrollbarCutoutsEqual(current, nextCutout) ? current : nextCutout))
-  }, [])
-
   // Clean up any pending fade timer on unmount.
   useEffect(() => clearHideTimer, [clearHideTimer])
-
-  const clipPath = cutoutClipPath(cutout)
 
   return {
     metrics,
     active,
     dragging,
-    clipPath,
-    containerRef,
     trackRef,
     onThumbPointerDown,
     onTrackPointerDown,
     onPointerEnter,
-    onPointerLeave,
-    setExpandedElement
+    onPointerLeave
   }
 }

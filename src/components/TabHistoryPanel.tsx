@@ -69,6 +69,8 @@ const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest
 const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
   lineHtml: [],
   maxWidth: 0,
+  scrollbarShieldLeft: 0,
+  scrollbarShieldWidth: 0,
   titleWidth: 0,
   viewportConstrained: false,
   width: 0,
@@ -100,6 +102,8 @@ type HistoryTitleExpandedLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'
 type HistoryEntryExpansionGeometry = {
   lineHtml: string[]
   maxWidth: number
+  scrollbarShieldLeft: number
+  scrollbarShieldWidth: number
   titleWidth: number
   viewportConstrained: boolean
   width: number
@@ -383,13 +387,20 @@ function getHistoryEntryExpansionGeometry(entryEl: HTMLElement | null, titleEl: 
     maxContentWidth,
     Math.max(metrics.width, metrics.expandedTextWidth + HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX)
   )
+  const width = Math.min(maxWidth, Math.max(rect.width, horizontalInset + expandedContentWidth))
+  const scrollbarTrack = entryEl.closest('.tab-history-panel')?.querySelector<HTMLElement>('.history-entry-scrollbar-track')
+  const scrollbarRect = scrollbarTrack?.getBoundingClientRect()
+  const scrollbarOverlapLeft = scrollbarRect ? Math.max(rect.left, scrollbarRect.left) : 0
+  const scrollbarOverlapRight = scrollbarRect ? Math.min(rect.left + width, scrollbarRect.right) : 0
 
   return {
     lineHtml: metrics.expandedLineHtml,
     maxWidth,
+    scrollbarShieldLeft: Math.max(0, scrollbarOverlapLeft - rect.left),
+    scrollbarShieldWidth: Math.max(0, scrollbarOverlapRight - scrollbarOverlapLeft),
     titleWidth: expandedContentWidth,
     viewportConstrained: metrics.expandedViewportConstrained,
-    width: Math.min(maxWidth, Math.max(rect.width, horizontalInset + expandedContentWidth)),
+    width,
     y: roomBelow >= rect.height * 2 || roomBelow >= roomAbove ? 'down' : 'up'
   }
 }
@@ -416,6 +427,8 @@ function historyEntryExpansionGeometryEqual(left: HistoryEntryExpansionGeometry,
     left.y === right.y &&
     left.viewportConstrained === right.viewportConstrained &&
     Math.abs(left.maxWidth - right.maxWidth) < 0.1 &&
+    Math.abs(left.scrollbarShieldLeft - right.scrollbarShieldLeft) < 0.1 &&
+    Math.abs(left.scrollbarShieldWidth - right.scrollbarShieldWidth) < 0.1 &&
     Math.abs(left.titleWidth - right.titleWidth) < 0.1 &&
     Math.abs(left.width - right.width) < 0.1
   )
@@ -1250,6 +1263,17 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
             aria-hidden="true"
           />
         )}
+        {expanded && entryExpansionGeometry.scrollbarShieldWidth > 0 && (
+          <span
+            data-tabout-part="history-scrollbar-input-shield"
+            className="history-entry-scrollbar-input-shield pointer-events-auto absolute top-0 bottom-0 z-3"
+            style={{
+              left: `${entryExpansionGeometry.scrollbarShieldLeft}px`,
+              width: `${entryExpansionGeometry.scrollbarShieldWidth}px`
+            }}
+            aria-hidden="true"
+          />
+        )}
         {/* react-doctor-disable-next-line react-doctor/prefer-tag-over-role -- row contains a nested close <button>; a real <button> wrapper would be invalid nested-interactive DOM. */}
         <div
           role="button"
@@ -1329,18 +1353,16 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
 }
 
 function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
-  const { metrics, active, dragging, clipPath, containerRef, trackRef, onThumbPointerDown, onTrackPointerDown, onPointerEnter, onPointerLeave } = scrollbar
+  const { metrics, active, dragging, trackRef, onThumbPointerDown, onTrackPointerDown, onPointerEnter, onPointerLeave } = scrollbar
   if (!metrics.visible) return null
 
   const scrollbarStyle: CSSVariableProperties = {
     '--history-entry-scrollbar-thumb-height': `${metrics.thumbHeight}px`,
-    '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`,
-    clipPath
+    '--history-entry-scrollbar-thumb-top': `${metrics.thumbTop}px`
   }
 
   return (
     <div
-      ref={containerRef}
       data-tabout-part="history-scrollbar"
       className="history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-(--dashboard-scrollbar-size) select-none max-[900px]:right-[calc(0px-var(--dashboard-scrollbar-inset))]"
       style={scrollbarStyle}
@@ -1403,22 +1425,6 @@ export function TabHistoryPanel({
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
 
-  // Track which entry is expanded as React state so the DOM read below is
-  // correctly ordered against React's mount/unmount of the expansion element.
-  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null)
-  useEffect(() => historyEntryExpansionLane.subscribe(setExpandedEntryId), [])
-
-  // After React commits the open/close, hand the expanded element (or null) to
-  // the scrollbar so it can carve that popup's band out of itself. The bar's
-  // own visibility stays independent of this.
-  const { setExpandedElement } = scrollbar
-  useLayoutEffect(() => {
-    const expandedEl = expandedEntryId === null
-      ? null
-      : historyListRef.current?.querySelector<HTMLElement>('.history-entry-expanded') ?? null
-    setExpandedElement(expandedEl)
-  }, [expandedEntryId, rows.length, setExpandedElement])
-
   return (
     <section
       data-tabout="activation-history"
@@ -1427,7 +1433,7 @@ export function TabHistoryPanel({
     >
       <div
         ref={historyListRef}
-        className="history-entry-list pointer-events-none relative z-10 flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 min-[901px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[901px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
+        className="history-entry-list pointer-events-none relative flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] [&::-webkit-scrollbar]:w-0 min-[901px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[901px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
       >
         <div className="history-entry-scroll-hit-area-frame pointer-events-none sticky top-0 z-0 ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] h-0 w-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] flex-none max-[900px]:hidden" aria-hidden="true">
           <div

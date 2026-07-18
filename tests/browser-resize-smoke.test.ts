@@ -19,6 +19,7 @@ const CHROME_CANDIDATES = [
   '/usr/bin/chromium-browser'
 ].filter(Boolean)
 const RUN_BROWSER_SMOKE = process.env.RUN_BROWSER_SMOKE === '1' || !!process.env.CI
+const RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY = process.env.HISTORY_SCROLLBAR_OVERLAP_ONLY === '1'
 const PAGE_CHIP_EXPANSION_SMOKE_LABEL = 'Hover Handoff Title'
 
 function findChrome() {
@@ -3336,6 +3337,10 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         listScrollHeight: list.scrollHeight,
         nativeScrollbarWidth: listStyles?.scrollbarWidth || '',
         panelRight: Math.round(panelRect.right * 100) / 100,
+        revealPoint: {
+          x: Math.round(scrollbarRect.left + scrollbarRect.width / 2),
+          y: Math.round(scrollbarRect.bottom - 8)
+        },
         scrollbarRight: Math.round(scrollbarRect.right * 100) / 100,
         scrollbarWidth: Math.round(scrollbarRect.width * 100) / 100,
         thumbHeight: Math.round(thumbRect.height * 100) / 100,
@@ -3344,6 +3349,12 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     })()`
   }).then((result: any) => result.result.value)
 
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved',
+    x: scrollbarGeometry.revealPoint.x,
+    y: scrollbarGeometry.revealPoint.y
+  })
+  await wait(60)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.x,
@@ -3378,6 +3389,89 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
         scrollbarZIndex: scrollbarStyles?.zIndex || '',
         rowExpandedOpen: row?.classList.contains('history-entry-row-expanded-open') || false,
         expandedOpen: entry?.classList.contains('history-entry-expanded-open') || false
+      }
+    })()`
+  }).then((result: any) => result.result.value)
+
+  const scrollbarOverlapState = await evaluateWithNavigationRetry(session, {
+    returnByValue: true,
+    expression: `(() => {
+      const entry = Array.from(document.querySelectorAll('.history-entry-expanded'))
+        .find((candidate) => candidate.textContent?.includes('Low score history item with enough tooltip text'))
+      const scrollbar = document.querySelector('.history-entry-scrollbar')
+      const thumb = document.querySelector('.history-entry-scrollbar-thumb')
+      if (!(entry instanceof HTMLElement) || !(scrollbar instanceof HTMLElement) || !(thumb instanceof HTMLElement)) return null
+      const entryRect = entry.getBoundingClientRect()
+      const scrollbarRect = scrollbar.getBoundingClientRect()
+      const thumbRect = thumb.getBoundingClientRect()
+      const overlapTop = Math.max(entryRect.top, thumbRect.top)
+      const overlapBottom = Math.min(entryRect.bottom, thumbRect.bottom)
+      if (overlapBottom - overlapTop <= 1) {
+        return {
+          clipPath: window.getComputedStyle(scrollbar).clipPath,
+          entryRect: { left: entryRect.left, right: entryRect.right, top: entryRect.top, bottom: entryRect.bottom },
+          scrollbarRect: { left: scrollbarRect.left, right: scrollbarRect.right, top: scrollbarRect.top, bottom: scrollbarRect.bottom },
+          thumbRect: { left: thumbRect.left, right: thumbRect.right, top: thumbRect.top, bottom: thumbRect.bottom },
+          overlapPoint: null,
+          hitScrollbar: null
+        }
+      }
+      const overlapPoint = {
+        x: Math.round((Math.max(entryRect.left, thumbRect.left) + Math.min(entryRect.right, thumbRect.right)) / 2),
+        y: Math.round((overlapTop + overlapBottom) / 2)
+      }
+      const visibleThumbSegments = [
+        { top: thumbRect.top, bottom: Math.min(thumbRect.bottom, entryRect.top) },
+        { top: Math.max(thumbRect.top, entryRect.bottom), bottom: thumbRect.bottom }
+      ].filter((segment) => segment.bottom - segment.top > 1)
+      const visibleThumbSegment = visibleThumbSegments.sort(
+        (left, right) => (right.bottom - right.top) - (left.bottom - left.top)
+      )[0] || null
+      const visibleThumbPoint = visibleThumbSegment
+        ? {
+            x: overlapPoint.x,
+            y: Math.round((visibleThumbSegment.top + visibleThumbSegment.bottom) / 2)
+          }
+        : null
+      const visibleThumbNode = visibleThumbPoint
+        ? document.elementFromPoint(visibleThumbPoint.x, visibleThumbPoint.y)
+        : null
+      const previousEntryTransform = entry.style.transform
+      const overlapNode = document.elementFromPoint(overlapPoint.x, overlapPoint.y)
+      entry.style.transform = 'translateY(24px)'
+      const shiftedEntryRect = entry.getBoundingClientRect()
+      const shiftedOverlapTop = Math.max(shiftedEntryRect.top, thumbRect.top)
+      const shiftedOverlapBottom = Math.min(shiftedEntryRect.bottom, thumbRect.bottom)
+      const shiftedOverlapPoint = shiftedOverlapBottom - shiftedOverlapTop > 1
+        ? {
+            x: overlapPoint.x,
+            y: Math.round((shiftedOverlapTop + shiftedOverlapBottom) / 2)
+          }
+        : null
+      const shiftedNode = shiftedOverlapPoint
+        ? document.elementFromPoint(shiftedOverlapPoint.x, shiftedOverlapPoint.y)
+        : null
+      entry.style.transform = previousEntryTransform
+      return {
+        clipPath: window.getComputedStyle(scrollbar).clipPath,
+        thumbOpacity: window.getComputedStyle(thumb).opacity,
+        entryRect: { left: entryRect.left, right: entryRect.right, top: entryRect.top, bottom: entryRect.bottom },
+        scrollbarRect: { left: scrollbarRect.left, right: scrollbarRect.right, top: scrollbarRect.top, bottom: scrollbarRect.bottom },
+        thumbRect: { left: thumbRect.left, right: thumbRect.right, top: thumbRect.top, bottom: thumbRect.bottom },
+        overlapPoint,
+        visibleThumbLength: visibleThumbSegment ? visibleThumbSegment.bottom - visibleThumbSegment.top : 0,
+        visibleThumbPoint,
+        visibleThumbHitScrollbar: !!(visibleThumbNode instanceof Element && visibleThumbNode.closest('.history-entry-scrollbar')),
+        hitScrollbar: !!(overlapNode instanceof Element && overlapNode.closest('.history-entry-scrollbar')),
+        hitExpanded: !!(overlapNode instanceof Element && overlapNode.closest('.history-entry-expanded')),
+        hitInputShield: !!(overlapNode instanceof Element && overlapNode.closest('.history-entry-scrollbar-input-shield')),
+        hitInsideHistoryList: !!(overlapNode instanceof Element && overlapNode.closest('.history-entry-list')),
+        shiftedEntryTop: shiftedEntryRect.top,
+        shiftedOverlapPoint,
+        shiftedHitScrollbar: !!(shiftedNode instanceof Element && shiftedNode.closest('.history-entry-scrollbar')),
+        shiftedHitExpanded: !!(shiftedNode instanceof Element && shiftedNode.closest('.history-entry-expanded')),
+        shiftedHitInputShield: !!(shiftedNode instanceof Element && shiftedNode.closest('.history-entry-scrollbar-input-shield')),
+        shiftedHitInsideHistoryList: !!(shiftedNode instanceof Element && shiftedNode.closest('.history-entry-list'))
       }
     })()`
   }).then((result: any) => result.result.value)
@@ -3502,7 +3596,77 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     }))()`
   }).then((result: any) => result.result.value)
 
-  return { target, first, scrollbarGeometry, expandedPoint, expandedOnlyPoint, expandedOnlyClipCheck, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
+  return { target, first, scrollbarGeometry, scrollbarOverlapState, expandedPoint, expandedOnlyPoint, expandedOnlyClipCheck, expandedOnlyHitTarget, afterOriginalSlotLeave, tooltipOpenEntryState, beforeScrollTop, wheelDeltaY, after, afterLeaveExpansionState }
+}
+
+function assertHistoryScrollbarLayering(result: Awaited<ReturnType<typeof measureHistoryEntryExpansionWheelScroll>>) {
+  assert.ok(
+    result.scrollbarOverlapState?.overlapPoint,
+    `history scrollbar overlap smoke needs the visible thumb and expanded entry to intersect: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.clipPath,
+    'none',
+    `history scrollbar should not rely on a fixed geometry cutout: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.thumbOpacity,
+    '1',
+    `history scrollbar should remain visible while the expanded entry covers only their overlap: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.ok(
+    result.scrollbarOverlapState?.visibleThumbLength > 1,
+    `history scrollbar should retain a visible thumb segment outside the expanded entry: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.visibleThumbHitScrollbar,
+    true,
+    `the uncovered thumb segment should remain pointer-interactive: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.hitScrollbar,
+    false,
+    `expanded history entry should keep the covered scrollbar band from receiving input: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.hitExpanded,
+    true,
+    `expanded history entry should own its scrollbar overlap under production pointer events: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.hitInputShield,
+    true,
+    `expanded history entry should expose its narrow scrollbar input shield at the overlap: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.hitInsideHistoryList,
+    true,
+    `wheel input over the covered scrollbar band should stay in the history scroller event path: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.ok(
+    result.scrollbarOverlapState?.shiftedEntryTop > result.scrollbarOverlapState.entryRect.top + 20,
+    `history stacking probe should move the expanded entry away from its initial scrollbar overlap: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.shiftedHitScrollbar,
+    false,
+    `the shifted expanded entry should continue painting above the scrollbar: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.shiftedHitExpanded,
+    true,
+    `the moving expanded entry should carry the scrollbar redaction with it: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.shiftedHitInputShield,
+    true,
+    `the moving expanded entry should carry its scrollbar input shield with it: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
+  assert.equal(
+    result.scrollbarOverlapState?.shiftedHitInsideHistoryList,
+    true,
+    `the shifted scrollbar input shield should remain in the history scroller event path: ${JSON.stringify(result.scrollbarOverlapState)}`
+  )
 }
 
 async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
@@ -4775,6 +4939,12 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   session = new CdpSession(wsUrl)
   await session.connect()
 
+  if (RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY) {
+    const historyScrollbarOverlap = await measureHistoryEntryExpansionWheelScroll(session)
+    assertHistoryScrollbarLayering(historyScrollbarOverlap)
+    return
+  }
+
   const wide = await measureDashboard(session, 1420)
   const tailFill = await measureTruncatedTitleTailFill(session)
   const constrained = await measureDashboard(session, 920)
@@ -5406,6 +5576,7 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   )
 
   const historyPopupWheelScroll = await measureHistoryEntryExpansionWheelScroll(session)
+  assertHistoryScrollbarLayering(historyPopupWheelScroll)
   assert.ok(
     Math.abs(historyPopupWheelScroll.first.titleLeft - historyPopupWheelScroll.target.titleLeftExact) <= 0.1,
     `expanded history entry should keep the title text x-origin: ${JSON.stringify(historyPopupWheelScroll)}`
