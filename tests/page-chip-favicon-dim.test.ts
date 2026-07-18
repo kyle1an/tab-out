@@ -37,6 +37,14 @@ test('a live tab chip keeps its favicon at full strength', () => {
   assert.doesNotMatch(html, /chip-favicon-dimmed/)
 })
 
+test('a loading live tab chip replaces its favicon with a loading indicator', () => {
+  const html = renderChip({ loading: true })
+  assert.match(html, /data-tabout-part="loading-indicator"/)
+  assert.match(html, /style="color:#0b57d0"/)
+  assert.doesNotMatch(html, /chip-favicon /)
+  assert.match(html, /aria-label="Example Page · Loading"/)
+})
+
 test('a suspended tab chip dims its favicon', () => {
   const html = renderChip({ suspended: true })
   assert.match(html, /chip-favicon-dimmed/)

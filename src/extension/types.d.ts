@@ -124,6 +124,8 @@ export interface DashboardChipData {
   closedSaved?: boolean
   /** Every open tab behind this chip is suspended (none live). */
   suspended?: boolean
+  /** At least one live open tab represented by this chip is loading. */
+  loading?: boolean
   savedPageKey?: string
   pagePinId?: string
   pagePinned?: boolean
@@ -310,6 +312,7 @@ export interface WorkingSetItem {
   dupeCount: number
   active: boolean
   activeInOtherWindow: boolean
+  loading?: boolean
   audible?: boolean
   muted?: boolean
   score: number
@@ -346,6 +349,7 @@ export interface TabHistoryEntry {
   pinned: boolean
   discarded: boolean
   suspended: boolean
+  loading?: boolean
   audible?: boolean
   muted?: boolean
   cursor: boolean

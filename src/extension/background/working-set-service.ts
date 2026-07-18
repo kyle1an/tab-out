@@ -166,6 +166,7 @@ function toDashboardTab(tab: chrome.tabs.Tab, windowType?: string): DashboardTab
     rawUrl,
     suspended,
     title,
+    status: tab.status,
     favIconUrl: tab.favIconUrl || '',
     windowId: tab.windowId,
     active: !!tab.active,

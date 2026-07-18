@@ -18,6 +18,7 @@ import { TooltipAnchor } from './ui/tooltip'
 import { PageChipContextMenu } from './PageChipContextMenu'
 import { SavedPageIcon } from './SavedPageIcon'
 import { TabAudioButton } from './TabAudioButton'
+import { TabLoadingIndicator } from './TabLoadingIndicator'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-text'
@@ -872,7 +873,9 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         )}
         aria-hidden="true"
       >
-        {chip.faviconUrl ? (
+        {chip.loading ? (
+          <TabLoadingIndicator />
+        ) : chip.faviconUrl ? (
           <img className={cn('chip-favicon block h-full w-full rounded-none object-cover', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={chip.faviconUrl} alt="" />
         ) : showDefaultFavicon ? (
           <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} />
@@ -1644,12 +1647,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   })
   const dupeCount = chip.dupeCount || 1
   const duplicateLabel = dupeCount > 1 ? `${dupeCount} open copies` : ''
+  const loadingLabel = chip.loading ? 'Loading' : ''
   const pinnedLabel = chip.pagePinned ? 'Pinned' : ''
   const activeLabel = chip.activeInOtherWindow ? 'Active in another window' : ''
   const savedLabel = chip.saved ? (isClosedSavedPage ? 'Closed saved page' : 'Saved page') : ''
   const hiddenTitleLabel = suppressedTitleParts.length > 0 ? `Suppressed title text: ${suppressedTitleParts.join(' · ')}` : ''
   const titleVariantLabel = isTitleVariantGroup ? `${titleVariantChips.length} URL variants: ${titleVariantChips.map((variant) => variant.pathSuffix || variant.tabUrl).join(' · ')}` : ''
-  const chipLabel = [chip.tooltip, pinnedLabel, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
+  const chipLabel = [chip.tooltip, loadingLabel, pinnedLabel, titleVariantLabel, hiddenTitleLabel, duplicateLabel, activeLabel, savedLabel].filter(Boolean).join(' · ')
   const groupCloseCount = isTitleVariantGroup ? variantCloseCount : isFolded ? envs.length : 1
   const closeTargetsAllHistory = isTitleVariantGroup
     ? variantCloseTargets.tabEnvs.length === 0 && variantCloseTargets.historyUrls.length > 0

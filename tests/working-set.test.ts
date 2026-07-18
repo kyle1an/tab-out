@@ -5,6 +5,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 import { WorkingSetPanel } from '../src/components/WorkingSetPanel.js'
+import { normalizeWorkingSetSnapshot } from '../src/extension/working-set-client.js'
 import { snapshotWorkingSetItemPositions } from '../src/extension/working-set-move-animation.js'
 import {
   buildWorkingSetSnapshot,
@@ -170,6 +171,42 @@ test('buildWorkingSetSnapshot keeps tab favicons aligned with Chrome tab state',
   assert.equal(byTabId.get(1)?.faviconUrl, '')
   assert.equal(byTabId.get(2)?.faviconUrl, 'data:image/png;base64,abc')
   assert.equal(byTabId.get(3)?.faviconUrl, 'data:image/png;base64,suspended')
+})
+
+test('buildWorkingSetSnapshot marks a grouped item loading when any awake duplicate is loading', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const tabs = [
+    makeTab({ id: 1, url: 'https://example.test/docs', title: 'Example Docs', status: 'complete' }),
+    makeTab({ id: 2, url: 'https://example.test/docs?utm_source=mail', title: 'Example Docs', status: 'loading' }),
+    makeTab({
+      id: 3,
+      url: 'https://example.test/suspended',
+      rawUrl: 'chrome-extension://suspender/suspended.html#ttl=Suspended&uri=https%3A%2F%2Fexample.test%2Fsuspended',
+      suspended: true,
+      title: 'Suspended',
+      status: 'loading'
+    })
+  ]
+
+  let store = emptyWorkingSetActivity()
+  for (const tab of tabs) store = record(store, tab, 'activation', now - 60_000)
+
+  const snapshot = buildWorkingSetSnapshot({ tabs, activity: store, now, minItems: 1 })
+  const byUrl = new Map(snapshot.items.map((item) => [item.tabUrl, item]))
+
+  assert.equal(byUrl.get('https://example.test/docs')?.loading, true)
+  assert.equal(byUrl.get('https://example.test/suspended')?.loading, false)
+})
+
+test('normalizeWorkingSetSnapshot preserves loading state from the background snapshot', () => {
+  const item = makeWorkingSetItem(1, { loading: true })
+  const snapshot = normalizeWorkingSetSnapshot({
+    defaultLimit: 8,
+    expandedLimit: 16,
+    items: [item]
+  })
+
+  assert.equal(snapshot.items[0]?.loading, true)
 })
 
 test('buildWorkingSetSnapshot excludes Google Search result pages from working set items', () => {

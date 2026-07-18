@@ -433,6 +433,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
             const tab = existingTabs.get(entry.tabId)
             const rawUrl = tab?.url || ''
             const url = unwrapSuspenderUrl(rawUrl)
+            const suspended = isSuspended(rawUrl, url)
             const displayUrl = displayUrlForHistory(url)
             const cleanTitle = (tab?.title || '').replace(/\u200e/g, '').trim()
             const title = unwrapSuspenderTitle(rawUrl) || (cleanTitle ? cleanTitle : displayUrl)
@@ -447,7 +448,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
               isApp: isStandaloneAppWindow(tab ? windowTypeById.get(tab.windowId) : undefined),
               pinned: !!tab?.pinned,
               discarded: !!tab?.discarded,
-              suspended: isSuspended(rawUrl, url),
+              suspended,
+              loading: !!tab && !suspended && tab.status === 'loading',
               audible: !!tab?.audible,
               muted: !!tab?.mutedInfo?.muted,
               cursor: index === cleanHistory.index,

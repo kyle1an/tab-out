@@ -41,18 +41,20 @@ function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, inde
   // copy. Older snapshots lack the explicit flag, so fall back to deriving
   // it from the URL pair.
   const suspended = entry?.suspended ?? isSuspended(rawUrl, url)
+  const exists = !!entry?.exists
   const favIconUrl = String(entry?.favIconUrl || '')
   return {
     index: integerOr(entry?.index, index),
     tabId,
     windowId,
-    exists: !!entry?.exists,
+    exists,
     active: !!entry?.active,
     activeInOtherWindow: !!entry?.activeInOtherWindow,
     isApp: !!entry?.isApp,
     pinned: !!entry?.pinned,
     discarded: !!entry?.discarded,
     suspended,
+    loading: exists && !suspended && !!entry?.loading,
     audible: !!entry?.audible,
     muted: !!entry?.muted,
     cursor: !!entry?.cursor,
@@ -78,7 +80,7 @@ type HistoryEntryInput = Pick<TabHistoryEntry, 'tabId' | 'windowId' | 'title' | 
  * through normalizeEntry above instead, which also repairs legacy shapes.
  */
 export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
-  return {
+  const result: TabHistoryEntry = {
     index: -1,
     exists: false,
     active: false,
@@ -87,6 +89,7 @@ export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
     pinned: false,
     discarded: false,
     suspended: isSuspended(entry.rawUrl, entry.url),
+    loading: false,
     cursor: false,
     current: false,
     previousTarget: false,
@@ -94,6 +97,8 @@ export function makeHistoryEntry(entry: HistoryEntryInput): TabHistoryEntry {
     lastActivatedAt: null,
     ...entry
   }
+  result.loading = !!result.exists && !result.suspended && !!result.loading
+  return result
 }
 
 /** historyEntryFromWorkingSetItem — adapt a Working Set item into a supplemental history row. */
@@ -104,6 +109,7 @@ export function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistory
     exists: true,
     active: item.active,
     activeInOtherWindow: item.activeInOtherWindow,
+    loading: item.loading,
     current: item.active && !item.activeInOtherWindow,
     title: item.title,
     url: item.tabUrl,

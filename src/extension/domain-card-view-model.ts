@@ -250,6 +250,13 @@ function isActiveInOtherWindow(tab: DashboardTab, currentWindowId: number | null
   return tab.windowId !== currentWindowId
 }
 
+function isOpenTabLoading(tab: DashboardTab): boolean {
+  return (tab.sourceType ?? 'tab') === 'tab' &&
+    !isClosedSavedDashboardTab(tab) &&
+    !tab.suspended &&
+    tab.status === 'loading'
+}
+
 function isCurrentTabOutPage(tab: DashboardTab, currentWindowId: number | null): boolean {
   if (!tab.active || !tab.isTabOut || tab.isApp) return false
   if (typeof currentWindowId !== 'number') return false
@@ -1258,6 +1265,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       saved: !!tab.saved,
       closedSaved: isClosedSavedDashboardTab(tab),
       suspended: allOpenTargetsSuspended(duplicateTabs),
+      loading: duplicateTabs.some(isOpenTabLoading),
       savedPageKey: tab.savedPageKey,
       pagePinDisabled: !!tabOutMeta?.pagePinDisabled,
       leadPrefix,
@@ -1387,6 +1395,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       saved: allVariantsSaved,
       closedSaved: allVariantsClosedSaved,
       suspended: allOpenTargetsSuspended(variants),
+      loading: variants.some((variant) => !!variant.loading),
       savedPageKey: undefined,
       pagePinId: undefined,
       pagePinned: undefined,
@@ -1649,6 +1658,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       rawUrl: primary.rawUrl || primary.url,
       sourceType: primary.sourceType || 'tab',
       suspended: allOpenTargetsSuspended(tabs),
+      loading: tabs.some(isOpenTabLoading),
       leadPrefix: '',
       pathGroupLabel: '',
       displaySegments,

@@ -20,6 +20,7 @@ import { openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { FAVICON_DIM_CLASS_NAME } from './liveness-dim'
 import { TabAudioButton } from './TabAudioButton'
+import { TabLoadingIndicator } from './TabLoadingIndicator'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
@@ -974,6 +975,7 @@ type HistoryEntryFaviconFrameProps = {
   expanded: boolean
   faviconUrl: string
   faviconDimmed: boolean
+  loading: boolean
   isApp: boolean
   isWorkingSetExtra: boolean
   canRemoveEntry: boolean
@@ -983,9 +985,9 @@ type HistoryEntryFaviconFrameProps = {
   onClose: (e: MouseEvent<HTMLButtonElement>) => void
 }
 
-function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, isApp, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
+function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading, isApp, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
   return (
-    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
+    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !loading && !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
       <span
         className={cn(
           // The favicon column is the same 16px cell page chips use, so
@@ -1005,7 +1007,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, isApp, 
         )}
         aria-hidden="true"
       >
-        {faviconUrl ? <img className={cn('block h-full w-full object-contain', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} /> : null}
+        {loading ? <TabLoadingIndicator /> : faviconUrl ? <img className={cn('block h-full w-full object-contain', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} /> : null}
       </span>
       {canRemoveEntry && (
         <button
@@ -1291,6 +1293,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
           tabIndex={!expanded && canActivateEntry ? 0 : -1}
           data-tabout-part="focus-button"
           aria-disabled={!canActivateEntry || expanded}
+          aria-busy={entry.loading ? true : undefined}
           className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
           onClick={!expanded && canActivateEntry ? activateHistoryEntry : undefined}
           onMouseDown={!expanded && canActivateEntry ? onEntryMouseDown : undefined}
@@ -1300,6 +1303,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
             expanded={expanded}
             faviconUrl={faviconUrl}
             faviconDimmed={faviconDimmed}
+            loading={!!entry.loading}
             isApp={entry.isApp}
             isWorkingSetExtra={isWorkingSetExtra}
             canRemoveEntry={canRemoveEntry}
@@ -1337,6 +1341,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
       data-tabout="activation-history-entry"
       data-tabout-layout-key={layoutKey}
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
+      data-loading={entry.loading ? 'true' : undefined}
       className={cn(
         'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
         titleExpanded && 'history-entry-row-expanded-open'

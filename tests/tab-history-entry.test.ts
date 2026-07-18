@@ -28,6 +28,7 @@ test('makeHistoryEntry: fills synthesized-row defaults', () => {
   assert.equal(entry.previousTarget, false)
   assert.equal(entry.nextTarget, false)
   assert.equal(entry.suspended, false)
+  assert.equal(entry.loading, false)
   assert.equal(entry.lastActivatedAt, null)
 })
 
@@ -55,4 +56,20 @@ test('normalizeTabHistorySnapshot: live rows keep Chrome tab favIconUrl', () => 
   })
 
   assert.equal(snapshot.entries[0]?.favIconUrl, 'https://site.example/icon.png')
+})
+
+test('normalizeTabHistorySnapshot: loading only survives for live awake rows', () => {
+  const live = makeHistoryEntry(coreFields({ exists: true, loading: true }))
+  const suspended = makeHistoryEntry(coreFields({
+    exists: true,
+    loading: true,
+    rawUrl: SUSPENDER_RAW
+  }))
+  const closed = makeHistoryEntry(coreFields({ exists: false, loading: true }))
+
+  const snapshot = normalizeTabHistorySnapshot({ entries: [live, suspended, closed] })
+
+  assert.equal(snapshot.entries[0]?.loading, true)
+  assert.equal(snapshot.entries[1]?.loading, false)
+  assert.equal(snapshot.entries[2]?.loading, false)
 })

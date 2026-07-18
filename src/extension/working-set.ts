@@ -254,6 +254,7 @@ export function buildWorkingSetSnapshot({
       dupeCount: groupedTabs.length,
       active: !!representative.active,
       activeInOtherWindow: !!(representative.active && currentWindowId != null && representative.windowId !== currentWindowId),
+      loading: groupedTabs.some((tab) => !tab.suspended && tab.status === 'loading'),
       audible: !!representative.audible,
       muted: !!representative.muted,
       score,

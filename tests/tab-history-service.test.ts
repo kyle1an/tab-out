@@ -77,6 +77,32 @@ test('getTabHistorySnapshot sets lastActivatedAt to null when the URL has no act
   assert.equal(snapshot.entries[0].lastActivatedAt, null)
 })
 
+test('getTabHistorySnapshot marks only live awake loading tabs as loading', async () => {
+  const suspendedRawUrl = 'chrome-extension://aaaabbbbccccddddeeeeffffgggghhhh/suspended.html#ttl=Example&uri=https%3A%2F%2Fexample.test%2Fsuspended'
+  const service = createTabHistoryService(makeChromeApi({
+    history: {
+      stack: [
+        { windowId: 1, tabId: 10 },
+        { windowId: 1, tabId: 11 },
+        { windowId: 1, tabId: 12 }
+      ],
+      index: 0
+    },
+    tabs: [
+      { id: 10, windowId: 1, url: 'https://example.test/loading', title: 'Loading', status: 'loading', active: true } as chrome.tabs.Tab,
+      { id: 11, windowId: 1, url: 'https://example.test/complete', title: 'Complete', status: 'complete' } as chrome.tabs.Tab,
+      { id: 12, windowId: 1, url: suspendedRawUrl, title: 'Suspended', status: 'loading' } as chrome.tabs.Tab
+    ]
+  }))
+
+  const snapshot = await service.getTabHistorySnapshot()
+  const byTabId = new Map(snapshot.entries.map((entry) => [entry.tabId, entry]))
+
+  assert.equal(byTabId.get(10)?.loading, true)
+  assert.equal(byTabId.get(11)?.loading, false)
+  assert.equal(byTabId.get(12)?.loading, false)
+})
+
 test('getTabHistorySnapshot can use an already-read activity snapshot', async () => {
   // Anchor to the live clock: getTabHistorySnapshot prunes activity older than
   // ACTIVITY_RETENTION_MS (30 days) relative to Date.now(), so a hardcoded past

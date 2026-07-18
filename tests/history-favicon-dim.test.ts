@@ -62,6 +62,14 @@ test('a live history row keeps its favicon at full strength', () => {
   assert.doesNotMatch(html, /chip-favicon-dimmed/)
 })
 
+test('a loading live history row replaces its favicon with Chrome’s loading indicator color', () => {
+  const html = renderPanel([makeEntry({ loading: true })])
+  assert.match(html, /data-tabout-part="loading-indicator"/)
+  assert.match(html, /style="color:#0b57d0"/)
+  assert.match(html, /aria-busy="true"/)
+  assert.doesNotMatch(html, /<img/)
+})
+
 test('a suspended history row dims its favicon', () => {
   const html = renderPanel([makeEntry({ suspended: true })])
   assert.match(html, /chip-favicon-dimmed/)
@@ -99,4 +107,25 @@ test('an open-ghost entry derives suspension from the suspender url', () => {
   const entry = historyEntryFromWorkingSetItem(item)
   assert.equal(entry.exists, true)
   assert.equal(entry.suspended, true)
+})
+
+test('an open-ghost entry carries its Working Set loading state into history', () => {
+  const item: WorkingSetItem = {
+    key: 'https://example.test/docs',
+    tabId: 8,
+    windowId: 1,
+    tabUrl: 'https://example.test/docs',
+    rawUrl: 'https://example.test/docs',
+    title: 'Example Docs',
+    displayUrl: 'example.test/docs',
+    faviconUrl: 'https://example.test/icon.png',
+    dupeCount: 1,
+    active: false,
+    activeInOtherWindow: false,
+    loading: true,
+    score: 10,
+    lastActivatedAt: 0
+  }
+  const entry = historyEntryFromWorkingSetItem(item)
+  assert.equal(entry.loading, true)
 })
