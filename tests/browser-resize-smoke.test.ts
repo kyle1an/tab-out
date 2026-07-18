@@ -199,6 +199,137 @@ async function evaluateWithNavigationRetry(session: CdpSession, params: Record<s
   throw lastError
 }
 
+async function waitForBrowserCondition(
+  session: CdpSession,
+  conditionExpression: string,
+  description: string,
+  timeoutMs = 2000
+) {
+  const matched = await evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const condition = ${conditionExpression}
+      const start = Date.now()
+      const wait = () => {
+        try {
+          if (condition()) {
+            resolve(true)
+            return
+          }
+        } catch {}
+        if (Date.now() - start > ${JSON.stringify(timeoutMs)}) {
+          resolve(false)
+        } else {
+          requestAnimationFrame(wait)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+
+  assert.equal(matched, true, description)
+}
+
+async function waitForDashboardSettled(session: CdpSession) {
+  await waitForBrowserCondition(
+    session,
+    `() => {
+      const containers = Array.from(document.querySelectorAll('.missions:not(.missions-empty)'))
+        .filter((container) => container.clientWidth > 0 && container.querySelector('[data-tabout="domain-card"]:not(.closing)'))
+      if (containers.length === 0) return false
+      const layoutsMatch = containers.every((container) => {
+        const cards = Array.from(container.querySelectorAll('[data-tabout="domain-card"]:not(.closing)'))
+          .filter((card) => window.getComputedStyle(card).display !== 'none')
+        if (!container.classList.contains('is-packed') || cards.length === 0 || container.querySelector('.layout-moving')) {
+          return false
+        }
+        const columns = cards.map((card) => Number(card.dataset.masonryCol))
+        if (columns.some((column) => !Number.isInteger(column) || column < 0)) return false
+        const style = window.getComputedStyle(container)
+        const gap = Number.parseFloat(style.getPropertyValue('--masonry-gap')) || 10
+        const columnCount = Math.max(...columns) + 1
+        const expectedWidth = (container.clientWidth - gap * (columnCount - 1)) / columnCount
+        return cards.every((card) => Math.abs(Number.parseFloat(card.style.width) - expectedWidth) <= 1)
+      })
+      return layoutsMatch
+    }`,
+    'dashboard masonry should settle at the requested viewport',
+    5000
+  )
+}
+
+async function waitForScrollTop(session: CdpSession, selector: string, expected = 0) {
+  await waitForBrowserCondition(
+    session,
+    `() => {
+      const scroller = document.querySelector(${JSON.stringify(selector)})
+      return !!scroller && Math.abs(scroller.scrollTop - ${JSON.stringify(expected)}) <= 1
+    }`,
+    `${selector} should reach scrollTop ${expected}`
+  )
+}
+
+async function waitForNoPageChipExpansion(session: CdpSession) {
+  await waitForBrowserCondition(
+    session,
+    `() => !document.querySelector('.page-chip-expanded')`,
+    'page chip expansion should close'
+  )
+}
+
+async function waitForNoHistoryEntryExpansion(session: CdpSession) {
+  await waitForBrowserCondition(
+    session,
+    `() => !document.querySelector('.history-entry-expanded')`,
+    'history entry expansion should close'
+  )
+}
+
+async function waitForNoVisibleTooltip(session: CdpSession) {
+  await waitForBrowserCondition(
+    session,
+    `() => !Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).some((tooltip) => {
+      const rect = tooltip.getBoundingClientRect()
+      return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
+    })`,
+    'visible tooltip should close'
+  )
+}
+
+async function waitForNoTitleExpansion(session: CdpSession) {
+  await Promise.all([
+    waitForNoPageChipExpansion(session),
+    waitForNoHistoryEntryExpansion(session),
+    waitForNoVisibleTooltip(session)
+  ])
+}
+
+async function waitForContextMenuState(session: CdpSession, open: boolean) {
+  await waitForBrowserCondition(
+    session,
+    `() => {
+      const menu = document.querySelector('[data-slot="context-menu-content"]')
+      return ${JSON.stringify(open)}
+        ? !!menu && menu.getClientRects().length > 0
+        : !menu || menu.getClientRects().length === 0
+    }`,
+    `context menu should ${open ? 'open' : 'close'}`
+  )
+}
+
+async function waitForFocusUpdates(session: CdpSession) {
+  await waitForBrowserCondition(
+    session,
+    `() => {
+      const updates = window.__tabOutSmokeFocusUpdates || []
+      return updates.some((update) => update.kind === 'tab') &&
+        updates.some((update) => update.kind === 'window')
+    }`,
+    'tab and window focus updates should complete'
+  )
+}
+
 async function measureDashboard(session: CdpSession, width: number) {
   await session.send('Emulation.setDeviceMetricsOverride', {
     width,
@@ -500,7 +631,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -648,7 +779,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
-  await wait(450)
+  await waitForNoPageChipExpansion(session)
 
   return { target, expansion }
 }
@@ -676,7 +807,7 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -770,7 +901,7 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
-  await wait(450)
+  await waitForNoPageChipExpansion(session)
 
   return { target, expansion }
 }
@@ -800,7 +931,7 @@ async function measureVariantTitleRowStability(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const probeExpression = (mode: 'rest' | 'expanded') => `new Promise((resolve) => {
     const start = Date.now()
@@ -891,7 +1022,7 @@ async function measureVariantTitleRowStability(session: CdpSession) {
   }).then((result: any) => result.result.value)
 
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 })
-  await wait(450)
+  await waitForNoPageChipExpansion(session)
 
   return { target, expansion }
 }
@@ -1091,7 +1222,7 @@ async function measureTooltipFreeze(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollBy(0, 160)`
   })
-  await wait(220)
+  await waitForNoPageChipExpansion(session)
   const afterScrollExpandedCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `document.querySelectorAll('.page-chip-expanded').length`
@@ -1110,7 +1241,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1180,7 +1311,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoPageChipExpansion(session)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -1194,7 +1325,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoPageChipExpansion(session)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -1208,7 +1339,7 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoPageChipExpansion(session)
 
   return { target, above, below, chipSurface }
 }
@@ -1223,7 +1354,7 @@ async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) 
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1289,7 +1420,7 @@ async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) 
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoPageChipExpansion(session)
 
   return { target, before, expansion }
 }
@@ -1310,7 +1441,7 @@ async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
     await evaluateWithNavigationRetry(session, {
       expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
     })
-    await wait(250)
+    await waitForDashboardSettled(session)
   }
 
   async function findTarget() {
@@ -1358,7 +1489,7 @@ async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
       x: 8,
       y: 8
     })
-    await wait(250)
+    await waitForNoPageChipExpansion(session)
     return tooltip
   }
 
@@ -1385,7 +1516,7 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1466,7 +1597,7 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
     x: 8,
     y: 8
   })
-  await wait(240)
+  await waitForNoPageChipExpansion(session)
 
   return { target, result }
 }
@@ -1481,7 +1612,7 @@ async function measureSuppressionMarkerChipLine(session: CdpSession, label: stri
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const result = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1545,7 +1676,7 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1585,7 +1716,7 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
 
   await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'right', buttons: 2, clickCount: 1, x: target.x, y: target.y })
   await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'right', buttons: 0, clickCount: 1, x: target.x, y: target.y })
-  await wait(220)
+  await waitForContextMenuState(session, true)
 
   const onRightClick = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1605,7 +1736,7 @@ async function measureSuppressionTokenCloseHighlight(session: CdpSession) {
   await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 8, y: 860 })
   await session.send('Input.dispatchMouseEvent', { type: 'mousePressed', button: 'left', buttons: 1, clickCount: 1, x: 8, y: 860 })
   await session.send('Input.dispatchMouseEvent', { type: 'mouseReleased', button: 'left', buttons: 0, clickCount: 1, x: 8, y: 860 })
-  await wait(220)
+  await waitForContextMenuState(session, false)
 
   const afterClickAway = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1637,7 +1768,7 @@ async function measurePageChipTooltipLineCount(
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1810,7 +1941,7 @@ async function measurePageChipTooltipLineCount(
     x: 8,
     y: 8
   })
-  await wait(240)
+  await waitForNoPageChipExpansion(session)
 
   return { target, tooltip }
 }
@@ -1829,7 +1960,7 @@ async function measureFoldedPageChipTooltipTitleLineCount(
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1915,7 +2046,7 @@ async function measureFoldedPageChipTooltipTitleLineCount(
     x: 8,
     y: 8
   })
-  await wait(240)
+  await waitForNoPageChipExpansion(session)
 
   return { target, tooltip }
 }
@@ -1938,7 +2069,10 @@ async function measureFoldedEnvHoverTooltips(
     x: 8,
     y: 8
   })
-  await wait(650)
+  await Promise.all([
+    waitForDashboardSettled(session),
+    waitForNoTitleExpansion(session)
+  ])
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -1982,7 +2116,7 @@ async function measureFoldedEnvHoverTooltips(
     x: 8,
     y: 8
   })
-  await wait(240)
+  await waitForNoTitleExpansion(session)
 
   return { target, tooltipTexts }
 }
@@ -2003,7 +2137,7 @@ async function measureInteractiveTooltipClickReturnFocus(
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -2069,7 +2203,7 @@ async function measureInteractiveTooltipClickReturnFocus(
     x: 8,
     y: 8
   })
-  await wait(240)
+  await waitForNoPageChipExpansion(session)
 
   const afterReturnFocus = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -2107,7 +2241,7 @@ async function measurePageChipOriginalSlotLeave(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -2238,7 +2372,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
       }
     })()`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -2316,7 +2450,7 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     x: popupPoint.x,
     y: popupPoint.y
   })
-  await wait(220)
+  await waitForFocusUpdates(session)
 
   const updates = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -2354,7 +2488,10 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
       }
     })()`
   })
-  await wait(250)
+  await Promise.all([
+    waitForDashboardSettled(session),
+    waitForScrollTop(session, '.history-entry-list')
+  ])
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -2435,7 +2572,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(220)
+  await waitForFocusUpdates(session)
 
   const updates = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -2452,7 +2589,7 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoHistoryEntryExpansion(session)
 
   return { target, first, expandedPoint, activationPoint: target, expandedStyle, updates }
 }
@@ -2496,7 +2633,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       })
     })()`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   async function findPageChipTarget(label: string, xOffset = 96) {
     return evaluateWithNavigationRetry(session, {
@@ -2586,7 +2723,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       x: menuTarget.x,
       y: menuTarget.y
     })
-    await wait(220)
+    await waitForContextMenuState(session, true)
   }
 
   async function readContextMenuState() {
@@ -2666,7 +2803,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       x: 8,
       y: 8
     })
-    await wait(220)
+    await waitForContextMenuState(session, false)
   }
 
   async function clickMenuItem(label: string) {
@@ -2711,7 +2848,21 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       x: item.x,
       y: item.y
     })
-    await wait(220)
+    await waitForBrowserCondition(
+      session,
+      `() => {
+        const menu = document.querySelector('[data-slot="context-menu-content"]')
+        const menuClosed = !menu || menu.getClientRects().length === 0
+        if (${JSON.stringify(label)} === 'Copy page title text') {
+          return menuClosed && window.__tabOutSmokeCopiedText !== null
+        }
+        if (${JSON.stringify(label)} === 'Save page') {
+          return menuClosed && (window.__tabOutSmokeSavedSets?.length || 0) > 0
+        }
+        return menuClosed
+      }`,
+      `${label} context-menu action should complete`
+    )
 
     return item
   }
@@ -2912,7 +3063,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     x: tooltipShieldPoint.x,
     y: tooltipShieldPoint.y
   })
-  await wait(220)
+  await waitForContextMenuState(session, false)
   const shieldAfterClick = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `(() => {
@@ -2996,7 +3147,15 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     x: sourceButtonTarget.x,
     y: sourceButtonTarget.y
   })
-  await wait(450)
+  await waitForBrowserCondition(
+    session,
+    `() => {
+      const active = document.querySelector('.source-switch-option[data-active]')?.textContent?.trim()
+      const menu = document.querySelector('[data-slot="context-menu-content"]')
+      return active === 'Tabs' && (!menu || menu.getClientRects().length === 0)
+    }`,
+    'outside click should close the context menu without activating Bookmarks'
+  )
 
   const outsideClickResult = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3020,7 +3179,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -3098,7 +3257,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
       })()`
     }).then((result: any) => result.result.value))
   }
-  await wait(620)
+  await waitForNoPageChipExpansion(session)
 
   const after = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3117,7 +3276,7 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(620)
+  await waitForNoTitleExpansion(session)
 
   const afterLeaveExpandedCount = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3142,7 +3301,11 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await Promise.all([
+    waitForDashboardSettled(session),
+    waitForScrollTop(session, '.history-entry-list'),
+    waitForNoTitleExpansion(session)
+  ])
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -3210,7 +3373,7 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoHistoryEntryExpansion(session)
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -3225,7 +3388,7 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoHistoryEntryExpansion(session)
 
   return { target, above, below, aboveTooltipTexts, belowTooltipTexts }
 }
@@ -3240,7 +3403,10 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await Promise.all([
+    waitForDashboardSettled(session),
+    waitForScrollTop(session, '.history-entry-list')
+  ])
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -3543,8 +3709,8 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     x: expandedOnlyPoint.x,
     y: expandedOnlyPoint.y
   })
-  await wait(220)
-  const afterOriginalSlotLeave = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text', 250)
+  await waitForNoHistoryEntryExpansion(session)
+  const afterOriginalSlotLeave = null
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -3575,7 +3741,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     })
     await wait(60)
   }
-  await wait(620)
+  await waitForNoHistoryEntryExpansion(session)
 
   const after = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3596,7 +3762,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(620)
+  await waitForNoTitleExpansion(session)
 
   const afterLeaveExpansionState = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3692,7 +3858,10 @@ async function measureHistoryLeftGutterWheelScroll(session: CdpSession) {
       document.querySelector('.scroll-region')?.scrollTo(0, 0)
     })()`
   })
-  await wait(250)
+  await Promise.all([
+    waitForDashboardSettled(session),
+    waitForScrollTop(session, '.history-entry-list')
+  ])
 
   const target = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3784,7 +3953,10 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
       document.scrollingElement?.scrollTo(0, 0)
     })()`
   })
-  await wait(250)
+  await Promise.all([
+    waitForDashboardSettled(session),
+    waitForScrollTop(session, '.history-entry-list')
+  ])
 
   async function readSnapshot() {
     return evaluateWithNavigationRetry(session, {
@@ -3958,7 +4130,7 @@ async function measureNarrowViewportScrollbarEdges(session: CdpSession) {
   await wait(120)
   // Reset scroll so the drag doesn't perturb the independent-scroll checks below.
   await evaluateWithNavigationRetry(session, { expression: `document.querySelector('.history-entry-list')?.scrollTo(0, 0)` })
-  await wait(120)
+  await waitForScrollTop(session, '.history-entry-list')
 
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
@@ -4011,7 +4183,7 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4051,7 +4223,7 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `window.dispatchEvent(new Event('blur'))`
   })
-  await wait(240)
+  await waitForNoTitleExpansion(session)
 
   const afterBlurTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -4072,7 +4244,7 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4139,7 +4311,7 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
       }
     })()`
   })
-  await wait(240)
+  await waitForNoTitleExpansion(session)
 
   const afterVisibilityChangeTooltips = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -4160,7 +4332,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4218,7 +4390,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(360)
+  await waitForNoVisibleTooltip(session)
 
   const afterLeaveTooltips = await getVisibleTooltipTexts(session)
 
@@ -4240,7 +4412,7 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4365,7 +4537,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4404,7 +4576,7 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
 
   assert.ok(target, 'expected a right-edge page chip to hover for expansion smoke test')
 
-  await wait(250)
+  await waitForDashboardSettled(session)
   await session.send('Input.dispatchMouseEvent', {
     type: 'mouseMoved',
     x: target.startX,
@@ -4429,7 +4601,7 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4514,7 +4686,7 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoPageChipExpansion(session)
 
   return { target, expansion, expandedVariantLabels }
 }
@@ -4533,7 +4705,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4712,7 +4884,7 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
       x: 8,
       y: 8
     })
-    await wait(260)
+    await waitForNoPageChipExpansion(session)
   }
 
   return { target, surfaceResults }
@@ -4732,7 +4904,7 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
   await evaluateWithNavigationRetry(session, {
     expression: `document.querySelector('.scroll-region')?.scrollTo(0, 0)`
   })
-  await wait(250)
+  await waitForDashboardSettled(session)
 
   const target = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -4834,7 +5006,7 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
     x: 8,
     y: 8
   })
-  await wait(260)
+  await waitForNoPageChipExpansion(session)
 
   return { target, expansion }
 }

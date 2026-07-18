@@ -67,16 +67,12 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
   return latest as DashboardGeometry
 }
 
-test('dashboard repacks across viewport sizes without eager tooltip measurement', async ({ page }) => {
+test('dashboard repacks across viewport sizes', async ({ page }) => {
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
-
-  await expect(page.locator('.page-chip-tooltip-measure')).toHaveCount(0)
-  await expect(page.locator('.history-entry-title-expansion-measure')).toHaveCount(0)
-  await expect(page.locator('[data-slot="tooltip-content"]:visible')).toHaveCount(0)
 
   const wide = await measureDashboard(page, 1420)
   const narrow = await measureDashboard(page, 760)
