@@ -13,7 +13,7 @@ import { nextMutedForAudioState } from '../extension/tab-audio.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
 import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
-import { startPageChipCloseAnimation, waitForPageChipCloseAnimation } from './PageChipCloseAnimation'
+import { startPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
 import { PageChipContextMenu } from './PageChipContextMenu'
 import { SavedPageIcon } from './SavedPageIcon'
@@ -70,6 +70,7 @@ const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
 interface PageChipProps {
   chip: DashboardChipData
   filter?: string
+  layoutScope?: string
   suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
 }
 
@@ -912,7 +913,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
   )
 }
 
-function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: PageChipProps) {
+function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTitleToneByText }: PageChipProps) {
   const { activeSuppressedTitle, dedupeBadgesClosing } = useDomainCardContext()
   const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
   const { onHoverUrlChange, onLayoutChange, onTogglePinnedPageChip } = useDashboardActions()
@@ -920,6 +921,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   const isFolded = envs.length > 0
   const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []
   const isTitleVariantGroup = titleVariantChips.length > 1
+  const chipLayoutKey = chip.pagePinId || chip.rawUrl
   const variantCloseTargets = partitionVariantCloseTargets(titleVariantChips)
   const variantCloseCount = variantCloseTargets.historyUrls.length + variantCloseTargets.tabEnvs.length
   const chipCloseLeavesSavedPage = isTitleVariantGroup
@@ -1423,14 +1425,15 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   async function onClose(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
+    const focusWasInsideClosingChip = e.currentTarget.ownerDocument.activeElement === e.currentTarget
 
     await closeChipTarget({
       tabUrl: chip.tabUrl,
       tabId: chip.tabId,
       envs,
-      onAfterClose: async ({ shouldAnimateRemoval }) => {
+      onAfterClose: ({ shouldAnimateRemoval }) => {
         if (shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl) {
-          if (startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
+          startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
         }
         setPreview('')
       }
@@ -1440,13 +1443,14 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   async function onDeleteHistory(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
+    const focusWasInsideClosingChip = e.currentTarget.ownerDocument.activeElement === e.currentTarget
     const urls = Array.from(new Set(isFolded ? envs.flatMap((env) => env.tabUrl ? [env.tabUrl] : []) : chip.tabUrl ? [chip.tabUrl] : []))
     if (urls.length === 0) return
 
     await deleteHistoryUrls({
       urls,
-      onAfterDelete: async () => {
-        if (startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
+      onAfterDelete: () => {
+        startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
         setPreview('')
       }
     })
@@ -1572,6 +1576,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   async function onCloseAllVariants(e: MouseEvent<HTMLButtonElement>) {
     e.stopPropagation()
     const chipEl = e.currentTarget.closest('.page-chip')
+    const focusWasInsideClosingChip = e.currentTarget.ownerDocument.activeElement === e.currentTarget
     const { historyUrls, tabEnvs } = variantCloseTargets
     if (historyUrls.length === 0 && tabEnvs.length === 0) return
 
@@ -1580,7 +1585,7 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     if (tabEnvs.length > 0) await closeChipTarget({ tabUrl: chip.tabUrl, envs: tabEnvs })
     if (historyUrls.length > 0) await deleteHistoryUrls({ urls: historyUrls })
 
-    if (!chipCloseLeavesSavedPage && chipEl && startPageChipCloseAnimation(chipEl, onLayoutChange)) await waitForPageChipCloseAnimation()
+    if (!chipCloseLeavesSavedPage && chipEl) startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
     setPreview('')
   }
 
@@ -1992,6 +1997,11 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
     const variantFocusButton = (
       <button
         type="button"
+        data-tabout-layout-anchor={layoutScope ? '' : undefined}
+        data-tabout-layout-key={layoutScope ? (variant.pagePinId || variant.rawUrl) : undefined}
+        data-tabout-layout-scope={layoutScope || undefined}
+        data-tabout-removal-anchor=""
+        data-tabout-removal-key={`page:${variant.rawUrl}`}
         data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
         className={cn(
           'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-tab-muted hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
@@ -2403,6 +2413,13 @@ function usePageChipElement({ chip, filter = '', suppressedTitleToneByText }: Pa
   return (
     <div
       data-tabout-part="slot"
+      data-tabout-layout-anchor={layoutScope ? '' : undefined}
+      data-tabout-layout-item={layoutScope ? '' : undefined}
+      data-tabout-layout-key={layoutScope ? chipLayoutKey : undefined}
+      data-tabout-layout-scope={layoutScope || undefined}
+      data-tabout-removal-anchor=""
+      data-tabout-removal-item=""
+      data-tabout-removal-key={`page:${chip.rawUrl}`}
       // The hover-match slot lift (z-3) stays below the interacting-slot
       // lift (z-4, inside trim.slotClasses) by specificity, so a deliberate
       // interaction always wins over passive hover-match at the seam.

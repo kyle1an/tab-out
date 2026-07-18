@@ -698,15 +698,13 @@ test('PageChip renders closed saved pages muted with grouped hover treatment and
   assert.match(html, /default-favicon-image/)
 })
 
-test('PageChip close animation collapses the measured row height', () => {
+test('PageChip close animation removes the real row from flow and leaves a transform-only ghost', () => {
   const classNames = new Set<string>()
   const appendedNodes: Array<{ classList: { classes: string[] }; style: Record<string, string>; ariaHidden?: string }> = []
   const removedNodes: Array<unknown> = []
   const style = {
-    maxHeight: '',
+    display: '',
     overflow: '',
-    paddingTop: '',
-    paddingBottom: '',
     opacity: '',
     transformOrigin: '',
     transition: ''
@@ -760,7 +758,7 @@ test('PageChip close animation collapses the measured row height', () => {
   })
 
   assert.equal(started, true)
-  assert.equal(measured, 2)
+  assert.equal(measured, 1)
   assert.equal(appendedNodes.length, 1)
   const [ghost] = appendedNodes
   assert.equal(ghostMeasured, 1)
@@ -777,12 +775,9 @@ test('PageChip close animation collapses the measured row height', () => {
   assert.deepEqual(ghost?.classList.classes, ['page-chip-closing-ghost'])
   assert.equal(scheduledDelay, PAGE_CHIP_CLOSE_ANIMATION_MS + 80)
   assert.equal(removedNodes[0], ghost)
-  assert.equal(style.maxHeight, '0px')
-  assert.equal(style.overflow, 'hidden')
-  assert.equal(style.paddingTop, '0px')
-  assert.equal(style.paddingBottom, '0px')
-  assert.equal(style.opacity, '0')
-  assert.match(style.transition, new RegExp(`max-height ${PAGE_CHIP_CLOSE_ANIMATION_MS}ms`))
+  assert.equal(style.display, 'none')
+  assert.equal(style.opacity, '')
+  assert.doesNotMatch(style.transition, /max-height|padding/)
   assert.ok(classNames.has('closing'))
   assert.deepEqual(layoutOptions, { animate: true })
 })
@@ -792,7 +787,7 @@ test('PageChip skips close removal animation when a saved open chip remains as a
 
   assert.match(pageChipSource, /const chipCloseLeavesSavedPage =/)
   assert.match(pageChipSource, /shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl/)
-  assert.match(pageChipSource, /!chipCloseLeavesSavedPage && chipEl && startPageChipCloseAnimation/)
+  assert.match(pageChipSource, /if \(!chipCloseLeavesSavedPage && chipEl\) startPageChipCloseAnimation/)
 })
 
 test('PageChip outlines matching live chips when an external row owns the match', () => {

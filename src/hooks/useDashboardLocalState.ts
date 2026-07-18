@@ -20,6 +20,8 @@ export type DashboardLocalState = {
 type UseDashboardLocalStateOptions = {
   initialState?: DashboardLocalState | null
   onBeforeApplyPinnedDomains?: (options: { animate: boolean }) => void
+  onBeforeApplyPinnedSections?: (sectionId: string) => void
+  onBeforeApplyPinnedPageChips?: (pageChipPinId: string) => void
   onDomainPinSaveError?: () => void
   onSectionPinSaveError?: () => void
   onPageChipPinSaveError?: () => void
@@ -67,22 +69,28 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
 export function useDashboardLocalState({
   initialState = null,
   onBeforeApplyPinnedDomains,
+  onBeforeApplyPinnedSections,
+  onBeforeApplyPinnedPageChips,
   onDomainPinSaveError,
   onSectionPinSaveError,
   onPageChipPinSaveError
 }: UseDashboardLocalStateOptions = {}) {
   const [state, setState] = useState<DashboardLocalState>(initialState ?? EMPTY_DASHBOARD_LOCAL_STATE)
   const onBeforeApplyPinnedDomainsRef = useRef(onBeforeApplyPinnedDomains)
+  const onBeforeApplyPinnedSectionsRef = useRef(onBeforeApplyPinnedSections)
+  const onBeforeApplyPinnedPageChipsRef = useRef(onBeforeApplyPinnedPageChips)
   const onDomainPinSaveErrorRef = useRef(onDomainPinSaveError)
   const onSectionPinSaveErrorRef = useRef(onSectionPinSaveError)
   const onPageChipPinSaveErrorRef = useRef(onPageChipPinSaveError)
 
   useEffect(() => {
     onBeforeApplyPinnedDomainsRef.current = onBeforeApplyPinnedDomains
+    onBeforeApplyPinnedSectionsRef.current = onBeforeApplyPinnedSections
+    onBeforeApplyPinnedPageChipsRef.current = onBeforeApplyPinnedPageChips
     onDomainPinSaveErrorRef.current = onDomainPinSaveError
     onSectionPinSaveErrorRef.current = onSectionPinSaveError
     onPageChipPinSaveErrorRef.current = onPageChipPinSaveError
-  }, [onBeforeApplyPinnedDomains, onDomainPinSaveError, onSectionPinSaveError, onPageChipPinSaveError])
+  }, [onBeforeApplyPinnedDomains, onBeforeApplyPinnedSections, onBeforeApplyPinnedPageChips, onDomainPinSaveError, onSectionPinSaveError, onPageChipPinSaveError])
 
   useEffect(() => {
     if (state.loaded) return
@@ -133,11 +141,13 @@ export function useDashboardLocalState({
   async function togglePinnedSection(id: string) {
     const nextIds = togglePinnedSectionInList(state.pinnedSectionIds, id)
     const previous = state.pinnedSectionIds
+    onBeforeApplyPinnedSectionsRef.current?.(id)
     setState((current) => ({ ...current, pinnedSectionIds: nextIds }))
     try {
       await savePinnedSections(nextIds)
     } catch {
       onSectionPinSaveErrorRef.current?.()
+      onBeforeApplyPinnedSectionsRef.current?.(id)
       setState((current) => ({ ...current, pinnedSectionIds: previous }))
     }
   }
@@ -145,11 +155,13 @@ export function useDashboardLocalState({
   async function togglePinnedPageChip(id: string) {
     const nextIds = togglePinnedPageChipInList(state.pinnedPageChipIds, id)
     const previous = state.pinnedPageChipIds
+    onBeforeApplyPinnedPageChipsRef.current?.(id)
     setState((current) => ({ ...current, pinnedPageChipIds: nextIds }))
     try {
       await savePinnedPageChips(nextIds)
     } catch {
       onPageChipPinSaveErrorRef.current?.()
+      onBeforeApplyPinnedPageChipsRef.current?.(id)
       setState((current) => ({ ...current, pinnedPageChipIds: previous }))
     }
   }

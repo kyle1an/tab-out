@@ -200,6 +200,84 @@ test('root coordinate space measures grid-local positions', () => {
   assert.deepEqual(positions.get('a'), [{ left: 12, top: 34, width: 100, height: 40 }])
 })
 
+test('move animation can snapshot a structural anchor and animate its replacement item', () => {
+  const anchor = fakeItem('a', { left: 40, top: 20, width: 60, height: 20 })
+  const item = fakeItem('a', { left: 160, top: 80, width: 120, height: 40 })
+  const selectors: string[] = []
+  const root = {
+    querySelectorAll: (selector: string) => {
+      selectors.push(selector)
+      return selector === '.anchor' ? [anchor.el] : [item.el]
+    },
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 })
+  } as unknown as HTMLElement
+  const animator = createMoveAnimator(makeConfig({
+    itemSelector: '.item',
+    snapshotItemSelector: '.anchor'
+  }))
+
+  const previous = animator.snapshot([root])
+  animator.animate([root], previous)
+
+  assert.deepEqual(selectors.slice(0, 2), ['.anchor', '.item'])
+  assert.equal(item.style.transform, 'translate(-120px, -60px)')
+  animator.cancel([root])
+})
+
+test('nested move suppression animates the stable parent surface only', () => {
+  const parent = fakeItem('section', { left: 20, top: 100, width: 300, height: 120 })
+  const child = fakeItem('page', { left: 30, top: 140, width: 280, height: 36 })
+  ;(parent.el as unknown as { contains: (candidate: unknown) => boolean }).contains = (candidate) => (
+    candidate === parent.el || candidate === child.el
+  )
+  ;(child.el as unknown as { contains: (candidate: unknown) => boolean }).contains = (candidate) => (
+    candidate === child.el
+  )
+  const root = fakeRoot([parent, child])
+  const animator = createMoveAnimator(makeConfig({ suppressNestedMoves: true }))
+
+  const previous = animator.snapshot([root])
+  parent.moveTo({ left: 20, top: 60, width: 300, height: 120 })
+  child.moveTo({ left: 30, top: 100, width: 280, height: 36 })
+  animator.animate([root], previous)
+
+  assert.equal(parent.style.transform, 'translate(0px, 40px)')
+  assert.equal(parent.classes.has('moving'), true)
+  assert.equal(child.style.transform ?? '', '')
+  assert.equal(child.classes.has('moving'), false)
+  animator.cancel([root])
+})
+
+test('a newer animator owns the element through an older animator cleanup deadline', () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const item = fakeItem('a', { left: 100, top: 0 })
+  const root = fakeRoot([item])
+  const firstAnimator = createMoveAnimator(makeConfig({ duration: 30 }))
+  const secondAnimator = createMoveAnimator(makeConfig({ duration: 500 }))
+
+  try {
+    firstAnimator.animate([root], new Map([[
+      'a',
+      [{ left: 0, top: 0, width: 100, height: 40 }]
+    ]]))
+    clock.tick(16)
+
+    secondAnimator.animate([root], new Map([[
+      'a',
+      [{ left: 50, top: 0, width: 100, height: 40 }]
+    ]]))
+    clock.tick(16)
+    assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')
+
+    clock.tick(80)
+    assert.equal(item.style.transition, 'transform 500ms var(--ease-swift)')
+    assert.equal(item.classes.has('moving'), true)
+    assert.equal(item.classes.has('moving-active'), true)
+  } finally {
+    clock.uninstall()
+  }
+})
+
 test('reduced motion disables snapshot and animate', () => {
   const previousWindow = (globalThis as { window?: unknown }).window
   ;(globalThis as { window?: unknown }).window = { matchMedia: () => ({ matches: true }) }

@@ -31,8 +31,33 @@
   --color-accent: color-mix(in srgb, var(--card-bg) 92%, var(--accent-amber));
   --color-accent-foreground: var(--ink);
   /* Signature strong ease-out. The FLIP move module
-     (src/extension/move-animation.ts) plays its inline transition through
-     this token; PageChipCloseAnimation.ts still pins the literal value,
-     guarded by tests — keep in sync. */
+     (src/extension/move-animation.ts) and reveal/removal surfaces play
+     their transitions through this token or its exact literal value. */
   --ease-swift: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.page-chips-overflow-reveal .chip-slot {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 120ms linear,
+    transform 160ms var(--ease-swift);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-chips-overflow-reveal .chip-slot {
+    transition:
+      opacity 100ms var(--ease-swift),
+      transform 100ms var(--ease-swift);
+
+    @starting-style {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+  }
 }

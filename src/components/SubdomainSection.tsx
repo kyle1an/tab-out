@@ -101,6 +101,8 @@ export function SubdomainSection({
   const hasFlat = flatSection !== null
   const hasClose = showHeader && sectionClosableUrls && sectionClosableUrls.length > 0
   const headerLabel = subdomainKey
+  const sectionLayoutKey = subdomainPinId(domain, subdomainKey)
+  const sectionLayoutScope = `subdomain|${domain}`
   // Pinning a virtual section (cross-env shared, apps card) wouldn't have a
   // stable identity, so skip the affordance there. The pin button itself
   // only renders when the parent card supplies a toggle handler.
@@ -112,11 +114,19 @@ export function SubdomainSection({
   }
 
   async function onTogglePin() {
-    await onTogglePinnedSection?.(subdomainPinId(domain, subdomainKey))
+    await onTogglePinnedSection?.(sectionLayoutKey)
   }
 
   return (
     <div
+      data-tabout="subdomain-section"
+      data-tabout-layout-anchor=""
+      data-tabout-layout-item=""
+      data-tabout-layout-key={sectionLayoutKey}
+      data-tabout-layout-scope={sectionLayoutScope}
+      data-tabout-removal-anchor=""
+      data-tabout-removal-item=""
+      data-tabout-removal-key={`section:${sectionLayoutKey}`}
       className={cn(
         'subdomain-section group/subdomain-section flex flex-col',
         !isFirst && 'mt-1.5 border-t border-[rgba(115,115,115,0.12)]'

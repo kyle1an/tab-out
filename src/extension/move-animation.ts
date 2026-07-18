@@ -28,11 +28,15 @@ export type MoveAnimatorHooks = {
 
 export type MoveAnimatorConfig = {
   itemSelector: string
+  /** Optional broader selector used only while taking the before-layout snapshot. */
+  snapshotItemSelector?: string
   keyOf: (item: HTMLElement) => string
   duration: number
   movingClass: string
   activeClass: string
   coordinateSpace: 'viewport' | 'root'
+  /** When a parent and its descendants move together, animate only the outermost moving surface. */
+  suppressNestedMoves?: boolean
   /** Inline z-index while an item is moving (consumers may prefer a class on movingClass instead). */
   moveZIndex?: string
   /** Runs once per animate() call that has movers, before the play frame. */
@@ -53,9 +57,17 @@ type ActiveMove = {
   frameId: number
   timeoutId: number
   onTransitionEnd: (e: TransitionEvent) => void
+  cancel: () => void
+}
+
+type CandidateMove = {
+  item: HTMLElement
+  dx: number
+  dy: number
 }
 
 const CLEANUP_GRACE_MS = 80
+const activeMoves = new WeakMap<HTMLElement, ActiveMove>()
 
 const requestFrame: (cb: () => void) => number =
   typeof requestAnimationFrame === 'function'
@@ -74,10 +86,8 @@ function roundPosition(value: number): number {
 }
 
 export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
-  const activeMoves = new WeakMap<HTMLElement, ActiveMove>()
-
-  function itemsIn(root: HTMLElement): HTMLElement[] {
-    return Array.from(root.querySelectorAll<HTMLElement>(config.itemSelector))
+  function itemsIn(root: HTMLElement, selector = config.itemSelector): HTMLElement[] {
+    return Array.from(root.querySelectorAll<HTMLElement>(selector))
   }
 
   function originOf(root: HTMLElement): { left: number; top: number } {
@@ -105,7 +115,7 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
     for (const root of roots) {
       if (!root) continue
       const origin = originOf(root)
-      for (const item of itemsIn(root)) {
+      for (const item of itemsIn(root, config.snapshotItemSelector ?? config.itemSelector)) {
         const key = config.keyOf(item)
         if (!key) continue
         let list = positions.get(key)
@@ -123,10 +133,8 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
   function cancelItem(item: HTMLElement): void {
     const active = activeMoves.get(item)
     if (active) {
-      cancelFrame(active.frameId)
-      clearTimeout(active.timeoutId)
-      item.removeEventListener('transitionend', active.onTransitionEnd)
-      activeMoves.delete(item)
+      active.cancel()
+      return
     }
 
     item.classList.remove(config.movingClass, config.activeClass)
@@ -170,7 +178,7 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
     if (!previous || previous.size === 0 || shouldReduceMotion()) return
 
     const presentRoots: HTMLElement[] = []
-    const moving: HTMLElement[] = []
+    const candidateMoves: CandidateMove[] = []
     for (const root of roots) {
       if (!root) continue
       presentRoots.push(root)
@@ -188,14 +196,26 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
         const dy = previousPosition.top - next.top
         if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue
 
-        item.classList.add(config.movingClass)
-        item.style.transition = 'none'
-        item.style.transform = `translate(${dx}px, ${dy}px)`
-        item.style.willChange = 'transform'
-        if (config.moveZIndex) item.style.zIndex = config.moveZIndex
-        moving.push(item)
+        candidateMoves.push({ item, dx, dy })
       }
     }
+
+    const moves = config.suppressNestedMoves
+      ? candidateMoves.filter((candidate) => (
+          !candidateMoves.some((other) => (
+            other.item !== candidate.item &&
+            other.item.contains(candidate.item)
+          ))
+        ))
+      : candidateMoves
+    const moving = moves.map(({ item, dx, dy }) => {
+      item.classList.add(config.movingClass)
+      item.style.transition = 'none'
+      item.style.transform = `translate(${dx}px, ${dy}px)`
+      item.style.willChange = 'transform'
+      if (config.moveZIndex) item.style.zIndex = config.moveZIndex
+      return item
+    })
 
     if (moving.length === 0) return
 
@@ -205,17 +225,34 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
     presentRoots.forEach((root) => root.getBoundingClientRect())
 
     moving.forEach((item) => {
-      function cleanup() {
-        if (activeMoves.get(item) !== active) return
-        activeMoves.delete(item)
-        clearTimeout(active.timeoutId)
-        item.removeEventListener('transitionend', onTransitionEnd)
+      let settled = false
+
+      function resetItemStyles() {
         item.classList.remove(config.movingClass, config.activeClass)
         item.style.transform = ''
         item.style.transition = ''
         item.style.willChange = ''
         if (config.moveZIndex) item.style.zIndex = ''
+      }
+      function cleanup() {
+        if (activeMoves.get(item) !== active) return
+        settled = true
+        activeMoves.delete(item)
+        cancelFrame(active.frameId)
+        clearTimeout(active.timeoutId)
+        item.removeEventListener('transitionend', onTransitionEnd)
+        resetItemStyles()
         config.afterCleanup?.(item)
+      }
+      function cancelActiveMove() {
+        if (settled) return
+        settled = true
+        cancelFrame(active.frameId)
+        clearTimeout(active.timeoutId)
+        item.removeEventListener('transitionend', onTransitionEnd)
+        if (activeMoves.get(item) === active) activeMoves.delete(item)
+        resetItemStyles()
+        config.onCancel?.(item)
       }
       function onTransitionEnd(e: TransitionEvent) {
         if (e.target === item && e.propertyName === 'transform') cleanup()
@@ -223,7 +260,8 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
       const active: ActiveMove = {
         frameId: 0,
         timeoutId: 0,
-        onTransitionEnd
+        onTransitionEnd,
+        cancel: cancelActiveMove
       }
 
       item.addEventListener('transitionend', onTransitionEnd)

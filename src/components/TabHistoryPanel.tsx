@@ -31,6 +31,8 @@ import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../ext
 import { useHistoryPanelRows, type HistoryPanelRow } from '../hooks/useHistoryPanelRows.js'
 import { useHistoryScrollbar, type HistoryScrollbar } from '../hooks/useHistoryScrollbar.js'
 import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
+import { startLayoutRemovalAnimation } from './LayoutRemovalAnimation.js'
+import { animateHistoryEntryMoves, snapshotHistoryEntryPositions, waitForHistoryEntryMoves } from '../extension/history-entry-move-animation.js'
 
 let historyTitleResizeObserver: ResizeObserver | null = null
 const HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12
@@ -122,6 +124,7 @@ type StopPropagationEvent = { stopPropagation: () => void }
 interface HistoryEntryProps {
   entry: TabHistoryEntry
   kind: HistoryEntryKind
+  layoutKey: string
   indexLabel: ReactNode
   snapshot: TabHistorySnapshot | null
   workingSetItem?: WorkingSetItem | null
@@ -153,6 +156,16 @@ function isHistoryTitleTruncated(titleEl: HTMLElement | null) {
     titleEl.scrollHeight - titleEl.clientHeight > 1 ||
     titleEl.scrollWidth - titleEl.clientWidth > 1
   )
+}
+
+function startHistoryEntryRemoval(row: Element | null | undefined): boolean {
+  if (!(row instanceof HTMLElement)) return false
+  const root = row.closest<HTMLElement>('.history-entry-list-content')
+  const positions = snapshotHistoryEntryPositions(root)
+  return startLayoutRemovalAnimation(row, {
+    ghostClassName: 'history-entry-closing-ghost',
+    onAfterRemove: () => animateHistoryEntryMoves(root, positions)
+  })
 }
 
 function getHistoryTitleWidth(titleEl: HTMLElement | null) {
@@ -846,8 +859,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
       return
     }
 
-    row?.classList.add('closing')
-    await new Promise((resolve) => setTimeout(resolve, 160))
+    if (startHistoryEntryRemoval(row)) await waitForHistoryEntryMoves()
     onHoverUrlChange?.('')
     await refreshAfterMutation()
 
@@ -1091,7 +1103,7 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
   )
 }
 
-function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const titleClampKey = JSON.stringify([entry.title, highlightTerms])
   const {
@@ -1138,8 +1150,7 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
     e.stopPropagation()
     if (!closedTab) return
     const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
-    row?.classList.add('closing')
-    await new Promise((resolve) => setTimeout(resolve, 160))
+    if (startHistoryEntryRemoval(row)) await waitForHistoryEntryMoves()
     onHoverUrlChange?.('')
     onForgetClosedGhost?.(closedTab)
   }
@@ -1324,9 +1335,10 @@ function HistoryEntry({ entry, kind, indexLabel, snapshot, workingSetItem = null
   return (
     <div
       data-tabout="activation-history-entry"
+      data-tabout-layout-key={layoutKey}
       data-working-set-extra={isWorkingSetExtra ? 'true' : undefined}
       className={cn(
-        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
+        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
         titleExpanded && 'history-entry-row-expanded-open'
       )}
       onMouseEnter={onMouseEnter}
@@ -1474,10 +1486,12 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
   onForgetClosedGhost?: (closed: ClosedTabEntry) => void
 }): ReactNode {
   if (row.kind === 'stack') {
+    const layoutKey = `stack:${row.entry.windowId}:${row.entry.tabId}:${row.entry.index}`
     return (
       <HistoryEntry
-        key={`stack:${row.entry.windowId}:${row.entry.tabId}:${row.entry.index}`}
+        key={layoutKey}
         entry={row.entry}
+        layoutKey={layoutKey}
         indexLabel={historyEntryIndexLabel(row.entry, ctx.snapshot, row.entry.index + 1)}
         snapshot={ctx.snapshot}
         kind="stack"
@@ -1493,10 +1507,12 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
     )
   }
   if (row.kind === 'open-ghost') {
+    const layoutKey = `open-ghost:${row.item.key}`
     return (
       <HistoryEntry
-        key={`open-ghost:${row.item.key}`}
+        key={layoutKey}
         entry={historyEntryFromWorkingSetItem(row.item)}
+        layoutKey={layoutKey}
         indexLabel={null}
         snapshot={ctx.snapshot}
         kind="open-ghost"
@@ -1512,10 +1528,12 @@ function renderPanelRow(row: HistoryPanelRow, ctx: {
       />
     )
   }
+  const layoutKey = `closed-ghost:${row.closed.sessionId}`
   return (
     <HistoryEntry
-      key={`closed-ghost:${row.closed.sessionId}`}
+      key={layoutKey}
       entry={historyEntryFromClosedTab(row.closed)}
+      layoutKey={layoutKey}
       indexLabel={null}
       snapshot={ctx.snapshot}
       kind="closed-ghost"

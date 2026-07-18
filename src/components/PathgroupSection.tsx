@@ -120,6 +120,8 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
     <span className="text-[13px] leading-tight">{displayLabel}</span>
   ) : undefined
   const canPin = typeof onTogglePinnedSection === 'function'
+  const sectionLayoutKey = pathgroupPinId(domain, subdomainKey, websitePathKey, pathgroupKey)
+  const sectionLayoutScope = `pathgroup|${domain}|${subdomainKey}|${websitePathKey}`
   const { expanded, pageChips } = usePageChipOverflow({
     visibleChips,
     hiddenChips,
@@ -130,7 +132,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
   })
 
   async function onTogglePin() {
-    await onTogglePinnedSection?.(pathgroupPinId(domain, subdomainKey, websitePathKey, pathgroupKey))
+    await onTogglePinnedSection?.(sectionLayoutKey)
   }
 
   useLayoutEffect(() => {
@@ -174,7 +176,18 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
   }
 
   return (
-    <div className={cn('pathgroup-section group/pathgroup-section flex flex-col', className)} data-expanded={expanded ? 'true' : undefined}>
+    <div
+      data-tabout="path-group"
+      data-tabout-layout-anchor=""
+      data-tabout-layout-item=""
+      data-tabout-layout-key={sectionLayoutKey}
+      data-tabout-layout-scope={sectionLayoutScope}
+      data-tabout-removal-anchor=""
+      data-tabout-removal-item=""
+      data-tabout-removal-key={`section:${sectionLayoutKey}`}
+      data-expanded={expanded ? 'true' : undefined}
+      className={cn('pathgroup-section group/pathgroup-section flex flex-col', className)}
+    >
       <div
         className={cn(
           'pathgroup-header relative flex items-center gap-1.5 pr-6 pb-0.5 pl-0',

@@ -103,6 +103,109 @@
         ]
       }
       const tabs = [
+        ...(new URLSearchParams(window.location.search).has('motion')
+          ? [
+              ...Array.from({ length: 7 }, (_, index) => ({
+                id: 8000 + index,
+                url: `https://overflow-motion.test/docs/example-${index + 1}`,
+                title: `Overflow Motion Example ${index + 1}`,
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8000 + index
+              })),
+              {
+                id: 8100,
+                url: 'https://last-scope-motion.test/only',
+                title: 'Last Scope Only',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8100
+              },
+              {
+                id: 8101,
+                url: 'https://last-scope-motion.test/group/one',
+                title: 'Last Scope Group One',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8101
+              },
+              {
+                id: 8102,
+                url: 'https://last-scope-motion.test/group/two',
+                title: 'Last Scope Group Two',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8102
+              },
+              {
+                id: 8200,
+                url: 'https://docs.google.com/document/d/example-doc-alpha/edit',
+                title: 'Example Document Alpha - Google Docs',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8200
+              },
+              {
+                id: 8201,
+                url: 'https://docs.google.com/document/d/example-doc-beta/edit',
+                title: 'Example Document Beta - Google Docs',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8201
+              },
+              {
+                id: 8202,
+                url: 'https://docs.google.com/document/d/example-doc-gamma/edit',
+                title: 'Example Document Gamma - Google Docs',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8202
+              },
+              {
+                id: 8203,
+                url: 'https://docs.google.com/spreadsheets/d/example-sheet-alpha/edit',
+                title: 'Example Spreadsheet Alpha - Google Sheets',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8203
+              },
+              {
+                id: 8204,
+                url: 'https://docs.google.com/spreadsheets/d/example-sheet-beta/edit',
+                title: 'Example Spreadsheet Beta - Google Sheets',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 8204
+              }
+            ]
+          : []),
         {
           id: 9001,
           url: 'chrome://settings/appearance',
@@ -350,13 +453,21 @@
         return { version: 1, records }
       }
 
-      window.chrome = createFakeChromeApi({
+      const fixtureParams = new URLSearchParams(window.location.search)
+      const slowCloseRefresh = fixtureParams.has('slowCloseRefresh')
+      const stalledCloseRefresh = fixtureParams.has('stalledCloseRefresh')
+      let delayNextDashboardServiceState = false
+      const chromeApi = createFakeChromeApi({
         tabs,
         getBookmarkTree: () => bookmarkTree,
         storageSeed: localStorageStore,
         getURL: (path) => `${window.location.origin}${path}`,
         sendMessage: async (message) => {
           if (message?.type === 'tab-out:get-dashboard-service-state') {
+            if (delayNextDashboardServiceState) {
+              delayNextDashboardServiceState = false
+              await new Promise((resolve) => setTimeout(resolve, stalledCloseRefresh ? 1_500 : 120))
+            }
             return {
               ok: true,
               tabHistory: tabHistorySnapshot,
@@ -372,6 +483,12 @@
           return { ok: false }
         }
       })
+      const removeTabs = chromeApi.tabs.remove.bind(chromeApi.tabs)
+      chromeApi.tabs.remove = async (tabIds) => {
+        await removeTabs(tabIds)
+        if (slowCloseRefresh || stalledCloseRefresh) delayNextDashboardServiceState = true
+      }
+      window.chrome = chromeApi
       // The smoke helpers below poke "something changed" / "tab activated"
       // the way the old shared listener objects did.
       const listeners = { dispatch: (...args) => window.chrome.tabs.onCreated.dispatch(...args) }

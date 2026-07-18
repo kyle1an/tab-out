@@ -95,6 +95,8 @@ export function WebsitePathSection({
   const { activeSuppressedTitle, setActiveSuppressedTitle } = useDomainCardContext()
   const hasClose = sectionClosableUrls && sectionClosableUrls.length > 0
   const canPin = typeof onTogglePinnedSection === 'function'
+  const sectionLayoutKey = websitePathPinId(domain, subdomainKey, websitePathKey)
+  const sectionLayoutScope = `website-path|${domain}|${subdomainKey}`
 
   async function onCloseWebsitePathSection() {
     if (!sectionClosableUrls || sectionClosableUrls.length === 0) return
@@ -102,11 +104,21 @@ export function WebsitePathSection({
   }
 
   async function onTogglePin() {
-    await onTogglePinnedSection?.(websitePathPinId(domain, subdomainKey, websitePathKey))
+    await onTogglePinnedSection?.(sectionLayoutKey)
   }
 
   return (
-    <div className={cn('website-path-section group/website-path-section flex flex-col', className)}>
+    <div
+      data-tabout="website-path-section"
+      data-tabout-layout-anchor=""
+      data-tabout-layout-item=""
+      data-tabout-layout-key={sectionLayoutKey}
+      data-tabout-layout-scope={sectionLayoutScope}
+      data-tabout-removal-anchor=""
+      data-tabout-removal-item=""
+      data-tabout-removal-key={`section:${sectionLayoutKey}`}
+      className={cn('website-path-section group/website-path-section flex flex-col', className)}
+    >
       <div
         className={cn(
           'website-path-section-header relative flex items-center gap-1.5 pr-6 pb-0.5 pl-0',

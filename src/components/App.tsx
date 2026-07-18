@@ -6,6 +6,12 @@ import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from '../extension/history-range.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
+import {
+  animateIntraCardMoves,
+  animateQueuedPageChipRefreshMoves,
+  prepareIntraCardMoveAnimationByKey,
+  type PreparedIntraCardMove
+} from '../extension/intra-card-move-animation.js'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState, type DashboardLocalState } from '../hooks/useDashboardLocalState'
@@ -593,6 +599,7 @@ export function App({
 
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
+  const intraCardMoveRef = useRef<PreparedIntraCardMove | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
     tabs: new Map(),
     bookmarks: new Map(),
@@ -656,6 +663,12 @@ export function App({
       resetMissionOrder()
       if (animate) primeCardMoveAnimation()
     },
+    onBeforeApplyPinnedSections: (sectionId) => {
+      intraCardMoveRef.current = prepareIntraCardMoveAnimationByKey(sectionId)
+    },
+    onBeforeApplyPinnedPageChips: (pageChipPinId) => {
+      intraCardMoveRef.current = prepareIntraCardMoveAnimationByKey(pageChipPinId)
+    },
     onDomainPinSaveError: () => showToast('Could not save pinned domain'),
     onSectionPinSaveError: () => showToast('Could not save pinned section'),
     onPageChipPinSaveError: () => showToast('Could not save pinned page')
@@ -700,6 +713,10 @@ export function App({
     if (previousRects) animateDomainCardMoves(containers, previousRects)
   }, [visibleDashboard, filter, source, isReady, clearHoverUrlNow, packMissionsMasonryNow])
 
+  useLayoutEffect(() => {
+    animateQueuedPageChipRefreshMoves()
+  }, [visibleDashboard])
+
   const {
     dashboardVm,
     stats,
@@ -727,6 +744,12 @@ export function App({
     pinnedSections,
     pinnedPageChips
   })
+
+  useLayoutEffect(() => {
+    const prepared = intraCardMoveRef.current
+    intraCardMoveRef.current = null
+    animateIntraCardMoves(prepared)
+  }, [pinnedSections, pinnedPageChips])
 
   useLayoutEffect(() => {
     if (firstDashboardLayoutRecordedRef.current || !visibleDashboard) return
