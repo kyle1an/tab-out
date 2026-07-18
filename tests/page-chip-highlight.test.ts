@@ -1233,7 +1233,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuContentSource, /icon-\[lucide--pin\]/)
   assert.match(contextMenuContentSource, /icon-\[lucide--pin-off\]/)
   assert.match(contextMenuContentSource, /icon-\[lucide--link\]/)
-  assert.match(contextMenuContentSource, /icon-\[ooui--reload\]/)
+  assert.match(contextMenuContentSource, /icon-\[weui--refresh-filled\] size-3\.5 rotate-\[45deg\]/)
   assert.match(contextMenuContentSource, /icon-\[lucide--copy-plus\]/)
   assert.match(contextMenuContentSource, /<svg className="icon-\[ooui--copy-ltr\] size-3\.5" aria-hidden="true" \/>/)
   assert.match(contextMenuContentSource, /Copy page title text/)

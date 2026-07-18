@@ -51,6 +51,9 @@ importers:
       '@iconify-json/ooui':
         specifier: ^1.2.20
         version: 1.2.20
+      '@iconify-json/weui':
+        specifier: ^1.2.4
+        version: 1.2.4
       '@iconify/tailwind4':
         specifier: ^1.2.3
         version: 1.2.3(tailwindcss@4.3.2)
@@ -573,6 +576,9 @@ packages:
 
   '@iconify-json/ooui@1.2.20':
     resolution: {integrity: sha512-G1vhhOloYgc3NiQYuGHV98hlormM8Bw0D9n3D9QsA3KogbHU/tL4SayYAWAE8aL9G7TrMJJrQgnJeUH9G39xNw==}
+
+  '@iconify-json/weui@1.2.4':
+    resolution: {integrity: sha512-11WOzuH81FokN34N2WYg/bRQ+5ewrIrzVfN4RhWxj3Xr37/eYmqb5SeC6EXpmH8yi+d8tLBdmPxbF41bIhrdxg==}
 
   '@iconify/tailwind4@1.2.3':
     resolution: {integrity: sha512-z8SKiMHRASJKF/IY//87MF88lcB7ulxh8vlhQXXLWsBkNtOh6ese9R41MyGpQeqXdRvQVt+/fX2glQtHFjQ+MA==}
@@ -3781,6 +3787,10 @@ snapshots:
       '@iconify/types': 2.0.0
 
   '@iconify-json/ooui@1.2.20':
+    dependencies:
+      '@iconify/types': 2.0.0
+
+  '@iconify-json/weui@1.2.4':
     dependencies:
       '@iconify/types': 2.0.0
 

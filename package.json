@@ -42,6 +42,7 @@
     "@iconify-json/lucide": "^1.2.117",
     "@iconify-json/mingcute": "^1.2.7",
     "@iconify-json/ooui": "^1.2.20",
+    "@iconify-json/weui": "^1.2.4",
     "@iconify/tailwind4": "^1.2.3",
     "@playwright/test": "^1.61.1",
     "@rolldown/plugin-babel": "^0.2.3",
