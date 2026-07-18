@@ -1,4 +1,4 @@
-import { getTab, queryAllTabs, removeTabs, updateTab } from './browser-tabs-gateway.js'
+import { duplicateTab, getTab, queryAllTabs, reloadTab, removeTabs, updateTab } from './browser-tabs-gateway.js'
 import { requestDashboardRefresh } from './dashboard-controller.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
@@ -58,6 +58,11 @@ type CloseChipTargetOptions = {
 type DeleteHistoryUrlsOptions = {
   urls: string[]
   onAfterDelete?: (result: HistoryDeleteResult) => void | Promise<void>
+}
+
+type ChromeMenuTabTarget = {
+  tabUrl: string
+  tabId?: number | string
 }
 
 function closedTabsLabel(count: number): string {
@@ -211,6 +216,38 @@ export async function deleteHistoryUrls({ urls, onAfterDelete }: DeleteHistoryUr
   await refreshDashboardAfterTabAction()
   showToast(deletedCount === 1 ? 'History deleted' : `Deleted ${deletedCount} history items`)
   return result
+}
+
+async function resolveChromeMenuTabTarget({ tabUrl, tabId }: ChromeMenuTabTarget): Promise<chrome.tabs.Tab | null> {
+  if (typeof tabId === 'number' && Number.isInteger(tabId)) return getTab(tabId)
+  const [match] = liveTabsMatchingTarget(await queryAllTabs(), { tabUrl })
+  return match ?? null
+}
+
+export async function reloadTabTarget(target: ChromeMenuTabTarget): Promise<boolean> {
+  const tab = await resolveChromeMenuTabTarget(target)
+  if (typeof tab?.id !== 'number' || !(await reloadTab(tab.id))) {
+    showToast('Could not reload tab')
+    return false
+  }
+
+  await fetchOpenTabs()
+  await requestDashboardRefresh()
+  showToast('Tab reloaded')
+  return true
+}
+
+export async function duplicateTabTarget(target: ChromeMenuTabTarget): Promise<boolean> {
+  const tab = await resolveChromeMenuTabTarget(target)
+  if (typeof tab?.id !== 'number' || !(await duplicateTab(tab.id))) {
+    showToast('Could not duplicate tab')
+    return false
+  }
+
+  await fetchOpenTabs()
+  await requestDashboardRefresh()
+  showToast('Tab duplicated')
+  return true
 }
 
 type SetChipMutedOptions = {

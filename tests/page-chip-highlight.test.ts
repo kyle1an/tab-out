@@ -1192,6 +1192,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   const contextMenuComponentSource = readFileSync(new URL('../src/components/PageChipContextMenu.tsx', import.meta.url), 'utf8')
   const contextMenuLoadedSource = readFileSync(new URL('../src/components/PageChipContextMenuLoaded.tsx', import.meta.url), 'utf8')
   const contextMenuContentSource = readFileSync(new URL('../src/components/PageChipContextMenuContent.tsx', import.meta.url), 'utf8')
+  const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
 
   // PageChip routes chip triggers through the extracted menu wrapper
   assert.doesNotMatch(pageChipSource, /import \{ ContextMenu, ContextMenuTrigger \} from '\.\/ui\/context-menu'/)
@@ -1220,7 +1221,9 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuLoadedSource, /<ContextMenuTrigger render=\{trigger\} \/>/)
   assert.match(contextMenuLoadedSource, /page-chip-context-menu-open/)
 
-  // The extracted content renders the saved, page-pin, suspend, and copy menu items
+  // The extracted content renders the live-tab, saved, page-pin, suspend, and copy menu items.
+  assert.match(contextMenuContentSource, /className="page-chip-reload-menu-item"/)
+  assert.match(contextMenuContentSource, /className="page-chip-duplicate-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-save-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-pin-menu-item"/)
   assert.match(contextMenuContentSource, /className="page-chip-pin-menu-item"[\s\S]*className="page-chip-save-menu-item"/)
@@ -1230,6 +1233,8 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuContentSource, /icon-\[lucide--pin\]/)
   assert.match(contextMenuContentSource, /icon-\[lucide--pin-off\]/)
   assert.match(contextMenuContentSource, /icon-\[lucide--link\]/)
+  assert.match(contextMenuContentSource, /icon-\[ooui--reload\]/)
+  assert.match(contextMenuContentSource, /icon-\[lucide--copy-plus\]/)
   assert.match(contextMenuContentSource, /<svg className="icon-\[ooui--copy-ltr\] size-3\.5" aria-hidden="true" \/>/)
   assert.match(contextMenuContentSource, /Copy page title text/)
   assert.match(contextMenuContentSource, /Copy URL/)
@@ -1237,6 +1242,8 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuContentSource, /onClick=\{onPagePinSelect\}/)
   assert.match(contextMenuContentSource, /onClick=\{onCopyTitle\}/)
   assert.match(contextMenuContentSource, /onClick=\{onCopyUrl\}/)
+  assert.match(contextMenuContentSource, /onClick=\{onReloadSelect\}/)
+  assert.match(contextMenuContentSource, /onClick=\{onDuplicateSelect\}/)
 
   // PageChip keeps the ref coordination and clipboard handler; the
   // interaction styling itself lives behind the chip-trim interface and is
@@ -1253,6 +1260,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /navigator\.clipboard\.writeText\(urlText\)/)
   assert.match(pageChipSource, /const pagePinActionLabel = chip\.pagePinned \? 'Unpin' : 'Pin'/)
   assert.match(pageChipSource, /const canTogglePagePin = !!chip\.pagePinId && typeof onTogglePinnedPageChip === 'function'/)
+  assert.match(pageChipSource, /const canUseChromeTabActions = parentInteractive && chip\.sourceType === 'tab' && !isClosedSavedPage/)
   assert.match(pageChipSource, /const canUseCopyContextMenu = parentInteractive && \(\!!chipTitleText \|\| \!!chipUrlText\)/)
   assert.match(pageChipSource, /async function onTogglePagePin\(e: StopPropagationEvent\)/)
   assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(chip\.pagePinId\)/)
@@ -1263,9 +1271,11 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /await onTogglePinnedPageChip\?\.\(variant\.pagePinId\)/)
 
   // PageChip wires the mutation handlers into the menus at each call site
-  assert.match(pageChipSource, /envCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedEnv \? envSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedEnv \? \(e\) => onToggleSavedEnv\(e, env\) : undefined\}[\s\S]*titleText=\{envTitleText\}[\s\S]*urlText=\{env\.tabUrl\}/)
-  assert.match(pageChipSource, /variantCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{variantCanToggleSaved \? variantSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{variantCanToggleSaved \? \(e\) => onToggleSavedTitleVariant\(e, variant\) : undefined\}[\s\S]*pagePinActionLabel=\{variantCanTogglePagePin \? variantPagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{variantCanTogglePagePin \? \(e\) => onTogglePinnedTitleVariant\(e, variant\) : undefined\}[\s\S]*titleText=\{variantTitleText\}[\s\S]*urlText=\{variant\.tabUrl\}/)
-  assert.match(pageChipSource, /canToggleSavedPage \|\| canTogglePagePin \|\| canShowSuspend \|\| canUseCopyContextMenu[\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedPage \? savedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedPage \? onToggleSavedPage : undefined\}[\s\S]*pagePinActionLabel=\{canTogglePagePin \? pagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{canTogglePagePin \? onTogglePagePin : undefined\}[\s\S]*titleText=\{chipTitleText\}[\s\S]*urlText=\{chipUrlText\}[\s\S]*onOpenChange=\{onChipContextMenuOpenChange\}/)
+  assert.match(pageChipSource, /envCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedEnv \? envSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedEnv \? \(e\) => onToggleSavedEnv\(e, env\) : undefined\}[\s\S]*onReloadSelect=\{envCanUseChromeTabActions \? \(e\) => onReloadPageTarget\(e, env\) : undefined\}[\s\S]*onDuplicateSelect=\{envCanUseChromeTabActions \? \(e\) => onDuplicatePageTarget\(e, env\) : undefined\}[\s\S]*titleText=\{envTitleText\}[\s\S]*urlText=\{env\.tabUrl\}/)
+  assert.match(pageChipSource, /variantCanUseContextMenu \? \([\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{variantCanToggleSaved \? variantSavedActionLabel : undefined\}[\s\S]*onSavedSelect=\{variantCanToggleSaved \? \(e\) => onToggleSavedTitleVariant\(e, variant\) : undefined\}[\s\S]*onReloadSelect=\{variantCanUseChromeTabActions \? \(e\) => onReloadPageTarget\(e, variant\) : undefined\}[\s\S]*onDuplicateSelect=\{variantCanUseChromeTabActions \? \(e\) => onDuplicatePageTarget\(e, variant\) : undefined\}[\s\S]*pagePinActionLabel=\{variantCanTogglePagePin \? variantPagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{variantCanTogglePagePin \? \(e\) => onTogglePinnedTitleVariant\(e, variant\) : undefined\}[\s\S]*titleText=\{variantTitleText\}[\s\S]*urlText=\{variant\.tabUrl\}/)
+  assert.match(pageChipSource, /canToggleSavedPage \|\| canTogglePagePin \|\| canUseChromeTabActions \|\| canShowSuspend \|\| canUseCopyContextMenu[\s\S]*<PageChipContextMenu[\s\S]*savedActionLabel=\{canToggleSavedPage \? savedActionLabel : undefined\}[\s\S]*onSavedSelect=\{canToggleSavedPage \? onToggleSavedPage : undefined\}[\s\S]*pagePinActionLabel=\{canTogglePagePin \? pagePinActionLabel : undefined\}[\s\S]*onPagePinSelect=\{canTogglePagePin \? onTogglePagePin : undefined\}[\s\S]*onReloadSelect=\{canUseChromeTabActions \? \(e\) => onReloadPageTarget\(e, chip\) : undefined\}[\s\S]*onDuplicateSelect=\{canUseChromeTabActions \? \(e\) => onDuplicatePageTarget\(e, chip\) : undefined\}[\s\S]*titleText=\{chipTitleText\}[\s\S]*urlText=\{chipUrlText\}[\s\S]*onOpenChange=\{onChipContextMenuOpenChange\}/)
+  assert.match(tabHistoryPanelSource, /onReloadSelect=\{canShowSuspend \? onReloadEntry : undefined\}/)
+  assert.match(tabHistoryPanelSource, /onDuplicateSelect=\{canShowSuspend \? onDuplicateEntry : undefined\}/)
 })
 
 test('PageChip outlines same-title variant groups when external hover matches a variant URL', () => {

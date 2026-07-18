@@ -1638,6 +1638,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           sub = subdomainPrefix(new URL(t.url).hostname, group.domain)
         } catch {}
         return {
+          tabId: t.id,
           prefix: sub || '?',
           tabUrl: t.url,
           rawUrl: t.rawUrl || t.url,

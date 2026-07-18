@@ -7,7 +7,7 @@ import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-a
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
 import { moveTabToCurrentWindow, moveTabToNewWindow } from '../extension/tab-move.js'
 import { focusExactTab, focusTab, openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
-import { closeChipTarget, deleteHistoryUrls, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
+import { closeChipTarget, deleteHistoryUrls, duplicateTabTarget, reloadTabTarget, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
 import { nextMutedForAudioState } from '../extension/tab-audio.js'
 import { DefaultFavicon } from './DefaultFavicon'
@@ -1473,6 +1473,16 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     void suspendChipTarget({ tabUrl: chip.tabUrl, envs: chip.envs })
   }
 
+  function onReloadPageTarget(e: StopPropagationEvent, target: Pick<DashboardChipData, 'tabId' | 'tabUrl'>) {
+    e.stopPropagation()
+    void reloadTabTarget(target)
+  }
+
+  function onDuplicatePageTarget(e: StopPropagationEvent, target: Pick<DashboardChipData, 'tabId' | 'tabUrl'>) {
+    e.stopPropagation()
+    void duplicateTabTarget(target)
+  }
+
   async function onToggleSavedPage(e: StopPropagationEvent) {
     e.stopPropagation()
     if (chip.saved) {
@@ -1665,6 +1675,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const chipUrlText = pageTargetUrl(chip)
   const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
+  const canUseChromeTabActions = parentInteractive && chip.sourceType === 'tab' && !isClosedSavedPage
   // Unlike the other can* flags, canShowSuspend intentionally does NOT gate on
   // parentInteractive: folded groups (not parentInteractive) still expose Suspend.
   const canShowSuspend = chipCanShowSuspend(chip)
@@ -1839,6 +1850,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
     const envSavedActionLabel = env.saved ? 'Remove saved page' : 'Save page'
     const canToggleSavedEnv = (env.sourceType === 'tab' || env.sourceType === 'saved-page') && !env.isApp
+    const envCanUseChromeTabActions = env.sourceType === 'tab' && !env.closedSaved
     const showSavedEnvHint = !!env.saved && !canToggleSavedEnv
     const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
@@ -1878,6 +1890,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         savedActionLabel={canToggleSavedEnv ? envSavedActionLabel : undefined}
         saved={!!env.saved}
         onSavedSelect={canToggleSavedEnv ? (e) => onToggleSavedEnv(e, env) : undefined}
+        onReloadSelect={envCanUseChromeTabActions ? (e) => onReloadPageTarget(e, env) : undefined}
+        onDuplicateSelect={envCanUseChromeTabActions ? (e) => onDuplicatePageTarget(e, env) : undefined}
         titleText={envTitleText}
         onCopyTitle={(e) => onCopyTitleText(e, envTitleText)}
         urlText={env.tabUrl}
@@ -1973,6 +1987,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const variantIsHistorySource = variant.sourceType === 'history'
     const variantClosedSaved = variant.sourceType === 'saved-page' || !!variant.closedSaved
     const variantCanToggleSaved = (variant.sourceType === 'tab' || variant.sourceType === 'saved-page') && !variant.isApp
+    const variantCanUseChromeTabActions = variant.sourceType === 'tab' && !variantClosedSaved
     const variantShowSavedHint = !!variant.saved && !variantCanToggleSaved
     const variantCanClose = !variantClosedSaved && (!isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource)
     const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
@@ -2029,6 +2044,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         savedActionLabel={variantCanToggleSaved ? variantSavedActionLabel : undefined}
         saved={!!variant.saved}
         onSavedSelect={variantCanToggleSaved ? (e) => onToggleSavedTitleVariant(e, variant) : undefined}
+        onReloadSelect={variantCanUseChromeTabActions ? (e) => onReloadPageTarget(e, variant) : undefined}
+        onDuplicateSelect={variantCanUseChromeTabActions ? (e) => onDuplicatePageTarget(e, variant) : undefined}
         pagePinActionLabel={variantCanTogglePagePin ? variantPagePinActionLabel : undefined}
         pagePinned={!!variant.pagePinned}
         onPagePinSelect={variantCanTogglePagePin ? (e) => onTogglePinnedTitleVariant(e, variant) : undefined}
@@ -2381,7 +2398,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       )}
       </div>
   )
-  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin || canShowSuspend || canUseCopyContextMenu) ? (
+  const chipElementWithContextMenu = !chip.iconOnly && (canToggleSavedPage || canTogglePagePin || canUseChromeTabActions || canShowSuspend || canUseCopyContextMenu) ? (
     <PageChipContextMenu
       savedActionLabel={canToggleSavedPage ? savedActionLabel : undefined}
       saved={!!chip.saved}
@@ -2389,6 +2406,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       pagePinActionLabel={canTogglePagePin ? pagePinActionLabel : undefined}
       pagePinned={!!chip.pagePinned}
       onPagePinSelect={canTogglePagePin ? onTogglePagePin : undefined}
+      onReloadSelect={canUseChromeTabActions ? (e) => onReloadPageTarget(e, chip) : undefined}
+      onDuplicateSelect={canUseChromeTabActions ? (e) => onDuplicatePageTarget(e, chip) : undefined}
       suspendEnabled={suspendEnabled}
       onSuspendSelect={canShowSuspend ? onToggleChipSuspend : undefined}
       titleText={chipTitleText}

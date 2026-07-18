@@ -29,6 +29,8 @@ export function PageChipContextMenu({
   onCopyTitle,
   urlText,
   onCopyUrl,
+  onReloadSelect,
+  onDuplicateSelect,
   suspendEnabled,
   onSuspendSelect,
   onOpenChange
@@ -64,6 +66,8 @@ export function PageChipContextMenu({
         onCopyTitle={onCopyTitle}
         urlText={urlText}
         onCopyUrl={onCopyUrl}
+        onReloadSelect={onReloadSelect}
+        onDuplicateSelect={onDuplicateSelect}
         suspendEnabled={suspendEnabled}
         onSuspendSelect={onSuspendSelect}
         onOpenChange={onOpenChange}

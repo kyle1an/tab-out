@@ -23,6 +23,8 @@ export type ChromeTabsApi = {
     remove?(tabIds: number | number[]): Promise<void>
     update?(tabId: number, updateProperties: chrome.tabs.UpdateProperties): Promise<chrome.tabs.Tab | undefined>
     create?(createProperties: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab>
+    reload?(tabId: number): Promise<void>
+    duplicate?(tabId: number): Promise<chrome.tabs.Tab | undefined>
     move?(tabId: number, moveProperties: chrome.tabs.MoveProperties): Promise<chrome.tabs.Tab | chrome.tabs.Tab[] | undefined>
     group?(options: { tabIds: number | number[]; groupId?: number }): Promise<number>
   }
@@ -120,6 +122,27 @@ export async function createTab(createProperties: chrome.tabs.CreateProperties):
   if (!api?.tabs?.create) return null
   try {
     return await api.tabs.create(createProperties)
+  } catch {
+    return null
+  }
+}
+
+export async function reloadTab(tabId: number): Promise<boolean> {
+  const api = chromeTabsApi()
+  if (!api?.tabs?.reload) return false
+  try {
+    await api.tabs.reload(tabId)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function duplicateTab(tabId: number): Promise<chrome.tabs.Tab | null> {
+  const api = chromeTabsApi()
+  if (!api?.tabs?.duplicate) return null
+  try {
+    return (await api.tabs.duplicate(tabId)) ?? null
   } catch {
     return null
   }

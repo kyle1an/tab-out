@@ -16,6 +16,8 @@ export type PageChipContextMenuContentProps = {
   onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
   urlText: string
   onCopyUrl: (event: StopPropagationEvent) => void | Promise<void>
+  onReloadSelect?: (event: StopPropagationEvent) => void | Promise<void>
+  onDuplicateSelect?: (event: StopPropagationEvent) => void | Promise<void>
   suspendEnabled?: boolean
   onSuspendSelect?: (event: StopPropagationEvent) => void | Promise<void>
 }
@@ -31,11 +33,33 @@ export function PageChipContextMenuContent({
   onCopyTitle,
   urlText,
   onCopyUrl,
+  onReloadSelect,
+  onDuplicateSelect,
   suspendEnabled,
   onSuspendSelect
 }: PageChipContextMenuContentProps) {
   return (
     <ContextMenuContent>
+      {onReloadSelect && (
+        <ContextMenuItem
+          className="page-chip-reload-menu-item"
+          label="Reload"
+          onClick={onReloadSelect}
+        >
+          <span className="icon-[ooui--reload] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Reload</span>
+        </ContextMenuItem>
+      )}
+      {onDuplicateSelect && (
+        <ContextMenuItem
+          className="page-chip-duplicate-menu-item"
+          label="Duplicate"
+          onClick={onDuplicateSelect}
+        >
+          <span className="icon-[lucide--copy-plus] size-3.5" aria-hidden="true" />
+          <span className="min-w-0 flex-1">Duplicate</span>
+        </ContextMenuItem>
+      )}
       {pagePinActionLabel && onPagePinSelect && (
         <ContextMenuItem
           className="page-chip-pin-menu-item"

@@ -3,7 +3,7 @@ import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, Rea
 import { EyeOff, X } from 'lucide-react'
 import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry, historyEntryFromClosedTab, historyEntryFromWorkingSetItem } from '../extension/tab-history.js'
 import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio.js'
-import { setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
+import { duplicateTabTarget, reloadTabTarget, setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
@@ -1038,7 +1038,7 @@ type HistoryEntryContextMenuProps = {
 
 /**
  * HistoryEntryContextMenu — wraps a history row in the shared page-chip
- * context menu (Copy title / Copy URL / Save page / Suspend) when at least one action
+ * context menu (Reload / Duplicate / Copy title / Copy URL / Save page / Suspend) when at least one action
  * applies; otherwise renders the row untouched.
  */
 function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: HistoryEntryContextMenuProps) {
@@ -1086,6 +1086,16 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
     void suspendHistoryEntry(entry.tabId)
   }
 
+  function onReloadEntry(e: StopPropagationEvent) {
+    e.stopPropagation()
+    void reloadTabTarget({ tabId: entry.tabId, tabUrl: entry.url })
+  }
+
+  function onDuplicateEntry(e: StopPropagationEvent) {
+    e.stopPropagation()
+    void duplicateTabTarget({ tabId: entry.tabId, tabUrl: entry.url })
+  }
+
   if (!copyTitleText && !copyUrlText && !saveEligible && !canShowSuspend) return children
   return (
     <PageChipContextMenu
@@ -1096,6 +1106,8 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
       saved={saved}
       savedActionLabel={saveEligible ? savedActionLabel : undefined}
       onSavedSelect={saveEligible ? onToggleEntrySaved : undefined}
+      onReloadSelect={canShowSuspend ? onReloadEntry : undefined}
+      onDuplicateSelect={canShowSuspend ? onDuplicateEntry : undefined}
       suspendEnabled={suspendEnabled}
       onSuspendSelect={canShowSuspend ? onToggleEntrySuspend : undefined}
       onOpenChange={onOpenChange}

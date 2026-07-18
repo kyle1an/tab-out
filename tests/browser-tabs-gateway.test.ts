@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   createTab,
   createTabWithFallbackUrl,
+  duplicateTab,
   focusWindow,
   getAllWindows,
   getCurrentWindow,
@@ -13,6 +14,7 @@ import {
   moveTab,
   queryAllTabs,
   queryTabGroups,
+  reloadTab,
   removeTabs,
   requestExternalUnsuspend,
   setChromeTabsApi,
@@ -74,6 +76,8 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   assert.equal(await removeTabs([1, 2]), 0)
   assert.equal(await updateTab(1, { muted: true }), null)
   assert.equal(await createTab({ url: 'https://a.test/' }), null)
+  assert.equal(await reloadTab(1), false)
+  assert.equal(await duplicateTab(1), null)
   assert.equal(await groupTabs([1], 5), false)
   assert.equal(await moveTab(1, { index: 0 }), null)
   assert.deepEqual(await getAllWindows(), [])
@@ -95,6 +99,43 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   setChromeTabsApi(rejecting)
   assert.deepEqual(await queryAllTabs(), [])
   assert.equal(await getTab(1), null)
+})
+
+test('reloadTab and duplicateTab normalize Chrome tab commands', async (t) => {
+  t.after(() => setChromeTabsApi(null))
+
+  const calls = { duplicate: [] as number[], reload: [] as number[] }
+  const api = {
+    tabs: {
+      query: async () => [],
+      reload: async (tabId: number) => {
+        calls.reload.push(tabId)
+      },
+      duplicate: async (tabId: number) => {
+        calls.duplicate.push(tabId)
+        return fakeTab(9, 'https://duplicate.test/')
+      }
+    }
+  } as unknown as ChromeTabsApi
+  setChromeTabsApi(api)
+
+  assert.equal(await reloadTab(4), true)
+  assert.equal((await duplicateTab(4))?.id, 9)
+  assert.deepEqual(calls, { duplicate: [4], reload: [4] })
+
+  setChromeTabsApi({
+    tabs: {
+      query: async () => [],
+      reload: async () => {
+        throw new Error('gone')
+      },
+      duplicate: async () => {
+        throw new Error('gone')
+      }
+    }
+  } as unknown as ChromeTabsApi)
+  assert.equal(await reloadTab(4), false)
+  assert.equal(await duplicateTab(4), null)
 })
 
 test('removeTabs falls back to per-id removal when the batch rejects, and reports the true count', async (t) => {

@@ -102,6 +102,7 @@ export interface DashboardTitleSuppression {
 }
 
 export interface DashboardChipEnv {
+  tabId?: number | string
   prefix: string
   tabUrl: string
   rawUrl: string

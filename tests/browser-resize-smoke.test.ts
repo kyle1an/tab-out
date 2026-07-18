@@ -5328,6 +5328,8 @@ test('dashboard cards repack when the viewport resizes', async (t) => {
   assert.equal(shortTooltip.tooltipCount, 0, `page chip should not show a tooltip when its text fits: ${JSON.stringify(shortTooltip)}`)
 
   const contextMenuSave = await measurePageChipContextMenuSave(session)
+  assert.ok(contextMenuSave.firstOpenState.itemTexts.includes('Reload'), `right-clicking a live page chip should show Reload: ${JSON.stringify(contextMenuSave)}`)
+  assert.ok(contextMenuSave.firstOpenState.itemTexts.includes('Duplicate'), `right-clicking a live page chip should show Duplicate: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.copyItem.text, 'Copy page title text', `right-clicking a live page chip should show the copy-title action: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.copyResult.copiedText, 'Short title', `Copy page title text should copy the chip title: ${JSON.stringify(contextMenuSave)}`)
   assert.equal(contextMenuSave.copyResult.menuOpen, false, `context menu should close after choosing Copy page title text: ${JSON.stringify(contextMenuSave)}`)
