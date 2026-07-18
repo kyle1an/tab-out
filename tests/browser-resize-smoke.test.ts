@@ -577,7 +577,7 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await waitForPageChipExpansionRect(session, MARKER_WRAP_REFLOW_SMOKE_LABEL)
 
   const expansion = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -747,7 +747,7 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await waitForPageChipExpansionRect(session, MARKER_ONLY_LINE_SMOKE_LABEL)
 
   const expansion = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -882,7 +882,7 @@ async function measureVariantTitleRowStability(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await waitForPageChipExpansionRect(session, VARIANT_TITLE_ROW_SMOKE_LABEL)
 
   const expansion = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
@@ -996,6 +996,27 @@ async function waitForHistoryEntryExpansionRect(session: CdpSession, text: strin
   }).then((result: any) => result.result.value)
 }
 
+async function waitForHistoryScrollbarThumbOpacity(session: CdpSession, opacity: string, timeoutMs = 1000) {
+  return evaluateWithNavigationRetry(session, {
+    awaitPromise: true,
+    returnByValue: true,
+    expression: `new Promise((resolve) => {
+      const start = Date.now()
+      const wait = () => {
+        const thumb = document.querySelector('.history-entry-scrollbar-thumb')
+        if (thumb && window.getComputedStyle(thumb).opacity === ${JSON.stringify(opacity)}) {
+          resolve(true)
+        } else if (Date.now() - start > ${JSON.stringify(timeoutMs)}) {
+          resolve(false)
+        } else {
+          requestAnimationFrame(wait)
+        }
+      }
+      wait()
+    })`
+  }).then((result: any) => result.result.value)
+}
+
 async function getVisibleTooltipTexts(session: CdpSession) {
   return evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1057,7 +1078,6 @@ async function measureTooltipFreeze(session: CdpSession) {
     x: target.startX,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await session.send('Input.dispatchMouseEvent', {
@@ -1153,7 +1173,6 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     x: target.x,
     y: target.aboveY
   })
-  await wait(650)
   const above = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
@@ -1168,7 +1187,6 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     x: target.x,
     y: target.belowY
   })
-  await wait(650)
   const below = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
@@ -1183,7 +1201,6 @@ async function measureTooltipTextPaddingHitArea(session: CdpSession) {
     x: target.chipSurfaceX,
     y: target.chipSurfaceY
   })
-  await wait(650)
   const chipSurface = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
@@ -1265,8 +1282,6 @@ async function measurePageChipInternalPointerMoveExpansion(session: CdpSession) 
       }))
     })()`
   })
-  await wait(650)
-
   const expansion = await waitForPageChipExpansionRect(session, 'enough tooltip text')
 
   await session.send('Input.dispatchMouseEvent', {
@@ -1337,7 +1352,6 @@ async function measureTooltipAfterActiveStateChanges(session: CdpSession) {
       x: target.x,
       y: target.y
     })
-    await wait(650)
     const tooltip = await waitForPageChipExpansionRect(session, 'Example 2 with enough tooltip text')
     await session.send('Input.dispatchMouseEvent', {
       type: 'mouseMoved',
@@ -1407,7 +1421,7 @@ async function measureSuppressionMarkerTooltipLine(session: CdpSession, label: s
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await waitForPageChipExpansionRect(session, label)
 
   const result = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1724,7 +1738,11 @@ async function measurePageChipTooltipLineCount(
     x: target.x,
     y: target.y
   })
-  await wait(options.hoverWaitMs ?? 650)
+  if (options.hoverWaitMs === undefined) {
+    await waitForPageChipExpansionRect(session, label)
+  } else {
+    await wait(options.hoverWaitMs)
+  }
 
   const tooltip = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1860,7 +1878,7 @@ async function measureFoldedPageChipTooltipTitleLineCount(
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await waitForPageChipExpansionRect(session, label)
 
   const tooltip = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -1955,7 +1973,7 @@ async function measureFoldedEnvHoverTooltips(
     x: target.x,
     y: target.y
   })
-  await wait(650)
+  await waitForTooltipRect(session)
 
   const tooltipTexts = await getVisibleTooltipTexts(session)
 
@@ -2025,7 +2043,6 @@ async function measureInteractiveTooltipClickReturnFocus(
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const expansion = await waitForPageChipExpansionRect(session, marker)
   const first = { found: !!expansion, expansion }
 
@@ -2152,7 +2169,6 @@ async function measurePageChipOriginalSlotLeave(session: CdpSession) {
     x: target.startX,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, label)
 
   assert.ok(first, `page chip should expand before original-slot leave check: ${JSON.stringify({ target, first })}`)
@@ -2257,7 +2273,6 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
   assert.ok(first, `page chip should expand before in-place click check: ${JSON.stringify({ target, first })}`)
 
@@ -2377,7 +2392,6 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   assert.ok(first, `history entry should expand before click check: ${JSON.stringify({ target, first })}`)
 
@@ -2770,7 +2784,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     x: replacementTarget.x,
     y: replacementTarget.y
   })
-  await wait(650)
+  await waitForPageChipExpansionRect(session, 'Example 2 with enough tooltip text')
   const tooltipOpenChipState = await readPageChipVisualState(replacementTarget)
   const visibleTooltipCountBeforeMenu = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -3041,7 +3055,6 @@ async function measureTooltipPopupWheelScroll(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   assert.ok(first, `page chip should expand before in-place wheel check: ${JSON.stringify({ target, first })}`)
@@ -3189,7 +3202,6 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
     x: target.x,
     y: target.aboveY
   })
-  await wait(650)
   const above = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   const aboveTooltipTexts = await visibleTooltipTexts()
 
@@ -3205,7 +3217,6 @@ async function measureHistoryEntryExpansionSurfaceHitArea(session: CdpSession) {
     x: target.x,
     y: target.belowY
   })
-  await wait(650)
   const below = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   const belowTooltipTexts = await visibleTooltipTexts()
 
@@ -3360,8 +3371,8 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
+  await waitForHistoryScrollbarThumbOpacity(session, '1')
 
   assert.ok(first, `history entry should expand before wheel check: ${JSON.stringify({ target, first })}`)
 
@@ -3540,7 +3551,6 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const reopened = await waitForHistoryEntryExpansionRect(session, 'Low score history item with enough tooltip text')
   assert.ok(reopened, `history entry should reopen before wheel check: ${JSON.stringify({ target, first, afterOriginalSlotLeave })}`)
 
@@ -4036,7 +4046,6 @@ async function measureTooltipWindowBlurClose(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
@@ -4104,7 +4113,6 @@ async function measureTooltipVisibilityChangeClose(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, PAGE_CHIP_EXPANSION_SMOKE_LABEL)
 
   await evaluateWithNavigationRetry(session, {
@@ -4185,7 +4193,6 @@ async function measureActionTooltipClickClose(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
   const first = await waitForTooltipRect(session)
 
   await session.send('Input.dispatchMouseEvent', {
@@ -4275,7 +4282,6 @@ async function measureMarkerToChipTooltipHandoff(session: CdpSession) {
     x: target.markerX,
     y: target.y
   })
-  await wait(650)
   const markerTooltipExpansion = await waitForPageChipExpansionRect(session, 'Hover Handoff Title')
   const markerTooltip = {
     found: !!markerTooltipExpansion,
@@ -4404,7 +4410,6 @@ async function measureTooltipEdgeFlip(session: CdpSession) {
     x: target.startX,
     y: target.y
   })
-  await wait(650)
   const first = await waitForPageChipExpansionRect(session, 'viewport-edge')
 
   return { target, first }
@@ -4486,8 +4491,6 @@ async function measureCompactTitleVariantExpansion(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
-
   const expansion = await waitForPageChipExpansionRect(session, 'Order Page')
   const expandedVariantLabels = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
@@ -4664,8 +4667,6 @@ async function measurePlainTitleVariantEdgeExpansion(session: CdpSession) {
       x: (point as { x: number; y: number }).x,
       y: (point as { x: number; y: number }).y
     })
-    await wait(650)
-
     const expansion = await waitForPageChipExpansionRect(session, 'Plain Title Variant')
     const expandedVariantLabels = await evaluateWithNavigationRetry(session, {
       returnByValue: true,
@@ -4792,8 +4793,6 @@ async function measureWrappedTitleVariantExpansion(session: CdpSession) {
     x: target.x,
     y: target.y
   })
-  await wait(650)
-
   const expansion = await evaluateWithNavigationRetry(session, {
     awaitPromise: true,
     returnByValue: true,

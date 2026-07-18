@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import FakeTimers from '@sinonjs/fake-timers'
 
 import { createMoveAnimator } from '../src/extension/move-animation.js'
 import type { MoveAnimatorConfig, MovePositionMap } from '../src/extension/move-animation.js'
@@ -143,22 +144,29 @@ test('cancel clears a mid-flight move, fires onCancel, and suppresses cleanup ho
   assert.equal(events.includes('cleanup'), false)
 })
 
-test('transitionend on transform cleans up before the fallback timeout', async () => {
+test('transitionend on transform cleans up and cancels the fallback timeout', () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const cleaned: string[] = []
   const item = fakeItem('a', { left: 0, top: 0 })
   const root = fakeRoot([item])
   const animator = createMoveAnimator(makeConfig({ duration: 5000, afterCleanup: () => cleaned.push('a') }))
 
-  const previous = animator.snapshot([root])
-  item.moveTo({ left: 300, top: 0 })
-  animator.animate([root], previous)
+  try {
+    const previous = animator.snapshot([root])
+    item.moveTo({ left: 300, top: 0 })
+    animator.animate([root], previous)
 
-  await sleep(25)
-  assert.equal(item.classes.has('moving-active'), true)
-  item.listeners.slice().forEach((handler) => handler({ target: item.el, propertyName: 'transform' }))
+    clock.tick(16)
+    assert.equal(item.classes.has('moving-active'), true)
+    assert.equal(clock.countTimers(), 1)
+    item.listeners.slice().forEach((handler) => handler({ target: item.el, propertyName: 'transform' }))
 
-  assert.deepEqual(cleaned, ['a'])
-  assert.equal(item.classes.size, 0)
+    assert.deepEqual(cleaned, ['a'])
+    assert.equal(item.classes.size, 0)
+    assert.equal(clock.countTimers(), 0)
+  } finally {
+    clock.uninstall()
+  }
 })
 
 test('beforePlay fires only when movers exist and can be suppressed per call', () => {

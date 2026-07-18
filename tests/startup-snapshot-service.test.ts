@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import FakeTimers from '@sinonjs/fake-timers'
 
 import { createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, LOCAL_GROUPING_CONFIG_ACTIVE_KEY } from '../src/extension/startup-snapshot.js'
@@ -104,4 +105,40 @@ test('startup snapshot service defers grouping when local grouping config is act
 
   assert.equal(tabsQueried, false, 'does not gather tabs when deferring to the page')
   assert.equal(sessionWritten, false, 'does not write a snapshot when page-only grouping config is active')
+})
+
+test('startup snapshot service coalesces pending debounced refreshes', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  let localStorageReads = 0
+
+  ;(globalThis as any).chrome = {
+    storage: {
+      local: {
+        get: async () => {
+          localStorageReads += 1
+          return { [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: true }
+        }
+      }
+    }
+  }
+
+  try {
+    const service = createStartupSnapshotService({
+      getTabHistorySnapshot: async () => emptyTabHistory as any,
+      getWorkingSetActivity: async () => emptyActivity as any
+    })
+
+    service.scheduleRefresh()
+    service.scheduleRefresh()
+    assert.equal(clock.countTimers(), 1)
+
+    await clock.tickAsync(4000)
+    assert.equal(clock.countTimers(), 0)
+    assert.equal(localStorageReads, 1)
+  } finally {
+    clock.uninstall()
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
 })

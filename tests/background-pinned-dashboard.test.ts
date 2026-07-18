@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import FakeTimers from '@sinonjs/fake-timers'
 
 const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
 const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
+const backgroundClock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+
+test.after(() => backgroundClock.uninstall())
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))

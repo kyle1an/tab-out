@@ -8,6 +8,7 @@
     "src/extension/background.ts",
     "src/extension/filter-focus-boot.ts",
     "tests/**/*.test.ts",
+    "tests/browser/**/*.spec.ts",
     "tests/helpers/fake-chrome.mjs",
     "scripts/*.mjs"
   ],

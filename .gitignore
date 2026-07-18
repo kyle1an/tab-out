@@ -3,6 +3,8 @@ node_modules/
 *.db
 .DS_Store
 .playwright-mcp/
+playwright-report/
+test-results/
 
 # Personal config (landing page patterns, etc.) — never push to GitHub
 extension/config.local.js

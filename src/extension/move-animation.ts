@@ -208,6 +208,7 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
       function cleanup() {
         if (activeMoves.get(item) !== active) return
         activeMoves.delete(item)
+        clearTimeout(active.timeoutId)
         item.removeEventListener('transitionend', onTransitionEnd)
         item.classList.remove(config.movingClass, config.activeClass)
         item.style.transform = ''
