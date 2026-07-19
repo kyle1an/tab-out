@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode, type TransitionEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode, type TransitionEvent } from 'react'
 import { pageTargetMatchesHover } from '../extension/page-target.js'
 import { useDomainCardContext } from './DomainCardContext'
 import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
@@ -61,7 +61,6 @@ export function usePageChipOverflow({
 
   function finishExpansion() {
     setExpansionPhase('expanded')
-    onLayoutChange?.()
   }
 
   function onExpand() {
@@ -78,9 +77,13 @@ export function usePageChipOverflow({
     if (expansionPhase !== 'fading') return
     const fallback = window.setTimeout(() => {
       setExpansionPhase('expanded')
-      onLayoutChange?.()
     }, 140)
     return () => window.clearTimeout(fallback)
+  }, [expansionPhase])
+
+  useLayoutEffect(() => {
+    if (expansionPhase !== 'expanded') return
+    onLayoutChange?.()
   }, [expansionPhase, onLayoutChange])
 
   const pageChips = (

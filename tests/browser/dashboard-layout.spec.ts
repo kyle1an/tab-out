@@ -450,6 +450,48 @@ test('Page Chip overflow expansion fades the expander and reveals hidden chips t
   expect(Math.max(...startTimes) - Math.min(...startTimes)).toBeLessThanOrEqual(1)
 })
 
+test('Page Chip overflow expansion repacks downstream Domain Cards without overlap', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 })
+  await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')
+
+  const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
+  const expander = card.locator('[data-tabout-part="overflow-expander"]')
+  await expect(expander).toHaveCount(1)
+  await expander.click()
+  await expect(expander).toHaveCount(0)
+  await card.evaluate(async (expandedCard) => {
+    await Promise.all(expandedCard.getAnimations({ subtree: true }).map((animation) => (
+      animation.finished.catch(() => undefined)
+    )))
+  })
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+
+  const overlaps = await card.evaluate((expandedCard) => {
+    const expandedRect = expandedCard.getBoundingClientRect()
+    const container = expandedCard.closest('.missions')
+    if (!container) throw new Error('overflow card masonry container missing')
+
+    return Array.from(container.querySelectorAll<HTMLElement>('[data-tabout="domain-card"]'))
+      .filter((candidate) => candidate !== expandedCard)
+      .flatMap((candidate) => {
+        const candidateRect = candidate.getBoundingClientRect()
+        const horizontalOverlap = Math.min(expandedRect.right, candidateRect.right) -
+          Math.max(expandedRect.left, candidateRect.left)
+        const verticalOverlap = Math.min(expandedRect.bottom, candidateRect.bottom) -
+          Math.max(expandedRect.top, candidateRect.top)
+        if (horizontalOverlap <= 1 || verticalOverlap <= 1) return []
+
+        return [{
+          domain: candidate.dataset.taboutDomain || '',
+          horizontalOverlap: Math.round(horizontalOverlap),
+          verticalOverlap: Math.round(verticalOverlap)
+        }]
+      })
+  })
+
+  expect(overlaps, JSON.stringify(overlaps, null, 2)).toEqual([])
+})
+
 test('closing the last rendered Page Chip before overflow uses the refresh move path', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?motion=1&slowCloseRefresh=1')
   const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
