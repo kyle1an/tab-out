@@ -23,6 +23,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       historyTitleFadeRangeRects: 0,
       historyTitleRangeRects: 0,
       historyTitleRects: 0,
+      historyTitleSizeReads: 0,
+      historyTitleSizeReadsAfterTruncationWrite: 0,
+      historyTitleTruncationWrites: 0,
       pathgroupLabelSizeReads: 0,
       layoutShift: 0
     }
@@ -43,15 +46,37 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       return getBoundingClientRect.call(this)
     }
 
-    for (const property of ['clientWidth', 'scrollWidth'] as const) {
+    const toggleClass = DOMTokenList.prototype.toggle
+    DOMTokenList.prototype.toggle = function toggleInstrumentedClass(token, force) {
+      const result = force === undefined
+        ? toggleClass.call(this, token)
+        : toggleClass.call(this, token, force)
+      if (token === 'history-entry-title-truncated' && force === true) {
+        counts.historyTitleTruncationWrites += 1
+      }
+      return result
+    }
+
+    for (const property of ['clientHeight', 'clientWidth', 'scrollHeight', 'scrollWidth'] as const) {
       const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, property)
       const getSize = descriptor?.get
       if (!descriptor || !getSize) continue
       Object.defineProperty(Element.prototype, property, {
         ...descriptor,
         get() {
-          if (this instanceof HTMLElement && this.matches('.pathgroup-header .chip-pathgroup')) {
-            counts.pathgroupLabelSizeReads += 1
+          if (this instanceof HTMLElement) {
+            if (this.classList.contains('history-entry-title')) {
+              counts.historyTitleSizeReads += 1
+              if (counts.historyTitleTruncationWrites > 0) {
+                counts.historyTitleSizeReadsAfterTruncationWrite += 1
+              }
+            }
+            if (
+              (property === 'clientWidth' || property === 'scrollWidth') &&
+              this.matches('.pathgroup-header .chip-pathgroup')
+            ) {
+              counts.pathgroupLabelSizeReads += 1
+            }
           }
           return getSize.call(this)
         }
@@ -106,6 +131,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         historyTitleFadeRangeRects: number
         historyTitleRangeRects: number
         historyTitleRects: number
+        historyTitleSizeReads: number
+        historyTitleSizeReadsAfterTruncationWrite: number
+        historyTitleTruncationWrites: number
         pathgroupLabelSizeReads: number
         layoutShift: number
       }
@@ -129,18 +157,23 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.historyTitleFadeRangeRects).toBe(0)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(3)
+  expect(measurements.historyTitleTruncationWrites).toBeGreaterThan(0)
+  expect(measurements.historyTitleSizeReads / measurements.historyTitleCount).toBeLessThanOrEqual(4)
+  expect(measurements.historyTitleSizeReadsAfterTruncationWrite).toBe(0)
   expect(measurements.pathgroupLabelCount).toBeGreaterThan(0)
   expect(measurements.pathgroupLabelSizeReads / measurements.pathgroupLabelCount).toBeLessThanOrEqual(2)
   expect(measurements.layoutShift).toBe(0)
 })
 
-test('Activation History defers hidden scrollbar geometry past its first content frame', async ({ page }) => {
+test('Activation History paints title fades before deferred scrollbar geometry', async ({ page }) => {
   await page.setViewportSize({ width: 1420, height: 360 })
   await page.addInitScript(() => {
     type FirstHistoryContentFrame = {
       historyTitleCount: number
       scrollbarGeometryReads: number
       scrollbarMounted: boolean
+      truncatedTitleCount: number
+      truncatedTitleFadeCount: number
     }
     const paintWindow = window as typeof window & {
       __tabOutFirstHistoryContentFrame: FirstHistoryContentFrame | null
@@ -168,10 +201,17 @@ test('Activation History defers hidden scrollbar geometry past its first content
       frameCount += 1
       const historyTitleCount = document.querySelectorAll('.history-entry-title').length
       if (historyTitleCount > 0) {
+        const truncatedTitles = Array.from(document.querySelectorAll<HTMLElement>(
+          '.history-entry-title-truncated'
+        ))
         paintWindow.__tabOutFirstHistoryContentFrame = {
           historyTitleCount,
           scrollbarGeometryReads,
-          scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]')
+          scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]'),
+          truncatedTitleCount: truncatedTitles.length,
+          truncatedTitleFadeCount: truncatedTitles.filter(
+            (title) => getComputedStyle(title).maskImage !== 'none'
+          ).length
         }
         return
       }
@@ -194,6 +234,8 @@ test('Activation History defers hidden scrollbar geometry past its first content
         historyTitleCount: number
         scrollbarGeometryReads: number
         scrollbarMounted: boolean
+        truncatedTitleCount: number
+        truncatedTitleFadeCount: number
       }
     }
     return paintWindow.__tabOutFirstHistoryContentFrame
@@ -202,6 +244,8 @@ test('Activation History defers hidden scrollbar geometry past its first content
   expect(firstContentFrame.historyTitleCount).toBeGreaterThan(0)
   expect(firstContentFrame.scrollbarGeometryReads).toBe(0)
   expect(firstContentFrame.scrollbarMounted).toBe(false)
+  expect(firstContentFrame.truncatedTitleCount).toBeGreaterThan(0)
+  expect(firstContentFrame.truncatedTitleFadeCount).toBe(firstContentFrame.truncatedTitleCount)
   const scrollbar = page.locator('[data-tabout-part="history-scrollbar"]')
   await expect(scrollbar).toHaveCount(1)
   await expect(scrollbar.locator('.history-entry-scrollbar-thumb')).toHaveCSS('opacity', '0')

@@ -333,9 +333,7 @@ function historyTitleExpandedLayoutCacheKey(titleEl: HTMLElement, availableConte
   ])
 }
 
-function syncHistoryTitleFade(titleEl: HTMLElement | null, syncFadeEnd = true) {
-  if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
-
+function readHistoryTitleMetrics(titleEl: HTMLElement): HistoryTitleMetrics {
   const isTruncated = isHistoryTitleTruncated(titleEl)
   const rect = titleEl.getBoundingClientRect()
   const styles = window.getComputedStyle(titleEl)
@@ -348,7 +346,7 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null, syncFadeEnd = true) {
     height: Math.round(rect.height * 100) / 100,
     width
   })
-  const metrics = {
+  return {
     contentWidth: 0,
     expandedLineHtml: [],
     expandedTextWidth: 0,
@@ -357,8 +355,51 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null, syncFadeEnd = true) {
     visibleLineCount,
     width
   }
-  titleEl.classList.toggle('history-entry-title-truncated', isTruncated)
-  if (syncFadeEnd) syncTruncatedTitleFadeEnd(titleEl, isTruncated)
+}
+
+type HistoryTitleMeasurementJob = {
+  apply: (metrics: HistoryTitleMetrics) => void
+  titleEl: HTMLElement
+}
+const pendingHistoryTitleMeasurementJobs = new Map<HTMLElement, HistoryTitleMeasurementJob>()
+let historyTitleMeasurementFlushQueued = false
+
+function flushHistoryTitleMeasurementJobs() {
+  historyTitleMeasurementFlushQueued = false
+  const jobs = Array.from(pendingHistoryTitleMeasurementJobs.values())
+  pendingHistoryTitleMeasurementJobs.clear()
+  const measuredJobs = jobs.flatMap((job) => (
+    job.titleEl.isConnected
+      ? [{ job, metrics: readHistoryTitleMetrics(job.titleEl) }]
+      : []
+  ))
+  if (measuredJobs.length === 0) return
+  for (const { job, metrics } of measuredJobs) job.apply(metrics)
+}
+
+function scheduleHistoryTitleMeasurement(job: HistoryTitleMeasurementJob) {
+  pendingHistoryTitleMeasurementJobs.set(job.titleEl, job)
+  if (!historyTitleMeasurementFlushQueued) {
+    historyTitleMeasurementFlushQueued = true
+    queueMicrotask(flushHistoryTitleMeasurementJobs)
+  }
+  return () => {
+    if (pendingHistoryTitleMeasurementJobs.get(job.titleEl) === job) {
+      pendingHistoryTitleMeasurementJobs.delete(job.titleEl)
+    }
+  }
+}
+
+function syncHistoryTitleFade(
+  titleEl: HTMLElement | null,
+  syncFadeEnd = true,
+  measuredMetrics?: HistoryTitleMetrics
+) {
+  if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
+
+  const metrics = measuredMetrics ?? readHistoryTitleMetrics(titleEl)
+  titleEl.classList.toggle('history-entry-title-truncated', metrics.isTruncated)
+  if (syncFadeEnd) syncTruncatedTitleFadeEnd(titleEl, metrics.isTruncated)
   historyTitleTruncationCallbacks.get(titleEl)?.(metrics)
   return metrics
 }
@@ -637,30 +678,36 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
 
     // A captured clamp fades at its known box edge. Defer the glyph-range read
     // until capture fails so successful clamps do not measure an unused anchor.
-    const metrics = syncHistoryTitleFade(titleEl, false)
-    titleMeasurementRef.current = {
-      element: titleEl,
-      key: titleClampKey,
-      metrics
-    }
-    let nextClamp: HistoryTitleClamp | null = null
-    if (metrics.isTruncated && metrics.visibleLineCount > 1) {
-      const lineHtml = captureVisibleLineHtml(titleEl, metrics.visibleLineCount)
-      if (lineHtml.length > 1) {
-        nextClamp = { key: titleClampKey, lineHtml, width: metrics.width }
+    return scheduleHistoryTitleMeasurement({
+      titleEl,
+      apply(measuredMetrics) {
+        if (titleRef.current !== titleEl || titleExpandedRef.current) return
+        const metrics = syncHistoryTitleFade(titleEl, false, measuredMetrics)
+        titleMeasurementRef.current = {
+          element: titleEl,
+          key: titleClampKey,
+          metrics
+        }
+        let nextClamp: HistoryTitleClamp | null = null
+        if (metrics.isTruncated && metrics.visibleLineCount > 1) {
+          const lineHtml = captureVisibleLineHtml(titleEl, metrics.visibleLineCount)
+          if (lineHtml.length > 1) {
+            nextClamp = { key: titleClampKey, lineHtml, width: metrics.width }
+          }
+        }
+        if (nextClamp) {
+          syncClampedTitleFadeEnd(titleEl, nextClamp.width)
+        } else {
+          syncTruncatedTitleFadeEnd(titleEl, metrics.isTruncated)
+        }
+        setTitleLayout((current) => (
+          sameHistoryTitleMetrics(current.metrics, metrics) &&
+          historyTitleClampEqual(current.clamp, nextClamp)
+            ? current
+            : { clamp: nextClamp, metrics }
+        ))
       }
-    }
-    if (nextClamp) {
-      syncClampedTitleFadeEnd(titleEl, nextClamp.width)
-    } else {
-      syncTruncatedTitleFadeEnd(titleEl, metrics.isTruncated)
-    }
-    setTitleLayout((current) => (
-      sameHistoryTitleMetrics(current.metrics, metrics) &&
-      historyTitleClampEqual(current.clamp, nextClamp)
-        ? current
-        : { clamp: nextClamp, metrics }
-    ))
+    })
     // Resize-observer metrics carry width changes back through titleMetrics,
     // which invalidates the captured rows without re-reading unchanged titles.
   }, [titleClamp, titleClampKey, titleExpanded, titleMetrics])
@@ -1493,6 +1540,12 @@ export function TabHistoryPanel({
   const highlightTerms = useMemo(() => highlightTermsForFilter(filter, 'parsed'), [filter])
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef)
+  // Row layout effects queue natural title reads. As their parent, this layout
+  // effect runs after every row has queued but before ancestor masonry effects,
+  // keeping the read phase together and the resulting clamp writes pre-paint.
+  useLayoutEffect(() => {
+    flushHistoryTitleMeasurementJobs()
+  })
 
   return (
     <section
