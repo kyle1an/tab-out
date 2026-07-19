@@ -89,10 +89,10 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.domainCardCount).toBeGreaterThan(0)
   expect(measurements.historyTitleCount).toBeGreaterThan(0)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
-  expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(12)
+  expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(4)
   expect(measurements.domainCardRects / measurements.domainCardCount).toBeLessThanOrEqual(2)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
-  expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(10)
+  expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(3)
   expect(measurements.layoutShift).toBe(0)
 })
 
@@ -101,8 +101,10 @@ test('long Page Chip paints its final truncation treatment on the first refresh 
   await page.addInitScript((title) => {
     const paintWindow = window as typeof window & {
       __tabOutTitlePaintFrames: Array<{
+        fadeEnd: number
         hasFade: boolean
         maskImage: string
+        width: number
         verticalOverflow: number
       }>
     }
@@ -116,8 +118,10 @@ test('long Page Chip paints its final truncation treatment on the first refresh 
       const text = chip?.querySelector<HTMLElement>('.chip-text')
       if (text) {
         paintWindow.__tabOutTitlePaintFrames.push({
+          fadeEnd: Number.parseFloat(text.style.getPropertyValue('--title-fade-end')),
           hasFade: text.classList.contains('chip-text-truncated'),
           maskImage: getComputedStyle(text).maskImage,
+          width: text.getBoundingClientRect().width,
           verticalOverflow: text.scrollHeight - text.clientHeight
         })
       }
@@ -137,8 +141,10 @@ test('long Page Chip paints its final truncation treatment on the first refresh 
   const firstTitleFrame = await page.evaluate(() => {
     const paintWindow = window as typeof window & {
       __tabOutTitlePaintFrames: Array<{
+        fadeEnd: number
         hasFade: boolean
         maskImage: string
+        width: number
         verticalOverflow: number
       }>
     }
@@ -147,5 +153,6 @@ test('long Page Chip paints its final truncation treatment on the first refresh 
 
   expect(firstTitleFrame.hasFade).toBe(true)
   expect(firstTitleFrame.maskImage).not.toBe('none')
+  expect(Math.abs(firstTitleFrame.fadeEnd - firstTitleFrame.width)).toBeLessThanOrEqual(0.1)
   expect(firstTitleFrame.verticalOverflow).toBeLessThanOrEqual(1)
 })

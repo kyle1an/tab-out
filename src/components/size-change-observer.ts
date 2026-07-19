@@ -1,0 +1,77 @@
+export type ObservedElementSize = {
+  height: number
+  width: number
+}
+
+export type SizeChangeObserver = {
+  disconnect: () => void
+  observe: (target: HTMLElement, initialSize?: ObservedElementSize) => void
+  unobserve: (target: HTMLElement) => void
+}
+
+function elementBorderBoxSize(target: HTMLElement): ObservedElementSize {
+  const rect = target.getBoundingClientRect()
+  return { height: rect.height, width: rect.width }
+}
+
+function entryBorderBoxSize(entry: ResizeObserverEntry, target: HTMLElement): ObservedElementSize {
+  const borderBoxSizes = entry.borderBoxSize
+  const borderBoxSize = Array.isArray(borderBoxSizes)
+    ? borderBoxSizes[0]
+    : borderBoxSizes as unknown as ResizeObserverSize
+  if (borderBoxSize) {
+    return {
+      height: borderBoxSize.blockSize,
+      width: borderBoxSize.inlineSize
+    }
+  }
+  return elementBorderBoxSize(target)
+}
+
+function elementSizeEqual(left: ObservedElementSize, right: ObservedElementSize) {
+  return (
+    Math.abs(left.height - right.height) < 0.1 &&
+    Math.abs(left.width - right.width) < 0.1
+  )
+}
+
+/**
+ * ResizeObserver delivers every newly observed element once even when its box
+ * has not changed. Title surfaces have already measured that resting box
+ * before their passive observer registration, so seed it here and forward only
+ * genuine later size changes.
+ */
+export function createSizeChangeObserver(onSizeChange: (target: HTMLElement) => void): SizeChangeObserver {
+  let observedSizes = new WeakMap<HTMLElement, ObservedElementSize>()
+  let observedTargets = new WeakSet<HTMLElement>()
+  const observer = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      const target = entry.target
+      if (!(target instanceof HTMLElement) || !observedTargets.has(target)) continue
+
+      const previousSize = observedSizes.get(target)
+      const nextSize = entryBorderBoxSize(entry, target)
+      observedSizes.set(target, nextSize)
+      if (previousSize && elementSizeEqual(previousSize, nextSize)) continue
+      onSizeChange(target)
+    }
+  })
+
+  return {
+    disconnect() {
+      observer.disconnect()
+      observedSizes = new WeakMap()
+      observedTargets = new WeakSet()
+    },
+    observe(target, initialSize) {
+      observedTargets.add(target)
+      observedSizes.set(target, initialSize ?? elementBorderBoxSize(target))
+      observer.observe(target, { box: 'border-box' })
+    },
+    unobserve(target) {
+      observer.unobserve(target)
+      observedSizes.delete(target)
+      observedTargets.delete(target)
+    }
+  }
+}

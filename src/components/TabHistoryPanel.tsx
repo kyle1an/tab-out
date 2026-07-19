@@ -22,7 +22,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
-import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
+import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncClampedTitleFadeEnd, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -32,8 +32,10 @@ import { useHistoryScrollbar, type HistoryScrollbar } from '../hooks/useHistoryS
 import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
 import { startLayoutRemovalAnimation } from './LayoutRemovalAnimation.js'
 import { animateHistoryEntryMoves, snapshotHistoryEntryPositions, waitForHistoryEntryMoves } from '../extension/history-entry-move-animation.js'
+import { createSizeChangeObserver, type ObservedElementSize, type SizeChangeObserver } from './size-change-observer.js'
 
-let historyTitleResizeObserver: ResizeObserver | null = null
+let historyTitleResizeObserver: SizeChangeObserver | null = null
+const historyTitleMeasuredSizes = new WeakMap<HTMLElement, ObservedElementSize>()
 const HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12
 const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
@@ -335,8 +337,17 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null) {
   if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
 
   const isTruncated = isHistoryTitleTruncated(titleEl)
-  const visibleLineCount = getHistoryTitleVisibleLineCount(titleEl)
-  const width = getHistoryTitleWidth(titleEl)
+  const rect = titleEl.getBoundingClientRect()
+  const styles = window.getComputedStyle(titleEl)
+  const lineHeight = Number.parseFloat(styles.lineHeight)
+  const visibleLineCount = !lineHeight || !Number.isFinite(lineHeight)
+    ? 1
+    : Math.max(1, Math.round(rect.height / lineHeight))
+  const width = Math.round(rect.width * 100) / 100
+  historyTitleMeasuredSizes.set(titleEl, {
+    height: Math.round(rect.height * 100) / 100,
+    width
+  })
   const metrics = {
     contentWidth: 0,
     expandedLineHtml: [],
@@ -457,11 +468,7 @@ function historyEntryExpansionGeometryEqual(left: HistoryEntryExpansionGeometry,
 
 function getHistoryTitleResizeObserver() {
   if (!historyTitleResizeObserver) {
-    historyTitleResizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.target instanceof HTMLElement) syncHistoryTitleFade(entry.target)
-      }
-    })
+    historyTitleResizeObserver = createSizeChangeObserver(syncHistoryTitleFade)
   }
   return historyTitleResizeObserver
 }
@@ -613,7 +620,10 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     const titleEl = titleRef.current
     if (!titleEl || titleExpandedRef.current) return
 
-    if (titleClamp) return
+    if (titleClamp) {
+      syncClampedTitleFadeEnd(titleEl, titleClamp.width)
+      return
+    }
 
     const previousMeasurement = titleMeasurementRef.current
     if (
@@ -658,7 +668,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       if (titleExpandedRef.current) return
       setTitleMetrics((current) => sameHistoryTitleMetrics(current, metrics) ? current : metrics)
     })
-    observer.observe(titleEl)
+    observer.observe(titleEl, historyTitleMeasuredSizes.get(titleEl))
 
     const fontSet = document.fonts
     const onFontsDone = () => {

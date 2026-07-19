@@ -26,7 +26,7 @@ import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-te
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
+import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, searchExpandedWidth, syncClampedTitleFadeEnd, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import { chipTrim, CHIP_TRIM_TOKENS } from './chip-trim'
 import { FAVICON_DIM_CLASS_NAME, VARIANT_LABEL_DIM_CLASS_NAME } from './liveness-dim'
 import type { DashboardChipData } from './types'
@@ -35,8 +35,10 @@ import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseAct
 import { pageChipTargetActionPolicy } from './page-chip-action-policy.js'
 import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
 import { registerPageChipTextLayoutValidation } from './page-chip-layout-validation.js'
+import { createSizeChangeObserver, type ObservedElementSize, type SizeChangeObserver } from './size-change-observer.js'
 
-let chipTextResizeObserver: ResizeObserver | null = null
+let chipTextResizeObserver: SizeChangeObserver | null = null
+const chipTextMeasuredSizes = new WeakMap<HTMLElement, ObservedElementSize>()
 const chipTextTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: { hasExpandableContent: boolean; height: number; isTruncated: boolean; width: number }) => void
@@ -849,8 +851,10 @@ function syncChipTextFade(textEl: HTMLElement | null) {
 
   const isTruncated = isChipTextTruncated(textEl)
   const hasExpandableContent = isTruncated || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
-  const width = getChipTextWidth(textEl)
-  const height = getChipTextHeight(textEl)
+  const rect = textEl.getBoundingClientRect()
+  const width = Math.round(rect.width * 100) / 100
+  const height = Math.round(rect.height * 100) / 100
+  chipTextMeasuredSizes.set(textEl, { height, width })
   textEl.classList.toggle('chip-text-truncated', isTruncated)
   syncTruncatedTitleFadeEnd(textEl, isTruncated)
   chipTextTruncationCallbacks.get(textEl)?.({ hasExpandableContent, height, isTruncated, width })
@@ -965,11 +969,7 @@ function chipExpansionGeometryEqual(left: ChipExpansionGeometry, right: ChipExpa
 
 function getChipTextResizeObserver() {
   if (!chipTextResizeObserver) {
-    chipTextResizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.target instanceof HTMLElement) syncChipTextFade(entry.target)
-      }
-    })
+    chipTextResizeObserver = createSizeChangeObserver(syncChipTextFade)
   }
   return chipTextResizeObserver
 }
@@ -1184,7 +1184,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const textEl = chipTextRef.current
     if (!textEl || chipExpandedRef.current) return
 
-    if (chipTextClamp) return
+    if (chipTextClamp) {
+      syncClampedTitleFadeEnd(textEl, chipTextClamp.width)
+      return
+    }
 
     const previousMeasurement = chipTextMeasurementRef.current
     if (
@@ -1276,7 +1279,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           : { ...current, metrics: nextMetrics }
       })
     })
-    observer.observe(textEl)
+    observer.observe(textEl, chipTextMeasuredSizes.get(textEl))
   })
 
   // react-doctor-disable-next-line react-doctor/exhaustive-deps -- the cleanup reads observedChipTextElRef at unmount time deliberately: it must unobserve whichever element is registered THEN, not the mount-time one.

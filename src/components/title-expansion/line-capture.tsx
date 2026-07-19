@@ -164,6 +164,16 @@ export function syncTruncatedTitleFadeEnd(titleEl: HTMLElement, isTruncated: boo
   titleEl.style.setProperty(TITLE_FADE_END_PROPERTY, `${fadeEnd}px`)
 }
 
+/**
+ * Captured clamped lines deliberately run their tail beyond the title box so
+ * the fade always lands on glyphs. The box width is already part of the clamp
+ * snapshot, so restore that final fade endpoint without another DOM read.
+ */
+export function syncClampedTitleFadeEnd(titleEl: HTMLElement, width: number) {
+  if (width <= 0) return
+  titleEl.style.setProperty(TITLE_FADE_END_PROPERTY, `${width}px`)
+}
+
 type CapturedLineDomPosition = {
   node: Text
   offset: number

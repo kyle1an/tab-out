@@ -40,6 +40,7 @@ export {
   expansionLineNodesFromHtml,
   fragmentHtml,
   paintedRangeRect,
+  syncClampedTitleFadeEnd,
   syncTruncatedTitleFadeEnd,
   truncatedTitleFadeEndPx,
   unwrapClampedTitleLines
