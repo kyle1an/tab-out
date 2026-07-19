@@ -70,7 +70,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
 
   expect(measurements.chipCount).toBeGreaterThan(0)
   expect(measurements.historyTitleCount).toBeGreaterThan(0)
-  expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(20)
+  expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(10)
   expect(measurements.layoutShift).toBe(0)
 })

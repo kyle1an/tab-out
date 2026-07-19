@@ -97,6 +97,12 @@ type ChipTextLayoutState = {
   clamp: ChipTextClamp | null
   metrics: ChipTextMetrics
 }
+type ChipTextMeasurement = {
+  clampEligible: boolean
+  element: HTMLElement
+  key: string
+  metrics: ChipTextMetrics
+}
 type ChipSlotSize = {
   height: number
   width: number
@@ -757,6 +763,33 @@ function chipTextClampEqual(left: ChipTextClamp | null, right: ChipTextClamp | n
   )
 }
 
+function chipTextLayoutEqual(left: ChipTextLayoutState, right: ChipTextLayoutState) {
+  return chipTextMetricsEqual(left.metrics, right.metrics) && chipTextClampEqual(left.clamp, right.clamp)
+}
+
+function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKey: string): ChipTextLayoutState {
+  const metrics = syncChipTextFade(textEl)
+  const nextMetrics = {
+    hasExpandableContent: metrics.hasExpandableContent,
+    isTruncated: metrics.isTruncated,
+    width: metrics.width
+  }
+  let nextClamp: ChipTextClamp | null = null
+  if (clampEligible && metrics.isTruncated && metrics.width > 0) {
+    const lineHtml = getClampedPageChipLineHtml(textEl)
+    if (lineHtml.length > 1) {
+      nextClamp = { key: clampKey, lineHtml, width: metrics.width }
+    }
+  }
+  return { clamp: nextClamp, metrics: nextMetrics }
+}
+
+function waitsForInitialMasonryWidth(textEl: HTMLElement) {
+  const card = textEl.closest<HTMLElement>('.domain-block')
+  const container = textEl.closest<HTMLElement>('.missions')
+  return !!card && !!container && !container.classList.contains('is-packed') && card.style.width === ''
+}
+
 function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLElement | null = chipEl?.querySelector<HTMLElement>('.chip-text') || null): ChipExpansionGeometry {
   if (!chipEl || typeof window === 'undefined') return DEFAULT_CHIP_EXPANSION_GEOMETRY
 
@@ -965,12 +998,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const chipSlotRef = useRef<HTMLDivElement | null>(null)
   const chipTextRef = useRef<HTMLSpanElement | null>(null)
   const updateChipTextMeasurementsRef = useRef<(textEl: HTMLElement | null) => void>(() => {})
-  const chipTextMeasurementRef = useRef<{
-    clampEligible: boolean
-    element: HTMLElement
-    key: string
-    metrics: ChipTextMetrics
-  } | null>(null)
+  const chipTextMeasurementRef = useRef<ChipTextMeasurement | null>(null)
   const contextMenuOpenRef = useRef(false)
   const chipExpandedRef = useRef(false)
   const [chipTooltipOpen, setChipTooltipOpen] = useState(false)
@@ -1051,59 +1079,59 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       return
     }
 
-    const metrics = syncChipTextFade(textEl)
-    const nextMetrics = {
-      hasExpandableContent: metrics.hasExpandableContent,
-      isTruncated: metrics.isTruncated,
-      width: metrics.width
-    }
+    // The parent masonry layout assigns the card's final inline width later in
+    // this same layout-effect phase. Measuring its unconstrained grid width here
+    // would be discarded immediately by the post-pack validation below.
+    if (waitsForInitialMasonryWidth(textEl)) return
+
+    const nextLayout = readChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
     chipTextMeasurementRef.current = {
       clampEligible: chipTextClampEligible,
       element: textEl,
       key: chipTextClampKey,
-      metrics: nextMetrics
+      metrics: nextLayout.metrics
     }
-    let nextClamp: ChipTextClamp | null = null
-    if (chipTextClampEligible && metrics.isTruncated && metrics.width > 0) {
-      const lineHtml = getClampedPageChipLineHtml(textEl)
-      if (lineHtml.length > 1) {
-        nextClamp = { key: chipTextClampKey, lineHtml, width: metrics.width }
-      }
-    }
-    setChipTextLayout((current) => (
-      chipTextMetricsEqual(current.metrics, nextMetrics) &&
-      chipTextClampEqual(current.clamp, nextClamp)
-        ? current
-        : { clamp: nextClamp, metrics: nextMetrics }
-    ))
+    setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
     // Resize-observer metrics carry width changes back through chipTextMetrics,
     // which invalidates the captured rows without re-reading unchanged titles.
   }, [chipTextClamp, chipTextClampEligible, chipTextClampKey, chipTextMetrics])
 
-  // The parent masonry pass can narrow a card after child layout effects have
-  // measured its unconstrained width. Register a pre-paint validation so that
-  // pack completion invalidates only titles whose live width actually changed.
+  // The parent masonry pass owns the card's final width. Its pre-paint callback
+  // measures initially deferred titles once, while later packs remeasure only
+  // titles whose live width actually changed.
   useLayoutEffect(() => {
     const textEl = chipTextRef.current
     if (!textEl) return
 
+    const measurePackedLayout = () => {
+      const nextLayout = readChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
+      chipTextMeasurementRef.current = {
+        clampEligible: chipTextClampEligible,
+        element: textEl,
+        key: chipTextClampKey,
+        metrics: nextLayout.metrics
+      }
+      setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
+    }
     const validatePackedWidth = () => {
       if (chipTextRef.current !== textEl || chipExpandedRef.current) return
       const previousMeasurement = chipTextMeasurementRef.current
-      const width = getChipTextWidth(textEl)
       if (
-        previousMeasurement?.element === textEl &&
-        previousMeasurement.key === chipTextClampKey &&
-        previousMeasurement.clampEligible === chipTextClampEligible &&
-        Math.abs(previousMeasurement.metrics.width - width) < CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX
+        previousMeasurement?.element !== textEl ||
+        previousMeasurement.key !== chipTextClampKey ||
+        previousMeasurement.clampEligible !== chipTextClampEligible
       ) {
+        measurePackedLayout()
         return
       }
-      chipTextMeasurementRef.current = null
-      updateChipTextMeasurements(textEl)
+      const width = getChipTextWidth(textEl)
+      if (Math.abs(previousMeasurement.metrics.width - width) < CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX) {
+        return
+      }
+      measurePackedLayout()
     }
     return registerPageChipTextLayoutValidation(textEl, validatePackedWidth)
-  }, [chipTextClampEligible, chipTextClampKey, updateChipTextMeasurements])
+  }, [chipTextClampEligible, chipTextClampKey])
 
   // Folded and title-variant text can still remount when shouldExpandChip flips,
   // so a mount-once registration would keep observing the dead element and
