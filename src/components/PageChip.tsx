@@ -322,10 +322,61 @@ function getVisibleChipTextLineCount(textEl: HTMLElement | null) {
   return Math.max(1, Math.round(textHeight / lineHeight))
 }
 
-function chipExpansionLineIndexForRect(rect: DOMRect, textRect: DOMRect, lineHeight: number, visibleLineCount: number) {
+function chipExpansionRawLineIndexForRect(rect: DOMRect, textRect: DOMRect, lineHeight: number) {
   if (rect.width <= 0 && rect.height <= 0) return null
-  const lineIndex = Math.max(0, Math.round((rect.top - textRect.top) / lineHeight))
+  return Math.max(0, Math.round((rect.top - textRect.top) / lineHeight))
+}
+
+function chipExpansionLineIndexForRect(rect: DOMRect, textRect: DOMRect, lineHeight: number, visibleLineCount: number) {
+  const lineIndex = chipExpansionRawLineIndexForRect(rect, textRect, lineHeight)
+  if (lineIndex === null) return null
   return lineIndex < visibleLineCount ? lineIndex : null
+}
+
+function firstChipExpansionTextOffsetOnLine(
+  node: Text,
+  targetLineIndex: number,
+  range: Range,
+  textRect: DOMRect,
+  lineHeight: number
+) {
+  let low = 0
+  let high = node.length - 1
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    range.setStart(node, 0)
+    range.setEnd(node, middle + 1)
+    const rect = paintedRangeRect(range)
+    const lineIndex = rect
+      ? chipExpansionRawLineIndexForRect(rect, textRect, lineHeight)
+      : null
+    if (lineIndex !== null && lineIndex >= targetLineIndex) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+
+  range.setStart(node, 0)
+  range.setEnd(node, low + 1)
+  const rect = paintedRangeRect(range)
+  return rect && chipExpansionRawLineIndexForRect(rect, textRect, lineHeight) === targetLineIndex
+    ? low
+    : null
+}
+
+function chipExpansionPositionNode(position: ChipExpansionDomPosition) {
+  return position.kind === 'text' ? position.node : position.element
+}
+
+function chipExpansionElementPrecedesPosition(element: HTMLElement, position: ChipExpansionDomPosition, win: Window & typeof globalThis) {
+  const positionNode = chipExpansionPositionNode(position)
+  return (
+    element === positionNode ||
+    element.contains(positionNode) ||
+    !!(element.compareDocumentPosition(positionNode) & win.Node.DOCUMENT_POSITION_FOLLOWING)
+  )
 }
 
 function setRangeStartAtChipExpansionPosition(range: Range, position: ChipExpansionDomPosition) {
@@ -474,38 +525,104 @@ function getExpandedPageChipLineHtml(textEl: HTMLElement | null, serializeFragme
       }
     }
   )
-  const range = ownerDocument.createRange()
-  const lineStartsByIndex: Array<ChipExpansionDomPosition | undefined> = Array.from({ length: visibleLineCount })
-  let capturedLineCount = 0
-
-  while (capturedLineCount < visibleLineCount) {
+  const textNodes: Text[] = []
+  const markerElements: HTMLElement[] = []
+  while (true) {
     const node = walker.nextNode()
     if (!node) break
 
     if (node instanceof win.HTMLElement) {
-      const lineIndex = chipExpansionLineIndexForRect(node.getBoundingClientRect(), textRect, lineHeight, visibleLineCount)
-      if (lineIndex !== null && !lineStartsByIndex[lineIndex]) {
-        lineStartsByIndex[lineIndex] = { element: node, kind: 'element' }
-        capturedLineCount += 1
-      }
+      markerElements.push(node)
       continue
     }
 
-    if (!(node instanceof win.Text)) continue
+    if (node instanceof win.Text && node.data.trim()) textNodes.push(node)
+  }
 
-    const text = node.data
-    for (let offset = 0; offset < text.length && capturedLineCount < visibleLineCount; offset += 1) {
-      range.setStart(node, offset)
-      range.setEnd(node, offset + 1)
-      const rect = paintedRangeRect(range)
-      if (!rect) continue
+  const range = ownerDocument.createRange()
+  const textLineBounds = new Map<Text, { first: number; last: number } | null>()
+  function getTextLineBounds(node: Text) {
+    const cached = textLineBounds.get(node)
+    if (cached !== undefined) return cached
 
-      const lineIndex = chipExpansionLineIndexForRect(rect, textRect, lineHeight, visibleLineCount)
-      if (lineIndex === null) break
-      if (!lineStartsByIndex[lineIndex]) {
-        lineStartsByIndex[lineIndex] = { kind: 'text', node, offset }
-        capturedLineCount += 1
+    range.selectNodeContents(node)
+    let first = Number.POSITIVE_INFINITY
+    let last = Number.NEGATIVE_INFINITY
+    for (const rect of range.getClientRects()) {
+      const lineIndex = chipExpansionRawLineIndexForRect(rect, textRect, lineHeight)
+      if (lineIndex === null) continue
+      first = Math.min(first, lineIndex)
+      last = Math.max(last, lineIndex)
+    }
+    const bounds = Number.isFinite(first) && Number.isFinite(last) ? { first, last } : null
+    textLineBounds.set(node, bounds)
+    return bounds
+  }
+
+  function textPositionForLine(targetLineIndex: number): ChipExpansionDomPosition | null {
+    if (textNodes.length === 0) return null
+
+    let candidateIndex = -1
+    if (targetLineIndex === 0) {
+      candidateIndex = textNodes.findIndex((node) => {
+        const bounds = getTextLineBounds(node)
+        return !!bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex
+      })
+    } else {
+      let low = 0
+      let high = textNodes.length - 1
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2)
+        const bounds = getTextLineBounds(textNodes[middle])
+        if (bounds && bounds.last >= targetLineIndex) {
+          high = middle
+        } else {
+          low = middle + 1
+        }
       }
+      const bounds = getTextLineBounds(textNodes[low])
+      if (bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex) {
+        candidateIndex = low
+      }
+    }
+
+    // Hidden/non-painting text can make the binary predicate sparse. Walk back
+    // through that rare gap so a later valid node cannot hide an earlier line
+    // start; ordinary wrapped-line searches stop after one predecessor.
+    if (candidateIndex >= 0 && targetLineIndex > 0) {
+      for (let index = candidateIndex - 1; index >= 0; index -= 1) {
+        const bounds = getTextLineBounds(textNodes[index])
+        if (!bounds) continue
+        if (bounds.last < targetLineIndex) break
+        if (bounds.first <= targetLineIndex) candidateIndex = index
+      }
+    }
+
+    // Preserve the old engine's correctness with a cached linear fallback if
+    // no monotonic candidate survived at all.
+    if (candidateIndex < 0) {
+      candidateIndex = textNodes.findIndex((node) => {
+        const bounds = getTextLineBounds(node)
+        return !!bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex
+      })
+    }
+    if (candidateIndex < 0) return null
+
+    const node = textNodes[candidateIndex]
+    const offset = firstChipExpansionTextOffsetOnLine(node, targetLineIndex, range, textRect, lineHeight)
+    return offset === null ? null : { kind: 'text', node, offset }
+  }
+
+  const lineStartsByIndex: Array<ChipExpansionDomPosition | undefined> = Array.from({ length: visibleLineCount })
+  for (let lineIndex = 0; lineIndex < visibleLineCount; lineIndex += 1) {
+    lineStartsByIndex[lineIndex] = textPositionForLine(lineIndex) || undefined
+  }
+  for (const marker of markerElements) {
+    const lineIndex = chipExpansionLineIndexForRect(marker.getBoundingClientRect(), textRect, lineHeight, visibleLineCount)
+    if (lineIndex === null) continue
+    const current = lineStartsByIndex[lineIndex]
+    if (!current || chipExpansionElementPrecedesPosition(marker, current, win)) {
+      lineStartsByIndex[lineIndex] = { element: marker, kind: 'element' }
     }
   }
 
