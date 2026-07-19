@@ -114,6 +114,7 @@ type ChipTextMeasurement = {
   clampEligible: boolean
   element: HTMLElement
   key: string
+  masonryCardWidth: string
   metrics: ChipTextMetrics
 }
 type ChipSlotSize = {
@@ -984,6 +985,10 @@ function waitsForInitialMasonryWidth(textEl: HTMLElement) {
   return !!card && !!container && !container.classList.contains('is-packed') && card.style.width === ''
 }
 
+function getChipTextMasonryCardWidth(textEl: HTMLElement) {
+  return textEl.closest<HTMLElement>('.domain-block')?.style.width || ''
+}
+
 function getPageChipExpansionGeometry(chipEl: HTMLElement | null, textEl: HTMLElement | null = chipEl?.querySelector<HTMLElement>('.chip-text') || null): ChipExpansionGeometry {
   if (!chipEl || typeof window === 'undefined') return DEFAULT_CHIP_EXPANSION_GEOMETRY
 
@@ -1283,6 +1288,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       clampEligible: chipTextClampEligible,
       element: textEl,
       key: chipTextClampKey,
+      masonryCardWidth: getChipTextMasonryCardWidth(textEl),
       metrics: nextLayout.metrics
     }
     setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
@@ -1299,6 +1305,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
     const createPackedLayoutMeasurement = (): PageChipTextLayoutMeasurementJob => ({
       read() {
+        const masonryCardWidth = getChipTextMasonryCardWidth(textEl)
         const reading = readChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
         return () => {
           if (chipTextRef.current !== textEl || chipExpandedRef.current) return
@@ -1307,6 +1314,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             clampEligible: chipTextClampEligible,
             element: textEl,
             key: chipTextClampKey,
+            masonryCardWidth,
             metrics: nextLayout.metrics
           }
           setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
@@ -1322,6 +1330,16 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         previousMeasurement.clampEligible !== chipTextClampEligible
       ) {
         return createPackedLayoutMeasurement()
+      }
+      const masonryCardWidth = getChipTextMasonryCardWidth(textEl)
+      // Masonry controls the card's explicit inline width. If that width and
+      // the title identity are unchanged, a second pack cannot change this
+      // title's available width, so avoid forcing another live box read.
+      if (
+        masonryCardWidth &&
+        previousMeasurement.masonryCardWidth === masonryCardWidth
+      ) {
+        return null
       }
       const width = getChipTextWidth(textEl)
       if (Math.abs(previousMeasurement.metrics.width - width) < CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX) {
