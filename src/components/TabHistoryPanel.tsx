@@ -621,6 +621,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     if (!titleEl || titleExpandedRef.current) return
 
     if (titleClamp) {
+      titleEl.classList.add('history-entry-title-truncated')
       syncClampedTitleFadeEnd(titleEl, titleClamp.width)
       return
     }
@@ -662,7 +663,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     ))
     // Resize-observer metrics carry width changes back through titleMetrics,
     // which invalidates the captured rows without re-reading unchanged titles.
-  }, [titleClamp, titleClampKey, titleMetrics])
+  }, [titleClamp, titleClampKey, titleExpanded, titleMetrics])
 
   useEffect(() => {
     const titleEl = titleRef.current

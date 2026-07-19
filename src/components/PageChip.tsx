@@ -1192,6 +1192,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (!textEl || chipExpandedRef.current) return
 
     if (chipTextClamp) {
+      textEl.classList.add('chip-text-truncated')
       syncClampedTitleFadeEnd(textEl, chipTextClamp.width)
       return
     }
@@ -1221,7 +1222,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
     // Resize-observer metrics carry width changes back through chipTextMetrics,
     // which invalidates the captured rows without re-reading unchanged titles.
-  }, [chipTextClamp, chipTextClampEligible, chipTextClampKey, chipTextMetrics])
+  }, [chipExpanded, chipTextClamp, chipTextClampEligible, chipTextClampKey, chipTextMetrics])
 
   // The parent masonry pass owns the card's final width. Its pre-paint callback
   // measures initially deferred titles once, while later packs remeasure only

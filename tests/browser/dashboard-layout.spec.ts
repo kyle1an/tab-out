@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 type DashboardGeometry = {
   cardCount: number
@@ -7,6 +7,31 @@ type DashboardGeometry = {
   headerControlsRight: number | null
   missionsRight: number | null
   sourceSwitchRight: number | null
+}
+
+async function collapsedTitleFadeState(title: Locator, truncatedClass: string) {
+  return title.evaluate((element, className) => {
+    const titleElement = element as HTMLElement
+    const fadeEnd = Number.parseFloat(titleElement.style.getPropertyValue('--title-fade-end'))
+    const width = titleElement.getBoundingClientRect().width
+    return {
+      clamped: titleElement.querySelectorAll('.clamped-title-line').length > 1,
+      fadeAtEdge: Number.isFinite(fadeEnd) && Math.abs(fadeEnd - width) <= 0.1,
+      masked: getComputedStyle(titleElement).maskImage !== 'none',
+      truncated: titleElement.classList.contains(className)
+    }
+  }, truncatedClass)
+}
+
+const RESTORED_TITLE_FADE_STATE = {
+  clamped: true,
+  fadeAtEdge: true,
+  masked: true,
+  truncated: true
+}
+
+async function expectCollapsedTitleFade(title: Locator, truncatedClass: string, message?: string) {
+  await expect.poll(() => collapsedTitleFadeState(title, truncatedClass), { message }).toEqual(RESTORED_TITLE_FADE_STATE)
 }
 
 async function measureDashboard(page: Page, width: number): Promise<DashboardGeometry> {
@@ -82,6 +107,51 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(Math.abs((wide.headerControlsRight ?? 0) - (wide.missionsRight ?? 0))).toBeLessThanOrEqual(1)
   expect(Math.abs((wide.sourceSwitchRight ?? 0) - (wide.missionsRight ?? 0))).toBeLessThanOrEqual(1)
   expect(pageErrors).toEqual([])
+})
+
+test('Activation History restores its title fade after hover expansion closes', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const title = page.locator('.history-entry-title').filter({
+    hasText: 'Low score history item with enough tooltip text'
+  }).first()
+  await title.scrollIntoViewIfNeeded()
+  await expectCollapsedTitleFade(title, 'history-entry-title-truncated')
+
+  await title.hover()
+  await expect(page.locator('.history-entry-expanded')).toHaveCount(1)
+  await page.mouse.move(2, 2)
+  await expect(page.locator('.history-entry-expanded')).toHaveCount(0)
+
+  await expectCollapsedTitleFade(
+    title,
+    'history-entry-title-truncated',
+    'collapsed Activation History title should restore its clamp and fade'
+  )
+})
+
+test('Page Chip restores its title fade after hover expansion closes', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const chip = page.locator('[data-tabout="page-chip"]').filter({
+    hasText: 'Example 2 with enough tooltip text'
+  }).first()
+  const title = chip.locator('.chip-text')
+  await chip.scrollIntoViewIfNeeded()
+  await expectCollapsedTitleFade(title, 'chip-text-truncated')
+
+  await chip.hover()
+  await expect(chip).toHaveClass(/page-chip-expanded/)
+  await page.mouse.move(2, 2)
+  await expect(chip).not.toHaveClass(/page-chip-expanded/)
+
+  await expectCollapsedTitleFade(
+    title,
+    'chip-text-truncated',
+    'collapsed Page Chip title should restore its clamp and fade'
+  )
 })
 
 test('filter result cards finish one move while companion results hydrate', async ({ page }) => {
