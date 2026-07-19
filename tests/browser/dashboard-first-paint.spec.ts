@@ -183,7 +183,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.layoutShift).toBe(0)
 })
 
-test('Activation History paints title fades before deferred scrollbar geometry', async ({ page }) => {
+test('Activation History paints title fades and a content frame before scrollbar geometry', async ({ page }) => {
   await page.setViewportSize({ width: 1420, height: 360 })
   await page.addInitScript(() => {
     type FirstHistoryContentFrame = {
@@ -193,9 +193,15 @@ test('Activation History paints title fades before deferred scrollbar geometry',
       truncatedTitleCount: number
       truncatedTitleFadeCount: number
     }
+    type AfterFirstHistoryPaint = {
+      scrollbarGeometryReads: number
+      scrollbarMounted: boolean
+    }
     const paintWindow = window as typeof window & {
+      __tabOutAfterFirstHistoryPaint: AfterFirstHistoryPaint | null
       __tabOutFirstHistoryContentFrame: FirstHistoryContentFrame | null
     }
+    paintWindow.__tabOutAfterFirstHistoryPaint = null
     paintWindow.__tabOutFirstHistoryContentFrame = null
     let scrollbarGeometryReads = 0
 
@@ -231,6 +237,12 @@ test('Activation History paints title fades before deferred scrollbar geometry',
             (title) => getComputedStyle(title).maskImage !== 'none'
           ).length
         }
+        requestAnimationFrame(() => {
+          paintWindow.__tabOutAfterFirstHistoryPaint = {
+            scrollbarGeometryReads,
+            scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]')
+          }
+        })
         return
       }
       if (frameCount < 120) requestAnimationFrame(captureFrame)
@@ -264,6 +276,23 @@ test('Activation History paints title fades before deferred scrollbar geometry',
   expect(firstContentFrame.scrollbarMounted).toBe(false)
   expect(firstContentFrame.truncatedTitleCount).toBeGreaterThan(0)
   expect(firstContentFrame.truncatedTitleFadeCount).toBe(firstContentFrame.truncatedTitleCount)
+  await expect.poll(() => page.evaluate(() => {
+    const paintWindow = window as typeof window & {
+      __tabOutAfterFirstHistoryPaint: unknown
+    }
+    return paintWindow.__tabOutAfterFirstHistoryPaint
+  })).not.toBeNull()
+  const afterFirstHistoryPaint = await page.evaluate(() => {
+    const paintWindow = window as typeof window & {
+      __tabOutAfterFirstHistoryPaint: {
+        scrollbarGeometryReads: number
+        scrollbarMounted: boolean
+      }
+    }
+    return paintWindow.__tabOutAfterFirstHistoryPaint
+  })
+  expect(afterFirstHistoryPaint.scrollbarGeometryReads).toBe(0)
+  expect(afterFirstHistoryPaint.scrollbarMounted).toBe(false)
   const scrollbar = page.locator('[data-tabout-part="history-scrollbar"]')
   await expect(scrollbar).toHaveCount(1)
   await expect(scrollbar.locator('.history-entry-scrollbar-thumb')).toHaveCSS('opacity', '0')
