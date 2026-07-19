@@ -1667,7 +1667,10 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   assert.match(tabHistoryPanelSource, /history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-\[calc\(2lh\)\]/)
   assert.match(tabHistoryPanelSource, /\[\&\.history-entry-title-truncated\]:\[mask-image:var\(--title-fade-mask\)\]/)
   assert.doesNotMatch(tabHistoryPanelSource, /history-entry-title line-clamp-2/)
-  assert.match(tabHistoryPanelSource, /captureVisibleLineHtml\(titleEl, metrics\.visibleLineCount\)/)
+  assert.match(
+    tabHistoryPanelSource,
+    /captureVisibleLineHtml\(titleEl, metrics\.visibleLineCount, captureGeometry\)/
+  )
   assert.match(tabHistoryPanelSource, /clampedTitleLineNodes\(clampedLineHtml, 'history-entry-title'\)/)
   const pageChipClampSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipClampSource, /getClampedPageChipLineHtml\(textEl\)/)

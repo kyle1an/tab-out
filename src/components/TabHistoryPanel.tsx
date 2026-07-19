@@ -22,7 +22,7 @@ import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
-import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncClampedTitleFadeEnd, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
+import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncClampedTitleFadeEnd, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses, type TitleLineCaptureGeometry } from './title-expansion'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
 import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabHistorySnapshot, TabsChangeHandler } from './types'
@@ -101,6 +101,14 @@ type HistoryTitleMetrics = {
   width: number
 }
 type HistoryTitleExpandedLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'>
+type HistoryTitleGeometryMeasurement = {
+  captureGeometry: TitleLineCaptureGeometry
+  metrics: HistoryTitleMetrics
+}
+type HistoryTitleMeasurement = {
+  lineHtml: string[]
+  metrics: HistoryTitleMetrics
+}
 const DEFAULT_HISTORY_TITLE_METRICS: HistoryTitleMetrics = {
   contentWidth: 0,
   expandedLineHtml: [],
@@ -333,7 +341,7 @@ function historyTitleExpandedLayoutCacheKey(titleEl: HTMLElement, availableConte
   ])
 }
 
-function readHistoryTitleMetrics(titleEl: HTMLElement): HistoryTitleMetrics {
+function readHistoryTitleGeometry(titleEl: HTMLElement): HistoryTitleGeometryMeasurement {
   const isTruncated = isHistoryTitleTruncated(titleEl)
   const rect = titleEl.getBoundingClientRect()
   const styles = window.getComputedStyle(titleEl)
@@ -347,18 +355,36 @@ function readHistoryTitleMetrics(titleEl: HTMLElement): HistoryTitleMetrics {
     width
   })
   return {
-    contentWidth: 0,
-    expandedLineHtml: [],
-    expandedTextWidth: 0,
-    expandedViewportConstrained: false,
-    isTruncated,
-    visibleLineCount,
-    width
+    captureGeometry: {
+      elementRect: rect,
+      lineHeight
+    },
+    metrics: {
+      contentWidth: 0,
+      expandedLineHtml: [],
+      expandedTextWidth: 0,
+      expandedViewportConstrained: false,
+      isTruncated,
+      visibleLineCount,
+      width
+    }
   }
 }
 
+function readHistoryTitleMetrics(titleEl: HTMLElement): HistoryTitleMetrics {
+  return readHistoryTitleGeometry(titleEl).metrics
+}
+
+function readHistoryTitleMeasurement(titleEl: HTMLElement): HistoryTitleMeasurement {
+  const { captureGeometry, metrics } = readHistoryTitleGeometry(titleEl)
+  const lineHtml = metrics.isTruncated && metrics.visibleLineCount > 1
+    ? captureVisibleLineHtml(titleEl, metrics.visibleLineCount, captureGeometry)
+    : []
+  return { lineHtml, metrics }
+}
+
 type HistoryTitleMeasurementJob = {
-  apply: (metrics: HistoryTitleMetrics) => void
+  apply: (measurement: HistoryTitleMeasurement) => void
   titleEl: HTMLElement
 }
 const pendingHistoryTitleMeasurementJobs = new Map<HTMLElement, HistoryTitleMeasurementJob>()
@@ -368,13 +394,16 @@ function flushHistoryTitleMeasurementJobs() {
   historyTitleMeasurementFlushQueued = false
   const jobs = Array.from(pendingHistoryTitleMeasurementJobs.values())
   pendingHistoryTitleMeasurementJobs.clear()
+  // Complete every natural-box and Range read before the first truncation
+  // class or captured-line state write. Interleaving those phases makes each
+  // later title repay style/layout work triggered by the previous title.
   const measuredJobs = jobs.flatMap((job) => (
     job.titleEl.isConnected
-      ? [{ job, metrics: readHistoryTitleMetrics(job.titleEl) }]
+      ? [{ job, measurement: readHistoryTitleMeasurement(job.titleEl) }]
       : []
   ))
   if (measuredJobs.length === 0) return
-  for (const { job, metrics } of measuredJobs) job.apply(metrics)
+  for (const { job, measurement } of measuredJobs) job.apply(measurement)
 }
 
 function scheduleHistoryTitleMeasurement(job: HistoryTitleMeasurementJob) {
@@ -680,7 +709,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     // until capture fails so successful clamps do not measure an unused anchor.
     return scheduleHistoryTitleMeasurement({
       titleEl,
-      apply(measuredMetrics) {
+      apply({ lineHtml, metrics: measuredMetrics }) {
         if (titleRef.current !== titleEl || titleExpandedRef.current) return
         const metrics = syncHistoryTitleFade(titleEl, false, measuredMetrics)
         titleMeasurementRef.current = {
@@ -689,11 +718,8 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
           metrics
         }
         let nextClamp: HistoryTitleClamp | null = null
-        if (metrics.isTruncated && metrics.visibleLineCount > 1) {
-          const lineHtml = captureVisibleLineHtml(titleEl, metrics.visibleLineCount)
-          if (lineHtml.length > 1) {
-            nextClamp = { key: titleClampKey, lineHtml, width: metrics.width }
-          }
+        if (metrics.isTruncated && lineHtml.length > 1) {
+          nextClamp = { key: titleClampKey, lineHtml, width: metrics.width }
         }
         if (nextClamp) {
           syncClampedTitleFadeEnd(titleEl, nextClamp.width)

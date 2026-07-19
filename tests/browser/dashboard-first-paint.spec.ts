@@ -25,6 +25,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       domainCardRects: 0,
       historyTitleFadeRangeRects: 0,
       historyTitleRangeRects: 0,
+      historyTitleRangeRectsAfterTruncationWrite: 0,
       historyTitleRects: 0,
       historyTitleSizeReads: 0,
       historyTitleSizeReadsAfterTruncationWrite: 0,
@@ -109,6 +110,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       }
       if (historyTitle) {
         counts.historyTitleRangeRects += 1
+        if (counts.historyTitleTruncationWrites > 0) {
+          counts.historyTitleRangeRectsAfterTruncationWrite += 1
+        }
         if (this.startContainer === historyTitle && this.endContainer === historyTitle) {
           counts.historyTitleFadeRangeRects += 1
         }
@@ -145,6 +149,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         domainCardRects: number
         historyTitleFadeRangeRects: number
         historyTitleRangeRects: number
+        historyTitleRangeRectsAfterTruncationWrite: number
         historyTitleRects: number
         historyTitleSizeReads: number
         historyTitleSizeReadsAfterTruncationWrite: number
@@ -174,7 +179,8 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.domainCardRects / measurements.domainCardCount).toBeLessThanOrEqual(2)
   expect(measurements.historyTitleFadeRangeRects).toBe(0)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
-  expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(3)
+  expect(measurements.historyTitleRangeRectsAfterTruncationWrite).toBe(0)
+  expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(1)
   expect(measurements.historyTitleTruncationWrites).toBeGreaterThan(0)
   expect(measurements.historyTitleSizeReads / measurements.historyTitleCount).toBeLessThanOrEqual(4)
   expect(measurements.historyTitleSizeReadsAfterTruncationWrite).toBe(0)

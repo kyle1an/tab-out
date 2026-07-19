@@ -179,7 +179,16 @@ type CapturedLineDomPosition = {
   offset: number
 }
 
-function capturedRawLineIndexForRect(rect: DOMRect, elementRect: DOMRect, lineHeight: number) {
+export type TitleLineCaptureGeometry = {
+  elementRect: Pick<DOMRect, 'height' | 'top'>
+  lineHeight: number
+}
+
+function capturedRawLineIndexForRect(
+  rect: DOMRect,
+  elementRect: TitleLineCaptureGeometry['elementRect'],
+  lineHeight: number
+) {
   if (rect.width <= 0 && rect.height <= 0) return null
   return Math.max(0, Math.round((rect.top - elementRect.top) / lineHeight))
 }
@@ -188,7 +197,7 @@ function firstCapturedTextOffsetOnLine(
   node: Text,
   targetLineIndex: number,
   range: Range,
-  elementRect: DOMRect,
+  elementRect: TitleLineCaptureGeometry['elementRect'],
   lineHeight: number
 ) {
   // The first visible line almost always begins at the first non-whitespace
@@ -254,17 +263,23 @@ export function unwrapClampedTitleLines(root: ParentNode) {
  * each line from one cached Range read per node, then binary-searches only that
  * node's text offsets. It only suits text-flow titles (text nodes plus inline
  * span/mark wrappers); surfaces with element markers keep their own engines.
+ * A caller that just measured the same resting layout may pass that geometry
+ * so line capture does not repeat the element rect and computed-style reads.
  */
-export function captureVisibleLineHtml(el: HTMLElement, visibleLineCount: number): string[] {
+export function captureVisibleLineHtml(
+  el: HTMLElement,
+  visibleLineCount: number,
+  geometry?: TitleLineCaptureGeometry
+): string[] {
   if (visibleLineCount <= 1) return []
 
   const ownerDocument = el.ownerDocument
   const win = ownerDocument.defaultView
   if (!win) return []
 
-  const elRect = el.getBoundingClientRect()
-  const styles = win.getComputedStyle(el)
-  const lineHeight = Number.parseFloat(styles.lineHeight)
+  const elRect = geometry?.elementRect ?? el.getBoundingClientRect()
+  const lineHeight = geometry?.lineHeight ??
+    Number.parseFloat(win.getComputedStyle(el).lineHeight)
   if (elRect.height <= 0 || !lineHeight || !Number.isFinite(lineHeight)) return []
 
   const walker = ownerDocument.createTreeWalker(

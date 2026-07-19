@@ -46,4 +46,9 @@ export {
   unwrapClampedTitleLines
 } from './line-capture'
 /** @public — sanctioned seam surface (consumers import from the barrel; ADR-0002). */
-export type { ExpansionLineClasses, TitleFadeBox, TitleLineFragmentRect } from './line-capture'
+export type {
+  ExpansionLineClasses,
+  TitleFadeBox,
+  TitleLineCaptureGeometry,
+  TitleLineFragmentRect
+} from './line-capture'
