@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { pathgroupPinId } from '../extension/section-pins.js'
 import { closeExactTabSection } from '../extension/tab-actions'
 import { useDomainCardContext } from './DomainCardContext'
@@ -135,14 +135,8 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
     await onTogglePinnedSection?.(sectionLayoutKey)
   }
 
-  useLayoutEffect(() => {
-    const labelEl = labelRef.current
-    if (!labelEl) return
-
-    const frameId = requestAnimationFrame(() => updatePathgroupLabelTruncation(labelEl, setPathgroupLabelTruncated))
-    return () => cancelAnimationFrame(frameId)
-  })
-
+  // TooltipAnchor changes its rendered tree when content becomes available,
+  // so reattach the observer to the current label after that state change.
   useEffect(() => {
     const labelEl = labelRef.current
     if (!labelEl) return
@@ -160,7 +154,6 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
       if (!disposed) updatePathgroupLabelTruncation(labelEl, setPathgroupLabelTruncated)
     }
     fontSet.addEventListener('loadingdone', onFontsDone)
-    fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true
@@ -168,7 +161,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
       pathgroupLabelTruncationCallbacks.delete(labelEl)
       fontSet.removeEventListener('loadingdone', onFontsDone)
     }
-  }, [])
+  }, [pathgroupLabelTruncated])
 
   async function onCloseCluster() {
     if (!closableUrls || closableUrls.length === 0) return

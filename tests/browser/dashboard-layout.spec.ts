@@ -109,6 +109,23 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('Path Group tooltip follows observer-driven label truncation', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const label = page.locator('.pathgroup-header .chip-pathgroup').first()
+  const labelText = (await label.textContent())?.trim() || ''
+  expect(labelText).not.toBe('')
+
+  await page.addStyleTag({
+    content: '.pathgroup-header .chip-pathgroup { width: 20px !important; max-width: 20px !important; flex: 0 0 20px !important; }'
+  })
+  await expect.poll(() => label.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+
+  await label.hover()
+  await expect(page.locator('[data-slot="tooltip-content"]:visible')).toHaveText(labelText)
+})
+
 test('Activation History restores its title fade after hover expansion closes', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)

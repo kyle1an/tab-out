@@ -23,6 +23,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       historyTitleFadeRangeRects: 0,
       historyTitleRangeRects: 0,
       historyTitleRects: 0,
+      pathgroupLabelSizeReads: 0,
       layoutShift: 0
     }
     const benchmarkWindow = window as typeof window & {
@@ -40,6 +41,21 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         }
       }
       return getBoundingClientRect.call(this)
+    }
+
+    for (const property of ['clientWidth', 'scrollWidth'] as const) {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, property)
+      const getSize = descriptor?.get
+      if (!descriptor || !getSize) continue
+      Object.defineProperty(Element.prototype, property, {
+        ...descriptor,
+        get() {
+          if (this instanceof HTMLElement && this.matches('.pathgroup-header .chip-pathgroup')) {
+            counts.pathgroupLabelSizeReads += 1
+          }
+          return getSize.call(this)
+        }
+      })
     }
 
     const getClientRects = Range.prototype.getClientRects
@@ -90,6 +106,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         historyTitleFadeRangeRects: number
         historyTitleRangeRects: number
         historyTitleRects: number
+        pathgroupLabelSizeReads: number
         layoutShift: number
       }
     }
@@ -97,7 +114,8 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       ...benchmarkWindow.__tabOutFirstPaintMeasurements,
       chipCount: document.querySelectorAll('[data-tabout="page-chip"]').length,
       domainCardCount: document.querySelectorAll('[data-tabout="domain-card"]').length,
-      historyTitleCount: document.querySelectorAll('.history-entry-title').length
+      historyTitleCount: document.querySelectorAll('.history-entry-title').length,
+      pathgroupLabelCount: document.querySelectorAll('.pathgroup-header .chip-pathgroup').length
     }
   })
 
@@ -111,6 +129,8 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.historyTitleFadeRangeRects).toBe(0)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(3)
+  expect(measurements.pathgroupLabelCount).toBeGreaterThan(0)
+  expect(measurements.pathgroupLabelSizeReads / measurements.pathgroupLabelCount).toBeLessThanOrEqual(2)
   expect(measurements.layoutShift).toBe(0)
 })
 
