@@ -1492,7 +1492,7 @@ export function TabHistoryPanel({
   const savedKeySet = useMemo(() => new Set(savedKeys ?? []), [savedKeys])
   const highlightTerms = useMemo(() => highlightTermsForFilter(filter, 'parsed'), [filter])
   const historyListRef = useRef<HTMLDivElement | null>(null)
-  const scrollbar = useHistoryScrollbar(historyListRef, rows.length)
+  const scrollbar = useHistoryScrollbar(historyListRef)
 
   return (
     <section

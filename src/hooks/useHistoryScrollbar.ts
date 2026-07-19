@@ -105,12 +105,10 @@ function readTrackGeometry(listEl: HTMLElement, trackEl: HTMLElement): TrackGeom
  *   - browser-like auto-hide (reveal on scroll/hover/drag, fade when idle).
  *
  * Geometry stays in sync via a scroll listener plus a ResizeObserver on the
- * list and its content, so the caller only needs to pass the list ref and the
- * current row count (used to re-run the sync when the list contents change).
+ * list and its content, so the caller only needs to pass the list ref.
  */
 export function useHistoryScrollbar(
-  listRef: RefObject<HTMLDivElement | null>,
-  rowCount: number
+  listRef: RefObject<HTMLDivElement | null>
 ): HistoryScrollbar {
   const trackRef = useRef<HTMLDivElement | null>(null)
   const [metrics, setMetrics] = useState(DEFAULT_HISTORY_SCROLLBAR_METRICS)
@@ -165,7 +163,10 @@ export function useHistoryScrollbar(
       reveal()
     }
 
-    updateScrollbar()
+    // The scrollbar is inactive and invisible at mount. ResizeObserver
+    // guarantees an initial delivery, and the content observation also covers
+    // row hydration, so let their coalesced frame update run after the first
+    // visible history-content frame instead of forcing geometry here.
     listEl.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', requestScrollbarUpdate)
 
@@ -180,7 +181,7 @@ export function useHistoryScrollbar(
       window.removeEventListener('resize', requestScrollbarUpdate)
       resizeObserver.disconnect()
     }
-  }, [listRef, rowCount, reveal])
+  }, [listRef, reveal])
 
   const onTrackPointerDown = useCallback((event: ReactPointerEvent) => {
     const listEl = listRef.current

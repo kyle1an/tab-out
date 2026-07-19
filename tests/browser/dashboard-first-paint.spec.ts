@@ -134,6 +134,79 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.layoutShift).toBe(0)
 })
 
+test('Activation History defers hidden scrollbar geometry past its first content frame', async ({ page }) => {
+  await page.setViewportSize({ width: 1420, height: 360 })
+  await page.addInitScript(() => {
+    type FirstHistoryContentFrame = {
+      historyTitleCount: number
+      scrollbarGeometryReads: number
+      scrollbarMounted: boolean
+    }
+    const paintWindow = window as typeof window & {
+      __tabOutFirstHistoryContentFrame: FirstHistoryContentFrame | null
+    }
+    paintWindow.__tabOutFirstHistoryContentFrame = null
+    let scrollbarGeometryReads = 0
+
+    for (const property of ['clientHeight', 'scrollHeight', 'scrollTop'] as const) {
+      const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, property)
+      const getSize = descriptor?.get
+      if (!descriptor || !getSize) continue
+      Object.defineProperty(Element.prototype, property, {
+        ...descriptor,
+        get() {
+          if (this instanceof HTMLElement && this.classList.contains('history-entry-list')) {
+            scrollbarGeometryReads += 1
+          }
+          return getSize.call(this)
+        }
+      })
+    }
+
+    let frameCount = 0
+    const captureFrame = () => {
+      frameCount += 1
+      const historyTitleCount = document.querySelectorAll('.history-entry-title').length
+      if (historyTitleCount > 0) {
+        paintWindow.__tabOutFirstHistoryContentFrame = {
+          historyTitleCount,
+          scrollbarGeometryReads,
+          scrollbarMounted: !!document.querySelector('[data-tabout-part="history-scrollbar"]')
+        }
+        return
+      }
+      if (frameCount < 120) requestAnimationFrame(captureFrame)
+    }
+    requestAnimationFrame(captureFrame)
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.evaluate(() => {
+    const paintWindow = window as typeof window & {
+      __tabOutFirstHistoryContentFrame: unknown
+    }
+    return paintWindow.__tabOutFirstHistoryContentFrame
+  })).not.toBeNull()
+
+  const firstContentFrame = await page.evaluate(() => {
+    const paintWindow = window as typeof window & {
+      __tabOutFirstHistoryContentFrame: {
+        historyTitleCount: number
+        scrollbarGeometryReads: number
+        scrollbarMounted: boolean
+      }
+    }
+    return paintWindow.__tabOutFirstHistoryContentFrame
+  })
+
+  expect(firstContentFrame.historyTitleCount).toBeGreaterThan(0)
+  expect(firstContentFrame.scrollbarGeometryReads).toBe(0)
+  expect(firstContentFrame.scrollbarMounted).toBe(false)
+  const scrollbar = page.locator('[data-tabout-part="history-scrollbar"]')
+  await expect(scrollbar).toHaveCount(1)
+  await expect(scrollbar.locator('.history-entry-scrollbar-thumb')).toHaveCSS('opacity', '0')
+})
+
 test('long Page Chip paints its final truncation treatment on the first refresh frame', async ({ page }) => {
   const targetTitle = 'Example 2 with enough tooltip text to prove viewport-edge collision flipping keeps the popup visible'
   await page.addInitScript((title) => {
