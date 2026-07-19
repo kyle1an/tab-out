@@ -259,10 +259,6 @@ test('service worker maintains the startup snapshot on browser startup and tab e
   assert.match(serviceSource, /saveCachedDashboardStartupSnapshot/)
   assert.match(serviceSource, /loadCachedDashboardStartupSnapshot/)
   assert.match(serviceSource, /seedOpenTabsTitleHistory\(/)
-  assert.match(serviceSource, /LOCAL_GROUPING_CONFIG_ACTIVE_KEY/)
-  // The page tells the worker whether page-only local grouping config is active.
-  assert.match(appEntrySource, /const localGroupingConfigActive = readLocalCustomGroups\(\)\.length > 0 \|\| readLocalPathGroupers\(\)\.length > 0/)
-  assert.match(appEntrySource, /persistLocalGroupingConfigActive\(localGroupingConfigActive\)/)
   assert.match(appEntrySource, /seedOpenTabsTitleHistory\(cachedStartup\?\.snapshot\.dashboard\.realTabs \?\? \[\]\)/)
   assert.match(appEntrySource, /changeInfo\.status !== undefined/)
 })

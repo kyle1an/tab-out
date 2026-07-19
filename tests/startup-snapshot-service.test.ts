@@ -6,7 +6,7 @@ import { createStartupSnapshotService, startupSnapshotStorageChangesRequireRefre
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
-import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, LOCAL_GROUPING_CONFIG_ACTIVE_KEY } from '../src/extension/startup-snapshot.js'
+import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 
 function makeChromeTab(id: number, url: string, title: string): chrome.tabs.Tab {
   return {
@@ -41,13 +41,30 @@ const emptyTabHistory = {
 }
 const emptyActivity = { version: 1, records: {} }
 
+function installEmptyWorkerChrome(): void {
+  ;(globalThis as any).chrome = {
+    runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
+    tabs: { query: async () => [] },
+    windows: {
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+    },
+    tabGroups: { query: async () => [] },
+    sessions: { getRecentlyClosed: async () => [] },
+    storage: {
+      session: { get: async () => ({}), set: async () => {} },
+      local: { get: async () => ({}), set: async () => {} }
+    }
+  }
+}
+
 test('startup snapshot refreshes only for local state that changes its rendered shape', () => {
   const change = { newValue: [] } as chrome.storage.StorageChange
 
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'local'), true)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [SECTION_PIN_STORAGE_KEY]: change }, 'local'), true)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [PAGE_CHIP_PIN_STORAGE_KEY]: change }, 'local'), true)
-  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: change }, 'local'), true)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ 'tab-out:local-path-groupers-active': change }, 'local'), false)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: change }, 'local'), false)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'session'), false)
 })
@@ -69,14 +86,14 @@ test('startup snapshot service writes render-ready session + durable caches from
   const localStore: Record<string, unknown> = {
     [DOMAIN_PIN_STORAGE_KEY]: expectedLocalState.pinnedDomains,
     [SECTION_PIN_STORAGE_KEY]: expectedLocalState.pinnedSectionIds,
-    [PAGE_CHIP_PIN_STORAGE_KEY]: expectedLocalState.pinnedPageChipIds
+    [PAGE_CHIP_PIN_STORAGE_KEY]: expectedLocalState.pinnedPageChipIds,
+    'tab-out:local-path-groupers-active': true
   }
   const openTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
     makeChromeTab(2, 'https://example.test/report', 'Example Report')
   ]
 
-  ;(globalThis as any).window = { LOCAL_CUSTOM_GROUPS: [], LOCAL_PATH_GROUPERS: [] }
   ;(globalThis as any).chrome = {
     runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
     tabs: { query: async () => openTabs },
@@ -119,49 +136,18 @@ test('startup snapshot service writes render-ready session + durable caches from
   assert.equal(writes.session.snapshot.startupViewModel.viewModel.matchedCards.length, 2)
 })
 
-test('startup snapshot service defers grouping when local grouping config is active', async () => {
-  let sessionWritten = false
-  let tabsQueried = false
-
-  ;(globalThis as any).window = { LOCAL_CUSTOM_GROUPS: [], LOCAL_PATH_GROUPERS: [] }
-  ;(globalThis as any).chrome = {
-    runtime: { id: 'tab-out' },
-    tabs: { query: async () => { tabsQueried = true; return [] } },
-    storage: {
-      session: { get: async () => ({}), set: async () => { sessionWritten = true } },
-      local: { get: async () => ({ [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: true }), set: async () => {} }
-    }
-  }
-
-  const service = createStartupSnapshotService({
-    getTabHistorySnapshot: async () => emptyTabHistory as any,
-    getWorkingSetActivity: async () => emptyActivity as any
-  })
-  await service.refreshNow()
-
-  assert.equal(tabsQueried, false, 'does not gather tabs when deferring to the page')
-  assert.equal(sessionWritten, false, 'does not write a snapshot when page-only grouping config is active')
-})
-
 test('startup snapshot service coalesces pending debounced refreshes', async () => {
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
-  let localStorageReads = 0
-
-  ;(globalThis as any).chrome = {
-    storage: {
-      local: {
-        get: async () => {
-          localStorageReads += 1
-          return { [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: true }
-        }
-      }
-    }
-  }
+  let snapshotBuilds = 0
+  installEmptyWorkerChrome()
 
   try {
     const service = createStartupSnapshotService({
-      getTabHistorySnapshot: async () => emptyTabHistory as any,
+      getTabHistorySnapshot: async () => {
+        snapshotBuilds += 1
+        return emptyTabHistory as any
+      },
       getWorkingSetActivity: async () => emptyActivity as any
     })
 
@@ -171,7 +157,7 @@ test('startup snapshot service coalesces pending debounced refreshes', async () 
 
     await clock.tickAsync(4000)
     assert.equal(clock.countTimers(), 0)
-    assert.equal(localStorageReads, 1)
+    assert.equal(snapshotBuilds, 1)
   } finally {
     clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
@@ -181,29 +167,22 @@ test('startup snapshot service coalesces pending debounced refreshes', async () 
 
 test('startup snapshot service refreshes again after a completed refresh', async () => {
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
-  let localStorageReads = 0
-
-  ;(globalThis as any).chrome = {
-    storage: {
-      local: {
-        get: async () => {
-          localStorageReads += 1
-          return { [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: true }
-        }
-      }
-    }
-  }
+  let snapshotBuilds = 0
+  installEmptyWorkerChrome()
 
   try {
     const service = createStartupSnapshotService({
-      getTabHistorySnapshot: async () => emptyTabHistory as any,
+      getTabHistorySnapshot: async () => {
+        snapshotBuilds += 1
+        return emptyTabHistory as any
+      },
       getWorkingSetActivity: async () => emptyActivity as any
     })
 
     await service.refreshNow()
     await service.refreshNow()
 
-    assert.equal(localStorageReads, 2)
+    assert.equal(snapshotBuilds, 2)
   } finally {
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
     else (globalThis as { chrome?: unknown }).chrome = previousChrome

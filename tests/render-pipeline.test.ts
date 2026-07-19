@@ -33,11 +33,6 @@ import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/ex
   }
 };
 
-(globalThis as any).window = {
-  LOCAL_PATH_GROUPERS: [],
-  LOCAL_CUSTOM_GROUPS: []
-};
-
 function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardTab {
   return {
     id: 1,

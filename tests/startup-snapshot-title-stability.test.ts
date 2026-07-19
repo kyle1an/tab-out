@@ -57,7 +57,6 @@ test('background startup snapshots retain the cached title of a waking suspended
   }
   const localStore: Record<string, unknown> = {}
 
-  ;(globalThis as any).window = { LOCAL_CUSTOM_GROUPS: [], LOCAL_PATH_GROUPERS: [] }
   ;(globalThis as any).chrome = {
     runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
     tabs: {

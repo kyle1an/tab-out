@@ -7,8 +7,7 @@
 
    Per-site rules (mirroring path-groups.ts) strip redundant/noise
    params and fragments so URLs that render the identical page share a
-   key. Local rules (window.LOCAL_URL_CANONICALIZERS) are checked
-   BEFORE built-ins so personal overrides win.
+   key.
 
    SAFE BY DEFAULT: when no rule matches, a rule returns null, or
    anything throws, the ORIGINAL url is returned — i.e. today's exact
@@ -18,7 +17,6 @@
    path-groups.ts).
    ================================================================ */
 
-import { readLocalUrlCanonicalizers } from './local-config.js'
 import { isTabOutDashboardUrl, tabOutDashboardCanonicalUrl } from './tab-out-url.js'
 import type { UrlCanonicalizerRule } from './types'
 
@@ -56,7 +54,7 @@ export function canonicalDedupeKey(url: string): string {
     return url
   }
 
-  for (const rule of [...readLocalUrlCanonicalizers(), ...BUILT_IN_CANONICALIZERS]) {
+  for (const rule of BUILT_IN_CANONICALIZERS) {
     const hostMatch = rule.hostname
       ? parsed.hostname === rule.hostname
       : rule.hostnameEndsWith

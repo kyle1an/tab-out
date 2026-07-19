@@ -320,10 +320,6 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   ]
   const workingSetTabs = openTabs.filter((tab) => tab.url?.startsWith('https://'))
 
-  ;(globalThis as any).window = {
-    LOCAL_CUSTOM_GROUPS: [],
-    LOCAL_PATH_GROUPERS: []
-  }
   ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out',
@@ -498,10 +494,6 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
     }
   }
 
-  ;(globalThis as any).window = {
-    LOCAL_CUSTOM_GROUPS: [],
-    LOCAL_PATH_GROUPERS: []
-  }
   ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out',
@@ -613,10 +605,6 @@ test('startup path reads ordering before saved pages without losing saved rows',
     makeChromeTab(2, 'https://example.test/report', 'Example Report')
   ]
 
-  ;(globalThis as any).window = {
-    LOCAL_CUSTOM_GROUPS: [],
-    LOCAL_PATH_GROUPERS: []
-  }
   ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out',
@@ -709,10 +697,6 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
     makeChromeTab(3, 'chrome://extensions/', 'Extensions')
   ]
 
-  ;(globalThis as any).window = {
-    LOCAL_CUSTOM_GROUPS: [],
-    LOCAL_PATH_GROUPERS: []
-  }
   ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out',

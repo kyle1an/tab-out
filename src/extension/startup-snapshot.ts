@@ -52,7 +52,7 @@ export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1
 export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 // Durable mirror cap. chrome.storage.session is cleared on browser restart, so the durable
 // chrome.storage.local copy lets the first open after a restart paint warm with the last
-// session's config-grouped snapshot; a long-abandoned snapshot past this cap is not shown.
+// session's grouped snapshot; a long-abandoned snapshot past this cap is not shown.
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000
 
 function startupSnapshotCacheStorage(): chrome.storage.StorageArea | null {
@@ -61,18 +61,6 @@ function startupSnapshotCacheStorage(): chrome.storage.StorageArea | null {
 
 function startupSnapshotDurableStorage(): chrome.storage.StorageArea | null {
   return typeof chrome === 'undefined' ? null : chrome.storage?.local || null
-}
-
-// The service worker has no `window`, so it cannot read config.local.js grouping hooks.
-// Keep the legacy key name so existing local installs keep the same persisted guard.
-export const LOCAL_GROUPING_CONFIG_ACTIVE_KEY = 'tab-out:local-path-groupers-active'
-
-export async function persistLocalGroupingConfigActive(active: boolean): Promise<void> {
-  const storage = startupSnapshotDurableStorage()
-  if (!storage) return
-  try {
-    await storage.set({ [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: active })
-  } catch {}
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

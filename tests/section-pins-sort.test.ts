@@ -5,19 +5,15 @@ import { buildDomainGroups, computeDomainCardViewModel } from '../src/extension/
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from '../src/extension/section-pins.js'
 import type { DashboardTab } from '../src/extension/types'
 
-// render.ts (transitively) reads chrome.runtime.getURL + window globals; this
-// shim mirrors the setup in render-pipeline.test.ts so the view-model layer
-// can run under the node test harness.
+// render.ts transitively reads chrome.runtime.getURL; this shim mirrors the
+// setup in render-pipeline.test.ts so the view-model layer can run under the
+// node test harness.
 ;(globalThis as { chrome?: unknown }).chrome = {
   runtime: {
     getURL(path: string) {
       return `chrome-extension://tab-out${path}`
     }
   }
-}
-;(globalThis as { window?: unknown }).window = {
-  LOCAL_PATH_GROUPERS: [],
-  LOCAL_CUSTOM_GROUPS: []
 }
 
 function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number }): DashboardTab {

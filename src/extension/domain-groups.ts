@@ -2,7 +2,7 @@ import { domainGroupCardId } from './domain-card-id.js'
 import { registrableDomain } from './domains.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
-import type { CustomGroupRule, DashboardTab, DomainGroup, DomainGroupBuildOptions } from './types'
+import type { DashboardTab, DomainGroup, DomainGroupBuildOptions } from './types'
 
 /**
  * @param {DashboardTab[]} realTabs
@@ -11,29 +11,13 @@ import type { CustomGroupRule, DashboardTab, DomainGroup, DomainGroupBuildOption
  */
 export function buildDomainGroups(
   realTabs: DashboardTab[],
-  { previousOrder = new Map(), customGroups = [], pinnedDomains = [] }: DomainGroupBuildOptions = {}
+  { previousOrder = new Map(), pinnedDomains = [] }: DomainGroupBuildOptions = {}
 ): DomainGroup[] {
-  // Group tabs by domain. Custom groups and utility cards (apps / new tabs)
-  // still split out, but homepage-like routes stay in their native domain cards.
+  // Group tabs by domain. Utility cards (apps / new tabs) still split out,
+  // but homepage-like routes stay in their native domain cards.
   const groupMap: Record<string, DomainGroup> = {}
   const appTabs: DashboardTab[] = []
   const tabOutTabs: DashboardTab[] = []
-
-  function matchCustomGroup(url: string): CustomGroupRule | null {
-    try {
-      const parsed = new URL(url)
-      return (
-        customGroups.find((r) => {
-          const hostMatch = r.hostname ? parsed.hostname === r.hostname : r.hostnameEndsWith ? parsed.hostname.endsWith(r.hostnameEndsWith) : false
-          if (!hostMatch) return false
-          if (r.pathPrefix) return parsed.pathname.startsWith(r.pathPrefix)
-          return true
-        }) || null
-      )
-    } catch {
-      return null
-    }
-  }
 
   for (const tab of realTabs) {
     try {
@@ -44,14 +28,6 @@ export function buildDomainGroups(
 
       if (tab.isApp) {
         appTabs.push(tab)
-        continue
-      }
-
-      const customRule = matchCustomGroup(tab.url)
-      if (customRule) {
-        const key = customRule.groupKey
-        if (!groupMap[key]) groupMap[key] = { domain: key, label: customRule.groupLabel, tabs: [] }
-        groupMap[key].tabs.push(tab)
         continue
       }
 

@@ -68,7 +68,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(indexHtml, /rel="modulepreload" href="dist\/app\.js"/)
   assert.match(indexHtml, /href="dist\/assets\/app\.css"/)
   assert.match(indexHtml, /src="dist\/filter-focus-boot\.js"/)
-  assert.match(indexHtml, /<script defer src="config\.local\.js"><\/script>/)
+  assert.doesNotMatch(indexHtml, /config\.local\.js/)
   assert.match(indexHtml, /src="dist\/app\.js"/)
   assert.doesNotMatch(indexHtml, /src="app\.js"/)
 
@@ -638,7 +638,6 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.doesNotMatch(domainCardSource, /querySelectorAll/)
   assert.doesNotMatch(`${appSource}\n${appComponentSource}\n${toastSource}`, /vendor\/preact|vendor\/htm/)
   assert.doesNotMatch(sharedTypesSource, /const chrome:\s*any/)
-  assert.doesNotMatch(sharedTypesSource, /LOCAL_PATH_GROUPERS\?:\s*any\[\]/)
 })
 
 test('repo pre-commit hook runs the verification pipeline', () => {
@@ -660,6 +659,7 @@ test('built extension bundle is packaged locally', () => {
   const distFiles = readdirSync('extension/dist').sort()
   const assetFiles = readdirSync('extension/dist/assets').sort()
   const assetJsFiles = assetFiles.filter((name) => name.endsWith('.js'))
+  const indexHtml = readFileSync('extension/index.html', 'utf8')
   assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'filter-focus-boot.js'])
   assert.ok(assetFiles.includes('app.css'))
   assert.equal(assetJsFiles.length, 16)
@@ -679,7 +679,8 @@ test('built extension bundle is packaged locally', () => {
   assert.ok(assetJsFiles.some((name) => /^menu-styles-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^useOpenInteractionType-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^usePositioner-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), ['config.local.js'])
+  assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), [])
+  assert.doesNotMatch(indexHtml, /config\.local\.js/)
 
   const bundle = readFileSync('extension/dist/app.js', 'utf8')
   const backgroundBundle = readFileSync('extension/dist/background.js', 'utf8')

@@ -7,8 +7,7 @@
    Exports:
    • fetchDashboardData — refreshes chrome.tabs state and returns the
                           current { realTabs, domainGroups } snapshot
-   • buildDomainGroups — group tabs into domain cards with injectable
-                         custom rules for focused tests
+   • buildDomainGroups — group tabs into domain cards
    • buildDashboardViewModel — one-pass derivation for header stats,
                                global actions, and prebuilt card VMs
    • computeDomainCardViewModel — per-card VM, takes { filter, mode }
@@ -24,9 +23,8 @@ import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
-import { readLocalCustomGroups } from './local-config.js'
 import { unwrapSuspenderUrl } from './suspension.js'
-import type { CustomGroupRule, DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from './types'
+import type { DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
 export { buildDomainGroups } from './domain-groups.js'
@@ -148,15 +146,6 @@ export function dashboardChipPriorityFromWorkingSet(workingSet: WorkingSetSnapsh
   return priority
 }
 
-/**
- * @returns {{ customGroups: CustomGroupRule[] }}
- */
-function getDashboardGroupingConfig(): { customGroups: CustomGroupRule[] } {
-  return {
-    customGroups: readLocalCustomGroups()
-  }
-}
-
 export async function getCurrentWindowId(): Promise<number | null> {
   const currentWindow = await getCurrentWindow()
   return typeof currentWindow?.id === 'number' ? currentWindow.id : null
@@ -229,7 +218,6 @@ export async function buildDashboardDataFromTabs(
     savedPagesStore
   }: FetchDashboardDataOptions = {}
 ): Promise<Required<DashboardData>> {
-  const groupingConfig = getDashboardGroupingConfig()
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
   const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
   const companionBookmarkTabs = includeBookmarkMatches ? bookmarkTabs : []
@@ -240,9 +228,9 @@ export async function buildDashboardDataFromTabs(
   }
   const realTabs = savedPagesMerge.tabs
   const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)
-  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
-  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
-  const historyDomainGroups = buildDomainGroups(companionHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
+  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains })
+  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains })
+  const historyDomainGroups = buildDomainGroups(companionHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains })
   return {
     realTabs,
     domainGroups,
@@ -285,11 +273,10 @@ export async function fetchDashboardData(
     savedPagesStore
   }: FetchDashboardDataOptions = {}
 ): Promise<Required<DashboardData>> {
-  const groupingConfig = getDashboardGroupingConfig()
   if (source === 'bookmarks') {
     const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
     const realTabs = annotateSavedPageHints(bookmarkTabs, resolvedSavedPagesStore)
-    const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
+    const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains })
     return {
       realTabs,
       domainGroups,

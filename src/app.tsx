@@ -5,10 +5,8 @@ import type { DashboardRefreshOptions } from './extension/dashboard-controller.j
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
-import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
-import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
 import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
@@ -122,12 +120,6 @@ document.addEventListener(
 
 async function initializeApp() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
-  // Tell the service worker whether page-only local grouping config is active.
-  const localGroupingConfigActive = readLocalCustomGroups().length > 0 || readLocalPathGroupers().length > 0
-  void persistLocalGroupingConfigActive(localGroupingConfigActive)
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-grouping-guard-scheduled', {
-    detail: { localGroupingConfigActive }
-  })
   const cacheStartedAt = startupDebugNow()
   const cachedStartup = await loadCachedDashboardStartup()
   seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])

@@ -46,14 +46,6 @@ export interface DomainGroup {
 
 export type DashboardSource = 'tabs' | 'bookmarks' | 'history'
 
-export interface CustomGroupRule {
-  hostname?: string
-  hostnameEndsWith?: string
-  pathPrefix?: string
-  groupKey: string
-  groupLabel: string
-}
-
 export interface PathGroupResult {
   key: string
   label: string
@@ -86,7 +78,6 @@ export interface WebsitePathSectionRule {
 
 export interface DomainGroupBuildOptions {
   previousOrder?: Map<string, number>
-  customGroups?: CustomGroupRule[]
   pinnedDomains?: string[]
 }
 
@@ -387,14 +378,6 @@ export interface TabHistorySnapshot {
   activeWindowId: number | null
   activeWasInserted: boolean
   entries: TabHistoryEntry[]
-}
-
-declare global {
-  interface Window {
-    LOCAL_CUSTOM_GROUPS?: CustomGroupRule[]
-    LOCAL_PATH_GROUPERS?: PathGroupRule[]
-    LOCAL_URL_CANONICALIZERS?: UrlCanonicalizerRule[]
-  }
 }
 
 export {}

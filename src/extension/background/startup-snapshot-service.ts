@@ -4,7 +4,7 @@ import { loadPinnedPageChips, PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pin
 import { getCurrentWindowId } from '../render.js'
 import { loadSavedPagesStore } from '../saved-pages.js'
 import { loadPinnedSections, SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
-import { buildTabsDashboardStartupSnapshot, loadCachedDashboardStartupSnapshot, LOCAL_GROUPING_CONFIG_ACTIVE_KEY, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
+import { buildTabsDashboardStartupSnapshot, loadCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, seedOpenTabsTitleHistory } from '../tabs.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
@@ -15,8 +15,7 @@ const STARTUP_SNAPSHOT_DEBOUNCE_MS = 4000
 const STARTUP_SNAPSHOT_RENDER_STATE_KEYS = [
   DOMAIN_PIN_STORAGE_KEY,
   SECTION_PIN_STORAGE_KEY,
-  PAGE_CHIP_PIN_STORAGE_KEY,
-  LOCAL_GROUPING_CONFIG_ACTIVE_KEY
+  PAGE_CHIP_PIN_STORAGE_KEY
 ]
 
 export function startupSnapshotStorageChangesRequireRefresh(
@@ -42,17 +41,7 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   let inFlight: Promise<void> | null = null
   let cachedOpenTabsSeeded = false
 
-  async function localGroupingConfigActive(): Promise<boolean> {
-    try {
-      const stored = await globalThis.chrome?.storage?.local?.get(LOCAL_GROUPING_CONFIG_ACTIVE_KEY)
-      return stored?.[LOCAL_GROUPING_CONFIG_ACTIVE_KEY] === true
-    } catch {
-      return false
-    }
-  }
-
   async function compute(): Promise<void> {
-    if (await localGroupingConfigActive()) return
     if (!cachedOpenTabsSeeded) {
       const cachedSnapshot = await loadCachedDashboardStartupSnapshot()
       seedOpenTabsTitleHistory(cachedSnapshot?.dashboard.realTabs ?? [])

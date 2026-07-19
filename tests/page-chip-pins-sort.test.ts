@@ -18,10 +18,6 @@ import type { DashboardTab } from '../src/extension/types'
     }
   }
 }
-;(globalThis as { window?: unknown }).window = {
-  LOCAL_PATH_GROUPERS: [],
-  LOCAL_CUSTOM_GROUPS: []
-}
 
 function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number; title: string }): DashboardTab {
   return {
