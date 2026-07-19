@@ -54,7 +54,7 @@
 - First-pass **Filter Matches** preserve existing Dashboard Item order rather than ranking by match quality.
 - Filter highlighting marks each parsed term or quoted phrase that contributes to an app-owned **Filter Match**.
 - **Companion Results** are loaded only while open tabs are the selected **Source**, so they do not replace the selected source view.
-- **Companion Results** use Source priority while filtering: Tabs-source **Filter Matches** come first, then history **Companion Results**, then bookmark **Companion Results**. A lower-priority Companion Result does not repeat a higher-priority **Dashboard Item Identity**.
+- **Companion Results** use Source priority while filtering: Tabs-source **Filter Matches** come first, then history **Companion Results**, then bookmark **Companion Results**. A lower-priority Companion Result does not repeat a higher-priority **Dashboard Item Identity**, but its candidate stays available so it can surface immediately when the higher-priority item disappears.
 - Bookmark **Filter Matches** and history **Companion Results** remain read-only **Dashboard Items** even though they render as Page Chips.
 - A **Saved Page** belongs to the Tabs source, not the Bookmarks source, and saving one does not create a Chrome bookmark.
 - A **Saved Page** is created only by explicit user action; closing an unsaved tab does not create a visible closed-tab item.

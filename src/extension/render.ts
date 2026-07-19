@@ -195,6 +195,23 @@ function removePriorSourceMatches(tabs: DashboardTab[], priorKeys: ReadonlySet<s
   })
 }
 
+export function dedupeCompanionSearchTabs(
+  realTabs: DashboardTab[],
+  historyTabs: DashboardTab[],
+  bookmarkTabs: DashboardTab[],
+  filter: string
+): { historyTabs: DashboardTab[], bookmarkTabs: DashboardTab[] } {
+  const priorCompanionKeys = new Set<string>()
+  addMatchingItemIdentityKeys(priorCompanionKeys, realTabs, filter)
+  const dedupedHistoryTabs = removePriorSourceMatches(historyTabs, priorCompanionKeys)
+  addMatchingItemIdentityKeys(priorCompanionKeys, dedupedHistoryTabs, filter)
+  const dedupedBookmarkTabs = removePriorSourceMatches(bookmarkTabs, priorCompanionKeys)
+  return {
+    historyTabs: dedupedHistoryTabs,
+    bookmarkTabs: dedupedBookmarkTabs
+  }
+}
+
 export async function buildDashboardDataFromTabs(
   dashboardTabs: DashboardTab[],
   currentWindowId: number | null,
@@ -223,22 +240,17 @@ export async function buildDashboardDataFromTabs(
   }
   const realTabs = savedPagesMerge.tabs
   const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)
-  const priorCompanionKeys = new Set<string>()
-  addMatchingItemIdentityKeys(priorCompanionKeys, realTabs, searchQuery)
-  const dedupedHistoryTabs = includeHistoryMatches ? removePriorSourceMatches(companionHistoryTabs, priorCompanionKeys) : companionHistoryTabs
-  addMatchingItemIdentityKeys(priorCompanionKeys, dedupedHistoryTabs, searchQuery)
-  const dedupedBookmarkTabs = includeBookmarkMatches ? removePriorSourceMatches(annotatedBookmarkTabs, priorCompanionKeys) : annotatedBookmarkTabs
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains, ...groupingConfig })
-  const bookmarkDomainGroups = buildDomainGroups(dedupedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
-  const historyDomainGroups = buildDomainGroups(dedupedHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
+  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains, ...groupingConfig })
+  const historyDomainGroups = buildDomainGroups(companionHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains, ...groupingConfig })
   return {
     realTabs,
     domainGroups,
     currentWindowId,
-    bookmarkTabs: dedupedBookmarkTabs,
+    bookmarkTabs: annotatedBookmarkTabs,
     bookmarkDomainGroups,
     bookmarkSearchReady: includeBookmarkMatches,
-    historyTabs: dedupedHistoryTabs,
+    historyTabs: companionHistoryTabs,
     historyDomainGroups,
     historySearchQuery: historyQuery,
     historyRange,

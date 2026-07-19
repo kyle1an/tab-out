@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
 import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
-import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet } from '../extension/render.js'
+import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet, dedupeCompanionSearchTabs } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import type { MissionOrderMap } from './useDashboardRefresh'
@@ -11,6 +11,15 @@ const EMPTY_TABS: DashboardData['realTabs'] = []
 const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []
 const EMPTY_CARD_ENTRIES: DashboardCardEntry[] = []
 const EMPTY_CHIP_ORDER_BY_CARD: DashboardChipOrderByCard = new Map()
+
+function retainDomainGroupTabs(groups: DomainGroup[], tabs: DashboardData['realTabs']): DomainGroup[] {
+  const retainedTabs = new Set(tabs)
+  return groups.flatMap((group) => {
+    const groupTabs = group.tabs.filter((tab) => retainedTabs.has(tab))
+    if (groupTabs.length === 0) return []
+    return groupTabs.length === group.tabs.length ? [group] : [{ ...group, tabs: groupTabs }]
+  })
+}
 
 export type DashboardChipOrderMemoryMap = Record<DashboardSource, DashboardChipOrderByCard>
 
@@ -69,11 +78,30 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     [startupViewModel, realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips]
   )
 
+  const companionSources = useMemo(
+    () => {
+      const displayHistory = canDisplayHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
+      const deduped = dedupeCompanionSearchTabs(
+        realTabs,
+        displayHistory ? historyTabs : EMPTY_TABS,
+        bookmarkTabs,
+        filter
+      )
+      return {
+        bookmarkTabs: deduped.bookmarkTabs,
+        bookmarkDomainGroups: retainDomainGroupTabs(bookmarkDomainGroups, deduped.bookmarkTabs),
+        historyTabs: deduped.historyTabs,
+        historyDomainGroups: retainDomainGroupTabs(historyDomainGroups, deduped.historyTabs)
+      }
+    },
+    [dashboard, source, filter, historyRange, historyFilterEnabled, realTabs, bookmarkTabs, bookmarkDomainGroups, historyTabs, historyDomainGroups]
+  )
+
   const bookmarkSearchVm = useMemo(
     () => canUseBookmarkSearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
       ? buildDashboardViewModel({
-          realTabs: bookmarkTabs,
-          domainGroups: bookmarkDomainGroups,
+          realTabs: companionSources.bookmarkTabs,
+          domainGroups: companionSources.bookmarkDomainGroups,
           filter,
           source: 'bookmarks',
           chipOrder: chipOrder.bookmarks || EMPTY_CHIP_ORDER_BY_CARD,
@@ -81,7 +109,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           pinnedPageChips
         })
       : null,
-    [dashboard, source, filter, historyRange, historyFilterEnabled, bookmarkTabs, bookmarkDomainGroups, chipOrder.bookmarks, pinnedSections, pinnedPageChips]
+    [dashboard, source, filter, historyRange, historyFilterEnabled, companionSources, chipOrder.bookmarks, pinnedSections, pinnedPageChips]
   )
 
   const historySearch = useMemo(
@@ -94,8 +122,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
         displayResults,
         resultsFilter,
         viewModel: displayResults ? buildDashboardViewModel({
-          realTabs: historyTabs,
-          domainGroups: historyDomainGroups,
+          realTabs: companionSources.historyTabs,
+          domainGroups: companionSources.historyDomainGroups,
           filter: resultsFilter,
           source: 'history',
           chipOrder: chipOrder.history || EMPTY_CHIP_ORDER_BY_CARD,
@@ -104,7 +132,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
         }) : null
       }
     },
-    [dashboard, source, filter, historyRange, historyFilterEnabled, historyTabs, historyDomainGroups, chipOrder.history, pinnedSections, pinnedPageChips]
+    [dashboard, source, filter, historyRange, historyFilterEnabled, companionSources, chipOrder.history, pinnedSections, pinnedPageChips]
   )
 
   const matchedCards = dashboardVm.matchedCards

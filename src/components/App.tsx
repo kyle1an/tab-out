@@ -153,14 +153,33 @@ function initialAppDashboardState(snapshot: DashboardStartupSnapshot | null): Ap
   }
 }
 
+function clearDashboardHistorySearch(dashboard: DashboardData | null, historyRange: string): DashboardData | null {
+  if (!dashboard) return null
+  return {
+    ...dashboard,
+    historyTabs: [],
+    historyDomainGroups: [],
+    historySearchQuery: '',
+    historyRange
+  }
+}
+
 function appDashboardReducer(state: AppDashboardState, action: AppDashboardAction): AppDashboardState {
   switch (action.type) {
     case 'closedTabs':
       return state.closedTabs === action.closedTabs ? state : { ...state, closedTabs: action.closedTabs }
     case 'dashboard':
       return state.dashboard === action.dashboard ? state : { ...state, dashboard: action.dashboard }
-    case 'historyRange':
-      return state.historyRange === action.historyRange ? state : { ...state, historyRange: action.historyRange }
+    case 'historyRange': {
+      if (state.historyRange === action.historyRange) return state
+      return {
+        ...state,
+        dashboard: isHistoryFilterEnabled(action.historyRange)
+          ? state.dashboard
+          : clearDashboardHistorySearch(state.dashboard, action.historyRange),
+        historyRange: action.historyRange
+      }
+    }
     case 'source':
       return state.source === action.source ? state : { ...state, source: action.source }
     case 'tabHistory':
@@ -752,7 +771,7 @@ export function App({
     }
     packMissionsMasonryNow({ unpin: true })
     if (previousRects) animateDomainCardMoves(containers, previousRects)
-  }, [visibleDashboard, filter, source, isReady, clearHoverUrlNow, packMissionsMasonryNow])
+  }, [visibleDashboard, filter, source, isReady, historyFilterEnabled, clearHoverUrlNow, packMissionsMasonryNow])
 
   useLayoutEffect(() => {
     animateQueuedPageChipRefreshMoves()

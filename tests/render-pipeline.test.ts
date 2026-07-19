@@ -2317,7 +2317,7 @@ test('filter search request owns bookmark and history inclusion rules', () => {
   )
 })
 
-test('filter search hides stale history results while requiring an exact refresh', () => {
+test('history range changes retain same-query results while requiring an exact refresh', () => {
   const historyTabs = [
     makeTab({
       id: 2,
@@ -2343,7 +2343,7 @@ test('filter search hides stale history results while requiring an exact refresh
   }
 
   assert.equal(canUseHistorySearchResults(dashboard, options), false)
-  assert.equal(canDisplayHistorySearchResults(dashboard, options), false)
+  assert.equal(canDisplayHistorySearchResults(dashboard, options), true)
   assert.equal(dashboardNeedsFilterSearchRefresh(dashboard, options), true)
   const stale = renderHookValue(() => useDashboardViewModels({
     dashboard,
@@ -2356,8 +2356,15 @@ test('filter search hides stale history results while requiring an exact refresh
     }
   }))
   assert.equal(stale.historyResultsFilter, 'openai')
-  assert.deepEqual(stale.historyMatchedCards, [])
-  assert.equal(stale.showHistoryMatches, false)
+  assert.deepEqual(stale.historyMatchedCards.map(({ group }) => group.domain), ['example.test'])
+  assert.equal(stale.showHistoryMatches, true)
+  assert.equal(
+    canDisplayHistorySearchResults(dashboard, {
+      ...options,
+      filter: 'github'
+    }),
+    false
+  )
   assert.equal(
     dashboardNeedsFilterSearchRefresh(dashboard, {
       ...options,
@@ -2372,6 +2379,61 @@ test('filter search hides stale history results while requiring an exact refresh
     }),
     false
   )
+})
+
+test('a history result suppressed by an open tab appears immediately after that tab closes', async () => {
+  const openTab = makeTab({
+    id: 1,
+    title: 'World Reference',
+    url: 'https://priority.test/reference'
+  })
+  const historyTab = makeTab({
+    id: 'history-reference',
+    sourceType: 'history',
+    title: 'World Reference',
+    url: 'https://priority.test/reference'
+  })
+  const dashboard = await buildDashboardDataFromTabs(
+    [openTab],
+    1,
+    new Map(),
+    {
+      includeBookmarkMatches: true,
+      includeHistoryMatches: true,
+      searchQuery: 'world',
+      historyRange: '7d',
+      historyTabs: [historyTab]
+    }
+  )
+  const options = {
+    source: 'tabs' as const,
+    filter: 'world',
+    historyRange: '7d',
+    historyFilterEnabled: true,
+    isReady: true,
+    chipOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  }
+  const open = renderHookValue(() => useDashboardViewModels({
+    dashboard,
+    ...options
+  }))
+  assert.equal(open.matchedCards.length, 1)
+  assert.equal(open.showHistoryMatches, false)
+
+  const afterClose = renderHookValue(() => useDashboardViewModels({
+    dashboard: {
+      ...dashboard,
+      realTabs: [],
+      domainGroups: []
+    },
+    ...options
+  }))
+  assert.deepEqual(afterClose.historyMatchedCards.map(({ group }) => group.domain), ['priority.test'])
+  assert.equal(afterClose.showHistoryMatches, true)
 })
 
 test('filter companion results dedupe by tabs, then history, then bookmarks', async () => {
@@ -2406,14 +2468,31 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
 
   assert.deepEqual(
     dashboard.historyTabs.map((tab) => tab.url),
-    ['https://priority.test/history']
+    ['https://priority.test/open', 'https://priority.test/history']
   )
   assert.deepEqual(
     dashboard.bookmarkTabs.map((tab) => tab.url),
-    ['https://priority.test/bookmark']
+    ['https://priority.test/open', 'https://priority.test/history', 'https://priority.test/bookmark']
+  )
+  const viewModels = renderHookValue(() => useDashboardViewModels({
+    dashboard,
+    source: 'tabs',
+    filter: 'world',
+    historyRange: '7d',
+    historyFilterEnabled: true,
+    isReady: true,
+    chipOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  }))
+  assert.deepEqual(
+    viewModels.historyMatchedCards.flatMap(({ group }) => group.tabs.map((tab) => tab.url)),
+    ['https://priority.test/history']
   )
   assert.deepEqual(
-    dashboard.bookmarkDomainGroups.flatMap((group) => group.tabs.map((tab) => tab.url)),
+    viewModels.bookmarkMatchedCards.flatMap(({ group }) => group.tabs.map((tab) => tab.url)),
     ['https://priority.test/bookmark']
   )
 })

@@ -297,6 +297,205 @@ test('history results do not show a previous query while the next query loads', 
   await expect(historyCards).toContainText('Example 20 History')
 })
 
+test('history results stay visible while a new range loads for the same query', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const state = window as unknown as {
+      __historyRangeSearchStarted: boolean
+    }
+    state.__historyRangeSearchStarted = false
+    window.chrome.history.search = async (query) => {
+      const searchAge = Date.now() - Number(query.startTime ?? Date.now())
+      if (searchAge > 2 * 24 * 60 * 60 * 1000) {
+        state.__historyRangeSearchStarted = true
+        await new Promise((resolve) => setTimeout(resolve, 1_200))
+        return [
+          {
+            id: 'history-scope-week-one',
+            title: 'Scope result week one',
+            url: 'https://history-scope-week-one.test/docs'
+          },
+          {
+            id: 'history-scope-week-two',
+            title: 'Scope result week two',
+            url: 'https://history-scope-week-two.test/docs'
+          }
+        ]
+      }
+      return [{
+        id: 'history-scope-day',
+        title: 'Scope result day',
+        url: 'https://history-scope-day.test/docs'
+      }]
+    }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Scope result')
+  const historyCards = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+  await expect(historyCards).toHaveCount(1)
+  await expect(historyCards).toContainText('Scope result day')
+
+  await page.getByRole('combobox', { name: 'History search range' }).click()
+  await page.getByRole('option', { name: 'Last week' }).click()
+  await expect.poll(() => page.evaluate(() => (
+    (window as unknown as { __historyRangeSearchStarted: boolean }).__historyRangeSearchStarted
+  ))).toBe(true)
+  await expect(historyCards).toHaveCount(1, { timeout: 300 })
+  await expect(historyCards).toContainText('Scope result day')
+  await expect(historyCards).toHaveCount(2)
+  await expect(historyCards.filter({ hasText: 'Scope result week one' })).toHaveCount(1)
+  await expect(historyCards.filter({ hasText: 'Scope result week two' })).toHaveCount(1)
+})
+
+test('history results stay cleared when re-enabled with a new range', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const state = window as unknown as {
+      __historyDaySearchCount: number
+      __historyDaySearchStarted: boolean
+    }
+    state.__historyDaySearchCount = 0
+    state.__historyDaySearchStarted = false
+    window.chrome.history.search = async (query) => {
+      const searchAge = Date.now() - Number(query.startTime ?? Date.now())
+      if (searchAge > 2 * 24 * 60 * 60 * 1000) {
+        return [{
+          id: 'history-scope-week',
+          title: 'Scope result week',
+          url: 'https://history-scope-week.test/docs'
+        }]
+      }
+
+      state.__historyDaySearchCount += 1
+      if (state.__historyDaySearchCount > 1) {
+        state.__historyDaySearchStarted = true
+        await new Promise((resolve) => setTimeout(resolve, 1_200))
+      }
+      return [{
+        id: 'history-scope-day',
+        title: 'Scope result day',
+        url: 'https://history-scope-day.test/docs'
+      }]
+    }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Scope result')
+  const historyCards = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+  const range = page.getByRole('combobox', { name: 'History search range' })
+  await expect(historyCards).toHaveCount(1)
+  await expect(historyCards).toContainText('Scope result day')
+
+  await range.click()
+  await page.getByRole('option', { name: 'Last week' }).click()
+  await expect(historyCards).toHaveCount(1)
+  await expect(historyCards).toContainText('Scope result week')
+
+  await range.click()
+  await page.getByRole('option', { name: 'History off' }).click()
+  await expect(historyCards).toHaveCount(0)
+
+  await range.click()
+  await page.getByRole('option', { name: 'Last day' }).click()
+  await expect.poll(() => page.evaluate(() => (
+    (window as unknown as { __historyDaySearchStarted: boolean }).__historyDaySearchStarted
+  ))).toBe(true)
+  await expect(historyCards).toHaveCount(0, { timeout: 300 })
+  await expect(historyCards).toHaveCount(1)
+  await expect(historyCards).toContainText('Scope result day')
+})
+
+test('history layout collapses while off and restores its prior card width', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await page.evaluate(() => {
+    return (window as unknown as {
+      __tabOutSmokeSetBookmarks: (count: number) => void
+    }).__tabOutSmokeSetBookmarks(1)
+  })
+  await page.evaluate(() => {
+    window.chrome.history.search = async () => [{
+      id: 'history-layout-result',
+      title: 'Bookmark history result',
+      url: 'https://history-layout-result.test/docs'
+    }]
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Bookmark')
+  const historyMissions = page.locator('#historyMatchesMissions')
+  const historyCards = historyMissions.locator('[data-tabout="domain-card"]')
+  await expect(historyCards).toHaveCount(1)
+  await expect(page.locator('#bookmarkMatchesMissions [data-tabout="domain-card"]')).toHaveCount(1)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+
+  const initialGeometry = await historyMissions.evaluate((element) => {
+    const card = element.querySelector<HTMLElement>('[data-tabout="domain-card"]')
+    return {
+      cardWidth: card?.getBoundingClientRect().width ?? 0,
+      containerWidth: element.getBoundingClientRect().width
+    }
+  })
+
+  const range = page.getByRole('combobox', { name: 'History search range' })
+  await range.click()
+  await page.getByRole('option', { name: 'History off' }).click()
+  await expect(historyCards).toHaveCount(0)
+  await page.waitForTimeout(300)
+  const offHeight = await page.evaluate(() => (
+    document.querySelector<HTMLElement>('#historyMatchesMissions')?.getBoundingClientRect().height ?? 0
+  ))
+
+  await range.click()
+  await page.getByRole('option', { name: 'Last day' }).click()
+  await expect(historyCards).toHaveCount(1)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+  const restoredGeometry = await historyMissions.evaluate((element) => {
+    const card = element.querySelector<HTMLElement>('[data-tabout="domain-card"]')
+    return {
+      cardWidth: card?.getBoundingClientRect().width ?? 0,
+      containerWidth: element.getBoundingClientRect().width
+    }
+  })
+
+  expect.soft(
+    offHeight,
+    `History missions should collapse while disabled; measured ${offHeight}px`
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(restoredGeometry.cardWidth - initialGeometry.cardWidth),
+    JSON.stringify({ initialGeometry, restoredGeometry }, null, 2)
+  ).toBeLessThanOrEqual(1)
+})
+
+test('closing an open search match promotes its matching history result', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    window.chrome.history.search = async () => [{
+      id: 'history-example-2',
+      title: 'Example 2 with enough tooltip text',
+      url: 'https://tab-out-smoke-02.com/docs/2'
+    }]
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('https://tab-out-smoke-02.com/docs/2')
+  const openCard = page.locator('#openTabsMissions [data-tabout-domain="tab-out-smoke-02.com"]')
+  const historyCard = page.locator('#historyMatchesMissions [data-tabout-domain="tab-out-smoke-02.com"]')
+  await expect(openCard).toHaveCount(1)
+  await expect(historyCard).toHaveCount(0)
+
+  const openChip = openCard.locator('[data-tabout="page-chip"]')
+  await openChip.hover()
+  await openChip.locator('[data-tabout-part="close-button"]').click({ force: true })
+  await expect(openCard).toHaveCount(0)
+  await expect(historyCard).toHaveCount(1)
+  await expect(historyCard).toContainText('Example 2 with enough tooltip text')
+})
+
 test('a Tab Out filter URL update does not restart the current result-card move', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
