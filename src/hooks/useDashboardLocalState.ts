@@ -66,6 +66,13 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index])
 }
 
+function sameDashboardLocalState(a: DashboardLocalState, b: DashboardLocalState): boolean {
+  return a.loaded === b.loaded &&
+    sameOrder(a.pinnedDomains, b.pinnedDomains) &&
+    sameOrder(a.pinnedSectionIds, b.pinnedSectionIds) &&
+    sameOrder(a.pinnedPageChipIds, b.pinnedPageChipIds)
+}
+
 export function useDashboardLocalState({
   initialState = null,
   onBeforeApplyPinnedDomains,
@@ -76,12 +83,18 @@ export function useDashboardLocalState({
   onPageChipPinSaveError
 }: UseDashboardLocalStateOptions = {}) {
   const [state, setState] = useState<DashboardLocalState>(initialState ?? EMPTY_DASHBOARD_LOCAL_STATE)
+  const stateRef = useRef(state)
+  const localMutationVersionRef = useRef(0)
   const onBeforeApplyPinnedDomainsRef = useRef(onBeforeApplyPinnedDomains)
   const onBeforeApplyPinnedSectionsRef = useRef(onBeforeApplyPinnedSections)
   const onBeforeApplyPinnedPageChipsRef = useRef(onBeforeApplyPinnedPageChips)
   const onDomainPinSaveErrorRef = useRef(onDomainPinSaveError)
   const onSectionPinSaveErrorRef = useRef(onSectionPinSaveError)
   const onPageChipPinSaveErrorRef = useRef(onPageChipPinSaveError)
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
 
   useEffect(() => {
     onBeforeApplyPinnedDomainsRef.current = onBeforeApplyPinnedDomains
@@ -93,17 +106,24 @@ export function useDashboardLocalState({
   }, [onBeforeApplyPinnedDomains, onBeforeApplyPinnedSections, onBeforeApplyPinnedPageChips, onDomainPinSaveError, onSectionPinSaveError, onPageChipPinSaveError])
 
   useEffect(() => {
-    if (state.loaded) return
     let cancelled = false
+    const mutationVersion = localMutationVersionRef.current
+    // A cached state keeps the first paint fast, then this post-paint read makes sure a
+    // just-changed pin cannot leave the mounted page using stale cached ordering.
     loadDashboardLocalState().then((nextState) => {
-      if (cancelled) return
-      onBeforeApplyPinnedDomainsRef.current?.({ animate: false })
+      if (cancelled || mutationVersion !== localMutationVersionRef.current) return
+      const currentState = stateRef.current
+      if (sameDashboardLocalState(currentState, nextState)) return
+      if (!sameOrder(currentState.pinnedDomains, nextState.pinnedDomains)) {
+        onBeforeApplyPinnedDomainsRef.current?.({ animate: false })
+      }
+      stateRef.current = nextState
       setState(nextState)
     })
     return () => {
       cancelled = true
     }
-  }, [state.loaded])
+  }, [])
 
   const pinnedSections = useMemo<ReadonlySet<string>>(
     () => state.pinnedSectionIds.length === 0 ? EMPTY_PINNED_SECTIONS : new Set(state.pinnedSectionIds),
@@ -116,6 +136,7 @@ export function useDashboardLocalState({
 
   async function applyPinnedDomains(nextPinnedDomains: string[]) {
     if (sameOrder(nextPinnedDomains, state.pinnedDomains)) return
+    localMutationVersionRef.current += 1
     onBeforeApplyPinnedDomainsRef.current?.({ animate: true })
     const previous = state.pinnedDomains
     setState((current) => ({ ...current, pinnedDomains: nextPinnedDomains }))
@@ -141,6 +162,7 @@ export function useDashboardLocalState({
   async function togglePinnedSection(id: string) {
     const nextIds = togglePinnedSectionInList(state.pinnedSectionIds, id)
     const previous = state.pinnedSectionIds
+    localMutationVersionRef.current += 1
     onBeforeApplyPinnedSectionsRef.current?.(id)
     setState((current) => ({ ...current, pinnedSectionIds: nextIds }))
     try {
@@ -155,6 +177,7 @@ export function useDashboardLocalState({
   async function togglePinnedPageChip(id: string) {
     const nextIds = togglePinnedPageChipInList(state.pinnedPageChipIds, id)
     const previous = state.pinnedPageChipIds
+    localMutationVersionRef.current += 1
     onBeforeApplyPinnedPageChipsRef.current?.(id)
     setState((current) => ({ ...current, pinnedPageChipIds: nextIds }))
     try {

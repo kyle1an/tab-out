@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 
-import { createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
+import { createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from '../src/extension/background/startup-snapshot-service.js'
+import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
+import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
+import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, LOCAL_GROUPING_CONFIG_ACTIVE_KEY } from '../src/extension/startup-snapshot.js'
 
 function makeChromeTab(id: number, url: string, title: string): chrome.tabs.Tab {
@@ -38,9 +41,36 @@ const emptyTabHistory = {
 }
 const emptyActivity = { version: 1, records: {} }
 
-test('startup snapshot service writes session + durable caches from worker-side inputs', async () => {
+test('startup snapshot refreshes only for local state that changes its rendered shape', () => {
+  const change = { newValue: [] } as chrome.storage.StorageChange
+
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'local'), true)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [SECTION_PIN_STORAGE_KEY]: change }, 'local'), true)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [PAGE_CHIP_PIN_STORAGE_KEY]: change }, 'local'), true)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: change }, 'local'), true)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: change }, 'local'), false)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'session'), false)
+})
+
+test('startup snapshot service writes render-ready session + durable caches from worker-side inputs', async () => {
   const writes: Record<string, any> = {}
-  const localStore: Record<string, unknown> = {}
+  const pinnedSectionId = subdomainPinId('example.com', 'www')
+  const pinnedPageChipId = pageChipPinId(
+    'tabs',
+    pageChipPinScopeId('example.com', '', '', ''),
+    pageChipPinKeyForUrl('https://example.com/docs')
+  )
+  const expectedLocalState = {
+    loaded: true,
+    pinnedDomains: ['example.com'],
+    pinnedSectionIds: [pinnedSectionId],
+    pinnedPageChipIds: [pinnedPageChipId]
+  }
+  const localStore: Record<string, unknown> = {
+    [DOMAIN_PIN_STORAGE_KEY]: expectedLocalState.pinnedDomains,
+    [SECTION_PIN_STORAGE_KEY]: expectedLocalState.pinnedSectionIds,
+    [PAGE_CHIP_PIN_STORAGE_KEY]: expectedLocalState.pinnedPageChipIds
+  }
   const openTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
     makeChromeTab(2, 'https://example.test/report', 'Example Report')
@@ -81,6 +111,12 @@ test('startup snapshot service writes session + durable caches from worker-side 
   assert.ok(writes.local, 'durable cache written')
   assert.deepEqual(writes.session.snapshot.dashboard.domainGroups.map((group: any) => group.domain), ['example.com', 'example.test'])
   assert.deepEqual(writes.local.snapshot.dashboard.realTabs.map((tab: any) => tab.url), openTabs.map((tab) => tab.url))
+  assert.deepEqual(writes.session.localState, expectedLocalState)
+  assert.deepEqual(writes.local.localState, expectedLocalState)
+  assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedSectionIds, [pinnedSectionId])
+  assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedPageChipIds, [pinnedPageChipId])
+  assert.equal(writes.session.snapshot.startupViewModel.viewModel.source, 'tabs')
+  assert.equal(writes.session.snapshot.startupViewModel.viewModel.matchedCards.length, 2)
 })
 
 test('startup snapshot service defers grouping when local grouping config is active', async () => {

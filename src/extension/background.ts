@@ -26,7 +26,7 @@ import {
   createTabHistoryService
 } from './background/tab-history-service.js'
 import { createWorkingSetService } from './background/working-set-service.js'
-import { createStartupSnapshotService } from './background/startup-snapshot-service.js'
+import { createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
 import { WORKING_SET_DISMISS_MESSAGE, WORKING_SET_GET_MESSAGE } from './working-set.js'
 
 const chromeApi = createChromeApi(chrome)
@@ -126,6 +126,12 @@ chromeApi.tabGroups?.onUpdated.addListener((group) => {
 })
 chromeApi.tabGroups?.onRemoved.addListener(scheduleStartupSnapshotRefresh)
 chromeApi.tabGroups?.onMoved.addListener(scheduleStartupSnapshotRefresh)
+
+chrome.storage.onChanged?.addListener((changes, areaName) => {
+  if (startupSnapshotStorageChangesRequireRefresh(changes, areaName)) {
+    void startupSnapshotService.refreshNow()
+  }
+})
 
 chromeApi.commands?.onCommand.addListener((command) => {
   if (command === 'switch-to-last-tab') {
