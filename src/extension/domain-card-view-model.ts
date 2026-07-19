@@ -1,6 +1,7 @@
 import { domainGroupCardId } from './domain-card-id.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isGroupedTab, groupDotColor } from './groups.js'
+import { compareNumericText } from './numeric-sort.js'
 import { aggregateAudioState, mergeAudioStates } from './tab-audio.js'
 import { cleanTitleWithRemovedSuffix, stripTitleNoise } from './titles.js'
 import { subdomainPrefix } from './domains.js'
@@ -1000,7 +1001,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
         const bBeforeA = reaches(bKey, aKey)
         if (aBeforeB && !bBeforeA) return -1
         if (bBeforeA && !aBeforeB) return 1
-        return a.firstTitlePosition - b.firstTitlePosition || a.firstPartIndex - b.firstPartIndex || b.count - a.count || a.firstSeen - b.firstSeen || a.text.localeCompare(b.text, undefined, { numeric: true })
+        return a.firstTitlePosition - b.firstTitlePosition || a.firstPartIndex - b.firstPartIndex || b.count - a.count || a.firstSeen - b.firstSeen || compareNumericText(a.text, b.text)
       })
       .map(({ text, count }) => ({ text, count }))
   }
@@ -1110,7 +1111,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     dashboardChipOrderKeyForTab(b),
     chipPriorityScore(a),
     chipPriorityScore(b),
-    () => tabOpenStateRank(a) - tabOpenStateRank(b) || sortLabel(a).localeCompare(sortLabel(b), undefined, { numeric: true }),
+    () => tabOpenStateRank(a) - tabOpenStateRank(b) || compareNumericText(sortLabel(a), sortLabel(b)),
     dashboardChipOrderAltKeyForTab(a),
     dashboardChipOrderAltKeyForTab(b)
   ))
@@ -1505,7 +1506,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => compareWithPriority(
       chipPriorityScoreForTabs(a[1]),
       chipPriorityScoreForTabs(b[1]),
-      () => a[0].localeCompare(b[0], undefined, { numeric: true })
+      () => compareNumericText(a[0], b[0])
     ))
 
     // Pull requests deserve their own section under a repo: they're
@@ -1655,7 +1656,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
           activeInOtherWindow: isActiveInOtherWindow(t, currentWindowId)
         }
       })
-      .sort((a, b) => a.prefix.localeCompare(b.prefix, undefined, { numeric: true }))
+      .sort((a, b) => compareNumericText(a.prefix, b.prefix))
     const tooltip = [envs.map((e) => e.prefix).join(' · '), label].filter(Boolean).join(' · ')
     return {
       tabUrl: primary.url,
@@ -1695,7 +1696,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       dashboardFoldChipOrderKey(b[0]?.sourceType, b.map((tab) => tab.url)),
       chipPriorityScoreForTabs(a),
       chipPriorityScoreForTabs(b),
-      () => sortLabel(a[0]).localeCompare(sortLabel(b[0]), undefined, { numeric: true })
+      () => compareNumericText(sortLabel(a[0]), sortLabel(b[0]))
     ))
     const sharedPinScopeId = pageChipPinScopeId(group.domain, '__shared__', '', '')
     const foldedChipData = sortPageChipsInScope(sortedFolds.map((tabs) => annotatePageChipPin(
@@ -1767,7 +1768,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     const websitePathBucketList = [...websitePathBuckets.values()].sort((a, b) => compareWithPriority(
       chipPriorityScoreForTabs(a.tabs),
       chipPriorityScoreForTabs(b.tabs),
-      () => a.label.localeCompare(b.label, undefined, { numeric: true })
+      () => compareNumericText(a.label, b.label)
     ))
     const showWebsitePathSections =
       websitePathBucketList.length > 1 ||

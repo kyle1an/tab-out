@@ -111,6 +111,20 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
   assert.equal(snapshot.items.some((item) => item.title === 'Mail app'), false)
 })
 
+test('buildWorkingSetSnapshot keeps numeric URL ordering when scores tie', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const tabs = [
+    makeTab({ id: 10, url: 'https://example.test/item-10', title: 'Item 10' }),
+    makeTab({ id: 2, url: 'https://example.test/item-2', title: 'Item 2' })
+  ]
+  let store = emptyWorkingSetActivity()
+  for (const tab of tabs) store = record(store, tab, 'activation', now - 60_000)
+
+  const snapshot = buildWorkingSetSnapshot({ tabs, activity: store, now, minItems: 1 })
+
+  assert.deepEqual(snapshot.items.map((item) => item.tabId), [2, 10])
+})
+
 test('buildWorkingSetSnapshot carries each tab audible and muted state independently', () => {
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [

@@ -31,6 +31,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       historyTitleSizeReads: 0,
       historyTitleSizeReadsAfterTruncationWrite: 0,
       historyTitleTruncationWrites: 0,
+      numericLocaleCompareCalls: 0,
       pathgroupLabelSizeReads: 0,
       layoutShift: 0
     }
@@ -38,6 +39,16 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       __tabOutFirstPaintMeasurements: typeof counts
     }
     benchmarkWindow.__tabOutFirstPaintMeasurements = counts
+
+    const localeCompare = String.prototype.localeCompare
+    String.prototype.localeCompare = function getInstrumentedLocaleCompare(
+      compareString: string,
+      locales?: Intl.LocalesArgument,
+      options?: Intl.CollatorOptions
+    ) {
+      if (options?.numeric === true) counts.numericLocaleCompareCalls += 1
+      return localeCompare.call(this, compareString, locales, options)
+    }
 
     const getComputedStyle = window.getComputedStyle
     window.getComputedStyle = function getInstrumentedComputedStyle(element, pseudoElt) {
@@ -167,6 +178,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         historyTitleSizeReads: number
         historyTitleSizeReadsAfterTruncationWrite: number
         historyTitleTruncationWrites: number
+        numericLocaleCompareCalls: number
         pathgroupLabelSizeReads: number
         layoutShift: number
       }
@@ -198,6 +210,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.historyTitleTruncationWrites).toBeGreaterThan(0)
   expect(measurements.historyTitleSizeReads / measurements.historyTitleCount).toBeLessThanOrEqual(4)
   expect(measurements.historyTitleSizeReadsAfterTruncationWrite).toBe(0)
+  expect(measurements.numericLocaleCompareCalls).toBe(0)
   expect(measurements.pathgroupLabelCount).toBeGreaterThan(0)
   expect(measurements.pathgroupLabelSizeReads / measurements.pathgroupLabelCount).toBeLessThanOrEqual(2)
   expect(measurements.layoutShift).toBe(0)

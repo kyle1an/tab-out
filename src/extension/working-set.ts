@@ -7,6 +7,7 @@ import type {
   WorkingSetItem,
   WorkingSetSnapshot
 } from './types'
+import { compareNumericText } from './numeric-sort.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import { pickTabFavicon } from './favicons.js'
 
@@ -263,7 +264,7 @@ export function buildWorkingSetSnapshot({
   }
 
   const rankedItems = items
-    .sort((a, b) => b.score - a.score || a.displayUrl.localeCompare(b.displayUrl, undefined, { numeric: true }))
+    .sort((a, b) => b.score - a.score || compareNumericText(a.displayUrl, b.displayUrl))
     .slice(0, expandedLimit)
 
   return {

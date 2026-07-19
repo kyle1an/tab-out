@@ -18,6 +18,7 @@
      until the palette runs out.
    ================================================================ */
 
+import { compareNumericText } from './numeric-sort.js'
 import type { DashboardSectionVM, DashboardTitleSuppression, DashboardWebsitePathSectionVM } from './types'
 import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-types.js'
 
@@ -74,7 +75,7 @@ export function createTitleSuppressionToneScope(
   const useSuppressionTokenTones = parts.length > 1 || parts.some((part) => !!part.spansRenderedChildGroups)
   const toneOrderedParts = [...parts]
     .map((part, displayIndex) => ({ part, displayIndex }))
-    .sort((a, b) => (b.part.count ?? 0) - (a.part.count ?? 0) || a.displayIndex - b.displayIndex || a.part.text.localeCompare(b.part.text, undefined, { numeric: true }))
+    .sort((a, b) => (b.part.count ?? 0) - (a.part.count ?? 0) || a.displayIndex - b.displayIndex || compareNumericText(a.part.text, b.part.text))
   const toneIndexByText = new Map<string, number>(
     toneOrderedParts.map(({ part }, toneOffset) => [titleSuppressionKey(part.text), startToneIndex + toneOffset])
   )
