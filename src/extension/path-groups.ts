@@ -121,12 +121,15 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
   // Contentful: /spaces/<SPACE>/environments/<ENV>/... → group by env.
   // Environment is the axis that actually varies across tabs (env-a,
   // env-b, prod); the space is usually constant for a given user.
+  // Keep every recognized environment as an explicit scope, including
+  // single-tab environments, so the scope does not disappear as tabs
+  // are opened and closed.
   {
     hostname: 'app.contentful.com',
     extract: (u: URL) => {
       const m = u.pathname.match(/^\/spaces\/([^/]+)\/environments\/([^/]+)/)
       if (!m) return null
-      return { key: `${m[1]}/${m[2]}`, label: m[2] }
+      return { key: `${m[1]}/${m[2]}`, label: m[2], alwaysCluster: true }
     }
   },
 

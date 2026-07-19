@@ -754,6 +754,41 @@ test('computeDomainCardViewModel scopes title suppression tokens to the narrowes
   assert.deepEqual(helpSection?.suppressedTitleParts, [])
 })
 
+test('computeDomainCardViewModel keeps a single Contentful tab in its environment path group', () => {
+  const group = {
+    domain: 'contentful.com',
+    tabs: [
+      makeTab({
+        url: 'https://app.contentful.com/spaces/example-space/environments/env-alpha/entries/entry-alpha',
+        title: 'Example Article Alpha — env-alpha — Contentful'
+      }),
+      makeTab({
+        id: 2,
+        url: 'https://app.contentful.com/spaces/example-space/environments/env-beta/entries/entry-beta',
+        title: 'Example Article Beta — env-beta — Contentful'
+      }),
+      makeTab({
+        id: 3,
+        url: 'https://app.contentful.com/spaces/example-space/environments/env-beta/entries/entry-gamma',
+        title: 'Example Article Gamma — env-beta — Contentful'
+      })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+  const appSection = vm.sections.find((section) => section.key === 'app')
+
+  assert.ok(appSection)
+  assert.deepEqual(
+    appSection.clusters.map((cluster) => ({ label: cluster.label, count: cluster.count })),
+    [
+      { label: 'env-alpha', count: 1 },
+      { label: 'env-beta', count: 2 }
+    ]
+  )
+  assert.equal(appSection.hasFlat, false)
+})
+
 test('computeDomainCardViewModel scopes title suppression tokens to a pathgroup before its subdomain', () => {
   const group = {
     domain: 'contentful.com',

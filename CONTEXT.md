@@ -33,6 +33,7 @@
 - **Website Path Sections** do not introduce a new indentation level unless their title-suppression summaries can stay visually aligned with the group that owns them.
 - A **Website Path Section** may contain one or more **Path Groups**, and a **Path Group** may contain one or more **Page Chips**.
 - **Path Group** singleton behavior belongs to the Path Group rule itself; adding a **Website Path Section** does not change whether a single site-specific object stays grouped.
+- Contentful environment **Path Groups** remain visible with a single **Page Chip**, so each environment keeps an explicit scope as tabs open and close.
 - A **Page Chip** shows a URL path suffix only when another chip in the same rendered group has the same visible title; sibling Website Path Sections and Path Groups already provide enough context.
 - Same-title **Page Chips** with different effective URLs inside the same rendered group merge visually into one title row with per-URL distinguishers; the distinguishers remain the focus, close/delete, and page-pin targets, and the merged row's favicon close action closes or deletes every closable variant at once.
 - Clicking anywhere on a same-title **Page Chip** group outside a distinguisher or another self-owned action affordance activates a default distinguisher: active in the current window first, then active in another window, then the first visible variant.
