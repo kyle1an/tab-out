@@ -1115,29 +1115,31 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     dashboardChipOrderAltKeyForTab(b)
   ))
 
-  // Detect cross-subdomain shared paths — the "same page in dev2us +
+  // Detect cross-subdomain shared pages — the "same page in dev2us +
   // dev11us + qaus" pattern that floods multi-env cards with near-
-  // duplicates. A path (pathname + search + hash) present in 2+ named
-  // subdomains gets folded into a single chip that carries an env-pill
-  // stack; those tabs are then excluded from the per-subdomain sections
-  // below so they don't appear twice.
+  // duplicates. A path (pathname + search + hash) with the same visible
+  // title in 2+ named subdomains gets folded into a single chip that
+  // carries an env-pill stack; those tabs are then excluded from the
+  // per-subdomain sections below so they don't appear twice.
   const foldedTabUrls = new Set<string>()
-  const foldGroups: DashboardTab[][] = [] // each entry is an array of tabs sharing the same path
+  const foldGroups: DashboardTab[][] = [] // each entry shares the same path and visible title
   {
-    const pathMap = new Map<string, DashboardTab[]>()
+    const pageMap = new Map<string, DashboardTab[]>()
     for (const tab of uniqueTabs) {
       try {
         const parsed = new URL(tab.url)
         const sub = subdomainPrefix(parsed.hostname, group.domain)
         if (!sub) continue // root-level tabs have no env to compare
         const pathKey = parsed.pathname + parsed.search + parsed.hash
-        if (!pathMap.has(pathKey)) pathMap.set(pathKey, [])
-        pathMap.get(pathKey)?.push(tab)
+        const titleKey = displayTitle(tab).trim().toLowerCase()
+        const pageKey = `${pathKey}\u0000${titleKey}`
+        if (!pageMap.has(pageKey)) pageMap.set(pageKey, [])
+        pageMap.get(pageKey)?.push(tab)
       } catch {
         // unparseable URL — skip
       }
     }
-    for (const tabs of pathMap.values()) {
+    for (const tabs of pageMap.values()) {
       const subs = new Set<string>()
       for (const t of tabs) {
         try {
@@ -1616,9 +1618,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   }
 
   // Folded (cross-env) chip data — one chip representing the same path
-  // present in 2+ subdomains. The env-pill stack replaces the usual
-  // subdomain prefix; clicking a pill focuses that env's tab and the
-  // chip's close button (handled in PageChip) closes every env copy.
+  // and visible title present in 2+ subdomains. The env-pill stack
+  // replaces the usual subdomain prefix; clicking a pill focuses that
+  // env's tab and the chip's close button (handled in PageChip) closes
+  // every env copy.
   function buildFoldedChipData(tabs: DashboardTab[]): DashboardChipData {
     const primary = tabs[0]
     if (!primary) throw new Error('Folded chip requires at least one tab')
@@ -1630,7 +1633,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     // before dev11us (plain lexicographic would give dev11us, dev2us,
     // qaus — technically right but wrong for a human-natural read).
     // Stable across refreshes since `tabs` is derived from the same
-    // pathMap + subdomain prefix every time.
+    // page identity and subdomain prefix every time.
     const envs = tabs
       .map((t) => {
         let sub = ''

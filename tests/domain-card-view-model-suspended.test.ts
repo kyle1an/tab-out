@@ -116,8 +116,8 @@ test('a title-variant group of suspended variants is suspended', () => {
 test('a folded env chip with a live env is not suspended', () => {
   const chip = chipFor(
     [
-      makeTab({ id: 1, url: 'https://dev.example.com/app', suspended: true }),
-      makeTab({ id: 2, url: 'https://qa.example.com/app' })
+      makeTab({ id: 1, url: 'https://dev.example.com/app', title: 'Example App', suspended: true }),
+      makeTab({ id: 2, url: 'https://qa.example.com/app', title: 'Example App' })
     ],
     'https://dev.example.com/app'
   )
@@ -129,8 +129,8 @@ test('a folded env chip with a live env is not suspended', () => {
 test('a folded env chip of suspended envs is suspended', () => {
   const chip = chipFor(
     [
-      makeTab({ id: 1, url: 'https://dev.example.com/app', suspended: true }),
-      makeTab({ id: 2, url: 'https://qa.example.com/app', suspended: true })
+      makeTab({ id: 1, url: 'https://dev.example.com/app', title: 'Example App', suspended: true }),
+      makeTab({ id: 2, url: 'https://qa.example.com/app', title: 'Example App', suspended: true })
     ],
     'https://dev.example.com/app'
   )

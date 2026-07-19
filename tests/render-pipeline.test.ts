@@ -1526,12 +1526,37 @@ test('computeDomainCardViewModel keeps the shared folded section headerless', ()
   )
 })
 
+test('computeDomainCardViewModel keeps same-path tabs in separate subdomain sections when their titles differ', () => {
+  const group = {
+    domain: 'example.test',
+    tabs: [
+      makeTab({ url: 'https://dev1.example.test/deployments', title: 'Deployment History - DEV1' }),
+      makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History - DEV2' }),
+      makeTab({ id: 3, url: 'https://qa.example.test/deployments', title: 'Deployment History - QA' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+
+  assert.equal(vm.sections.some((section) => section.isShared), false)
+  assert.deepEqual(vm.sections.map((section) => section.key), ['dev1', 'dev2', 'qa'])
+  assert.deepEqual(
+    vm.sections.flatMap((section) => section.flatVisibleChips.map((chip) => chip.tabUrl)),
+    [
+      'https://dev1.example.test/deployments',
+      'https://dev2.example.test/deployments',
+      'https://qa.example.test/deployments'
+    ]
+  )
+  assert.ok(vm.sections.every((section) => section.flatVisibleChips.every((chip) => !chip.envs?.length)))
+})
+
 test('computeDomainCardViewModel carries every env suppression token on folded chips', () => {
   const group = {
     domain: 'example.test',
     tabs: [
-      makeTab({ url: 'https://dev1.example.test/deployments', title: 'Deployment History | Example Retail - DEV1' }),
-      makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History | Example Retail - DEV2' })
+      makeTab({ url: 'https://dev1.example.test/deployments', title: 'Deployment History | Example Retail' }),
+      makeTab({ id: 2, url: 'https://dev2.example.test/deployments', title: 'Deployment History | Example Retail' })
     ]
   }
 
@@ -1549,7 +1574,7 @@ test('computeDomainCardViewModel carries every env suppression token on folded c
   assert.deepEqual(foldedChip.suppressedTitleParts, ['| Example Retail'])
   assert.deepEqual(
     foldedChip.displaySegments.filter((seg) => typeof seg === 'string').join(''),
-    'Deployment History - DEV1'
+    'Deployment History'
   )
 })
 

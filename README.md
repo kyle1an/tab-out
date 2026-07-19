@@ -39,7 +39,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Global new-tab shortcut support** — assign "Open a new Tab Out tab" in `chrome://extensions/shortcuts` and set it to Global to create a fresh Tab Out page even when Chrome is not focused
-- **Shared-page fold** — if the same path is open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), it collapses into one chip with a row of clickable env pills; each pill jumps to that specific tab
+- **Shared-page fold** — if the same path and visible title are open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), they collapse into one chip with a row of clickable env pills; same-path tabs with different titles stay separate, and each pill jumps to its specific tab
 - **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill
 - **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally, recovers the real page favicon over the suspender's faded copy, and unsuspends through the owning suspender when activated
 - **Liveness at a glance** — favicon strength shows whether an awake tab backs each chip or history row: live pages stay full color, suspended and closed ones dim; standalone apps wear a ringed favicon with their raw window titles in both the Apps card and history
