@@ -159,6 +159,145 @@ test('filter result cards finish one move while companion results hydrate', asyn
   expect(move.activeDuration).toBeGreaterThanOrEqual(240)
 })
 
+test('history results do not show a previous query while the next query loads', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const state = window as unknown as {
+      __nextHistorySearchStarted: boolean
+    }
+    state.__nextHistorySearchStarted = false
+    window.chrome.history.search = async ({ text }) => {
+      if (text === 'Example 20') {
+        state.__nextHistorySearchStarted = true
+        await new Promise((resolve) => setTimeout(resolve, 1_500))
+        return [{
+          id: 'history-example-20',
+          title: 'Example 20 History',
+          url: 'https://history-example-20.test/docs/20'
+        }]
+      }
+      if (text === 'Example') {
+        return [
+          {
+            id: 'history-example-1',
+            title: 'Example History One',
+            url: 'https://history-example-1.test/docs/1'
+          },
+          {
+            id: 'history-example-2',
+            title: 'Example History Two',
+            url: 'https://history-example-2.test/docs/2'
+          }
+        ]
+      }
+      return []
+    }
+  })
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  const historyCards = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+  await input.fill('Example')
+  await expect(historyCards).toHaveCount(2)
+
+  await input.fill('Example 20')
+  await expect.poll(() => page.evaluate(() => (
+    (window as unknown as { __nextHistorySearchStarted: boolean }).__nextHistorySearchStarted
+  ))).toBe(true)
+  await expect(historyCards).toHaveCount(0, { timeout: 300 })
+  await expect(historyCards).toHaveCount(1)
+  await expect(historyCards).toContainText('Example 20 History')
+})
+
+test('a Tab Out filter URL update does not restart the current result-card move', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+
+  await page.evaluate(() => {
+    const historyItems = (count: number, title: string) => Array.from({ length: count }, (_, index) => ({
+      id: `history-example-${index + 1}`,
+      title: `${title} ${index + 1}`,
+      url: `https://history-example-${index + 1}.test/docs/${index + 1}`
+    }))
+    window.chrome.history.search = async ({ text }) => {
+      if (text === 'Example 20') {
+        await new Promise((resolve) => setTimeout(resolve, 800))
+        return historyItems(2, 'Example 20 History')
+      }
+      return historyItems(8, 'Example History')
+    }
+  })
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Example')
+  await expect(page.locator('#historyMatchesMissions [data-tabout="domain-card"]')).toHaveCount(8)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+
+  await page.evaluate(() => {
+    const targetDomain = 'tab-out-smoke-19.com'
+    const starts: Array<{ container: string; time: number }> = []
+    const originalAdd = DOMTokenList.prototype.add
+    DOMTokenList.prototype.add = function (...tokens: string[]) {
+      const result = Reflect.apply(originalAdd, this, tokens)
+      if (tokens.includes('layout-moving-active')) {
+        const target = Array.from(document.querySelectorAll<HTMLElement>(
+          `[data-tabout="domain-card"][data-tabout-domain="${targetDomain}"]`
+        )).find((candidate) => candidate.classList === this)
+        if (target) {
+          starts.push({
+            container: target.closest('.missions')?.id || '',
+            time: performance.now()
+          })
+        }
+      }
+      return result
+    }
+    ;(window as unknown as {
+      __filterSelfUrlMoveProbe: {
+        restore: () => void
+        starts: typeof starts
+      }
+    }).__filterSelfUrlMoveProbe = {
+      restore: () => {
+        DOMTokenList.prototype.add = originalAdd
+      },
+      starts
+    }
+  })
+
+  await input.fill('Example 20')
+  await page.waitForTimeout(620)
+  await page.evaluate(() => {
+    const tabOutUrl = 'chrome-extension://tab-out-fake-extension/index.html?filter=Example%2020'
+    ;(window.chrome.tabs.onUpdated as unknown as {
+      dispatch: (tabId: number, changeInfo: { url?: string }, tab: unknown) => void
+    }).dispatch(9999, { url: tabOutUrl }, {
+      id: 9999,
+      url: tabOutUrl
+    })
+  })
+
+  await expect(page.locator('#historyMatchesMissions [data-tabout="domain-card"]')).toHaveCount(2)
+  await page.waitForTimeout(1_100)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+
+  const starts = await page.evaluate(() => {
+    const probe = (window as unknown as {
+      __filterSelfUrlMoveProbe: {
+        restore: () => void
+        starts: Array<{ container: string; time: number }>
+      }
+    }).__filterSelfUrlMoveProbe
+    probe.restore()
+    return probe.starts
+  })
+
+  expect(starts, JSON.stringify(starts, null, 2)).toHaveLength(1)
+  expect(starts[0]?.container).toBe('openTabsMissionsUnmatched')
+})
+
 test('Page Chip overflow expansion fades the expander and reveals hidden chips together', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')
   const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')

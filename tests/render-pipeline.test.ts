@@ -2317,7 +2317,7 @@ test('filter search request owns bookmark and history inclusion rules', () => {
   )
 })
 
-test('filter search retains stale history results while requiring an exact refresh', () => {
+test('filter search hides stale history results while requiring an exact refresh', () => {
   const historyTabs = [
     makeTab({
       id: 2,
@@ -2343,7 +2343,7 @@ test('filter search retains stale history results while requiring an exact refre
   }
 
   assert.equal(canUseHistorySearchResults(dashboard, options), false)
-  assert.equal(canDisplayHistorySearchResults(dashboard, options), true)
+  assert.equal(canDisplayHistorySearchResults(dashboard, options), false)
   assert.equal(dashboardNeedsFilterSearchRefresh(dashboard, options), true)
   const stale = renderHookValue(() => useDashboardViewModels({
     dashboard,
@@ -2356,8 +2356,8 @@ test('filter search retains stale history results while requiring an exact refre
     }
   }))
   assert.equal(stale.historyResultsFilter, 'openai')
-  assert.deepEqual(stale.historyMatchedCards.map(({ group }) => group.domain), ['example.test'])
-  assert.equal(stale.showHistoryMatches, true)
+  assert.deepEqual(stale.historyMatchedCards, [])
+  assert.equal(stale.showHistoryMatches, false)
   assert.equal(
     dashboardNeedsFilterSearchRefresh(dashboard, {
       ...options,

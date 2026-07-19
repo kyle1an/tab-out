@@ -10,7 +10,7 @@ import { persistLocalGroupingConfigActive } from './extension/startup-snapshot.j
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-config.js'
-import { isTabOutPageUrl } from './extension/tab-out-url.js'
+import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
@@ -71,7 +71,7 @@ if (chrome.tabs) {
     )
       scheduleDashboardRefresh({
         animateCards:
-          changeInfo.url !== undefined ||
+          (changeInfo.url !== undefined && !isTabOutDashboardUrl(changeInfo.url)) ||
           changeInfo.groupId !== undefined ||
           changeInfo.pinned !== undefined ||
           changeInfo.discarded !== undefined
