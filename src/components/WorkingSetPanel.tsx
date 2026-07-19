@@ -300,6 +300,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   }
   const duplicateLabel = item.dupeCount > 1 ? `${item.dupeCount} open copies` : ''
   const itemLabel = [`Switch to ${item.title}`, duplicateLabel].filter(Boolean).join(', ')
+  const titleClampActive = !!titleClamp && titleClamp.key === item.title && titleClamp.lineHtml.length > 1
 
   return (
     <div
@@ -352,9 +353,14 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
               ref={titleRef}
               className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-live [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:var(--title-fade-mask)]"
             >
-              {titleClamp && titleClamp.key === item.title && titleClamp.lineHtml.length > 1
-                ? clampedTitleLineNodes(titleClamp.lineHtml, `working-set-title-${item.key}`)
-                : bionicTitleTextNodes(item.title, `working-set-title-${item.key}`)}
+              <span
+                key={titleClampActive ? 'clamped' : 'natural'}
+                className="captured-title-content-root contents"
+              >
+                {titleClampActive
+                  ? clampedTitleLineNodes(titleClamp.lineHtml, `working-set-title-${item.key}`)
+                  : bionicTitleTextNodes(item.title, `working-set-title-${item.key}`)}
+              </span>
             </span>
           </span>
         </button>

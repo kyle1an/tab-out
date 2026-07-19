@@ -2490,7 +2490,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     }
 
     if (mode === 'chip' && !chipExpanded && chipTextClamp && chipTextClamp.key === chipTextClampKey && chipTextClamp.lineHtml.length > 1) {
-      return clampedTitleLineNodes(chipTextClamp.lineHtml, 'chip-text', rebuildClampedChipMarker)
+      return clampedTitleLineNodes(
+        chipTextClamp.lineHtml,
+        'chip-text',
+        hasTitleSuppressionMarkers ? rebuildClampedChipMarker : undefined
+      )
     }
 
     return (
@@ -2565,6 +2569,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     </span>
   )
 
+  const chipTextClampAvailable =
+    !isFolded &&
+    !isTitleVariantGroup &&
+    chipTextClamp?.key === chipTextClampKey &&
+    chipTextClamp.lineHtml.length > 1
+  const chipTextContentKey = chipTextClampAvailable ? 'captured' : 'natural'
   const chipTextElement = (
     <span
       className={cn(
@@ -2578,7 +2588,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       ref={chipTextRef}
       onPointerEnter={onChipTextPointerEnter}
     >
-      {isFolded ? foldedChipTextContent : isTitleVariantGroup ? titleVariantChipTextContent : chipTextContentNode('chip')}
+      <span
+        key={chipTextContentKey}
+        className="captured-title-content-root contents"
+      >
+        {isFolded ? foldedChipTextContent : isTitleVariantGroup ? titleVariantChipTextContent : chipTextContentNode('chip')}
+      </span>
     </span>
   )
 

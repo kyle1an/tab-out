@@ -1672,12 +1672,13 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
     /captureVisibleLineHtml\(titleEl, metrics\.visibleLineCount, captureGeometry\)/
   )
   assert.match(tabHistoryPanelSource, /clampedTitleLineNodes\(clampedLineHtml, 'history-entry-title'\)/)
+  assert.match(tabHistoryPanelSource, /key=\{titleContentKey\}[\s\S]*className="captured-title-content-root contents"/)
   const pageChipClampSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(
     pageChipClampSource,
     /getClampedPageChipLineHtml\(textEl, \{\s*lineHeight: getChipTextLineHeight\(textEl\),\s*textRect\s*\}\)/
   )
-  assert.match(pageChipClampSource, /clampedTitleLineNodes\(chipTextClamp\.lineHtml, 'chip-text', rebuildClampedChipMarker\)/)
+  assert.match(pageChipClampSource, /clampedTitleLineNodes\([\s\S]*chipTextClamp\.lineHtml,[\s\S]*'chip-text',[\s\S]*hasTitleSuppressionMarkers \? rebuildClampedChipMarker : undefined/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8/)

@@ -1056,6 +1056,9 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle
     : !expanded && clampedLineHtml && clampedLineHtml.length > 1
       ? clampedTitleLineNodes(clampedLineHtml, 'history-entry-title')
       : highlightedTextNodes(title, highlightTerms, 'history-entry-title', createBionicTitleTextRenderer(title))
+  const titleContentKey = clampedLineHtml && clampedLineHtml.length > 1
+    ? 'captured'
+    : 'natural'
   return (
     <span className="history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]">
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
@@ -1067,7 +1070,12 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle
           )}
           ref={expanded ? undefined : titleRef}
         >
-          {titleContent}
+          <span
+            key={titleContentKey}
+            className="captured-title-content-root contents"
+          >
+            {titleContent}
+          </span>
         </span>
         {badges.length > 0 && (
           <span className="inline-flex flex-none items-center gap-1">

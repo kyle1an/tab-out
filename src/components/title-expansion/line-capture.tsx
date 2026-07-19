@@ -243,14 +243,14 @@ function firstCapturedTextOffsetOnLine(
 }
 
 /**
- * unwrapClampedTitleLines(root) — strip clamped-title-line wrappers from a
- * cloned fragment before serializing it. The wrapper is a resting-state
- * presentation artifact; its block/no-wrap classes must not leak into
- * captured line HTML, where they would stop the expansion's tail line from
- * wrapping and leave the expanded element permanently "truncated".
+ * unwrapClampedTitleLines(root) — strip resting-state presentation wrappers
+ * from a cloned fragment before serializing it. Clamped line blocks must not
+ * leak into captured line HTML, where they would stop the expansion's tail
+ * from wrapping. The keyed content root only exists to make clamp replacement
+ * one subtree operation, so it should not become part of future captures.
  */
 export function unwrapClampedTitleLines(root: ParentNode) {
-  for (const line of Array.from(root.querySelectorAll('.clamped-title-line'))) {
+  for (const line of Array.from(root.querySelectorAll('.clamped-title-line, .captured-title-content-root'))) {
     line.replaceWith(...Array.from(line.childNodes))
   }
 }
@@ -437,6 +437,16 @@ export type ExpansionLineClasses = {
   tailLine: string
 }
 
+const EXPANSION_LINE_NODE_CACHE_LIMIT = 240
+const expansionLineNodeCache = new Map<string, ReactNode>()
+
+function rememberExpansionLineNodes(key: string, nodes: ReactNode) {
+  expansionLineNodeCache.set(key, nodes)
+  if (expansionLineNodeCache.size <= EXPANSION_LINE_NODE_CACHE_LIMIT) return
+  const oldestKey = expansionLineNodeCache.keys().next().value
+  if (oldestKey) expansionLineNodeCache.delete(oldestKey)
+}
+
 /**
  * expansionLineMarkup(lineHtml, classes, viewportConstrained) — serialize
  * captured lines for the expanded overlay and its measure clone: earlier
@@ -457,6 +467,14 @@ export function expansionLineMarkup(lineHtml: readonly string[], classes: Expans
  */
 export function expansionLineNodesFromHtml(html: string, keyPrefix: string, rebuildElement?: CapturedElementRebuilder): ReactNode {
   if (!html || typeof document === 'undefined') return html
+
+  // Inert captured lines are immutable. React may render a new clamp twice
+  // before committing it, so reuse the first safe rebuild instead of parsing
+  // the same detached template again. Live marker rebuilders remain uncached.
+  const cacheKey = rebuildElement ? '' : `${keyPrefix}\0${html}`
+  if (cacheKey && expansionLineNodeCache.has(cacheKey)) {
+    return expansionLineNodeCache.get(cacheKey)
+  }
 
   const template = document.createElement('template')
   template.innerHTML = html
@@ -481,5 +499,7 @@ export function expansionLineNodesFromHtml(html: string, keyPrefix: string, rebu
     return element.textContent || ''
   }
 
-  return Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
+  const nodes = Array.from(template.content.childNodes).map((node, index) => nodeFromDom(node, `${keyPrefix}-${index}`))
+  if (cacheKey) rememberExpansionLineNodes(cacheKey, nodes)
+  return nodes
 }

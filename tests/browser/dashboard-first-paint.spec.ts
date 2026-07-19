@@ -22,6 +22,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       chipTextRects: 0,
       chipTextSizeReads: 0,
       chipTextSizeReadsAfterTruncationWrite: 0,
+      chipTextChildRemovals: 0,
       chipTextTruncationWrites: 0,
       domainCardRects: 0,
       historyTitleFadeRangeRects: 0,
@@ -30,9 +31,11 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       historyTitleRects: 0,
       historyTitleSizeReads: 0,
       historyTitleSizeReadsAfterTruncationWrite: 0,
+      historyTitleChildRemovals: 0,
       historyTitleTruncationWrites: 0,
       numericLocaleCompareCalls: 0,
       pathgroupLabelSizeReads: 0,
+      titleTemplateCreates: 0,
       layoutShift: 0
     }
     const benchmarkWindow = window as typeof window & {
@@ -49,6 +52,15 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       if (options?.numeric === true) counts.numericLocaleCompareCalls += 1
       return localeCompare.call(this, compareString, locales, options)
     }
+
+    const createElement = Document.prototype.createElement
+    Document.prototype.createElement = function createInstrumentedElement(
+      qualifiedName: string,
+      options?: ElementCreationOptions
+    ) {
+      if (qualifiedName.toLowerCase() === 'template') counts.titleTemplateCreates += 1
+      return createElement.call(this, qualifiedName, options)
+    } as typeof Document.prototype.createElement
 
     const getComputedStyle = window.getComputedStyle
     window.getComputedStyle = function getInstrumentedComputedStyle(element, pseudoElt) {
@@ -85,6 +97,15 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         counts.chipTextTruncationWrites += 1
       }
       return result
+    }
+
+    const removeChild = Node.prototype.removeChild
+    Node.prototype.removeChild = function removeInstrumentedChild<T extends Node>(child: T) {
+      if (this instanceof HTMLElement) {
+        if (this.classList.contains('chip-text')) counts.chipTextChildRemovals += 1
+        if (this.classList.contains('history-entry-title')) counts.historyTitleChildRemovals += 1
+      }
+      return removeChild.call(this, child) as T
     }
 
     for (const property of ['clientHeight', 'clientWidth', 'scrollHeight', 'scrollWidth'] as const) {
@@ -169,6 +190,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         chipTextRects: number
         chipTextSizeReads: number
         chipTextSizeReadsAfterTruncationWrite: number
+        chipTextChildRemovals: number
         chipTextTruncationWrites: number
         domainCardRects: number
         historyTitleFadeRangeRects: number
@@ -177,9 +199,11 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         historyTitleRects: number
         historyTitleSizeReads: number
         historyTitleSizeReadsAfterTruncationWrite: number
+        historyTitleChildRemovals: number
         historyTitleTruncationWrites: number
         numericLocaleCompareCalls: number
         pathgroupLabelSizeReads: number
+        titleTemplateCreates: number
         layoutShift: number
       }
     }
@@ -199,6 +223,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.chipTextComputedStyles / measurements.chipCount).toBeLessThanOrEqual(1)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
   expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(1)
+  expect(measurements.chipTextChildRemovals / measurements.chipCount).toBeLessThanOrEqual(1)
   expect(measurements.chipTextTruncationWrites).toBeGreaterThan(0)
   expect(measurements.chipTextSizeReads / measurements.chipCount).toBeLessThanOrEqual(4)
   expect(measurements.chipTextSizeReadsAfterTruncationWrite).toBe(0)
@@ -207,10 +232,12 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRangeRectsAfterTruncationWrite).toBe(0)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(1)
+  expect(measurements.historyTitleChildRemovals / measurements.historyTitleCount).toBeLessThanOrEqual(1)
   expect(measurements.historyTitleTruncationWrites).toBeGreaterThan(0)
   expect(measurements.historyTitleSizeReads / measurements.historyTitleCount).toBeLessThanOrEqual(4)
   expect(measurements.historyTitleSizeReadsAfterTruncationWrite).toBe(0)
   expect(measurements.numericLocaleCompareCalls).toBe(0)
+  expect(measurements.titleTemplateCreates / measurements.chipCount).toBeLessThanOrEqual(1.5)
   expect(measurements.pathgroupLabelCount).toBeGreaterThan(0)
   expect(measurements.pathgroupLabelSizeReads / measurements.pathgroupLabelCount).toBeLessThanOrEqual(2)
   expect(measurements.layoutShift).toBe(0)
