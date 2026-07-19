@@ -21,6 +21,7 @@ import { useHoverMatch } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
 import { Missions } from './Missions'
+import { validatePageChipTextLayoutsAfterMasonry } from './page-chip-layout-validation'
 import { TabHistoryPanel } from './TabHistoryPanel'
 import { TooltipProvider } from './ui/tooltip'
 import { UrlPreview } from './UrlPreview'
@@ -649,6 +650,7 @@ export function App({
   const isReady = !!visibleDashboard
   const historyFilterEnabled = isHistoryFilterEnabled(historyRange)
   const { packMissionsMasonryNow, scheduleMissionsMasonry } = useMissionsMasonry(primaryMissionsRef, bookmarkMissionsRef, historyMissionsRef, unmatchedMissionsRef, {
+    onAfterLayout: validatePageChipTextLayoutsAfterMasonry,
     onBeforePack: prepareDomainCardMoveAnimation,
     onAfterPack: animateDomainCardMoves
   })

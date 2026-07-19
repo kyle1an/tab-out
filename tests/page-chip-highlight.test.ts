@@ -1183,7 +1183,7 @@ test('PageChip keeps icon-only tooltip popups click-through while text chips exp
   assert.match(pageChipSource, /async function onPageChipTooltipClick\(e: MouseEvent<HTMLDivElement>\) \{[\s\S]*await onFocus\(e\)/)
   assert.match(pageChipSource, /onClick=\{onPageChipTooltipClick\}/)
   assert.match(pageChipSource, /chip\.iconOnly && chipTooltipContent \? \(/)
-  assert.match(pageChipSource, /shouldExpandChip \? chipTextExpansionTriggerElement : chipTextElement/)
+  assert.match(pageChipSource, /isFolded \|\| isTitleVariantGroup \? chipTextElement : chipTextExpansionTriggerElement/)
   assert.doesNotMatch(pageChipSource, /onTitleVariantTooltipClick/)
   assert.doesNotMatch(pageChipSource, /anchor=\{getChipTooltipAnchor\}/)
   assert.match(pageChipSource, /page-chip-tooltip max-w-\[calc\(100vw-16px\)\] text-\[13px\] leading-tight wrap-break-word cursor-default select-none/)

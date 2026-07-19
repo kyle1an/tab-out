@@ -99,6 +99,15 @@ type HistoryTitleMetrics = {
   width: number
 }
 type HistoryTitleExpandedLayoutMetrics = Omit<HistoryTitleMetrics, 'isTruncated'>
+const DEFAULT_HISTORY_TITLE_METRICS: HistoryTitleMetrics = {
+  contentWidth: 0,
+  expandedLineHtml: [],
+  expandedTextWidth: 0,
+  expandedViewportConstrained: false,
+  isTruncated: false,
+  visibleLineCount: 1,
+  width: 0
+}
 
 type HistoryEntryExpansionGeometry = {
   lineHtml: string[]
@@ -502,6 +511,24 @@ type HistoryTitleClamp = {
   lineHtml: string[]
   width: number
 }
+type HistoryTitleLayoutState = {
+  clamp: HistoryTitleClamp | null
+  metrics: HistoryTitleMetrics
+}
+const DEFAULT_HISTORY_TITLE_LAYOUT_STATE: HistoryTitleLayoutState = {
+  clamp: null,
+  metrics: DEFAULT_HISTORY_TITLE_METRICS
+}
+
+function historyTitleClampEqual(left: HistoryTitleClamp | null, right: HistoryTitleClamp | null) {
+  if (left === right) return true
+  if (!left || !right) return false
+  return (
+    left.key === right.key &&
+    Math.abs(left.width - right.width) < 0.1 &&
+    expansionLineHtmlEquals(left.lineHtml, right.lineHtml)
+  )
+}
 
 type HistoryEntryExpansion = {
   entryExpansionId: string
@@ -527,16 +554,27 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   const entryRef = useRef<HTMLDivElement | null>(null)
   const titleRef = useRef<HTMLSpanElement | null>(null)
   const titleExpandedRef = useRef(false)
-  const [titleClamp, setTitleClamp] = useState<HistoryTitleClamp | null>(null)
-  const [titleMetrics, setTitleMetrics] = useState<HistoryTitleMetrics>({
-    contentWidth: 0,
-    expandedLineHtml: [],
-    expandedTextWidth: 0,
-    expandedViewportConstrained: false,
-    isTruncated: false,
-    visibleLineCount: 1,
-    width: 0
-  })
+  const titleMeasurementRef = useRef<{
+    element: HTMLElement
+    key: string
+    metrics: HistoryTitleMetrics
+  } | null>(null)
+  const [titleLayout, setTitleLayout] = useState(DEFAULT_HISTORY_TITLE_LAYOUT_STATE)
+  const titleMetrics = titleLayout.metrics
+  const storedTitleClamp = titleLayout.clamp
+  const titleClamp =
+    storedTitleClamp?.key === titleClampKey &&
+    Math.abs(storedTitleClamp.width - titleMetrics.width) < HISTORY_TITLE_CLAMP_WIDTH_TOLERANCE_PX
+      ? storedTitleClamp
+      : null
+  function setTitleMetrics(update: SetStateAction<HistoryTitleMetrics>) {
+    setTitleLayout((current) => {
+      const nextMetrics = typeof update === 'function' ? update(current.metrics) : update
+      return sameHistoryTitleMetrics(current.metrics, nextMetrics)
+        ? current
+        : { ...current, metrics: nextMetrics }
+    })
+  }
   const [titleExpanded, setTitleExpandedState] = useState(false)
   const [entrySlotSize, setEntrySlotSize] = useState(DEFAULT_HISTORY_ENTRY_SLOT_SIZE)
   const [entryExpansionGeometry, setEntryExpansionGeometry] = useState(DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY)
@@ -564,17 +602,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     setEntrySlotSize((current) => historyEntrySlotSizeEqual(current, nextSize) ? current : nextSize)
     setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
-  useLayoutEffect(() => {
-    const titleEl = titleRef.current
-    if (!titleEl) return
-
-    const frameId = requestAnimationFrame(() => {
-      if (titleExpandedRef.current) return
-      updateTitleTruncation(titleEl, setTitleMetrics)
-    })
-    return () => cancelAnimationFrame(frameId)
-  })
-
   // Truncated titles swap to captured-line rows (clampedTitleLineNodes) so the
   // tail runs to the box edge under the fade. The capture is only valid for the
   // content and width it was measured at: on mismatch, drop it first — that
@@ -586,20 +613,38 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     const titleEl = titleRef.current
     if (!titleEl || titleExpandedRef.current) return
 
-    const width = getHistoryTitleWidth(titleEl)
-    if (titleClamp && (titleClamp.key !== titleClampKey || Math.abs(titleClamp.width - width) >= HISTORY_TITLE_CLAMP_WIDTH_TOLERANCE_PX)) {
-      setTitleClamp(null)
+    if (titleClamp) return
+
+    const previousMeasurement = titleMeasurementRef.current
+    if (
+      previousMeasurement?.element === titleEl &&
+      previousMeasurement.key === titleClampKey &&
+      sameHistoryTitleMetrics(previousMeasurement.metrics, titleMetrics)
+    ) {
       return
     }
-    if (titleClamp || width <= 0) return
 
     const metrics = syncHistoryTitleFade(titleEl)
-    if (!metrics.isTruncated || metrics.visibleLineCount <= 1) return
-    const lineHtml = captureVisibleLineHtml(titleEl, metrics.visibleLineCount)
-    if (lineHtml.length <= 1) return
-    setTitleClamp({ key: titleClampKey, lineHtml, width })
-    // titleMetrics carries the observer-reported width, so width changes re-run
-    // this effect even though the effect reads the live rect itself.
+    titleMeasurementRef.current = {
+      element: titleEl,
+      key: titleClampKey,
+      metrics
+    }
+    let nextClamp: HistoryTitleClamp | null = null
+    if (metrics.isTruncated && metrics.visibleLineCount > 1) {
+      const lineHtml = captureVisibleLineHtml(titleEl, metrics.visibleLineCount)
+      if (lineHtml.length > 1) {
+        nextClamp = { key: titleClampKey, lineHtml, width: metrics.width }
+      }
+    }
+    setTitleLayout((current) => (
+      sameHistoryTitleMetrics(current.metrics, metrics) &&
+      historyTitleClampEqual(current.clamp, nextClamp)
+        ? current
+        : { clamp: nextClamp, metrics }
+    ))
+    // Resize-observer metrics carry width changes back through titleMetrics,
+    // which invalidates the captured rows without re-reading unchanged titles.
   }, [titleClamp, titleClampKey, titleMetrics])
 
   useEffect(() => {
@@ -619,11 +664,12 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     const onFontsDone = () => {
       if (disposed) return
       if (titleExpandedRef.current) return
-      setTitleClamp(null)
+      titleMeasurementRef.current = null
+      setTitleLayout((current) => current.clamp ? { ...current, clamp: null } : current)
       updateTitleTruncation(titleEl, setTitleMetrics)
     }
     fontSet.addEventListener('loadingdone', onFontsDone)
-    fontSet.ready.then(onFontsDone)
+    if (fontSet.status !== 'loaded') void fontSet.ready.then(onFontsDone)
 
     return () => {
       disposed = true

@@ -403,7 +403,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8/)
-  assert.match(tabHistoryPanelSource, /useState<HistoryTitleMetrics>/)
+  assert.match(tabHistoryPanelSource, /useState\(DEFAULT_HISTORY_TITLE_LAYOUT_STATE\)/)
   assert.match(tabHistoryPanelSource, /titleEl\.scrollHeight - titleEl\.clientHeight > 1/)
   assert.match(tabHistoryPanelSource, /getHistoryTitleContentWidth/)
   assert.match(tabHistoryPanelSource, /getHistoryTitleExpandedLineHtml/)

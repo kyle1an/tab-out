@@ -35,6 +35,7 @@ type MasonryOptions = {
   gap?: number
 }
 type MasonryHookOptions = {
+  onAfterLayout?: ((containers: Array<HTMLElement | null>) => void) | null
   onBeforePack?: ((containers: Array<HTMLElement | null>) => unknown) | null
   onAfterPack?: ((containers: Array<HTMLElement | null>, animationState: unknown) => void) | null
 }
@@ -44,7 +45,7 @@ type ContainerRefsRef = {
 }
 
 function isMasonryHookOptions(value: unknown): value is MasonryHookOptions {
-  return !!value && typeof value === 'object' && ('onBeforePack' in value || 'onAfterPack' in value)
+  return !!value && typeof value === 'object' && ('onAfterLayout' in value || 'onBeforePack' in value || 'onAfterPack' in value)
 }
 
 function readCssPx(style: CSSStyleDeclaration, name: string, fallback: number): number {
@@ -164,19 +165,19 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
 export function useMissionsMasonry(...args: unknown[]) {
   const options = isMasonryHookOptions(args[args.length - 1]) ? args.pop() as MasonryHookOptions : {}
   const containerRefs = args as Array<RefObject<HTMLElement | null>>
-  const { onBeforePack = null, onAfterPack = null } = options
+  const { onAfterLayout = null, onBeforePack = null, onAfterPack = null } = options
   const lastColCountsRef = useRef(new WeakMap<HTMLElement, number>())
   const rafIdRef = useRef(0)
   const observerRef = useRef<ResizeObserver | null>(null)
   const mutationObserverRef = useRef<MutationObserver | null>(null)
   const containerRefsRef = useRef(containerRefs)
-  const optionsRef = useRef({ onBeforePack, onAfterPack })
+  const optionsRef = useRef({ onAfterLayout, onBeforePack, onAfterPack })
   containerRefsRef.current = containerRefs
-  optionsRef.current = { onBeforePack, onAfterPack }
+  optionsRef.current = { onAfterLayout, onBeforePack, onAfterPack }
 
   const packMissionsMasonryNow = useCallback(function packMissionsMasonryNow({ unpin = false, animate = false }: { unpin?: boolean; animate?: boolean } = {}) {
     const containers = currentContainersFromRefs(containerRefsRef)
-    const { onBeforePack, onAfterPack } = optionsRef.current
+    const { onAfterLayout, onBeforePack, onAfterPack } = optionsRef.current
     const animationState = animate && onBeforePack ? onBeforePack(containers) : null
     packMissionsMasonry(
       containers,
@@ -185,6 +186,7 @@ export function useMissionsMasonry(...args: unknown[]) {
         lastColCounts: lastColCountsRef.current
       }
     )
+    onAfterLayout?.(containers)
     if (animate && onAfterPack) onAfterPack(containers, animationState)
   }, [])
 
