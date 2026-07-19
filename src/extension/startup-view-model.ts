@@ -1,4 +1,5 @@
 import { createPinnedPageChipIndex } from './page-chip-pins.js'
+import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet } from './render.js'
 import type { DashboardLocalState } from '../hooks/useDashboardLocalState'
 import type { DashboardStartupSnapshot, DashboardStartupViewModel } from './startup-snapshot.js'
@@ -26,22 +27,14 @@ export function buildDashboardStartupViewModel(snapshot: DashboardStartupSnapsho
 function dashboardTabFromCurrentTabOutPage(tab: chrome.tabs.Tab): DashboardTab | null {
   const rawUrl = tab.url || ''
   if (!rawUrl) return null
+  const normalized = normalizeChromeTabToDashboardItem(
+    { ...tab, title: tab.title || 'Tab Out' },
+    { runtimeId: globalThis.chrome?.runtime?.id ?? null }
+  )
   return {
-    id: tab.id,
-    url: rawUrl,
-    rawUrl,
-    suspended: false,
-    title: tab.title || 'Tab Out',
-    favIconUrl: tab.favIconUrl || '',
-    windowId: tab.windowId,
-    active: !!tab.active,
-    pinned: !!tab.pinned,
-    groupId: typeof tab.groupId === 'number' ? tab.groupId : -1,
+    ...normalized,
     isTabOut: true,
-    isApp: false,
-    audible: !!tab.audible,
-    muted: !!tab.mutedInfo?.muted,
-    index: tab.index
+    isApp: false
   }
 }
 

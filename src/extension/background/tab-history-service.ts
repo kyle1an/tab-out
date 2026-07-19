@@ -17,7 +17,7 @@ import {
 import { normalizeWorkingSetActivity, pageIdentityForWorkingSet } from '../working-set.js'
 import { WORKING_SET_ACTIVITY_KEY } from './working-set-service.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
-import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
+import { readChromeStorageValue, writeChromeStorageValueBestEffort } from './chrome-storage.js'
 import { focusExistingTabTarget } from '../tab-focus.js'
 import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
@@ -84,19 +84,17 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     let storedHistory: GlobalTabHistoryInput = null
     let migratedFromSession = false
     try {
-      storedHistory = await runChromeEffect(readChromeStorageValue(storage, TAB_HISTORY_KEY)) as GlobalTabHistoryInput
+      storedHistory = await readChromeStorageValue(storage, TAB_HISTORY_KEY) as GlobalTabHistoryInput
 
       if (storedHistory == null && storage === chromeApi.storage?.local && chromeApi.storage?.session) {
-        storedHistory = await runChromeEffect(readChromeStorageValue(chromeApi.storage.session, TAB_HISTORY_KEY)) as GlobalTabHistoryInput
+        storedHistory = await readChromeStorageValue(chromeApi.storage.session, TAB_HISTORY_KEY) as GlobalTabHistoryInput
         migratedFromSession = storedHistory != null
       }
 
       const canonical = canonicalizeGlobalHistory(storedHistory)
       tabHistoryCache = canonical.history
       if (canonical.changed || migratedFromSession) {
-        try {
-          await runChromeEffectBestEffort(writeChromeStorageValue(storage, TAB_HISTORY_KEY, tabHistoryCache))
-        } catch {}
+        await writeChromeStorageValueBestEffort(storage, TAB_HISTORY_KEY, tabHistoryCache)
       }
     } catch {
       tabHistoryCache = { stack: [], index: -1, pending: [] }
@@ -109,18 +107,14 @@ export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(c
     tabHistoryCache = cleanHistory
     const storage = tabHistoryStorageArea()
     if (!storage) return
-    try {
-      await runChromeEffectBestEffort(writeChromeStorageValue(storage, TAB_HISTORY_KEY, cleanHistory))
-    } catch {
-      // Best-effort only - the command can still work while the worker lives.
-    }
+    await writeChromeStorageValueBestEffort(storage, TAB_HISTORY_KEY, cleanHistory)
   }
 
   async function readActivityTimestamps(): Promise<Map<string, number>> {
     const storage = tabHistoryStorageArea()
     if (!storage) return new Map()
     try {
-      const stored = await runChromeEffect(readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY))
+      const stored = await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
       const activity = normalizeWorkingSetActivity(stored as Parameters<typeof normalizeWorkingSetActivity>[0])
       const map = new Map<string, number>()
       for (const [key, record] of Object.entries(activity.records)) {

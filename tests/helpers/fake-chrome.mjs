@@ -11,7 +11,8 @@
    State semantics: `tabs` (and `windows`) are LIVE references — the
    fake mutates them in place (splice/merge) so fixture closures that
    also push into the same arrays observe every change. Every on*
-   event exposes { addListener, removeListener, dispatch }.
+   event exposes { addListener, removeListener, dispatch }. Pass a
+   caller-owned `tabCommandLog` to inspect reload/duplicate targets.
 
    Types: see fake-chrome.d.mts (repo has allowJs: false).
    ================================================================ */
@@ -48,7 +49,8 @@ export function createFakeChromeApi({
   historySearch = () => [],
   sendMessage = null,
   getURL = (path) => path,
-  runtimeId = 'tab-out-fake-extension'
+  runtimeId = 'tab-out-fake-extension',
+  tabCommandLog = { duplicate: [], reload: [] }
 } = {}) {
   let nextId = tabs.reduce((max, tab) => Math.max(max, tab.id ?? 0), 1000) + 1
   const nextWindowId = () => windows.reduce((max, w) => Math.max(max, w.id ?? 0), 1) + 1
@@ -102,6 +104,22 @@ export function createFakeChromeApi({
         }
         tabs.push(tab)
         return tab
+      },
+      reload: async (tabId) => {
+        if (!findTab(tabId)) throw new Error(`No tab with id: ${tabId}.`)
+        tabCommandLog.reload.push(tabId)
+      },
+      duplicate: async (tabId) => {
+        const source = findTab(tabId)
+        if (!source) throw new Error(`No tab with id: ${tabId}.`)
+        tabCommandLog.duplicate.push(tabId)
+        const duplicate = {
+          ...source,
+          id: nextId++,
+          index: source.index + 1
+        }
+        tabs.push(duplicate)
+        return duplicate
       },
       move: async (tabId, moveProperties) => {
         const tab = findTab(tabId)

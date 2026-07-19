@@ -45,5 +45,5 @@ Gateway operations (browser vocabulary): `queryAllTabs`, `getTab`, `getCurrentTa
 - `pnpm verify` green after every commit; `pnpm build` + stage `extension/dist` with each.
 - Wave 1: gateway suite passes twice — once via `setChromeTabsApi(createFakeChromeApi(...))`, once via `globalThis.chrome` patching (proving both adapter paths).
 - Fixture boot: `pnpm serve`, open `tests/fixtures/dashboard-resize.html`, dashboard renders with the factory-built fake (cards visible, no console errors).
-- After wave 2: `RUN_BROWSER_SMOKE=1 pnpm test:browser` once (the fixture's fake now mutates state on remove/update — real behavior, previously no-ops).
+- After wave 2: `pnpm test:browser` once (the fixture's fake now mutates state on remove/update — real behavior, previously no-ops).
 - **Done when**: no module outside `browser-tabs-gateway.ts` calls `chrome.tabs/windows/tabGroups/sessions` except `app.tsx` events + excluded modules; matcher suite covers the decision table; all waves committed.

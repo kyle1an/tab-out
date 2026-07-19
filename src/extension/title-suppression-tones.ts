@@ -19,20 +19,15 @@
    ================================================================ */
 
 import type { DashboardSectionVM, DashboardTitleSuppression, DashboardWebsitePathSectionVM } from './types'
+import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-types.js'
 
-const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const
-export type TitleSuppressionTone = typeof TITLE_SUPPRESSION_TONE_NAMES[number]
+export type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-types.js'
+
+const TITLE_SUPPRESSION_TONE_NAMES = ['amber', 'teal', 'sky', 'rose'] as const satisfies readonly TitleSuppressionTone[]
 
 // Tone lookups are plain records, not Maps: tone scopes ride the view-model
 // into the startup-snapshot cache, and chrome.storage silently serializes a
 // Map to {} — a revived Map crashes the first `.get` after a page refresh.
-export interface TitleSuppressionToneScope {
-  useSuppressionTokenTones: boolean
-  suppressedTitleToneIndexByText: Readonly<Record<string, number>>
-  suppressedTitleToneByText: Readonly<Record<string, TitleSuppressionTone | ''>>
-  usedToneCount: number
-}
-
 const EMPTY_TITLE_SUPPRESSION_TONE_SCOPE: TitleSuppressionToneScope = {
   useSuppressionTokenTones: false,
   suppressedTitleToneIndexByText: {},

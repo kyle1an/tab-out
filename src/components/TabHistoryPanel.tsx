@@ -11,19 +11,17 @@ import { focusWorkingSetItem } from '../extension/working-set-client.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
-import { moveTabToCurrentWindow, moveTabToNewWindow } from '../extension/tab-move.js'
+import { chipActivationMode, performDashboardItemActivation, shouldSuppressSelectionForGesture } from '../extension/tab-activation.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { historyEntrySaveTarget, historyEntrySaved, isHistoryEntrySaveEligible } from '../extension/history-saved-page.js'
 import { PageChipContextMenu } from './PageChipContextMenu'
 import type { PageChipContextMenuTriggerElement } from './PageChipContextMenu'
-import { openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { FAVICON_DIM_CLASS_NAME } from './liveness-dim'
 import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
 import { createBionicTitleTextRenderer } from './bionic-title-text'
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
-import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
 import { captureVisibleLineHtml, clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import { cn } from '@/lib/utils'
 import type { CSSVariableProperties } from '@/lib/css-properties'
@@ -824,15 +822,11 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
       await onFocusEntry()
       return
     }
-    if (mode === 'open-window') {
-      const moved = hasLiveTab ? await moveTabToNewWindow({ tabId, tabUrl, rawUrl }) : false
-      if (!moved) await openTabUrlInNewWindow(tabUrl)
-      await refreshAfterMutation()
-      return
-    }
-    const activate = mode === 'bring-foreground'
-    const moved = await moveTabToCurrentWindow({ tabId, tabUrl, rawUrl }, { activate })
-    if (!moved) await openTabUrl(tabUrl, { active: activate })
+    await performDashboardItemActivation(
+      mode,
+      { tabId, tabUrl, rawUrl },
+      { moveExisting: hasLiveTab }
+    )
     await refreshAfterMutation()
   }
 
@@ -847,7 +841,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   function onEntryMouseDown(e: MouseEvent<HTMLDivElement>) {
     // Shift-click moves the tab into a new window; ⌘/⌃-click moves it into this window.
     // Cancel the browser's native text selection for those gestures only so the row behaves like a link
-    // (a plain click still drag-selects). See chip-activation.ts.
+    // (a plain click still drag-selects). See tab-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }
 

@@ -9,7 +9,8 @@
    ================================================================ */
 
 import { createTab, createWindow, getAllWindows, getCurrentWindow, queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
-import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
+import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
+import { rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
@@ -85,53 +86,12 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
       .filter((tab): tab is DashboardTab & { id: number } => typeof tab.id === 'number')
       .map((tab) => [tab.id, tab] as const)
   )
-  return tabs.map((t) => {
-    const rawUrl = t.url || ''
-    const effectiveUrl = unwrapSuspenderUrl(rawUrl)
-    const suspended = isSuspended(rawUrl, effectiveUrl)
-    // For suspended tabs, Chrome's tab.title is unreliable — it can
-    // be the full suspender URL, empty, or stale — but the suspender
-    // always stores the original page title in the `ttl=` fragment
-    // param. Prefer that when it's available so the chip renders
-    // the real page title instead of `chrome-extension://.../...`.
-    let title = t.title || ''
-    if (suspended) {
-      const suspenderTitle = unwrapSuspenderTitle(rawUrl)
-      if (suspenderTitle) title = suspenderTitle
-    }
-    const previousTab = typeof t.id === 'number' ? previousTabById.get(t.id) : undefined
-    // Carry the title for the whole wake lifecycle. The marker survives page/worker startup
-    // snapshots, so a later refresh can distinguish this state from an ordinary reload.
-    const retainsSuspendedTitle =
-      !suspended &&
-      t.status === 'loading' &&
-      previousTab?.url === effectiveUrl &&
-      !!previousTab.title.replace(/\u200e/g, '').trim() &&
-      (previousTab.suspended || previousTab.retainedSuspendedTitle === true)
-    if (retainsSuspendedTitle) {
-      title = previousTab.title
-    }
-    const windowType = windowTypeById.get(t.windowId)
-    return {
-      id: t.id,
-      url: effectiveUrl,
-      rawUrl: rawUrl,
-      suspended,
-      title,
-      status: t.status,
-      ...(retainsSuspendedTitle ? { retainedSuspendedTitle: true } : {}),
-      favIconUrl: t.favIconUrl || '',
-      audible: !!t.audible,
-      muted: !!t.mutedInfo?.muted,
-      windowId: t.windowId,
-      active: t.active,
-      pinned: t.pinned,
-      groupId: typeof t.groupId === 'number' ? t.groupId : -1,
-      isTabOut: isTabOutPageUrl(rawUrl),
-      isApp: windowType === 'app' || windowType === 'popup',
-      index: t.index
-    }
-  })
+  const runtimeId = globalThis.chrome?.runtime?.id ?? null
+  return tabs.map((tab) => normalizeChromeTabToDashboardItem(tab, {
+    previousTab: typeof tab.id === 'number' ? previousTabById.get(tab.id) : undefined,
+    runtimeId,
+    windowType: windowTypeById.get(tab.windowId)
+  }))
 }
 
 function replaceOpenTabs(nextOpenTabs: DashboardTab[]): void {

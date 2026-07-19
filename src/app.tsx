@@ -2,6 +2,7 @@ import './styles/app.css'
 import { mountToast } from './components/mountToast'
 import { mountApp } from './components/App'
 import { requestDashboardRefresh } from './extension/dashboard-controller.js'
+import type { DashboardRefreshOptions } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
@@ -12,12 +13,10 @@ import { readLocalCustomGroups, readLocalPathGroupers } from './extension/local-
 import { isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
-type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
-
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 
 let refreshTimer: number | null = null
-let refreshTimerOptions: RefreshOptions = {}
+let refreshTimerOptions: DashboardRefreshOptions = {}
 
 async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null> {
   try {
@@ -31,7 +30,7 @@ async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null>
   }
 }
 
-function scheduleDashboardRefresh(options: RefreshOptions = {}) {
+function scheduleDashboardRefresh(options: DashboardRefreshOptions = {}) {
   refreshTimerOptions = {
     animateCards: !!(refreshTimerOptions.animateCards || options.animateCards)
   }

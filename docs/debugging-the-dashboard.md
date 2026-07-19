@@ -40,9 +40,9 @@ layout math.
 
 ## Automated version
 
-`tests/browser-resize-smoke.test.ts` (run with `pnpm test:browser`) is the
-automated form of the same idea: it serves the repo, loads the fixture in
-headless Chrome, and asserts on layout / expansion behavior.
+`tests/browser/dashboard-smoke.spec.ts` (run with `pnpm test:browser`) is the
+automated form of the same idea: Playwright serves the repo, loads the fixture
+in headless Chrome, and asserts on layout / expansion behavior.
 
 ## Visualizing re-renders (react-scan)
 

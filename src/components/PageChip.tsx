@@ -5,8 +5,9 @@ import { isClosedSavedDashboardTab, isReadOnlyDashboardSourceType } from '../ext
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
-import { moveTabToCurrentWindow, moveTabToNewWindow } from '../extension/tab-move.js'
-import { focusExactTab, focusTab, openTabUrl, openTabUrlInNewWindow } from '../extension/tabs.js'
+import { chipActivationMode, performDashboardItemActivation, shouldSuppressSelectionForGesture } from '../extension/tab-activation.js'
+import type { ChipActivationModifiers } from '../extension/tab-activation.js'
+import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls, duplicateTabTarget, reloadTabTarget, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
 import { nextMutedForAudioState } from '../extension/tab-audio.js'
@@ -25,14 +26,13 @@ import { createBionicTitleTextRenderer, isUrlLikeTitle } from './bionic-title-te
 import { highlightTermsForFilter, highlightedTextNodes } from './filter-highlight-text'
 import { titleSuppressionChipHighlightClass, titleSuppressionMarkerClass, titleSuppressionToneForText } from './title-suppression'
 import type { TitleSuppressionTone } from './title-suppression'
-import { chipActivationMode, shouldSuppressSelectionForGesture } from './chip-activation'
-import type { ChipActivationModifiers } from './chip-activation'
 import { clampedTitleLineNodes, createExpansionMeasureElement, createTitleExpansionLane, expandedLineContentOverflows, expansionLineHtmlEquals, expansionLineMarkup, expansionLineNodesFromHtml, fragmentHtml, paintedRangeRect, searchExpandedWidth, syncTruncatedTitleFadeEnd, unwrapClampedTitleLines, useTitleExpansionController, type ExpansionLineClasses } from './title-expansion'
 import { chipTrim, CHIP_TRIM_TOKENS } from './chip-trim'
 import { FAVICON_DIM_CLASS_NAME, VARIANT_LABEL_DIM_CLASS_NAME } from './liveness-dim'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
+import { pageChipTargetActionPolicy } from './page-chip-action-policy.js'
 import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
 
 let chipTextResizeObserver: ResizeObserver | null = null
@@ -1123,18 +1123,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   ) {
     if (!targetUrl) return
     const mode = chipActivationMode(e, navigator.platform)
-    if (mode === 'focus') {
-      await focusChipUrl(targetUrl, sourceType, target)
-      return
-    }
-    if (mode === 'open-window') {
-      const moved = await moveTabToNewWindow({ tabId: target?.tabId, tabUrl: targetUrl, rawUrl: target?.rawUrl })
-      if (!moved) await openTabUrlInNewWindow(targetUrl)
-      return
-    }
-    const activate = mode === 'bring-foreground'
-    const moved = await moveTabToCurrentWindow({ tabId: target?.tabId, tabUrl: targetUrl, rawUrl: target?.rawUrl }, { activate })
-    if (!moved) await openTabUrl(targetUrl, { active: activate })
+    const handled = await performDashboardItemActivation(mode, {
+      tabId: target?.tabId,
+      tabUrl: targetUrl,
+      rawUrl: target?.rawUrl
+    })
+    if (!handled) await focusChipUrl(targetUrl, sourceType, target)
   }
 
   function defaultTitleVariantChip() {
@@ -1197,7 +1191,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function onChipPointerDown(e: MouseEvent<HTMLDivElement>) {
     // Shift-click moves the tab into a new window; ⌘/⌃-click moves it into this window.
     // Cancel the browser's native text selection for those gestures only so the chip behaves
-    // like a link (a plain click still drag-selects). See chip-activation.ts.
+    // like a link (a plain click still drag-selects). See tab-activation.ts.
     if (shouldSuppressSelectionForGesture(e, navigator.platform)) e.preventDefault()
   }
 
@@ -1673,15 +1667,17 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const pagePinActionLabel = chip.pagePinned ? 'Unpin' : 'Pin'
   const chipTitleText = titleTextForChip(chip)
   const chipUrlText = pageTargetUrl(chip)
-  const canToggleSavedPage = parentInteractive && (chip.sourceType === 'tab' || chip.sourceType === 'saved-page') && !chip.isApp
+  const {
+    canClose: canCloseChip,
+    canToggleSaved: canToggleSavedPage,
+    canUseChromeTabActions,
+    showSavedHint
+  } = pageChipTargetActionPolicy(chip, { interactive: parentInteractive })
   const canTogglePagePin = !!chip.pagePinId && typeof onTogglePinnedPageChip === 'function'
-  const canUseChromeTabActions = parentInteractive && chip.sourceType === 'tab' && !isClosedSavedPage
   // Unlike the other can* flags, canShowSuspend intentionally does NOT gate on
   // parentInteractive: folded groups (not parentInteractive) still expose Suspend.
   const canShowSuspend = chipCanShowSuspend(chip)
   const suspendEnabled = chipSuspendableTargetCount(chip) > 0
-  const showSavedHint = parentInteractive && !!chip.saved && !canToggleSavedPage
-  const canCloseChip = parentInteractive && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const canCloseFoldedGroup = isFolded && !isClosedSavedPage && (!isReadOnlySource || isHistorySource)
   const canCloseVariantGroup = isTitleVariantGroup && variantCloseCount > 0
   const canUseCopyContextMenu = parentInteractive && (!!chipTitleText || !!chipUrlText)
@@ -1849,9 +1845,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function envLabelNode(env: DashboardChipEnv, mode: ChipTextRenderMode) {
     const envLabel = `Focus ${env.prefix} tab${env.activeInOtherWindow ? ' (active in another window)' : ''}`
     const envSavedActionLabel = env.saved ? 'Remove saved page' : 'Save page'
-    const canToggleSavedEnv = (env.sourceType === 'tab' || env.sourceType === 'saved-page') && !env.isApp
-    const envCanUseChromeTabActions = env.sourceType === 'tab' && !env.closedSaved
-    const showSavedEnvHint = !!env.saved && !canToggleSavedEnv
+    const {
+      canToggleSaved: canToggleSavedEnv,
+      canUseChromeTabActions: envCanUseChromeTabActions,
+      showSavedHint: showSavedEnvHint
+    } = pageChipTargetActionPolicy(env)
     const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
     const envClassName = cn(
@@ -1984,12 +1982,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     // through React state paints a one-frame rest-background flash instead.
     const variantIsDefaultTarget = defaultTitleVariantChip() === variant
     const variantDupeCount = variant.dupeCount || 1
-    const variantIsHistorySource = variant.sourceType === 'history'
     const variantClosedSaved = variant.sourceType === 'saved-page' || !!variant.closedSaved
-    const variantCanToggleSaved = (variant.sourceType === 'tab' || variant.sourceType === 'saved-page') && !variant.isApp
-    const variantCanUseChromeTabActions = variant.sourceType === 'tab' && !variantClosedSaved
-    const variantShowSavedHint = !!variant.saved && !variantCanToggleSaved
-    const variantCanClose = !variantClosedSaved && (!isReadOnlyDashboardSourceType(variant.sourceType) || variantIsHistorySource)
+    const {
+      canClose: variantCanClose,
+      canToggleSaved: variantCanToggleSaved,
+      canUseChromeTabActions: variantCanUseChromeTabActions,
+      showSavedHint: variantShowSavedHint
+    } = pageChipTargetActionPolicy(variant)
     const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
     const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
     const variantPagePinActionLabel = variant.pagePinned ? 'Unpin' : 'Pin'

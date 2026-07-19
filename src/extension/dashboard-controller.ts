@@ -1,9 +1,13 @@
-export type RefreshOptions = Record<string, unknown>
-type RefreshHandler = (options?: RefreshOptions) => Promise<void> | void
+export type DashboardRefreshOptions = {
+  animateCards?: boolean
+  startupSnapshot?: boolean
+}
+
+type RefreshHandler = (options?: DashboardRefreshOptions) => Promise<void> | void
 
 let activeRefresh: RefreshHandler | null = null
 let pendingRefresh = false
-let pendingRefreshOptions: RefreshOptions | undefined
+let pendingRefreshOptions: DashboardRefreshOptions | undefined
 
 export function registerDashboardRefresh(fn: RefreshHandler): () => void {
   activeRefresh = fn
@@ -18,7 +22,7 @@ export function registerDashboardRefresh(fn: RefreshHandler): () => void {
   }
 }
 
-export function requestDashboardRefresh(options: RefreshOptions = {}): Promise<void> | void {
+export function requestDashboardRefresh(options: DashboardRefreshOptions = {}): Promise<void> | void {
   if (activeRefresh) return activeRefresh(options)
   pendingRefresh = true
   pendingRefreshOptions = options

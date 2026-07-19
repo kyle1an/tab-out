@@ -19,6 +19,7 @@
     "@iconify-json/lucide",
     "@iconify-json/mingcute",
     "@iconify-json/ooui",
+    "@iconify-json/weui",
     // Scaffolding CLI driven by components.json, run ad hoc — never imported.
     "shadcn"
   ]

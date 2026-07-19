@@ -3,7 +3,7 @@
    URLs a "close all" on a group chip should act on, and how the
    close action is labelled.
 
-   Pure and dependency-light (like chip-activation.ts) so it is
+   Pure and dependency-light (like tab-activation.ts) so it is
    unit-testable without React, the DOM, or a real chrome.tabs.
    ================================================================ */
 

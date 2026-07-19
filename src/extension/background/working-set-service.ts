@@ -5,9 +5,9 @@ import {
   normalizeWorkingSetActivity,
   recordWorkingSetActivity
 } from '../working-set.js'
-import { readChromeStorageValue, runChromeEffect, runChromeEffectBestEffort, writeChromeStorageValue } from './chrome-storage-effect.js'
+import { normalizeChromeTabToDashboardItem } from '../dashboard-tab-normalization.js'
+import { readChromeStorageValue, writeChromeStorageValueBestEffort } from './chrome-storage.js'
 import { createChromeApi, type ChromeApi } from './chrome-api.js'
-import { unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore, WorkingSetSnapshot } from '../types'
 
 export const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
@@ -38,7 +38,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
     }
 
     try {
-      const storedActivity = await runChromeEffect(readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)) as Partial<WorkingSetActivityStore> | null | undefined
+      const storedActivity = await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY) as Partial<WorkingSetActivityStore> | null | undefined
       activityCache = normalizeWorkingSetActivity(storedActivity)
     } catch {
       activityCache = emptyWorkingSetActivity()
@@ -50,11 +50,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
     activityCache = normalizeWorkingSetActivity(nextActivity)
     const storage = storageArea()
     if (!storage) return
-    try {
-      await runChromeEffectBestEffort(writeChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY, activityCache))
-    } catch {
-      // Best-effort only; the in-memory cache can still rank this session.
-    }
+    await writeChromeStorageValueBestEffort(storage, WORKING_SET_ACTIVITY_KEY, activityCache)
   }
 
   function enqueueActivityMutation(mutator: (activity: WorkingSetActivityStore) => WorkingSetActivityStore | Promise<WorkingSetActivityStore>) {
@@ -74,7 +70,10 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
     try {
       const [tabs, windows] = await Promise.all([chromeApi.tabs.query({}), chromeApi.windows.getAll()])
       const windowTypeById = new Map(windows.filter((win) => typeof win.id === 'number').map((win) => [win.id as number, win.type]))
-      return tabs.map((tab) => toDashboardTab(tab, windowTypeById.get(tab.windowId)))
+      return tabs.map((tab) => normalizeChromeTabToDashboardItem(tab, {
+        runtimeId: chromeApi.runtime?.id ?? null,
+        windowType: windowTypeById.get(tab.windowId)
+      }))
     } catch {
       return []
     }
@@ -82,7 +81,9 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
 
   async function recordTabActivity(kind: WorkingSetActivityKind, tab: chrome.tabs.Tab | DashboardTab | null | undefined): Promise<void> {
     if (!tab || typeof tab.id !== 'number') return
-    const dashboardTab = isDashboardTab(tab) ? tab : toDashboardTab(tab)
+    const dashboardTab = isDashboardTab(tab)
+      ? tab
+      : normalizeChromeTabToDashboardItem(tab, { runtimeId: chromeApi.runtime?.id ?? null })
     const at = Math.max(Date.now(), lastActivityAt + 1)
     lastActivityAt = at
     await enqueueActivityMutation((activity) => recordWorkingSetActivity(activity, {
@@ -153,27 +154,4 @@ export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(c
 
 function isDashboardTab(tab: chrome.tabs.Tab | DashboardTab): tab is DashboardTab {
   return 'rawUrl' in tab && 'suspended' in tab
-}
-
-function toDashboardTab(tab: chrome.tabs.Tab, windowType?: string): DashboardTab {
-  const rawUrl = tab.url || ''
-  const effectiveUrl = unwrapSuspenderUrl(rawUrl)
-  const suspended = rawUrl !== effectiveUrl
-  const title = suspended ? unwrapSuspenderTitle(rawUrl) || tab.title || '' : tab.title || ''
-  return {
-    id: tab.id,
-    url: effectiveUrl,
-    rawUrl,
-    suspended,
-    title,
-    status: tab.status,
-    favIconUrl: tab.favIconUrl || '',
-    windowId: tab.windowId,
-    active: !!tab.active,
-    pinned: !!tab.pinned,
-    groupId: typeof tab.groupId === 'number' ? tab.groupId : -1,
-    isTabOut: rawUrl === 'chrome://newtab/' || rawUrl.startsWith(`chrome-extension://${globalThis.chrome?.runtime?.id}/index.html`),
-    isApp: windowType === 'app' || windowType === 'popup',
-    index: tab.index
-  }
 }

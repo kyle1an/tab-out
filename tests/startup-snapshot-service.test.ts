@@ -142,3 +142,34 @@ test('startup snapshot service coalesces pending debounced refreshes', async () 
     else (globalThis as { chrome?: unknown }).chrome = previousChrome
   }
 })
+
+test('startup snapshot service refreshes again after a completed refresh', async () => {
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  let localStorageReads = 0
+
+  ;(globalThis as any).chrome = {
+    storage: {
+      local: {
+        get: async () => {
+          localStorageReads += 1
+          return { [LOCAL_GROUPING_CONFIG_ACTIVE_KEY]: true }
+        }
+      }
+    }
+  }
+
+  try {
+    const service = createStartupSnapshotService({
+      getTabHistorySnapshot: async () => emptyTabHistory as any,
+      getWorkingSetActivity: async () => emptyActivity as any
+    })
+
+    await service.refreshNow()
+    await service.refreshNow()
+
+    assert.equal(localStorageReads, 2)
+  } finally {
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
+})

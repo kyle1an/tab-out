@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { chipActivationMode, shouldSuppressSelectionForGesture } from '../src/components/chip-activation.js'
+import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
+import {
+  chipActivationMode,
+  performDashboardItemActivation,
+  shouldSuppressSelectionForGesture
+} from '../src/extension/tab-activation.js'
+import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 
 const MAC = 'MacIntel'
 const WIN = 'Win32'
@@ -73,4 +79,19 @@ test('shouldSuppressSelectionForGesture: a wrong-platform primary modifier keeps
   assert.equal(shouldSuppressSelectionForGesture({ metaKey: true }, WIN), false)
   assert.equal(shouldSuppressSelectionForGesture({ ctrlKey: true, shiftKey: true }, MAC), false)
   assert.equal(shouldSuppressSelectionForGesture({ metaKey: true, shiftKey: true }, WIN), false)
+})
+
+test('modifier activation opens a missing target with the requested current-window focus state', async (t) => {
+  const tabs: chrome.tabs.Tab[] = []
+  setChromeTabsApi(createFakeChromeApi({ tabs }))
+  t.after(() => setChromeTabsApi(null))
+
+  const handled = await performDashboardItemActivation('bring-background', {
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(handled, true)
+  assert.equal(tabs.length, 1)
+  assert.equal(tabs[0]?.url, 'https://example.test/docs')
+  assert.equal(tabs[0]?.active, false)
 })

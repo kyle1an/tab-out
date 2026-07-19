@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { fetchClosedTabs, isClosedTabFetchSuppressed } from '../extension/closed-tabs.js'
 import { registerDashboardRefresh } from '../extension/dashboard-controller.js'
+import type { DashboardRefreshOptions } from '../extension/dashboard-controller.js'
 import { fetchDashboardServiceState } from '../extension/dashboard-service-state.js'
 import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { buildDashboardDataFromTabs, fetchDashboardData, getCurrentWindowId } from '../extension/render.js'
@@ -17,7 +18,6 @@ import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnap
 export { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 export type { DashboardStartupSnapshot, CachedDashboardStartup, DashboardStartupViewModel } from '../extension/startup-snapshot.js'
 
-export type RefreshOptions = { animateCards?: boolean; startupSnapshot?: boolean }
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
 
 type DashboardSnapshotOptions = {
@@ -182,7 +182,7 @@ export function useDashboardRefresh({
   onBeforePinnedRefresh
 }: UseDashboardRefreshOptions) {
   const callbacksRef = useRef({ onBeforeAnimatedRefresh, onBeforePinnedRefresh })
-  const refreshRef = useRef<(options?: RefreshOptions) => Promise<void>>(async () => {})
+  const refreshRef = useRef<(options?: DashboardRefreshOptions) => Promise<void>>(async () => {})
   const startupRefreshFlightRef = useRef<Promise<void> | null>(null)
   const startupRefreshPendingRef = useRef(false)
   const animatedRefreshPendingRef = useRef(false)
@@ -191,7 +191,7 @@ export function useDashboardRefresh({
     callbacksRef.current = { onBeforeAnimatedRefresh, onBeforePinnedRefresh }
   }, [onBeforeAnimatedRefresh, onBeforePinnedRefresh])
 
-  refreshRef.current = async ({ animateCards = false, startupSnapshot = false }: RefreshOptions = {}) => {
+  refreshRef.current = async ({ animateCards = false, startupSnapshot = false }: DashboardRefreshOptions = {}) => {
     if (startupSnapshot) startupRefreshPendingRef.current = true
     if (animateCards) animatedRefreshPendingRef.current = true
     if (document.visibilityState !== 'visible') return
@@ -236,7 +236,7 @@ export function useDashboardRefresh({
     setWorkingSet(next.workingSet)
   }
 
-  useEffect(() => registerDashboardRefresh((options?: RefreshOptions) => refreshRef.current(options)), [])
+  useEffect(() => registerDashboardRefresh((options?: DashboardRefreshOptions) => refreshRef.current(options)), [])
 
   useEffect(() => {
     if (!localStateLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return
@@ -253,5 +253,5 @@ export function useDashboardRefresh({
   // Stable identity: the hook itself bails out of React Compiler (the render-time
   // refreshRef assignment is its latest-callback architecture), so the returned
   // facade is memoized manually — consumers key effects and props on it.
-  return useCallback((options?: RefreshOptions) => refreshRef.current(options), [])
+  return useCallback((options?: DashboardRefreshOptions) => refreshRef.current(options), [])
 }

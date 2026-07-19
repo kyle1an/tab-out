@@ -17,6 +17,10 @@ export type FakeChromeState = {
   sendMessage?: ((...args: unknown[]) => Promise<unknown>) | null
   getURL?: (path: string) => string
   runtimeId?: string
+  tabCommandLog?: {
+    duplicate: number[]
+    reload: number[]
+  }
 }
 
 export type FakeChromeApi = ChromeTabsApi & {

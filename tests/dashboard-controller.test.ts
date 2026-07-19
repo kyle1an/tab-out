@@ -2,6 +2,19 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { registerDashboardRefresh, requestDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import type { DashboardRefreshOptions } from '../src/extension/dashboard-controller.js'
+
+test('dashboard refresh options expose only supported coordination flags', () => {
+  const options = {
+    animateCards: true,
+    startupSnapshot: true
+  } satisfies DashboardRefreshOptions
+
+  assert.deepEqual(options, { animateCards: true, startupSnapshot: true })
+
+  // @ts-expect-error Unknown refresh flags must not silently cross the controller seam.
+  void ({ unexpectedFlag: true } satisfies DashboardRefreshOptions)
+})
 
 test('requestDashboardRefresh forwards refresh options to the active handler', async () => {
   let receivedOptions = null

@@ -65,10 +65,11 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   function refreshNow(): Promise<void> {
     if (inFlight) return inFlight
     const run = compute().catch(() => {})
-    inFlight = run.finally(() => {
+    inFlight = run
+    void run.finally(() => {
       if (inFlight === run) inFlight = null
     })
-    return inFlight
+    return run
   }
 
   function scheduleRefresh(): void {

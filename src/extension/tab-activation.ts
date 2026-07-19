@@ -8,6 +8,9 @@
    app-url.ts) so it is unit-testable without a real `navigator`.
    ================================================================ */
 
+import { moveTabToCurrentWindow, moveTabToNewWindow } from './tab-move.js'
+import { openTabUrl, openTabUrlInNewWindow } from './tabs.js'
+
 export type ChipActivationMode = 'focus' | 'open-window' | 'bring-background' | 'bring-foreground'
 
 export interface ChipActivationModifiers {
@@ -57,4 +60,41 @@ export function chipActivationMode(e: ChipActivationModifiers | null | undefined
  */
 export function shouldSuppressSelectionForGesture(e: ChipActivationModifiers | null | undefined, platform = ''): boolean {
   return chipActivationMode(e, platform) !== 'focus'
+}
+
+export type DashboardItemActivationTarget = {
+  tabId?: number | string
+  tabUrl: string
+  rawUrl?: string
+}
+
+export type DashboardItemActivationOptions = {
+  moveExisting?: boolean
+}
+
+/**
+ * Perform the modifier-driven half of Dashboard Item activation. Plain focus
+ * remains surface-specific because Page Chips, Working Set rows, history rows,
+ * and closed ghosts resolve that intent differently.
+ *
+ * Returns false only for the plain-focus mode so the caller can continue with
+ * its local focus path.
+ */
+export async function performDashboardItemActivation(
+  mode: ChipActivationMode,
+  target: DashboardItemActivationTarget,
+  { moveExisting = true }: DashboardItemActivationOptions = {}
+): Promise<boolean> {
+  if (mode === 'focus' || !target.tabUrl) return false
+
+  if (mode === 'open-window') {
+    const moved = moveExisting ? await moveTabToNewWindow(target) : false
+    if (!moved) await openTabUrlInNewWindow(target.tabUrl)
+    return true
+  }
+
+  const activate = mode === 'bring-foreground'
+  const moved = moveExisting ? await moveTabToCurrentWindow(target, { activate }) : false
+  if (!moved) await openTabUrl(target.tabUrl, { active: activate })
+  return true
 }

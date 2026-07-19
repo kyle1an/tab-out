@@ -22,7 +22,7 @@ Fix landed in this branch:
 Test coverage:
 
 - `tests/fixtures/dashboard-resize.html` carries three synthetic Contentful tabs (`Tooltip Screenshot Alpha`, `Tooltip Screenshot Beta`, `Tooltip Screenshot Gamma`) plus two JIRA-style tabs (`Wrap Trailing Marker Alpha`, `Wrap Trailing Marker Beta`) that reproduce the chip shapes from the screenshots, using generic placeholders instead of the real company / product names.
-- `tests/browser-resize-smoke.test.ts` keeps the `oneLineStructuralTailTooltip` assertion that the tooltip widens to stay on one line, adds `wrappedContentfulScreenshotTooltip` covering the structural-tail wrap, and `wrappedTrailingMarkerTooltip` covering the trailing-suppression-only wrap.
+- `tests/browser/dashboard-smoke.spec.ts` keeps the `oneLineStructuralTailTooltip` assertion that the tooltip widens to stay on one line, adds `wrappedContentfulScreenshotTooltip` covering the structural-tail wrap, and `wrappedTrailingMarkerTooltip` covering the trailing-suppression-only wrap.
 - `pnpm verify:browser` (typecheck, lint, build, bundle check, unit tests, browser smoke) passes.
 
 If the tooltip still renders incorrectly in the real extension after pulling this change, reload the unpacked extension from `chrome://extensions` so Chrome picks up the rebuilt `extension/dist/app.js`. The in-memory `chipTooltipLayoutCache` is module-scoped, so a fresh page load is enough; no manual cache invalidation is required once the new bundle is loaded.

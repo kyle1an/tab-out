@@ -1,4 +1,4 @@
-import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-tones.js'
+import type { TitleSuppressionTone, TitleSuppressionToneScope } from './title-suppression-types.js'
 
 export type TabAudioState = 'playing' | 'muted' | null
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { allocateCardSuppressionTones, createTitleSuppressionToneScope, titleSuppressionToneForIndex } from '../src/extension/title-suppression-tones.js'
@@ -33,6 +34,15 @@ const cluster = (key: string, parts: ReturnType<typeof part>[]) => ({
   visibleChips: [],
   hiddenChips: [],
   hiddenCount: 0
+})
+
+test('dashboard types depend on title-suppression data types, not the allocator module', () => {
+  const dashboardTypesSource = readFileSync(new URL('../src/extension/types.d.ts', import.meta.url), 'utf8')
+  const allocatorSource = readFileSync(new URL('../src/extension/title-suppression-tones.ts', import.meta.url), 'utf8')
+
+  assert.match(dashboardTypesSource, /from '\.\/title-suppression-types\.js'/)
+  assert.doesNotMatch(dashboardTypesSource, /from '\.\/title-suppression-tones\.js'/)
+  assert.match(allocatorSource, /from '\.\/title-suppression-types\.js'/)
 })
 
 test('tones are allocated by token coverage before summary position', () => {

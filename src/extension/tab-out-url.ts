@@ -19,8 +19,8 @@ const NEW_TAB_URL = 'chrome://newtab/'
  * The Tab Out dashboard's canonical URL (no search/hash), or null when no
  * extension runtime id is available (e.g. a unit test without a mock).
  */
-export function tabOutDashboardCanonicalUrl(): string | null {
-  const id = globalThis.chrome?.runtime?.id
+export function tabOutDashboardCanonicalUrl(runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id): string | null {
+  const id = runtimeId
   return id ? `chrome-extension://${id}/index.html` : null
 }
 
@@ -28,9 +28,9 @@ export function tabOutDashboardCanonicalUrl(): string | null {
  * True when url is the Tab Out dashboard page (index.html), ignoring any
  * search params or hash. Does NOT match chrome://newtab/.
  */
-export function isTabOutDashboardUrl(url?: string): boolean {
+export function isTabOutDashboardUrl(url?: string, runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id): boolean {
   if (!url) return false
-  const base = tabOutDashboardCanonicalUrl()
+  const base = tabOutDashboardCanonicalUrl(runtimeId)
   if (!base) return false
   return url === base || url.startsWith(`${base}?`) || url.startsWith(`${base}#`)
 }
@@ -39,6 +39,6 @@ export function isTabOutDashboardUrl(url?: string): boolean {
  * True when url is any Tab Out page: the dashboard (any search/hash) or a
  * native new tab. Used for active-tab protection and startup detection.
  */
-export function isTabOutPageUrl(url?: string): boolean {
-  return url === NEW_TAB_URL || isTabOutDashboardUrl(url)
+export function isTabOutPageUrl(url?: string, runtimeId: string | null | undefined = globalThis.chrome?.runtime?.id): boolean {
+  return url === NEW_TAB_URL || isTabOutDashboardUrl(url, runtimeId)
 }
