@@ -846,7 +846,7 @@ function getExpandedPageChipHorizontalInset(chipEl: HTMLElement, textEl: HTMLEle
   return Math.max(0, textRect.left - chipRect.left) + Math.max(0, chipRect.right - textRect.right)
 }
 
-function syncChipTextFade(textEl: HTMLElement | null) {
+function syncChipTextFade(textEl: HTMLElement | null, syncFadeEnd = true) {
   if (!textEl) return { hasExpandableContent: false, height: 0, isTruncated: false, width: 0 }
 
   const isTruncated = isChipTextTruncated(textEl)
@@ -856,7 +856,7 @@ function syncChipTextFade(textEl: HTMLElement | null) {
   const height = Math.round(rect.height * 100) / 100
   chipTextMeasuredSizes.set(textEl, { height, width })
   textEl.classList.toggle('chip-text-truncated', isTruncated)
-  syncTruncatedTitleFadeEnd(textEl, isTruncated)
+  if (syncFadeEnd) syncTruncatedTitleFadeEnd(textEl, isTruncated)
   chipTextTruncationCallbacks.get(textEl)?.({ hasExpandableContent, height, isTruncated, width })
   return { hasExpandableContent, height, isTruncated, width }
 }
@@ -889,7 +889,9 @@ function chipTextLayoutEqual(left: ChipTextLayoutState, right: ChipTextLayoutSta
 }
 
 function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKey: string): ChipTextLayoutState {
-  const metrics = syncChipTextFade(textEl)
+  // A captured clamp fades at its known box edge. Defer the glyph-range read
+  // until capture fails so successful clamps do not measure an unused anchor.
+  const metrics = syncChipTextFade(textEl, false)
   const nextMetrics = {
     hasExpandableContent: metrics.hasExpandableContent,
     isTruncated: metrics.isTruncated,
@@ -901,6 +903,11 @@ function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKe
     if (lineHtml.length > 1) {
       nextClamp = { key: clampKey, lineHtml, width: metrics.width }
     }
+  }
+  if (nextClamp) {
+    syncClampedTitleFadeEnd(textEl, nextClamp.width)
+  } else {
+    syncTruncatedTitleFadeEnd(textEl, metrics.isTruncated)
   }
   return { clamp: nextClamp, metrics: nextMetrics }
 }

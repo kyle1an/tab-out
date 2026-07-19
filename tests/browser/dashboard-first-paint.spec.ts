@@ -16,9 +16,11 @@ test('dashboard avoids eager tooltip measurement surfaces', async ({ page }) => 
 test('dashboard coalesces collapsed-title layout reads during startup', async ({ page }) => {
   await page.addInitScript(() => {
     const counts = {
+      chipTextFadeRangeRects: 0,
       chipTextRangeRects: 0,
       chipTextRects: 0,
       domainCardRects: 0,
+      historyTitleFadeRangeRects: 0,
       historyTitleRangeRects: 0,
       historyTitleRects: 0,
       layoutShift: 0
@@ -44,8 +46,20 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     Range.prototype.getClientRects = function getInstrumentedClientRects() {
       const ancestor = this.commonAncestorContainer
       const element = ancestor instanceof HTMLElement ? ancestor : ancestor.parentElement
-      if (element?.closest('.chip-text')) counts.chipTextRangeRects += 1
-      if (element?.closest('.history-entry-title')) counts.historyTitleRangeRects += 1
+      const chipText = element?.closest('.chip-text, .chip-title-row') as HTMLElement | null
+      const historyTitle = element?.closest('.history-entry-title') as HTMLElement | null
+      if (chipText) {
+        counts.chipTextRangeRects += 1
+        if (this.startContainer === chipText && this.endContainer === chipText) {
+          counts.chipTextFadeRangeRects += 1
+        }
+      }
+      if (historyTitle) {
+        counts.historyTitleRangeRects += 1
+        if (this.startContainer === historyTitle && this.endContainer === historyTitle) {
+          counts.historyTitleFadeRangeRects += 1
+        }
+      }
       return getClientRects.call(this)
     }
 
@@ -69,9 +83,11 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   const measurements = await page.evaluate(() => {
     const benchmarkWindow = window as typeof window & {
       __tabOutFirstPaintMeasurements: {
+        chipTextFadeRangeRects: number
         chipTextRangeRects: number
         chipTextRects: number
         domainCardRects: number
+        historyTitleFadeRangeRects: number
         historyTitleRangeRects: number
         historyTitleRects: number
         layoutShift: number
@@ -88,9 +104,11 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.chipCount).toBeGreaterThan(0)
   expect(measurements.domainCardCount).toBeGreaterThan(0)
   expect(measurements.historyTitleCount).toBeGreaterThan(0)
+  expect(measurements.chipTextFadeRangeRects).toBe(0)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
   expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(4)
   expect(measurements.domainCardRects / measurements.domainCardCount).toBeLessThanOrEqual(2)
+  expect(measurements.historyTitleFadeRangeRects).toBe(0)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(3)
   expect(measurements.layoutShift).toBe(0)

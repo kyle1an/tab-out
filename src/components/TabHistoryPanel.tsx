@@ -333,7 +333,7 @@ function historyTitleExpandedLayoutCacheKey(titleEl: HTMLElement, availableConte
   ])
 }
 
-function syncHistoryTitleFade(titleEl: HTMLElement | null) {
+function syncHistoryTitleFade(titleEl: HTMLElement | null, syncFadeEnd = true) {
   if (!titleEl) return { contentWidth: 0, expandedLineHtml: [], expandedTextWidth: 0, expandedViewportConstrained: false, isTruncated: false, visibleLineCount: 1, width: 0 }
 
   const isTruncated = isHistoryTitleTruncated(titleEl)
@@ -358,7 +358,7 @@ function syncHistoryTitleFade(titleEl: HTMLElement | null) {
     width
   }
   titleEl.classList.toggle('history-entry-title-truncated', isTruncated)
-  syncTruncatedTitleFadeEnd(titleEl, isTruncated)
+  if (syncFadeEnd) syncTruncatedTitleFadeEnd(titleEl, isTruncated)
   historyTitleTruncationCallbacks.get(titleEl)?.(metrics)
   return metrics
 }
@@ -634,7 +634,9 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       return
     }
 
-    const metrics = syncHistoryTitleFade(titleEl)
+    // A captured clamp fades at its known box edge. Defer the glyph-range read
+    // until capture fails so successful clamps do not measure an unused anchor.
+    const metrics = syncHistoryTitleFade(titleEl, false)
     titleMeasurementRef.current = {
       element: titleEl,
       key: titleClampKey,
@@ -646,6 +648,11 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       if (lineHtml.length > 1) {
         nextClamp = { key: titleClampKey, lineHtml, width: metrics.width }
       }
+    }
+    if (nextClamp) {
+      syncClampedTitleFadeEnd(titleEl, nextClamp.width)
+    } else {
+      syncTruncatedTitleFadeEnd(titleEl, metrics.isTruncated)
     }
     setTitleLayout((current) => (
       sameHistoryTitleMetrics(current.metrics, metrics) &&
