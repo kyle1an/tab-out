@@ -31,7 +31,7 @@ import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
 export { buildDomainGroups } from './domain-groups.js'
 export { computeDomainCardViewModel, dashboardChipOrderKeyForTab } from './domain-card-view-model.js'
-export { tabMatchesFilter, tabMatchesLegacyFilter } from './filter-match.js'
+export { tabMatchesFilter } from './filter-match.js'
 
 /**
  * buildDashboardViewModel({ realTabs, domainGroups, filter }) — derives the

@@ -1,16 +1,9 @@
 import { getRealTabs } from './tabs.js'
 import { isGroupedTab } from './groups.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
-import { matchValuesForFilterTerm, parseFilterQuery, searchablePartsForDashboardItem, searchableTextForDashboardItem } from './filter-query.js'
+import { matchValuesForFilterTerm, parseFilterQuery, searchableTextForDashboardItem } from './filter-query.js'
 
 import type { DashboardTab } from './types'
-
-export function tabMatchesLegacyFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>, filter: string): boolean {
-  const q = filter.trim().toLowerCase()
-  if (!q) return true
-  const { title, url } = searchablePartsForDashboardItem(tab)
-  return title.toLowerCase().includes(q) || url.toLowerCase().includes(q)
-}
 
 export function tabMatchesFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>, filter: string): boolean {
   if (!filter.trim()) return true
@@ -21,10 +14,8 @@ export function tabMatchesFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTa
   return query.terms.every((term) => matchValuesForFilterTerm(term).some((value) => searchableText.includes(value)))
 }
 
-export function tabMatchesSourceFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut' | 'sourceType'>, filter: string): boolean {
-  return tab.sourceType === 'history'
-    ? tabMatchesLegacyFilter(tab, filter)
-    : tabMatchesFilter(tab, filter)
+export function tabMatchesSourceFilter(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>, filter: string): boolean {
+  return tabMatchesFilter(tab, filter)
 }
 
 /**

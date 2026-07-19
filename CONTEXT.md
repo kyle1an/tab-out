@@ -15,7 +15,7 @@
 - **Path Group**: A visible group inside a Website Path Section or subdomain section keyed by a site-specific object such as a repository, project key, space key, or environment.
 - **Title Suppression Scope**: The smallest visible group that owns suppressed title tokens and their matching chip markers.
 - **Title Expansion**: The truncated-title treatment shared by Page Chips, Activation History rows, and Working Set rows: a clamped title fades out at the end of its last visible line, and hover-expandable titles reveal their full text in place.
-- **Filter Query**: The user's parsed filter intent for app-owned matching, first applied to open-tab and bookmark Dashboard Items.
+- **Filter Query**: The user's parsed filter intent for app-owned matching across open-tab, bookmark, and returned history Dashboard Items.
 - **Filter Match**: A decision that a Dashboard Item satisfies the current Filter Query.
 - **Companion Results**: Bookmark and history results shown alongside open-tab Filter Matches.
 - **Activation History**: The chronological open-tab focus path plus the bounded queue of background link tabs that have not yet been activated, used for previous/next tab switching and close-recovery behavior.
@@ -44,10 +44,11 @@
 - For `docs.google.com`, **Website Path Sections** start with document-creation product paths: `/document`, `/spreadsheets`, `/presentation`, `/forms`, and `/drawings`.
 - For `*.atlassian.net`, **Website Path Sections** start with workflow/product path prefixes: `/browse`, `/issues`, `/wiki`, `/jira`, and `/servicedesk`.
 - For other sites, **Website Path Sections** may use the first path segment such as `/resource`, but singleton generic segments stay flat.
-- A **Filter Query** is the app-owned matching contract for open-tab and bookmark **Dashboard Items**.
+- A **Filter Query** is the app-owned matching contract for open-tab, bookmark, and returned history **Dashboard Items**.
 - A **Dashboard Item's** first-pass searchable text is its title and URL.
 - Unquoted multi-word **Filter Queries** use tokenized AND semantics, so each term must appear somewhere in the Dashboard Item's searchable text.
 - Quoted terms inside a **Filter Query** are exact contiguous phrase matches against a Dashboard Item's searchable text.
+- Spaces and hyphens are equivalent separators inside a contiguous **Filter Query** term or phrase, so `tab out` and `tab-out` can match the same text.
 - Unquoted **Filter Query** tokens may have app-owned aliases; `pr` matches `pull request` in first-pass matching.
 - An unmatched quote in a **Filter Query** treats the rest of the input as a quoted phrase.
 - Deterministic **Filter Matches** from tokens and quoted phrases are eligible for existing filtered Tab Actions.
@@ -117,4 +118,4 @@
 
 ## Flagged Ambiguities
 
-- **History Companion Results** still rely on Chrome history search semantics; whether to fetch broad history candidates and apply app-owned **Filter Query** matching is deferred.
+- **History Companion Results** still rely on Chrome history search semantics for candidate retrieval. Tab Out applies its app-owned **Filter Query** to returned candidates; fetching broader candidates for app-owned aliases that Chrome does not return remains deferred.

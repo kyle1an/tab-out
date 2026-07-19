@@ -2310,7 +2310,7 @@ test('PageChip highlights token aliases in visible chip text', () => {
   assert.match(html, /<mark class="chip-filter-match\b[^"]*">Pull Request<\/mark> <span class="chip-title-fixation\b[^"]*">rev<\/span>iew/)
 })
 
-test('PageChip keeps history highlighting on legacy raw filter text for this pass', () => {
+test('PageChip highlights parsed filter terms for history candidates', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
       chip: makeChip({ sourceType: 'history' }),
@@ -2318,7 +2318,7 @@ test('PageChip keeps history highlighting on legacy raw filter text for this pas
     })
   )
 
-  assert.doesNotMatch(html, /chip-filter-match/)
+  assert.match(html, /<mark class="chip-filter-match\b[^"]*">OpenAI<\/mark> <mark class="chip-filter-match\b[^"]*">Docs<\/mark>/)
 })
 
 test('PageChip renders a title suppression marker when common title text is suppressed', () => {

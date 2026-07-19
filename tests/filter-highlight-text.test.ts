@@ -39,14 +39,17 @@ test('highlightedTextNodes keeps highlights aligned when toLowerCase expands cha
   assert.match(html, /<mark[^>]*>Docs<\/mark>/)
 })
 
-test('highlightTermsForFilter parses space-separated terms in parsed mode', () => {
-  assert.deepEqual(highlightTermsForFilter('foo bar', 'parsed').sort(), ['bar', 'foo'])
+test('highlightTermsForFilter parses space-separated terms', () => {
+  assert.deepEqual(highlightTermsForFilter('foo bar').sort(), ['bar', 'foo'])
 })
 
-test('highlightTermsForFilter returns one lowercased substring in legacy mode', () => {
-  assert.deepEqual(highlightTermsForFilter('FOO Bar', 'legacy'), ['foo bar'])
+test('highlightedTextNodes marks a hyphenated phrase matched by a quoted spaced filter', () => {
+  const terms = highlightTermsForFilter('"tab out"')
+  const html = renderNodes(highlightedTextNodes('Tab-Out guide', terms, 'k'))
+
+  assert.match(html, /<mark[^>]*>Tab-Out<\/mark>/)
 })
 
 test('highlightTermsForFilter returns [] for a blank filter', () => {
-  assert.deepEqual(highlightTermsForFilter('   ', 'parsed'), [])
+  assert.deepEqual(highlightTermsForFilter('   '), [])
 })

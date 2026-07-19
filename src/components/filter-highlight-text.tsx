@@ -2,12 +2,9 @@ import type { ReactNode } from 'react'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import type { InlineTextRenderer } from './bionic-title-text'
 
-export type HighlightMode = 'parsed' | 'legacy'
-
-export function highlightTermsForFilter(filter: string, mode: HighlightMode): string[] {
+export function highlightTermsForFilter(filter: string): string[] {
   const query = filter.trim()
   if (!query) return []
-  if (mode === 'legacy') return [query.toLowerCase()]
   return [...new Set(parseFilterQuery(query).terms.flatMap((term) => matchValuesForFilterTerm(term)))]
 }
 

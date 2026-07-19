@@ -1571,7 +1571,7 @@ export function TabHistoryPanel({
 
   const rows = useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts })
   const savedKeySet = useMemo(() => new Set(savedKeys ?? []), [savedKeys])
-  const highlightTerms = useMemo(() => highlightTermsForFilter(filter, 'parsed'), [filter])
+  const highlightTerms = useMemo(() => highlightTermsForFilter(filter), [filter])
   const historyListRef = useRef<HTMLDivElement | null>(null)
   const scrollbar = useHistoryScrollbar(historyListRef)
   // Row layout effects queue natural title reads. As their parent, this layout

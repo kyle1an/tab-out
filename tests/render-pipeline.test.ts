@@ -19,7 +19,7 @@ import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlF
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
 import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
-import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter, tabMatchesLegacyFilter } from '../src/extension/render.js'
+import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter } from '../src/extension/render.js'
 import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
@@ -1900,6 +1900,14 @@ test('tabMatchesFilter uses tokenized AND and quoted phrase semantics', () => {
     url: 'https://github.com/example/repo/pull/4706',
     title: 'Pull Request review'
   })
+  const hyphenatedTab = makeTab({
+    url: 'https://example.test/tab-out',
+    title: 'Tab-Out guide'
+  })
+  const spacedTab = makeTab({
+    url: 'https://example.test/tab-out',
+    title: 'Tab Out guide'
+  })
 
   assert.equal(tabMatchesFilter(tab, 'github 4706'), true)
   assert.equal(tabMatchesFilter(tab, '4706 github'), true)
@@ -1909,6 +1917,8 @@ test('tabMatchesFilter uses tokenized AND and quoted phrase semantics', () => {
   assert.equal(tabMatchesFilter(tab, 'github "pull request'), true)
   assert.equal(tabMatchesFilter(tab, 'github pr'), true)
   assert.equal(tabMatchesFilter(tab, 'github "pr"'), false)
+  assert.equal(tabMatchesFilter(hyphenatedTab, '"tab out"'), true)
+  assert.equal(tabMatchesFilter(spacedTab, '"tab-out"'), true)
   assert.equal(tabMatchesFilter(tab, '   '), true)
 })
 
@@ -1937,9 +1947,10 @@ test('tokenized filter matches drive filtered close targets for open tabs', () =
   assert.deepEqual(blankVm.filteredCloseUrls, [])
 })
 
-test('history source keeps legacy raw-substring filter behavior for this pass', () => {
+test('history source uses parsed filter semantics for returned candidates', () => {
   const historyTabs = [
-    makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' })
+    makeTab({ id: 'h1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'history' }),
+    makeTab({ id: 'h2', url: 'https://example.test/tab-out', title: 'Tab-Out guide', sourceType: 'history' })
   ]
   const bookmarkTabs = [
     makeTab({ id: 'b1', url: 'https://openai.com/docs', title: 'OpenAI Docs', sourceType: 'bookmark' })
@@ -1947,13 +1958,20 @@ test('history source keeps legacy raw-substring filter behavior for this pass', 
   const historyGroups = buildDomainGroups(historyTabs)
   const bookmarkGroups = buildDomainGroups(bookmarkTabs)
 
-  assert.equal(tabMatchesLegacyFilter(historyTabs[0], 'docs openai'), false)
+  assert.equal(tabMatchesFilter(historyTabs[0], 'docs openai'), true)
+  assert.equal(tabMatchesFilter(historyTabs[1], 'tab out'), true)
   assert.equal(tabMatchesFilter(bookmarkTabs[0], 'docs openai'), true)
 
   const historyVm = buildDashboardViewModel({
     realTabs: historyTabs,
     domainGroups: historyGroups,
     filter: 'docs openai',
+    source: 'history'
+  })
+  const separatorHistoryVm = buildDashboardViewModel({
+    realTabs: historyTabs,
+    domainGroups: historyGroups,
+    filter: 'tab out',
     source: 'history'
   })
   const bookmarkVm = buildDashboardViewModel({
@@ -1963,7 +1981,8 @@ test('history source keeps legacy raw-substring filter behavior for this pass', 
     source: 'bookmarks'
   })
 
-  assert.equal(historyVm.matchedCards.length, 0)
+  assert.deepEqual(historyVm.matchedCards.map(({ group }) => group.domain), ['openai.com'])
+  assert.deepEqual(separatorHistoryVm.matchedCards.map(({ group }) => group.domain), ['example.test'])
   assert.equal(bookmarkVm.matchedCards.length, 1)
 })
 

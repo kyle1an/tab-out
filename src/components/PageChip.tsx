@@ -1180,7 +1180,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isClosedSavedPage = chip.sourceType === 'saved-page' || !!chip.closedSaved
-  const highlightTerms = highlightTermsForFilter(filter, isHistorySource ? 'legacy' : 'parsed')
+  const highlightTerms = highlightTermsForFilter(filter)
   const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
   const primaryPreviewUrl = pageTargetUrl(chip)
   const suppressedTitleParts = chip.suppressedTitleParts || []

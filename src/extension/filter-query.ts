@@ -19,6 +19,12 @@ const TOKEN_MATCH_ALIASES: Record<string, string[]> = {
   pr: ['pull request']
 }
 
+function separatorMatchVariants(value: string): string[] {
+  const parts = value.split(/[\s-]+/).filter(Boolean)
+  if (parts.length < 2) return [value]
+  return [...new Set([value, parts.join(' '), parts.join('-')])]
+}
+
 function pushTerm(terms: FilterQueryTerm[], kind: FilterQueryTerm['kind'], value: string) {
   const text = value.trim().toLowerCase()
   if (!text) return
@@ -54,8 +60,10 @@ export function parseFilterQuery(input = ''): FilterQuery {
 }
 
 export function matchValuesForFilterTerm(term: FilterQueryTerm): string[] {
-  if (term.kind !== 'token') return [term.value]
-  return [term.value, ...(TOKEN_MATCH_ALIASES[term.value] || [])]
+  const values = term.kind === 'token'
+    ? [term.value, ...(TOKEN_MATCH_ALIASES[term.value] || [])]
+    : [term.value]
+  return [...new Set(values.flatMap(separatorMatchVariants))]
 }
 
 export function searchablePartsForDashboardItem(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>): DashboardItemSearchableParts {
