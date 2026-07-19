@@ -360,7 +360,7 @@ function TooltipContent({
           ref={popupRef}
           data-slot="tooltip-content"
           className={cn(
-            'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-[10px] bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-tab-ink shadow-lg shadow-(--warm-gray) outline-1 outline-(--warm-gray) [corner-shape:squircle] [overflow-wrap:anywhere] data-[align=end]:data-[side=bottom]:rounded-tr-none data-[align=end]:data-[side=top]:rounded-br-none data-[align=start]:data-[side=bottom]:rounded-tl-none data-[align=start]:data-[side=top]:rounded-bl-none',
+            'z-50 flex w-fit max-w-xs origin-(--transform-origin) flex-col rounded-[10px] bg-[canvas] px-2 py-1 text-sm leading-5 whitespace-normal text-foreground shadow-lg shadow-(--warm-gray) outline-1 outline-(--warm-gray) [corner-shape:squircle] [overflow-wrap:anywhere] data-[align=end]:data-[side=bottom]:rounded-tr-none data-[align=end]:data-[side=top]:rounded-br-none data-[align=start]:data-[side=bottom]:rounded-tl-none data-[align=start]:data-[side=top]:rounded-bl-none',
             instant
               ? 'transition-none'
               : 'transition-[transform,opacity] duration-150 data-ending-style:transform-[scale(0.9)] data-ending-style:opacity-0 data-starting-style:transform-[scale(0.9)] data-starting-style:opacity-0',

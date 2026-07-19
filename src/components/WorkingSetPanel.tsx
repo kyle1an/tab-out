@@ -137,7 +137,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
     <div
       aria-hidden="true"
       className={cn(
-        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] opacity-100 [transform:translateY(0)_scale(1)] will-change-[opacity,transform] motion-safe:transition-[opacity,transform] motion-safe:duration-[220ms] motion-safe:ease-swift',
+        'working-set-exit-ghost working-set-item pointer-events-none absolute flex min-w-0 cursor-default items-center gap-2 overflow-hidden rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-live outline-none [corner-shape:squircle] opacity-100 [transform:translateY(0)_scale(1)] will-change-[opacity,transform] motion-safe:transition-[opacity,transform] motion-safe:duration-[220ms] motion-safe:ease-swift',
         exiting && 'is-exiting opacity-0 motion-safe:[transform:translateY(-8px)_scale(0.98)]'
       )}
       style={style}
@@ -156,7 +156,7 @@ function WorkingSetItemGhost({ item, position, exiting }: { item: WorkingSetItem
         )}
       </span>
       <span className="flex min-w-0 flex-auto items-center">
-        <span className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere]">
+        <span className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-live [hyphenate-character:''] [overflow-wrap:anywhere]">
           {bionicTitleTextNodes(item.title, `working-set-ghost-${item.key}`)}
         </span>
       </span>
@@ -286,7 +286,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
   const tooltipContent = titleMetrics.isTruncated ? (
     <span
       className={cn(
-        'block max-w-[min(360px,calc(100vw-32px))] text-[13px] leading-tight text-tab-ink wrap-break-word',
+        'block max-w-[min(360px,calc(100vw-32px))] text-[13px] leading-tight text-tab-live wrap-break-word',
         titleTooltipWidth && 'w-(--working-set-title-tooltip-width)'
       )}
     >
@@ -319,7 +319,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
         <button
           type="button"
           className={cn(
-            "working-set-item relative flex min-h-12 w-full min-w-0 cursor-default items-center gap-2 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-ink outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)] group-hover/working-set-item:border-(--accent-amber) group-hover/working-set-item:bg-[rgba(82,82,82,0.08)] group-focus-within/working-set-item:border-(--accent-amber) after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--working-set-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/working-set-item:after:opacity-100 group-focus-within/working-set-item:after:opacity-100",
+            "working-set-item relative flex min-h-12 w-full min-w-0 cursor-default items-center gap-2 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-left text-[13px] leading-tight text-tab-live outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)] group-hover/working-set-item:border-(--accent-amber) group-hover/working-set-item:bg-[rgba(82,82,82,0.08)] group-focus-within/working-set-item:border-(--accent-amber) after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-[72px] after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--working-set-hover-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] group-hover/working-set-item:after:opacity-100 group-focus-within/working-set-item:after:opacity-100",
             item.active && 'is-active-working-set-item bg-neutral-100 shadow-[0_1px_2px_rgba(10,10,10,0.07)] border-[color-mix(in_srgb,var(--accent-slate)_45%,var(--warm-gray))] hover:border-(--accent-amber) hover:bg-[color-mix(in_srgb,var(--card-bg)_88%,var(--accent-amber))] group-hover/working-set-item:border-(--accent-amber) group-hover/working-set-item:bg-[color-mix(in_srgb,var(--card-bg)_88%,var(--accent-amber))] group-focus-within/working-set-item:border-(--accent-amber) group-focus-within/working-set-item:bg-[color-mix(in_srgb,var(--card-bg)_88%,var(--accent-amber))]',
             hoverMatched && 'working-set-item-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)'
           )}
@@ -350,7 +350,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           <span className="flex min-w-0 flex-auto items-center">
             <span
               ref={titleRef}
-              className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-ink [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:var(--title-fade-mask)]"
+              className="working-set-title block max-h-[calc(2lh)] min-w-0 flex-auto overflow-hidden hyphens-auto break-normal text-tab-live [hyphenate-character:''] [overflow-wrap:anywhere] [&.working-set-title-truncated]:[mask-image:var(--title-fade-mask)]"
             >
               {titleClamp && titleClamp.key === item.title && titleClamp.lineHtml.length > 1
                 ? clampedTitleLineNodes(titleClamp.lineHtml, `working-set-title-${item.key}`)
@@ -364,7 +364,7 @@ function WorkingSetItemButton({ item, onHoverUrlChange, activeHoverUrl = '', act
           <button
             type="button"
             data-tabout-part="dismiss-button"
-            className="working-set-dismiss pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-tab-muted opacity-0 outline-none transition-[opacity,color,background] duration-150 group-hover/working-set-item:pointer-events-auto group-hover/working-set-item:opacity-100 group-focus-within/working-set-item:pointer-events-auto group-focus-within/working-set-item:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-tab-ink hover:opacity-100 focus-visible:bg-[rgba(82,82,82,0.1)] focus-visible:text-tab-ink focus-visible:opacity-100"
+            className="working-set-dismiss pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-muted-foreground opacity-0 outline-none transition-[opacity,color,background] duration-150 group-hover/working-set-item:pointer-events-auto group-hover/working-set-item:opacity-100 group-focus-within/working-set-item:pointer-events-auto group-focus-within/working-set-item:opacity-100 hover:bg-[rgba(82,82,82,0.1)] hover:text-foreground hover:opacity-100 focus-visible:bg-[rgba(82,82,82,0.1)] focus-visible:text-foreground focus-visible:opacity-100"
             aria-label={`Dismiss ${item.title} from working set`}
             onClick={onDismiss}
           >
@@ -484,7 +484,7 @@ export function WorkingSetPanel({ snapshot, onHoverUrlChange, activeHoverUrl = '
           <button
             type="button"
             data-tabout-part="toggle-button"
-            className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-tab-muted outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] hover:text-tab-ink focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
+            className="working-set-item working-set-toggle working-set-layout-item relative flex min-h-12 min-w-0 cursor-default items-center justify-center gap-1.5 rounded-[18px] border border-(--warm-gray) bg-tab-card px-2 py-1.5 text-[13px] font-medium leading-tight text-muted-foreground outline-none [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.08)] hover:text-foreground focus-visible:border-(--accent-amber) focus-visible:ring-2 focus-visible:ring-[rgba(234,179,8,0.28)]"
             data-working-set-layout-key="__working-set-toggle__"
             onClick={onToggleExpanded}
             aria-expanded={expanded}

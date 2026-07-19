@@ -202,9 +202,9 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
 
 function MissionsDivider({ action, label }: { action?: ReactNode; label: string }) {
   return (
-    <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-tab-muted uppercase', action && 'min-h-(--header-control-height)')}>
+    <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-muted-foreground uppercase', action && 'min-h-(--header-control-height)')}>
       <span className="missions-divider-label pointer-events-none shrink-0 whitespace-nowrap">{label}</span>
-      {action && <div className="missions-divider-action shrink-0 text-tab-ink normal-case tracking-normal font-normal">{action}</div>}
+      {action && <div className="missions-divider-action shrink-0 text-foreground normal-case tracking-normal font-normal">{action}</div>}
       <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
     </div>
   )

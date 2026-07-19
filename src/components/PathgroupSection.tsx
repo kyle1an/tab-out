@@ -97,7 +97,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
       <button
         type="button"
         className={cn(
-          'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
+          'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
           isFirstContent && 'top-[calc(50%_-_1px)]'
         )}
         aria-label={title}
@@ -195,16 +195,16 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
         )}
       >
         <TooltipAnchor content={pathgroupLabelTooltipContent}>
-          <span ref={labelRef} className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
+          <span ref={labelRef} className="chip-pathgroup inline-block min-w-0 overflow-hidden rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-ellipsis whitespace-nowrap text-xs font-medium text-muted-foreground align-baseline [corner-shape:squircle]">
             {displayLabel}
           </span>
         </TooltipAnchor>
         {isPR && (
-          <span className="chip-pathgroup chip-pathgroup-pr -ml-0.5 inline-block rounded-lg bg-[rgba(115,115,115,0.18)] px-[5px] text-xs font-semibold text-tab-ink align-baseline [corner-shape:squircle]">
+          <span className="chip-pathgroup chip-pathgroup-pr -ml-0.5 inline-block rounded-lg bg-[rgba(115,115,115,0.18)] px-[5px] text-xs font-semibold text-foreground align-baseline [corner-shape:squircle]">
             PRs
           </span>
         )}
-        <span className="pathgroup-header-count text-xs tabular-nums text-tab-muted opacity-70">{count}</span>
+        <span className="pathgroup-header-count text-xs tabular-nums text-muted-foreground opacity-70">{count}</span>
         {canPin && (
           <SectionPinButton
             pinned={isPinned}

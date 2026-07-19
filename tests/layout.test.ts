@@ -322,7 +322,7 @@ test('pre-app filter focus shell uses the same stable header input sizing', () =
     'rounded-(--header-control-radius)',
     'text-(length:--header-control-font-size)',
     'leading-(--header-control-line-height)',
-    'placeholder:text-(--muted)',
+    'placeholder:text-muted-foreground',
     'focus-visible:ring-3',
     'focus-visible:ring-ring/50',
     'min-[900px]:max-[960px]:w-[220px]',

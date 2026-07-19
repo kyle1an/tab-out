@@ -34,8 +34,8 @@ export function SectionPinButton({ pinned, label, onClick, className }: SectionP
         className={cn(
           'section-pin-btn grid size-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] transition-[opacity,background,color] duration-150 hover:bg-[#ededed]',
           pinned
-            ? 'is-pinned opacity-100 text-tab-ink'
-            : 'opacity-0 text-tab-muted',
+            ? 'is-pinned opacity-100 text-foreground'
+            : 'opacity-0 text-muted-foreground',
           className
         )}
         aria-label={title}

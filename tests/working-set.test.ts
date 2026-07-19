@@ -514,7 +514,7 @@ test('WorkingSetPanel keeps the moving show toggle visually neutral through clea
   assert.match(toggleMoveMatch[0], /\.working-set-toggle\.working-set-layout-settling:hover/)
   assert.match(toggleMoveMatch[1], /border-color:\s*var\(--warm-gray\);/)
   assert.match(toggleMoveMatch[1], /background:\s*var\(--card-bg\);/)
-  assert.match(toggleMoveMatch[1], /color:\s*var\(--muted\);/)
+  assert.match(toggleMoveMatch[1], /color:\s*var\(--color-muted-foreground\);/)
   assert.match(toggleMoveMatch[1], /box-shadow:\s*none;/)
   assert.doesNotMatch(toggleMoveMatch[1], /\btransition\b/)
   assert.match(animationSource, /const WORKING_SET_ITEM_SETTLE_MS = 80/)

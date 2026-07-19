@@ -57,7 +57,7 @@ const HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover/history-row:bg-(--history
 // Tailwind's extractor: closed rows (dead stack rows and recently-closed
 // ghosts) match closed-saved chips at 22% (their faint fill leaves the
 // line carrying the signal); open rows (2026-07-15) draw the quiet
-// fill-ink rim instead — the same 10% mix as their clickable fill, laid
+// interaction-fill rim instead — the same 10% mix as their clickable fill, laid
 // once more at the edge — because the darkened fill already carries the
 // open-hover emphasis.
 const HISTORY_ENTRY_HOVER_OUTLINE_CLASSES = 'group-hover/history-row:outline group-hover/history-row:outline-1 group-hover/history-row:-outline-offset-1 group-hover/history-row:outline-(--history-entry-hover-border) [&.history-entry-expanded-open]:outline [&.history-entry-expanded-open]:outline-1 [&.history-entry-expanded-open]:-outline-offset-1 [&.history-entry-expanded-open]:outline-(--history-entry-hover-border) [&[data-context-menu-open]]:outline [&[data-context-menu-open]]:outline-1 [&[data-context-menu-open]]:-outline-offset-1 [&[data-context-menu-open]]:outline-(--history-entry-hover-border)'
@@ -66,7 +66,7 @@ const HISTORY_ENTRY_OPEN_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-
 const HISTORY_ENTRY_CLICKABLE_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
 const HISTORY_ENTRY_NON_CLICKABLE_INTERACTION_CLASSES = HISTORY_ENTRY_INTERACTION_CLASSES
 const HISTORY_ENTRY_CLOSED_INTERACTION_CLASSES = `${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
-const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
+const HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-(--history-entry-rest-bg) text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.04)] ${HISTORY_ENTRY_INTERACTION_CLASSES} ${HISTORY_ENTRY_HOVER_OUTLINE_CLASSES}`
 const DEFAULT_HISTORY_ENTRY_EXPANSION_GEOMETRY: HistoryEntryExpansionGeometry = {
   lineHtml: [],
   maxWidth: 0,
@@ -249,7 +249,7 @@ function historyTitleExpandedMeasureFitsLineCount(
 
 function createHistoryTitleExpandedMeasureElement(titleEl: HTMLElement, lineHtml: readonly string[]) {
   return createExpansionMeasureElement(titleEl, {
-    className: 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-ink [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
+    className: 'history-entry-title-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-live [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
     markup: lineHtml.length > 0 ? historyTitleExpandedLineMarkup(lineHtml) : titleEl.innerHTML
   })
 }
@@ -898,7 +898,7 @@ function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntry
       data-tabout-part="history-entry-marker"
       className={cn(
         'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
-        isIndexHighlighted && 'font-semibold text-tab-ink group-hover/history-row:text-tab-ink group-focus-within/history-row:text-tab-ink'
+        isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live'
       )}
     >
       {marker}
@@ -944,7 +944,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle
         <span
           className={cn(
             "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:var(--title-fade-mask)]",
-            mutedTitle ? 'text-tab-muted' : 'text-tab-ink',
+            mutedTitle ? 'text-tab-closed' : 'text-tab-live',
             expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
           )}
           ref={expanded ? undefined : titleRef}
@@ -954,7 +954,7 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle
         {badges.length > 0 && (
           <span className="inline-flex flex-none items-center gap-1">
             {badges.map((badge) => (
-              <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-tab-muted">
+              <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 {badge}
               </span>
             ))}
@@ -1007,7 +1007,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
         <button
           type="button"
           data-tabout-part={canForgetClosedGhost ? 'forget-button' : 'close-button'}
-          className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-3 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+          className="history-entry-close history-entry-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-3 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 leading-0 outline-none group-hover/history-favicon-frame:pointer-events-auto group-hover/history-favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
           tabIndex={expanded ? -1 : undefined}
           aria-label={canForgetClosedGhost ? `Remove ${entryLabel} from recently closed` : `Close ${entryLabel}`}
           onClick={canForgetClosedGhost ? onForget : onClose}
@@ -1251,12 +1251,12 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
         data-next-target={entry.nextTarget ? 'true' : undefined}
         aria-hidden={expanded ? true : undefined}
         className={cn(
-          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-ink [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
-          entryClosed && 'history-entry-closed text-tab-muted',
+          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-live [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+          entryClosed && 'history-entry-closed text-tab-closed',
           titleExpanded && 'history-entry-expanded-open',
           expanded && 'history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-(--history-entry-expanded-max-width) cursor-default select-none !overflow-visible !transition-none w-(--history-entry-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           expanded && (entryExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
-          entry.current && 'bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
+          entry.current && 'bg-neutral-100 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
           !entry.current && historyEntryInteractionClasses,
           hoverMatched && 'history-entry-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)'
         )}

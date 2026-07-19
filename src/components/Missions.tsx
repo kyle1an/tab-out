@@ -15,7 +15,7 @@ function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
   const noun = dashboardSourceEmptyNoun(source)
   return (
     <div className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center">
-      <div className="text-base font-normal text-tab-ink">No {noun}.</div>
+      <div className="text-base font-normal text-foreground">No {noun}.</div>
     </div>
   )
 }
@@ -23,7 +23,7 @@ function EmptyState({ source = 'tabs' }: { source?: DashboardSource }) {
 function NoResultsState({ query = '' }: { query?: string }) {
   return (
     <div className="[column-span:all] flex flex-col items-center justify-center gap-1.5 px-4 pt-10 pb-15 text-center">
-      <div className={cn('text-base font-normal text-tab-ink', 'text-[15px]')}>{query ? `No matches for “${query}”.` : 'No matches.'}</div>
+      <div className={cn('text-base font-normal text-foreground', 'text-[15px]')}>{query ? `No matches for “${query}”.` : 'No matches.'}</div>
     </div>
   )
 }

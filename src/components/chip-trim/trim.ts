@@ -24,7 +24,7 @@ const CLICKABLE_INTERACTION_OVERLAY_BG = 'color-mix(in srgb, var(--color-neutral
 const GROUP_INTERACTION_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
 const GROUP_HOVER_BORDER = 'color-mix(in srgb, var(--color-neutral-600) 22%, transparent)'
 // Open plain chips hover on the 10% clickable fill, which already carries
-// the emphasis; their line is deliberately the SAME ink as that fill
+// the emphasis; their line deliberately repeats that interaction-fill tone
 // (CLICKABLE_INTERACTION_OVERLAY_BG), laid once more at the edge — a quiet
 // rim, owner-tuned 2026-07-15 down from 32%. The closed/group kinds keep
 // the stronger 22% line: their 3.5% fill barely darkens, so there the
@@ -77,7 +77,7 @@ export type ChipTrim = {
   frame: null | { classes: string }
   /** CSS vars for fills and the interaction line. The fade bg stays the
       opaque mix in every kind — the fade exists to hide chip text under the
-      action rail. Open plain chips carry the quiet fill-ink hover line;
+      action rail. Open plain chips carry the quiet interaction-fill hover line;
       group/saved kinds keep the stronger 22% line (their fill barely
       darkens, so the line carries their hover signal). */
   styleVars: {
@@ -109,10 +109,10 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
     // always-on ring sits OUTSIDE (outline-offset-1), and the trio's inset
     // offset would yank it inward on hover.
     isPlainClickable && !facts.iconOnly && HOVER_OUTLINE_CLASSES,
-    facts.closedSavedPage && !isGroupKind && `${CHIP_TRIM_TOKENS.savedClosed} text-tab-muted ${GROUP_INTERACTION_CLASSES}`,
-    hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
-    isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
-    isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-ink shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
+    facts.closedSavedPage && !isGroupKind && `${CHIP_TRIM_TOKENS.savedClosed} text-tab-closed ${GROUP_INTERACTION_CLASSES}`,
+    hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && 'bg-(--chip-rest-bg) text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.04)]',
+    isCurrentActiveFrame && 'current-active-chip bg-neutral-50 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
+    isCurrentTabOutFrame && 'current-tab-out-chip bg-neutral-100 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400',
     hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && ACTIVE_OTHER_INTERACTION_CLASSES,
     isGroupKind && !hasActiveChipFrame && !isCurrentActiveFrame && !isCurrentTabOutFrame && GROUP_INTERACTION_CLASSES
   ].filter(Boolean).join(' ')

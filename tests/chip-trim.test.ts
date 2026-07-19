@@ -37,7 +37,7 @@ test('chip-trim: plain chips get the translucent fill, the quiet hover line, and
   assert.match(trim.chipClasses, /\[&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(trim.chipClasses, /\[&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   // Open plain chips answer hover with the group kinds' 1px line at the
-  // quiet fill-ink color — the same 10% mix as their interaction fill,
+  // quiet interaction-fill color — the same 10% mix as their interaction fill,
   // laid once more at the edge (the darkened fill carries the emphasis).
   assert.match(trim.chipClasses, OUTLINE_TRIO)
   assert.equal(trim.styleVars.hoverBorder, CLICKABLE_LINE)
@@ -54,7 +54,7 @@ test('chip-trim: plain chips get the translucent fill, the quiet hover line, and
 test('chip-trim: saved-closed chips carry the marker and the interaction outline', () => {
   const trim = chipTrim(facts({ closedSavedPage: true }))
   assert.match(trim.chipClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.savedClosed}\\b`))
-  assert.match(trim.chipClasses, /text-tab-muted/)
+  assert.match(trim.chipClasses, /text-tab-closed/)
   assert.match(trim.chipClasses, OUTLINE_TRIO)
   assert.equal(trim.frame, null)
   assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)
@@ -73,10 +73,10 @@ test('chip-trim: variant-group and folded chips get the group outline', () => {
   }
 })
 
-test('chip-trim: the open hover line is the quiet fill-ink rim; icon and framed kinds opt out', () => {
+test('chip-trim: the open hover line repeats the quiet interaction-fill tone; icon and framed kinds opt out', () => {
   // Two line weights by where the hover signal lives: group/saved kinds
   // barely darken their fill, so they hover the stronger 22% line; open
-  // plain chips darken to the 10% fill, so their line is that same ink
+  // plain chips darken to the 10% fill, so their line repeats that tone
   // laid once more at the edge — a quiet rim (owner-tuned from 32%).
   // Icon-only chips keep fill-only feedback (their always-on ring sits
   // OUTSIDE via outline-offset-1 — the trio's inset offset would yank it

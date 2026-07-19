@@ -2,7 +2,7 @@ import { LoaderCircle } from 'lucide-react'
 
 // Chrome's default light tab throbber resolves to its Primary 40 token.
 // Tab Out currently renders on a light surface, so keep both loading
-// surfaces on that exact color instead of inheriting the dashboard ink.
+// surfaces on that exact color instead of inheriting the dashboard foreground.
 const CHROME_TAB_LOADING_COLOR = '#0b57d0'
 
 export function TabLoadingIndicator() {

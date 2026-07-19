@@ -52,12 +52,12 @@ const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
 // pointer can travel onto the revealed content without the chip blinking shut at the
 // seam between the original footprint and the revealed overflow.
 const PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX = 6
-const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
-const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-tab-muted align-baseline [corner-shape:squircle]'
+const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
+const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle]'
 // Expanded chips reveal the full path suffix, so the cloned/measured copy must
 // wrap (and break long, space-free query strings) instead of staying on the
 // single nowrap line it uses while collapsed — otherwise it overflows the chip.
-const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path font-normal text-tab-muted opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
+const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path font-normal text-muted-foreground opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   grewTaller: false,
   lineHtml: [],
@@ -339,7 +339,7 @@ function carriedExpandedMarkerToneClass(marker: Element) {
       /^(border|bg|ring)-(yellow|teal|sky|rose)-/.test(className) ||
       className === 'ring-1' ||
       className === 'ring-inset' ||
-      className === 'text-tab-ink'
+      className === 'text-foreground'
     ))
     .join(' ')
 }
@@ -601,7 +601,7 @@ function createExpandedPageChipMeasureElement(
   lineHtml: readonly string[]
 ) {
   return createExpansionMeasureElement(textEl, {
-    className: 'page-chip-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-(--ink) [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
+    className: 'page-chip-expansion-measure pointer-events-none invisible fixed top-0 left-0 z-[-1] block min-w-0 max-w-none whitespace-normal hyphens-auto break-normal text-[13px] leading-tight text-tab-live [font-family:inherit] [hyphenate-character:\'\'] wrap-break-word',
     markup: expandedPageChipMeasureMarkup(textEl, lineHtml)
   })
 }
@@ -886,7 +886,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
           data-tabout-part="page-pin"
           data-pinned="true"
           className={cn(
-            'chip-page-pin-badge pointer-events-none absolute -top-[6px] -right-[6px] z-3 inline-flex size-3.5 items-center justify-center rounded-full border border-tab-card bg-(--card-bg) text-tab-muted opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.16)] data-[pinned=true]:opacity-100',
+            'chip-page-pin-badge pointer-events-none absolute -top-[6px] -right-[6px] z-3 inline-flex size-3.5 items-center justify-center rounded-full border border-tab-card bg-(--card-bg) text-muted-foreground opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.16)] data-[pinned=true]:opacity-100',
             showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
           )}
           aria-hidden="true"
@@ -898,7 +898,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         <button
           type="button"
           data-tabout-part="close-button"
-          className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-tab-ink focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+          className="chip-action chip-close chip-close-favicon pointer-events-none absolute top-1/2 left-1/2 z-4 inline-flex size-5 -translate-x-1/2 -translate-y-1/2 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/favicon-frame:pointer-events-auto group-hover/favicon-frame:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:bg-(--card-bg) focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
           aria-label={closeActionLabel}
           onClick={onCloseAction}
         >
@@ -1741,7 +1741,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       <span
         key={key}
         className={cn(
-          'chip-title-suppression-marker inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center rounded-[7px] border border-transparent bg-[rgba(115,115,115,0.08)] px-[3px] text-[12px] leading-[12px] text-tab-muted align-middle [corner-shape:squircle] group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:items-baseline group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:border-0 group-[.page-chip-expanded]/page-chip:px-1 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:font-medium group-[.page-chip-expanded]/page-chip:align-baseline group-[.page-chip-expanded]/page-chip:[-webkit-box-decoration-break:clone] group-[.page-chip-expanded]/page-chip:[box-decoration-break:clone]',
+          'chip-title-suppression-marker inline-flex h-[14px] min-w-[14px] shrink-0 items-center justify-center rounded-[7px] border border-transparent bg-[rgba(115,115,115,0.08)] px-[3px] text-[12px] leading-[12px] text-muted-foreground align-middle [corner-shape:squircle] group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:items-baseline group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:border-0 group-[.page-chip-expanded]/page-chip:px-1 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:font-medium group-[.page-chip-expanded]/page-chip:align-baseline group-[.page-chip-expanded]/page-chip:[-webkit-box-decoration-break:clone] group-[.page-chip-expanded]/page-chip:[box-decoration-break:clone]',
           markerClassName,
           titleSuppressionMarkerClass(tone, active)
         )}
@@ -1815,7 +1815,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const marker = (
       <span
         key={key}
-        className="chip-strip-indicator inline-flex size-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-tab-muted align-baseline group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:w-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:px-1.5 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:[corner-shape:squircle]"
+        className="chip-strip-indicator inline-flex size-4 items-center justify-center rounded-full bg-[rgba(115,115,115,0.1)] text-xs leading-none font-medium text-muted-foreground align-baseline group-[.page-chip-expanded]/page-chip:h-auto group-[.page-chip-expanded]/page-chip:w-auto group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:rounded-lg group-[.page-chip-expanded]/page-chip:px-1.5 group-[.page-chip-expanded]/page-chip:leading-[inherit] group-[.page-chip-expanded]/page-chip:[corner-shape:squircle]"
         aria-hidden={hiddenLabel ? undefined : true}
         aria-label={hiddenLabel || undefined}
       >
@@ -1853,10 +1853,10 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
     const envClassName = cn(
-      "chip-env inline-flex items-center rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 text-xs leading-[inherit] font-medium text-tab-muted [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
+      "chip-env inline-flex items-center rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 text-xs leading-[inherit] font-medium text-muted-foreground [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
-      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-[ease] hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
-      env.activeInOtherWindow && 'bg-neutral-600/[0.075] text-tab-ink shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
+      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-[ease] hover:bg-neutral-600/[0.14] hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-live',
+      env.activeInOtherWindow && 'bg-neutral-600/[0.075] text-tab-live shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 
     if (mode === 'tooltip') {
@@ -1923,7 +1923,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     return (
       <>
         {target.pathGroupLabel && (
-          <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-tab-muted align-baseline [corner-shape:squircle]">
+          <span className="chip-pathgroup mr-1.5 inline-block rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium text-muted-foreground align-baseline [corner-shape:squircle]">
             {highlightedTextNodes(pathGroupDisplayLabel(target.pathGroupLabel), highlightTerms, `${keyPrefix}-pathgroup`)}
           </span>
         )}
@@ -1953,7 +1953,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             {' '}
             <span
               className={cn(
-                'chip-path font-normal text-tab-muted opacity-75',
+                'chip-path font-normal text-muted-foreground opacity-75',
                 mode === 'chip'
                   ? 'inline-block whitespace-nowrap group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:whitespace-normal group-[.page-chip-expanded]/page-chip:wrap-break-word'
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal w-max wrap-break-word'
@@ -2022,11 +2022,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         data-tabout-removal-key={`page:${variant.rawUrl}`}
         data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
         className={cn(
-          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600 hover:bg-neutral-600/[0.14] hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-          '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-ink',
-          variantActive && 'bg-neutral-600/[0.075] text-tab-ink',
-          variantCurrent && 'bg-neutral-100 text-tab-ink shadow-[inset_2px_0_0_0_var(--accent-amber)]',
-          variantHoverMatched && 'bg-neutral-600/[0.14] text-tab-ink'
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600 hover:bg-neutral-600/[0.14] hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+          '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-live',
+          variantActive && 'bg-neutral-600/[0.075] text-tab-live',
+          variantCurrent && 'bg-neutral-100 text-tab-live shadow-[inset_2px_0_0_0_var(--accent-amber)]',
+          variantHoverMatched && 'bg-neutral-600/[0.14] text-tab-live'
         )}
         aria-label={variantLabel}
         onClick={(e) => onTitleVariantFocus(e, variant)}
@@ -2096,7 +2096,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             {variantCanClose && (
               <button
                 type="button"
-                className="chip-title-variant-action pointer-events-none inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100 hover:bg-neutral-600/10 hover:text-tab-ink hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+                className="chip-title-variant-action pointer-events-none inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
                 aria-label={titleVariantActionLabel(variant)}
                 onClick={(e) => onCloseTitleVariant(e, variant)}
                 onMouseEnter={() => onTitleVariantMouseEnter(variant)}
@@ -2138,7 +2138,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     return (
       <>
         {chip.leadPrefix && (
-          <span className="chip-subdomain mr-1.5 font-medium text-tab-muted after:ml-1.5 after:opacity-50 after:content-['·']">
+          <span className="chip-subdomain mr-1.5 font-medium text-muted-foreground after:ml-1.5 after:opacity-50 after:content-['·']">
             {highlightedTextNodes(chip.leadPrefix, highlightTerms, `${mode}-lead`)}
           </span>
         )}
@@ -2201,9 +2201,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const chipTooltipContent = chip.iconOnly ? (
     <span
       className={cn(
-        "chip-text block min-w-0 max-w-[calc(100vw-32px)] hyphens-auto break-normal text-[13px] leading-tight text-(--ink) [font-family:inherit] [hyphenate-character:'']",
+        "chip-text block min-w-0 max-w-[calc(100vw-32px)] hyphens-auto break-normal text-[13px] leading-tight text-tab-live [font-family:inherit] [hyphenate-character:'']",
         "whitespace-normal wrap-break-word",
-        hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]'
+        hasFilter && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]'
       )}
     >
       {chipTextContentNode('tooltip')}
@@ -2258,7 +2258,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     <span
       className={cn(
         "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:var(--title-fade-mask)]",
-        hasFilter && 'text-[color-mix(in_srgb,var(--ink)_72%,var(--muted))]',
+        hasFilter && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none !overflow-visible',
         isFolded && 'max-h-none',
@@ -2317,7 +2317,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         data-tabout="page-chip"
         data-expanded={chipExpanded ? 'true' : undefined}
         className={cn(
-          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-(--ink) [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
+          "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-tab-live [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           !chip.iconOnly && 'w-full',
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber)',
           chipVisualOpen && CHIP_TRIM_TOKENS.tooltipOpen,
@@ -2376,7 +2376,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       {!chip.iconOnly && chip.chromePinned && (
         <span
           data-tabout-part="chrome-pin"
-          className="chip-chrome-pin icon-[lucide--pin] mt-[1px] size-3 shrink-0 text-tab-muted opacity-70"
+          className="chip-chrome-pin icon-[lucide--pin] mt-[1px] size-3 shrink-0 text-muted-foreground opacity-70"
           aria-hidden="true"
         />
       )}

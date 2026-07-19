@@ -35,7 +35,7 @@ export function TitleSuppressionSummary({
   if (suppressedTitleParts.length === 0) return null
 
   return (
-    <div className={cn('title-suppression-summary flex flex-wrap items-center gap-1 text-xs leading-4 text-tab-muted', className)}>
+    <div className={cn('title-suppression-summary flex flex-wrap items-center gap-1 text-xs leading-4 text-muted-foreground', className)}>
       {suppressedTitleParts.map((part, index) => {
         const label = `Suppressed in ${part.count} title${part.count !== 1 ? 's' : ''}: ${part.text}`
         const active = activeSuppressedTitle === part.text
@@ -49,7 +49,7 @@ export function TitleSuppressionSummary({
             ref={(el) => { const map = tokenButtonsRef.current; if (el) map.set(part.text, el); else map.delete(part.text) }}
             type="button"
             className={cn(
-              'title-suppression-token inline-flex h-5 items-center gap-1 rounded-[6px] border border-transparent bg-neutral-100 px-1.5 py-0 text-xs leading-none font-medium text-tab-muted transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-yellow-200 hover:bg-yellow-50 hover:text-tab-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-yellow-400',
+              'title-suppression-token inline-flex h-5 items-center gap-1 rounded-[6px] border border-transparent bg-neutral-100 px-1.5 py-0 text-xs leading-none font-medium text-muted-foreground transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-yellow-200 hover:bg-yellow-50 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-yellow-400',
               titleSuppressionTokenToneClass(toneIndex, useSuppressionTokenTones, active)
             )}
             aria-label={label}

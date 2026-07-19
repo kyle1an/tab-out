@@ -60,7 +60,7 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
           <TabsTrigger
             key={option.value}
             data-tabout-part="source-option"
-            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) font-normal text-tab-muted outline-none [font-family:inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-tab-ink focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-(--accent-amber) data-[active]:bg-transparent data-[active]:text-tab-ink data-[active]:shadow-none dark:data-[active]:border-transparent dark:data-[active]:bg-transparent"
+            className="source-switch-option relative z-1 inline-flex h-8 flex-none box-border cursor-pointer select-none items-center justify-center whitespace-nowrap border-0 bg-transparent px-2 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) font-normal text-muted-foreground outline-none [font-family:inherit] [transition:color_0.15s_ease] after:hidden before:pointer-events-none before:absolute before:inset-x-0 before:inset-y-1 before:rounded-[calc(var(--header-control-radius)_-_6px)] before:outline-2 before:-outline-offset-1 before:outline-transparent before:[corner-shape:squircle] before:content-[''] hover:text-foreground focus-visible:ring-0 focus-visible:outline-none focus-visible:before:outline-(--accent-amber) data-[active]:bg-transparent data-[active]:text-foreground data-[active]:shadow-none dark:data-[active]:border-transparent dark:data-[active]:bg-transparent"
             value={option.value}
           >
             {option.label}
@@ -128,7 +128,7 @@ export function HeaderBar({
               ref={inputRef}
               type="search"
               data-tabout-part="input"
-              className="tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-(--warm-gray) bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-(--ink) outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-(--muted) focus:border-(--accent-amber) focus:bg-tab-card min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
+              className="tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-(--warm-gray) bg-[rgba(115,115,115,0.06)] px-3.5 py-0 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground outline-none [font-family:inherit] [transition:border-color_0.15s,background_0.15s,opacity_0.2s] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground focus:border-(--accent-amber) focus:bg-tab-card min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
               autoComplete="off"
               autoFocus={filterFocusRequest > 0}
               spellCheck="false"
@@ -140,7 +140,7 @@ export function HeaderBar({
               <button
                 type="button"
                 data-tabout-part="clear-button"
-                className="tab-filter-clear absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-tab-muted transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-tab-ink [&_svg]:h-3 [&_svg]:w-3"
+                className="tab-filter-clear absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-foreground [&_svg]:h-3 [&_svg]:w-3"
                 aria-label="Clear filter"
                 onClick={onClear}
               >

@@ -78,7 +78,7 @@ function TabBadge({ label }: { label?: string | number }) {
     return (
       <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]">
         <span className="tab-count-badge-current font-bold text-(--accent-amber)">{labelText.slice(0, slashIndex)}</span>
-        <span className="tab-count-badge-total font-medium text-tab-muted opacity-80">{labelText.slice(slashIndex)}</span>
+        <span className="tab-count-badge-total font-medium text-muted-foreground opacity-80">{labelText.slice(slashIndex)}</span>
       </span>
     )
   }
@@ -97,7 +97,7 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
       type="button"
       data-tabout-part="dedupe-button"
       className={cn(
-        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-tab-muted transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
+        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
         closing && 'closing'
       )}
       onClick={onClick}
@@ -118,8 +118,8 @@ function PinButton({ displayName, pinned, onClick }: { displayName?: string; pin
         className={cn(
           'domain-pin-btn inline-flex size-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
           pinned
-            ? 'is-pinned border-(--warm-gray) bg-[rgba(82,82,82,0.08)] text-tab-ink opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
-            : 'border-transparent bg-transparent text-tab-muted opacity-[0.35] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100'
+            ? 'is-pinned border-(--warm-gray) bg-[rgba(82,82,82,0.08)] text-foreground opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
+            : 'border-transparent bg-transparent text-muted-foreground opacity-[0.35] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground hover:opacity-100'
         )}
         aria-label={title}
         aria-pressed={pinned ? 'true' : 'false'}
@@ -147,7 +147,7 @@ function ReorderPinnedDomainButton({
       <button
         type="button"
         data-tabout-part="reorder-handle"
-        className="domain-reorder-handle inline-flex size-[22px] min-w-[22px] cursor-grab touch-none items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-tab-muted opacity-[0.45] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-tab-ink hover:opacity-100 active:cursor-grabbing focus-visible:border-(--warm-gray) focus-visible:bg-[rgba(82,82,82,0.06)] focus-visible:text-tab-ink focus-visible:opacity-100"
+        className="domain-reorder-handle inline-flex size-[22px] min-w-[22px] cursor-grab touch-none items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-muted-foreground opacity-[0.45] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground hover:opacity-100 active:cursor-grabbing focus-visible:border-(--warm-gray) focus-visible:bg-[rgba(82,82,82,0.06)] focus-visible:text-foreground focus-visible:opacity-100"
         aria-label={`Reorder pinned card ${displayName}`}
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
@@ -164,9 +164,9 @@ function DomainTitle({ displayName, subdomainKey = '' }: { displayName: string; 
 
   return (
     <>
-      {subdomainKey && <span className="domain-title-subdomain font-semibold text-tab-muted opacity-85">{subdomainKey}.</span>}
+      {subdomainKey && <span className="domain-title-subdomain font-semibold text-muted-foreground opacity-85">{subdomainKey}.</span>}
       <span className="domain-title-name">{suffix ? name : displayName}</span>
-      {suffix && <span className="domain-title-suffix font-semibold text-tab-muted opacity-75">{suffix}</span>}
+      {suffix && <span className="domain-title-suffix font-semibold text-muted-foreground opacity-75">{suffix}</span>}
     </>
   )
 }
@@ -369,7 +369,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
           )}
         >
           <div className="domain-header-flow flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1">
-            <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-tab-ink">
+            <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-foreground">
               <DomainTitle displayName={displayName} subdomainKey={inlineSubdomainKey} />
             </span>
             {group.pinned && (
@@ -383,7 +383,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
             {vm.singleSubdomainKey && !inlineSubdomainKey && (
               <span
                 className={cn(
-                  'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-tab-muted [corner-shape:squircle]',
+                  'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-muted-foreground [corner-shape:squircle]',
                   vm.singleSubdomainIsPort
                     ? "before:font-normal before:opacity-45 before:content-[':']"
                     : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"

@@ -73,7 +73,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
     nodes.push(
       <mark
         key={`${keyPrefix}-${originalStart}-${originalEnd}`}
-        className="chip-filter-match rounded-[2px] bg-[rgba(234,179,8,0.42)] text-tab-ink [font:inherit] [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]"
+        className="chip-filter-match rounded-[2px] bg-[rgba(234,179,8,0.42)] text-foreground [font:inherit] [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]"
       >
         {text.slice(originalStart, originalEnd)}
       </mark>

@@ -63,7 +63,7 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
     <TooltipAnchor content={title}>
       <button
         type="button"
-        className="subdomain-close-btn grid size-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-tab-muted opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed]"
+        className="subdomain-close-btn grid size-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed]"
         aria-label={title}
         onClick={onClick}
       >
@@ -136,7 +136,7 @@ export function SubdomainSection({
       {showHeader && (
         <div
           className={cn(
-            'subdomain-header flex items-center gap-1.5 pb-0.5 text-xs font-semibold tracking-[0.2px] text-tab-muted',
+            'subdomain-header flex items-center gap-1.5 pb-0.5 text-xs font-semibold tracking-[0.2px] text-muted-foreground',
             isFirst ? 'pt-0.5' : 'pt-1.5'
           )}
         >

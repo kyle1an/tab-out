@@ -30,7 +30,7 @@ export function HeaderStats({
   onCloseFiltered
 }: HeaderStatsProps) {
   if (!ready) {
-    return <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-tab-muted" aria-hidden="true" />
+    return <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground" aria-hidden="true" />
   }
 
   const canUseTabActions = dashboardSourceAllowsTabActions(source)
@@ -45,17 +45,17 @@ export function HeaderStats({
   const closeFilteredTitle = `Close ${filteredCloseCount} filtered tab${filteredCloseCount !== 1 ? 's' : ''}`
 
   return (
-    <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-tab-muted">
-      <span className="font-medium text-tab-ink">
+    <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground">
+      <span className="font-medium text-foreground">
         {tabsLabel}
-        {activeTabs < totalTabs && <span className="font-normal text-tab-muted"> ({activeTabs} active)</span>}
+        {activeTabs < totalTabs && <span className="font-normal text-muted-foreground"> ({activeTabs} active)</span>}
       </span>
       {canUseTabActions && dedupCount > 0 && (
         <button
           type="button"
           data-tabout="tab-action"
           data-tabout-part="dedupe-button"
-          className="action-btn inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-[5px] rounded-(--header-control-radius) border border-(--warm-gray) bg-tab-card px-3 py-[5px] font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-tab-muted transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-tab-ink hover:text-tab-ink"
+          className="action-btn inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-[5px] rounded-(--header-control-radius) border border-(--warm-gray) bg-tab-card px-3 py-[5px] font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground"
           onClick={onDedupAll}
         >
           Dedupe {dedupCount}
@@ -63,14 +63,14 @@ export function HeaderStats({
       )}
       {canUseTabActions && (
         <>
-          <span className="text-tab-muted opacity-50">·</span>
+          <span className="text-muted-foreground opacity-50">·</span>
           <span>{windowsLabel}</span>
         </>
       )}
       {hasCards && (
         <span className="inline-flex items-center gap-2">
-          <span className="text-tab-muted opacity-50">·</span>
-          <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13px] font-normal tabular-nums text-tab-muted">{domainsLabel}</span>
+          <span className="text-muted-foreground opacity-50">·</span>
+          <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13px] font-normal tabular-nums text-muted-foreground">{domainsLabel}</span>
         </span>
       )}
       {canUseTabActions && filteredCloseCount > 0 && (
