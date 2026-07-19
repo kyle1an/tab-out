@@ -18,6 +18,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     const counts = {
       chipTextRangeRects: 0,
       chipTextRects: 0,
+      domainCardRects: 0,
       historyTitleRangeRects: 0,
       historyTitleRects: 0,
       layoutShift: 0
@@ -30,6 +31,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     const getBoundingClientRect = Element.prototype.getBoundingClientRect
     Element.prototype.getBoundingClientRect = function getInstrumentedBoundingClientRect() {
       if (this instanceof HTMLElement) {
+        if (this.matches('[data-tabout="domain-card"]')) counts.domainCardRects += 1
         if (this.classList.contains('history-entry-title')) counts.historyTitleRects += 1
         if (this.classList.contains('chip-text') || this.classList.contains('chip-title-row')) {
           counts.chipTextRects += 1
@@ -69,6 +71,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       __tabOutFirstPaintMeasurements: {
         chipTextRangeRects: number
         chipTextRects: number
+        domainCardRects: number
         historyTitleRangeRects: number
         historyTitleRects: number
         layoutShift: number
@@ -77,14 +80,17 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     return {
       ...benchmarkWindow.__tabOutFirstPaintMeasurements,
       chipCount: document.querySelectorAll('[data-tabout="page-chip"]').length,
+      domainCardCount: document.querySelectorAll('[data-tabout="domain-card"]').length,
       historyTitleCount: document.querySelectorAll('.history-entry-title').length
     }
   })
 
   expect(measurements.chipCount).toBeGreaterThan(0)
+  expect(measurements.domainCardCount).toBeGreaterThan(0)
   expect(measurements.historyTitleCount).toBeGreaterThan(0)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
   expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(12)
+  expect(measurements.domainCardRects / measurements.domainCardCount).toBeLessThanOrEqual(2)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(10)
   expect(measurements.layoutShift).toBe(0)

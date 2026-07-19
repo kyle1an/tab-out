@@ -170,6 +170,7 @@ export function useMissionsMasonry(...args: unknown[]) {
   const rafIdRef = useRef(0)
   const observerRef = useRef<ResizeObserver | null>(null)
   const mutationObserverRef = useRef<MutationObserver | null>(null)
+  const observedContainerWidthsRef = useRef(new WeakMap<HTMLElement, number>())
   const containerRefsRef = useRef(containerRefs)
   const optionsRef = useRef({ onAfterLayout, onBeforePack, onAfterPack })
   containerRefsRef.current = containerRefs
@@ -179,6 +180,9 @@ export function useMissionsMasonry(...args: unknown[]) {
     const containers = currentContainersFromRefs(containerRefsRef)
     const { onAfterLayout, onBeforePack, onAfterPack } = optionsRef.current
     const animationState = animate && onBeforePack ? onBeforePack(containers) : null
+    for (const container of containers) {
+      if (container) observedContainerWidthsRef.current.set(container, container.clientWidth)
+    }
     packMissionsMasonry(
       containers,
       {
@@ -198,7 +202,19 @@ export function useMissionsMasonry(...args: unknown[]) {
   useLayoutEffect(() => {
     let observer = observerRef.current
     if (!observer) {
-      observer = new ResizeObserver(() => {
+      observer = new ResizeObserver((entries) => {
+        let widthChanged = false
+        for (const entry of entries) {
+          if (!(entry.target instanceof HTMLElement)) continue
+          const previousWidth = observedContainerWidthsRef.current.get(entry.target)
+          const nextWidth = entry.target.clientWidth
+          observedContainerWidthsRef.current.set(entry.target, nextWidth)
+          if (previousWidth !== undefined && previousWidth !== nextWidth) widthChanged = true
+        }
+        // packContainer writes the grid height. ResizeObserver reports that
+        // height change too, but masonry only needs to react when its available
+        // inline width changes; repacking the height write would self-trigger.
+        if (!widthChanged) return
         const containers = currentContainersFromRefs(containerRefsRef)
         scheduleMissionsMasonry({ animate: shouldAnimateAnyMasonryResize(containers, lastColCountsRef.current) })
       })
@@ -221,6 +237,9 @@ export function useMissionsMasonry(...args: unknown[]) {
     containerRefs.forEach((ref) => {
       const container = ref.current
       if (!container) return
+      if (!observedContainerWidthsRef.current.has(container)) {
+        observedContainerWidthsRef.current.set(container, container.clientWidth)
+      }
       observer.observe(container)
       mutationObserver.observe(container, { childList: true })
     })
