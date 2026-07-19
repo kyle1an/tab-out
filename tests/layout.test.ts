@@ -125,9 +125,18 @@ test('working set is merged into the history panel instead of rendering a top st
 
   assert.match(source, /const historyWorkingSet = source === 'tabs' \? workingSet : null/)
   assert.match(source, /workingSet=\{historyWorkingSet\}/)
-  assert.match(source, /workingSet=\{visibleWorkingSet\}/)
+  assert.match(source, /workingSet=\{historyPanelWorkingSet\}/)
   assert.doesNotMatch(source, /<WorkingSetPanel\b/)
   assert.doesNotMatch(source, /workingSetLayoutRectsRef|primeWorkingSetLayoutChange|animateWorkingSetLayoutChange/)
+})
+
+test('activation history uses hydrated Working Set targets while startup ordering stays frozen', () => {
+  const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /const visibleWorkingSet = dashboardContentVisible \? effectiveStartupPriorityWorkingSet \?\? workingSet : null/)
+  assert.match(source, /const historyPanelWorkingSet = dashboardContentVisible \? workingSet : null/)
+  assert.match(source, /workingSet: visibleWorkingSet/)
+  assert.match(source, /workingSet=\{historyPanelWorkingSet\}/)
 })
 
 test('tabs source reserves the history column before dashboard data is ready', () => {

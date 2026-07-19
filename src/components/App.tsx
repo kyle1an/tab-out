@@ -695,6 +695,7 @@ export function App({
   }, [setFilterInput])
   const effectiveStartupPriorityWorkingSet = source === 'tabs' && filter.trim() === '' ? startupPriorityWorkingSet : null
   const visibleWorkingSet = dashboardContentVisible ? effectiveStartupPriorityWorkingSet ?? workingSet : null
+  const historyPanelWorkingSet = dashboardContentVisible ? workingSet : null
   function resetMissionOrder() {
     previousOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
     chipOrderRef.current = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
@@ -980,7 +981,7 @@ export function App({
           stats={stats}
           tabHistory={dashboardContentVisible ? tabHistory : null}
           urlPreview={urlPreview}
-          workingSet={visibleWorkingSet}
+          workingSet={historyPanelWorkingSet}
         />
       </HoverStateProvider>
     </DashboardActionsProvider>

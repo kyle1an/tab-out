@@ -43,10 +43,10 @@ function activityRecord(url: string, title: string, at: number) {
   }
 }
 
-function workingSetSnapshotItem(url: string, title: string, score: number) {
+function workingSetSnapshotItem(url: string, title: string, score: number, tabId = 1) {
   return {
     key: url,
-    tabId: 1,
+    tabId,
     windowId: 1,
     tabUrl: url,
     rawUrl: url,
@@ -130,6 +130,59 @@ test('startup snapshot cache paints any structurally valid session snapshot', as
     snapshot: { dashboard: {} }
   }
   assert.equal(await loadCachedDashboardStartup(), null)
+})
+
+test('startup snapshot cache drops working set rows not backed by its cached open tabs', async () => {
+  const openUrl = 'https://example.com/docs'
+  const closedUrl = 'https://closed.example.com/old'
+  const cached = {
+    savedAt: now,
+    snapshot: {
+      dashboard: {
+        realTabs: [{
+          id: 1,
+          url: openUrl,
+          rawUrl: openUrl,
+          suspended: false,
+          title: 'Live Docs',
+          favIconUrl: '',
+          windowId: 1,
+          active: true,
+          pinned: false,
+          groupId: -1,
+          isTabOut: false,
+          isApp: false
+        }],
+        domainGroups: []
+      },
+      tabHistory: {
+        entries: []
+      },
+      workingSet: {
+        defaultLimit: 3,
+        expandedLimit: 7,
+        items: [
+          workingSetSnapshotItem(openUrl, 'Cached Docs', 999, 99),
+          workingSetSnapshotItem(closedUrl, 'Closed Example', 500, 98)
+        ]
+      },
+      closedTabs: []
+    }
+  }
+
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: {
+        get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: cached })
+      },
+      local: {
+        get: async () => ({})
+      }
+    }
+  }
+
+  const restored = await loadCachedDashboardStartup()
+  assert.deepEqual(restored?.snapshot.workingSet.items.map((item) => item.tabUrl), [openUrl])
 })
 
 test('startup snapshot cache falls back to the durable local snapshot when the session copy is gone', async () => {
@@ -419,7 +472,10 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
   const cachedWorkingSet = {
     defaultLimit: 3,
     expandedLimit: 7,
-    items: [workingSetSnapshotItem('https://example.com/docs', 'Cached Docs', 999)]
+    items: [
+      workingSetSnapshotItem('https://example.com/docs', 'Cached Docs', 999, 99),
+      workingSetSnapshotItem('https://closed.example.com/old', 'Closed Example', 500, 98)
+    ]
   }
   const liveTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Live Docs'),
@@ -519,6 +575,9 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
   const cachedSnapshot = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
   assert.deepEqual(cachedSnapshot?.snapshot.dashboard.realTabs.map((tab: any) => tab.url), liveTabs.map((tab) => tab.url))
   assert.deepEqual(cachedSnapshot?.snapshot.workingSet.items.map((item: any) => item.tabUrl), ['https://example.com/docs'])
+  assert.equal(cachedSnapshot?.snapshot.workingSet.items[0]?.tabId, 1)
+  assert.equal(cachedSnapshot?.snapshot.workingSet.items[0]?.title, 'Live Docs')
+  assert.equal(cachedSnapshot?.snapshot.workingSet.items[0]?.score, 999)
   assert.equal(cachedSnapshot?.workingSetSavedAt, now)
 
   cachedStartupSnapshot = null
