@@ -513,7 +513,6 @@ type HistoryEntryExpansion = {
   titleExpanded: boolean
   entrySlotSize: HistoryEntrySlotSize
   entryExpansionGeometry: HistoryEntryExpansionGeometry
-  updateHistoryEntryExpansionMeasurements: () => void
   onHistoryEntryPointerEnter: () => void
   onHistoryEntryPointerMove: (e: PointerEvent<HTMLDivElement>) => void
   onHistoryEntryPointerLeave: (e: PointerEvent<HTMLDivElement>) => void
@@ -565,11 +564,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     setEntrySlotSize((current) => historyEntrySlotSizeEqual(current, nextSize) ? current : nextSize)
     setEntryExpansionGeometry((current) => historyEntryExpansionGeometryEqual(current, nextGeometry) ? current : nextGeometry)
   }
-  const updateHistoryEntryExpansionMeasurementsRef = useRef(() => {})
-  useEffect(() => {
-    updateHistoryEntryExpansionMeasurementsRef.current = updateHistoryEntryExpansionMeasurements
-  })
-
   useLayoutEffect(() => {
     const titleEl = titleRef.current
     if (!titleEl) return
@@ -608,19 +602,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     // this effect even though the effect reads the live rect itself.
   }, [titleClamp, titleClampKey, titleMetrics])
 
-  useLayoutEffect(() => {
-    const entryEl = entryRef.current
-    if (!entryEl) return
-
-    if (!titleExpandedRef.current) updateHistoryEntryExpansionMeasurements()
-
-    const observer = new ResizeObserver(() => {
-      if (!titleExpandedRef.current) updateHistoryEntryExpansionMeasurements()
-    })
-    observer.observe(entryEl)
-    return () => observer.disconnect()
-  })
-
   useEffect(() => {
     const titleEl = titleRef.current
     if (!titleEl) return
@@ -640,7 +621,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       if (titleExpandedRef.current) return
       setTitleClamp(null)
       updateTitleTruncation(titleEl, setTitleMetrics)
-      updateHistoryEntryExpansionMeasurementsRef.current()
     }
     fontSet.addEventListener('loadingdone', onFontsDone)
     fontSet.ready.then(onFontsDone)
@@ -656,6 +636,8 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   function openTitleExpansion() {
     const titleEl = titleRef.current
     if (!isHistoryTitleTruncated(titleEl)) return
+    // The collapsed title observer owns truncation state. Slot and expansion
+    // geometry are interaction-only work and should not block dashboard startup.
     updateTitleTruncation(titleEl, setTitleMetrics)
     updateHistoryEntryExpansionMeasurements()
     titleExpansionController.open()
@@ -749,7 +731,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     titleExpanded,
     entrySlotSize,
     entryExpansionGeometry,
-    updateHistoryEntryExpansionMeasurements,
     onHistoryEntryPointerEnter,
     onHistoryEntryPointerMove,
     onHistoryEntryPointerLeave,

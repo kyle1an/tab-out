@@ -329,7 +329,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /function roundedElementSize\(element: HTMLElement \| null\)/)
   assert.match(pageChipSource, /const \[chipSlotSize, setChipSlotSize\] = useState\(DEFAULT_CHIP_SLOT_SIZE\)/)
   assert.match(pageChipSource, /const \[chipExpansionGeometry, setChipExpansionGeometry\] = useState\(DEFAULT_CHIP_EXPANSION_GEOMETRY\)/)
-  assert.match(pageChipSource, /ResizeObserver\(\(\) => \{[\s\S]*!chipExpandedRef\.current[\s\S]*updateChipSlotMeasurements\(chipEl\)/)
+  assert.doesNotMatch(pageChipSource, /if \(!chipExpandedRef\.current\) updateChipSlotMeasurements\(chipEl\)/)
+  assert.doesNotMatch(pageChipSource, /observer\.observe\(chipEl\)/)
   // openChipExpansion must not re-measure while already expanded: re-deriving the
   // expansion geometry from the hydrated expanded DOM duplicates suppression markers
   // (regression: right-clicking an already-expanded chip duplicated the marker).
@@ -419,7 +420,9 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /const \[titleExpanded, setTitleExpandedState\] = useState\(false\)/)
   assert.match(tabHistoryPanelSource, /titleExpanded && 'history-entry-expanded-open'/)
   assert.match(tabHistoryPanelSource, /titleExpanded && 'history-entry-row-expanded-open'/)
-  assert.match(tabHistoryPanelSource, /function openTitleExpansion\(\)/)
+  assert.match(tabHistoryPanelSource, /function openTitleExpansion\(\) \{[\s\S]*updateHistoryEntryExpansionMeasurements\(\)[\s\S]*titleExpansionController\.open\(\)/)
+  assert.doesNotMatch(tabHistoryPanelSource, /if \(!titleExpandedRef\.current\) updateHistoryEntryExpansionMeasurements\(\)/)
+  assert.doesNotMatch(tabHistoryPanelSource, /observer\.observe\(entryEl\)/)
   assert.match(tabHistoryPanelSource, /function closeTitleExpansion\(\{ delayed = true \} = \{\}\)/)
   assert.match(tabHistoryPanelSource, /function onHistoryEntryPointerEnter\(\) \{[\s\S]*openTitleExpansion\(\)/)
   assert.match(tabHistoryPanelSource, /function onHistoryEntryPointerMove\(e: PointerEvent<HTMLDivElement>\)/)

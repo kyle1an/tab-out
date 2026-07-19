@@ -1083,19 +1083,6 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     }
   }, [])
 
-  useLayoutEffect(() => {
-    const chipEl = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip') || null
-    if (!chipEl) return
-
-    if (!chipExpandedRef.current) updateChipSlotMeasurements(chipEl)
-
-    const observer = new ResizeObserver(() => {
-      if (!chipExpandedRef.current) updateChipSlotMeasurements(chipEl)
-    })
-    observer.observe(chipEl)
-    return () => observer.disconnect()
-  }, [updateChipSlotMeasurements])
-
   function isKeyboardActivation(e: KeyboardEvent<HTMLElement>) {
     return e.key === 'Enter' || e.key === ' '
   }
@@ -1293,6 +1280,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const textEl = chipTextRef.current
     const measuredExpandable = hasTitleSuppressionMarkers || hasStructuralPlaceholders || chipTextHasExpandableContent(textEl)
     if (!measuredExpandable) return
+    // Expansion geometry is intentionally measured only when the interaction
+    // opens it. Measuring every collapsed chip on mount and resize multiplies
+    // layout work across the whole dashboard before any expansion is needed.
     // Only measure from the collapsed source DOM. Re-measuring while already
     // expanded feeds the hydrated expanded markers (whose suppressed text is now
     // a real text node) back into getExpandedPageChipLineHtml, which re-captures
