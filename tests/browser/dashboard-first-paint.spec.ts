@@ -19,6 +19,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       chipTextFadeRangeRects: 0,
       chipTextRangeRects: 0,
       chipTextRects: 0,
+      chipTextSizeReads: 0,
+      chipTextSizeReadsAfterTruncationWrite: 0,
+      chipTextTruncationWrites: 0,
       domainCardRects: 0,
       historyTitleFadeRangeRects: 0,
       historyTitleRangeRects: 0,
@@ -54,6 +57,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       if (token === 'history-entry-title-truncated' && force === true) {
         counts.historyTitleTruncationWrites += 1
       }
+      if (token === 'chip-text-truncated' && force === true) {
+        counts.chipTextTruncationWrites += 1
+      }
       return result
     }
 
@@ -65,6 +71,12 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         ...descriptor,
         get() {
           if (this instanceof HTMLElement) {
+            if (this.classList.contains('chip-text') || this.classList.contains('chip-title-row')) {
+              counts.chipTextSizeReads += 1
+              if (counts.chipTextTruncationWrites > 0) {
+                counts.chipTextSizeReadsAfterTruncationWrite += 1
+              }
+            }
             if (this.classList.contains('history-entry-title')) {
               counts.historyTitleSizeReads += 1
               if (counts.historyTitleTruncationWrites > 0) {
@@ -127,6 +139,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
         chipTextFadeRangeRects: number
         chipTextRangeRects: number
         chipTextRects: number
+        chipTextSizeReads: number
+        chipTextSizeReadsAfterTruncationWrite: number
+        chipTextTruncationWrites: number
         domainCardRects: number
         historyTitleFadeRangeRects: number
         historyTitleRangeRects: number
@@ -153,6 +168,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.chipTextFadeRangeRects).toBe(0)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
   expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(4)
+  expect(measurements.chipTextTruncationWrites).toBeGreaterThan(0)
+  expect(measurements.chipTextSizeReads / measurements.chipCount).toBeLessThanOrEqual(4)
+  expect(measurements.chipTextSizeReadsAfterTruncationWrite).toBe(0)
   expect(measurements.domainCardRects / measurements.domainCardCount).toBeLessThanOrEqual(2)
   expect(measurements.historyTitleFadeRangeRects).toBe(0)
   expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)

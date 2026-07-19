@@ -34,7 +34,7 @@ import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
 import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
 import { pageChipTargetActionPolicy } from './page-chip-action-policy.js'
 import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
-import { registerPageChipTextLayoutValidation } from './page-chip-layout-validation.js'
+import { registerPageChipTextLayoutValidation, type PageChipTextLayoutMeasurementJob } from './page-chip-layout-validation.js'
 import { createSizeChangeObserver, type ObservedElementSize, type SizeChangeObserver } from './size-change-observer.js'
 
 let chipTextResizeObserver: SizeChangeObserver | null = null
@@ -98,6 +98,13 @@ type ChipTextClamp = {
 type ChipTextLayoutState = {
   clamp: ChipTextClamp | null
   metrics: ChipTextMetrics
+}
+type ChipTextFadeMetrics = ChipTextMetrics & {
+  height: number
+}
+type ChipTextLayoutReading = {
+  fadeMetrics: ChipTextFadeMetrics
+  layout: ChipTextLayoutState
 }
 type ChipTextMeasurement = {
   clampEligible: boolean
@@ -846,19 +853,43 @@ function getExpandedPageChipHorizontalInset(chipEl: HTMLElement, textEl: HTMLEle
   return Math.max(0, textRect.left - chipRect.left) + Math.max(0, chipRect.right - textRect.right)
 }
 
-function syncChipTextFade(textEl: HTMLElement | null, syncFadeEnd = true) {
-  if (!textEl) return { hasExpandableContent: false, height: 0, isTruncated: false, width: 0 }
-
+function readChipTextFadeMetrics(textEl: HTMLElement): ChipTextFadeMetrics {
   const isTruncated = isChipTextTruncated(textEl)
   const hasExpandableContent = isTruncated || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
   const rect = textEl.getBoundingClientRect()
-  const width = Math.round(rect.width * 100) / 100
-  const height = Math.round(rect.height * 100) / 100
+  return {
+    hasExpandableContent,
+    height: Math.round(rect.height * 100) / 100,
+    isTruncated,
+    width: Math.round(rect.width * 100) / 100
+  }
+}
+
+function applyChipTextFadeMetrics(
+  textEl: HTMLElement,
+  metrics: ChipTextFadeMetrics,
+  syncFadeEnd = true
+) {
+  const { height, isTruncated, width } = metrics
   chipTextMeasuredSizes.set(textEl, { height, width })
   textEl.classList.toggle('chip-text-truncated', isTruncated)
   if (syncFadeEnd) syncTruncatedTitleFadeEnd(textEl, isTruncated)
-  chipTextTruncationCallbacks.get(textEl)?.({ hasExpandableContent, height, isTruncated, width })
-  return { hasExpandableContent, height, isTruncated, width }
+  chipTextTruncationCallbacks.get(textEl)?.(metrics)
+  return metrics
+}
+
+function syncChipTextFade(
+  textEl: HTMLElement | null,
+  syncFadeEnd = true,
+  measuredMetrics?: ChipTextFadeMetrics
+) {
+  if (!textEl) return { hasExpandableContent: false, height: 0, isTruncated: false, width: 0 }
+
+  return applyChipTextFadeMetrics(
+    textEl,
+    measuredMetrics ?? readChipTextFadeMetrics(textEl),
+    syncFadeEnd
+  )
 }
 
 function getChipTextMetrics(textEl: HTMLElement | null): ChipTextMetrics {
@@ -888,28 +919,40 @@ function chipTextLayoutEqual(left: ChipTextLayoutState, right: ChipTextLayoutSta
   return chipTextMetricsEqual(left.metrics, right.metrics) && chipTextClampEqual(left.clamp, right.clamp)
 }
 
-function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKey: string): ChipTextLayoutState {
+function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKey: string): ChipTextLayoutReading {
   // A captured clamp fades at its known box edge. Defer the glyph-range read
   // until capture fails so successful clamps do not measure an unused anchor.
-  const metrics = syncChipTextFade(textEl, false)
+  const fadeMetrics = readChipTextFadeMetrics(textEl)
   const nextMetrics = {
-    hasExpandableContent: metrics.hasExpandableContent,
-    isTruncated: metrics.isTruncated,
-    width: metrics.width
+    hasExpandableContent: fadeMetrics.hasExpandableContent,
+    isTruncated: fadeMetrics.isTruncated,
+    width: fadeMetrics.width
   }
   let nextClamp: ChipTextClamp | null = null
-  if (clampEligible && metrics.isTruncated && metrics.width > 0) {
+  if (clampEligible && fadeMetrics.isTruncated && fadeMetrics.width > 0) {
     const lineHtml = getClampedPageChipLineHtml(textEl)
     if (lineHtml.length > 1) {
-      nextClamp = { key: clampKey, lineHtml, width: metrics.width }
+      nextClamp = { key: clampKey, lineHtml, width: fadeMetrics.width }
     }
   }
-  if (nextClamp) {
-    syncClampedTitleFadeEnd(textEl, nextClamp.width)
-  } else {
-    syncTruncatedTitleFadeEnd(textEl, metrics.isTruncated)
+  return {
+    fadeMetrics,
+    layout: { clamp: nextClamp, metrics: nextMetrics }
   }
-  return { clamp: nextClamp, metrics: nextMetrics }
+}
+
+function applyChipTextLayout(textEl: HTMLElement, reading: ChipTextLayoutReading): ChipTextLayoutState {
+  applyChipTextFadeMetrics(textEl, reading.fadeMetrics, false)
+  if (reading.layout.clamp) {
+    syncClampedTitleFadeEnd(textEl, reading.layout.clamp.width)
+  } else {
+    syncTruncatedTitleFadeEnd(textEl, reading.fadeMetrics.isTruncated)
+  }
+  return reading.layout
+}
+
+function measureChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKey: string) {
+  return applyChipTextLayout(textEl, readChipTextLayout(textEl, clampEligible, clampKey))
 }
 
 function waitsForInitialMasonryWidth(textEl: HTMLElement) {
@@ -1212,7 +1255,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     // would be discarded immediately by the post-pack validation below.
     if (waitsForInitialMasonryWidth(textEl)) return
 
-    const nextLayout = readChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
+    const nextLayout = measureChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
     chipTextMeasurementRef.current = {
       clampEligible: chipTextClampEligible,
       element: textEl,
@@ -1231,32 +1274,37 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const textEl = chipTextRef.current
     if (!textEl) return
 
-    const measurePackedLayout = () => {
-      const nextLayout = readChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
-      chipTextMeasurementRef.current = {
-        clampEligible: chipTextClampEligible,
-        element: textEl,
-        key: chipTextClampKey,
-        metrics: nextLayout.metrics
+    const createPackedLayoutMeasurement = (): PageChipTextLayoutMeasurementJob => ({
+      read() {
+        const reading = readChipTextLayout(textEl, chipTextClampEligible, chipTextClampKey)
+        return () => {
+          if (chipTextRef.current !== textEl || chipExpandedRef.current) return
+          const nextLayout = applyChipTextLayout(textEl, reading)
+          chipTextMeasurementRef.current = {
+            clampEligible: chipTextClampEligible,
+            element: textEl,
+            key: chipTextClampKey,
+            metrics: nextLayout.metrics
+          }
+          setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
+        }
       }
-      setChipTextLayout((current) => chipTextLayoutEqual(current, nextLayout) ? current : nextLayout)
-    }
-    const validatePackedWidth = () => {
-      if (chipTextRef.current !== textEl || chipExpandedRef.current) return
+    })
+    const validatePackedWidth = (): PageChipTextLayoutMeasurementJob | null => {
+      if (chipTextRef.current !== textEl || chipExpandedRef.current) return null
       const previousMeasurement = chipTextMeasurementRef.current
       if (
         previousMeasurement?.element !== textEl ||
         previousMeasurement.key !== chipTextClampKey ||
         previousMeasurement.clampEligible !== chipTextClampEligible
       ) {
-        measurePackedLayout()
-        return
+        return createPackedLayoutMeasurement()
       }
       const width = getChipTextWidth(textEl)
       if (Math.abs(previousMeasurement.metrics.width - width) < CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX) {
-        return
+        return null
       }
-      measurePackedLayout()
+      return createPackedLayoutMeasurement()
     }
     return registerPageChipTextLayoutValidation(textEl, validatePackedWidth)
   }, [chipTextClampEligible, chipTextClampKey])
