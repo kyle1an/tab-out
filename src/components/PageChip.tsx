@@ -102,6 +102,10 @@ type ChipTextLayoutState = {
 type ChipTextFadeMetrics = ChipTextMetrics & {
   height: number
 }
+type ChipTextLineCaptureGeometry = {
+  lineHeight: number
+  textRect: DOMRect
+}
 type ChipTextLayoutReading = {
   fadeMetrics: ChipTextFadeMetrics
   layout: ChipTextLayoutState
@@ -323,12 +327,16 @@ function getChipTextLineHeight(textEl: HTMLElement | null) {
   return Number.isFinite(fontSize) && fontSize > 0 ? fontSize * 1.2 : 16
 }
 
+function visibleChipTextLineCount(textHeight: number, lineHeight: number) {
+  if (lineHeight <= 0 || textHeight <= 0) return 1
+  return Math.max(1, Math.round(textHeight / lineHeight))
+}
+
 function getVisibleChipTextLineCount(textEl: HTMLElement | null) {
   if (!textEl) return 1
   const lineHeight = getChipTextLineHeight(textEl)
   const textHeight = getChipTextHeight(textEl)
-  if (lineHeight <= 0 || textHeight <= 0) return 1
-  return Math.max(1, Math.round(textHeight / lineHeight))
+  return visibleChipTextLineCount(textHeight, lineHeight)
 }
 
 function chipExpansionRawLineIndexForRect(rect: DOMRect, textRect: DOMRect, lineHeight: number) {
@@ -488,25 +496,32 @@ function clampedChipFragmentHtml(document: Document, fragment: DocumentFragment)
   return fragmentHtml(document, fragment)
 }
 
-function getClampedPageChipLineHtml(textEl: HTMLElement | null) {
-  return getExpandedPageChipLineHtml(textEl, clampedChipFragmentHtml)
+function getClampedPageChipLineHtml(
+  textEl: HTMLElement | null,
+  geometry?: ChipTextLineCaptureGeometry
+) {
+  return getExpandedPageChipLineHtml(textEl, clampedChipFragmentHtml, geometry)
 }
 
 type ChipLineFragmentSerializer = (document: Document, fragment: DocumentFragment) => string
 
-function getExpandedPageChipLineHtml(textEl: HTMLElement | null, serializeFragment: ChipLineFragmentSerializer = expandedChipFragmentHtml) {
+function getExpandedPageChipLineHtml(
+  textEl: HTMLElement | null,
+  serializeFragment: ChipLineFragmentSerializer = expandedChipFragmentHtml,
+  geometry?: ChipTextLineCaptureGeometry
+) {
   if (!textEl || typeof document === 'undefined') return []
-
-  const visibleLineCount = getVisibleChipTextLineCount(textEl)
-  if (visibleLineCount <= 1) return []
 
   const ownerDocument = textEl.ownerDocument
   const win = ownerDocument.defaultView
   if (!win) return []
 
-  const textRect = textEl.getBoundingClientRect()
-  const lineHeight = getChipTextLineHeight(textEl)
+  const textRect = geometry?.textRect ?? textEl.getBoundingClientRect()
+  const lineHeight = geometry?.lineHeight ?? getChipTextLineHeight(textEl)
   if (textRect.height <= 0 || lineHeight <= 0) return []
+  const textHeight = Math.round(textRect.height * 100) / 100
+  const visibleLineCount = visibleChipTextLineCount(textHeight, lineHeight)
+  if (visibleLineCount <= 1) return []
 
   // A compact marker glyph can be the first painted item on a wrapped line.
   // Treat those marker elements as line-start candidates so the expanded label
@@ -853,15 +868,17 @@ function getExpandedPageChipHorizontalInset(chipEl: HTMLElement, textEl: HTMLEle
   return Math.max(0, textRect.left - chipRect.left) + Math.max(0, chipRect.right - textRect.right)
 }
 
-function readChipTextFadeMetrics(textEl: HTMLElement): ChipTextFadeMetrics {
+function readChipTextFadeMetrics(
+  textEl: HTMLElement,
+  textRect = textEl.getBoundingClientRect()
+): ChipTextFadeMetrics {
   const isTruncated = isChipTextTruncated(textEl)
   const hasExpandableContent = isTruncated || titleVariantLabelsOverflow(textEl) || titleVariantContentOverflows(textEl)
-  const rect = textEl.getBoundingClientRect()
   return {
     hasExpandableContent,
-    height: Math.round(rect.height * 100) / 100,
+    height: Math.round(textRect.height * 100) / 100,
     isTruncated,
-    width: Math.round(rect.width * 100) / 100
+    width: Math.round(textRect.width * 100) / 100
   }
 }
 
@@ -922,7 +939,10 @@ function chipTextLayoutEqual(left: ChipTextLayoutState, right: ChipTextLayoutSta
 function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKey: string): ChipTextLayoutReading {
   // A captured clamp fades at its known box edge. Defer the glyph-range read
   // until capture fails so successful clamps do not measure an unused anchor.
-  const fadeMetrics = readChipTextFadeMetrics(textEl)
+  // The box and line height are also the line-capture geometry; keep that one
+  // snapshot through capture instead of forcing duplicate reads per title.
+  const textRect = textEl.getBoundingClientRect()
+  const fadeMetrics = readChipTextFadeMetrics(textEl, textRect)
   const nextMetrics = {
     hasExpandableContent: fadeMetrics.hasExpandableContent,
     isTruncated: fadeMetrics.isTruncated,
@@ -930,7 +950,10 @@ function readChipTextLayout(textEl: HTMLElement, clampEligible: boolean, clampKe
   }
   let nextClamp: ChipTextClamp | null = null
   if (clampEligible && fadeMetrics.isTruncated && fadeMetrics.width > 0) {
-    const lineHtml = getClampedPageChipLineHtml(textEl)
+    const lineHtml = getClampedPageChipLineHtml(textEl, {
+      lineHeight: getChipTextLineHeight(textEl),
+      textRect
+    })
     if (lineHtml.length > 1) {
       nextClamp = { key: clampKey, lineHtml, width: fadeMetrics.width }
     }

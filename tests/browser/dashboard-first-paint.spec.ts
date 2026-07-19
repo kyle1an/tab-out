@@ -17,6 +17,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   await page.addInitScript(() => {
     const counts = {
       chipTextFadeRangeRects: 0,
+      chipTextComputedStyles: 0,
       chipTextRangeRects: 0,
       chipTextRects: 0,
       chipTextSizeReads: 0,
@@ -37,6 +38,17 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       __tabOutFirstPaintMeasurements: typeof counts
     }
     benchmarkWindow.__tabOutFirstPaintMeasurements = counts
+
+    const getComputedStyle = window.getComputedStyle
+    window.getComputedStyle = function getInstrumentedComputedStyle(element, pseudoElt) {
+      if (
+        element instanceof HTMLElement &&
+        (element.classList.contains('chip-text') || element.classList.contains('chip-title-row'))
+      ) {
+        counts.chipTextComputedStyles += 1
+      }
+      return getComputedStyle.call(this, element, pseudoElt)
+    }
 
     const getBoundingClientRect = Element.prototype.getBoundingClientRect
     Element.prototype.getBoundingClientRect = function getInstrumentedBoundingClientRect() {
@@ -141,6 +153,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     const benchmarkWindow = window as typeof window & {
       __tabOutFirstPaintMeasurements: {
         chipTextFadeRangeRects: number
+        chipTextComputedStyles: number
         chipTextRangeRects: number
         chipTextRects: number
         chipTextSizeReads: number
@@ -171,8 +184,9 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.domainCardCount).toBeGreaterThan(0)
   expect(measurements.historyTitleCount).toBeGreaterThan(0)
   expect(measurements.chipTextFadeRangeRects).toBe(0)
+  expect(measurements.chipTextComputedStyles / measurements.chipCount).toBeLessThanOrEqual(1)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
-  expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(4)
+  expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(2)
   expect(measurements.chipTextTruncationWrites).toBeGreaterThan(0)
   expect(measurements.chipTextSizeReads / measurements.chipCount).toBeLessThanOrEqual(4)
   expect(measurements.chipTextSizeReadsAfterTruncationWrite).toBe(0)
