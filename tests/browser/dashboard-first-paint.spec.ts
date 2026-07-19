@@ -13,6 +13,38 @@ test('dashboard avoids eager tooltip measurement surfaces', async ({ page }) => 
   expect(pageErrors).toEqual([])
 })
 
+test('toast renderer stays off startup and loads for the first notification', async ({
+  page
+}) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html', {
+    waitUntil: 'networkidle'
+  })
+
+  const startupScripts = await page.evaluate(() =>
+    performance
+      .getEntriesByType('resource')
+      .map((entry) => entry.name.split('/').pop() ?? '')
+  )
+  expect(startupScripts.some((name) => name.startsWith('mountToast-'))).toBe(
+    false
+  )
+
+  await page
+    .getByRole('button', { name: 'Close this tab' })
+    .first()
+    .dispatchEvent('click')
+  await expect(page.getByText('Tab closed', { exact: true })).toBeVisible()
+
+  const interactionScripts = await page.evaluate(() =>
+    performance
+      .getEntriesByType('resource')
+      .map((entry) => entry.name.split('/').pop() ?? '')
+  )
+  expect(
+    interactionScripts.some((name) => name.startsWith('mountToast-'))
+  ).toBe(true)
+})
+
 test('dashboard coalesces collapsed-title layout reads during startup', async ({ page }) => {
   await page.addInitScript(() => {
     const counts = {

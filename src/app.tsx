@@ -1,5 +1,4 @@
 import './styles/app.css'
-import { mountToast } from './components/mountToast'
 import { mountApp } from './components/App'
 import { requestDashboardRefresh } from './extension/dashboard-controller.js'
 import type { DashboardRefreshOptions } from './extension/dashboard-controller.js'
@@ -123,8 +122,6 @@ document.addEventListener(
 
 async function initializeApp() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
-  mountToast()
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'toast-mounted')
   // Tell the service worker whether page-only local grouping config is active.
   const localGroupingConfigActive = readLocalCustomGroups().length > 0 || readLocalPathGroupers().length > 0
   void persistLocalGroupingConfigActive(localGroupingConfigActive)
