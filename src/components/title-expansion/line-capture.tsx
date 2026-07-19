@@ -169,6 +169,60 @@ type CapturedLineDomPosition = {
   offset: number
 }
 
+function capturedRawLineIndexForRect(rect: DOMRect, elementRect: DOMRect, lineHeight: number) {
+  if (rect.width <= 0 && rect.height <= 0) return null
+  return Math.max(0, Math.round((rect.top - elementRect.top) / lineHeight))
+}
+
+function firstCapturedTextOffsetOnLine(
+  node: Text,
+  targetLineIndex: number,
+  range: Range,
+  elementRect: DOMRect,
+  lineHeight: number
+) {
+  // The first visible line almost always begins at the first non-whitespace
+  // character in its first painting text node. Prove that cheap candidate with
+  // one glyph read; unusual inline/visibility cases fall through to the exact
+  // prefix search used for later lines.
+  if (targetLineIndex === 0) {
+    const firstTextOffset = node.data.search(/\S/)
+    if (firstTextOffset >= 0) {
+      range.setStart(node, firstTextOffset)
+      range.setEnd(node, firstTextOffset + 1)
+      const rect = paintedRangeRect(range)
+      if (rect && capturedRawLineIndexForRect(rect, elementRect, lineHeight) === 0) {
+        return firstTextOffset
+      }
+    }
+  }
+
+  let low = 0
+  let high = node.length - 1
+
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2)
+    range.setStart(node, 0)
+    range.setEnd(node, middle + 1)
+    const rect = paintedRangeRect(range)
+    const lineIndex = rect
+      ? capturedRawLineIndexForRect(rect, elementRect, lineHeight)
+      : null
+    if (lineIndex !== null && lineIndex >= targetLineIndex) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
+  }
+
+  range.setStart(node, 0)
+  range.setEnd(node, low + 1)
+  const rect = paintedRangeRect(range)
+  return rect && capturedRawLineIndexForRect(rect, elementRect, lineHeight) === targetLineIndex
+    ? low
+    : null
+}
+
 /**
  * unwrapClampedTitleLines(root) — strip clamped-title-line wrappers from a
  * cloned fragment before serializing it. The wrapper is a resting-state
@@ -186,9 +240,10 @@ export function unwrapClampedTitleLines(root: ParentNode) {
  * captureVisibleLineHtml(el, visibleLineCount) — serialize what line breaking
  * put on each visible line of a clamped title: one HTML string per line, where
  * the LAST entry runs from its line start through the end of the content
- * (including anything clipped below the clamp). Walks per-character Range
- * rects, so it only suits text-flow titles (text nodes plus inline span/mark
- * wrappers); surfaces with element markers keep their own capture engines.
+ * (including anything clipped below the clamp). Finds the text node spanning
+ * each line from one cached Range read per node, then binary-searches only that
+ * node's text offsets. It only suits text-flow titles (text nodes plus inline
+ * span/mark wrappers); surfaces with element markers keep their own engines.
  */
 export function captureVisibleLineHtml(el: HTMLElement, visibleLineCount: number): string[] {
   if (visibleLineCount <= 1) return []
@@ -213,30 +268,92 @@ export function captureVisibleLineHtml(el: HTMLElement, visibleLineCount: number
       }
     }
   )
-  const range = ownerDocument.createRange()
-  const lineStarts: CapturedLineDomPosition[] = []
-  let lastLineIndex = -1
-
-  while (lineStarts.length < visibleLineCount) {
+  const textNodes: Text[] = []
+  while (true) {
     const node = walker.nextNode()
     if (!(node instanceof win.Text)) break
-
-    const text = node.data
-    for (let offset = 0; offset < text.length && lineStarts.length < visibleLineCount; offset += 1) {
-      range.setStart(node, offset)
-      range.setEnd(node, offset + 1)
-      const rect = paintedRangeRect(range)
-      if (!rect) continue
-
-      const lineIndex = Math.max(0, Math.round((rect.top - elRect.top) / lineHeight))
-      if (lineIndex >= visibleLineCount) break
-      if (lineIndex > lastLineIndex) {
-        lineStarts.push({ node, offset })
-        lastLineIndex = lineIndex
-      }
-    }
+    if (node.data.trim()) textNodes.push(node)
   }
 
+  const range = ownerDocument.createRange()
+  const textLineBounds = new Map<Text, { first: number; last: number } | null>()
+  function getTextLineBounds(node: Text) {
+    const cached = textLineBounds.get(node)
+    if (cached !== undefined) return cached
+
+    range.selectNodeContents(node)
+    let first = Number.POSITIVE_INFINITY
+    let last = Number.NEGATIVE_INFINITY
+    for (const rect of range.getClientRects()) {
+      const lineIndex = capturedRawLineIndexForRect(rect, elRect, lineHeight)
+      if (lineIndex === null) continue
+      first = Math.min(first, lineIndex)
+      last = Math.max(last, lineIndex)
+    }
+    const bounds = Number.isFinite(first) && Number.isFinite(last) ? { first, last } : null
+    textLineBounds.set(node, bounds)
+    return bounds
+  }
+
+  function textPositionForLine(targetLineIndex: number): CapturedLineDomPosition | null {
+    if (textNodes.length === 0) return null
+
+    let candidateIndex = -1
+    if (targetLineIndex === 0) {
+      candidateIndex = textNodes.findIndex((node) => {
+        const bounds = getTextLineBounds(node)
+        return !!bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex
+      })
+    } else {
+      let low = 0
+      let high = textNodes.length - 1
+      while (low < high) {
+        const middle = Math.floor((low + high) / 2)
+        const bounds = getTextLineBounds(textNodes[middle])
+        if (bounds && bounds.last >= targetLineIndex) {
+          high = middle
+        } else {
+          low = middle + 1
+        }
+      }
+      const bounds = getTextLineBounds(textNodes[low])
+      if (bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex) {
+        candidateIndex = low
+      }
+    }
+
+    // Hidden/non-painting text can make the binary predicate sparse. Walk back
+    // through that rare gap so a later valid node cannot hide an earlier line
+    // start; ordinary wrapped-line searches stop after one predecessor.
+    if (candidateIndex >= 0 && targetLineIndex > 0) {
+      for (let index = candidateIndex - 1; index >= 0; index -= 1) {
+        const bounds = getTextLineBounds(textNodes[index])
+        if (!bounds) continue
+        if (bounds.last < targetLineIndex) break
+        if (bounds.first <= targetLineIndex) candidateIndex = index
+      }
+    }
+
+    // Preserve the previous engine's correctness with a cached linear fallback
+    // if no monotonic candidate survived at all.
+    if (candidateIndex < 0) {
+      candidateIndex = textNodes.findIndex((node) => {
+        const bounds = getTextLineBounds(node)
+        return !!bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex
+      })
+    }
+    if (candidateIndex < 0) return null
+
+    const node = textNodes[candidateIndex]
+    const offset = firstCapturedTextOffsetOnLine(node, targetLineIndex, range, elRect, lineHeight)
+    return offset === null ? null : { node, offset }
+  }
+
+  const lineStarts: CapturedLineDomPosition[] = []
+  for (let lineIndex = 0; lineIndex < visibleLineCount; lineIndex += 1) {
+    const position = textPositionForLine(lineIndex)
+    if (position) lineStarts.push(position)
+  }
   range.detach()
   if (lineStarts.length <= 1) return []
 

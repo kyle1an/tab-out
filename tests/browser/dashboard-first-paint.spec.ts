@@ -18,6 +18,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
     const counts = {
       chipTextRangeRects: 0,
       chipTextRects: 0,
+      historyTitleRangeRects: 0,
       historyTitleRects: 0,
       layoutShift: 0
     }
@@ -42,6 +43,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       const ancestor = this.commonAncestorContainer
       const element = ancestor instanceof HTMLElement ? ancestor : ancestor.parentElement
       if (element?.closest('.chip-text')) counts.chipTextRangeRects += 1
+      if (element?.closest('.history-entry-title')) counts.historyTitleRangeRects += 1
       return getClientRects.call(this)
     }
 
@@ -67,6 +69,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
       __tabOutFirstPaintMeasurements: {
         chipTextRangeRects: number
         chipTextRects: number
+        historyTitleRangeRects: number
         historyTitleRects: number
         layoutShift: number
       }
@@ -82,6 +85,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
   expect(measurements.historyTitleCount).toBeGreaterThan(0)
   expect(measurements.chipTextRangeRects / measurements.chipCount).toBeLessThanOrEqual(12)
   expect(measurements.chipTextRects / measurements.chipCount).toBeLessThanOrEqual(12)
+  expect(measurements.historyTitleRangeRects / measurements.historyTitleCount).toBeLessThanOrEqual(12)
   expect(measurements.historyTitleRects / measurements.historyTitleCount).toBeLessThanOrEqual(10)
   expect(measurements.layoutShift).toBe(0)
 })
