@@ -1037,6 +1037,7 @@ function chipSlotSizeEqual(left: ChipSlotSize, right: ChipSlotSize) {
 function chipExpansionGeometryEqual(left: ChipExpansionGeometry, right: ChipExpansionGeometry) {
   return (
     expansionLineHtmlEquals(left.lineHtml, right.lineHtml) &&
+    left.grewTaller === right.grewTaller &&
     left.x === right.x &&
     left.y === right.y &&
     left.viewportConstrained === right.viewportConstrained &&

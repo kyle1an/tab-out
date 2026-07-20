@@ -10,7 +10,7 @@ export type FilterQuery = {
   terms: FilterQueryTerm[]
 }
 
-export type DashboardItemSearchableParts = {
+type DashboardItemSearchableParts = {
   title: string
   url: string
 }
@@ -66,7 +66,7 @@ export function matchValuesForFilterTerm(term: FilterQueryTerm): string[] {
   return [...new Set(values.flatMap(separatorMatchVariants))]
 }
 
-export function searchablePartsForDashboardItem(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>): DashboardItemSearchableParts {
+function searchablePartsForDashboardItem(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>): DashboardItemSearchableParts {
   const rawTitle = tab.title || ''
   const title = tab.isTabOut ? rawTitle.replace(/^.+ - Tab Out$/i, 'Tab Out') : rawTitle
   let url = tab.url || ''

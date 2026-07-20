@@ -1,5 +1,6 @@
 import type { ClosedTabEntry } from './closed-tabs.js'
-import { DOMAIN_PIN_STORAGE_KEY, normalizePinnedDomains } from './domain-pins.js'
+import { isClosedSavedDashboardTab } from './dashboard-source.js'
+import { DOMAIN_PIN_STORAGE_KEY, isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, normalizePinnedPageChips } from './page-chip-pins.js'
 import { buildDashboardDataFromTabs } from './render.js'
@@ -8,10 +9,11 @@ import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPagesStore } from './saved-pages.js'
-import type { DashboardData, DashboardTab, DashboardViewModel, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
+import type { DashboardData, DashboardTab, DashboardViewModel, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
 import type { DashboardLocalState } from '../hooks/useDashboardLocalState'
 
 export type DashboardStartupViewModel = {
+  pinnedDomains: readonly string[]
   pinnedPageChipIds: readonly string[]
   pinnedSectionIds: readonly string[]
   viewModel: DashboardViewModel
@@ -111,9 +113,10 @@ function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashbo
 
 function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | undefined {
   if (!isObject(value) || !isObject(value.viewModel)) return undefined
+  const pinnedDomains = stringArray(value.pinnedDomains)
   const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
   const pinnedSectionIds = stringArray(value.pinnedSectionIds)
-  if (!pinnedPageChipIds || !pinnedSectionIds) return undefined
+  if (!pinnedDomains || !pinnedPageChipIds || !pinnedSectionIds) return undefined
   const viewModel = value.viewModel as Partial<DashboardViewModel>
   if (
     viewModel.source !== 'tabs' ||
@@ -125,15 +128,69 @@ function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | und
     !Array.isArray(viewModel.filteredCloseUrls)
   ) return undefined
   return {
+    pinnedDomains,
     pinnedPageChipIds,
     pinnedSectionIds,
     viewModel: viewModel as DashboardViewModel
   }
 }
 
+function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function sameDashboardLocalState(
+  left: DashboardLocalState | null,
+  right: DashboardLocalState
+): boolean {
+  return left?.loaded === true &&
+    sameStringArray(left.pinnedDomains, right.pinnedDomains) &&
+    sameStringArray(left.pinnedSectionIds, right.pinnedSectionIds) &&
+    sameStringArray(left.pinnedPageChipIds, right.pinnedPageChipIds)
+}
+
+export function applyPinnedDomainsToDashboardGroups(
+  groups: readonly DomainGroup[],
+  pinnedDomains: readonly string[]
+): DomainGroup[] {
+  const originalOrder = new Map(groups.map((group, index) => [group.domain, index]))
+  const pinnedOrder = new Map(
+    normalizePinnedDomains(pinnedDomains).map((domain, index) => [domain, index])
+  )
+  return groups
+    .map((group) => {
+      const pinned = isPinnableDomain(group.domain) && pinnedOrder.has(group.domain)
+      return group.pinned === pinned ? group : { ...group, pinned }
+    })
+    .sort((left, right) => {
+      if (!!left.pinned !== !!right.pinned) return left.pinned ? -1 : 1
+      if (left.pinned && right.pinned) {
+        return (pinnedOrder.get(left.domain) ?? 0) - (pinnedOrder.get(right.domain) ?? 0)
+      }
+      return (originalOrder.get(left.domain) ?? 0) - (originalOrder.get(right.domain) ?? 0)
+    })
+}
+
+function applyPinnedDomainsToCachedDashboard(
+  dashboard: DashboardData,
+  pinnedDomains: readonly string[]
+): DashboardData {
+  return {
+    ...dashboard,
+    domainGroups: applyPinnedDomainsToDashboardGroups(dashboard.domainGroups, pinnedDomains),
+    ...(Array.isArray(dashboard.bookmarkDomainGroups)
+      ? { bookmarkDomainGroups: applyPinnedDomainsToDashboardGroups(dashboard.bookmarkDomainGroups, pinnedDomains) }
+      : {}),
+    ...(Array.isArray(dashboard.historyDomainGroups)
+      ? { historyDomainGroups: applyPinnedDomainsToDashboardGroups(dashboard.historyDomainGroups, pinnedDomains) }
+      : {})
+  }
+}
+
 function filterCachedWorkingSetToOpenDashboardTabs(workingSet: WorkingSetSnapshot, dashboard: DashboardData): WorkingSetSnapshot {
   const openKeys = new Set(
     dashboard.realTabs
+      .filter((tab) => !isClosedSavedDashboardTab(tab))
       .map((tab) => pageIdentityForWorkingSet(tab?.url || tab?.rawUrl || ''))
       .filter(Boolean)
   )
@@ -173,19 +230,29 @@ async function readCachedDashboardStartup(storage: chrome.storage.StorageArea | 
     if (!isCachedDashboardStartupSnapshot(cached)) return null
     if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) return null
     const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
-    const startupViewModel = cachedStartupViewModel(rawStartupViewModel)
+    const cachedLocalState = cachedDashboardLocalState(cached.localState)
+    const localState = includeLocalStateKeys
+      ? dashboardLocalStateFromStorage(stored)
+      : cachedLocalState
+    const startupViewModel = !includeLocalStateKeys || (localState && sameDashboardLocalState(cachedLocalState, localState))
+      ? cachedStartupViewModel(rawStartupViewModel)
+      : undefined
+    const dashboard = includeLocalStateKeys && localState
+      ? applyPinnedDomainsToCachedDashboard(snapshot.dashboard, localState.pinnedDomains)
+      : snapshot.dashboard
     const workingSet = filterCachedWorkingSetToOpenDashboardTabs(
       normalizeWorkingSetSnapshot(snapshot.workingSet),
-      snapshot.dashboard
+      dashboard
     )
     return {
       snapshot: {
         ...snapshot,
+        dashboard,
         tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
         workingSet,
         ...(startupViewModel ? { startupViewModel } : {})
       },
-      localState: cachedDashboardLocalState(cached.localState) ?? (includeLocalStateKeys ? dashboardLocalStateFromStorage(stored) : null)
+      localState
     }
   } catch {
     return null

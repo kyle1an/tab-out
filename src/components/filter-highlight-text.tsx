@@ -65,7 +65,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
 
   for (const range of mergedRanges) {
     const originalStart = originalIndexes[range.start]
-    const originalEnd = range.end < originalIndexes.length ? originalIndexes[range.end] : text.length
+    const originalEnd = (originalIndexes[range.end - 1] ?? text.length - 1) + 1
     if (originalStart > cursor) appendTextNodes(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
     nodes.push(
       <mark

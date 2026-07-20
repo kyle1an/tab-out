@@ -339,6 +339,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /function roundedElementSize\(element: HTMLElement \| null\)/)
   assert.match(pageChipSource, /const \[chipSlotSize, setChipSlotSize\] = useState\(DEFAULT_CHIP_SLOT_SIZE\)/)
   assert.match(pageChipSource, /const \[chipExpansionGeometry, setChipExpansionGeometry\] = useState\(DEFAULT_CHIP_EXPANSION_GEOMETRY\)/)
+  assert.match(pageChipSource, /left\.grewTaller === right\.grewTaller/)
   assert.doesNotMatch(pageChipSource, /if \(!chipExpandedRef\.current\) updateChipSlotMeasurements\(chipEl\)/)
   assert.doesNotMatch(pageChipSource, /observer\.observe\(chipEl\)/)
   // openChipExpansion must not re-measure while already expanded: re-deriving the

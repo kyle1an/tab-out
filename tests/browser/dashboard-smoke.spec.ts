@@ -2849,6 +2849,11 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     y: 8
   })
   await waitForNoPageChipExpansion(session)
+  await waitForBrowserCondition(
+    session,
+    () => !document.querySelector('.page-chip-context-menu-open'),
+    'page chip context-menu visual state should clear after backdrop dismissal'
+  )
   const backdropDismissAfterState = await readPageChipVisualState(replacementTarget)
   const backdropDismissMenuState = await readContextMenuState()
   assert.equal(backdropDismissOpenState?.contextMenuOpen, true, `page chip should carry the context-menu-open class before backdrop dismissal: ${JSON.stringify({ backdropDismissOpenState })}`)

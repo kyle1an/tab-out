@@ -39,6 +39,12 @@ test('highlightedTextNodes keeps highlights aligned when toLowerCase expands cha
   assert.match(html, /<mark[^>]*>Docs<\/mark>/)
 })
 
+test('highlightedTextNodes includes the original character when its lowercase form expands', () => {
+  const html = renderNodes(highlightedTextNodes('\u0130stanbul', ['i'], 'k'))
+
+  assert.match(html, /<mark[^>]*>\u0130<\/mark>stanbul/)
+})
+
 test('highlightTermsForFilter parses space-separated terms', () => {
   assert.deepEqual(highlightTermsForFilter('foo bar').sort(), ['bar', 'foo'])
 })

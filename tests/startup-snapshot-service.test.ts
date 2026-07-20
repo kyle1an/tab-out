@@ -5,6 +5,7 @@ import FakeTimers from '@sinonjs/fake-timers'
 import { createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from '../src/extension/background/startup-snapshot-service.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
+import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 
@@ -64,6 +65,7 @@ test('startup snapshot refreshes only for local state that changes its rendered 
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'local'), true)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [SECTION_PIN_STORAGE_KEY]: change }, 'local'), true)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [PAGE_CHIP_PIN_STORAGE_KEY]: change }, 'local'), true)
+  assert.equal(startupSnapshotStorageChangesRequireRefresh({ [SAVED_PAGES_STORAGE_KEY]: change }, 'local'), true)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ 'tab-out:local-path-groupers-active': change }, 'local'), false)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: change }, 'local'), false)
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'session'), false)
@@ -130,6 +132,7 @@ test('startup snapshot service writes render-ready session + durable caches from
   assert.deepEqual(writes.local.snapshot.dashboard.realTabs.map((tab: any) => tab.url), openTabs.map((tab) => tab.url))
   assert.deepEqual(writes.session.localState, expectedLocalState)
   assert.deepEqual(writes.local.localState, expectedLocalState)
+  assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedDomains, ['example.com'])
   assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedSectionIds, [pinnedSectionId])
   assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedPageChipIds, [pinnedPageChipId])
   assert.equal(writes.session.snapshot.startupViewModel.viewModel.source, 'tabs')
@@ -181,6 +184,45 @@ test('startup snapshot service refreshes again after a completed refresh', async
 
     await service.refreshNow()
     await service.refreshNow()
+
+    assert.equal(snapshotBuilds, 2)
+  } finally {
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
+})
+
+test('startup snapshot service runs a trailing refresh requested during an active build', async () => {
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  let snapshotBuilds = 0
+  let releaseFirstBuild!: () => void
+  let markFirstBuildStarted!: () => void
+  const firstBuildBlocked = new Promise<void>((resolve) => {
+    releaseFirstBuild = resolve
+  })
+  const firstBuildStarted = new Promise<void>((resolve) => {
+    markFirstBuildStarted = resolve
+  })
+  installEmptyWorkerChrome()
+
+  try {
+    const service = createStartupSnapshotService({
+      getTabHistorySnapshot: async () => {
+        snapshotBuilds += 1
+        if (snapshotBuilds === 1) {
+          markFirstBuildStarted()
+          await firstBuildBlocked
+        }
+        return emptyTabHistory as any
+      },
+      getWorkingSetActivity: async () => emptyActivity as any
+    })
+
+    const firstRefresh = service.refreshNow()
+    await firstBuildStarted
+    const trailingRefresh = service.refreshNow()
+    releaseFirstBuild()
+    await Promise.all([firstRefresh, trailingRefresh])
 
     assert.equal(snapshotBuilds, 2)
   } finally {

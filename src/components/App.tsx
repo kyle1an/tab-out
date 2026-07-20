@@ -212,6 +212,7 @@ function sameStringList(a: readonly string[], b: readonly string[]): boolean {
 function startupViewModelMatchesLocalState(startupViewModel: DashboardStartupSnapshot['startupViewModel'], localState: DashboardLocalState | null): startupViewModel is NonNullable<DashboardStartupSnapshot['startupViewModel']> {
   return !!startupViewModel &&
     localState?.loaded === true &&
+    sameStringList(startupViewModel.pinnedDomains, localState.pinnedDomains) &&
     sameStringList(startupViewModel.pinnedSectionIds, localState.pinnedSectionIds) &&
     sameStringList(startupViewModel.pinnedPageChipIds, localState.pinnedPageChipIds)
 }

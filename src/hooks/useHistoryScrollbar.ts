@@ -194,8 +194,8 @@ export function useHistoryScrollbar(
 
     const resizeObserver = new ResizeObserver(requestScrollbarUpdate)
     resizeObserver.observe(listEl)
-    const contentEl = listEl.firstElementChild
-    if (contentEl instanceof HTMLElement) resizeObserver.observe(contentEl)
+    const contentEl = listEl.querySelector<HTMLElement>('.history-entry-list-content')
+    if (contentEl) resizeObserver.observe(contentEl)
 
     return () => {
       if (frameId !== 0) cancelAnimationFrame(frameId)

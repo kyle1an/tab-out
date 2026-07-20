@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
+import { createLatestRefreshRunner, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
 import { loadDashboardLocalState } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
@@ -135,24 +135,42 @@ test('startup snapshot cache paints any structurally valid session snapshot', as
 test('startup snapshot cache drops working set rows not backed by its cached open tabs', async () => {
   const openUrl = 'https://example.com/docs'
   const closedUrl = 'https://closed.example.com/old'
+  const closedSavedUrl = 'https://saved.example.com/kept'
   const cached = {
     savedAt: now,
     snapshot: {
       dashboard: {
-        realTabs: [{
-          id: 1,
-          url: openUrl,
-          rawUrl: openUrl,
-          suspended: false,
-          title: 'Live Docs',
-          favIconUrl: '',
-          windowId: 1,
-          active: true,
-          pinned: false,
-          groupId: -1,
-          isTabOut: false,
-          isApp: false
-        }],
+        realTabs: [
+          {
+            id: 1,
+            url: openUrl,
+            rawUrl: openUrl,
+            suspended: false,
+            title: 'Live Docs',
+            favIconUrl: '',
+            windowId: 1,
+            active: true,
+            pinned: false,
+            groupId: -1,
+            isTabOut: false,
+            isApp: false
+          },
+          {
+            url: closedSavedUrl,
+            rawUrl: closedSavedUrl,
+            suspended: false,
+            title: 'Kept Saved Page',
+            favIconUrl: '',
+            windowId: -1,
+            active: false,
+            pinned: false,
+            groupId: -1,
+            isTabOut: false,
+            isApp: false,
+            sourceType: 'saved-page',
+            closedSaved: true
+          }
+        ],
         domainGroups: []
       },
       tabHistory: {
@@ -163,7 +181,8 @@ test('startup snapshot cache drops working set rows not backed by its cached ope
         expandedLimit: 7,
         items: [
           workingSetSnapshotItem(openUrl, 'Cached Docs', 999, 99),
-          workingSetSnapshotItem(closedUrl, 'Closed Example', 500, 98)
+          workingSetSnapshotItem(closedUrl, 'Closed Example', 500, 98),
+          workingSetSnapshotItem(closedSavedUrl, 'Kept Saved Page', 400, 97)
         ]
       },
       closedTabs: []
@@ -190,10 +209,36 @@ test('startup snapshot cache falls back to the durable local snapshot when the s
   const durableCached: Record<string, unknown> = {
     savedAt: now,
     snapshot: {
-      dashboard: { realTabs: [], domainGroups: [] },
+      dashboard: {
+        realTabs: [],
+        domainGroups: [
+          { domain: 'stale.example', pinned: true, tabs: [] },
+          { domain: 'example.test', pinned: false, tabs: [] }
+        ]
+      },
       tabHistory: { entries: [] },
       workingSet: { items: [] },
-      closedTabs: []
+      closedTabs: [],
+      startupViewModel: {
+        pinnedDomains: ['stale.example'],
+        pinnedSectionIds: ['section-stale'],
+        pinnedPageChipIds: ['chip-stale'],
+        viewModel: {
+          source: 'tabs',
+          stats: {},
+          matchedCards: [],
+          unmatchedCards: [],
+          showOtherTabs: false,
+          globalDedupeUrls: [],
+          filteredCloseUrls: []
+        }
+      }
+    },
+    localState: {
+      loaded: true,
+      pinnedDomains: ['stale.example'],
+      pinnedSectionIds: ['section-stale'],
+      pinnedPageChipIds: ['chip-stale']
     }
   }
 
@@ -214,10 +259,15 @@ test('startup snapshot cache falls back to the durable local snapshot when the s
     }
   }
 
-  // Session cleared by a browser restart, durable copy still fresh → first open paints warm.
+  // Session cleared by a browser restart, durable copy still fresh → first open paints warm
+  // while the separately stored live pin keys remain the ordering source of truth.
   const restored = await loadCachedDashboardStartup(now)
-  assert.equal(restored?.snapshot.dashboard, (durableCached.snapshot as { dashboard: unknown }).dashboard)
   assert.deepEqual(restored?.localState?.pinnedDomains, ['example.test'])
+  assert.deepEqual(
+    restored?.snapshot.dashboard.domainGroups.map((group) => [group.domain, group.pinned]),
+    [['example.test', true], ['stale.example', false]]
+  )
+  assert.equal(restored?.snapshot.startupViewModel, undefined)
   assert.deepEqual(localGetKeys, [[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DOMAIN_PIN_STORAGE_KEY, SECTION_PIN_STORAGE_KEY, PAGE_CHIP_PIN_STORAGE_KEY]])
 
   // A durable copy older than the cap is ignored rather than shown very stale.
@@ -272,12 +322,125 @@ test('startup snapshot can include the current Tab Out page before live hydratio
   assert.equal(patched.startupViewModel?.viewModel.stats.dedupCount, 1)
 })
 
-test('startup snapshot preserves New tabs pin when adding the current Tab Out page', () => {
+test('startup snapshot rebases its current window when the current Tab Out page is already cached', () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const currentTabOutPage = {
+    id: 3,
+    url: tabOutUrl,
+    rawUrl: tabOutUrl,
+    suspended: false,
+    title: 'Tab Out',
+    favIconUrl: '',
+    windowId: 1,
+    active: true,
+    pinned: false,
+    groupId: -1,
+    isTabOut: true,
+    isApp: false,
+    index: 1
+  }
   const snapshot = {
     dashboard: {
-      realTabs: [],
-      domainGroups: [],
+      realTabs: [currentTabOutPage],
+      domainGroups: [{ domain: '__tab-out__', label: 'New tabs', tabs: [currentTabOutPage] }],
+      currentWindowId: 2
+    },
+    tabHistory: { entries: [] },
+    workingSet: { items: [] },
+    closedTabs: []
+  } as any
+  const currentTab = {
+    ...makeChromeTab(3, tabOutUrl, 'Tab Out'),
+    active: true,
+    selected: true,
+    windowId: 1
+  }
+  const localState = {
+    loaded: true,
+    pinnedDomains: [],
+    pinnedSectionIds: [],
+    pinnedPageChipIds: []
+  }
+
+  const patched = addCurrentTabOutPageToStartupSnapshot(snapshot, currentTab, localState)
+
+  assert.equal(patched.dashboard.currentWindowId, 1)
+  assert.ok(patched.startupViewModel)
+})
+
+test('startup snapshot refreshes stale state for an already-cached current Tab Out page', () => {
+  const cachedUrl = 'chrome-extension://tab-out/index.html'
+  const currentUrl = `${cachedUrl}?filter=example`
+  const cachedTabOutPage = {
+    id: 3,
+    url: cachedUrl,
+    rawUrl: cachedUrl,
+    suspended: false,
+    title: 'Tab Out',
+    favIconUrl: '',
+    windowId: 1,
+    active: false,
+    pinned: false,
+    groupId: -1,
+    isTabOut: true,
+    isApp: false,
+    index: 1
+  }
+  const snapshot = {
+    dashboard: {
+      realTabs: [cachedTabOutPage],
+      domainGroups: [{ domain: '__tab-out__', label: 'New tabs', tabs: [cachedTabOutPage] }],
+      currentWindowId: 1
+    },
+    tabHistory: { entries: [] },
+    workingSet: { items: [] },
+    closedTabs: []
+  } as any
+  const currentTab = {
+    ...makeChromeTab(3, currentUrl, 'Tab Out'),
+    active: true,
+    selected: true,
+    pinned: true,
+    windowId: 1
+  }
+  const localState = {
+    loaded: true,
+    pinnedDomains: [],
+    pinnedSectionIds: [],
+    pinnedPageChipIds: []
+  }
+
+  const patched = addCurrentTabOutPageToStartupSnapshot(snapshot, currentTab, localState)
+  const restoredTab = patched.dashboard.realTabs[0]
+
+  assert.equal(restoredTab.rawUrl, currentUrl)
+  assert.equal(restoredTab.active, true)
+  assert.equal(restoredTab.pinned, true)
+  assert.equal(patched.dashboard.domainGroups[0]?.tabs[0], restoredTab)
+  assert.ok(patched.startupViewModel)
+})
+
+test('startup snapshot preserves New tabs pin when adding the current Tab Out page', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const exampleTab = {
+    id: 2,
+    url: 'https://example.com/docs',
+    rawUrl: 'https://example.com/docs',
+    suspended: false,
+    title: 'Example Docs',
+    favIconUrl: '',
+    windowId: 1,
+    active: false,
+    pinned: false,
+    groupId: -1,
+    isTabOut: false,
+    isApp: false,
+    index: 1
+  }
+  const snapshot = {
+    dashboard: {
+      realTabs: [exampleTab],
+      domainGroups: [{ domain: 'example.com', pinned: false, tabs: [exampleTab] }],
       currentWindowId: 1
     },
     tabHistory: { entries: [] },
@@ -300,6 +463,10 @@ test('startup snapshot preserves New tabs pin when adding the current Tab Out pa
   const newTabsGroup = patched.dashboard.domainGroups.find((group) => group.domain === '__tab-out__')
 
   assert.equal(newTabsGroup?.pinned, true)
+  assert.deepEqual(
+    patched.dashboard.domainGroups.map((group) => group.domain),
+    ['__tab-out__', 'example.com']
+  )
   assert.equal(patched.startupViewModel?.viewModel.matchedCards[0]?.group.domain, '__tab-out__')
 })
 
@@ -461,6 +628,198 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   assert.equal(durableSnapshot?.snapshot.startupViewModel?.viewModel.matchedCards.length, 2)
   assert.deepEqual(durableSnapshot?.localState?.pinnedDomains, ['example.test'])
   assert.deepEqual(runtimeMessages, ['tab-out:get-dashboard-service-state'])
+})
+
+test('coalesced startup fetches cache the latest local render state', async () => {
+  let releaseTabsQuery!: () => void
+  let markTabsQueryStarted!: () => void
+  const tabsQueryBlocked = new Promise<void>((resolve) => {
+    releaseTabsQuery = resolve
+  })
+  const tabsQueryStarted = new Promise<void>((resolve) => {
+    markTabsQueryStarted = resolve
+  })
+  let tabsQueryCount = 0
+  let cachedStartupSnapshot: Record<string, unknown> | null = null
+
+  ;(globalThis as any).chrome = {
+    runtime: {
+      id: 'tab-out',
+      getURL: (path: string) => `chrome-extension://tab-out${path}`,
+      sendMessage: async () => ({
+        ok: true,
+        tabHistory: {
+          stackSize: 0,
+          maxSize: 48,
+          cursorIndex: -1,
+          currentIndex: -1,
+          previousIndex: -1,
+          nextIndex: -1,
+          activeTabId: null,
+          activeWindowId: null,
+          activeWasInserted: false,
+          entries: []
+        },
+        workingSetActivity: { version: 1, records: {} }
+      })
+    },
+    tabs: {
+      query: async () => {
+        tabsQueryCount += 1
+        markTabsQueryStarted()
+        await tabsQueryBlocked
+        return []
+      }
+    },
+    windows: {
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+    },
+    tabGroups: { query: async () => [] },
+    sessions: { getRecentlyClosed: async () => [] },
+    storage: {
+      session: {
+        get: async () => ({}),
+        set: async (value: Record<string, unknown>) => {
+          cachedStartupSnapshot = value
+        }
+      },
+      local: {
+        get: async () => ({}),
+        set: async () => {}
+      }
+    }
+  }
+
+  const baseOptions = {
+    source: 'tabs' as const,
+    filter: '',
+    historyRange: DEFAULT_HISTORY_RANGE,
+    historyFilterEnabled: false,
+    pinnedDomains: [],
+    previousOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  }
+  const firstFetch = fetchDashboardStartupSnapshot({
+    ...baseOptions,
+    localState: {
+      loaded: true,
+      pinnedDomains: [],
+      pinnedSectionIds: ['section-first'],
+      pinnedPageChipIds: ['chip-first']
+    }
+  })
+  await tabsQueryStarted
+  const latestFetch = fetchDashboardStartupSnapshot({
+    ...baseOptions,
+    localState: {
+      loaded: true,
+      pinnedDomains: [],
+      pinnedSectionIds: ['section-latest'],
+      pinnedPageChipIds: ['chip-latest']
+    }
+  })
+  releaseTabsQuery()
+  await Promise.all([firstFetch, latestFetch])
+  await new Promise((resolve) => setTimeout(resolve, 0))
+
+  assert.equal(tabsQueryCount, 1)
+  const cached = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
+  assert.deepEqual(cached?.localState?.pinnedSectionIds, ['section-latest'])
+  assert.deepEqual(cached?.snapshot.startupViewModel?.pinnedPageChipIds, ['chip-latest'])
+
+  let releaseFirstCacheWrite!: () => void
+  let markFirstCacheWriteStarted!: () => void
+  let markBothCacheWritesCompleted!: () => void
+  const firstCacheWriteBlocked = new Promise<void>((resolve) => {
+    releaseFirstCacheWrite = resolve
+  })
+  const firstCacheWriteStarted = new Promise<void>((resolve) => {
+    markFirstCacheWriteStarted = resolve
+  })
+  const bothCacheWritesCompleted = new Promise<void>((resolve) => {
+    markBothCacheWritesCompleted = resolve
+  })
+  const completedCacheWrites: string[] = []
+  globalThis.chrome.storage.session.set = async (value: Record<string, unknown>) => {
+    const payload = value[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
+    const pin = payload?.localState?.pinnedDomains?.[0] ?? ''
+    if (pin === 'first.example') {
+      markFirstCacheWriteStarted()
+      await firstCacheWriteBlocked
+    }
+    cachedStartupSnapshot = value
+    completedCacheWrites.push(pin)
+    if (completedCacheWrites.length === 2) markBothCacheWritesCompleted()
+  }
+
+  await fetchDashboardStartupSnapshot({
+    ...baseOptions,
+    pinnedDomains: ['first.example'],
+    localState: {
+      loaded: true,
+      pinnedDomains: ['first.example'],
+      pinnedSectionIds: [],
+      pinnedPageChipIds: []
+    }
+  })
+  await firstCacheWriteStarted
+  await fetchDashboardStartupSnapshot({
+    ...baseOptions,
+    pinnedDomains: ['latest.example'],
+    localState: {
+      loaded: true,
+      pinnedDomains: ['latest.example'],
+      pinnedSectionIds: [],
+      pinnedPageChipIds: []
+    }
+  })
+  releaseFirstCacheWrite()
+  await bothCacheWritesCompleted
+
+  const latestCached = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
+  assert.deepEqual(latestCached?.localState?.pinnedDomains, ['latest.example'])
+})
+
+test('latest refresh runner discards an overtaken result and applies one trailing result', async () => {
+  let releaseFirstRun!: () => void
+  let markFirstRunStarted!: () => void
+  const firstRunBlocked = new Promise<void>((resolve) => {
+    releaseFirstRun = resolve
+  })
+  const firstRunStarted = new Promise<void>((resolve) => {
+    markFirstRunStarted = resolve
+  })
+  const runs: string[] = []
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  const firstRequest = runner.request(
+    async () => {
+      runs.push('first')
+      markFirstRunStarted()
+      await firstRunBlocked
+      return 'stale'
+    },
+    (value) => applied.push(value)
+  )
+  await firstRunStarted
+  const latestRequest = runner.request(
+    async () => {
+      runs.push('latest')
+      return 'latest'
+    },
+    (value) => applied.push(value)
+  )
+  releaseFirstRun()
+  await Promise.all([firstRequest, latestRequest])
+
+  assert.deepEqual(runs, ['first', 'latest'])
+  assert.deepEqual(applied, ['latest'])
+  assert.equal(runner.active(), false)
 })
 
 test('startup snapshot cache preserves fresh cached working set priority when saving live startup data', async () => {

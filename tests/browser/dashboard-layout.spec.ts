@@ -148,6 +148,63 @@ test('Activation History restores its title fade after hover expansion closes', 
   )
 })
 
+test('Activation History scrollbar follows filtered row content', async ({ page }) => {
+  await page.setViewportSize({ width: 1420, height: 360 })
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+
+  const rows = page.locator('[data-tabout="activation-history-entry"]')
+  const scrollbar = page.locator('[data-tabout-part="history-scrollbar"]')
+  await expect.poll(() => rows.count()).toBeGreaterThan(0)
+  await expect(scrollbar).toHaveCount(1)
+
+  await page.locator('[data-tabout="filter-query"] input').fill('no-history-row-matches-this')
+  await expect(rows).toHaveCount(0)
+  await expect(scrollbar).toHaveCount(0)
+
+  await page.locator('[data-tabout="filter-query"] input').fill('')
+  await expect.poll(() => rows.count()).toBeGreaterThan(0)
+  await expect(scrollbar).toHaveCount(1)
+})
+
+test('a slow Tabs startup refresh cannot overwrite a completed Bookmarks switch', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?slowStartupRefresh=1')
+  await page.evaluate(() => {
+    const fixtureWindow = window as typeof window & {
+      __tabOutSmokeSetBookmarks?: (count: number) => void
+    }
+    fixtureWindow.__tabOutSmokeSetBookmarks?.(1)
+  })
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutSmokeStartupRefreshStarted?: boolean })
+      .__tabOutSmokeStartupRefreshStarted === true
+  ))
+
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+  await expect(page.getByRole('tab', { name: 'Bookmarks' })).toHaveAttribute('data-active', '')
+  const bookmarkCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')
+  await expect(bookmarkCard).toHaveCount(1)
+
+  await page.waitForTimeout(600)
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(0)
+})
+
+test('a slow unfiltered startup snapshot still hydrates after the filter changes', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?slowStartupRefresh=1')
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutSmokeStartupRefreshStarted?: boolean })
+      .__tabOutSmokeStartupRefreshStarted === true
+  ))
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Example 2')
+
+  const matchedGrid = page.locator('#openTabsMissions')
+  const otherTabsGrid = page.locator('#openTabsMissionsUnmatched')
+  await expect(matchedGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')).toHaveCount(1)
+  await expect(matchedGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(0)
+  await expect(otherTabsGrid.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
+})
+
 test('Page Chip restores its title fade after hover expansion closes', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)

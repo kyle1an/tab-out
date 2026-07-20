@@ -456,7 +456,9 @@
       const fixtureParams = new URLSearchParams(window.location.search)
       const slowCloseRefresh = fixtureParams.has('slowCloseRefresh')
       const stalledCloseRefresh = fixtureParams.has('stalledCloseRefresh')
+      const slowStartupRefresh = fixtureParams.has('slowStartupRefresh')
       let delayNextDashboardServiceState = false
+      let dashboardServiceStateRequestCount = 0
       const chromeApi = createFakeChromeApi({
         tabs,
         getBookmarkTree: () => bookmarkTree,
@@ -464,6 +466,11 @@
         getURL: (path) => `${window.location.origin}${path}`,
         sendMessage: async (message) => {
           if (message?.type === 'tab-out:get-dashboard-service-state') {
+            dashboardServiceStateRequestCount += 1
+            if (slowStartupRefresh && dashboardServiceStateRequestCount === 1) {
+              window.__tabOutSmokeStartupRefreshStarted = true
+              await new Promise((resolve) => setTimeout(resolve, 500))
+            }
             if (delayNextDashboardServiceState) {
               delayNextDashboardServiceState = false
               await new Promise((resolve) => setTimeout(resolve, stalledCloseRefresh ? 1_500 : 120))

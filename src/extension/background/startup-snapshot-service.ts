@@ -2,7 +2,7 @@ import { fetchClosedTabs, isClosedTabFetchSuppressed } from '../closed-tabs.js'
 import { DOMAIN_PIN_STORAGE_KEY, loadPinnedDomains } from '../domain-pins.js'
 import { loadPinnedPageChips, PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
 import { getCurrentWindowId } from '../render.js'
-import { loadSavedPagesStore } from '../saved-pages.js'
+import { loadSavedPagesStore, SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
 import { loadPinnedSections, SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
 import { buildTabsDashboardStartupSnapshot, loadCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
@@ -15,7 +15,8 @@ const STARTUP_SNAPSHOT_DEBOUNCE_MS = 4000
 const STARTUP_SNAPSHOT_RENDER_STATE_KEYS = [
   DOMAIN_PIN_STORAGE_KEY,
   SECTION_PIN_STORAGE_KEY,
-  PAGE_CHIP_PIN_STORAGE_KEY
+  PAGE_CHIP_PIN_STORAGE_KEY,
+  SAVED_PAGES_STORAGE_KEY
 ]
 
 export function startupSnapshotStorageChangesRequireRefresh(
@@ -39,6 +40,7 @@ export type StartupSnapshotService = {
 export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): StartupSnapshotService {
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let inFlight: Promise<void> | null = null
+  let refreshPending = false
   let cachedOpenTabsSeeded = false
 
   async function compute(): Promise<void> {
@@ -89,8 +91,18 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   }
 
   function refreshNow(): Promise<void> {
-    if (inFlight) return inFlight
-    const run = compute().catch(() => {})
+    if (inFlight) {
+      refreshPending = true
+      return inFlight
+    }
+    const run = (async () => {
+      do {
+        refreshPending = false
+        try {
+          await compute()
+        } catch {}
+      } while (refreshPending)
+    })()
     inFlight = run
     void run.finally(() => {
       if (inFlight === run) inFlight = null
