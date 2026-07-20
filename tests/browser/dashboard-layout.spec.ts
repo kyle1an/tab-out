@@ -406,6 +406,30 @@ test('history results stay visible while a new range loads for the same query', 
   await expect(historyCards.filter({ hasText: 'Scope result week two' })).toHaveCount(1)
 })
 
+test('history range starts from the remembered preference', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?filter=Example&rememberedHistoryRange=90d')
+
+  await expect.poll(async () => page.evaluate(async () => {
+    const stored = await window.chrome.storage.local.get('tabOutHistoryRangeV1')
+    return stored.tabOutHistoryRangeV1
+  })).toBe('90d')
+  await expect(
+    page.getByRole('combobox', { name: 'History search range' })
+  ).toContainText('Last 3 months')
+})
+
+test('history range remembers a new selection', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?filter=Example')
+
+  await page.getByRole('combobox', { name: 'History search range' }).click()
+  await page.getByRole('option', { name: 'Last 6 months' }).click()
+
+  await expect.poll(async () => page.evaluate(async () => {
+    const stored = await window.chrome.storage.local.get('tabOutHistoryRangeV1')
+    return stored.tabOutHistoryRangeV1
+  })).toBe('180d')
+})
+
 test('history results stay cleared when re-enabled with a new range', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)

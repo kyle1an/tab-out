@@ -1,5 +1,6 @@
 export const DEFAULT_HISTORY_RANGE = '1d'
 export const HISTORY_FILTER_OFF = 'off'
+export const HISTORY_RANGE_STORAGE_KEY = 'tabOutHistoryRangeV1'
 export const HISTORY_RANGE_OPTIONS = [
   { value: HISTORY_FILTER_OFF, label: 'History off', days: 0 },
   { value: '1d', label: 'Last day', days: 1 },
@@ -10,6 +11,28 @@ export const HISTORY_RANGE_OPTIONS = [
   { value: '365d', label: 'Last year', days: 365 },
   { value: 'all', label: 'All time', days: null }
 ]
+
+export function isHistoryRangeValue(value: unknown): value is string {
+  return typeof value === 'string' && HISTORY_RANGE_OPTIONS.some((option) => option.value === value)
+}
+
+export async function loadHistoryRangePreference(): Promise<string> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) return DEFAULT_HISTORY_RANGE
+  try {
+    const stored = await chrome.storage.local.get(HISTORY_RANGE_STORAGE_KEY)
+    const historyRange = stored[HISTORY_RANGE_STORAGE_KEY]
+    return isHistoryRangeValue(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
+  } catch {
+    return DEFAULT_HISTORY_RANGE
+  }
+}
+
+export async function saveHistoryRangePreference(historyRange: unknown): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) return
+  await chrome.storage.local.set({
+    [HISTORY_RANGE_STORAGE_KEY]: isHistoryRangeValue(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
+  })
+}
 
 export function isHistoryFilterEnabled(range = DEFAULT_HISTORY_RANGE): boolean {
   return range !== HISTORY_FILTER_OFF

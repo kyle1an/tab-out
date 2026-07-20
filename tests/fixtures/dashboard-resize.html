@@ -95,7 +95,12 @@
         ]
       }
       let bookmarkTree = []
+      const fixtureParams = new URLSearchParams(window.location.search)
+      const rememberedHistoryRange = fixtureParams.get('rememberedHistoryRange')
       const localStorageStore = {
+        ...(rememberedHistoryRange
+          ? { tabOutHistoryRangeV1: rememberedHistoryRange }
+          : {}),
         tabOutPinnedPageChipsV1: [
           'page-chip|tabs|' +
             encodeURIComponent('scope|atlassian.net|example-team|/jira|') + '|' +
@@ -453,7 +458,6 @@
         return { version: 1, records }
       }
 
-      const fixtureParams = new URLSearchParams(window.location.search)
       const slowCloseRefresh = fixtureParams.has('slowCloseRefresh')
       const stalledCloseRefresh = fixtureParams.has('stalledCloseRefresh')
       const slowStartupRefresh = fixtureParams.has('slowStartupRefresh')

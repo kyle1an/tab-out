@@ -5,6 +5,7 @@ import type { DashboardRefreshOptions } from './extension/dashboard-controller.j
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
+import { loadHistoryRangePreference } from './extension/history-range.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
@@ -120,6 +121,7 @@ document.addEventListener(
 
 async function initializeApp() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
+  const historyRangePreferencePromise = loadHistoryRangePreference()
   const cacheStartedAt = startupDebugNow()
   const cachedStartup = await loadCachedDashboardStartup()
   seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])
@@ -138,6 +140,8 @@ async function initializeApp() {
     ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
     detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
   })
+  const initialHistoryRange = await historyRangePreferencePromise
+  // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- both promises started before cached/local startup work; these awaits only join the already-running reads.
   const currentTabOutPage = await currentTabOutPagePromise
   const fallbackStartupSnapshot = startupSnapshot && currentTabOutPage
     ? addCurrentTabOutPageToStartupSnapshot(startupSnapshot, currentTabOutPage, localState)
@@ -149,7 +153,7 @@ async function initializeApp() {
       startupSnapshot: !!initialStartupSnapshot
     }
   })
-  mountApp(initialStartupSnapshot, localState)
+  mountApp(initialStartupSnapshot, localState, initialHistoryRange)
 }
 
 initializeApp()

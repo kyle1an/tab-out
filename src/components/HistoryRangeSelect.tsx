@@ -1,21 +1,17 @@
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select'
-import { HISTORY_RANGE_OPTIONS } from '../extension/history-range.js'
-
-function isHistoryRangeValue(value: unknown): value is string {
-  return typeof value === 'string' && HISTORY_RANGE_OPTIONS.some((option) => option.value === value)
-}
+import { HISTORY_RANGE_OPTIONS, isHistoryRangeValue } from '../extension/history-range.js'
 
 export function HistoryRangeSelect({
   value,
   onValueChange
 }: {
   value: string
-  onValueChange?: (historyRange: string) => void
+  onValueChange?: (historyRange: string) => void | Promise<void>
 }) {
   function handleValueChange(nextValue: unknown) {
     if (!isHistoryRangeValue(nextValue)) return
     if (nextValue === value) return
-    onValueChange?.(nextValue)
+    void onValueChange?.(nextValue)
   }
 
   return (

@@ -4,7 +4,7 @@ import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges,
 import { useMissionsMasonry } from '../extension/layout.js'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
-import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-range.js'
+import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled, saveHistoryRangePreference } from '../extension/history-range.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, hasActiveDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import {
   animateIntraCardMoves,
@@ -142,11 +142,17 @@ type AppDashboardAction =
       workingSet: WorkingSetSnapshot | null
     }
 
-function initialAppDashboardState(snapshot: DashboardStartupSnapshot | null): AppDashboardState {
+function initialAppDashboardState({
+  historyRange,
+  snapshot
+}: {
+  historyRange: string
+  snapshot: DashboardStartupSnapshot | null
+}): AppDashboardState {
   return {
     closedTabs: snapshot?.closedTabs ?? [],
     dashboard: snapshot?.dashboard ?? null,
-    historyRange: DEFAULT_HISTORY_RANGE,
+    historyRange,
     source: 'tabs',
     tabHistory: snapshot?.tabHistory ?? null,
     workingSet: snapshot?.workingSet ?? null
@@ -590,13 +596,18 @@ function DashboardShell({
 }
 
 export function App({
+  initialHistoryRange = DEFAULT_HISTORY_RANGE,
   initialStartupSnapshot = null,
   initialLocalState = null
 }: {
+  initialHistoryRange?: string
   initialStartupSnapshot?: DashboardStartupSnapshot | null
   initialLocalState?: DashboardLocalState | null
 }) {
-  const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, initialStartupSnapshot, initialAppDashboardState)
+  const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, {
+    historyRange: initialHistoryRange,
+    snapshot: initialStartupSnapshot
+  }, initialAppDashboardState)
   const { closedTabs, dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
   const { hoverMatch, urlPreview, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
@@ -618,8 +629,13 @@ export function App({
     })
     dispatchAppDashboard({ type: 'startupSnapshot', snapshot })
   }
-  const setHistoryRange = useCallback(function setHistoryRange(nextHistoryRange: string) {
+  const setHistoryRange = useCallback(async function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
+    try {
+      await saveHistoryRangePreference(nextHistoryRange)
+    } catch {
+      showToast("Couldn't remember History range")
+    }
   }, [])
   const setTabHistory = useCallback(function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
     dispatchAppDashboard({ type: 'tabHistory', tabHistory: nextTabHistory })
@@ -989,7 +1005,11 @@ export function App({
   )
 }
 
-export function mountApp(initialStartupSnapshot: DashboardStartupSnapshot | null = null, initialLocalState: DashboardLocalState | null = null) {
+export function mountApp(
+  initialStartupSnapshot: DashboardStartupSnapshot | null = null,
+  initialLocalState: DashboardLocalState | null = null,
+  initialHistoryRange = DEFAULT_HISTORY_RANGE
+) {
   const el = document.getElementById('appRoot')
   if (!el) return
   createRoot(el, {
@@ -1000,7 +1020,11 @@ export function mountApp(initialStartupSnapshot: DashboardStartupSnapshot | null
     }
   }).render(
     <AppErrorBoundary>
-      <App initialStartupSnapshot={initialStartupSnapshot} initialLocalState={initialLocalState} />
+      <App
+        initialHistoryRange={initialHistoryRange}
+        initialStartupSnapshot={initialStartupSnapshot}
+        initialLocalState={initialLocalState}
+      />
     </AppErrorBoundary>
   )
 }
