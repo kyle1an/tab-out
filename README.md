@@ -36,6 +36,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Right-click menus** — copy a page title, save a page, or suspend it from any chip or history row; group chips can close all their URL variants at once
 - **Filter-match highlighting** — matched terms are marked in chip and history-row titles while you filter
 - **Live filter** — type in the filter input to narrow the dashboard; the clear button resets it. Matching bookmarks and recent history appear below open-tab matches, with a remembered history range menu for last day/week/month/3 months, and non-matching tabs move to an "Other tabs" section so every tab stays accounted for
+- **Keyboard-driven filter results** — the first visible result is selected automatically; use Arrow Up/Down to move in result order, Arrow Left/Right to move by the results' on-screen positions, Enter to open or switch, Shift+Enter for a new window, Cmd/Ctrl+Enter to bring it into the current window in the background, or Cmd/Ctrl+Shift+Enter to bring it here and switch
 - **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Global new-tab shortcut support** — assign "Open a new Tab Out tab" in `chrome://extensions/shortcuts` and set it to Global to create a fresh Tab Out page even when Chrome is not focused

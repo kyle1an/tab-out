@@ -13,6 +13,7 @@ function facts(overrides: Partial<ChipTrimFacts> = {}): ChipTrimFacts {
     activeInOtherWindow: false,
     isCurrentTabOut: false,
     closedSavedPage: false,
+    readOnlyFilterResult: false,
     folded: false,
     titleVariantGroup: false,
     iconOnly: false,
@@ -47,6 +48,7 @@ test('chip-trim: plain chips get the translucent fill, the quiet hover line, and
   assert.equal(trim.iconChipClasses, '')
   assert.match(trim.slotClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.slotRow}\\b`))
   assert.equal(trim.styleVars.interactionBg, TRANSLUCENT_CLICKABLE)
+  assert.equal(trim.styleVars.closedInteractionBg, GROUP_BG)
   assert.equal(trim.styleVars.fadeBg, OPAQUE_CLICKABLE)
   assert.equal(trim.styleVars.restBg, 'transparent')
 })
@@ -60,6 +62,17 @@ test('chip-trim: saved-closed chips carry the marker and the interaction outline
   assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)
   assert.equal(trim.styleVars.interactionBg, GROUP_BG)
   assert.equal(trim.styleVars.fadeBg, GROUP_BG)
+})
+
+test('chip-trim: read-only filter results use the closed fill without changing the outline treatment', () => {
+  const trim = chipTrim(facts({ readOnlyFilterResult: true }))
+  assert.match(trim.chipClasses, /hover:bg-\(--chip-interaction-bg\)/)
+  assert.match(trim.chipClasses, OUTLINE_TRIO)
+  assert.doesNotMatch(trim.chipClasses, /text-tab-closed/)
+  assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.savedClosed}\\b`))
+  assert.equal(trim.styleVars.interactionBg, GROUP_BG)
+  assert.equal(trim.styleVars.fadeBg, GROUP_BG)
+  assert.equal(trim.styleVars.hoverBorder, CLICKABLE_LINE)
 })
 
 test('chip-trim: variant-group and folded chips get the group outline', () => {

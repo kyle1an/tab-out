@@ -924,7 +924,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-/)
   assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.05\)\]/)
   assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.1\)\]/)
-  assert.match(titleVariantButtonMatch[1], /hover:bg-neutral-600\/\[0\.14\]/)
+  assert.match(titleVariantButtonMatch[1], /hover:bg-\(--chip-target-interaction-bg\)/)
   assert.doesNotMatch(titleVariantButtonMatch[1], /\bcursor-pointer\b/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /function defaultTitleVariantChip\(\) \{[\s\S]*activeChipFrame[\s\S]*!variant\.activeInOtherWindow[\s\S]*activeInOtherWindow[\s\S]*titleVariantChips\[0\]/)
@@ -941,7 +941,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.doesNotMatch(pageChipSource, /defaultTitleVariantHoverUrl/)
   assert.doesNotMatch(pageChipSource, /chipMatchesDefaultTitleVariantHover/)
   assert.match(pageChipSource, /variantHoverMatched = externalHoverActive && chipMatchesActiveHover\(variant\)/)
-  assert.match(pageChipSource, /variantHoverMatched && 'bg-neutral-600\/\[0\.14\] text-tab-live'/)
+  assert.match(pageChipSource, /variantHoverMatched && 'bg-\(--chip-target-interaction-bg\) text-tab-live'/)
   assert.match(pageChipSource, /variantCurrent && 'bg-neutral-100 text-tab-live shadow-\[inset_2px_0_0_0_var\(--accent-amber\)\]'/)
   assert.match(pageChipSource, /variantActive && 'bg-neutral-600\/\[0\.075\] text-tab-live'/)
   assert.doesNotMatch(pageChipSource, /variantCurrent && 'bg-neutral-100 shadow-\[inset_0_0_0_1px_rgba\(82,82,82,0\.42\)\]'/)
@@ -995,9 +995,62 @@ test('PageChip gives a plain open chip the interaction outline at the quiet open
   const cls = pageChipClass(html)
   assert.match(cls, /hover:outline-1/)
   assert.match(cls, /hover:outline-\(--chip-hover-border\)/)
+  assert.match(cls, /data-\[tabout-filter-result-selected=true\]:bg-\(--chip-interaction-bg\)/)
+  assert.match(cls, /data-\[tabout-filter-result-selected=true\]:outline-\(--accent-amber\)/)
   // The interaction-fill rim: same 10% mix as the interaction fill, laid once
   // more at the edge — the darkened fill carries the open-hover emphasis.
   assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
+})
+
+test('PageChip gives read-only filter results the closed interaction fill without changing their outline', () => {
+  for (const sourceType of ['bookmark', 'history'] as const) {
+    const html = renderWithDomainCardContext(
+      React.createElement(PageChip, {
+        chip: makeChip({ sourceType }),
+        filter: 'OpenAI'
+      })
+    )
+    const cls = pageChipClass(html)
+    assert.match(cls, /hover:bg-\(--chip-interaction-bg\)/)
+    assert.match(cls, /data-\[tabout-filter-result-selected=true\]:bg-\(--chip-interaction-bg\)/)
+    assert.match(cls, /data-\[tabout-filter-result-selected=true\]:outline-\(--accent-amber\)/)
+    assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
+    assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
+  }
+})
+
+test('PageChip resolves the closed filter fill per target inside an active mixed folded chip', () => {
+  const html = renderWithDomainCardContext(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        sourceType: 'tab',
+        activeChipFrame: true,
+        envs: [
+          {
+            prefix: 'env-alpha',
+            tabUrl: 'https://env-alpha.example.test/docs',
+            rawUrl: 'https://env-alpha.example.test/docs',
+            sourceType: 'tab'
+          },
+          {
+            prefix: 'env-bravo',
+            tabUrl: 'https://env-bravo.example.test/docs',
+            rawUrl: 'https://env-bravo.example.test/docs',
+            sourceType: 'tab',
+            closedSaved: true
+          }
+        ]
+      }),
+      filter: 'docs'
+    })
+  )
+  const envButtons = Array.from(html.matchAll(/<button[^>]*>/g), (match) => match[0])
+    .filter((tag) => /class="[^"]*\bchip-env\b/.test(tag))
+
+  assert.equal(envButtons.length, 2)
+  assert.doesNotMatch(envButtons[0], /style="[^"]*--chip-target-interaction-bg/)
+  assert.match(envButtons[1], /--chip-target-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
+  assert.doesNotMatch(envButtons[1], /--chip-target-interaction-bg:var\(--color-neutral-50\)/)
 })
 
 function titleVariantPillTags(html: string): string[] {
@@ -1070,7 +1123,7 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   assert.match(highlightRule, /\[data-tabout-part='audio-toggle'\]:hover/)
   assert.match(highlightRule, /\)\s*\.chip-title-variant\[data-tabout-default-variant\]/)
   assert.match(highlightRule, /background-color: #52525224;/)
-  assert.match(highlightRule, /background-color: color-mix\(in oklab, var\(--color-neutral-600\) 14%, transparent\);/)
+  assert.match(highlightRule, /background-color: var\(\s*--chip-target-interaction-bg,\s*color-mix\(in oklab, var\(--color-neutral-600\) 14%, transparent\)\s*\);/)
   assert.match(highlightRule, /color: var\(--color-tab-live\);/)
   assert.doesNotMatch(baseCss, /\.chip-title-variant-content:hover/)
 

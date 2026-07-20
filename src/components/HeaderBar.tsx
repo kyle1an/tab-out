@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
 import { Input } from './ui/input'
@@ -7,6 +8,16 @@ import { TooltipAnchor } from './ui/tooltip'
 import { isHistoryFilterEnabled } from '../extension/history-range.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
 import { releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
+import {
+  EMPTY_FILTER_RESULT_SELECTION,
+  filterResultKeyboardIntent,
+  reconcileFilterResultSelection,
+  selectAdjacentFilterResult,
+  selectHorizontalFilterResult,
+  type FilterResultCandidate,
+  type FilterResultMoveDirection,
+  type FilterResultSelection
+} from '../extension/filter-result-navigation.js'
 import { cn } from '@/lib/utils'
 import type { DashboardSource, DashboardStats } from './types'
 
@@ -27,14 +38,95 @@ function isSourceSwitchValue(value: unknown): value is DashboardSource {
 interface HeaderBarProps {
   stats: DashboardStats
   filter: string
+  committedFilter?: string
+  filterResultCandidates?: readonly FilterResultCandidate[]
   filterFocusRequest?: number
   historyRange: string
   onFilterChange: (filter: string) => void
+  onFilterCommit?: () => void
   onCloseFiltered: () => void | Promise<void>
   onDedupAll: () => void | Promise<void>
   onSourceChange: (source: DashboardSource) => void | Promise<void>
   source?: DashboardSource
   ready?: boolean
+}
+
+const EMPTY_FILTER_RESULT_CANDIDATES: readonly FilterResultCandidate[] = []
+
+type PendingFilterResultAction =
+  | {
+      kind: 'move'
+      direction: FilterResultMoveDirection
+      query: string
+    }
+  | {
+      kind: 'activate'
+      modifiers: {
+        altKey: boolean
+        ctrlKey: boolean
+        metaKey: boolean
+        shiftKey: boolean
+      }
+      query: string
+    }
+
+function sameFilterResultSelection(left: FilterResultSelection, right: FilterResultSelection) {
+  return left.query === right.query &&
+    left.candidateKey === right.candidateKey &&
+    left.identity === right.identity
+}
+
+function filterResultCandidateForSelection(
+  selection: FilterResultSelection,
+  candidates: readonly FilterResultCandidate[]
+) {
+  return candidates.find((candidate) => candidate.key === selection.candidateKey)
+}
+
+function dispatchFilterResultActivation(
+  candidate: FilterResultCandidate,
+  modifiers: Extract<PendingFilterResultAction, { kind: 'activate' }>['modifiers']
+) {
+  const target = document.getElementById(candidate.domId)
+  if (!(target instanceof HTMLElement)) return
+  target.dispatchEvent(new MouseEvent('click', {
+    bubbles: true,
+    cancelable: true,
+    button: 0,
+    detail: 1,
+    view: window,
+    ...modifiers
+  }))
+}
+
+function moveFilterResultSelection(
+  current: FilterResultSelection,
+  query: string,
+  candidates: readonly FilterResultCandidate[],
+  direction: FilterResultMoveDirection
+) {
+  if (direction === 'next' || direction === 'previous') {
+    return selectAdjacentFilterResult(current, query, candidates, direction)
+  }
+
+  const positionedCandidates = candidates.flatMap((candidate) => {
+    const target = document.getElementById(candidate.domId)
+    if (!(target instanceof HTMLElement) || target.getClientRects().length === 0) return []
+
+    const rect = target.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return []
+    return [{
+      candidate,
+      rect: {
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom
+      }
+    }]
+  })
+
+  return selectHorizontalFilterResult(current, query, positionedCandidates, direction)
 }
 
 function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
@@ -75,9 +167,12 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
 
 export function HeaderBar({
   filter,
+  committedFilter = filter,
+  filterResultCandidates = EMPTY_FILTER_RESULT_CANDIDATES,
   filterFocusRequest = 0,
   historyRange,
   onFilterChange,
+  onFilterCommit,
   onCloseFiltered,
   onDedupAll,
   onSourceChange,
@@ -86,10 +181,77 @@ export function HeaderBar({
   stats
 }: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const pendingFilterResultActionRef = useRef<PendingFilterResultAction | null>(null)
+  const selectedFilterResultElementRef = useRef<HTMLElement | null>(null)
+  const scrollSelectedFilterResultRef = useRef(false)
+  const [filterResultSelection, setFilterResultSelection] = useState(EMPTY_FILTER_RESULT_SELECTION)
+  const committedCandidates = filter === committedFilter
+    ? filterResultCandidates
+    : EMPTY_FILTER_RESULT_CANDIDATES
+  const reconciledFilterResultSelection = reconcileFilterResultSelection(
+    filterResultSelection,
+    filter,
+    committedCandidates
+  )
+  const selectedFilterResultCandidate = filterResultCandidateForSelection(
+    reconciledFilterResultSelection,
+    committedCandidates
+  )
 
   function updateFilter(nextValue: string) {
+    pendingFilterResultActionRef.current = null
     onFilterChange(nextValue)
   }
+
+  useLayoutEffect(() => {
+    let nextSelection = reconciledFilterResultSelection
+    const pendingAction = pendingFilterResultActionRef.current
+    let pendingActivation: Extract<PendingFilterResultAction, { kind: 'activate' }> | null = null
+
+    if (pendingAction?.query === committedFilter && filter === committedFilter) {
+      pendingFilterResultActionRef.current = null
+      if (pendingAction.kind === 'move') {
+        nextSelection = moveFilterResultSelection(
+          reconciledFilterResultSelection,
+          committedFilter,
+          committedCandidates,
+          pendingAction.direction
+        )
+        scrollSelectedFilterResultRef.current = true
+      } else {
+        pendingActivation = pendingAction
+      }
+    }
+
+    const previousElement = selectedFilterResultElementRef.current
+    const nextCandidate = filterResultCandidateForSelection(nextSelection, committedCandidates)
+    const nextElement = nextCandidate ? document.getElementById(nextCandidate.domId) : null
+    if (previousElement !== nextElement) previousElement?.removeAttribute('data-tabout-filter-result-selected')
+    if (nextElement instanceof HTMLElement) {
+      nextElement.setAttribute('data-tabout-filter-result-selected', 'true')
+      if (scrollSelectedFilterResultRef.current) {
+        nextElement.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      }
+      selectedFilterResultElementRef.current = nextElement
+    } else {
+      selectedFilterResultElementRef.current = null
+    }
+    scrollSelectedFilterResultRef.current = false
+
+    if (!sameFilterResultSelection(filterResultSelection, nextSelection)) {
+      setFilterResultSelection(nextSelection)
+    }
+
+    if (pendingActivation && nextCandidate) {
+      dispatchFilterResultActivation(nextCandidate, pendingActivation.modifiers)
+    }
+  }, [
+    committedCandidates,
+    committedFilter,
+    filter,
+    filterResultSelection,
+    reconciledFilterResultSelection
+  ])
 
   useLayoutEffect(() => {
     if (filterFocusRequest <= 0) return
@@ -110,6 +272,57 @@ export function HeaderBar({
   }, [])
 
   const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
+
+  function onFilterKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
+    const intent = filterResultKeyboardIntent({
+      key: e.key,
+      altKey: e.altKey,
+      ctrlKey: e.ctrlKey,
+      isComposing: e.nativeEvent.isComposing,
+      metaKey: e.metaKey,
+      shiftKey: e.shiftKey
+    })
+    if (!intent || !filter.trim()) return
+
+    e.preventDefault()
+    const action: PendingFilterResultAction = intent === 'activate'
+      ? {
+          kind: 'activate',
+          modifiers: {
+            altKey: e.altKey,
+            ctrlKey: e.ctrlKey,
+            metaKey: e.metaKey,
+            shiftKey: e.shiftKey
+          },
+          query: filter
+        }
+      : {
+          kind: 'move',
+          direction: intent,
+          query: filter
+        }
+
+    if (filter !== committedFilter) {
+      pendingFilterResultActionRef.current = action
+      onFilterCommit?.()
+      return
+    }
+
+    if (action.kind === 'move') {
+      scrollSelectedFilterResultRef.current = true
+      setFilterResultSelection(moveFilterResultSelection(
+        reconciledFilterResultSelection,
+        committedFilter,
+        committedCandidates,
+        action.direction
+      ))
+      return
+    }
+
+    if (selectedFilterResultCandidate) {
+      dispatchFilterResultActivation(selectedFilterResultCandidate, action.modifiers)
+    }
+  }
 
   function onClear() {
     updateFilter('')
@@ -134,7 +347,10 @@ export function HeaderBar({
               spellCheck="false"
               placeholder={filterPlaceholder}
               value={filter}
+              aria-activedescendant={selectedFilterResultCandidate?.domId}
+              aria-controls={filter.trim() ? 'dashboardMissions' : undefined}
               onChange={(e) => updateFilter(e.currentTarget.value)}
+              onKeyDown={onFilterKeyDown}
             />
             <TooltipAnchor content="Clear filter">
               <button

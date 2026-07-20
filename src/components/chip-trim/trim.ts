@@ -55,6 +55,7 @@ export type ChipTrimFacts = {
   activeInOtherWindow: boolean
   isCurrentTabOut: boolean
   closedSavedPage: boolean
+  readOnlyFilterResult: boolean
   folded: boolean
   titleVariantGroup: boolean
   iconOnly: boolean
@@ -81,6 +82,7 @@ export type ChipTrim = {
       group/saved kinds keep the stronger 22% line (their fill barely
       darkens, so the line carries their hover signal). */
   styleVars: {
+    closedInteractionBg: string
     interactionBg: string
     restBg: string
     fadeBg: string
@@ -149,16 +151,21 @@ export function chipTrim(facts: ChipTrimFacts): ChipTrim {
       ? 'var(--color-neutral-50)'
       : hasActiveChipFrame
         ? ACTIVE_OTHER_INTERACTION_BG
-        : facts.closedSavedPage || isGroupKind
+        : facts.closedSavedPage || facts.readOnlyFilterResult || isGroupKind
           ? GROUP_INTERACTION_BG
           : CLICKABLE_INTERACTION_BG
 
   const styleVars = {
-    // A plain chip's own fill is ALWAYS the translucent overlay so a bordered
-    // neighbour's line survives on the overlapped seam rows — plain chips
-    // never draw trim of their own. While expanded, the opaque coverage over
-    // foreign content comes from expandedFill below.
-    interactionBg: isPlainClickable ? CLICKABLE_INTERACTION_OVERLAY_BG : fadeBg,
+    // Child targets inside a mixed folded/title-variant chip may be closed
+    // even when an open sibling gives the parent an active frame.
+    closedInteractionBg: GROUP_INTERACTION_BG,
+    // Live plain chips use the translucent overlay so a bordered neighbour's
+    // line survives on overlapped seam rows. Read-only search results instead
+    // use the lighter opaque closed/group fill; their hover and keyboard
+    // selection still retain the existing outline recipes.
+    interactionBg: isPlainClickable && !facts.readOnlyFilterResult
+      ? CLICKABLE_INTERACTION_OVERLAY_BG
+      : fadeBg,
     restBg: hasActiveChipFrame && !isCurrentTabOutFrame ? ACTIVE_OTHER_REST_BG : 'transparent',
     fadeBg,
     hoverBorder: isPlainClickable ? CLICKABLE_HOVER_BORDER : GROUP_HOVER_BORDER

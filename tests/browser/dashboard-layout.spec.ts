@@ -166,6 +166,171 @@ test('Activation History scrollbar follows filtered row content', async ({ page 
   await expect(scrollbar).toHaveCount(1)
 })
 
+test('filter keyboard navigation selects the first true match and moves without leaving the input', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Example')
+
+  const matchedCandidates = page.locator('#openTabsMissions [data-tabout-filter-result]')
+  await expect(input).toHaveAttribute('aria-activedescendant', /.+/)
+  await expect.poll(() => matchedCandidates.count()).toBeGreaterThan(1)
+  const firstId = await matchedCandidates.nth(0).getAttribute('id')
+  const secondId = await matchedCandidates.nth(1).getAttribute('id')
+
+  await expect(input).toBeFocused()
+  await expect(input).toHaveAttribute('aria-activedescendant', firstId ?? '')
+  await expect(page.locator('[data-tabout-filter-result-selected="true"]')).toHaveCount(1)
+  const selectedResult = page.locator('[data-tabout-filter-result-selected="true"]')
+  await expect(selectedResult).toHaveCSS('outline-width', '1px')
+  const selectedPalette = await selectedResult.evaluate((element) => {
+    const paletteProbe = document.createElement('span')
+    paletteProbe.style.backgroundColor = 'var(--chip-interaction-bg)'
+    paletteProbe.style.outlineColor = 'var(--accent-amber)'
+    element.append(paletteProbe)
+
+    const selectedStyle = getComputedStyle(element)
+    const paletteStyle = getComputedStyle(paletteProbe)
+    const palette = {
+      selectedBackground: selectedStyle.backgroundColor,
+      selectedOutline: selectedStyle.outlineColor,
+      hoverBackground: paletteStyle.backgroundColor,
+      originalOutline: paletteStyle.outlineColor
+    }
+    paletteProbe.remove()
+    return palette
+  })
+  expect(selectedPalette.selectedBackground).toBe(selectedPalette.hoverBackground)
+  expect(selectedPalette.selectedOutline).toBe(selectedPalette.originalOutline)
+  await expect(page.locator('#openTabsMissionsUnmatched [data-tabout-filter-result-selected="true"]')).toHaveCount(0)
+
+  await input.press('ArrowDown')
+  await expect(input).toBeFocused()
+  await expect(input).toHaveAttribute('aria-activedescendant', secondId ?? '')
+
+  await input.press('ArrowUp')
+  await expect(input).toHaveAttribute('aria-activedescendant', firstId ?? '')
+  await input.press('ArrowUp')
+  await expect(input).toHaveAttribute('aria-activedescendant', firstId ?? '')
+
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+  const selectedCandidate = selectedResult
+  const firstBounds = await selectedCandidate.boundingBox()
+  if (!firstBounds) throw new Error('expected the first selected result to have rendered bounds')
+
+  await input.press('ArrowRight')
+  await expect(input).toBeFocused()
+  await expect(input).not.toHaveAttribute('aria-activedescendant', firstId ?? '')
+  const rightId = await input.getAttribute('aria-activedescendant')
+  const rightBounds = await selectedCandidate.boundingBox()
+  if (!rightBounds) throw new Error('expected the right-selected result to have rendered bounds')
+  expect(rightBounds.x).toBeGreaterThanOrEqual(firstBounds.x + firstBounds.width - 1)
+
+  await input.press('ArrowLeft')
+  await expect(input).not.toHaveAttribute('aria-activedescendant', rightId ?? '')
+  const leftBounds = await selectedCandidate.boundingBox()
+  if (!leftBounds) throw new Error('expected the left-selected result to have rendered bounds')
+  expect(leftBounds.x + leftBounds.width).toBeLessThanOrEqual(rightBounds.x + 1)
+})
+
+test('filter Enter activates the current query and primary-modifier Shift Enter brings the tab here', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('https://tab-out-smoke-02.com/docs/2')
+  await input.press('Enter')
+  await expect.poll(() => page.evaluate(async () => (await window.chrome.tabs.get(2)).active)).toBe(true)
+  await expect(input).toBeFocused()
+
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeSetActiveTab: (tabId: number, windowId?: number) => Promise<void>
+    }).__tabOutSmokeSetActiveTab(3, 2)
+  })
+  await input.fill('https://tab-out-smoke-03.com/docs/3')
+  await expect(input).toHaveAttribute('aria-activedescendant', /.+/)
+  const primaryModifier = await page.evaluate(() => (
+    /mac|iphone|ipad|ipod/i.test(navigator.platform) ? 'Meta' : 'Control'
+  ))
+  await input.press(`${primaryModifier}+Shift+Enter`)
+
+  await expect.poll(() => page.evaluate(async () => {
+    const tab = await window.chrome.tabs.get(3)
+    return { active: tab.active, windowId: tab.windowId }
+  })).toEqual({ active: true, windowId: 1 })
+})
+
+test('filter keyboard selection keeps its identity when a higher-priority companion result arrives', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await page.evaluate(() => {
+    ;(window as typeof window & {
+      __tabOutSmokeSetBookmarks: (count: number) => void
+    }).__tabOutSmokeSetBookmarks(1)
+    window.chrome.history.search = async () => []
+  })
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Bookmark')
+  const bookmarkCandidate = page.locator('#bookmarkMatchesMissions [data-tabout-filter-result]').first()
+  await expect(bookmarkCandidate).toHaveCount(1)
+  const bookmarkId = await bookmarkCandidate.getAttribute('id')
+  await expect(input).toHaveAttribute('aria-activedescendant', bookmarkId ?? '')
+  const expectClosedSelectionPalette = async (candidate: Locator) => {
+    await expect(candidate).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+    await expect.poll(() => candidate.evaluate((element) => {
+      const closedProbe = document.createElement('span')
+      const openProbe = document.createElement('span')
+      const outlineProbe = document.createElement('span')
+      closedProbe.style.backgroundColor = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
+      openProbe.style.backgroundColor = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
+      outlineProbe.style.outlineColor = 'var(--accent-amber)'
+      element.append(closedProbe, openProbe, outlineProbe)
+
+      const selectedStyle = getComputedStyle(element)
+      const selectedBackground = selectedStyle.backgroundColor
+      const palette = {
+        backgroundMatchesClosed: selectedBackground === getComputedStyle(closedProbe).backgroundColor,
+        backgroundMatchesOpen: selectedBackground === getComputedStyle(openProbe).backgroundColor,
+        outlineMatchesOriginal: selectedStyle.outlineColor === getComputedStyle(outlineProbe).outlineColor,
+        outlineWidth: selectedStyle.outlineWidth
+      }
+      closedProbe.remove()
+      openProbe.remove()
+      outlineProbe.remove()
+      return palette
+    })).toEqual({
+      backgroundMatchesClosed: true,
+      backgroundMatchesOpen: false,
+      outlineMatchesOriginal: true,
+      outlineWidth: '1px'
+    })
+  }
+  await expectClosedSelectionPalette(bookmarkCandidate)
+
+  await page.evaluate(() => {
+    window.chrome.history.search = async () => [{
+      id: 'history-keyboard-result',
+      title: 'Bookmark history candidate',
+      url: 'https://history-keyboard-result.test/docs'
+    }]
+  })
+  await page.getByRole('combobox', { name: 'History search range' }).click()
+  await page.getByRole('option', { name: 'Last week' }).click()
+  await expect(page.locator('#historyMatchesMissions [data-tabout-filter-result]')).toHaveCount(1)
+  await expect(input).toHaveAttribute('aria-activedescendant', bookmarkId ?? '')
+  await expect(bookmarkCandidate).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+  await expectClosedSelectionPalette(bookmarkCandidate)
+
+  const historyCandidate = page.locator('#historyMatchesMissions [data-tabout-filter-result]').first()
+  const historyId = await historyCandidate.getAttribute('id')
+  await input.press('ArrowUp')
+  await expect(input).toHaveAttribute('aria-activedescendant', historyId ?? '')
+  await expectClosedSelectionPalette(historyCandidate)
+})
+
 test('a slow Tabs startup refresh cannot overwrite a completed Bookmarks switch', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?slowStartupRefresh=1')
   await page.evaluate(() => {

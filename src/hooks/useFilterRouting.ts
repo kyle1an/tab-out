@@ -87,5 +87,11 @@ export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptio
     return () => clearTimeout(timer)
   }, [filterInput])
 
-  return { filterInput, filter, filterFocusRequest, setFilterInput }
+  function commitFilterInput() {
+    if (filterInput === filter) return
+    onBeforeFilterCommitRef.current?.()
+    setFilter(filterInput)
+  }
+
+  return { filterInput, filter, filterFocusRequest, commitFilterInput, setFilterInput }
 }

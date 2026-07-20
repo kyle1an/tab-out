@@ -7,6 +7,7 @@ import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-a
 import { focusExistingTabTarget } from '../extension/tab-focus.js'
 import { chipActivationMode, performDashboardItemActivation, shouldSuppressSelectionForGesture } from '../extension/tab-activation.js'
 import type { ChipActivationModifiers } from '../extension/tab-activation.js'
+import { filterResultCandidateForTarget } from '../extension/filter-result-navigation.js'
 import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls, duplicateTabTarget, reloadTabTarget, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
@@ -55,6 +56,7 @@ const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
 // pointer can travel onto the revealed content without the chip blinking shut at the
 // seam between the original footprint and the revealed overflow.
 const PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX = 6
+const PAGE_CHIP_TARGET_INTERACTION_BG = 'color-mix(in oklab, var(--color-neutral-600) 14%, transparent)'
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle]'
 // Expanded chips reveal the full path suffix, so the cloned/measured copy must
@@ -1169,6 +1171,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const isFolded = envs.length > 0
   const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []
   const isTitleVariantGroup = titleVariantChips.length > 1
+  const chipFilterResultCandidate = filterResultCandidateForTarget(chip)
   const chipLayoutKey = chip.pagePinId || chip.rawUrl
   const variantCloseTargets = partitionVariantCloseTargets(titleVariantChips)
   const variantCloseCount = variantCloseTargets.historyUrls.length + variantCloseTargets.tabEnvs.length
@@ -1183,6 +1186,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const isClosedSavedPage = chip.sourceType === 'saved-page' || !!chip.closedSaved
   const highlightTerms = highlightTermsForFilter(filter)
   const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
+  const readOnlyFilterResult = hasFilter && isReadOnlySource
   const primaryPreviewUrl = pageTargetUrl(chip)
   const suppressedTitleParts = chip.suppressedTitleParts || []
   const activeSuppressedTitleKey = activeSuppressedTitle.trim().toLowerCase()
@@ -1955,6 +1959,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     activeInOtherWindow: !!chip.activeInOtherWindow,
     isCurrentTabOut: !!chip.isCurrentTabOut,
     closedSavedPage: isClosedSavedPage,
+    readOnlyFilterResult,
     folded: isFolded,
     titleVariantGroup: isTitleVariantGroup,
     iconOnly: !!chip.iconOnly,
@@ -2003,6 +2008,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     '--chip-hover-fade-width': chipHoverFadeWidth,
     '--chip-hover-border': trim.styleVars.hoverBorder,
     '--chip-interaction-bg': trim.styleVars.interactionBg,
+    '--chip-target-interaction-bg': PAGE_CHIP_TARGET_INTERACTION_BG,
     '--chip-rest-bg': trim.styleVars.restBg,
     ...(chip.isGrouped ? { '--group-color': chip.groupDotColor ?? undefined } : {})
   }
@@ -2028,6 +2034,17 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const chipTooltipStyle: CSSVariableProperties = {
     '--page-chip-tooltip-max-width': 'calc(100vw - 16px)',
     maxWidth: 'min(var(--page-chip-tooltip-max-width), calc(100vw - 16px))'
+  }
+  function filterResultTargetInteractionStyle(
+    target: Pick<DashboardChipEnv, 'sourceType' | 'closedSaved'>
+  ): CSSVariableProperties | undefined {
+    const sourceType = target.sourceType ?? chip.sourceType
+    const isClosedTarget = isReadOnlyDashboardSourceType(sourceType) || isClosedSavedDashboardTab({
+      sourceType,
+      closedSaved: target.closedSaved
+    })
+    if (!hasFilter || !isClosedTarget) return undefined
+    return { '--chip-target-interaction-bg': trim.styleVars.closedInteractionBg }
   }
   function chipMatchesActiveHover(target: DashboardChipData) {
     return (
@@ -2164,10 +2181,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     } = pageChipTargetActionPolicy(env)
     const envTitleText = titleTextForEnv(env, chip)
     const envKey = env.rawUrl || env.tabUrl
+    const envFilterResultCandidate = filterResultCandidateForTarget(env, chip.sourceType)
     const envClassName = cn(
       "chip-env inline-flex items-center rounded-lg border-0 bg-neutral-500/[0.045] px-1.5 text-xs leading-[inherit] font-medium text-muted-foreground [corner-shape:squircle] after:ml-px after:font-normal after:opacity-45 after:content-['.']",
       isFolded && 'h-6 rounded-[7px] px-2',
-      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-[ease] hover:bg-neutral-600/[0.14] hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-live',
+      mode === 'chip' && 'clickable cursor-default transition-[background,color,box-shadow] duration-150 ease-[ease] hover:bg-(--chip-target-interaction-bg) hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-target-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-1 data-[tabout-filter-result-selected=true]:outline-(--accent-amber) [&.page-chip-context-menu-open]:bg-(--chip-target-interaction-bg) [&.page-chip-context-menu-open]:text-tab-live',
       env.activeInOtherWindow && 'bg-neutral-600/[0.075] text-tab-live shadow-[inset_0_0_0_1px_rgba(115,115,115,0.22)]'
     )
 
@@ -2182,7 +2200,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const envFocusButton = (
       <button
         type="button"
+        id={hasFilter ? envFilterResultCandidate.domId : undefined}
+        data-tabout-filter-result={hasFilter ? '' : undefined}
+        data-tabout-filter-result-key={hasFilter ? envFilterResultCandidate.key : undefined}
         className={envClassName}
+        style={filterResultTargetInteractionStyle(env)}
         aria-label={envLabel}
         onClick={(e) => onEnvClick(e, env)}
         onKeyDown={(e) => onEnvKeyDown(e, env)}
@@ -2307,6 +2329,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const variantCanTogglePagePin = !!variant.pagePinId && typeof onTogglePinnedPageChip === 'function'
     const variantTitleText = titleTextForChip(variant)
     const variantCanUseContextMenu = variantCanToggleSaved || variantCanTogglePagePin || !!variantTitleText || !!variant.tabUrl
+    const variantFilterResultCandidate = filterResultCandidateForTarget(variant, chip.sourceType)
     const variantPinnedLabel = variant.pagePinned ? 'Pinned' : ''
     const variantLabel = [variant.tooltip, variantPinnedLabel, variantDupeCount > 1 ? `${variantDupeCount} open copies` : '', variant.activeInOtherWindow ? 'Active in another window' : '', variant.saved ? (variantClosedSaved ? 'Closed saved page' : 'Saved page') : ''].filter(Boolean).join(' · ')
     // Variant rows carry no favicon, so the label text carries the liveness
@@ -2327,18 +2350,22 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const variantFocusButton = (
       <button
         type="button"
+        id={hasFilter ? variantFilterResultCandidate.domId : undefined}
+        data-tabout-filter-result={hasFilter ? '' : undefined}
+        data-tabout-filter-result-key={hasFilter ? variantFilterResultCandidate.key : undefined}
         data-tabout-layout-anchor={layoutScope ? '' : undefined}
         data-tabout-layout-key={layoutScope ? (variant.pagePinId || variant.rawUrl) : undefined}
         data-tabout-layout-scope={layoutScope || undefined}
         data-tabout-removal-anchor=""
         data-tabout-removal-key={`page:${variant.rawUrl}`}
         data-tabout-default-variant={variantIsDefaultTarget ? 'true' : undefined}
+        style={filterResultTargetInteractionStyle(variant)}
         className={cn(
-          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600 hover:bg-neutral-600/[0.14] hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-          '[&.page-chip-context-menu-open]:bg-neutral-600/[0.14] [&.page-chip-context-menu-open]:text-tab-live',
+          'chip-title-variant clickable flex w-full max-w-full min-w-0 cursor-default items-center gap-1 rounded-none border-0 bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600 hover:bg-(--chip-target-interaction-bg) hover:text-tab-live focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-target-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-1 data-[tabout-filter-result-selected=true]:outline-(--accent-amber)',
+          '[&.page-chip-context-menu-open]:bg-(--chip-target-interaction-bg) [&.page-chip-context-menu-open]:text-tab-live',
           variantActive && 'bg-neutral-600/[0.075] text-tab-live',
           variantCurrent && 'bg-neutral-100 text-tab-live shadow-[inset_2px_0_0_0_var(--accent-amber)]',
-          variantHoverMatched && 'bg-neutral-600/[0.14] text-tab-live'
+          variantHoverMatched && 'bg-(--chip-target-interaction-bg) text-tab-live'
         )}
         aria-label={variantLabel}
         onClick={(e) => onTitleVariantFocus(e, variant)}
@@ -2641,12 +2668,15 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   const chipElement = (
       <div
+        id={hasFilter && parentInteractive ? chipFilterResultCandidate.domId : undefined}
         data-tabout="page-chip"
+        data-tabout-filter-result={hasFilter && parentInteractive ? '' : undefined}
+        data-tabout-filter-result-key={hasFilter && parentInteractive ? chipFilterResultCandidate.key : undefined}
         data-expanded={chipExpanded ? 'true' : undefined}
         className={cn(
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-tab-live [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           !chip.iconOnly && 'w-full',
-          parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber)',
+          parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-2 data-[tabout-filter-result-selected=true]:outline-(--accent-amber)',
           chipVisualOpen && CHIP_TRIM_TOKENS.tooltipOpen,
           chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) !overflow-visible !transition-none w-(--page-chip-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           chipExpanded && 'left-0',

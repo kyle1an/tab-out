@@ -13,6 +13,7 @@ import {
   type PreparedIntraCardMove
 } from '../extension/intra-card-move-animation.js'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
+import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState, type DashboardLocalState } from '../hooks/useDashboardLocalState'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
@@ -456,10 +457,12 @@ function DashboardMissionsList({ filter, historyRangeAction, sections }: Dashboa
 
 type DashboardShellProps = {
   closedTabs: readonly ClosedTabEntry[]
+  commitFilterInput: () => void
   savedKeys?: readonly string[]
   filter: string
   filterFocusRequest: number
   filterInput: string
+  filterResultCandidates: readonly FilterResultCandidate[]
   handleScrollRegionRef: (node: HTMLDivElement | null) => void
   historyRange: string
   isReady: boolean
@@ -482,10 +485,12 @@ type DashboardShellProps = {
 
 function DashboardShell({
   closedTabs,
+  commitFilterInput,
   savedKeys,
   filter,
   filterFocusRequest,
   filterInput,
+  filterResultCandidates,
   handleScrollRegionRef,
   historyRange,
   isReady,
@@ -555,9 +560,12 @@ function DashboardShell({
               stats={stats}
               ready={isReady}
               filter={filterInput}
+              committedFilter={filter}
+              filterResultCandidates={filterResultCandidates}
               filterFocusRequest={filterFocusRequest}
               historyRange={historyRange}
               onFilterChange={setFilterInput}
+              onFilterCommit={commitFilterInput}
               onSourceChange={onSourceChange}
               onCloseFiltered={onCloseFiltered}
               onDedupAll={onDedupAll}
@@ -565,6 +573,7 @@ function DashboardShell({
           </div>
 
           <div
+            id="dashboardMissions"
             data-tabout-part="scroll-region"
             className={cn(
               'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
@@ -705,7 +714,7 @@ export function App({
     filterCardMoveRef.current = true
     primeCardMoveAnimation()
   }, [primeCardMoveAnimation])
-  const { filterInput, filter, filterFocusRequest, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
+  const { filterInput, filter, filterFocusRequest, commitFilterInput, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
   const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
     setFilterInput(nextFilterInput)
@@ -823,6 +832,23 @@ export function App({
     pinnedSections,
     pinnedPageChips
   })
+  const filterResultCandidates = useMemo(
+    () => filter.trim()
+      ? buildFilterResultCandidates({
+          primaryMatches: matchedCards,
+          historyMatches: showHistoryMatches ? historyMatchedCards : [],
+          bookmarkMatches: showBookmarkMatches ? bookmarkMatchedCards : []
+        })
+      : [],
+    [
+      bookmarkMatchedCards,
+      filter,
+      historyMatchedCards,
+      matchedCards,
+      showBookmarkMatches,
+      showHistoryMatches
+    ]
+  )
 
   useLayoutEffect(() => {
     const prepared = intraCardMoveRef.current
@@ -977,10 +1003,12 @@ export function App({
       <HoverStateProvider value={hoverMatch}>
         <DashboardShell
           closedTabs={dashboardContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
+          commitFilterInput={commitFilterInput}
           savedKeys={visibleDashboard?.savedKeys}
           filter={filter}
           filterFocusRequest={filterFocusRequest}
           filterInput={filterInput}
+          filterResultCandidates={filterResultCandidates}
           handleScrollRegionRef={handleScrollRegionRef}
           historyRange={historyRange}
           isReady={isReady}
