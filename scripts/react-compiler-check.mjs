@@ -1,7 +1,7 @@
 /* ================================================================
    React Compiler coverage gate — fails `pnpm verify` when a source
    file gains a compiler bailout beyond the known-by-design baseline
-   below. The React audit wave (plans/009-011) restored compilation
+   below. The 2026-07-14 React audit restored compilation
    on the hot path; this keeps future edits from silently un-compiling
    it (a bailed component loses ALL auto-memoization, not one memo).
 
@@ -19,7 +19,7 @@ const REPO = resolve(import.meta.dirname, '..')
 
 // file (repo-relative) -> expected CompileError count
 const BASELINE = new Map([
-  ['src/components/App.tsx', 5], // deliberate ordering-cache ref reads in render (plans/009)
+  ['src/components/App.tsx', 5], // deliberate ordering-cache ref reads in render
   ['src/components/title-expansion/use-title-expansion.ts', 1], // lazy-init ref facade (stable return)
   ['src/components/ui/tooltip.tsx', 3], // mergeRefs composition (documented suppressions)
   ['src/extension/layout.ts', 2], // latest-ref render writes; returns are manual useCallbacks
@@ -103,7 +103,7 @@ if (regressions.length > 0) {
     console.error(`  ${rel} (expected ${expected}, got ${errors.length}):`)
     for (const error of errors) console.error(`    ${error}`)
   }
-  console.error('\nFix the bailout (see plans/010-011 for the patterns) or, if deliberate and documented, update the baseline in scripts/react-compiler-check.mjs.')
+  console.error('\nFix the bailout using the existing stable-return and suppression patterns or, if deliberate and documented, update the baseline in scripts/react-compiler-check.mjs.')
   process.exit(1)
 }
 

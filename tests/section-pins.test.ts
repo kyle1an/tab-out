@@ -11,6 +11,7 @@ import {
   togglePinnedSectionInList,
   websitePathPinId
 } from '../src/extension/section-pins.js'
+import { installChromeStorageMock } from './helpers/chrome-storage.js'
 
 // === Identity builders ===
 
@@ -99,33 +100,6 @@ test('togglePinnedSectionInList normalizes the existing list before toggling', (
 })
 
 // === load/save (chrome.storage.local shim) ===
-
-type ChromeShim = {
-  storage: {
-    local: {
-      get: (key: string) => Promise<Record<string, unknown>>
-      set: (values: Record<string, unknown>) => Promise<void>
-    }
-  }
-}
-
-function installChromeStorageMock(initial: Record<string, unknown> = {}) {
-  const store: Record<string, unknown> = { ...initial }
-  const mock: ChromeShim = {
-    storage: {
-      local: {
-        get: async (key) => ({ [key]: store[key] }),
-        set: async (values) => { Object.assign(store, values) }
-      }
-    }
-  }
-  const previous = (globalThis as { chrome?: unknown }).chrome
-  ;(globalThis as { chrome?: unknown }).chrome = mock
-  return () => {
-    if (previous === undefined) delete (globalThis as { chrome?: unknown }).chrome
-    else (globalThis as { chrome?: unknown }).chrome = previous
-  }
-}
 
 test('loadPinnedSections returns [] when chrome.storage is unavailable', async () => {
   const previous = (globalThis as { chrome?: unknown }).chrome

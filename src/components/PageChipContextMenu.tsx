@@ -19,21 +19,8 @@ type PageChipContextMenuProps = PageChipContextMenuContentProps & {
 
 export function PageChipContextMenu({
   children,
-  savedActionLabel,
-  saved,
-  titleText,
-  onSavedSelect,
-  pagePinActionLabel,
-  pagePinned,
-  onPagePinSelect,
-  onCopyTitle,
-  urlText,
-  onCopyUrl,
-  onReloadSelect,
-  onDuplicateSelect,
-  suspendEnabled,
-  onSuspendSelect,
-  onOpenChange
+  onOpenChange,
+  ...contentProps
 }: PageChipContextMenuProps) {
   const [armed, setArmed] = useState(false)
   const armedTrigger = cloneElement(children, {
@@ -56,21 +43,8 @@ export function PageChipContextMenu({
   return (
     <Suspense fallback={armedTrigger}>
       <PageChipContextMenuLoaded
-        savedActionLabel={savedActionLabel}
-        saved={saved}
-        onSavedSelect={onSavedSelect}
-        pagePinActionLabel={pagePinActionLabel}
-        pagePinned={pagePinned}
-        onPagePinSelect={onPagePinSelect}
-        titleText={titleText}
-        onCopyTitle={onCopyTitle}
-        urlText={urlText}
-        onCopyUrl={onCopyUrl}
-        onReloadSelect={onReloadSelect}
-        onDuplicateSelect={onDuplicateSelect}
-        suspendEnabled={suspendEnabled}
-        onSuspendSelect={onSuspendSelect}
         onOpenChange={onOpenChange}
+        {...contentProps}
       >
         {armedTrigger}
       </PageChipContextMenuLoaded>

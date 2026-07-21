@@ -1,9 +1,9 @@
 import { findNormalBrowserWindow } from './browser-window.js'
-import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import type { ChromeApi } from './chrome-api.js'
 
 export const OPEN_NEW_TAB_COMMAND = 'open-new-tab'
 
-export async function openNewTab(chromeApi: ChromeApi = createChromeApi()): Promise<void> {
+export async function openNewTab(chromeApi: ChromeApi = chrome): Promise<void> {
   const normalWindow = await findNormalBrowserWindow(chromeApi)
 
   if (typeof normalWindow?.id === 'number') {

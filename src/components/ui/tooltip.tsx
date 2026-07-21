@@ -950,5 +950,4 @@ function TooltipAnchor({
   )
 }
 
-/** @public — Base UI family surface kept whole; the app uses a subset today. */
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TooltipAnchor }
+export { TooltipProvider, TooltipAnchor }

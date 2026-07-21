@@ -14,21 +14,8 @@ type PageChipContextMenuLoadedProps = PageChipContextMenuContentProps & {
 
 export function PageChipContextMenuLoaded({
   children,
-  savedActionLabel,
-  saved,
-  titleText,
-  onSavedSelect,
-  pagePinActionLabel,
-  pagePinned,
-  onPagePinSelect,
-  onCopyTitle,
-  urlText,
-  onCopyUrl,
-  onReloadSelect,
-  onDuplicateSelect,
-  suspendEnabled,
-  onSuspendSelect,
-  onOpenChange
+  onOpenChange,
+  ...contentProps
 }: PageChipContextMenuLoadedProps) {
   const [visualOpen, setVisualOpen] = useState(false)
   const visualCloseTimerRef = useRef<number | null>(null)
@@ -68,22 +55,7 @@ export function PageChipContextMenuLoaded({
   return (
     <ContextMenu onOpenChange={handleOpenChange}>
       <ContextMenuTrigger render={trigger} />
-      <PageChipContextMenuContent
-        savedActionLabel={savedActionLabel}
-        saved={saved}
-        onSavedSelect={onSavedSelect}
-        pagePinActionLabel={pagePinActionLabel}
-        pagePinned={pagePinned}
-        onPagePinSelect={onPagePinSelect}
-        titleText={titleText}
-        onCopyTitle={onCopyTitle}
-        urlText={urlText}
-        onCopyUrl={onCopyUrl}
-        onReloadSelect={onReloadSelect}
-        onDuplicateSelect={onDuplicateSelect}
-        suspendEnabled={suspendEnabled}
-        onSuspendSelect={onSuspendSelect}
-      />
+      <PageChipContextMenuContent {...contentProps} />
     </ContextMenu>
   )
 }

@@ -8,25 +8,7 @@ import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChi
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
-
-function makeChromeTab(id: number, url: string, title: string): chrome.tabs.Tab {
-  return {
-    id,
-    index: id - 1,
-    windowId: 1,
-    highlighted: false,
-    active: id === 1,
-    pinned: false,
-    incognito: false,
-    selected: id === 1,
-    discarded: false,
-    autoDiscardable: true,
-    groupId: -1,
-    url,
-    title,
-    favIconUrl: ''
-  } as chrome.tabs.Tab
-}
+import { makeChromeTab } from './helpers/chrome-tab.js'
 
 const emptyTabHistory = {
   stackSize: 0,

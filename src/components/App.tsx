@@ -109,13 +109,6 @@ type DashboardMissionsListProps = {
   historyRangeAction?: ReactNode
   sections: DashboardMissionSection[]
 }
-type ProgressiveCardsOptions = {
-  chunkSize?: number
-  enabled?: boolean
-  initialCount?: number
-  resetKey: string
-  threshold?: number
-}
 type AppDashboardState = {
   closedTabs: readonly ClosedTabEntry[]
   dashboard: DashboardData | null
@@ -270,16 +263,11 @@ function MissionsGrid({ className, empty = false, ref, ...props }: ComponentProp
 
 function useProgressiveCards(
   cards: DashboardCardEntry[],
-  {
-    chunkSize = PROGRESSIVE_CARD_CHUNK_SIZE,
-    enabled = false,
-    initialCount = PROGRESSIVE_CARD_INITIAL_COUNT,
-    resetKey,
-    threshold = PROGRESSIVE_CARD_THRESHOLD
-  }: ProgressiveCardsOptions
+  enabled: boolean,
+  resetKey: string
 ) {
-  const progressive = enabled && cards.length > threshold
-  const initialVisibleCount = progressive ? Math.min(initialCount, cards.length) : cards.length
+  const progressive = enabled && cards.length > PROGRESSIVE_CARD_THRESHOLD
+  const initialVisibleCount = progressive ? Math.min(PROGRESSIVE_CARD_INITIAL_COUNT, cards.length) : cards.length
   const [state, setState] = useState({ resetKey, count: initialVisibleCount })
   const visibleCount = state.resetKey === resetKey ? Math.min(state.count, cards.length) : initialVisibleCount
 
@@ -291,7 +279,7 @@ function useProgressiveCards(
       if (disposed) return
       setState((current) => {
         const currentCount = current.resetKey === resetKey ? current.count : initialVisibleCount
-        const nextCount = Math.min(cards.length, currentCount + chunkSize)
+        const nextCount = Math.min(cards.length, currentCount + PROGRESSIVE_CARD_CHUNK_SIZE)
         if (current.resetKey === resetKey && current.count === nextCount) return current
         return {
           resetKey,
@@ -305,7 +293,7 @@ function useProgressiveCards(
       disposed = true
       window.cancelIdleCallback(idleId)
     }
-  }, [cards.length, chunkSize, initialVisibleCount, progressive, resetKey, visibleCount])
+  }, [cards.length, initialVisibleCount, progressive, resetKey, visibleCount])
 
   return {
     cards: progressive ? cards.slice(0, visibleCount) : cards
@@ -328,10 +316,11 @@ function MissionBlock({
   source
 }: MissionBlockProps) {
   const progressiveEnabled = source !== 'tabs'
-  const progressiveCards = useProgressiveCards(cards, {
-    enabled: progressiveEnabled,
-    resetKey: `${source}:${filter}:${progressiveCardListKey(cards)}`
-  })
+  const progressiveCards = useProgressiveCards(
+    cards,
+    progressiveEnabled,
+    `${source}:${filter}:${progressiveCardListKey(cards)}`
+  )
 
   return (
     <MissionsGrid empty={gridEmpty} id={gridId} ref={gridRef}>

@@ -14,7 +14,7 @@ export type FilterResultSelection = {
   identity: string | null
 }
 
-export type FilterResultRect = {
+type FilterResultRect = {
   left: number
   right: number
   top: number

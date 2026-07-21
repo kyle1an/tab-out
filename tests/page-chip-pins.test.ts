@@ -13,6 +13,7 @@ import {
   savePinnedPageChips,
   togglePinnedPageChipInList
 } from '../src/extension/page-chip-pins.js'
+import { installChromeStorageMock } from './helpers/chrome-storage.js'
 
 test('pageChipPinId produces a source-scoped encoded page chip identity', () => {
   const scopeId = pageChipPinScopeId('example.com', 'docs', '/guide', 'alpha/repo')
@@ -59,33 +60,6 @@ test('createPinnedPageChipIndex exposes per-source and per-scope pin order', () 
   assert.equal(pinnedPageChipOrder(index, 'bookmarks', rootScope, pageChipPinKeyForUrl('https://example.com/a')), 3)
   assert.equal(pinnedPageChipOrder(index, 'tabs', rootScope, pageChipPinKeyForUrl('https://example.com/c')), null)
 })
-
-type ChromeShim = {
-  storage: {
-    local: {
-      get: (key: string) => Promise<Record<string, unknown>>
-      set: (values: Record<string, unknown>) => Promise<void>
-    }
-  }
-}
-
-function installChromeStorageMock(initial: Record<string, unknown> = {}) {
-  const store: Record<string, unknown> = { ...initial }
-  const mock: ChromeShim = {
-    storage: {
-      local: {
-        get: async (key) => ({ [key]: store[key] }),
-        set: async (values) => { Object.assign(store, values) }
-      }
-    }
-  }
-  const previous = (globalThis as { chrome?: unknown }).chrome
-  ;(globalThis as { chrome?: unknown }).chrome = mock
-  return () => {
-    if (previous === undefined) delete (globalThis as { chrome?: unknown }).chrome
-    else (globalThis as { chrome?: unknown }).chrome = previous
-  }
-}
 
 test('loadPinnedPageChips returns [] when chrome.storage is unavailable', async () => {
   const previous = (globalThis as { chrome?: unknown }).chrome

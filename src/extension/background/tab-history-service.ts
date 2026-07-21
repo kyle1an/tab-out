@@ -16,7 +16,7 @@ import {
 } from './tab-history-state.js'
 import { normalizeWorkingSetActivity, pageIdentityForWorkingSet } from '../working-set.js'
 import { WORKING_SET_ACTIVITY_KEY } from './working-set-service.js'
-import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import type { ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, writeChromeStorageValueBestEffort } from './chrome-storage.js'
 import { focusExistingTabTarget } from '../tab-focus.js'
 import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
@@ -65,7 +65,7 @@ function isStandaloneAppWindow(windowType?: string) {
   return windowType === 'app' || windowType === 'popup'
 }
 
-export function createTabHistoryService(chromeApi: ChromeApi = createChromeApi(chrome)): TabHistoryService {
+export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHistoryService {
   let tabHistoryCache: GlobalTabHistory | null = null
   let tabHistoryQueue: Promise<void> = Promise.resolve()
 

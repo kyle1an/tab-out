@@ -88,7 +88,7 @@ export async function restoreClosedTab(sessionId: string): Promise<boolean> {
 }
 
 // Event subscriptions stay on the ambient global: the Browser Tabs Gateway
-// covers commands only (see plans/005), listeners are out of its scope.
+// covers commands only; event listeners are intentionally outside its scope.
 export function subscribeClosedTabChanges(handler: () => void): () => void {
   const sessionsApi = globalThis.chrome?.sessions
   const tabsApi = globalThis.chrome?.tabs

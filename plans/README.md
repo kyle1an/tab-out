@@ -1,58 +1,16 @@
-# Plans
+# Engineering Change Ledger
 
-Three waves so far: the animation audit (001-004, executed), the architecture grilling (005-008), and the React audit (009-012).
+Completed proposal bodies are removed once their durable decisions live in code,
+tests, `CONTEXT.md`, or an ADR. This ledger keeps the useful historical outcome
+without retaining stale execution instructions.
 
-## React audit wave — audited 2026-07-14 at `119ec06`
+| Wave | Outcome | Commits |
+| --- | --- | --- |
+| Animation audit (001–004) | Unified motion tokens and exit timing, narrowed transition properties, and aligned the source-switch indicator curve. | `ac28415`, `038fd4f`, `61562e3`, `9fa5606` |
+| Architecture audit (005–008) | Added the Browser Tabs Gateway, shared FLIP move module, and suppression-tone view-model data. The proposed shared title-expansion measurer was rejected; [ADR-0002](../docs/adr/0002-title-expansion-measurement-stays-per-surface.md) records why the per-surface engines remain separate. | `3db7cb6`, `e62cbeb`, `73f71a0`, `cd460ef`, `31fc77c` |
+| React audit (009–012) | Stabilized App seams, restored compiler coverage for chip and history hot paths, and surfaced source-switch failures. | `8350a33`, `b0ba829`, `60b8ee8`, `7361a3c` |
 
-Written by the `improve-react` audit (React Doctor scan + React Compiler coverage check). The compiler check is the load-bearing evidence: `App`, `usePageChipElement`, `useHistoryEntryExpansion`, and `useDashboardRefresh` all bail out of React Compiler, so the "auto-memoized" assumption fails exactly on the hot path (hover + filter keystrokes).
-
-| # | Plan | Severity | Status |
-| --- | --- | --- | --- |
-| 009 | [Stabilize App's dashboard seams](009-stabilize-app-dashboard-seams.md) | HIGH | DONE (`8350a33`) |
-| 010 | [Compile the per-chip hook](010-compile-page-chip-hook.md) | HIGH | DONE (`b0ba829`) |
-| 011 | [Compile the history-row expansion hook](011-compile-history-entry-expansion-hook.md) | MEDIUM | DONE (`60b8ee8`) |
-| 012 | [Source-switch failure toast](012-source-switch-failure-toast.md) | MEDIUM | DONE (`7361a3c`) |
-
-Executed 2026-07-14. After-state: 96 functions compile, 12 bailouts remain — all settled-by-design (`App` ×5 ordering-cache refs, `useDashboardRefresh` latest-callback architecture, `use-title-expansion` lazy-init facade, `tooltip` mergeRefs ×3, `layout.ts` ×2 — each with stable returns via manual memoization). `pnpm verify` now gates this baseline (`scripts/react-compiler-check.mjs`).
-
-Post-wave follow-through (2026-07-15, fiber-probe measurement on the served fixture): the wave missed that `useDashboardViewModels` used no hooks at all, so the compiler silently skipped it (neither compiled nor bailed) and it rebuilt the full view model on every App render — every hover and pre-debounce keystroke re-rendered the whole tree despite 009's stable seams. Memoized in `8291d35`: keystroke sync cost 21ms → ~1ms, chips no longer render on keystrokes, `DashboardShell`'s only changing prop is `filterInput` (009's specified end state, now verified empirically). Same measurement closed the hover-store question: with the tree quiet, no hover hotspot remains — the `useSyncExternalStore` store stays unbuilt.
-
-Execution order: **009 → 010 → 011** (independent diffs, but profile-verify together after all three — 009 quiets the tree, 010/011 make the remaining designed re-renders cheap), then **012** any time (independent; if it runs after 009 the catch clause lives inside a `useCallback`, noted in the plan). All four touch disjoint lines; 009 and 012 both edit `App.tsx` `onSourceChange`, so land 009 before 012 or rebase.
-
-Audit results not planned: react-doctor's 3× `no-barrel-import` on `./title-expansion` (rejected — ADR-0002 names the barrel "the sanctioned seam"; single-entry bundle, zero tree-shaking cost) and 1× `no-giant-component` on `App` (rejected — orchestrator wiring, already delegates rendering; splitting for the metric adds indirection). The `use-title-expansion`/`tooltip`/`layout.ts` compiler bailouts are settled patterns with stable returns (lazy-init facade, manual useCallbacks) — left alone. Security and a11y passes came back clean. Missed opportunities: top-level error boundary + `createRoot` `onUncaughtError` — DONE (`0b984b2`, implemented directly after the tone-map crash proved the failure mode); per-chip hover subscription — deliberately NOT a library (see the foxact-informed decision: measure with the react-scan workflow in `docs/debugging-the-dashboard.md` first, then a hand-rolled `useSyncExternalStore` store behind the `HoverState` seam only if hover profiles hot); compiler-coverage regression check in `pnpm verify` — still open (the healthcheck script lives in plan 010 step 2).
-
-## Architecture wave — grilled 2026-07-12 at `65a90ab`
-
-| # | Plan | Strength | Status |
-| --- | --- | --- | --- |
-| 005 | [Browser Tabs Gateway](005-browser-tabs-gateway.md) | Strong | DONE (`3db7cb6` · `e62cbeb` · `73f71a0`) |
-| 006 | [One FLIP move module](006-move-animation-module.md) | Worth exploring | DONE (`cd460ef`) |
-| 007 | [Suppression tones into the view-model](007-suppression-tones-view-model.md) | Worth exploring | DONE (`31fc77c`) |
-| 008 | [Title Expansion measurer](008-title-expansion-measurer.md) | Worth exploring | RETIRED — convergence rejected on contact; ADR-0002 |
-
-Execution order was **005 (three waves) → 006 → 007 → 008**. 008 stopped at its own boundary: the premise failed the deletion test during implementation (the shared engine already lives behind the seam; what differs is per-surface policy). Candidate 5 (dashboard snapshot assembly) remains **deferred**: re-grill now that 005-006 have landed; its opening move (relocating the `openTabs` cache out of `tabs.ts`) is staged by 005's decision 3. The `Browser Tabs Gateway` and live-tab matching vocabulary is in CONTEXT.md.
-
-# Animation improvement plans
-
-Written by the `improve-animations` audit at commit `14757f3` (2026-07-12). Each plan is self-contained — an executor needs no other context. Full audit findings (including unplanned items) live in the audit conversation; unselected findings: popup enter/exit (menus/select dead `animate-in` classes), reduced-motion sweep (toast/tooltip/indicator), toast 500ms timing.
-
-| # | Plan | Severity | Status |
-| --- | --- | --- | --- |
-| 001 | [Motion easing token + unify exit animations](001-motion-tokens-and-exit-sweep.md) | HIGH | DONE (`ac28415`) |
-| 002 | [Fix mission-card transition list](002-mission-card-transition-list.md) | MEDIUM | DONE (`038fd4f`) |
-| 003 | [Replace `transition-all` with explicit lists](003-remove-transition-all.md) | MEDIUM | DONE (`61562e3`) |
-| 004 | [Source-switch indicator on the house curve](004-source-switch-indicator-curve.md) | MEDIUM | DONE (`9fa5606`) |
-
-## Execution order
-
-1. **001 first** — it defines the `--ease-swift` token in `src/styles/app.css` that 002 and 004 consume.
-2. **002 and 004** in either order (both depend on 001; each includes an `ease-[cubic-bezier(0.2,0,0,1)]` fallback if run standalone).
-3. **003** any time — fully independent.
-
-All four touch disjoint class-string segments; 001/002/003 all edit `DomainCard.tsx` (different lines), so rebase rather than parallelize if executing concurrently.
-
-## Shared execution notes
-
-- After any source edit: `pnpm build`, stage `extension/dist` with the source change (the bundle is tracked; pre-commit runs `pnpm verify` including `verify:bundle`).
-- Conventional-commit messages with the repo's `Co-Authored-By: Claude <noreply@anthropic.com>` trailer.
-- Feel checks: load the unpacked `extension/` dir in Chrome (new tab shows the dashboard), or `pnpm serve` and open `extension/index.html`. Slow motion via DevTools → Animations panel at 10%; reduced-motion via DevTools → Rendering → Emulate `prefers-reduced-motion`.
+The React Compiler baseline is enforced by
+[`scripts/react-compiler-check.mjs`](../scripts/react-compiler-check.mjs).
+Runtime behavior contracts remain in [`AGENTS.md`](../AGENTS.md) and
+[`CONTEXT.md`](../CONTEXT.md).

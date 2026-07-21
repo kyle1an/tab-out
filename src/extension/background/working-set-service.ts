@@ -7,7 +7,7 @@ import {
 } from '../working-set.js'
 import { normalizeChromeTabToDashboardItem } from '../dashboard-tab-normalization.js'
 import { readChromeStorageValue, writeChromeStorageValueBestEffort } from './chrome-storage.js'
-import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import type { ChromeApi } from './chrome-api.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore, WorkingSetSnapshot } from '../types'
 
 export const WORKING_SET_ACTIVITY_KEY = 'workingSetActivity'
@@ -20,7 +20,7 @@ export type WorkingSetService = {
   recordTabNavigation: (tabId: number, changeInfo: { url?: string; title?: string }, tab: chrome.tabs.Tab) => Promise<void>
 }
 
-export function createWorkingSetService(chromeApi: ChromeApi = createChromeApi(chrome)): WorkingSetService {
+export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingSetService {
   let activityCache: WorkingSetActivityStore | null = null
   let activityQueue: Promise<void> = Promise.resolve()
   let lastActivityAt = 0

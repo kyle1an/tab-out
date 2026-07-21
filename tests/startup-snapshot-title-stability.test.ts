@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
-import type { DashboardTab } from '../src/extension/types'
+import { makeCachedSuspendedTab } from './helpers/suspended-tab.js'
 
 const pageUrl = 'https://example.test/docs'
 const emptyTabHistory = {
@@ -20,25 +20,6 @@ const emptyTabHistory = {
 }
 const emptyActivity = { version: 1, records: {} }
 
-function cachedSuspendedTab(): DashboardTab {
-  return {
-    id: 7,
-    url: pageUrl,
-    rawUrl: `chrome-extension://suspender-id/suspended.html#ttl=Example%20Docs&uri=${pageUrl}`,
-    suspended: true,
-    title: 'Example Docs',
-    status: 'complete',
-    favIconUrl: '',
-    windowId: 1,
-    active: false,
-    pinned: false,
-    groupId: -1,
-    isTabOut: false,
-    isApp: false,
-    index: 0
-  }
-}
-
 test('background startup snapshots retain the cached title of a waking suspended tab', async (t) => {
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   const sessionStore: Record<string, any> = {
@@ -46,7 +27,7 @@ test('background startup snapshots retain the cached title of a waking suspended
       savedAt: Date.now(),
       snapshot: {
         dashboard: {
-          realTabs: [cachedSuspendedTab()],
+          realTabs: [makeCachedSuspendedTab(pageUrl)],
           domainGroups: []
         },
         tabHistory: emptyTabHistory,

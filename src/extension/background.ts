@@ -15,7 +15,6 @@
  */
 
 import { updateBadge } from './background/badge.js'
-import { createChromeApi } from './background/chrome-api.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
@@ -29,7 +28,7 @@ import { createWorkingSetService } from './background/working-set-service.js'
 import { createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
 import { WORKING_SET_DISMISS_MESSAGE, WORKING_SET_GET_MESSAGE } from './working-set.js'
 
-const chromeApi = createChromeApi(chrome)
+const chromeApi = chrome
 const tabHistoryService = createTabHistoryService(chromeApi)
 const workingSetService = createWorkingSetService(chromeApi)
 // Keep the cached dashboard startup snapshot warm so the next Tab Out open (even the first

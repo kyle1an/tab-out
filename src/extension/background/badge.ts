@@ -1,10 +1,10 @@
-import { createChromeApi, type ChromeApi } from './chrome-api.js'
+import type { ChromeApi } from './chrome-api.js'
 
 /**
  * Counts open real-web tabs and updates the extension toolbar badge.
  * "Real" tabs = not browser internals, extension pages, or about:blank.
  */
-export async function updateBadge(chromeApi: ChromeApi = createChromeApi()): Promise<void> {
+export async function updateBadge(chromeApi: ChromeApi = chrome): Promise<void> {
   try {
     const tabs = await chromeApi.tabs.query({})
 

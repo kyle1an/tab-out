@@ -1,8 +1,8 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
-import type { VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
-import { tabsListVariants } from './tabs-variants'
+
+type TabsListVariant = 'default' | 'line'
 
 function Tabs({
   className,
@@ -26,12 +26,16 @@ function TabsList({
   className,
   variant = "default",
   ...props
-}: TabsPrimitive.List.Props & VariantProps<typeof tabsListVariants>) {
+}: TabsPrimitive.List.Props & { variant?: TabsListVariant }) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
       data-variant={variant}
-      className={cn(tabsListVariants({ variant }), className)}
+      className={cn(
+        'group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground group-data-horizontal/tabs:h-8 group-data-vertical/tabs:h-fit group-data-vertical/tabs:flex-col data-[variant=line]:rounded-none',
+        variant === 'line' ? 'gap-1 bg-transparent' : 'bg-muted',
+        className
+      )}
       {...props}
     />
   )
@@ -53,15 +57,4 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
   )
 }
 
-function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
-  return (
-    <TabsPrimitive.Panel
-      data-slot="tabs-content"
-      className={cn('flex-1 text-sm outline-none', className)}
-      {...props}
-    />
-  )
-}
-
-/** @public — Base UI family surface kept whole; the app uses a subset today. */
-export { Tabs, TabsList, TabsTrigger, TabsContent }
+export { Tabs, TabsList, TabsTrigger }
