@@ -114,10 +114,10 @@ test('no-op pinned domain drag targets use a muted placement state', () => {
   assert.match(domainCardSource, /data-tabout-reorder-noop/)
   assert.match(domainCardSource, /previousPinnedDomainBlock\(targetBlock\) === sourceBlock/)
   assert.match(domainCardSource, /nextPinnedDomainBlock\(targetBlock\) === sourceBlock/)
-  // The muted indicator and card border ride as data-variant utilities on
-  // the domain block / mission card (the drag controller writes the attrs).
+  // The muted placement indicator rides on the domain block; the cardless
+  // content wrapper should not regain a frame for a no-op target.
   assert.match(domainCardSource, /data-\[tabout-reorder-noop=true\]:before:bg-\[color-mix\(in_srgb,var\(--accent-amber\)_36%,var\(--warm-gray\)\)\]/)
-  assert.match(domainCardSource, /group-data-\[tabout-reorder-noop=true\]\/domain-block:border-\[color-mix\(in_srgb,var\(--accent-amber\)_20%,var\(--warm-gray\)\)\]/)
+  assert.doesNotMatch(domainCardSource, /group-data-\[tabout-reorder-noop=true\]\/domain-block:border-/)
 })
 
 test('working set is merged into the history panel instead of rendering a top strip', () => {

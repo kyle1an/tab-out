@@ -2330,12 +2330,14 @@ test('cross-surface hover match styling is outline-only', () => {
   }
 })
 
-test('domain card frames itself when a history hover highlights one of its chips', () => {
-  // The frame rides as group-has variants on the mission card, keyed off the
-  // hover-match markers its descendant chips and overflow buttons carry.
+test('cross-surface hover does not restore chrome around a domain card', () => {
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
-  assert.match(domainCardSource, /group-has-\[\.page-chip\.page-chip-hover-match\]\/domain-block:border-\[color-mix\(in_srgb,var\(--accent-amber\)_42%,var\(--warm-gray\)\)\]/)
-  assert.match(domainCardSource, /group-has-\[\.page-chip-overflow\.page-chip-overflow-hover-match\]\/domain-block:border-\[color-mix\(in_srgb,var\(--accent-amber\)_42%,var\(--warm-gray\)\)\]/)
+  const contentWrapper = domainCardSource.match(/'(mission-card[^']*)'/)
+
+  assert.ok(contentWrapper, 'domain card content wrapper should render')
+  assert.doesNotMatch(contentWrapper[1], /\b(?:rounded|border|bg-|shadow)/)
+  assert.match(domainCardSource, /isAppsCard \? 'p-\[7px\]' : 'p-2'/)
+  assert.doesNotMatch(domainCardSource, /group-has-\[\.page-chip(?:-overflow)?[^\]]*hover-match\]\/domain-block:border-/)
 })
 
 test('PageChip highlights quoted filter phrases as one contiguous match', () => {

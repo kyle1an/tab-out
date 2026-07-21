@@ -350,7 +350,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         data-tabout-domain={group.domain}
         data-tabout-domain-pinned={group.pinned ? 'true' : undefined}
         className={cn(
-          'domain-block group/domain-block relative flex flex-col gap-1 [.missions.is-packed_&.layout-moving]:z-3 [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
+          'domain-block group/domain-block relative flex flex-col gap-1 data-[tabout-reorder-source=true]:opacity-65 [.missions.is-packed_&.layout-moving]:z-3 [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
           // The pinned-domain drag controller drives reorder feedback through
           // data attributes on this block (imperative dataset writes, not
           // React state); the indicator bar and its noop/placement variants
@@ -407,14 +407,8 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
         </header>
         <div
           className={cn(
-            'mission-card relative flex flex-col gap-2 overflow-visible rounded-[22px] border border-(--warm-gray) bg-tab-card transition-[box-shadow,border-color] duration-150 ease-swift [corner-shape:squircle]',
-            // The card frames itself when a cross-surface hover highlights one
-            // of its chips, and during pinned-domain drag reorder (data attrs
-            // written imperatively by the drag controller on .domain-block).
-            'group-has-[.page-chip.page-chip-hover-match]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_42%,var(--warm-gray))] group-has-[.page-chip-overflow.page-chip-overflow-hover-match]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_42%,var(--warm-gray))]',
-            'group-data-[tabout-reorder-source=true]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_48%,var(--warm-gray))] group-data-[tabout-reorder-source=true]/domain-block:shadow-[0_4px_12px_rgba(10,10,10,0.08)] group-[[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_42%,var(--warm-gray))] group-data-[tabout-reorder-noop=true]/domain-block:border-[color-mix(in_srgb,var(--accent-amber)_20%,var(--warm-gray))]',
-            isAppsCard ? 'p-[7px]' : 'p-2',
-            group.pinned && 'shadow-[0_2px_5px_rgba(10,10,10,0.048)]'
+            'mission-card relative flex flex-col gap-2 overflow-visible',
+            isAppsCard ? 'p-[7px]' : 'p-2'
           )}
         >
           <TitleSuppressionSummary

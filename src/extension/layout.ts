@@ -7,10 +7,10 @@
    it in the same column — others hold position.
 
    The block is the masonry unit (not the inner .mission-card) because
-   the header moved out of the card in the "title as section label"
-   redesign: title + pill + badges + actions live in .domain-header,
-   and the rounded chip container is inside a sibling .mission-card.
-   Masonry needs to measure both as one unit.
+   the header and content are sibling surfaces: title + pill + badges +
+   actions live in .domain-header, while grouped pages live in the
+   chrome-free .mission-card content wrapper. Masonry needs to measure
+   both as one unit.
 
    The primary grid can be followed by filter-only companion grids
    such as bookmark matches and the secondary "Other tabs" grid. All
