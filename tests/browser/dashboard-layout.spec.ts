@@ -895,6 +895,42 @@ test('Page Chip overflow expansion fades the expander and reveals hidden chips t
   expect(Math.max(...startTimes) - Math.min(...startTimes)).toBeLessThanOrEqual(1)
 })
 
+test('revealed Page Chips share one trim line across the overflow boundary', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')
+
+  const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
+  const expander = card.locator('[data-tabout-part="overflow-expander"]')
+  await expect(expander).toHaveCount(1)
+  await expander.click()
+  await expect(expander).toHaveCount(0)
+  await card.evaluate(async (expandedCard) => {
+    await Promise.all(expandedCard.getAnimations({ subtree: true }).map((animation) => (
+      animation.finished.catch(() => undefined)
+    )))
+  })
+
+  const seam = await card.evaluate((expandedCard) => {
+    const firstRevealed = expandedCard.querySelector<HTMLElement>('.page-chips-overflow-reveal .chip-slot-row')
+    if (!firstRevealed) throw new Error('first revealed Page Chip slot missing')
+
+    const slots = Array.from(expandedCard.querySelectorAll<HTMLElement>('.chip-slot-row'))
+      .filter((slot) => slot.getClientRects().length > 0)
+    const revealedIndex = slots.indexOf(firstRevealed)
+    const previous = slots[revealedIndex - 1]
+    if (!previous) throw new Error('visible Page Chip before overflow boundary missing')
+
+    const previousRect = previous.getBoundingClientRect()
+    const revealedRect = firstRevealed.getBoundingClientRect()
+    return {
+      gap: revealedRect.top - previousRect.bottom,
+      marginTop: getComputedStyle(firstRevealed).marginTop
+    }
+  })
+
+  expect(seam.marginTop).toBe('-1px')
+  expect(seam.gap).toBeCloseTo(-1, 5)
+})
+
 test('Page Chip overflow expansion repacks downstream Domain Cards without overlap', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 })
   await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')

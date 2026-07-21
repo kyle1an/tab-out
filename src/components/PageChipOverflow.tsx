@@ -92,7 +92,13 @@ export function usePageChipOverflow({
         <PageChip key={chip.rawUrl} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
       ))}
       {hiddenCount > 0 && (
-        <div className={cn('page-chips-overflow page-chips-overflow-reveal', resolveClassName(overflowContainerClassName, expanded), expanded ? 'contents' : 'hidden')}>
+        <div
+          // `display: contents` visually continues the Page Chip run, but the
+          // wrapper still breaks the slots' adjacent-sibling seam selector.
+          // Pull its first full-width child up by the same 1px so the reveal
+          // boundary paints one shared trim line too.
+          className={cn('page-chips-overflow page-chips-overflow-reveal [&>.chip-slot-row:first-child]:-mt-px', resolveClassName(overflowContainerClassName, expanded), expanded ? 'contents' : 'hidden')}
+        >
           {hiddenChips.map((chip) => (
             <PageChip key={chip.rawUrl} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
           ))}
