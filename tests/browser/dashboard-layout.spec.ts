@@ -148,6 +148,45 @@ test('Activation History restores its title fade after hover expansion closes', 
   )
 })
 
+test('Activation History marker stays aligned with the favicon and first title line', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const row = page.locator('[data-tabout="activation-history-entry"]').filter({
+    hasText: 'Low score history item with enough tooltip text'
+  }).first()
+  const title = row.locator('.history-entry-title')
+  await expect(row).toBeVisible()
+
+  const geometry = await row.evaluate((element) => {
+    const marker = element.querySelector<HTMLElement>('[data-tabout-part="history-entry-marker"]')
+    const favicon = element.querySelector<HTMLElement>('.history-entry-favicon-frame')
+    const main = element.querySelector<HTMLElement>('.history-entry-main')
+    if (!marker || !favicon || !main) return null
+
+    const markerRect = marker.getBoundingClientRect()
+    const faviconRect = favicon.getBoundingClientRect()
+    const mainRect = main.getBoundingClientRect()
+    const contentTop = mainRect.top + Number.parseFloat(getComputedStyle(main).paddingTop)
+    return {
+      faviconOffset: faviconRect.top - contentTop,
+      markerOffset: markerRect.top - contentTop,
+      markerTop: markerRect.top
+    }
+  })
+
+  expect(geometry).not.toBeNull()
+  expect(Math.abs(geometry?.faviconOffset ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(geometry?.markerOffset ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(0.5)
+
+  await title.hover()
+  await expect(page.locator('.history-entry-expanded')).toHaveCount(1)
+  const expandedMarkerTop = await row.locator('[data-tabout-part="history-entry-marker"]').evaluate((element) => (
+    element.getBoundingClientRect().top
+  ))
+  expect(Math.abs(expandedMarkerTop - (geometry?.markerTop ?? Number.POSITIVE_INFINITY))).toBeLessThanOrEqual(0.5)
+})
+
 test('Activation History scrollbar follows filtered row content', async ({ page }) => {
   await page.setViewportSize({ width: 1420, height: 360 })
   await page.goto('/tests/fixtures/dashboard-resize.html')

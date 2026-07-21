@@ -1015,7 +1015,7 @@ function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntry
     <span
       data-tabout-part="history-entry-marker"
       className={cn(
-        'mt-[7px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        'mt-[5px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
         isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live'
       )}
     >
