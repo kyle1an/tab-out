@@ -1377,7 +1377,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
         data-next-target={entry.nextTarget ? 'true' : undefined}
         aria-hidden={expanded ? true : undefined}
         className={cn(
-          "history-entry group/history-entry relative min-h-9 min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-live [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
+          "history-entry group/history-entry relative min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-live [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
           entryClosed && 'history-entry-closed text-tab-closed',
           titleExpanded && 'history-entry-expanded-open',
           expanded && 'history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-(--history-entry-expanded-max-width) cursor-default select-none !overflow-visible !transition-none w-(--history-entry-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
@@ -1426,7 +1426,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
           data-tabout-part="focus-button"
           aria-disabled={!canActivateEntry || expanded}
           aria-busy={entry.loading ? true : undefined}
-          className="history-entry-main flex min-h-8.5 w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
+          className="history-entry-main flex w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"
           onClick={!expanded && canActivateEntry ? activateHistoryEntry : undefined}
           onMouseDown={!expanded && canActivateEntry ? onEntryMouseDown : undefined}
           onKeyDown={expanded ? undefined : onEntryKeyDown}
@@ -1476,7 +1476,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
       data-loading={entry.loading ? 'true' : undefined}
       data-pending={entry.pending ? 'true' : undefined}
       className={cn(
-        'history-entry-row group/history-row flex min-h-9 w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
+        'history-entry-row group/history-row flex w-full min-w-0 flex-none items-start gap-2 font-[inherit] [&.closing]:pointer-events-none',
         titleExpanded && 'history-entry-row-expanded-open'
       )}
       onMouseEnter={onMouseEnter}
