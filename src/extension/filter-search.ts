@@ -43,7 +43,11 @@ export function canUseBookmarkSearchResults(dashboard: DashboardData | null, opt
   return isTabFilterSearch(options) && !!dashboard?.bookmarkSearchReady
 }
 
-export function canUseHistorySearchResults(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
+function historySearchStatus(dashboard: DashboardData | null) {
+  return dashboard?.historySearchStatus ?? (dashboard?.historySearchQuery ? 'ready' : 'idle')
+}
+
+function historySearchMatchesRequest(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
   const request = buildFilterSearchRequest(options)
   return (
     request.includeHistoryMatches &&
@@ -52,11 +56,20 @@ export function canUseHistorySearchResults(dashboard: DashboardData | null, opti
   )
 }
 
+export function isHistorySearchRequestSettled(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
+  return historySearchMatchesRequest(dashboard, options) && historySearchStatus(dashboard) !== 'idle'
+}
+
+export function canUseHistorySearchResults(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
+  return isHistorySearchRequestSettled(dashboard, options) && historySearchStatus(dashboard) === 'ready'
+}
+
 export function canDisplayHistorySearchResults(dashboard: DashboardData | null, options: FilterSearchOptions): boolean {
   const request = buildFilterSearchRequest(options)
   return (
     request.includeHistoryMatches &&
-    dashboard?.historySearchQuery === request.historyQuery
+    dashboard?.historySearchQuery === request.historyQuery &&
+    historySearchStatus(dashboard) !== 'idle'
   )
 }
 
@@ -65,7 +78,7 @@ export function dashboardNeedsFilterSearchRefresh(dashboard: DashboardData | nul
   if (!dashboard || !request.includeBookmarkMatches) return false
 
   const bookmarkSearchReady = !!dashboard.bookmarkSearchReady
-  const historySearchReady = !request.includeHistoryMatches || canUseHistorySearchResults(dashboard, options)
+  const historySearchReady = !request.includeHistoryMatches || isHistorySearchRequestSettled(dashboard, options)
 
   return !(bookmarkSearchReady && historySearchReady)
 }

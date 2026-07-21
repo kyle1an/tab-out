@@ -1,9 +1,10 @@
 import { useLayoutEffect, useMemo, type RefObject } from 'react'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { dashboardChipOrderAltKeyForChip, dashboardChipOrderKeyForChip } from '../extension/domain-card-view-model.js'
-import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, shouldShowHistoryRange } from '../extension/filter-search.js'
+import { canDisplayHistorySearchResults, canUseBookmarkSearchResults, canUseHistorySearchResults, isHistorySearchRequestSettled, shouldShowHistoryRange } from '../extension/filter-search.js'
+import { tabMatchesSourceFilter } from '../extension/filter-match.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet, dedupeCompanionSearchTabs } from '../extension/render.js'
-import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from '../extension/types'
+import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import type { MissionOrderMap } from './useDashboardRefresh'
 
@@ -29,6 +30,7 @@ type DashboardViewModelOptions = {
   filter: string
   historyRange: string
   historyFilterEnabled: boolean
+  historySearchPending?: boolean
   isReady: boolean
   chipOrder: DashboardChipOrderMemoryMap
   workingSet?: WorkingSetSnapshot | null
@@ -38,7 +40,7 @@ type DashboardViewModelOptions = {
   startupViewModel?: DashboardViewModel | null
 }
 
-export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder, startupViewModel }: DashboardViewModelOptions) {
+export function useDashboardViewModels({ dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending = false, isReady, chipOrder, workingSet, pinnedSections, pinnedPageChips, freezeTabsChipOrder, startupViewModel }: DashboardViewModelOptions) {
   const filterSearchOptions = { source, filter, historyRange, historyFilterEnabled }
   const realTabs = dashboard?.realTabs || EMPTY_TABS
   const domainGroups = dashboard?.domainGroups || EMPTY_DOMAIN_GROUPS
@@ -115,12 +117,35 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
   const historySearch = useMemo(
     () => {
       const displayResults = canDisplayHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
+      const requestSettled = isHistorySearchRequestSettled(dashboard, { source, filter, historyRange, historyFilterEnabled })
       const resultsFilter = canUseHistorySearchResults(dashboard, { source, filter, historyRange, historyFilterEnabled })
         ? filter
         : dashboard?.historySearchQuery || filter
+      const totalMatches = displayResults
+        ? historyTabs.filter((tab) => tabMatchesSourceFilter(tab, resultsFilter)).length
+        : 0
+      const visibleMatches = displayResults
+        ? companionSources.historyTabs.filter((tab) => tabMatchesSourceFilter(tab, resultsFilter)).length
+        : 0
+      const searchFailed = requestSettled && dashboard?.historySearchStatus === 'error'
+      const canUpdateDisplayedResults = displayResults && (!searchFailed || totalMatches > 0)
+      const phase: HistorySearchSummary['phase'] = searchFailed && !historySearchPending
+        ? 'error'
+        : historySearchPending || !requestSettled
+          ? canUpdateDisplayedResults ? 'updating' : 'searching'
+          : 'ready'
+      const summary: HistorySearchSummary | null = historyFilterEnabled && shouldShowHistoryRange({ source, filter })
+        ? {
+            phase,
+            totalMatches,
+            visibleMatches,
+            dedupedMatches: Math.max(0, totalMatches - visibleMatches)
+          }
+        : null
       return {
         displayResults,
         resultsFilter,
+        summary,
         viewModel: displayResults ? buildDashboardViewModel({
           realTabs: companionSources.historyTabs,
           domainGroups: companionSources.historyDomainGroups,
@@ -132,7 +157,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
         }) : null
       }
     },
-    [dashboard, source, filter, historyRange, historyFilterEnabled, companionSources, chipOrder.history, pinnedSections, pinnedPageChips]
+    [dashboard, source, filter, historyRange, historyFilterEnabled, historySearchPending, historyTabs, companionSources, chipOrder.history, pinnedSections, pinnedPageChips]
   )
 
   const matchedCards = dashboardVm.matchedCards
@@ -149,6 +174,7 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
     unmatchedCards,
     bookmarkMatchedCards,
     historyMatchedCards,
+    historySearchSummary: historySearch.summary,
     historyResultsFilter: historySearch.resultsFilter,
     showOtherTabs: isReady && dashboardVm.showOtherTabs,
     showBookmarkMatches,

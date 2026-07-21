@@ -46,6 +46,17 @@ export interface DomainGroup {
 
 export type DashboardSource = 'tabs' | 'bookmarks' | 'history'
 
+export type HistorySearchStatus = 'idle' | 'ready' | 'error'
+
+export type HistorySearchSummaryPhase = 'searching' | 'updating' | 'ready' | 'error'
+
+export interface HistorySearchSummary {
+  phase: HistorySearchSummaryPhase
+  totalMatches: number
+  visibleMatches: number
+  dedupedMatches: number
+}
+
 export interface PathGroupResult {
   key: string
   label: string
@@ -264,6 +275,7 @@ export interface DashboardData {
   historyDomainGroups?: DomainGroup[]
   historySearchQuery?: string
   historyRange?: string
+  historySearchStatus?: HistorySearchStatus
   savedKeys?: readonly string[]
 }
 

@@ -507,15 +507,55 @@ test('history results do not show a previous query while the next query loads', 
 
   const input = page.locator('[data-tabout="filter-query"] input')
   const historyCards = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+  const historyStatus = page.locator('[data-tabout="history-search-status"]')
   await input.fill('Example')
   await expect(historyCards).toHaveCount(2)
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
+  await expect.poll(() => historyStatus.locator('[data-tabout-part="summary-title"], [data-tabout-part="summary-detail"]').evaluateAll((elements) => (
+    elements.map((element) => getComputedStyle(element).fontSize)
+  ))).toEqual(['13px', '13px'])
+  await expect.poll(() => historyStatus.locator('[data-tabout-part="summary-title"], [data-tabout-part="summary-detail"]').evaluateAll((elements) => (
+    elements.map((element) => getComputedStyle(element).textAlign)
+  ))).toEqual(['right', 'right'])
+
+  const readyStatusHeight = await historyStatus.evaluate((element) => element.getBoundingClientRect().height)
+  const layout = await page.locator('#historyMatchesSection').evaluate((element) => {
+    const status = element.querySelector<HTMLElement>('[data-tabout="history-search-status"]')
+    const grid = element.querySelector<HTMLElement>('#historyMatchesMissions')
+    const card = grid?.querySelector<HTMLElement>('[data-tabout="domain-card"]')
+    const rule = element.querySelector<HTMLElement>('.missions-divider-rule')
+    const title = status?.querySelector<HTMLElement>('[data-tabout-part="summary-title"]')
+    const detail = status?.querySelector<HTMLElement>('[data-tabout-part="summary-detail"]')
+    const ruleBounds = rule?.getBoundingClientRect()
+    return {
+      cardLeft: card?.getBoundingClientRect().left ?? 0,
+      cardWidth: card?.getBoundingClientRect().width ?? 0,
+      detailTop: detail?.getBoundingClientRect().top ?? 0,
+      gridLeft: grid?.getBoundingClientRect().left ?? 0,
+      ruleBottom: ruleBounds?.bottom ?? 0,
+      ruleTop: ruleBounds?.top ?? 0,
+      statusBorderWidth: status ? getComputedStyle(status).borderWidth : '',
+      statusInGrid: !!grid?.contains(status ?? null),
+      statusWidth: status?.getBoundingClientRect().width ?? 0,
+      titleBottom: title?.getBoundingClientRect().bottom ?? 0
+    }
+  })
+  expect(layout.statusInGrid).toBe(false)
+  expect(Math.abs(layout.cardLeft - layout.gridLeft)).toBeLessThanOrEqual(1)
+  expect(layout.statusWidth).toBeLessThan(layout.cardWidth)
+  expect(layout.statusBorderWidth).toBe('0px')
+  expect(layout.titleBottom).toBeLessThan(layout.ruleTop)
+  expect(layout.detailTop).toBeGreaterThan(layout.ruleBottom)
 
   await input.fill('Example 20')
   await expect.poll(() => page.evaluate(() => (
     (window as unknown as { __nextHistorySearchStarted: boolean }).__nextHistorySearchStarted
   ))).toBe(true)
   await expect(historyCards).toHaveCount(0, { timeout: 300 })
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'searching')
+  await expect.poll(() => historyStatus.evaluate((element) => element.getBoundingClientRect().height)).toBe(readyStatusHeight)
   await expect(historyCards).toHaveCount(1)
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
   await expect(historyCards).toContainText('Example 20 History')
 })
 
@@ -556,8 +596,11 @@ test('history results stay visible while a new range loads for the same query', 
 
   await page.locator('[data-tabout="filter-query"] input').fill('Scope result')
   const historyCards = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+  const historyStatus = page.locator('[data-tabout="history-search-status"]')
   await expect(historyCards).toHaveCount(1)
   await expect(historyCards).toContainText('Scope result day')
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
+  const readyStatusHeight = await historyStatus.evaluate((element) => element.getBoundingClientRect().height)
 
   await page.getByRole('combobox', { name: 'History search range' }).click()
   await page.getByRole('option', { name: 'Last week' }).click()
@@ -566,9 +609,59 @@ test('history results stay visible while a new range loads for the same query', 
   ))).toBe(true)
   await expect(historyCards).toHaveCount(1, { timeout: 300 })
   await expect(historyCards).toContainText('Scope result day')
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'updating')
+  await expect(historyStatus).toContainText('Updating…')
+  await expect.poll(() => historyStatus.evaluate((element) => element.getBoundingClientRect().height)).toBe(readyStatusHeight)
   await expect(historyCards).toHaveCount(2)
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
   await expect(historyCards.filter({ hasText: 'Scope result week one' })).toHaveCount(1)
   await expect(historyCards.filter({ hasText: 'Scope result week two' })).toHaveCount(1)
+})
+
+test('failed history searches show a retryable status without becoming no matches', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const state = window as unknown as { __historyRetryEnabled: boolean }
+    state.__historyRetryEnabled = false
+    window.chrome.history.search = async () => {
+      if (!state.__historyRetryEnabled) throw new Error('History unavailable')
+      await new Promise((resolve) => setTimeout(resolve, 800))
+      return [{
+        id: 'history-retry-result',
+        title: 'Retryable History result',
+        url: 'https://history-retry-result.test/docs'
+      }]
+    }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Retryable History result')
+  const historyStatus = page.locator('[data-tabout="history-search-status"]')
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'error')
+  await expect(historyStatus).toContainText('History update failed')
+  await expect(historyStatus).not.toContainText('No History matches')
+  await expect.poll(() => historyStatus.locator('[data-tabout-part="retry-button"]').evaluate((element) => (
+    getComputedStyle(element).fontSize
+  ))).toBe('13px')
+
+  await page.evaluate(() => {
+    (window as unknown as { __historyRetryEnabled: boolean }).__historyRetryEnabled = true
+  })
+  await historyStatus.locator('[data-tabout-part="retry-button"]').click()
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'searching')
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
+  const historyCard = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+  await expect(historyCard).toContainText('Retryable History result')
+
+  await page.evaluate(() => {
+    (window as unknown as { __historyRetryEnabled: boolean }).__historyRetryEnabled = false
+  })
+  await page.getByRole('combobox', { name: 'History search range' }).click()
+  await page.getByRole('option', { name: 'Last week' }).click()
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'error')
+  await expect(historyStatus).toContainText('Previous results remain below')
+  await expect(historyCard).toContainText('Retryable History result')
 })
 
 test('history range starts from the remembered preference', async ({ page }) => {
@@ -731,14 +824,18 @@ test('closing an open search match promotes its matching history result', async 
   await page.locator('[data-tabout="filter-query"] input').fill('https://tab-out-smoke-02.com/docs/2')
   const openCard = page.locator('#openTabsMissions [data-tabout-domain="tab-out-smoke-02.com"]')
   const historyCard = page.locator('#historyMatchesMissions [data-tabout-domain="tab-out-smoke-02.com"]')
+  const historyStatus = page.locator('[data-tabout="history-search-status"]')
   await expect(openCard).toHaveCount(1)
   await expect(historyCard).toHaveCount(0)
+  await expect(historyStatus).toContainText('1 shown in Tabs')
 
   const openChip = openCard.locator('[data-tabout="page-chip"]')
   await openChip.hover()
   await openChip.locator('[data-tabout-part="close-button"]').click({ force: true })
   await expect(openCard).toHaveCount(0)
   await expect(historyCard).toHaveCount(1)
+  await expect(historyStatus).toContainText('1 History match')
+  await expect(historyStatus).toContainText('All appear below')
   await expect(historyCard).toContainText('Example 2 with enough tooltip text')
 })
 

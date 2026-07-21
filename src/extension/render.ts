@@ -24,7 +24,7 @@ import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
 import { unwrapSuspenderUrl } from './suspension.js'
-import type { DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, WorkingSetSnapshot } from './types'
+import type { DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, HistorySearchStatus, WorkingSetSnapshot } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
 
 export { buildDomainGroups } from './domain-groups.js'
@@ -63,6 +63,7 @@ type FetchDashboardDataOptions = {
   includeHistoryMatches?: boolean
   searchQuery?: string
   historyRange?: string
+  historySearchStatus?: HistorySearchStatus
   dashboardTabs?: DashboardTab[]
   bookmarkTabs?: DashboardTab[]
   historyTabs?: DashboardTab[]
@@ -213,6 +214,7 @@ export async function buildDashboardDataFromTabs(
     includeHistoryMatches = false,
     searchQuery = '',
     historyRange = DEFAULT_HISTORY_RANGE,
+    historySearchStatus = 'ready',
     bookmarkTabs = [],
     historyTabs = [],
     savedPagesStore
@@ -242,6 +244,7 @@ export async function buildDashboardDataFromTabs(
     historyDomainGroups,
     historySearchQuery: historyQuery,
     historyRange,
+    historySearchStatus: includeHistoryMatches ? historySearchStatus : 'idle',
     savedKeys: savedPageKeysFromStore(savedPagesMerge.store)
   }
 }
@@ -266,6 +269,7 @@ export async function fetchDashboardData(
     includeHistoryMatches = false,
     searchQuery = '',
     historyRange = DEFAULT_HISTORY_RANGE,
+    historySearchStatus = 'ready',
     dashboardTabs,
     bookmarkTabs = [],
     historyTabs = [],
@@ -288,6 +292,7 @@ export async function fetchDashboardData(
       historyDomainGroups: [],
       historySearchQuery: '',
       historyRange: DEFAULT_HISTORY_RANGE,
+      historySearchStatus: 'idle',
       // savedKeys is sourced from the pre-merge store here; the history panel only
       // renders in the 'tabs' source, and merging never changes the saved-page key
       // set (it only updates record fields), so the keys match the tabs branch.
@@ -307,6 +312,7 @@ export async function fetchDashboardData(
     includeHistoryMatches,
     searchQuery,
     historyRange,
+    historySearchStatus,
     bookmarkTabs,
     historyTabs,
     savedPagesStore

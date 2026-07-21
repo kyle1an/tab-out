@@ -14,6 +14,7 @@ import { buildTabsDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot, 
 import { buildDashboardStartupViewModel } from '../extension/startup-view-model.js'
 import type { DashboardLocalState } from './useDashboardLocalState'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
+import type { HistorySourceSearchResult } from '../extension/history-source.js'
 
 export { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 export type { DashboardStartupSnapshot, CachedDashboardStartup, DashboardStartupViewModel } from '../extension/startup-snapshot.js'
@@ -129,6 +130,24 @@ function dashboardRefreshContextMatches(
   )
 }
 
+export function retainHistorySearchResultsOnError(
+  nextDashboard: DashboardData,
+  previousDashboard: DashboardData | null
+): DashboardData {
+  if (
+    nextDashboard.historySearchStatus !== 'error' ||
+    !previousDashboard ||
+    previousDashboard.historySearchStatus === 'error' ||
+    previousDashboard.historySearchQuery !== nextDashboard.historySearchQuery
+  ) return nextDashboard
+
+  return {
+    ...nextDashboard,
+    historyTabs: previousDashboard.historyTabs ?? [],
+    historyDomainGroups: previousDashboard.historyDomainGroups ?? []
+  }
+}
+
 let startupSnapshotFlight: {
   key: string
   localStateRef: { current: DashboardLocalState | null }
@@ -154,9 +173,9 @@ async function fetchBookmarksSourceItemsLazy(): Promise<DashboardData['realTabs'
   return fetchBookmarksSourceItems()
 }
 
-async function fetchHistorySourceItemsLazy(query: string, range: string): Promise<DashboardData['realTabs']> {
-  const { fetchHistorySourceItems } = await import('../extension/history-source.js')
-  return fetchHistorySourceItems(query, range)
+async function fetchHistorySourceItemsLazy(query: string, range: string): Promise<HistorySourceSearchResult> {
+  const { fetchHistorySourceSearch } = await import('../extension/history-source.js')
+  return fetchHistorySourceSearch(query, range)
 }
 
 function startupSnapshotFlightKey({ source, filter, historyRange, historyFilterEnabled, pinnedDomains }: DashboardSnapshotOptions): string {
@@ -171,13 +190,15 @@ function startupSnapshotFlightKey({ source, filter, historyRange, historyFilterE
 
 async function fetchTabsDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, savedPagesStore, previousOrder }: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
-  const [openTabs, currentWindowId, serviceState, resolvedSavedPagesStore, bookmarkTabs, historyTabs] = await Promise.all([
+  const [openTabs, currentWindowId, serviceState, resolvedSavedPagesStore, bookmarkTabs, historySearch] = await Promise.all([
     fetchOpenTabsSnapshot(),
     getCurrentWindowId(),
     fetchDashboardServiceState(),
     savedPagesStore ? Promise.resolve(savedPagesStore) : loadSavedPagesStore(),
     filterSearch.includeBookmarkMatches ? fetchBookmarksSourceItemsLazy() : Promise.resolve([]),
-    filterSearch.includeHistoryMatches ? fetchHistorySourceItemsLazy(filterSearch.query, filterSearch.historyRange) : Promise.resolve([])
+    filterSearch.includeHistoryMatches
+      ? fetchHistorySourceItemsLazy(filterSearch.query, filterSearch.historyRange)
+      : Promise.resolve({ status: 'ready' as const, tabs: [] })
   ])
   const dashboardTabs = getDashboardTabsFromOpenTabs(openTabs)
   const dashboard = await buildDashboardDataFromTabs(dashboardTabs, currentWindowId, previousOrder[source] || new Map(), {
@@ -188,8 +209,9 @@ async function fetchTabsDashboardSnapshot({ source, filter, historyRange, histor
     includeHistoryMatches: filterSearch.includeHistoryMatches,
     searchQuery: filterSearch.query,
     historyRange: filterSearch.historyRange,
+    historySearchStatus: historySearch.status,
     bookmarkTabs,
-    historyTabs,
+    historyTabs: historySearch.tabs,
     savedPagesStore: resolvedSavedPagesStore
   })
   const workingSet = buildWorkingSetSnapshot({
@@ -304,6 +326,8 @@ export function useDashboardRefresh({
   })
   const startupRefreshPendingRef = useRef(false)
   const animatedRefreshPendingRef = useRef(false)
+  const historySearchPendingRevisionRef = useRef(0)
+  const [historySearchPending, setHistorySearchPending] = useState(false)
 
   useEffect(() => {
     callbacksRef.current = { onBeforeAnimatedRefresh, onBeforePinnedRefresh }
@@ -341,6 +365,14 @@ export function useDashboardRefresh({
       historyRange,
       pinnedDomains: [...pinnedDomains],
       source
+    }
+    const tracksHistorySearch = buildFilterSearchRequest(requestContext).includeHistoryMatches
+    const historySearchPendingRevision = tracksHistorySearch
+      ? historySearchPendingRevisionRef.current + 1
+      : 0
+    if (tracksHistorySearch) {
+      historySearchPendingRevisionRef.current = historySearchPendingRevision
+      setHistorySearchPending(true)
     }
     try {
       await refreshRunner.request(
@@ -389,7 +421,7 @@ export function useDashboardRefresh({
             setStartupSnapshot(result.snapshot)
             return
           }
-          setDashboard(result.snapshot.dashboard)
+          setDashboard(retainHistorySearchResultsOnError(result.snapshot.dashboard, dashboard))
           setTabHistory(result.snapshot.tabHistory)
           setWorkingSet(result.snapshot.workingSet)
         }
@@ -398,6 +430,10 @@ export function useDashboardRefresh({
       startupRefreshPendingRef.current = false
       animatedRefreshPendingRef.current = false
       throw error
+    } finally {
+      if (tracksHistorySearch && historySearchPendingRevisionRef.current === historySearchPendingRevision) {
+        setHistorySearchPending(false)
+      }
     }
   }
 
@@ -418,5 +454,6 @@ export function useDashboardRefresh({
   // Stable identity: the hook itself bails out of React Compiler (the render-time
   // refreshRef assignment is its latest-callback architecture), so the returned
   // facade is memoized manually — consumers key effects and props on it.
-  return useCallback((options?: DashboardRefreshOptions) => refreshRef.current(options), [])
+  const refreshDashboard = useCallback((options?: DashboardRefreshOptions) => refreshRef.current(options), [])
+  return { historySearchPending, refreshDashboard }
 }

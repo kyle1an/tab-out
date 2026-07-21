@@ -21,6 +21,7 @@ import { useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
+import { HistorySearchStatus } from './HistorySearchStatus'
 import { Missions } from './Missions'
 import { validatePageChipTextLayoutsAfterMasonry } from './page-chip-layout-validation'
 import { TabHistoryPanel } from './TabHistoryPanel'
@@ -37,7 +38,7 @@ import type {
   DashboardStats,
   TabHistorySnapshot
 } from './types'
-import type { WorkingSetSnapshot } from '../extension/types'
+import type { HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
 import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 
@@ -75,6 +76,7 @@ type DashboardMissionSection = {
   gridEmpty?: boolean
   gridId: string
   gridRef?: Ref<HTMLDivElement>
+  historySearchSummary?: HistorySearchSummary | null
   label?: string
   sectionClassName?: string
   sectionId?: string
@@ -90,6 +92,7 @@ type DashboardMissionSectionsOptions = {
   historyMatchesFlush: boolean
   historyMissionsRef: Ref<HTMLDivElement>
   historyResultsFilter: string
+  historySearchSummary: HistorySearchSummary | null
   isReady: boolean
   matchedCards: DashboardCardEntry[]
   otherTabsFlush: boolean
@@ -107,6 +110,7 @@ type DashboardMissionSectionsOptions = {
 type DashboardMissionsListProps = {
   filter: string
   historyRangeAction?: ReactNode
+  onRetryHistorySearch: () => void
   sections: DashboardMissionSection[]
 }
 type AppDashboardState = {
@@ -160,7 +164,8 @@ function clearDashboardHistorySearch(dashboard: DashboardData | null, historyRan
     historyTabs: [],
     historyDomainGroups: [],
     historySearchQuery: '',
-    historyRange
+    historyRange,
+    historySearchStatus: 'idle'
   }
 }
 
@@ -221,12 +226,15 @@ function readMissionContainers(...refs: MissionContainerRef[]): MissionContainer
   return refs.map((ref) => ref.current)
 }
 
-function MissionsDivider({ action, label }: { action?: ReactNode; label: string }) {
+function MissionsDivider({ action, label, status }: { action?: ReactNode; label: string; status?: ReactNode }) {
   return (
-    <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-muted-foreground uppercase', action && 'min-h-(--header-control-height)')}>
+    <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-muted-foreground uppercase', (action || status) && 'min-h-(--header-control-height)')}>
       <span className="missions-divider-label pointer-events-none shrink-0 whitespace-nowrap">{label}</span>
       {action && <div className="missions-divider-action shrink-0 text-foreground normal-case tracking-normal font-normal">{action}</div>}
-      <hr className="missions-divider-rule h-px flex-1 border-0 bg-(--warm-gray)" />
+      <div className={cn('missions-divider-rail relative min-w-0 flex-1', status ? 'h-[38px]' : 'h-px')}>
+        <hr className="missions-divider-rule absolute inset-x-0 top-1/2 h-px -translate-y-1/2 border-0 bg-(--warm-gray)" />
+        {status && <div className="missions-divider-status absolute inset-y-0 right-0 z-1 w-[280px] max-w-full normal-case tracking-normal">{status}</div>}
+      </div>
     </div>
   )
 }
@@ -342,6 +350,7 @@ function dashboardMissionSections({
   historyMatchesFlush,
   historyMissionsRef,
   historyResultsFilter,
+  historySearchSummary,
   isReady,
   matchedCards,
   otherTabsFlush,
@@ -375,6 +384,7 @@ function dashboardMissionSections({
       filter: historyResultsFilter,
       gridId: 'historyMatchesMissions',
       gridRef: historyMissionsRef,
+      historySearchSummary,
       label: 'History',
       sectionClassName: cn('missions-other missions-history mt-6', historyMatchesFlush && 'mt-0'),
       sectionId: 'historyMatchesSection',
@@ -412,7 +422,7 @@ function dashboardMissionSections({
   return sections
 }
 
-function DashboardMissionsList({ filter, historyRangeAction, sections }: DashboardMissionsListProps) {
+function DashboardMissionsList({ filter, historyRangeAction, onRetryHistorySearch, sections }: DashboardMissionsListProps) {
   if (sections.length === 0) return null
 
   return (
@@ -433,9 +443,15 @@ function DashboardMissionsList({ filter, historyRangeAction, sections }: Dashboa
 
         if (!section.label) return block
         const action = section.sectionId === 'historyMatchesSection' ? historyRangeAction : undefined
+        const status = section.historySearchSummary ? (
+          <HistorySearchStatus
+            summary={section.historySearchSummary}
+            onRetry={onRetryHistorySearch}
+          />
+        ) : undefined
         return (
           <div className={section.sectionClassName} id={section.sectionId} key={section.sectionId}>
-            <MissionsDivider action={action} label={section.label} />
+            <MissionsDivider action={action} label={section.label} status={status} />
             {block}
           </div>
         )
@@ -459,6 +475,7 @@ type DashboardShellProps = {
   missionSections: DashboardMissionSection[]
   onCloseFiltered: () => void
   onDedupAll: () => void
+  onRetryHistorySearch: () => void
   onSourceChange: (nextSource: DashboardSource) => void
   onTabsChange: () => void
   setFilterInput: (value: string) => void
@@ -487,6 +504,7 @@ function DashboardShell({
   missionSections,
   onCloseFiltered,
   onDedupAll,
+  onRetryHistorySearch,
   onSourceChange,
   onTabsChange,
   setFilterInput,
@@ -582,6 +600,7 @@ function DashboardShell({
                   />
                 </Suspense>
               ) : undefined}
+              onRetryHistorySearch={onRetryHistorySearch}
               sections={missionSections}
             />
           </div>
@@ -751,7 +770,7 @@ export function App({
       ? initialStartupViewModel.viewModel
       : null
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
-  const refreshDashboard = useDashboardRefresh({
+  const { historySearchPending, refreshDashboard } = useDashboardRefresh({
     dashboard,
     source,
     filter,
@@ -769,6 +788,9 @@ export function App({
     onBeforeAnimatedRefresh: primeCardMoveAnimation,
     onBeforePinnedRefresh: clearHoverUrlNow
   })
+  const retryHistorySearch = useCallback(function retryHistorySearch() {
+    void refreshDashboard().catch(() => showToast('Could not update History'))
+  }, [refreshDashboard])
 
   useLayoutEffect(() => {
     if (!isReady) return
@@ -801,6 +823,7 @@ export function App({
     bookmarkMatchedCards,
     historyMatchedCards,
     historyResultsFilter,
+    historySearchSummary,
     showOtherTabs,
     showBookmarkMatches,
     showHistoryMatches,
@@ -812,6 +835,7 @@ export function App({
     filter,
     historyRange,
     historyFilterEnabled,
+    historySearchPending,
     isReady,
     // react-doctor-disable-next-line react-hooks-js/refs -- chipOrder is a mutable per-source ordering cache read at view-model build time, not render-derived state.
     chipOrder: chipOrderRef.current,
@@ -940,6 +964,7 @@ export function App({
     historyMatchesFlush,
     historyMissionsRef,
     historyResultsFilter,
+    historySearchSummary,
     isReady,
     matchedCards,
     otherTabsFlush,
@@ -953,7 +978,7 @@ export function App({
     source,
     unmatchedCards,
     unmatchedMissionsRef
-  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showPrimaryEmptyState, source, unmatchedCards])
+  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showPrimaryEmptyState, source, unmatchedCards])
 
   useMissionOrderMemory({
     previousOrderRef,
@@ -1005,6 +1030,7 @@ export function App({
           missionSections={missionSections}
           onCloseFiltered={onCloseFiltered}
           onDedupAll={onDedupAll}
+          onRetryHistorySearch={retryHistorySearch}
           onSourceChange={onSourceChange}
           onTabsChange={onTabsChange}
           setFilterInput={handleFilterInputChange}

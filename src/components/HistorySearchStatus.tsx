@@ -1,0 +1,67 @@
+import { LoaderCircle } from 'lucide-react'
+import type { HistorySearchSummary } from '../extension/types'
+import { historySearchStatusCopy } from './history-search-status-copy'
+
+type HistorySearchStatusProps = {
+  onRetry?: () => void
+  summary: HistorySearchSummary
+}
+
+export function HistorySearchStatus({ onRetry, summary }: HistorySearchStatusProps) {
+  const copy = historySearchStatusCopy(summary)
+  const busy = summary.phase === 'searching' || summary.phase === 'updating'
+
+  return (
+    <div
+      data-tabout="history-search-status"
+      data-tabout-history-phase={summary.phase}
+      className="history-search-status relative h-[38px] w-[280px] max-w-full min-w-0 text-[13px] leading-4 font-normal normal-case tracking-normal"
+    >
+      <output
+        className="absolute inset-y-0 right-[42px] left-0 grid min-w-0 grid-rows-2 text-right"
+        aria-atomic="true"
+        aria-busy={busy}
+        aria-live="polite"
+      >
+        <div className="flex min-w-0 items-start justify-end">
+          <span
+            data-tabout-part="summary-title"
+            className="min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-foreground"
+            title={copy.title}
+          >
+            {copy.title}
+          </span>
+        </div>
+        <div className="flex min-w-0 items-end justify-end">
+          <span
+            data-tabout-part="summary-detail"
+            className="min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground"
+            title={copy.detail}
+          >
+            {copy.detail}
+          </span>
+        </div>
+      </output>
+      <div className="absolute inset-y-0 right-0 z-1 flex w-[42px] items-center justify-end" aria-hidden={!busy && summary.phase !== 'error'}>
+        {busy && (
+          <LoaderCircle
+            data-tabout-part="loading-indicator"
+            className="size-[14px] animate-spin rounded-full bg-background ring-4 ring-background motion-reduce:animate-none"
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+        )}
+        {summary.phase === 'error' && (
+          <button
+            type="button"
+            data-tabout-part="retry-button"
+            className="h-6 rounded-full bg-background px-2 text-[13px] leading-6 font-medium text-foreground ring-1 ring-foreground/10 transition-colors hover:bg-[rgba(82,82,82,0.06)] focus-visible:outline-1 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

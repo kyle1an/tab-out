@@ -11,16 +11,19 @@ import {
   HISTORY_FILTER_OFF,
   HISTORY_RANGE_OPTIONS,
   deleteHistorySourceUrl,
+  fetchHistorySourceSearch,
   fetchHistorySourceItems,
   flattenHistoryItems,
   isHistoryFilterEnabled
 } from '../src/extension/history-source.js'
 import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlForFilterInput } from '../src/extension/app-url.js'
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
-import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh } from '../src/extension/filter-search.js'
+import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh, isHistorySearchRequestSettled } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
 import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter } from '../src/extension/render.js'
 import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
+import { retainHistorySearchResultsOnError } from '../src/hooks/useDashboardRefresh.js'
+import { historySearchStatusCopy } from '../src/components/history-search-status-copy.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'
 import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/extension/types'
@@ -2238,6 +2241,71 @@ test('history source sends the raw trimmed filter text to Chrome history search'
   }
 })
 
+test('history source keeps search failures distinct from zero matches', async () => {
+  const originalHistory = (globalThis.chrome as any).history
+  ;(globalThis.chrome as any).history = {
+    async search() {
+      throw new Error('History unavailable')
+    }
+  }
+
+  try {
+    const result = await fetchHistorySourceSearch('example', '7d')
+    assert.deepEqual(result, { status: 'error', tabs: [] })
+  } finally {
+    if (originalHistory === undefined) delete (globalThis.chrome as any).history
+    else (globalThis.chrome as any).history = originalHistory
+  }
+})
+
+test('history search status copy distinguishes visible, deduped, empty, and updating results', () => {
+  assert.deepEqual(historySearchStatusCopy({
+    phase: 'ready',
+    totalMatches: 4,
+    visibleMatches: 2,
+    dedupedMatches: 2
+  }), {
+    title: '2 of 4 shown in Tabs',
+    detail: '2 more appear below.'
+  })
+  assert.deepEqual(historySearchStatusCopy({
+    phase: 'ready',
+    totalMatches: 3,
+    visibleMatches: 0,
+    dedupedMatches: 3
+  }), {
+    title: '3 shown in Tabs',
+    detail: 'Not repeated below.'
+  })
+  assert.deepEqual(historySearchStatusCopy({
+    phase: 'ready',
+    totalMatches: 0,
+    visibleMatches: 0,
+    dedupedMatches: 0
+  }), {
+    title: 'No History matches',
+    detail: 'Try a wider range.'
+  })
+  assert.deepEqual(historySearchStatusCopy({
+    phase: 'updating',
+    totalMatches: 1,
+    visibleMatches: 1,
+    dedupedMatches: 0
+  }), {
+    title: '1 History match',
+    detail: 'Updating…'
+  })
+  assert.deepEqual(historySearchStatusCopy({
+    phase: 'error',
+    totalMatches: 1,
+    visibleMatches: 1,
+    dedupedMatches: 0
+  }), {
+    title: 'History update failed',
+    detail: 'Previous results remain below.'
+  })
+})
+
 test('history filter off skips Chrome history search', async () => {
   assert.equal(isHistoryFilterEnabled(HISTORY_FILTER_OFF), false)
 
@@ -2372,6 +2440,12 @@ test('history range changes retain same-query results while requiring an exact r
   assert.equal(stale.historyResultsFilter, 'openai')
   assert.deepEqual(stale.historyMatchedCards.map(({ group }) => group.domain), ['example.test'])
   assert.equal(stale.showHistoryMatches, true)
+  assert.deepEqual(stale.historySearchSummary, {
+    phase: 'updating',
+    totalMatches: 1,
+    visibleMatches: 1,
+    dedupedMatches: 0
+  })
   assert.equal(
     canDisplayHistorySearchResults(dashboard, {
       ...options,
@@ -2392,6 +2466,100 @@ test('history range changes retain same-query results while requiring an exact r
       historyFilterEnabled: false
     }),
     false
+  )
+})
+
+test('failed history searches settle without becoming usable result snapshots', () => {
+  const dashboard = {
+    realTabs: [],
+    domainGroups: [],
+    bookmarkSearchReady: true,
+    historyTabs: [],
+    historyDomainGroups: [],
+    historySearchQuery: 'example',
+    historyRange: '7d',
+    historySearchStatus: 'error' as const
+  }
+  const options = {
+    source: 'tabs' as const,
+    filter: 'example',
+    historyRange: '7d',
+    historyFilterEnabled: true
+  }
+
+  assert.equal(isHistorySearchRequestSettled(dashboard, options), true)
+  assert.equal(canUseHistorySearchResults(dashboard, options), false)
+  assert.equal(dashboardNeedsFilterSearchRefresh(dashboard, options), false)
+
+  const failed = renderHookValue(() => useDashboardViewModels({
+    dashboard,
+    ...options,
+    historySearchPending: false,
+    isReady: true,
+    chipOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  }))
+  assert.deepEqual(failed.historySearchSummary, {
+    phase: 'error',
+    totalMatches: 0,
+    visibleMatches: 0,
+    dedupedMatches: 0
+  })
+
+  const retrying = renderHookValue(() => useDashboardViewModels({
+    dashboard,
+    ...options,
+    historySearchPending: true,
+    isReady: true,
+    chipOrder: {
+      tabs: new Map(),
+      bookmarks: new Map(),
+      history: new Map()
+    }
+  }))
+  assert.equal(retrying.historySearchSummary?.phase, 'searching')
+})
+
+test('failed same-query history refreshes retain the previous result candidates', () => {
+  const historyTab = makeTab({
+    id: 'history-previous',
+    sourceType: 'history',
+    title: 'Previous History result',
+    url: 'https://history-previous.test/docs'
+  })
+  const previous = {
+    realTabs: [],
+    domainGroups: [],
+    historyTabs: [historyTab],
+    historyDomainGroups: buildDomainGroups([historyTab]),
+    historySearchQuery: 'history',
+    historyRange: '1d',
+    historySearchStatus: 'ready' as const
+  }
+  const next = {
+    realTabs: [],
+    domainGroups: [],
+    historyTabs: [],
+    historyDomainGroups: [],
+    historySearchQuery: 'history',
+    historyRange: '7d',
+    historySearchStatus: 'error' as const
+  }
+
+  const retained = retainHistorySearchResultsOnError(next, previous)
+  assert.equal(retained.historyRange, '7d')
+  assert.equal(retained.historySearchStatus, 'error')
+  assert.deepEqual(retained.historyTabs, [historyTab])
+  assert.deepEqual(retained.historyDomainGroups, previous.historyDomainGroups)
+  assert.equal(
+    retainHistorySearchResultsOnError(
+      { ...next, historySearchQuery: 'another query' },
+      previous
+    ).historyTabs?.length,
+    0
   )
 })
 
@@ -2437,6 +2605,12 @@ test('a history result suppressed by an open tab appears immediately after that 
   }))
   assert.equal(open.matchedCards.length, 1)
   assert.equal(open.showHistoryMatches, false)
+  assert.deepEqual(open.historySearchSummary, {
+    phase: 'ready',
+    totalMatches: 1,
+    visibleMatches: 0,
+    dedupedMatches: 1
+  })
 
   const afterClose = renderHookValue(() => useDashboardViewModels({
     dashboard: {
@@ -2448,6 +2622,12 @@ test('a history result suppressed by an open tab appears immediately after that 
   }))
   assert.deepEqual(afterClose.historyMatchedCards.map(({ group }) => group.domain), ['priority.test'])
   assert.equal(afterClose.showHistoryMatches, true)
+  assert.deepEqual(afterClose.historySearchSummary, {
+    phase: 'ready',
+    totalMatches: 1,
+    visibleMatches: 1,
+    dedupedMatches: 0
+  })
 })
 
 test('filter companion results dedupe by tabs, then history, then bookmarks', async () => {
@@ -2509,6 +2689,12 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
     viewModels.bookmarkMatchedCards.flatMap(({ group }) => group.tabs.map((tab) => tab.url)),
     ['https://priority.test/bookmark']
   )
+  assert.deepEqual(viewModels.historySearchSummary, {
+    phase: 'ready',
+    totalMatches: 2,
+    visibleMatches: 1,
+    dedupedMatches: 1
+  })
 })
 
 test('deleteHistorySourceUrl deletes a URL from Chrome history', async () => {

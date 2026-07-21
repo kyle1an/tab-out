@@ -8,6 +8,11 @@ type HistoryItemLike = Pick<chrome.history.HistoryItem, 'id' | 'title' | 'url'>
 
 const HISTORY_MAX_RESULTS = 30
 
+export type HistorySourceSearchResult = {
+  status: 'ready' | 'error'
+  tabs: DashboardTab[]
+}
+
 function historyRangeDays(range = DEFAULT_HISTORY_RANGE): number | null {
   const option = HISTORY_RANGE_OPTIONS.find((candidate) => candidate.value === range)
   return option ? option.days : 90
@@ -36,11 +41,12 @@ export function flattenHistoryItems(items: HistoryItemLike[]): DashboardTab[] {
  *
  * @param {string} query
  * @param {string} [range]
- * @returns {Promise<DashboardTab[]>}
+ * @returns {Promise<HistorySourceSearchResult>}
  */
-export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTORY_RANGE): Promise<DashboardTab[]> {
+export async function fetchHistorySourceSearch(query = '', range = DEFAULT_HISTORY_RANGE): Promise<HistorySourceSearchResult> {
   const text = query.trim()
-  if (!text || !isHistoryFilterEnabled(range) || !globalThis.chrome?.history?.search) return []
+  if (!text || !isHistoryFilterEnabled(range)) return { status: 'ready', tabs: [] }
+  if (!globalThis.chrome?.history?.search) return { status: 'error', tabs: [] }
 
   try {
     const days = historyRangeDays(range)
@@ -49,10 +55,14 @@ export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTOR
       : Date.now() - days * 24 * 60 * 60 * 1000
     const searchQuery = { text, startTime, maxResults: HISTORY_MAX_RESULTS }
     const items = await chrome.history.search(searchQuery)
-    return flattenHistoryItems(items)
+    return { status: 'ready', tabs: flattenHistoryItems(items) }
   } catch {
-    return []
+    return { status: 'error', tabs: [] }
   }
+}
+
+export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTORY_RANGE): Promise<DashboardTab[]> {
+  return (await fetchHistorySourceSearch(query, range)).tabs
 }
 
 /**
