@@ -484,3 +484,15 @@ test('closeDuplicateTabs accepts a non-canonical requested URL for equivalent Ji
 
   assert.deepEqual(removedIds, [1])
 })
+
+test('closeDuplicateTabs treats GitHub repository root slash variants as duplicates while keeping the active tab', async () => {
+  const repository = 'https://github.com/example/repo'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: repository, title: 'example/repo', windowId: 1, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
+    { id: 2, url: `${repository}/`, title: 'example/repo', windowId: 1, index: 1, active: true, pinned: false, groupId: -1, lastAccessed: 100 }
+  ])
+
+  await closeDuplicateTabs([`${repository}/`], true)
+
+  assert.deepEqual(removedIds, [1])
+})

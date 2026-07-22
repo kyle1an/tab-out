@@ -21,6 +21,7 @@
    share the atlassian.net host: whichever path pattern hits first.
    ================================================================ */
 
+import { isGitHubRepositoryOwnerPathSegment } from './github-url.js'
 import type { PathGroupResult, PathGroupRule } from './types'
 
 const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
@@ -37,28 +38,7 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       // /pull/1234 (action item) vs /pulls?q=… (browse all PRs).
       const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?/)
       if (!m) return null
-      const RESERVED = new Set([
-        'orgs',
-        'settings',
-        'notifications',
-        'marketplace',
-        'explore',
-        'pulls',
-        'issues',
-        'search',
-        'login',
-        'join',
-        'about',
-        'new',
-        'topics',
-        'trending',
-        'collections',
-        'events',
-        'sponsors',
-        'codespaces',
-        'account'
-      ])
-      if (RESERVED.has(m[1])) return null
+      if (!isGitHubRepositoryOwnerPathSegment(m[1])) return null
       const label = `${m[1]}/${m[2]}`
       const sub = m[3] || ''
       const item = m[4] || ''

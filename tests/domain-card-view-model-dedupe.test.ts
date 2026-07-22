@@ -38,6 +38,25 @@ test('different focused comments on the same issue are not treated as duplicates
   assert.equal(jiraChips.length, 2)
 })
 
+test('GitHub repository root slash variants collapse into one closable duplicate', () => {
+  const repository = 'https://github.com/example/repo'
+  const group: DomainGroup = {
+    domain: 'github.com',
+    tabs: [
+      makeDashboardTab({ id: 1, url: repository, title: 'example/repo' }),
+      makeDashboardTab({ id: 2, url: `${repository}/`, title: 'example/repo' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const [chip] = collectDashboardChips(vm)
+
+  assert.deepEqual(vm.closableDupeUrls, [repository])
+  assert.equal(vm.closableExtras, 1)
+  assert.equal(chip.dupeCount, 2)
+  assert.equal(chip.titleVariantChips, undefined)
+})
+
 test('dashboards with different filter params collapse into one closable Tab Out duplicate', () => {
   const g = globalThis as { chrome?: unknown }
   const previous = g.chrome

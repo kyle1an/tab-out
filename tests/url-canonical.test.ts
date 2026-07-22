@@ -34,6 +34,26 @@ test('different issue keys stay distinct', () => {
   assert.notEqual(canonicalDedupeKey(other), canonical)
 })
 
+test('GitHub repository root trailing slashes collapse to the no-slash key', () => {
+  const repository = 'https://github.com/example/repo'
+  assert.equal(canonicalDedupeKey(repository), repository)
+  assert.equal(canonicalDedupeKey(`${repository}/`), repository)
+})
+
+test('GitHub repository root canonicalization preserves query and hash identity', () => {
+  const repository = 'https://github.com/example/repo'
+  const canonicalVariant = `${repository}?tab=readme#example-section`
+  assert.equal(canonicalDedupeKey(`${repository}/?tab=readme#example-section`), canonicalVariant)
+  assert.notEqual(canonicalDedupeKey(`${repository}/?tab=issues#example-section`), canonicalVariant)
+})
+
+test('GitHub trailing-slash canonicalization stays scoped to repository roots', () => {
+  const nestedRoute = 'https://github.com/example/repo/issues/'
+  const reservedRoute = 'https://github.com/settings/profile/'
+  assert.equal(canonicalDedupeKey(nestedRoute), nestedRoute)
+  assert.equal(canonicalDedupeKey(reservedRoute), reservedRoute)
+})
+
 test('non-Jira URLs are returned unchanged', () => {
   const url = 'https://example.com/page?utm_source=x#frag'
   assert.equal(canonicalDedupeKey(url), url)

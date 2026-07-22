@@ -18,9 +18,21 @@
    ================================================================ */
 
 import { isTabOutDashboardUrl, tabOutDashboardCanonicalUrl } from './tab-out-url.js'
+import { isGitHubRepositoryRootPath } from './github-url.js'
 import type { UrlCanonicalizerRule } from './types'
 
 const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
+  // GitHub repository roots: /{owner}/{repo}/ → /{owner}/{repo}.
+  // GitHub advertises the no-slash form as the repository page identity.
+  // Keep nested and reserved top-level routes exact by default.
+  {
+    hostname: 'github.com',
+    canonicalize: (u: URL) => {
+      if (!u.pathname.endsWith('/') || !isGitHubRepositoryRootPath(u.pathname)) return null
+      return `${u.origin}${u.pathname.slice(0, -1)}${u.search}${u.hash}`
+    }
+  },
+
   // Atlassian Jira: /browse/{ISSUE}-{N} → dedup by issue + focused comment.
   // Drops sourceType, page, and the redundant #comment-N hash. The focused
   // comment is taken from focusedCommentId or the #comment-N hash, whichever
