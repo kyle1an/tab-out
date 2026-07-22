@@ -109,9 +109,9 @@ pnpm setup:hooks
 pnpm dev
 ```
 
-Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/`, the extension stylesheets, package metadata, or the manifest writer; the repo watcher runs manifest generation plus Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
+Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/`, `extension/base.css`, package metadata, or the manifest writer; the repo watcher runs manifest generation plus Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/filter-focus-boot.js` early-filter bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
 
-Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `src/extension/manifest.ts`, permissions, or service-worker behavior. `pnpm build` regenerates `extension/manifest.json`. Changes to `extension/style.css` and `extension/base.css` now flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Changes to `extension/index.html` still need a page or extension reload to be picked up.
+Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `src/extension/manifest.ts`, permissions, or service-worker behavior. `pnpm build` regenerates `extension/manifest.json`. Changes to `src/styles/app.css` or `extension/base.css` flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Changes to `extension/index.html` still need a page or extension reload to be picked up.
 
 The `extension/` folder is the unpacked Chrome package surface. Runtime source lives under `src/`; generated bundles live under `extension/dist/`.
 
@@ -121,7 +121,7 @@ Before committing:
 pnpm verify
 ```
 
-`pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
+`pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/filter-focus-boot.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
 
 For a faster iteration-only pass, `pnpm verify:quick` runs typechecking, lint, React Doctor, and the React Compiler baseline check in parallel. It does not build bundles or run tests, so it does not replace `pnpm verify` before committing. Nub users can run the pinned-Node form with `nub run --node verify:quick`.
 
