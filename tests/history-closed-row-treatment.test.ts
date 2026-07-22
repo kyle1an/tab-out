@@ -49,6 +49,27 @@ test('a never-activated background history row uses the existing index UI withou
   assert.doesNotMatch(html, />New</)
 })
 
+test('history entries never render Cursor, Pending, or Pinned title badges', () => {
+  const html = renderHistoryPanel([
+    makeHistoryEntry({ cursor: true, current: false, pinned: true }),
+    makeHistoryEntry({
+      index: 1,
+      tabId: 102,
+      cursor: false,
+      current: true,
+      pinned: true,
+      title: 'Current notes',
+      url: 'https://example.com/current',
+      rawUrl: 'https://example.com/current',
+      displayUrl: 'example.com/current'
+    })
+  ], { activeWasInserted: true })
+
+  assert.doesNotMatch(html, />Cursor<\/span>/)
+  assert.doesNotMatch(html, />Pending<\/span>/)
+  assert.doesNotMatch(html, />Pinned<\/span>/)
+})
+
 test('an open history row hovers with the closed line recipe at the quiet interaction-fill color', () => {
   const html = renderHistoryPanel([makeHistoryEntry()])
   const rowMatch = html.match(/class="(history-entry group\/history-entry[^"]*)"/)

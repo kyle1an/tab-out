@@ -36,7 +36,8 @@ export function makeHistoryEntry(
 }
 
 function makeHistorySnapshot(
-  entries: TabHistoryEntry[]
+  entries: TabHistoryEntry[],
+  overrides: Partial<TabHistorySnapshot> = {}
 ): TabHistorySnapshot {
   return {
     stackSize: entries.length,
@@ -48,15 +49,16 @@ function makeHistorySnapshot(
     activeTabId: 101,
     activeWindowId: 1,
     activeWasInserted: false,
+    ...overrides,
     entries
   }
 }
 
-export function renderHistoryPanel(entries: TabHistoryEntry[]): string {
+export function renderHistoryPanel(entries: TabHistoryEntry[], snapshotOverrides: Partial<TabHistorySnapshot> = {}): string {
   return renderToStaticMarkup(
     React.createElement(
       TabHistoryPanel as React.ComponentType<{ snapshot: TabHistorySnapshot }>,
-      { snapshot: makeHistorySnapshot(entries) }
+      { snapshot: makeHistorySnapshot(entries, snapshotOverrides) }
     )
   )
 }

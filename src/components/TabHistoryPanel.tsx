@@ -145,7 +145,6 @@ interface HistoryEntryProps {
   kind: HistoryEntryKind
   layoutKey: string
   indexLabel: ReactNode
-  snapshot: TabHistorySnapshot | null
   workingSetItem?: WorkingSetItem | null
   closedTab?: ClosedTabEntry | null
   savedKeys?: ReadonlySet<string>
@@ -539,14 +538,6 @@ function getHistoryTitleResizeObserver() {
     historyTitleResizeObserver = createSizeChangeObserver(syncHistoryTitleFade)
   }
   return historyTitleResizeObserver
-}
-
-function entryBadges(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null) {
-  const badges = []
-  if (entry.cursor && !entry.current) badges.push('Cursor')
-  if (snapshot?.activeWasInserted && entry.current) badges.push('Pending')
-  if (entry.pinned) badges.push('Pinned')
-  return badges
 }
 
 function historyEntryIndexLabel(entry: TabHistoryEntry, snapshot: TabHistorySnapshot | null, fallback: number): ReactNode {
@@ -1047,14 +1038,13 @@ type HistoryEntryTitleProps = {
   expanded: boolean
   title: string
   highlightTerms: readonly string[]
-  badges: readonly string[]
   mutedTitle: boolean
   geometry: HistoryEntryExpansionGeometry
   clampedLineHtml: readonly string[] | null
   titleRef: RefObject<HTMLSpanElement | null>
 }
 
-function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
+function HistoryEntryTitle({ expanded, title, highlightTerms, mutedTitle, geometry, clampedLineHtml, titleRef }: HistoryEntryTitleProps) {
   function expandedLinesNode() {
     const lastIndex = geometry.lineHtml.length - 1
     return (
@@ -1096,15 +1086,6 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, badges, mutedTitle
             {titleContent}
           </span>
         </span>
-        {badges.length > 0 && (
-          <span className="inline-flex flex-none items-center gap-1">
-            {badges.map((badge) => (
-              <span key={badge} className="whitespace-nowrap rounded-full bg-neutral-500/[0.08] px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                {badge}
-              </span>
-            ))}
-          </span>
-        )}
       </span>
     </span>
   )
@@ -1256,7 +1237,7 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
   )
 }
 
-function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const titleClampKey = JSON.stringify([entry.title, highlightTerms])
   const {
@@ -1277,7 +1258,6 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
   } = useHistoryEntryExpansion(contextMenuOpenRef, titleClampKey)
 
   const isWorkingSetExtra = !!workingSetItem
-  const badges = isWorkingSetExtra ? [] : entryBadges(entry, snapshot)
   // Open-ghost (Working Set) rows reference a live tab, so they close it like
   // stack rows. Closed-ghost rows are already closed and Chrome exposes no API
   // to delete a recently-closed entry, so they "forget" via a local dismissal.
@@ -1479,7 +1459,6 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
             expanded={expanded}
             title={entry.title}
             highlightTerms={highlightTerms}
-            badges={badges}
             mutedTitle={entryClosed}
             geometry={entryExpansionGeometry}
             clampedLineHtml={titleClamp?.key === titleClampKey ? titleClamp.lineHtml : null}
@@ -1742,7 +1721,6 @@ function HistoryPanelRow({
         entry={row.entry}
         layoutKey={layoutKey}
         indexLabel={historyEntryIndexLabel(row.entry, snapshot, row.entry.index + 1)}
-        snapshot={snapshot}
         kind="stack"
         savedKeys={savedKeys}
         highlightTerms={highlightTerms}
@@ -1758,7 +1736,6 @@ function HistoryPanelRow({
         entry={historyEntryFromWorkingSetItem(row.item)}
         layoutKey={layoutKey}
         indexLabel={null}
-        snapshot={snapshot}
         kind="open-ghost"
         workingSetItem={row.item}
         savedKeys={savedKeys}
@@ -1774,7 +1751,6 @@ function HistoryPanelRow({
       entry={historyEntryFromClosedTab(row.closed)}
       layoutKey={layoutKey}
       indexLabel={null}
-      snapshot={snapshot}
       kind="closed-ghost"
       closedTab={row.closed}
       savedKeys={savedKeys}
