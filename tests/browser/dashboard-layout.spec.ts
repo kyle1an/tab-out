@@ -387,6 +387,86 @@ test('Page Chip keeps hydrated title details and interaction chrome in one expan
   })
 })
 
+test('Page Chip preserves tall first-line glyph ink without changing its layout box', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?tallGlyphTitle=1')
+  const chip = page.locator('[data-tabout="page-chip"]').filter({ hasText: '⬆️ Tall glyph title' }).first()
+  const title = chip.locator('.chip-text')
+  await expect(title).toBeVisible()
+
+  const geometry = await title.evaluate((element) => {
+    const content = element.querySelector<HTMLElement>('.captured-title-content-root')
+    if (!content) throw new Error('Tall-glyph Page Chip fixture is unavailable')
+
+    const baselineProbe = document.createElement('span')
+    baselineProbe.style.cssText = 'display:inline-block;width:0;height:0;padding:0;margin:0;vertical-align:baseline'
+    content.prepend(baselineProbe)
+
+    const titleRect = element.getBoundingClientRect()
+    const chipRect = element.closest<HTMLElement>('[data-tabout="page-chip"]')?.getBoundingClientRect()
+    const baselineRect = baselineProbe.getBoundingClientRect()
+    const style = getComputedStyle(element)
+    const context = document.createElement('canvas').getContext('2d')
+    if (!chipRect || !context) throw new Error('Tall-glyph Page Chip geometry is unavailable')
+    context.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(' ')
+    const glyphMetrics = context.measureText('⬆️')
+
+    return {
+      chipHeight: chipRect.height,
+      titleHeight: titleRect.height,
+      titleLeft: titleRect.left,
+      titleTop: titleRect.top,
+      inkTop: baselineRect.top - glyphMetrics.actualBoundingBoxAscent
+    }
+  })
+  expect(geometry.inkTop).toBeLessThan(geometry.titleTop - 0.5)
+
+  const screenshotClip = {
+    x: Math.floor(geometry.titleLeft - 2),
+    y: Math.floor(geometry.titleTop - 4),
+    width: 52,
+    height: Math.ceil(geometry.titleHeight + 8)
+  }
+  const clippedScreenshot = await page.screenshot({ clip: screenshotClip, animations: 'disabled' })
+  await title.evaluate((element) => {
+    element.style.overflow = 'visible'
+  })
+  const visibleScreenshot = await page.screenshot({ clip: screenshotClip, animations: 'disabled' })
+
+  const changedPixelsAboveTitle = await page.evaluate(async ({ clippedPng, visiblePng, boundaryY }) => {
+    const decode = async (encoded: string) => {
+      const response = await fetch(`data:image/png;base64,${encoded}`)
+      const bitmap = await createImageBitmap(await response.blob())
+      const canvas = document.createElement('canvas')
+      canvas.width = bitmap.width
+      canvas.height = bitmap.height
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Screenshot canvas is unavailable')
+      context.drawImage(bitmap, 0, 0)
+      return context.getImageData(0, 0, bitmap.width, bitmap.height)
+    }
+
+    const [clipped, visible] = await Promise.all([decode(clippedPng), decode(visiblePng)])
+    let changedPixels = 0
+    for (let index = 0; index < clipped.data.length; index += 4) {
+      const delta =
+        Math.abs(clipped.data[index] - visible.data[index]) +
+        Math.abs(clipped.data[index + 1] - visible.data[index + 1]) +
+        Math.abs(clipped.data[index + 2] - visible.data[index + 2]) +
+        Math.abs(clipped.data[index + 3] - visible.data[index + 3])
+      if (delta > 8 && Math.floor(index / 4 / clipped.width) < boundaryY) changedPixels += 1
+    }
+    return changedPixels
+  }, {
+    clippedPng: clippedScreenshot.toString('base64'),
+    visiblePng: visibleScreenshot.toString('base64'),
+    boundaryY: Math.round(geometry.titleTop - screenshotClip.y)
+  })
+
+  expect(changedPixelsAboveTitle).toBe(0)
+  await expect.poll(() => chip.evaluate((element) => element.getBoundingClientRect().height)).toBe(geometry.chipHeight)
+  await expect.poll(() => title.evaluate((element) => element.getBoundingClientRect().height)).toBe(geometry.titleHeight)
+})
+
 test('measured dashboard titles share one document font listener', async ({ page }) => {
   await page.addInitScript(() => {
     const counts = { loadingdone: 0, loadingerror: 0 }

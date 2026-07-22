@@ -2641,10 +2641,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     chipTextClamp?.key === chipTextClampKey &&
     chipTextClamp.lineHtml.length > 1
   const chipTextContentKey = chipTextClampAvailable ? 'captured' : 'natural'
+  // Fallback emoji and tall symbols can paint slightly outside the tight line
+  // box. Extend the clip edge without shifting the title or changing clamp
+  // height; the expansion hit-area padding sits outside this clipping element.
   const chipTextElement = (
     <span
       className={cn(
-        "chip-text block min-w-0 flex-1 overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:var(--title-fade-mask)]",
+        "chip-text block min-w-0 flex-1 overflow-clip [overflow-clip-margin:2px] hyphens-auto break-normal max-h-[calc(2lh)] [hyphenate-character:''] [&.chip-text-truncated]:[mask-image:var(--title-fade-mask)]",
         hasFilter && 'text-[color-mix(in_srgb,var(--color-tab-live)_72%,var(--color-muted-foreground))]',
         chip.pathSuffix && 'max-h-[calc(3lh)]',
         isTitleVariantGroup && 'max-h-none !overflow-visible',

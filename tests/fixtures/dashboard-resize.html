@@ -23,6 +23,7 @@
 
       const fixtureParams = new URLSearchParams(window.location.search)
       const shortHistoryTitleCase = fixtureParams.has('shortHistoryTitle')
+      const tallGlyphTitleCase = fixtureParams.has('tallGlyphTitle')
       const historyTitle = shortHistoryTitleCase
         ? 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
         : 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup'
@@ -393,7 +394,7 @@
             id: index + 1,
             url: `https://${domain}/docs/${index + 1}`,
             title: index === 0
-              ? 'Short title'
+              ? (tallGlyphTitleCase ? '⬆️ Tall glyph title' : 'Short title')
               : `Example ${index + 1} with enough tooltip text to prove viewport-edge collision flipping keeps the popup visible`,
             favIconUrl: '',
             windowId: 1,
