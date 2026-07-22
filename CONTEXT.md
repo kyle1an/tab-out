@@ -115,7 +115,7 @@
 - Title suppression color assignment is stable across collapsed and expanded child groups.
 - Title suppression colors may be reused only after the available palette colors are exhausted within a **Domain Card**.
 - Neutral single-token **Title Suppression Scopes** do not consume palette colors.
-- **Title Expansion** opens at most one expanded title per surface kind at a time, and an expanded title survives a brief pointer-leave grace before closing.
+- **Title Expansion** opens at most one expanded title per surface kind at a time. A Page Chip closes immediately when the pointer leaves its expanded bounding box unless its context menu or visible keyboard focus still owns it. Activation History closes immediately when the pointer leaves its original entry slot unless its context menu still owns it.
 - An expanded **Activation History** title paints above the local scrollbar, so the moving entry itself covers only the scrollbar band it currently overlaps during normal scrolling and elastic overscroll; the rest of the scrollbar remains visible and interactive. The covered band routes input through the history scroller instead of the obscured scrollbar track.
 - Working Set rows use only the clamped-fade half of **Title Expansion**; Page Chip and Activation History titles are the hover-expandable surfaces.
 

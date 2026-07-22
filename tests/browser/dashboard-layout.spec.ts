@@ -215,28 +215,12 @@ test('ordinary dashboard renders keep masonry observers attached', async ({ page
   expect(await readDisconnects()).toEqual(before)
 })
 
-test('Page Chip clears its interaction chrome as soon as the pointer leaves', async ({ page }) => {
+test('Page Chip closes its expansion and interaction chrome as soon as the pointer leaves', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
   const chip = page.locator('[data-tabout="page-chip"]').first()
-  const restingPaint = await chip.evaluate((element) => {
-    const style = getComputedStyle(element)
-    return {
-      root: {
-        backgroundColor: style.backgroundColor,
-        boxShadow: style.boxShadow,
-        outline: style.outline
-      },
-      actionFadeOpacity: getComputedStyle(element, '::after').opacity
-    }
-  })
-
-  await chip.hover()
-  await expect(chip).toHaveAttribute('data-expanded', 'true')
-  const expandedChipElement = await chip.elementHandle()
-  expect(expandedChipElement).not.toBeNull()
-  const readExpandedInteractionPaint = () => expandedChipElement!.evaluate((element) => {
+  const readInteractionPaint = (element: HTMLElement) => {
     const style = getComputedStyle(element)
     const expandedFill = element.querySelector<HTMLElement>('.page-chip-expanded-fill')
     return {
@@ -248,35 +232,33 @@ test('Page Chip clears its interaction chrome as soon as the pointer leaves', as
       actionFadeOpacity: getComputedStyle(element, '::after').opacity,
       expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null
     }
-  })
-  const hoveredPaint = await readExpandedInteractionPaint()
+  }
+  const restingPaint = await chip.evaluate(readInteractionPaint)
+
+  await chip.hover()
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  const expandedChipElement = await chip.elementHandle()
+  expect(expandedChipElement).not.toBeNull()
+  const hoveredPaint = await expandedChipElement!.evaluate(readInteractionPaint)
   expect(hoveredPaint.root).not.toEqual(restingPaint.root)
   expect(hoveredPaint.expandedFillOpacity).toBe('1')
 
   const expandedBounds = await expandedChipElement!.boundingBox()
   expect(expandedBounds).not.toBeNull()
-  await page.evaluate(() => {
-    const nativeSetTimeout = window.setTimeout.bind(window)
-    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => (
-      nativeSetTimeout(handler, timeout && timeout <= 500 ? 10_000 : timeout, ...args)
-    )) as typeof window.setTimeout
-  })
 
   await page.mouse.move(
     (expandedBounds?.x ?? 0) + (expandedBounds?.width ?? 0) + 2,
     (expandedBounds?.y ?? 0) + (expandedBounds?.height ?? 0) / 2
   )
-  expect(await expandedChipElement!.evaluate((element) => ({
+  await page.waitForTimeout(50)
+  expect(await chip.evaluate((element) => ({
     expanded: element.getAttribute('data-expanded'),
     hovered: element.matches(':hover')
   }))).toEqual({
-    expanded: 'true',
+    expanded: null,
     hovered: false
   })
-  expect(await readExpandedInteractionPaint()).toEqual({
-    ...restingPaint,
-    expandedFillOpacity: '0'
-  })
+  expect(await chip.evaluate(readInteractionPaint)).toEqual(restingPaint)
 })
 
 test('measured dashboard titles share one document font listener', async ({ page }) => {
@@ -340,6 +322,33 @@ test('Activation History restores its title fade after hover expansion closes', 
     'history-entry-title-truncated',
     'collapsed Activation History title should restore its clamp and fade'
   )
+})
+
+test('Activation History closes its title expansion as soon as the pointer leaves', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const row = page.locator('[data-tabout="activation-history-entry"]').filter({
+    hasText: 'Low score history item with enough tooltip text'
+  }).first()
+  const title = row.locator('.history-entry-title').first()
+  await title.scrollIntoViewIfNeeded()
+  await title.hover()
+  await expect(row.locator('.history-entry-expanded')).toHaveCount(1)
+
+  const collapsedByNextFrame = await row.evaluate(async (element) => {
+    const collapsedSurface = element.querySelector<HTMLElement>('.history-entry:not(.history-entry-expanded)')
+    const outsideTarget = document.querySelector<HTMLElement>('[data-tabout="dashboard-shell"]')
+    if (!collapsedSurface || !outsideTarget) throw new Error('History pointer-leave fixtures are unavailable')
+    collapsedSurface.dispatchEvent(new PointerEvent('pointerout', {
+      bubbles: true,
+      pointerType: 'mouse',
+      relatedTarget: outsideTarget
+    }))
+    await new Promise((resolve) => requestAnimationFrame(resolve))
+    return element.querySelector('.history-entry-expanded') === null
+  })
+  expect(collapsedByNextFrame).toBe(true)
 })
 
 test('Activation History expands a faded two-line title on hover', async ({ page }) => {

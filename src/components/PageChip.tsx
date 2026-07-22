@@ -51,12 +51,6 @@ const PAGE_CHIP_EXPANDED_WIDTH_GUARD_PX = 8
 const CHIP_TEXT_CLAMP_WIDTH_TOLERANCE_PX = 0.5
 const PAGE_CHIP_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX = 1.5
-const PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS = 160
-// While expanded, the chip floats wider/taller than its original slot. Keep it open
-// until the pointer leaves the EXPANDED chip (plus this small grace margin) so the
-// pointer can travel onto the revealed content without the chip blinking shut at the
-// seam between the original footprint and the revealed overflow.
-const PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX = 6
 const PAGE_CHIP_TARGET_INTERACTION_BG = 'color-mix(in oklab, var(--color-neutral-600) 14%, transparent)'
 const PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0 bg-[rgba(115,115,115,0.08)] px-1 text-[12px] leading-[inherit] font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle] [-webkit-box-decoration-break:clone] [box-decoration-break:clone]'
 const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inline-block max-w-full rounded-lg bg-[rgba(115,115,115,0.1)] px-1.5 text-xs font-medium whitespace-nowrap text-muted-foreground align-baseline [corner-shape:squircle]'
@@ -1241,13 +1235,14 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     setChipExpandedState(nextExpanded)
   }, [])
 
-  // Page Chips keep an expansion open while their context menu is up: the
-  // veto holds inside close (re-checked when a pending close fires) and
-  // against lane steals, unlike history rows which guard at call sites.
+  // Page Chips close synchronously on pointer exit, but an open context menu
+  // or visible keyboard focus still owns the expansion. Context menus also
+  // keep ownership against lane steals, unlike history rows which guard at
+  // call sites.
   const chipExpansionController = useTitleExpansionController({
     id: chipExpansionId,
     lane: pageChipExpansionLane,
-    closeDelayMs: PAGE_CHIP_EXPANDED_CLOSE_DELAY_MS,
+    closeDelayMs: 0,
     onExpandedChange: setChipExpanded,
     shouldCancelClose: () => contextMenuOpenRef.current,
     shouldIgnoreLaneSteal: () => contextMenuOpenRef.current
@@ -1647,8 +1642,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     chipExpansionController.open()
   }
 
-  function closeChipExpansion({ delayed = true } = {}) {
-    chipExpansionController.close({ delayed })
+  function closeChipExpansion() {
+    chipExpansionController.close({ delayed: false })
   }
 
   useEffect(() => {
@@ -1661,17 +1656,17 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       // Measure the EXPANDED chip, not the original slot: the expanded chip floats
       // wider/taller than its 1:1 slot, so testing the slot rect collapsed the chip
       // the instant the pointer crossed into the revealed overflow — blinking it shut
-      // at the border before the revealed content could be reached. Stay open while
-      // the pointer is over the expanded chip (plus a small grace margin).
+      // at the border before the revealed content could be reached. The expanded
+      // bounding box is the complete pointer region; leaving it closes immediately.
       const expandedChipEl = chipSlotRef.current?.querySelector<HTMLElement>('.page-chip')
+      if (expandedChipEl?.matches(':focus-visible')) return
       const rect = expandedChipEl?.getBoundingClientRect() ?? chipSlotRef.current?.getBoundingClientRect()
       if (!rect) return
-      const tolerance = PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX
       const insideExpandedChip =
-        event.clientX >= rect.left - tolerance &&
-        event.clientX <= rect.right + tolerance &&
-        event.clientY >= rect.top - tolerance &&
-        event.clientY <= rect.bottom + tolerance
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
       if (!insideExpandedChip) closeNow()
     }
     const closeOnVisibilityChange = () => {
@@ -1704,12 +1699,25 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
     if (contextMenuOpenRef.current) return
-    closeChipExpansion({ delayed: false })
+    closeChipExpansion()
     setPreview('')
   }
 
   function onChipPointerLeave(e: PointerEvent<HTMLDivElement>) {
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
+    if (e.currentTarget.matches(':focus-visible')) return
+    if (chipExpandedRef.current) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const insideExpandedBounds =
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      // Rounded corners can stop DOM hover while the pointer is still inside
+      // the visible expansion bounds. Let the window pointer tracker close it
+      // once the pointer genuinely leaves that box.
+      if (insideExpandedBounds) return
+    }
     closeChipExpansion()
   }
 

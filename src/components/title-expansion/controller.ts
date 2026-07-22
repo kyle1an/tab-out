@@ -1,16 +1,17 @@
 /* ================================================================
    Title Expansion controller — the headless open/close half of the
    Title Expansion engine (CONTEXT.md): hover-expanded titles open at
-   most one overlay per surface lane, and a closing overlay survives a
-   short grace delay so pointer travel doesn't blink it shut.
+   most one overlay per surface lane. The controller still supports an
+   optional close schedule, while the current tab-title surfaces close
+   synchronously on pointer departure.
 
    The controller owns timing and lane arbitration only. What counts
    as expandable, how the expanded lines are measured, and the overlay
    markup all stay with the adapting surface. Per-surface behavior
    differences ride in as config: the close-veto predicates exist
    because Page Chips keep an expansion open while their context menu
-   is up (checked again when a pending close fires), while history
-   rows guard at their call sites instead.
+   is up, while history rows guard at their call sites instead. An
+   optional delayed consumer gets that veto checked again at fire time.
 
    The scheduler is injectable so the delay logic tests under node
    with a fake clock; production uses setTimeout.

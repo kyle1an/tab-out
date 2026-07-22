@@ -1161,10 +1161,11 @@ test('PageChip expands same-title URL variant groups in place', () => {
   // the expanded chip floats wider/taller than its 1:1 slot, so testing the slot
   // rect collapsed the chip the instant the pointer reached the revealed overflow
   // (the blink-at-the-border bug). It keeps the chip open across the whole
-  // expanded surface (plus a small grace margin) so the pointer can reach the URL.
+  // expanded surface so the pointer can reach the URL, then closes at its edge.
   assert.match(pageChipSource, /closeOnPointerMove[\s\S]*?chipSlotRef\.current\?\.querySelector<HTMLElement>\('\.page-chip'\)/)
   assert.match(pageChipSource, /closeOnPointerMove[\s\S]*?insideExpandedChip/)
-  assert.match(pageChipSource, /PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX/)
+  assert.doesNotMatch(pageChipSource, /PAGE_CHIP_EXPANDED_POINTER_LEAVE_TOLERANCE_PX/)
+  assert.match(pageChipSource, /function onChipPointerLeave[\s\S]*?matches\(':focus-visible'\)[\s\S]*?closeChipExpansion\(\)/)
   assert.doesNotMatch(pageChipSource, /backgroundColor: 'var\(--chip-hover-fade-bg\)'/)
   assert.match(pageChipSource, /width: chipExpandedWidth/)
   assert.match(pageChipSource, /Math\.max\(rect\.width, minWidth, contentMetrics\.width \+ horizontalInset\)/)
@@ -1733,7 +1734,8 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   )
   assert.match(pageChipClampSource, /clampedTitleLineNodes\([\s\S]*chipTextClamp\.lineHtml,[\s\S]*'chip-text',[\s\S]*hasTitleSuppressionMarkers \? rebuildClampedChipMarker : undefined/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12/)
-  assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160/)
+  assert.doesNotMatch(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS/)
+  assert.match(tabHistoryPanelSource, /closeDelayMs: 0/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8/)
   assert.match(tabHistoryPanelSource, /getHistoryEntryExpansionGeometry/)
   assert.match(tabHistoryPanelSource, /getHistoryTitleExpandedTextWidth/)
@@ -1744,7 +1746,7 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   assert.match(tabHistoryPanelSource, /titleExpanded && 'history-entry-expanded-open'/)
   assert.match(tabHistoryPanelSource, /titleExpanded && 'history-entry-row-expanded-open'/)
   assert.match(tabHistoryPanelSource, /function openTitleExpansion\(\)/)
-  assert.match(tabHistoryPanelSource, /function closeTitleExpansion\(\{ delayed = true \} = \{\}\)/)
+  assert.match(tabHistoryPanelSource, /function closeTitleExpansion\(\) \{[\s\S]*titleExpansionController\.close\(\{ delayed: false \}\)/)
   assert.match(tabHistoryPanelSource, /function onHistoryEntryPointerEnter\(\) \{[\s\S]*openTitleExpansion\(\)/)
   assert.match(tabHistoryPanelSource, /function onHistoryEntryPointerMove\(e: PointerEvent<HTMLDivElement>\)/)
   assert.match(tabHistoryPanelSource, /history-entry-title-expansion-hit-area/)

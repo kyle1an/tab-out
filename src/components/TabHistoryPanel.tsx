@@ -42,7 +42,6 @@ const HISTORY_ENTRY_EXPANDED_VIEWPORT_MARGIN_PX = 12
 const HISTORY_ENTRY_EXPANDED_WIDTH_GUARD_PX = 8
 const HISTORY_ENTRY_EXPANDED_WIDTH_SEARCH_STEPS = 12
 const HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX = 1
-const HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS = 160
 const HISTORY_TITLE_CLAMP_WIDTH_TOLERANCE_PX = 0.5
 const HISTORY_ENTRY_EXPANDED_LINES_CLASS_NAME = 'history-entry-expanded-lines block min-w-0 max-w-full'
 const HISTORY_ENTRY_EXPANDED_LINE_CLASS_NAME = 'history-entry-expanded-line block min-w-0 max-w-full whitespace-nowrap'
@@ -665,7 +664,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   const titleExpansionController = useTitleExpansionController({
     id: entryExpansionId,
     lane: historyEntryExpansionLane,
-    closeDelayMs: HISTORY_ENTRY_EXPANDED_CLOSE_DELAY_MS,
+    closeDelayMs: 0,
     onExpandedChange: setTitleExpanded,
     shouldIgnoreLaneSteal: () => contextMenuOpenRef.current
   })
@@ -781,8 +780,8 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     titleExpansionController.open()
   }
 
-  function closeTitleExpansion({ delayed = true } = {}) {
-    titleExpansionController.close({ delayed })
+  function closeTitleExpansion() {
+    titleExpansionController.close({ delayed: false })
   }
 
   useEffect(() => {
@@ -820,8 +819,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   // driven separately by the row's onMouseEnter/onMouseLeave.
   function onHistoryEntryContextMenuOpenChange(open: boolean) {
     contextMenuOpenRef.current = open
-    if (open) titleExpansionController.cancelPendingClose()
-    else closeTitleExpansion()
+    if (!open) closeTitleExpansion()
   }
 
   function onHistoryEntryPointerEnter() {
@@ -856,7 +854,7 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
   function onHistoryEntryBlur(e: FocusEvent<HTMLDivElement>) {
     if (contextMenuOpenRef.current) return
     if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return
-    closeTitleExpansion({ delayed: false })
+    closeTitleExpansion()
   }
 
   return {
