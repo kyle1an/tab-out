@@ -234,6 +234,7 @@ test('Page Chip closes its expansion and interaction chrome as soon as the point
     }
   }
   const restingPaint = await chip.evaluate(readInteractionPaint)
+  expect(await chip.evaluate((element) => getComputedStyle(element).transitionProperty.split(',').map((property) => property.trim()))).not.toContain('box-shadow')
 
   await chip.hover()
   await expect(chip).toHaveAttribute('data-expanded', 'true')
@@ -241,6 +242,8 @@ test('Page Chip closes its expansion and interaction chrome as soon as the point
   expect(expandedChipElement).not.toBeNull()
   const hoveredPaint = await expandedChipElement!.evaluate(readInteractionPaint)
   expect(hoveredPaint.root).not.toEqual(restingPaint.root)
+  expect(hoveredPaint.root.backgroundColor).not.toBe(restingPaint.root.backgroundColor)
+  expect(hoveredPaint.root.boxShadow).not.toBe(restingPaint.root.boxShadow)
   expect(hoveredPaint.expandedFillOpacity).toBe('1')
 
   const expandedBounds = await expandedChipElement!.boundingBox()
@@ -250,7 +253,6 @@ test('Page Chip closes its expansion and interaction chrome as soon as the point
     (expandedBounds?.x ?? 0) + (expandedBounds?.width ?? 0) + 2,
     (expandedBounds?.y ?? 0) + (expandedBounds?.height ?? 0) / 2
   )
-  await page.waitForTimeout(50)
   expect(await chip.evaluate((element) => ({
     expanded: element.getAttribute('data-expanded'),
     hovered: element.matches(':hover')
@@ -259,6 +261,130 @@ test('Page Chip closes its expansion and interaction chrome as soon as the point
     hovered: false
   })
   expect(await chip.evaluate(readInteractionPaint)).toEqual(restingPaint)
+})
+
+test('Page Chip keeps hydrated title details and interaction chrome in one expansion state', async ({ page }) => {
+  const targetLabel = 'Tooltip Boundary Alpha'
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  const chip = page.locator('[data-tabout="page-chip"]').filter({ hasText: targetLabel }).first()
+  await expect(chip).toBeVisible()
+  await chip.scrollIntoViewIfNeeded()
+  await chip.evaluate((element) => {
+    const text = element.querySelector<HTMLElement>('.chip-text')
+    if (!text) throw new Error('Hydrated-title Page Chip fixture is unavailable')
+    text.style.flex = '0 0 130px'
+    text.style.maxWidth = '130px'
+    text.style.maxHeight = 'calc(1lh)'
+  })
+
+  const readExpansionState = (surface: HTMLElement) => {
+    const style = getComputedStyle(surface)
+    const indicator = surface.querySelector<HTMLElement>('.chip-strip-indicator')
+    const indicatorLabel = indicator?.querySelector<HTMLElement>('.chip-strip-indicator-label')
+    const indicatorGlyph = indicator?.querySelector<HTMLElement>('.chip-strip-indicator-glyph')
+    const markers = Array.from(surface.querySelectorAll<HTMLElement>('.chip-title-suppression-marker'))
+    const expandedFill = surface.querySelector<HTMLElement>('.page-chip-expanded-fill')
+    return {
+      expanded: surface.getAttribute('data-expanded'),
+      hovered: surface.matches(':hover'),
+      indicatorText: indicator?.innerText ?? '',
+      indicatorLabelDisplay: indicatorLabel ? getComputedStyle(indicatorLabel).display : null,
+      indicatorGlyphDisplay: indicatorGlyph ? getComputedStyle(indicatorGlyph).display : null,
+      markerTexts: markers.map((marker) => marker.innerText),
+      markerLabelDisplays: markers.map((marker) => {
+        const label = marker.querySelector<HTMLElement>('.chip-title-suppression-label')
+        return label ? getComputedStyle(label).display : null
+      }),
+      markerGlyphDisplays: markers.map((marker) => {
+        const glyph = marker.querySelector<HTMLElement>('.chip-title-suppression-glyph')
+        return glyph ? getComputedStyle(glyph).display : null
+      }),
+      paint: {
+        backgroundColor: style.backgroundColor,
+        boxShadow: style.boxShadow,
+        outline: style.outline,
+        expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null
+      }
+    }
+  }
+  const restingState = await chip.evaluate(readExpansionState)
+  expect(restingState.expanded).toBeNull()
+  expect(restingState.indicatorText).not.toBe('')
+  expect(restingState.indicatorLabelDisplay).toBe('none')
+  expect(restingState.indicatorGlyphDisplay).not.toBe('none')
+  expect(restingState.markerTexts.length).toBeGreaterThan(0)
+  expect(restingState.markerTexts.every((text) => text === '')).toBe(true)
+  expect(restingState.markerLabelDisplays.every((display) => display === 'none')).toBe(true)
+  expect(restingState.markerGlyphDisplays.every((display) => display !== 'none')).toBe(true)
+
+  await chip.hover({ position: { x: 36, y: 8 } })
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  await page.waitForTimeout(120)
+  const expandedState = await chip.evaluate(readExpansionState)
+  expect(expandedState.hovered).toBe(true)
+  expect(expandedState.indicatorText).not.toBe(restingState.indicatorText)
+  expect(expandedState.markerTexts.some((text) => text !== '')).toBe(true)
+  expect(expandedState.paint).not.toEqual(restingState.paint)
+
+  const nonHoverPoint = await chip.evaluate((surface) => {
+    const rect = surface.getBoundingClientRect()
+    const offsets = [0, 0.05, 0.1, 0.25, 0.5, 0.75, 1]
+    for (const offset of offsets) {
+      for (const [x, y] of [
+        [rect.left + offset, rect.top + offset],
+        [rect.right - offset, rect.top + offset],
+        [rect.left + offset, rect.bottom - offset],
+        [rect.right - offset, rect.bottom - offset]
+      ]) {
+        const hit = document.elementFromPoint(x, y)
+        if (!hit || !surface.contains(hit)) return { x, y }
+      }
+    }
+    return null
+  })
+  expect(nonHoverPoint).not.toBeNull()
+  await page.mouse.move(nonHoverPoint?.x ?? 0, nonHoverPoint?.y ?? 0)
+  await page.waitForTimeout(120)
+
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  const retainedState = await chip.evaluate(readExpansionState)
+  expect(retainedState.hovered).toBe(false)
+  expect(retainedState).toEqual({ ...expandedState, hovered: false })
+
+  await page.mouse.move(2, 2)
+  await expect(chip).not.toHaveAttribute('data-expanded', 'true')
+  await page.waitForTimeout(120)
+  expect(await chip.evaluate(readExpansionState)).toEqual(restingState)
+
+  await chip.evaluate((surface) => {
+    surface.focus({ focusVisible: true } as FocusOptions & { focusVisible: boolean })
+  })
+  await expect.poll(() => chip.evaluate((surface) => surface.matches(':focus-visible'))).toBe(true)
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  const focusedOutline = await chip.evaluate((surface) => {
+    const style = getComputedStyle(surface)
+    const colorProbe = document.createElement('span')
+    colorProbe.style.color = 'var(--accent-amber)'
+    document.body.append(colorProbe)
+    const accentColor = getComputedStyle(colorProbe).color
+    colorProbe.remove()
+    return {
+      color: style.outlineColor,
+      offset: style.outlineOffset,
+      width: style.outlineWidth,
+      accentColor
+    }
+  })
+  expect({
+    color: focusedOutline.color,
+    offset: focusedOutline.offset,
+    width: focusedOutline.width
+  }).toEqual({
+    color: focusedOutline.accentColor,
+    offset: '2px',
+    width: '2px'
+  })
 })
 
 test('measured dashboard titles share one document font listener', async ({ page }) => {
@@ -877,9 +1003,9 @@ test('Page Chip restores its title fade after hover expansion closes', async ({ 
   await expectCollapsedTitleFade(title, 'chip-text-truncated')
 
   await chip.hover()
-  await expect(chip).toHaveClass(/page-chip-expanded/)
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
   await page.mouse.move(2, 2)
-  await expect(chip).not.toHaveClass(/page-chip-expanded/)
+  await expect(chip).not.toHaveAttribute('data-expanded', 'true')
 
   await expectCollapsedTitleFade(
     title,

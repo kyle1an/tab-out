@@ -492,6 +492,8 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.match(chipMatch[1], /\bhover:bg-\(--chip-interaction-bg\)/)
   assert.doesNotMatch(chipMatch[1], /\bhover:bg-\[rgba\(82,82,82,0\.08\)\]/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
+  assert.match(chipMatch[1], /page-chip-expanded:has\(\.chip-actions\)::after\]:opacity-100/)
+  assert.match(html, /chip-saved-hint[^\"]*group-\[\.page-chip-expanded\]\/page-chip:opacity-100/)
   assert.match(chipMatch[1], /after:w-\(--chip-hover-fade-width\)/)
   assert.match(chipMatch[1], /var\(--chip-hover-fade-bg\)_34%/)
   // Plain chips fill with the TRANSLUCENT overlay (a bordered neighbour's
@@ -502,6 +504,8 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
   assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
+  assert.match(chipMatch[1], /transition-\[color\] duration-100/)
+  assert.doesNotMatch(chipMatch[1], /transition-\[color,box-shadow\]/)
   assert.match(html, /--chip-hover-fade-width:56px/)
 })
 
@@ -519,14 +523,15 @@ test('PageChip keeps clickable hover background on expandable chips before expan
 
   assert.ok(chipMatch, 'expandable page chip should render')
   assert.match(chipMatch[1], /\bhover:bg-\(--chip-interaction-bg\)/)
+  assert.match(chipMatch[1], /page-chip-expanded\]:bg-\(--chip-interaction-bg\)/)
   assert.match(chipMatch[1], /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
   assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
 
-  // Plain chips draw no trim in ANY state — the rules themselves live behind
-  // the chip-trim interface and are covered by the decision-table suite
-  // (tests/chip-trim.test.ts); this render check only pins the wiring.
-  assert.doesNotMatch(chipMatch[1], /page-chip-expanded\]:outline/)
+  // Hover can paint the interaction before React opens the title. Once open,
+  // expansion itself owns that same paint so title details and chrome cannot
+  // split when rounded-corner hit testing drops :hover.
+  assert.match(chipMatch[1], /page-chip-expanded:not\(:focus-visible\):not\(\[data-tabout-filter-result-selected=true\]\)\]:outline/)
 })
 
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {

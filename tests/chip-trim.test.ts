@@ -24,6 +24,7 @@ function facts(overrides: Partial<ChipTrimFacts> = {}): ChipTrimFacts {
 }
 
 const OUTLINE_TRIO = /hover:outline-1.*-outline-offset-1.*outline-\(--chip-hover-border\)/
+const EXPANDED_OUTLINE_TRIO = /\[&\.page-chip-expanded:not\(:focus-visible\):not\(\[data-tabout-filter-result-selected=true\]\)\]:outline-1.*\[&\.page-chip-expanded:not\(:focus-visible\):not\(\[data-tabout-filter-result-selected=true\]\)\]:-outline-offset-1.*\[&\.page-chip-expanded:not\(:focus-visible\):not\(\[data-tabout-filter-result-selected=true\]\)\]:outline-\(--chip-hover-border\)/
 const OPAQUE_CLICKABLE = 'color-mix(in srgb, var(--card-bg) 90%, var(--color-neutral-600) 10%)'
 const TRANSLUCENT_CLICKABLE = 'color-mix(in srgb, var(--color-neutral-600) 10%, transparent)'
 const GROUP_BG = 'color-mix(in srgb, var(--card-bg) 96.5%, var(--color-neutral-600) 3.5%)'
@@ -35,12 +36,15 @@ const CLICKABLE_LINE = 'color-mix(in srgb, var(--color-neutral-600) 10%, transpa
 test('chip-trim: plain chips get the translucent fill, the quiet hover line, and no resting trim', () => {
   const trim = chipTrim(facts())
   assert.match(trim.chipClasses, /hover:bg-\(--chip-interaction-bg\)/)
+  assert.match(trim.chipClasses, /\[&\.page-chip-expanded\]:bg-\(--chip-interaction-bg\)/)
+  assert.match(trim.chipClasses, /\[&\.page-chip-expanded:has\(\.chip-actions\)::after\]:opacity-100/)
   assert.match(trim.chipClasses, /\[&\.page-chip-context-menu-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(trim.chipClasses, /\[&\.page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   // Open plain chips answer hover with the group kinds' 1px line at the
   // quiet interaction-fill color — the same 10% mix as their interaction fill,
   // laid once more at the edge (the darkened fill carries the emphasis).
   assert.match(trim.chipClasses, OUTLINE_TRIO)
+  assert.match(trim.chipClasses, EXPANDED_OUTLINE_TRIO)
   assert.equal(trim.styleVars.hoverBorder, CLICKABLE_LINE)
   assert.doesNotMatch(trim.chipClasses, /ring-/)
   assert.equal(trim.frame, null)
@@ -143,7 +147,7 @@ test('chip-trim: a kind with no trim at rest gains none at rest in any state', (
   // rest — no frame, and no unconditioned outline/ring/border utility in any
   // expansion state. Interaction feedback now pairs the fill with the 1px
   // hover line, so every outline utility must stay behind an interaction
-  // variant (hover / context-menu-open / tooltip-open).
+  // variant (hover / expansion / context-menu-open / tooltip-open).
   const expansions: ChipTrimFacts['expanded'][] = [
     null,
     { grewTaller: false, y: 'down' },
@@ -169,6 +173,7 @@ test('chip-trim: the expanded fill spares flush edges and extends grown edges', 
   assert.ok(inPlaceDown.classes.includes('opacity-0'))
   assert.ok(inPlaceDown.classes.includes('group-hover/page-chip:opacity-100'))
   assert.ok(inPlaceDown.classes.includes('group-focus-visible/page-chip:opacity-100'))
+  assert.ok(inPlaceDown.classes.includes('group-[.page-chip-expanded]/page-chip:opacity-100'))
   assert.ok(inPlaceDown.classes.includes('group-[.page-chip-context-menu-open]/page-chip:opacity-100'))
   assert.ok(inPlaceDown.classes.includes('group-[.page-chip-tooltip-open]/page-chip:opacity-100'))
 
@@ -221,8 +226,9 @@ test('chip-trim: full-width slots carry the seam overlap and interaction lift', 
   assert.match(slot, /\[\.chip-slot-row\+&\]:-mt-px/)
   assert.match(slot, new RegExp(`\\b${CHIP_TRIM_TOKENS.slotRow}\\b`))
   // The interacting slot lifts above neighbours so its strengthened frame
-  // paints on top at the shared seam — for hover, menu, and expansion.
+  // paints on top at the shared seam — for hover, expansion, menu, and tooltip.
   assert.match(slot, /has-\[\.page-chip:hover\]:z-4/)
+  assert.match(slot, /has-\[\.page-chip-expanded\]:z-4/)
   assert.match(slot, /has-\[\.page-chip-context-menu-open\]:z-4/)
   assert.match(slot, /has-\[\.page-chip-tooltip-open\]:z-4/)
   // Identical for every full-width kind — seam participation is not
@@ -235,6 +241,7 @@ test('chip-trim: framed chips strengthen their line on interaction', () => {
   const frame = chipTrim(facts({ activeChipFrame: true, activeInOtherWindow: true })).frame
   assert.ok(frame)
   assert.match(frame.classes, /group-hover\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
+  assert.match(frame.classes, /group-\[\.page-chip-expanded\]\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
   assert.match(frame.classes, /group-\[\.page-chip-context-menu-open\]\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
   assert.match(frame.classes, /group-\[\.page-chip-tooltip-open\]\/page-chip:shadow-\[inset_0_0_0_1px_rgba\(38,38,38,0\.55\)\]/)
 })
