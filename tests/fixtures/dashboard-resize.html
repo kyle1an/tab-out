@@ -21,6 +21,11 @@
         window.__tabOutSmokeErrors.push(String(event.reason?.message || event.reason))
       })
 
+      const fixtureParams = new URLSearchParams(window.location.search)
+      const shortHistoryTitleCase = fixtureParams.has('shortHistoryTitle')
+      const historyTitle = shortHistoryTitleCase
+        ? 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
+        : 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup'
       const tabHistorySnapshot = {
         stackSize: 1,
         maxSize: 48,
@@ -46,7 +51,7 @@
             current: false,
             previousTarget: false,
             nextTarget: false,
-            title: 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup',
+            title: historyTitle,
             url: 'chrome://settings/appearance',
             rawUrl: 'chrome://settings/appearance',
             displayUrl: 'chrome://settings/appearance',
@@ -56,7 +61,6 @@
         ]
       }
       let bookmarkTree = []
-      const fixtureParams = new URLSearchParams(window.location.search)
       const rememberedHistoryRange = fixtureParams.get('rememberedHistoryRange')
       const localStorageStore = {
         ...(rememberedHistoryRange
@@ -176,8 +180,9 @@
         {
           id: 9001,
           url: 'chrome://settings/appearance',
-          title: 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup',
+          title: historyTitle,
           favIconUrl: '',
+          status: shortHistoryTitleCase ? 'loading' : 'complete',
           windowId: 1,
           active: false,
           pinned: false,

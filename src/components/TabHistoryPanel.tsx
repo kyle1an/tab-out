@@ -769,10 +769,14 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
 
   function openTitleExpansion() {
     const titleEl = titleRef.current
-    if (!isHistoryTitleTruncated(titleEl)) return
+    const measuredTruncated = titleMetrics.isTruncated || titleClamp !== null
+    // A captured clamp can land its final glyph exactly on the title edge, so
+    // its replacement DOM no longer reports scroll overflow even though the
+    // natural title was measured as truncated and still renders a fade.
+    if (!measuredTruncated && !isHistoryTitleTruncated(titleEl)) return
     // The collapsed title observer owns truncation state. Slot and expansion
     // geometry are interaction-only work and should not block dashboard startup.
-    updateTitleTruncation(titleEl, setTitleMetrics)
+    if (!measuredTruncated) updateTitleTruncation(titleEl, setTitleMetrics)
     updateHistoryEntryExpansionMeasurements()
     titleExpansionController.open()
   }

@@ -278,6 +278,22 @@ test('Activation History restores its title fade after hover expansion closes', 
   )
 })
 
+test('Activation History expands a faded two-line title on hover', async ({ page }) => {
+  await page.setViewportSize({ width: 920, height: 900 })
+  await page.goto('/tests/fixtures/dashboard-resize.html?shortHistoryTitle=1')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const row = page.locator('[data-tabout="activation-history-entry"]').filter({
+    hasText: 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
+  }).first()
+  const title = row.locator('.history-entry-title')
+  await title.scrollIntoViewIfNeeded()
+  await expectCollapsedTitleFade(title, 'history-entry-title-truncated')
+
+  await title.hover()
+  await expect(row.locator('.history-entry-expanded')).toHaveCount(1)
+})
+
 test('Activation History marker stays aligned with the favicon and first title line', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
