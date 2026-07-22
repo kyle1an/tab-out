@@ -7,7 +7,6 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Start by checking the current code path before changing or documenting behavior.
 - Keep changes narrow. Avoid broad UI rewrites, formatting churn, dependency updates, or generated bundle changes unrelated to the task.
 - Edit source files first; regenerate bundles through the build scripts.
-- Do not stage, commit, amend, rewrite history, or push unless the user explicitly asks for that action.
 - Check `git status --short` before edits and before handoff. Leave unrelated dirty files untouched.
 
 ## Product Behavior Contracts
@@ -95,8 +94,7 @@ pnpm dev
 
 ## Git And Commits
 
-- Do not stage files unless the user explicitly asks to stage, commit, or prepare a commit.
-- Do not commit, amend, rewrite history, or push unless explicitly requested.
+- Do not amend, rewrite history, or push unless explicitly requested.
 - When asked to commit, use a Conventional Commit subject that makes the touched product or code area obvious, such as `fix(page-chip): keep expansion anchored`, `perf(filter): focus input before app mount`, or `build: generate typed extension manifest`.
 - Prefer domain-specific scopes over broad buckets like `ui`; examples include `page-chip`, `domain-card`, `activation-history`, `working-set`, `suspend`, `build`, or another clear repo-local area.
 - For Codex-authored or Codex-assisted commits, include `Co-authored-by: Codex <noreply@openai.com>` as the final non-empty line.
