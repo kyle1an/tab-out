@@ -67,6 +67,30 @@ test('waking a suspended page retains its title through every loading title upda
   assert.equal((await fetchOpenTabsSnapshot())[0]?.title, 'Example Docs refreshed')
 })
 
+test('a transient browser read failure preserves the last successful open-tab snapshot', async (t) => {
+  const expectedUrl = 'https://preserved.example.test/docs'
+  const api = {
+    tabs: {
+      query: async () => [chromeTab({ id: 91, url: expectedUrl, title: 'Preserved', status: 'complete' })]
+    },
+    windows: {
+      getAll: async () => [{ id: 1, type: 'normal' }]
+    },
+    tabGroups: {
+      query: async () => []
+    }
+  } as unknown as ChromeTabsApi
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  assert.equal((await fetchOpenTabsSnapshot())[0]?.url, expectedUrl)
+  api.tabs.query = async () => {
+    throw new Error('Browser state temporarily unavailable')
+  }
+
+  assert.equal((await fetchOpenTabsSnapshot())[0]?.url, expectedUrl)
+})
+
 test('ordinary reloads and newly created tabs use their current loading title', () => {
   const pageUrl = 'https://example.test/docs'
   const [awakeTab] = normalize([

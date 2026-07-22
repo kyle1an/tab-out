@@ -1,11 +1,9 @@
 import {
   WORKING_SET_DEFAULT_LIMIT,
-  WORKING_SET_DISMISS_MESSAGE,
-  WORKING_SET_EXPANDED_LIMIT,
-  WORKING_SET_GET_MESSAGE,
+  WORKING_SET_EXPANDED_LIMIT
 } from './working-set.js'
 import type { WorkingSetItem, WorkingSetSnapshot } from './types'
-import { focusExistingTabTarget } from './tab-focus.js'
+import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab-focus.js'
 
 function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
   return {
@@ -46,19 +44,8 @@ export function normalizeWorkingSetSnapshot(snapshot: Partial<WorkingSetSnapshot
   return { defaultLimit, expandedLimit, items }
 }
 
-export async function fetchWorkingSetSnapshot(): Promise<WorkingSetSnapshot> {
-  if (!globalThis.chrome?.runtime?.sendMessage) return emptyWorkingSetSnapshot()
-  try {
-    const response = await chrome.runtime.sendMessage({ type: WORKING_SET_GET_MESSAGE })
-    if (!response?.ok) return emptyWorkingSetSnapshot()
-    return normalizeWorkingSetSnapshot(response.snapshot)
-  } catch {
-    return emptyWorkingSetSnapshot()
-  }
-}
-
-export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | 'windowId' | 'tabUrl' | 'rawUrl'>): Promise<boolean> {
-  return focusExistingTabTarget({
+export async function focusWorkingSetItemResult(item: Pick<WorkingSetItem, 'tabId' | 'windowId' | 'tabUrl' | 'rawUrl'>): Promise<ExistingTabFocusResult> {
+  return focusExistingTabTargetResult({
     tabId: item.tabId,
     windowId: item.windowId,
     url: item.tabUrl,
@@ -66,17 +53,6 @@ export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | '
   })
 }
 
-export async function dismissWorkingSetItem(item: Pick<WorkingSetItem, 'key' | 'tabUrl'>): Promise<WorkingSetSnapshot> {
-  if (!globalThis.chrome?.runtime?.sendMessage) return emptyWorkingSetSnapshot()
-  try {
-    const response = await chrome.runtime.sendMessage({
-      type: WORKING_SET_DISMISS_MESSAGE,
-      key: item.key,
-      url: item.tabUrl
-    })
-    if (!response?.ok) return emptyWorkingSetSnapshot()
-    return normalizeWorkingSetSnapshot(response.snapshot)
-  } catch {
-    return emptyWorkingSetSnapshot()
-  }
+export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | 'windowId' | 'tabUrl' | 'rawUrl'>): Promise<boolean> {
+  return (await focusWorkingSetItemResult(item)).status === 'focused'
 }

@@ -13,6 +13,14 @@ export type PinnedDomainReorderPlacement =
   | { direction: 'previous' | 'next' }
   | { targetDomain: string; position: 'before' | 'after' }
 
+export type PinnedDomainMutation =
+  | { type: 'set-pinned'; domain: string; pinned: boolean }
+  | { type: 'reorder'; domain: string; placement: PinnedDomainReorderPlacement }
+
+export type PinnedDomainsLoadResult =
+  | { ok: true; value: string[] }
+  | { ok: false; value: string[] }
+
 export function isPinnableDomain(domain: unknown): domain is string {
   return !!domain && typeof domain === 'string' && (!domain.startsWith('__') || PINNABLE_SYSTEM_DOMAINS.has(domain))
 }
@@ -31,7 +39,19 @@ export function normalizePinnedDomains(domains: unknown = []): string[] {
 export function togglePinnedDomainInList(domains: unknown = [], domain: unknown): string[] {
   const normalized = normalizePinnedDomains(domains)
   if (!isPinnableDomain(domain)) return normalized
-  return normalized.includes(domain) ? normalized.filter((d) => d !== domain) : [...normalized, domain]
+  return setPinnedDomainInList(normalized, domain, !normalized.includes(domain))
+}
+
+function setPinnedDomainInList(
+  domains: unknown = [],
+  domain: unknown,
+  pinned: boolean
+): string[] {
+  const normalized = normalizePinnedDomains(domains)
+  if (!isPinnableDomain(domain)) return normalized
+  const isPinned = normalized.includes(domain)
+  if (isPinned === pinned) return normalized
+  return pinned ? [...normalized, domain] : normalized.filter((candidate) => candidate !== domain)
 }
 
 export function reorderPinnedDomainInList(
@@ -71,19 +91,31 @@ export function movePinnedDomainInList(domains: unknown = [], domain: unknown, d
   return next
 }
 
-export async function loadPinnedDomains(): Promise<string[]> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return []
-  try {
-    const stored = await chrome.storage.local.get(DOMAIN_PIN_STORAGE_KEY)
-    return normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY])
-  } catch {
-    return []
+export function applyPinnedDomainMutation(
+  domains: unknown,
+  mutation: PinnedDomainMutation
+): string[] {
+  if (mutation.type === 'set-pinned') {
+    return setPinnedDomainInList(domains, mutation.domain, mutation.pinned)
   }
+  return 'direction' in mutation.placement
+    ? movePinnedDomainInList(domains, mutation.domain, mutation.placement.direction)
+    : reorderPinnedDomainInList(
+        domains,
+        mutation.domain,
+        mutation.placement.targetDomain,
+        mutation.placement.position
+      )
 }
 
-export async function savePinnedDomains(domains: unknown = []): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return
-  await chrome.storage.local.set({
-    [DOMAIN_PIN_STORAGE_KEY]: normalizePinnedDomains(domains)
-  })
+export async function loadPinnedDomainsResult(): Promise<PinnedDomainsLoadResult> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ok: false, value: [] }
+  try {
+    const stored = await chrome.storage.local.get(DOMAIN_PIN_STORAGE_KEY)
+    const value = stored[DOMAIN_PIN_STORAGE_KEY]
+    if (value !== undefined && !Array.isArray(value)) return { ok: false, value: [] }
+    return { ok: true, value: normalizePinnedDomains(value) }
+  } catch {
+    return { ok: false, value: [] }
+  }
 }

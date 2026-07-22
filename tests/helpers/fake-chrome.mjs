@@ -143,6 +143,7 @@ export function createFakeChromeApi({
       onMoved: createFakeChromeEvent(),
       onAttached: createFakeChromeEvent(),
       onDetached: createFakeChromeEvent(),
+      onReplaced: createFakeChromeEvent(),
       onUpdated: createFakeChromeEvent()
     },
     windows: {

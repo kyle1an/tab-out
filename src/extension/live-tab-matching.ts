@@ -15,22 +15,59 @@ export type LiveTabMatchTarget = {
   envs?: readonly { tabUrl: string }[] | null
 }
 
-type MatchableTab = { url?: string }
+export type LiveTabIdentityTarget = {
+  tabId?: number | string
+  tabUrl?: string
+  url?: string
+  rawUrl?: string
+}
+
+type MatchableTab = { url?: string; pendingUrl?: string }
+
+/**
+ * Chrome keeps the committed page in `url` while an uncommitted navigation is
+ * exposed through `pendingUrl`. Mutation and activation identity must follow
+ * that newest browser target so a stale dashboard action cannot operate on
+ * the page a tab is already leaving.
+ */
+export function liveTabUrlForIdentity(tab: MatchableTab): string {
+  return tab.pendingUrl || tab.url || ''
+}
+
+export function liveTabMatchesIdentity(tab: MatchableTab, target: LiveTabIdentityTarget): boolean {
+  const openUrl = liveTabUrlForIdentity(tab)
+  if (!openUrl) return false
+  const targetUrls = [target.url, target.tabUrl, target.rawUrl].filter((url): url is string => !!url)
+  if (targetUrls.length === 0) return false
+  const openEffectiveUrl = unwrapSuspenderUrl(openUrl)
+  return targetUrls.some((targetUrl) => openUrl === targetUrl || openEffectiveUrl === unwrapSuspenderUrl(targetUrl))
+}
+
+export function liveTabByValidatedId<T extends MatchableTab & { id?: number }>(
+  tabs: readonly T[],
+  target: LiveTabIdentityTarget
+): T | null {
+  if (typeof target.tabId !== 'number') return null
+  const match = tabs.find((tab) => tab.id === target.tabId)
+  return match && liveTabMatchesIdentity(match, target) ? match : null
+}
 
 export function liveTabsMatchingTarget<T extends MatchableTab>(tabs: readonly T[], { tabUrl, envs = null }: LiveTabMatchTarget): T[] {
   const foldedEnvs = Array.isArray(envs) ? envs : []
-  if (foldedEnvs.length > 0) {
-    const targetUrls = new Set(foldedEnvs.map((env) => env.tabUrl))
-    const targetEffectives = new Set(foldedEnvs.map((env) => unwrapSuspenderUrl(env.tabUrl)))
+  const foldedTargetUrls = foldedEnvs.map((env) => env.tabUrl).filter(Boolean)
+  if (foldedTargetUrls.length > 0) {
+    const targetUrls = new Set(foldedTargetUrls)
+    const targetEffectives = new Set(foldedTargetUrls.map((url) => unwrapSuspenderUrl(url)))
     return tabs.filter((tab) => {
-      const openUrl = tab.url || ''
-      return targetUrls.has(openUrl) || targetEffectives.has(unwrapSuspenderUrl(openUrl))
+      const openUrl = liveTabUrlForIdentity(tab)
+      return !!openUrl && (targetUrls.has(openUrl) || targetEffectives.has(unwrapSuspenderUrl(openUrl)))
     })
   }
 
+  if (!tabUrl) return []
   const targetEffective = unwrapSuspenderUrl(tabUrl)
   return tabs.filter((tab) => {
-    const openUrl = tab.url || ''
-    return openUrl === tabUrl || unwrapSuspenderUrl(openUrl) === targetEffective
+    const openUrl = liveTabUrlForIdentity(tab)
+    return !!openUrl && (openUrl === tabUrl || unwrapSuspenderUrl(openUrl) === targetEffective)
   })
 }

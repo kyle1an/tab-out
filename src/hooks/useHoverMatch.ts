@@ -1,12 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useUrlPreview } from './useUrlPreview'
+import { createHoverStateStore } from '../components/DashboardInteractionContext'
 import type { HoverUrlSource } from '../components/types'
-
-export type HoverMatchState = {
-  url: string
-  urls: string[]
-  source: HoverUrlSource | null
-}
 
 function sameHoverUrls(a: readonly string[], b: readonly string[]) {
   return a.length === b.length && a.every((url, index) => url === b[index])
@@ -18,27 +13,29 @@ function sameHoverUrls(a: readonly string[], b: readonly string[]) {
  * `clearHoverUrlNow` is stable so it can be used as an effect dependency.
  */
 export function useHoverMatch() {
-  const { urlPreview, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
-  const [hoverMatch, setHoverMatch] = useState<HoverMatchState>({ url: '', urls: [], source: null })
+  const { urlPreviewStore, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
+  const [hoverStateStore] = useState(createHoverStateStore)
 
-  function handleHoverUrlChange(url: string, source: HoverUrlSource = 'chip', matchUrls?: readonly string[]) {
+  const handleHoverUrlChange = useCallback(function handleHoverUrlChange(url: string, source: HoverUrlSource = 'chip', matchUrls?: readonly string[]) {
     const nextUrl = url || ''
     const nextUrls = nextUrl
       ? [...new Set((matchUrls && matchUrls.length > 0 ? matchUrls : [nextUrl]).filter(Boolean))]
       : []
     const nextSource = nextUrls.length > 0 ? source : null
-    setHoverMatch((current) => (
-      current.url === nextUrl && current.source === nextSource && sameHoverUrls(current.urls, nextUrls)
-        ? current
-        : { url: nextUrl, urls: nextUrls, source: nextSource }
-    ))
+    const current = hoverStateStore.getSnapshot()
+    if (current.url !== nextUrl || current.source !== nextSource || !sameHoverUrls(current.urls, nextUrls)) {
+      hoverStateStore.setSnapshot({ url: nextUrl, urls: nextUrls, source: nextSource })
+    }
     setUrlPreview(nextUrl)
-  }
+  }, [hoverStateStore, setUrlPreview])
 
   const clearHoverUrlNow = useCallback(function clearHoverUrlNow() {
-    setHoverMatch((current) => (current.url || current.urls.length > 0 || current.source ? { url: '', urls: [], source: null } : current))
+    const current = hoverStateStore.getSnapshot()
+    if (current.url || current.urls.length > 0 || current.source) {
+      hoverStateStore.setSnapshot({ url: '', urls: [], source: null })
+    }
     clearUrlPreviewNow()
-  }, [clearUrlPreviewNow])
+  }, [clearUrlPreviewNow, hoverStateStore])
 
-  return { hoverMatch, urlPreview, handleHoverUrlChange, clearHoverUrlNow }
+  return { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow }
 }

@@ -25,7 +25,7 @@ function historyPanelRowLimit(snapshot: TabHistorySnapshot | null): number {
   return typeof maxSize === 'number' && Number.isInteger(maxSize) && maxSize > 0 ? maxSize : DEFAULT_HISTORY_PANEL_ROW_LIMIT
 }
 
-export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts = null }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
+export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
   const filterActive = filter.trim() !== ''
   const rowLimit = historyPanelRowLimit(snapshot)
 
@@ -79,6 +79,12 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   const closedGhostCandidates: HistoryPanelRow[] = []
   for (const closed of closedTabs) {
     if (filterActive && !tabMatchesFilter({ title: closed.title, url: closed.url, isTabOut: false }, filter)) continue
+    // `null` is an explicit unknown state used by the mounted panel while its
+    // durable dismissal read is unresolved or failed. Showing Chrome's
+    // recently-closed rows then could briefly revive pages the user forgot.
+    // An omitted value remains the pure builder's backwards-compatible
+    // "no dismissal filtering requested" behavior.
+    if (dismissedClosedGhosts === null) continue
     if (isClosedGhostDismissed(dismissedClosedGhosts, closed)) continue
     closedGhostCandidates.push({ kind: 'closed-ghost', closed, lastTouchedAt: closed.lastClosedAt })
   }
@@ -114,7 +120,7 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
   return rows
 }
 
-export function useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts = null }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
+export function useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
   return useMemo(
     () => buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts }),
     [snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts]

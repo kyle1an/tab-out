@@ -77,19 +77,27 @@ function filterResultCandidatesForChip(chip: DashboardChipData): FilterResultCan
   return [filterResultCandidateForTarget(chip)]
 }
 
-function visibleChipsForCard({ vm }: DashboardCardEntry): DashboardChipData[] {
+function resultChipsForCard({ vm }: DashboardCardEntry): DashboardChipData[] {
   return (vm.sections ?? []).flatMap((section) => [
     ...section.flatVisibleChips,
+    ...section.flatHiddenChips,
     ...section.websitePathSections.flatMap((websitePathSection) => [
       ...websitePathSection.flatVisibleChips,
-      ...websitePathSection.clusters.flatMap((cluster) => cluster.visibleChips)
+      ...websitePathSection.flatHiddenChips,
+      ...websitePathSection.clusters.flatMap((cluster) => [
+        ...cluster.visibleChips,
+        ...cluster.hiddenChips
+      ])
     ]),
-    ...section.clusters.flatMap((cluster) => cluster.visibleChips)
+    ...section.clusters.flatMap((cluster) => [
+      ...cluster.visibleChips,
+      ...cluster.hiddenChips
+    ])
   ])
 }
 
 function filterResultCandidatesForCards(cards: readonly DashboardCardEntry[]): FilterResultCandidate[] {
-  return cards.flatMap((card) => visibleChipsForCard(card).flatMap(filterResultCandidatesForChip))
+  return cards.flatMap((card) => resultChipsForCard(card).flatMap(filterResultCandidatesForChip))
 }
 
 export function buildFilterResultCandidates({
@@ -141,6 +149,50 @@ export function reconcileFilterResultSelection(
 
   const identityCandidate = candidates.find((candidate) => candidate.identity === current.identity)
   return selectionForCandidate(query, identityCandidate ?? candidates[0])
+}
+
+export function reconcileVisibleFilterResultSelection(
+  current: FilterResultSelection,
+  query: string,
+  candidates: readonly FilterResultCandidate[],
+  isVisible: (candidate: FilterResultCandidate) => boolean
+): {
+  selection: FilterResultSelection
+  candidate: FilterResultCandidate | undefined
+} {
+  if (!query.trim() || candidates.length === 0) {
+    return {
+      selection: selectionForCandidate(query, undefined),
+      candidate: undefined
+    }
+  }
+
+  const visibilityByCandidate = new Map<FilterResultCandidate, boolean>()
+  function candidateIsVisible(candidate: FilterResultCandidate): boolean {
+    const cached = visibilityByCandidate.get(candidate)
+    if (cached !== undefined) return cached
+    const visible = isVisible(candidate)
+    visibilityByCandidate.set(candidate, visible)
+    return visible
+  }
+
+  let candidate: FilterResultCandidate | undefined
+  if (current.query === query) {
+    const exactCandidate = candidates.find((item) => item.key === current.candidateKey)
+    if (exactCandidate && candidateIsVisible(exactCandidate)) candidate = exactCandidate
+
+    if (!candidate && current.identity !== null) {
+      candidate = candidates.find((item) => (
+        item.identity === current.identity && candidateIsVisible(item)
+      ))
+    }
+  }
+
+  candidate ??= candidates.find(candidateIsVisible)
+  return {
+    selection: selectionForCandidate(query, candidate),
+    candidate
+  }
 }
 
 export function selectAdjacentFilterResult(

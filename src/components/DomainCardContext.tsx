@@ -1,4 +1,5 @@
 import { createContext, use, type ReactNode } from 'react'
+import type { DashboardTabMutationTarget } from '../extension/types'
 
 // Per-card local state only. Ambient, dashboard-wide interaction state (hover, layout,
 // pin handlers) lives in DashboardInteractionContext so it can be provided once at the
@@ -7,16 +8,16 @@ export type DomainCardContextValue = {
   activeSuppressedTitle: string
   setActiveSuppressedTitle: (text: string) => void
   dedupeBadgesClosing: boolean
-  suppressionCloseUrlsByText: Record<string, string[]>
-  suppressionSuspendUrlsByText: Record<string, string[]>
+  suppressionCloseTargetsByText: Record<string, DashboardTabMutationTarget[]>
+  suppressionSuspendTargetsByText: Record<string, DashboardTabMutationTarget[]>
 }
 
 const defaultDomainCardContext: DomainCardContextValue = {
   activeSuppressedTitle: '',
   setActiveSuppressedTitle: () => {},
   dedupeBadgesClosing: false,
-  suppressionCloseUrlsByText: {},
-  suppressionSuspendUrlsByText: {}
+  suppressionCloseTargetsByText: {},
+  suppressionSuspendTargetsByText: {}
 }
 
 const DomainCardContext = createContext(defaultDomainCardContext)

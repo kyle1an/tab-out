@@ -6,6 +6,7 @@ import { usePageChipOverflow } from './PageChipOverflow'
 import { SectionPinButton } from './SectionPinButton'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
+import { subscribeFontMetricsInvalidation } from './font-metrics-invalidation.js'
 import { cn } from '@/lib/utils'
 import type { Dispatch, SetStateAction } from 'react'
 import type { TitleSuppressionTone } from './title-suppression'
@@ -149,17 +150,16 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
     })
     observer.observe(labelEl)
 
-    const fontSet = document.fonts
     const onFontsDone = () => {
       if (!disposed) updatePathgroupLabelTruncation(labelEl, setPathgroupLabelTruncated)
     }
-    fontSet.addEventListener('loadingdone', onFontsDone)
+    const unsubscribeFontMetrics = subscribeFontMetricsInvalidation(onFontsDone)
 
     return () => {
       disposed = true
       observer.unobserve(labelEl)
       pathgroupLabelTruncationCallbacks.delete(labelEl)
-      fontSet.removeEventListener('loadingdone', onFontsDone)
+      unsubscribeFontMetrics()
     }
   }, [pathgroupLabelTruncated])
 

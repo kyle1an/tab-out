@@ -8,22 +8,25 @@
    extension pages).
    ================================================================ */
 
-import { createTab, createWindow, getAllWindows, getCurrentWindow, queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
+import { createTab, createWindow, getAllWindowsResult, getCurrentWindowResult, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
 import { rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
 import { isTabOutPageUrl } from './tab-out-url.js'
-import { focusExactTabTarget, focusTabTarget } from './tab-focus.js'
-import type { DashboardTab, TabSnapshot } from './types'
+import { focusExactTabTargetResult, focusTabTarget } from './tab-focus.js'
+import { isBrowserInternalUrl } from './browser-url-policy.js'
+import { liveTabUrlForIdentity } from './live-tab-matching.js'
+import type { DashboardTab, DashboardTabMutationTarget, TabSnapshot } from './types'
 
-type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'title' | 'pinned' | 'groupId' | 'windowId' | 'index'>
+type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'pendingUrl' | 'title' | 'pinned' | 'groupId' | 'windowId' | 'index'>
 type SnapshotOptions = {
   includeTabOutUrls?: boolean
 }
 type CloseOptions = {
   preserveGroups?: boolean
+  preservePinnedTabOut?: boolean
 }
 type DedupeOptions = {
   preservePinned?: boolean
@@ -32,6 +35,19 @@ type DedupeOptions = {
 export type ChromeOpenTabsSnapshot = {
   tabs: chrome.tabs.Tab[]
   windows: chrome.windows.Window[]
+}
+export type OpenTabsFetchResult = {
+  ok: boolean
+  tabs: DashboardTab[]
+}
+type TabCloseMutationStatus = 'complete' | 'partial' | 'failed' | 'unknown'
+export type TabCloseResult = {
+  ok: boolean
+  status: TabCloseMutationStatus
+  value: TabSnapshot[]
+  attemptedCount: number
+  removedCount: number
+  failedCount: number
 }
 
 export let openTabs: DashboardTab[] = []
@@ -50,22 +66,25 @@ function tabIds(tabs: chrome.tabs.Tab[]): number[] {
  * aren't worth recreating, except for Tab Out's new-tab URLs when the
  * caller explicitly opts in.
  *
- * @param {Array<{ url?: string, title?: string, pinned?: boolean, groupId?: number, windowId: number, index?: number }>} chromeTabs
+ * @param {Array<{ url?: string, pendingUrl?: string, title?: string, pinned?: boolean, groupId?: number, windowId: number, index?: number }>} chromeTabs
  * @param {{ includeTabOutUrls?: boolean }} [opts]
  * @returns {TabSnapshot[]}
  */
 export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOptions = {}): TabSnapshot[] {
   const { includeTabOutUrls = false } = opts
   return chromeTabs
-    .map((t) => ({
-      url: unwrapSuspenderUrl(t.url || ''),
-      rawUrl: t.url || '',
-      title: t.title || '',
-      pinned: !!t.pinned,
-      groupId: typeof t.groupId === 'number' ? t.groupId : -1,
-      windowId: t.windowId,
-      index: typeof t.index === 'number' ? t.index : undefined
-    }))
+    .map((t) => {
+      const rawUrl = liveTabUrlForIdentity(t)
+      return {
+        url: unwrapSuspenderUrl(rawUrl),
+        rawUrl,
+        title: t.title || '',
+        pinned: !!t.pinned,
+        groupId: typeof t.groupId === 'number' ? t.groupId : -1,
+        windowId: t.windowId,
+        index: typeof t.index === 'number' ? t.index : undefined
+      }
+    })
     .filter((s) => {
       if (!s.url) return false
       if (s.url.startsWith('chrome://')) return includeTabOutUrls && s.url === 'chrome://newtab/'
@@ -74,9 +93,16 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
     })
 }
 
-async function fetchChromeOpenTabsSnapshot(): Promise<ChromeOpenTabsSnapshot> {
-  const [tabs, windows] = await Promise.all([queryAllTabs(), getAllWindows(), fetchTabGroupColors()])
-  return { tabs, windows }
+async function fetchChromeOpenTabsSnapshot(): Promise<{ ok: boolean; snapshot: ChromeOpenTabsSnapshot }> {
+  const [tabsResult, windowsResult] = await Promise.all([
+    queryAllTabsResult(),
+    getAllWindowsResult(),
+    fetchTabGroupColors()
+  ])
+  return {
+    ok: tabsResult.ok && windowsResult.ok,
+    snapshot: { tabs: tabsResult.value, windows: windowsResult.value }
+  }
 }
 
 export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapshot, previousTabs: readonly DashboardTab[] = []): DashboardTab[] {
@@ -103,19 +129,32 @@ export function seedOpenTabsTitleHistory(tabs: readonly DashboardTab[]): void {
   seededOpenTabsTitleHistory = tabs.filter((tab) => typeof tab.id === 'number')
 }
 
-export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
+export async function fetchOpenTabsSnapshotResult(
+  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null
+): Promise<OpenTabsFetchResult> {
+  const fallbackTabs = openTabs.length > 0 ? openTabs : seededOpenTabsTitleHistory
   try {
-    const snapshot = await fetchChromeOpenTabsSnapshot()
+    let result: { ok: boolean; snapshot: ChromeOpenTabsSnapshot }
+    if (capturedBrowserSnapshot) {
+      await fetchTabGroupColors()
+      result = { ok: true, snapshot: capturedBrowserSnapshot }
+    } else {
+      result = await fetchChromeOpenTabsSnapshot()
+    }
+    if (!result.ok) return { ok: false, tabs: fallbackTabs }
     const previousTabs = openTabs.length > 0 ? openTabs : seededOpenTabsTitleHistory
-    const nextOpenTabs = normalizeChromeOpenTabs(snapshot, previousTabs)
+    const nextOpenTabs = normalizeChromeOpenTabs(result.snapshot, previousTabs)
     seededOpenTabsTitleHistory = []
     replaceOpenTabs(nextOpenTabs)
     rememberSuspendTargetFromTabs(nextOpenTabs)
-    return nextOpenTabs
+    return { ok: true, tabs: nextOpenTabs }
   } catch {
-    replaceOpenTabs([])
-    return []
+    return { ok: false, tabs: fallbackTabs }
   }
+}
+
+export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
+  return (await fetchOpenTabsSnapshotResult()).tabs
 }
 
 /**
@@ -136,39 +175,133 @@ export async function fetchOpenTabs(): Promise<void> {
  * @returns {DashboardTab[]}
  */
 export function getRealTabs(): DashboardTab[] {
-  return openTabs.filter((t) => {
-    const url = t.url || ''
-    return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
-  })
+  return openTabs.filter((tab) => !isBrowserInternalUrl(tab.url))
 }
 
 export function getDashboardTabsFromOpenTabs(tabs: readonly DashboardTab[]): DashboardTab[] {
-  return tabs.filter((t) => {
-    if (t.isTabOut) return true
-    const url = t.url || ''
-    return !url.startsWith('chrome://') && !url.startsWith('chrome-extension://') && !url.startsWith('about:') && !url.startsWith('edge://') && !url.startsWith('brave://')
+  return tabs.filter((tab) => {
+    if (tab.isTabOut) return true
+    return !isBrowserInternalUrl(tab.url)
   })
 }
 
+function emptyTabCloseResult(status: 'complete' | 'unknown'): TabCloseResult {
+  return {
+    ok: status === 'complete',
+    status,
+    value: [],
+    attemptedCount: 0,
+    removedCount: 0,
+    failedCount: 0
+  }
+}
+
 /**
- * closeTabsExact(urls, opts) — closes tabs by exact URL match.
+ * Close an already-resolved physical-tab set and report the exact accepted and
+ * rejected writes. `value` contains Undo snapshots for confirmed removals.
+ */
+export async function closeResolvedTabsResult(
+  tabs: readonly chrome.tabs.Tab[],
+  { includeTabOutUrls = false }: SnapshotOptions = {}
+): Promise<TabCloseResult> {
+  const seenIds = new Set<number>()
+  const attemptedTabs = tabs.filter((tab) => {
+    if (typeof tab.id !== 'number' || seenIds.has(tab.id)) return false
+    seenIds.add(tab.id)
+    return true
+  })
+  if (attemptedTabs.length === 0) return emptyTabCloseResult('complete')
+
+  const removedIds = new Set(await removeTabs(tabIds(attemptedTabs)))
+  const removedTabs = attemptedTabs.filter((tab) => typeof tab.id === 'number' && removedIds.has(tab.id))
+  const removedCount = removedTabs.length
+  const failedCount = attemptedTabs.length - removedCount
+  const status: TabCloseMutationStatus = failedCount === 0
+    ? 'complete'
+    : removedCount === 0 ? 'failed' : 'partial'
+
+  return {
+    ok: status === 'complete',
+    status,
+    value: snapshotChromeTabs(removedTabs, { includeTabOutUrls }),
+    attemptedCount: attemptedTabs.length,
+    removedCount,
+    failedCount
+  }
+}
+
+/**
+ * closeTabsExactResult(urls, opts) — closes tabs by exact URL match.
  * Used for filter-narrowed bulk close paths so we don't accidentally
  * close unrelated tabs from the same hostname.
  *
  * @param {string[]} urls
- * @param {{ preserveGroups?: boolean }} [opts]
- * @returns {Promise<TabSnapshot[]>}
+ * Pinned Tab Out/new-tab pages are preserved by default. Their URL is shared
+ * with ordinary Tab Out copies, so URL-scoped bulk actions must apply that
+ * physical-tab policy again after reading the live tabs.
+ *
+ * @param {{ preserveGroups?: boolean, preservePinnedTabOut?: boolean }} [opts]
+ * @returns {Promise<TabCloseResult>} confirmed snapshots plus mutation status
+ * and attempted, removed, and failed counts
  */
-export async function closeTabsExact(urls: string[], opts: CloseOptions = {}): Promise<TabSnapshot[]> {
-  if (!urls || urls.length === 0) return []
-  const { preserveGroups = false } = opts
+export async function closeTabsExactResult(
+  urls: string[],
+  opts: CloseOptions = {}
+): Promise<TabCloseResult> {
+  if (!urls || urls.length === 0) return emptyTabCloseResult('complete')
+  const { preserveGroups = false, preservePinnedTabOut = true } = opts
   const urlSet = new Set(urls)
-  const allTabs = await queryAllTabs()
-  const toCloseTabs = allTabs.filter((t) => !(preserveGroups && isGroupedTab(t)) && urlSet.has(unwrapSuspenderUrl(t.url)))
-  const snapshot = snapshotChromeTabs(toCloseTabs)
-  await removeTabs(tabIds(toCloseTabs))
-  await fetchOpenTabs()
-  return snapshot
+  const allTabsResult = await queryAllTabsResult()
+  if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
+  const allTabs = allTabsResult.value
+  const toCloseTabs = allTabs.filter((tab) => {
+    const effectiveUrl = unwrapSuspenderUrl(liveTabUrlForIdentity(tab))
+    if (!urlSet.has(effectiveUrl)) return false
+    if (preserveGroups && isGroupedTab(tab)) return false
+    return !(preservePinnedTabOut && tab.pinned && isTabOutPageUrl(effectiveUrl))
+  })
+  return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
+}
+
+/** Convenience value API; use closeTabsExactResult when mutation status matters. */
+export async function closeTabsExact(urls: string[], opts: CloseOptions = {}): Promise<TabSnapshot[]> {
+  return (await closeTabsExactResult(urls, opts)).value
+}
+
+/**
+ * Close an exact render-derived set. The URL guard prevents a stale tab id
+ * (including one revived from a startup snapshot after an id reuse) from
+ * closing a page that no longer matches the action the user selected. Returns
+ * confirmed snapshots plus mutation status and attempted/removed/failed counts.
+ */
+export async function closeTabsByTargetsResult(
+  targets: readonly DashboardTabMutationTarget[],
+  opts: CloseOptions = {}
+): Promise<TabCloseResult> {
+  if (targets.length === 0) return emptyTabCloseResult('complete')
+  const { preserveGroups = false, preservePinnedTabOut = true } = opts
+  const expectedUrlById = new Map(targets.map((target) => [target.tabId, target.tabUrl]))
+  const allTabsResult = await queryAllTabsResult()
+  if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
+  const allTabs = allTabsResult.value
+  const toCloseTabs = allTabs.filter((tab) => {
+    if (typeof tab.id !== 'number') return false
+    const expectedUrl = expectedUrlById.get(tab.id)
+    if (!expectedUrl) return false
+    const effectiveUrl = unwrapSuspenderUrl(liveTabUrlForIdentity(tab))
+    if (effectiveUrl !== expectedUrl) return false
+    if (preserveGroups && isGroupedTab(tab)) return false
+    return !(preservePinnedTabOut && tab.pinned && isTabOutPageUrl(effectiveUrl))
+  })
+  return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
+}
+
+/** Convenience value API; use closeTabsByTargetsResult when mutation status matters. */
+export async function closeTabsByTargets(
+  targets: readonly DashboardTabMutationTarget[],
+  opts: CloseOptions = {}
+): Promise<TabSnapshot[]> {
+  return (await closeTabsByTargetsResult(targets, opts)).value
 }
 
 /**
@@ -182,15 +315,22 @@ export async function focusTab(url: string): Promise<boolean> {
   return focusTabTarget(url)
 }
 
-/**
- * focusExactTab(url) — focus an already-open tab whose effective URL matches
- * exactly. Unlike focusTab(), this does not fall back to hostname matching.
- *
- * @param {string} url
- * @returns {Promise<boolean>}
- */
-export async function focusExactTab(url: string): Promise<boolean> {
-  return focusExactTabTarget(url)
+export type ExactTabFocusOrOpenResult =
+  | { status: 'focused' | 'activated' | 'failed' | 'unknown' }
+  | { status: 'opened' | 'open-failed' }
+
+/** Open only when a successful browser read proves no matching tab exists. */
+export async function focusExactTabOrOpenResult(url: string): Promise<ExactTabFocusOrOpenResult> {
+  const result = await focusExactTabTargetResult(url)
+  if (result.status === 'not-found') {
+    return { status: await openTabUrl(url) ? 'opened' : 'open-failed' }
+  }
+  return { status: result.status }
+}
+
+export async function focusExactTabOrOpen(url: string): Promise<boolean> {
+  const result = await focusExactTabOrOpenResult(url)
+  return result.status === 'focused' || result.status === 'activated' || result.status === 'opened'
 }
 
 /**
@@ -200,48 +340,73 @@ export async function focusExactTab(url: string): Promise<boolean> {
  *
  * @param {string} url
  * @param {{ active?: boolean }} [opts]
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} whether Chrome created the tab
  */
-export async function openTabUrl(url: string, opts: { active?: boolean } = {}): Promise<void> {
-  if (!url) return
+export async function openTabUrl(url: string, opts: { active?: boolean } = {}): Promise<boolean> {
+  if (!url) return false
   const { active = true } = opts
-  await createTab({ url, active })
+  return !!(await createTab({ url, active }))
 }
 
 /**
  * openTabUrlInNewWindow(url) — open a URL in a new focused Chrome window.
  *
  * @param {string} url
- * @returns {Promise<void>}
+ * @returns {Promise<boolean>} whether Chrome created the window
  */
-export async function openTabUrlInNewWindow(url: string): Promise<void> {
-  if (!url) return
-  await createWindow({ url, focused: true, type: 'normal' })
+export async function openTabUrlInNewWindow(url: string): Promise<boolean> {
+  if (!url) return false
+  return !!(await createWindow({ url, focused: true, type: 'normal' }))
 }
 
 /**
- * closeDuplicateTabs(urls, keepOne) — closes duplicate tabs of each
+ * closeDuplicateTabsResult(urls, keepOne) — closes duplicate tabs of each
  * URL according to the dedup policy (mirrors renderDomainCard's button
  * count math):
  *   • Mixed grouped + ungrouped → close every ungrouped (grouped is the keep).
  *   • All ungrouped (≥2)        → keep one ungrouped, close the rest.
  *   • All grouped, single group → keep one, close the rest within that group.
  *   • All grouped, multi groups → skip (would empty a slot in each group).
- * Returns a snapshot of what was closed for undo.
+ * Returns confirmed Undo snapshots plus mutation status and
+ * attempted/removed/failed counts.
  *
  * @param {string[]} urls
  * @param {boolean} [keepOne=true]
  * @param {{ preservePinned?: boolean, preservePinnedTabOut?: boolean }} [opts]
- * @returns {Promise<TabSnapshot[]>}
+ * @returns {Promise<TabCloseResult>}
  */
-export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: DedupeOptions = {}): Promise<TabSnapshot[]> {
+export async function closeDuplicateTabsResult(
+  urls: string[],
+  keepOne = true,
+  opts: DedupeOptions = {}
+): Promise<TabCloseResult> {
+  const requestedUrls = [...new Set(urls.map(canonicalDedupeKey).filter(Boolean))]
+  if (requestedUrls.length === 0) return emptyTabCloseResult('complete')
   const { preservePinned = false, preservePinnedTabOut = false } = opts
-  const allTabs = await queryAllTabs()
-  const currentWindowId = (await getCurrentWindow())?.id ?? -1
+  const currentWindowResult = await getCurrentWindowResult()
+  const currentWindowId = currentWindowResult.value?.id ?? -1
+  if ((!currentWindowResult.ok || currentWindowId < 0) && requestedUrls.some((url) => isTabOutPageUrl(url))) {
+    return emptyTabCloseResult('unknown')
+  }
+  // Keep the live-tab inventory as the final awaited read before selecting
+  // removals. A slow current-window lookup must not leave a stale URL snapshot
+  // that can close a tab which started navigating in the meantime.
+  const allTabsResult = await queryAllTabsResult()
+  if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
+  const allTabs = allTabsResult.value
+  const requestedUrlSet = new Set(requestedUrls)
+  const tabsByDedupeKey = new Map<string, chrome.tabs.Tab[]>()
+  for (const tab of allTabs) {
+    const key = canonicalDedupeKey(unwrapSuspenderUrl(liveTabUrlForIdentity(tab)))
+    if (!requestedUrlSet.has(key)) continue
+    const matching = tabsByDedupeKey.get(key)
+    if (matching) matching.push(tab)
+    else tabsByDedupeKey.set(key, [tab])
+  }
   const toCloseTabs: chrome.tabs.Tab[] = []
 
-  for (const url of urls) {
-    const matching = allTabs.filter((t) => canonicalDedupeKey(unwrapSuspenderUrl(t.url)) === url)
+  for (const url of requestedUrls) {
+    const matching = tabsByDedupeKey.get(url) ?? []
     toCloseTabs.push(
       ...pickDuplicateTabsToClose(matching, {
         keepOne,
@@ -253,8 +418,10 @@ export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: D
     )
   }
 
-  const snapshot = snapshotChromeTabs(toCloseTabs, { includeTabOutUrls: preservePinnedTabOut })
-  await removeTabs(tabIds(toCloseTabs))
-  await fetchOpenTabs()
-  return snapshot
+  return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
+}
+
+/** Convenience value API; use closeDuplicateTabsResult when mutation status matters. */
+export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: DedupeOptions = {}): Promise<TabSnapshot[]> {
+  return (await closeDuplicateTabsResult(urls, keepOne, opts)).value
 }

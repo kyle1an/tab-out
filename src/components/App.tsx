@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition, type ComponentPropsWithoutRef, type ReactNode, type Ref } from 'react'
 import { createRoot } from 'react-dom/client'
-import { fetchClosedTabs, isClosedTabFetchSuppressed, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
+import { closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { domainGroupCardId } from '../extension/domain-card-id.js'
 import { showToast } from '../extension/toast.js'
@@ -13,12 +13,15 @@ import {
   type PreparedIntraCardMove
 } from '../extension/intra-card-move-animation.js'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
+import { settleDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
+import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState, type DashboardLocalState } from '../hooks/useDashboardLocalState'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
+import type { UrlPreviewStore } from '../hooks/useUrlPreview'
 import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
 import { HistorySearchStatus } from './HistorySearchStatus'
@@ -113,11 +116,27 @@ type DashboardMissionsListProps = {
   onRetryHistorySearch: () => void
   sections: DashboardMissionSection[]
 }
+type SourceSwitchRequestContext = {
+  filter: string
+  historyFilterEnabled: boolean
+  historyRange: string
+  pinnedDomains: readonly string[]
+}
+type SourceSwitchSnapshotResult =
+  | { status: 'cancelled' }
+  | { status: 'failed' }
+  | {
+      status: 'ready'
+      snapshot: Awaited<ReturnType<typeof fetchDashboardSnapshot>>
+    }
+type MutableValue<T> = { current: T }
 type AppDashboardState = {
   closedTabs: readonly ClosedTabEntry[]
   dashboard: DashboardData | null
   historyRange: string
   source: DashboardSource
+  sourceRequestId: number
+  sourceSelection: DashboardSource
   tabHistory: TabHistorySnapshot | null
   workingSet: WorkingSetSnapshot | null
 }
@@ -126,6 +145,8 @@ type AppDashboardAction =
   | { type: 'dashboard'; dashboard: DashboardData | null }
   | { type: 'historyRange'; historyRange: string }
   | { type: 'source'; source: DashboardSource }
+  | { type: 'sourceRequest'; requestId: number; source: DashboardSource }
+  | { type: 'sourceRequestFailed'; requestId: number }
   | { type: 'tabHistory'; tabHistory: TabHistorySnapshot | null }
   | { type: 'workingSet'; workingSet: WorkingSetSnapshot | null }
   | {
@@ -135,9 +156,10 @@ type AppDashboardAction =
   | {
       type: 'sourceSnapshot'
       dashboard: DashboardData | null
+      requestId: number
       source: DashboardSource
-      tabHistory: TabHistorySnapshot | null
-      workingSet: WorkingSetSnapshot | null
+      tabHistory?: TabHistorySnapshot
+      workingSet?: WorkingSetSnapshot
     }
 
 function initialAppDashboardState({
@@ -152,6 +174,8 @@ function initialAppDashboardState({
     dashboard: snapshot?.dashboard ?? null,
     historyRange,
     source: 'tabs',
+    sourceRequestId: 0,
+    sourceSelection: 'tabs',
     tabHistory: snapshot?.tabHistory ?? null,
     workingSet: snapshot?.workingSet ?? null
   }
@@ -186,7 +210,19 @@ function appDashboardReducer(state: AppDashboardState, action: AppDashboardActio
       }
     }
     case 'source':
-      return state.source === action.source ? state : { ...state, source: action.source }
+      return state.source === action.source && state.sourceSelection === action.source
+        ? state
+        : { ...state, source: action.source, sourceSelection: action.source }
+    case 'sourceRequest':
+      return {
+        ...state,
+        sourceRequestId: action.requestId,
+        sourceSelection: action.source
+      }
+    case 'sourceRequestFailed':
+      return action.requestId === state.sourceRequestId
+        ? { ...state, sourceSelection: state.source }
+        : state
     case 'tabHistory':
       return state.tabHistory === action.tabHistory ? state : { ...state, tabHistory: action.tabHistory }
     case 'workingSet':
@@ -200,18 +236,71 @@ function appDashboardReducer(state: AppDashboardState, action: AppDashboardActio
         workingSet: action.snapshot.workingSet
       }
     case 'sourceSnapshot':
+      if (action.requestId !== state.sourceRequestId) return state
       return {
         ...state,
         dashboard: action.dashboard,
         source: action.source,
-        tabHistory: action.tabHistory,
-        workingSet: action.workingSet
+        sourceSelection: action.source,
+        ...(action.tabHistory !== undefined ? { tabHistory: action.tabHistory } : {}),
+        ...(action.workingSet !== undefined ? { workingSet: action.workingSet } : {})
       }
   }
 }
 
 function sameStringList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+function sourceSwitchRequestContextMatches(
+  request: SourceSwitchRequestContext,
+  current: SourceSwitchRequestContext
+): boolean {
+  return request.filter === current.filter &&
+    request.historyFilterEnabled === current.historyFilterEnabled &&
+    request.historyRange === current.historyRange &&
+    sameStringList(request.pinnedDomains, current.pinnedDomains)
+}
+
+async function fetchLatestSourceSwitchSnapshot({
+  nextSource,
+  previousOrderRef,
+  requestId,
+  sourceSwitchContextRef,
+  sourceSwitchSeqRef
+}: {
+  nextSource: DashboardSource
+  previousOrderRef: MutableValue<MissionOrderMap>
+  requestId: number
+  sourceSwitchContextRef: MutableValue<SourceSwitchRequestContext>
+  sourceSwitchSeqRef: MutableValue<number>
+}): Promise<SourceSwitchSnapshotResult> {
+  while (requestId === sourceSwitchSeqRef.current) {
+    const currentContext = sourceSwitchContextRef.current
+    const requestContext: SourceSwitchRequestContext = {
+      ...currentContext,
+      pinnedDomains: [...currentContext.pinnedDomains]
+    }
+    try {
+      // react-doctor-disable-next-line react-doctor/async-defer-await, react-doctor/async-await-in-loop -- each retry supersedes the stale request context, so the next fetch must start only after the previous result is rejected.
+      const snapshot = await fetchDashboardSnapshot({
+        source: nextSource,
+        filter: requestContext.filter,
+        historyRange: requestContext.historyRange,
+        historyFilterEnabled: requestContext.historyFilterEnabled,
+        pinnedDomains: [...requestContext.pinnedDomains],
+        previousOrder: previousOrderRef.current
+      })
+      if (requestId !== sourceSwitchSeqRef.current) return { status: 'cancelled' }
+      if (!sourceSwitchRequestContextMatches(requestContext, sourceSwitchContextRef.current)) continue
+      return { status: 'ready', snapshot }
+    } catch {
+      if (requestId !== sourceSwitchSeqRef.current) return { status: 'cancelled' }
+      if (!sourceSwitchRequestContextMatches(requestContext, sourceSwitchContextRef.current)) continue
+      return { status: 'failed' }
+    }
+  }
+  return { status: 'cancelled' }
 }
 
 function startupViewModelMatchesLocalState(startupViewModel: DashboardStartupSnapshot['startupViewModel'], localState: DashboardLocalState | null): startupViewModel is NonNullable<DashboardStartupSnapshot['startupViewModel']> {
@@ -468,6 +557,7 @@ type DashboardShellProps = {
   filterFocusRequest: number
   filterInput: string
   filterResultCandidates: readonly FilterResultCandidate[]
+  filterResultSearchSettled: boolean
   handleScrollRegionRef: (node: HTMLDivElement | null) => void
   historyRange: string
   isReady: boolean
@@ -483,9 +573,10 @@ type DashboardShellProps = {
   setTabHistory: (snapshot: TabHistorySnapshot | null) => void
   showHistoryRange: boolean
   source: DashboardSource
+  sourceSelection: DashboardSource
   stats: DashboardStats
   tabHistory: TabHistorySnapshot | null
-  urlPreview: { url: string; visible: boolean }
+  urlPreviewStore: UrlPreviewStore
   workingSet: WorkingSetSnapshot | null
 }
 
@@ -497,6 +588,7 @@ function DashboardShell({
   filterFocusRequest,
   filterInput,
   filterResultCandidates,
+  filterResultSearchSettled,
   handleScrollRegionRef,
   historyRange,
   isReady,
@@ -512,9 +604,10 @@ function DashboardShell({
   setTabHistory,
   showHistoryRange,
   source,
+  sourceSelection,
   stats,
   tabHistory,
-  urlPreview,
+  urlPreviewStore,
   workingSet
 }: DashboardShellProps) {
   // Reserve the Tabs-source history column during the initial dashboard fetch so
@@ -525,6 +618,7 @@ function DashboardShell({
     <TooltipProvider>
       <div
         data-tabout="dashboard-shell"
+        data-source={source}
         className={cn(
           'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
           showTabHistory
@@ -564,11 +658,13 @@ function DashboardShell({
           >
             <HeaderBar
               source={source}
+              sourceSelection={sourceSelection}
               stats={stats}
               ready={isReady}
               filter={filterInput}
               committedFilter={filter}
               filterResultCandidates={filterResultCandidates}
+              filterResultSearchSettled={filterResultSearchSettled}
               filterFocusRequest={filterFocusRequest}
               historyRange={historyRange}
               onFilterChange={setFilterInput}
@@ -581,7 +677,9 @@ function DashboardShell({
 
           <div
             id="dashboardMissions"
+            role="group"
             data-tabout-part="scroll-region"
+            aria-label="Filter results"
             className={cn(
               'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
@@ -607,7 +705,7 @@ function DashboardShell({
         </div>
       </div>
 
-      <UrlPreview url={urlPreview.url} visible={urlPreview.visible} />
+      <UrlPreview store={urlPreviewStore} />
     </TooltipProvider>
   )
 }
@@ -625,9 +723,9 @@ export function App({
     historyRange: initialHistoryRange,
     snapshot: initialStartupSnapshot
   }, initialAppDashboardState)
-  const { closedTabs, dashboard, historyRange, source, tabHistory, workingSet } = appDashboard
+  const { closedTabs, dashboard, historyRange, source, sourceSelection, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
-  const { hoverMatch, urlPreview, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
+  const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   const { isScrolled, handleScrollRegionRef } = useScrollShadow()
   function setClosedTabs(next: readonly ClosedTabEntry[]) {
     dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
@@ -661,20 +759,47 @@ export function App({
     dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
   }
   const closedTabsSeqRef = useRef(0)
+  const closedTabsRetryTimerRef = useRef<number | null>(null)
   const firstDashboardLayoutRecordedRef = useRef(false)
   const startupRefreshRequestedRef = useRef(false)
-  const refreshClosedTabs = useCallback(async function refreshClosedTabs() {
-    if (isClosedTabFetchSuppressed()) return
+  const refreshClosedTabs = useCallback(async function refreshClosedTabs(settleDelayMs = 0) {
     const seq = ++closedTabsSeqRef.current
+    const suppressionRemainingMs = closedTabFetchSuppressionRemainingMs()
+    const delayMs = Math.max(settleDelayMs, suppressionRemainingMs)
+    if (!Number.isFinite(delayMs)) {
+      // An unresolved sessions.restore has no safe deadline. Its settlement
+      // emits another change notification that arms the finite trailing read.
+      if (closedTabsRetryTimerRef.current !== null) {
+        window.clearTimeout(closedTabsRetryTimerRef.current)
+        closedTabsRetryTimerRef.current = null
+      }
+      return
+    }
+    if (delayMs > 0) {
+      if (closedTabsRetryTimerRef.current !== null) window.clearTimeout(closedTabsRetryTimerRef.current)
+      closedTabsRetryTimerRef.current = window.setTimeout(() => {
+        closedTabsRetryTimerRef.current = null
+        void refreshClosedTabs()
+      }, Math.max(1, Math.ceil(delayMs)))
+      return
+    }
+    if (closedTabsRetryTimerRef.current !== null) {
+      window.clearTimeout(closedTabsRetryTimerRef.current)
+      closedTabsRetryTimerRef.current = null
+    }
     // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await seq comparison is a stale-response race guard; it must run after the await.
-    const next = await fetchClosedTabs()
+    const result = await fetchClosedTabsResult()
     if (seq !== closedTabsSeqRef.current) return
-    setClosedTabs(next)
+    if (result.ok) setClosedTabs(result.value)
   }, [])
 
   useEffect(() => {
-    return subscribeClosedTabChanges(() => { void refreshClosedTabs() })
+    return subscribeClosedTabChanges((settleDelayMs) => { void refreshClosedTabs(settleDelayMs).catch(() => {}) })
   }, [refreshClosedTabs])
+
+  useEffect(() => () => {
+    if (closedTabsRetryTimerRef.current !== null) window.clearTimeout(closedTabsRetryTimerRef.current)
+  }, [])
 
   const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
@@ -760,6 +885,20 @@ export function App({
     onSectionPinSaveError: () => showToast('Could not save pinned section'),
     onPageChipPinSaveError: () => showToast('Could not save pinned page')
   })
+  const sourceSwitchContextRef = useRef<SourceSwitchRequestContext>({
+    filter,
+    historyFilterEnabled,
+    historyRange,
+    pinnedDomains: [...pinnedDomains]
+  })
+  useLayoutEffect(() => {
+    sourceSwitchContextRef.current = {
+      filter,
+      historyFilterEnabled,
+      historyRange,
+      pinnedDomains: [...pinnedDomains]
+    }
+  }, [filter, historyFilterEnabled, historyRange, pinnedDomains])
   const initialStartupViewModel = initialStartupSnapshot?.startupViewModel
   const startupDashboardViewModel =
     visibleDashboard === initialStartupSnapshot?.dashboard &&
@@ -862,6 +1001,12 @@ export function App({
       showHistoryMatches
     ]
   )
+  const filterResultSearchSettled = isReady && !dashboardNeedsFilterSearchRefresh(visibleDashboard, {
+    source,
+    filter,
+    historyRange,
+    historyFilterEnabled
+  })
 
   useLayoutEffect(() => {
     const prepared = intraCardMoveRef.current
@@ -902,52 +1047,55 @@ export function App({
   }, [])
 
   const onCloseFiltered = useCallback(async function onCloseFiltered() {
-    await closeFilteredTabs(dashboardVm.filteredCloseUrls)
-  }, [dashboardVm.filteredCloseUrls])
+    await closeFilteredTabs(dashboardVm.filteredCloseTargets)
+  }, [dashboardVm.filteredCloseTargets])
 
   const onDedupAll = useCallback(async function onDedupAll() {
     await dedupeTabs({ urls: dashboardVm.globalDedupeUrls, preservePinnedTabOut: true })
   }, [dashboardVm.globalDedupeUrls])
 
   const onTabsChange = useCallback(function onTabsChange() {
-    void refreshDashboard({ animateCards: true })
+    void settleDashboardRefresh(refreshDashboard({ animateCards: true }))
   }, [refreshDashboard])
 
   const onSourceChange = useCallback(function onSourceChange(nextSource: DashboardSource) {
-    if (nextSource === source) return
+    if (nextSource === sourceSelection) return
     const requestId = ++sourceSwitchSeqRef.current
+    dispatchAppDashboard({ type: 'sourceRequest', requestId, source: nextSource })
+    if (nextSource === source) return
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     setStartupPriorityWorkingSet(null)
     clearHoverUrlNow()
-    void (async () => {
-      try {
-        if (requestId !== sourceSwitchSeqRef.current) return
-        // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await requestId comparison is a stale-response race guard; it must run after the await.
-        const { dashboard: nextDashboard, tabHistory: nextTabHistory, workingSet: nextWorkingSet } = await fetchDashboardSnapshot({
-          source: nextSource,
-          filter,
-          historyRange,
-          historyFilterEnabled,
-          pinnedDomains,
-          previousOrder: previousOrderRef.current
+    void fetchLatestSourceSwitchSnapshot({
+      nextSource,
+      previousOrderRef,
+      requestId,
+      sourceSwitchContextRef,
+      sourceSwitchSeqRef
+    }).then((result) => {
+      if (requestId !== sourceSwitchSeqRef.current || result.status === 'cancelled') return
+      if (result.status === 'failed') {
+        dispatchAppDashboard({
+          type: 'sourceRequestFailed',
+          requestId
         })
-        if (requestId !== sourceSwitchSeqRef.current) return
-        layoutMoveRectsRef.current = previousRects
-        startSourceTransition(() => {
-          dispatchAppDashboard({
-            type: 'sourceSnapshot',
-            dashboard: nextDashboard,
-            source: nextSource,
-            tabHistory: nextTabHistory,
-            workingSet: nextWorkingSet
-          })
-        })
-      } catch {
-        if (requestId !== sourceSwitchSeqRef.current) return
         showToast('Could not switch source')
+        return
       }
-    })()
-  }, [source, filter, historyRange, historyFilterEnabled, pinnedDomains, clearHoverUrlNow, currentMissionContainers])
+
+      layoutMoveRectsRef.current = previousRects
+      startSourceTransition(() => {
+        dispatchAppDashboard({
+          type: 'sourceSnapshot',
+          dashboard: result.snapshot.dashboard,
+          requestId,
+          source: nextSource,
+          tabHistory: result.snapshot.tabHistory,
+          workingSet: result.snapshot.workingSet
+        })
+      })
+    })
+  }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers])
 
   const primaryMissionsEmpty = matchedCards.length === 0
   const showHistorySection = showHistoryRange || showHistoryMatches
@@ -997,7 +1145,7 @@ export function App({
     recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-refresh-requested', {
       detail: { localStateLoaded }
     })
-    void refreshDashboard({ startupSnapshot: true })
+    void settleDashboardRefresh(refreshDashboard({ startupSnapshot: true }))
   }, [dashboardContentVisible, localStateLoaded, refreshDashboard])
 
   // App bails out of React Compiler (the render-time ordering-cache ref reads
@@ -1014,7 +1162,7 @@ export function App({
 
   return (
     <DashboardActionsProvider value={dashboardActions}>
-      <HoverStateProvider value={hoverMatch}>
+      <HoverStateProvider store={hoverStateStore}>
         <DashboardShell
           closedTabs={dashboardContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
           commitFilterInput={commitFilterInput}
@@ -1023,6 +1171,7 @@ export function App({
           filterFocusRequest={filterFocusRequest}
           filterInput={filterInput}
           filterResultCandidates={filterResultCandidates}
+          filterResultSearchSettled={filterResultSearchSettled}
           handleScrollRegionRef={handleScrollRegionRef}
           historyRange={historyRange}
           isReady={isReady}
@@ -1038,9 +1187,10 @@ export function App({
           setTabHistory={setTabHistory}
           showHistoryRange={showHistoryRange}
           source={source}
+          sourceSelection={sourceSelection}
           stats={stats}
           tabHistory={dashboardContentVisible ? tabHistory : null}
-          urlPreview={urlPreview}
+          urlPreviewStore={urlPreviewStore}
           workingSet={historyPanelWorkingSet}
         />
       </HoverStateProvider>

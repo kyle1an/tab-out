@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { liveTabsMatchingTarget } from '../src/extension/live-tab-matching.js'
+import { liveTabByValidatedId, liveTabMatchesIdentity, liveTabsMatchingTarget } from '../src/extension/live-tab-matching.js'
 import type { LiveTabMatchTarget } from '../src/extension/live-tab-matching.js'
 
 const DOCS = 'https://example.com/docs'
@@ -13,7 +13,7 @@ const ENV_B_SUSPENDED = 'chrome-extension://marvellous/suspended.html#ttl=Dash&u
 
 type Row = {
   name: string
-  tabs: Array<{ id: number; url?: string }>
+  tabs: Array<{ id: number; url?: string; pendingUrl?: string }>
   target: LiveTabMatchTarget
   expected: number[]
 }
@@ -66,6 +66,27 @@ const table: Row[] = [
     expected: []
   },
   {
+    name: 'an empty target never matches a URL-less tab',
+    tabs: [{ id: 1 }, { id: 2, url: '' }],
+    target: { tabUrl: '' },
+    expected: []
+  },
+  {
+    name: 'an empty folded target never matches a URL-less tab',
+    tabs: [{ id: 1 }, { id: 2, url: '' }],
+    target: { tabUrl: '', envs: [{ tabUrl: '' }] },
+    expected: []
+  },
+  {
+    name: 'a pending navigation replaces the committed URL for matching',
+    tabs: [
+      { id: 1, url: DOCS, pendingUrl: OTHER },
+      { id: 2, url: OTHER, pendingUrl: DOCS }
+    ],
+    target: { tabUrl: DOCS },
+    expected: [2]
+  },
+  {
     name: 'folded chips match every variant URL and ignore non-members',
     tabs: [
       { id: 1, url: ENV_A },
@@ -110,3 +131,22 @@ for (const row of table) {
     assert.deepEqual(matched, row.expected)
   })
 }
+
+test('live-tab identity validation rejects a reused id with an unrelated URL', () => {
+  const tabs = [
+    { id: 7, url: OTHER },
+    { id: 8, url: DOCS_SUSPENDED }
+  ]
+
+  assert.equal(liveTabByValidatedId(tabs, { tabId: 7, tabUrl: DOCS }), null)
+  assert.equal(liveTabByValidatedId(tabs, { tabId: 8, tabUrl: DOCS })?.id, 8)
+  assert.equal(liveTabMatchesIdentity(tabs[1], { rawUrl: DOCS_SUSPENDED }), true)
+})
+
+test('live-tab identity validation prefers pending navigation without changing suspended matching', () => {
+  const navigating = { id: 7, url: DOCS, pendingUrl: OTHER }
+
+  assert.equal(liveTabMatchesIdentity(navigating, { tabUrl: DOCS }), false)
+  assert.equal(liveTabMatchesIdentity(navigating, { tabUrl: OTHER }), true)
+  assert.equal(liveTabMatchesIdentity({ url: DOCS_SUSPENDED }, { tabUrl: DOCS }), true)
+})

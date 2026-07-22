@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import FakeTimers from '@sinonjs/fake-timers'
 
-import { createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
+import { STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS, createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 import { makeCachedSuspendedTab } from './helpers/suspended-tab.js'
 
@@ -21,6 +22,7 @@ const emptyTabHistory = {
 const emptyActivity = { version: 1, records: {} }
 
 test('background startup snapshots retain the cached title of a waking suspended tab', async (t) => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   const sessionStore: Record<string, any> = {
     [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
@@ -37,22 +39,27 @@ test('background startup snapshots retain the cached title of a waking suspended
     }
   }
   const localStore: Record<string, unknown> = {}
+  let sessionReadCount = 0
+  let tabsQueryCount = 0
 
   ;(globalThis as any).chrome = {
     runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
     tabs: {
-      query: async () => [{
-        id: 7,
-        url: pageUrl,
-        title: 'Example',
-        status: 'loading',
-        windowId: 1,
-        active: false,
-        pinned: false,
-        groupId: -1,
-        index: 0,
-        favIconUrl: ''
-      }]
+      query: async () => {
+        tabsQueryCount += 1
+        return [{
+          id: 7,
+          url: pageUrl,
+          title: 'Example',
+          status: 'loading',
+          windowId: 1,
+          active: false,
+          pinned: false,
+          groupId: -1,
+          index: 0,
+          favIconUrl: ''
+        }]
+      }
     },
     windows: {
       getAll: async () => [{ id: 1, focused: true, type: 'normal' }],
@@ -62,7 +69,11 @@ test('background startup snapshots retain the cached title of a waking suspended
     sessions: { getRecentlyClosed: async () => [] },
     storage: {
       session: {
-        get: async () => sessionStore,
+        get: async () => {
+          sessionReadCount += 1
+          if (sessionReadCount === 1) throw new Error('session cache temporarily unavailable')
+          return sessionStore
+        },
         set: async (value: Record<string, unknown>) => Object.assign(sessionStore, value)
       },
       local: {
@@ -73,15 +84,25 @@ test('background startup snapshots retain the cached title of a waking suspended
   }
 
   t.after(() => {
+    clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
     else (globalThis as { chrome?: unknown }).chrome = previousChrome
   })
 
   const service = createStartupSnapshotService({
-    getTabHistorySnapshot: async () => emptyTabHistory as any,
-    getWorkingSetActivity: async () => emptyActivity as any
+    getDashboardServiceState: async () => ({
+      tabHistory: emptyTabHistory as any,
+      workingSetActivity: emptyActivity as any,
+      openTabsSnapshot: {
+        tabs: await chrome.tabs.query({}),
+        windows: await chrome.windows.getAll()
+      }
+    })
   })
   await service.refreshNow()
+  assert.equal(tabsQueryCount, 0, 'an unknown cache read must preserve the cache and retry seeding')
+
+  await clock.tickAsync(STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS)
 
   const [cachedTab] = sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY].snapshot.dashboard.realTabs
   assert.equal(cachedTab.title, 'Example Docs')

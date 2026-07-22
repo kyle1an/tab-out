@@ -32,7 +32,8 @@
     "lucide-react": "^1.24.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-error-boundary": "^6.1.2"
+    "react-error-boundary": "^6.1.2",
+    "tldts": "^7.4.9"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -4,17 +4,17 @@ import { X } from 'lucide-react'
 import { isClosedSavedDashboardTab, isReadOnlyDashboardSourceType } from '../extension/dashboard-source.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { savePageTarget, removeSavedPageTarget } from '../extension/saved-page-actions.js'
-import { focusExistingTabTarget } from '../extension/tab-focus.js'
+import { focusExistingTabTargetResult, tabFocusResultToastMessage } from '../extension/tab-focus.js'
 import { chipActivationMode, performDashboardItemActivation, shouldSuppressSelectionForGesture } from '../extension/tab-activation.js'
 import type { ChipActivationModifiers } from '../extension/tab-activation.js'
 import { filterResultCandidateForTarget } from '../extension/filter-result-navigation.js'
-import { focusExactTab, focusTab, openTabUrl } from '../extension/tabs.js'
+import { focusExactTabOrOpenResult } from '../extension/tabs.js'
 import { closeChipTarget, deleteHistoryUrls, duplicateTabTarget, reloadTabTarget, setChipTargetMuted, suspendChipTarget } from '../extension/tab-actions'
 import { showToast } from '../extension/toast.js'
 import { nextMutedForAudioState } from '../extension/tab-audio.js'
 import { DefaultFavicon } from './DefaultFavicon'
 import { useDomainCardContext } from './DomainCardContext'
-import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
+import { useDashboardActions, useHoverStateSelector, type HoverState } from './DashboardInteractionContext'
 import { startPageChipCloseAnimation } from './PageChipCloseAnimation'
 import { TooltipAnchor } from './ui/tooltip'
 import { PageChipContextMenu } from './PageChipContextMenu'
@@ -32,11 +32,12 @@ import { chipTrim, CHIP_TRIM_TOKENS } from './chip-trim'
 import { FAVICON_DIM_CLASS_NAME, VARIANT_LABEL_DIM_CLASS_NAME } from './liveness-dim'
 import type { DashboardChipData } from './types'
 import type { DashboardChipEnv, DashboardSegment } from '../extension/types'
-import { closeTargetLeavesSavedPage, partitionVariantCloseTargets, groupCloseActionLabel, variantClosable } from './chip-close-targets.js'
+import { closeTargetLeavesSavedPage, historyDeleteFullyRemoved, partitionVariantCloseTargets, groupCloseActionLabel, titleVariantGroupRemovalConfirmed, variantClosable } from './chip-close-targets.js'
 import { pageChipTargetActionPolicy } from './page-chip-action-policy.js'
 import { chipCanShowSuspend, chipSuspendableTargetCount } from './chip-suspend-targets.js'
 import { registerPageChipTextLayoutValidation, type PageChipTextLayoutMeasurementJob } from './page-chip-layout-validation.js'
 import { createSizeChangeObserver, type ObservedElementSize, type SizeChangeObserver } from './size-change-observer.js'
+import { subscribeFontMetricsInvalidation } from './font-metrics-invalidation.js'
 
 let chipTextResizeObserver: SizeChangeObserver | null = null
 const chipTextMeasuredSizes = new WeakMap<HTMLElement, ObservedElementSize>()
@@ -78,6 +79,26 @@ interface PageChipProps {
   filter?: string
   layoutScope?: string
   suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+}
+
+function chipMatchesHoverState(target: DashboardChipData, state: HoverState): boolean {
+  return (
+    pageTargetMatchesHover(target, state.url, state.urls) ||
+    !!target.envs?.some((env) => pageTargetMatchesHover(env, state.url, state.urls))
+  )
+}
+
+function pageChipHoverMatchKey(
+  state: HoverState,
+  chip: DashboardChipData,
+  titleVariantChips: readonly DashboardChipData[]
+): string {
+  if (!state.url || !state.source || state.source === 'chip') return ''
+  const matches = [
+    chipMatchesHoverState(chip, state),
+    ...titleVariantChips.map((variant) => chipMatchesHoverState(variant, state))
+  ]
+  return matches.some(Boolean) ? matches.map((matched) => matched ? '1' : '0').join('') : ''
 }
 
 type ChipTextRenderMode = 'chip' | 'tooltip'
@@ -1165,11 +1186,11 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
 
 function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTitleToneByText }: PageChipProps) {
   const { activeSuppressedTitle, dedupeBadgesClosing } = useDomainCardContext()
-  const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
   const { onHoverUrlChange, onLayoutChange, onTogglePinnedPageChip } = useDashboardActions()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
   const titleVariantChips = Array.isArray(chip.titleVariantChips) ? chip.titleVariantChips : []
+  const hoverMatchKey = useHoverStateSelector((state) => pageChipHoverMatchKey(state, chip, titleVariantChips))
   const isTitleVariantGroup = titleVariantChips.length > 1
   const chipFilterResultCandidate = filterResultCandidateForTarget(chip)
   const chipLayoutKey = chip.pagePinId || chip.rawUrl
@@ -1387,19 +1408,17 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   // react-doctor-disable-next-line react-doctor/exhaustive-deps -- the cleanup reads observedChipTextElRef at unmount time deliberately: it must unobserve whichever element is registered THEN, not the mount-time one.
   useEffect(() => {
     let disposed = false
-    const fontSet = document.fonts
     const onFontsDone = () => {
       if (disposed) return
       chipTextMeasurementRef.current = null
       setChipTextLayout((current) => current.clamp ? { ...current, clamp: null } : current)
       updateChipTextMeasurementsRef.current(chipTextRef.current)
     }
-    fontSet.addEventListener('loadingdone', onFontsDone)
-    if (fontSet.status !== 'loaded') void fontSet.ready.then(onFontsDone)
+    const unsubscribeFontMetrics = subscribeFontMetricsInvalidation(onFontsDone)
 
     return () => {
       disposed = true
-      fontSet.removeEventListener('loadingdone', onFontsDone)
+      unsubscribeFontMetrics()
       const observed = observedChipTextElRef.current
       if (observed) {
         getChipTextResizeObserver().unobserve(observed)
@@ -1413,19 +1432,27 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     return e.key === 'Enter' || e.key === ' '
   }
 
-  async function focusChipUrl(targetUrl: string | undefined, sourceTypeArg?: DashboardChipData['sourceType'], target?: Pick<DashboardChipData, 'rawUrl' | 'tabId'>) {
-    const sourceType = sourceTypeArg !== undefined ? sourceTypeArg : chip.sourceType
+  async function focusChipUrl(targetUrl: string | undefined, target?: Pick<DashboardChipData, 'rawUrl' | 'tabId'>) {
     if (!targetUrl) return
     if (typeof target?.tabId === 'number') {
-      const focused = await focusExistingTabTarget({ tabId: target.tabId, url: targetUrl, rawUrl: target.rawUrl })
-      if (focused) return
-    }
-    if (isReadOnlyDashboardSourceType(sourceType)) {
-      const focused = await focusExactTab(targetUrl)
-      if (!focused) await openTabUrl(targetUrl)
+      // A rendered numeric id represents one physical tab. Every result other
+      // than focused is still terminal here: widening a stale/failed exact
+      // target to another URL on the same host can activate the wrong chip.
+      const result = await focusExistingTabTargetResult({ tabId: target.tabId, url: targetUrl, rawUrl: target.rawUrl })
+      const message = tabFocusResultToastMessage(result.status)
+      if (message) showToast(message)
       return
     }
-    await focusTab(targetUrl)
+    // Synthetic/read-only/closed-saved chips have no physical id. Their URL
+    // fallback is exact and opens only after a confirmed no-match read.
+    const result = await focusExactTabOrOpenResult(targetUrl)
+    if (result.status === 'opened') return
+    if (result.status === 'open-failed') {
+      showToast('Could not open page')
+      return
+    }
+    const message = tabFocusResultToastMessage(result.status)
+    if (message) showToast(message)
   }
 
   async function activateChipTarget(
@@ -1436,12 +1463,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   ) {
     if (!targetUrl) return
     const mode = chipActivationMode(e, navigator.platform)
-    const handled = await performDashboardItemActivation(mode, {
+    const activationResult = await performDashboardItemActivation(mode, {
       tabId: target?.tabId,
       tabUrl: targetUrl,
       rawUrl: target?.rawUrl
     })
-    if (!handled) await focusChipUrl(targetUrl, sourceType, target)
+    if (activationResult === 'unhandled') await focusChipUrl(targetUrl, target)
   }
 
   function defaultTitleVariantChip() {
@@ -1743,6 +1770,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     await closeChipTarget({
       tabUrl: chip.tabUrl,
       tabId: chip.tabId,
+      expectedPinned: chip.chromePinned,
+      expectedGroupId: chip.chromeGroupId,
       envs,
       onAfterClose: ({ shouldAnimateRemoval }) => {
         if (shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl) {
@@ -1760,13 +1789,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const urls = Array.from(new Set(isFolded ? envs.flatMap((env) => env.tabUrl ? [env.tabUrl] : []) : chip.tabUrl ? [chip.tabUrl] : []))
     if (urls.length === 0) return
 
-    await deleteHistoryUrls({
-      urls,
-      onAfterDelete: () => {
-        startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
-        setPreview('')
-      }
-    })
+    const result = await deleteHistoryUrls({ urls })
+    if (historyDeleteFullyRemoved(urls.length, result)) {
+      startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
+    }
+    setPreview('')
   }
 
   function onToggleChipAudio() {
@@ -1892,6 +1919,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     await closeChipTarget({
       tabUrl: variant.tabUrl,
       tabId: variant.tabId,
+      expectedPinned: variant.chromePinned,
+      expectedGroupId: variant.chromeGroupId,
       onAfterClose: async () => setPreview('')
     })
   }
@@ -1905,10 +1934,25 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
     // Close tabs and delete history without each call running its own removal
     // animation; animate the whole group chip out once, after both resolve.
-    if (tabEnvs.length > 0) await closeChipTarget({ tabUrl: chip.tabUrl, envs: tabEnvs })
-    if (historyUrls.length > 0) await deleteHistoryUrls({ urls: historyUrls })
+    const tabResult = tabEnvs.length > 0
+      ? await closeChipTarget({ tabUrl: chip.tabUrl, envs: tabEnvs })
+      : null
+    const historyResult = historyUrls.length > 0
+      ? await deleteHistoryUrls({ urls: historyUrls })
+      : null
 
-    if (!chipCloseLeavesSavedPage && chipEl) startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
+    if (
+      !chipCloseLeavesSavedPage &&
+      chipEl &&
+      titleVariantGroupRemovalConfirmed({
+        requestedTabCount: tabEnvs.length,
+        tabResult,
+        requestedHistoryCount: historyUrls.length,
+        historyResult
+      })
+    ) {
+      startPageChipCloseAnimation(chipEl, onLayoutChange, undefined, focusWasInsideClosingChip)
+    }
     setPreview('')
   }
 
@@ -2046,20 +2090,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     if (!hasFilter || !isClosedTarget) return undefined
     return { '--chip-target-interaction-bg': trim.styleVars.closedInteractionBg }
   }
-  function chipMatchesActiveHover(target: DashboardChipData) {
-    return (
-      pageTargetMatchesHover(target, activeHoverUrl, activeHoverUrls) ||
-      !!target.envs?.some((env) => (
-        pageTargetMatchesHover(env, activeHoverUrl, activeHoverUrls)
-      ))
-    )
-  }
-
-  const externalHoverActive = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl
-  const hoverMatched = externalHoverActive && (
-    chipMatchesActiveHover(chip) ||
-    titleVariantChips.some((variant) => chipMatchesActiveHover(variant))
-  )
+  const hoverMatched = hoverMatchKey !== ''
 
   function suppressionMarkerNode(part: string, mode: ChipTextRenderMode, key: string, markerClassName = '') {
     const partKey = part.trim().toLowerCase()
@@ -2309,7 +2340,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const label = variant.pathSuffix || variant.tabUrl || '/'
     const variantActive = !!(variant.activeChipFrame || variant.activeInOtherWindow)
     const variantCurrent = !!variant.activeChipFrame && !variant.activeInOtherWindow
-    const variantHoverMatched = externalHoverActive && chipMatchesActiveHover(variant)
+    const variantHoverMatched = hoverMatchKey[index + 1] === '1'
     // Static marker consumed only by base.css: hovering the group's non-URL
     // surface highlights this pill via :hover CSS so it swaps with the exact
     // pill's own :hover inside one style recalc. Routing this highlight

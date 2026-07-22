@@ -6,8 +6,9 @@
    Interface contract:
    • Commands only, browser vocabulary. Tab Action policy (matching,
      dedupe, suspend eligibility, undo ordering) stays with callers.
-   • Never throws. Failures normalize to [] / null / false / 0 so
-     callers branch on values, not try/catch.
+   • Never throws. Read operations whose empty value has product meaning expose
+     an `*Result` form so callers can distinguish a confirmed empty collection
+     from an unknown one; convenience wrappers retain the normalized value API.
    • The chrome-shaped input is resolved from `globalThis.chrome`
      PER CALL — never cached at module load — so tests and fixtures
      that patch the global in any order keep working. Tests may also
@@ -47,6 +48,10 @@ export type ChromeTabsApi = {
   }
 }
 
+export type BrowserReadResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; value: T }
+
 let injectedChromeTabsApi: ChromeTabsApi | null = null
 
 /** Test seam: inject a chrome-shaped api directly; pass null to restore global resolution. */
@@ -62,14 +67,18 @@ function chromeTabsApi(): ChromeTabsApi | null {
   return globalChrome ?? null
 }
 
-export async function queryAllTabs(): Promise<chrome.tabs.Tab[]> {
+export async function queryAllTabsResult(): Promise<BrowserReadResult<chrome.tabs.Tab[]>> {
   const api = chromeTabsApi()
-  if (!api?.tabs?.query) return []
+  if (!api?.tabs?.query) return { ok: false, value: [] }
   try {
-    return await api.tabs.query({})
+    return { ok: true, value: await api.tabs.query({}) }
   } catch {
-    return []
+    return { ok: false, value: [] }
   }
+}
+
+export async function queryAllTabs(): Promise<chrome.tabs.Tab[]> {
+  return (await queryAllTabsResult()).value
 }
 
 export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
@@ -85,20 +94,20 @@ export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
 /**
  * removeTabs — bulk close with a per-id fallback: Chrome rejects the whole
  * batch when any id is already gone, so a failed batch retries one id at a
- * time. Returns how many tabs were actually removed.
+ * time. Returns the exact ids Chrome accepted for removal.
  */
-export async function removeTabs(tabIds: number[]): Promise<number> {
+export async function removeTabs(tabIds: number[]): Promise<number[]> {
   const api = chromeTabsApi()
-  if (!api?.tabs?.remove || tabIds.length === 0) return 0
+  if (!api?.tabs?.remove || tabIds.length === 0) return []
   try {
     await api.tabs.remove(tabIds)
-    return tabIds.length
+    return tabIds.slice()
   } catch {
-    let removed = 0
+    const removed: number[] = []
     for (const tabId of tabIds) {
       try {
         await api.tabs.remove(tabId)
-        removed += 1
+        removed.push(tabId)
       } catch {
         /* already gone — skip */
       }
@@ -190,24 +199,32 @@ export async function moveTab(tabId: number, moveProperties: chrome.tabs.MovePro
   }
 }
 
-export async function getAllWindows(): Promise<chrome.windows.Window[]> {
+export async function getAllWindowsResult(): Promise<BrowserReadResult<chrome.windows.Window[]>> {
   const api = chromeTabsApi()
-  if (!api?.windows?.getAll) return []
+  if (!api?.windows?.getAll) return { ok: false, value: [] }
   try {
-    return await api.windows.getAll()
+    return { ok: true, value: await api.windows.getAll() }
   } catch {
-    return []
+    return { ok: false, value: [] }
+  }
+}
+
+export async function getAllWindows(): Promise<chrome.windows.Window[]> {
+  return (await getAllWindowsResult()).value
+}
+
+export async function getCurrentWindowResult(): Promise<BrowserReadResult<chrome.windows.Window | null>> {
+  const api = chromeTabsApi()
+  if (!api?.windows?.getCurrent) return { ok: false, value: null }
+  try {
+    return { ok: true, value: (await api.windows.getCurrent()) ?? null }
+  } catch {
+    return { ok: false, value: null }
   }
 }
 
 export async function getCurrentWindow(): Promise<chrome.windows.Window | null> {
-  const api = chromeTabsApi()
-  if (!api?.windows?.getCurrent) return null
-  try {
-    return (await api.windows.getCurrent()) ?? null
-  } catch {
-    return null
-  }
+  return (await getCurrentWindowResult()).value
 }
 
 export async function focusWindow(windowId: number): Promise<boolean> {
@@ -231,24 +248,35 @@ export async function createWindow(createData: chrome.windows.CreateData): Promi
   }
 }
 
-export async function queryTabGroups(): Promise<chrome.tabGroups.TabGroup[]> {
+export async function queryTabGroupsResult(): Promise<BrowserReadResult<chrome.tabGroups.TabGroup[]>> {
   const api = chromeTabsApi()
-  if (!api?.tabGroups) return []
+  // The API is optional when the permission is absent. That is a known lack of
+  // metadata, not a transient read failure, so the deterministic color fallback
+  // can take over.
+  if (!api?.tabGroups?.query) return { ok: true, value: [] }
   try {
-    return await api.tabGroups.query({})
+    return { ok: true, value: (await api.tabGroups.query({})) ?? [] }
   } catch {
-    return []
+    return { ok: false, value: [] }
+  }
+}
+
+export async function queryTabGroups(): Promise<chrome.tabGroups.TabGroup[]> {
+  return (await queryTabGroupsResult()).value
+}
+
+export async function getRecentlyClosedResult(filter?: chrome.sessions.Filter): Promise<BrowserReadResult<chrome.sessions.Session[]>> {
+  const api = chromeTabsApi()
+  if (!api?.sessions?.getRecentlyClosed) return { ok: true, value: [] }
+  try {
+    return { ok: true, value: (await api.sessions.getRecentlyClosed(filter)) ?? [] }
+  } catch {
+    return { ok: false, value: [] }
   }
 }
 
 export async function getRecentlyClosed(filter?: chrome.sessions.Filter): Promise<chrome.sessions.Session[]> {
-  const api = chromeTabsApi()
-  if (!api?.sessions?.getRecentlyClosed) return []
-  try {
-    return (await api.sessions.getRecentlyClosed(filter)) ?? []
-  } catch {
-    return []
-  }
+  return (await getRecentlyClosedResult(filter)).value
 }
 
 /** restoreSession — reopen a recently-closed session entry; false when unavailable or already gone. */

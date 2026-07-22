@@ -14,10 +14,20 @@ type TabCommandCalls = {
 function installFakeChrome(initialTabs: chrome.tabs.Tab[]) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
   const calls: TabCommandCalls = { duplicate: [], reload: [] }
-  setChromeTabsApi(createFakeChromeApi({ tabs, tabCommandLog: calls }))
+  const api = createFakeChromeApi({ tabs, tabCommandLog: calls })
+  const queryTabs = api.tabs.query.bind(api.tabs)
+  let queryCount = 0
+  api.tabs.query = async (queryInfo = {}) => {
+    queryCount += 1
+    return queryTabs(queryInfo)
+  }
+  setChromeTabsApi(api)
 
   return {
     calls,
+    get queryCount() {
+      return queryCount
+    },
     restore() {
       setChromeTabsApi(null)
     },
@@ -52,6 +62,7 @@ test('reloadTabTarget reloads the exact represented tab from a duplicate set', a
 
   assert.equal(await reloadTabTarget({ tabId: 2, tabUrl: 'https://example.test/docs' }), true)
   assert.deepEqual(chromeMock.calls.reload, [2])
+  assert.equal(chromeMock.queryCount, 0)
 })
 
 test('duplicateTabTarget duplicates the exact represented tab and refreshes the dashboard', async (t) => {
@@ -72,6 +83,7 @@ test('duplicateTabTarget duplicates the exact represented tab and refreshes the 
   assert.deepEqual(chromeMock.calls.duplicate, [2])
   assert.equal(chromeMock.tabs.length, 3)
   assert.equal(refreshCount, 1)
+  assert.equal(chromeMock.queryCount, 0)
 })
 
 test('tab menu actions can resolve a folded environment pill by effective URL', async (t) => {
@@ -98,4 +110,41 @@ test('tab menu actions do not fall through to a different duplicate when an exac
   assert.equal(await duplicateTabTarget({ tabId: 2, tabUrl: 'https://example.test/docs' }), false)
   assert.deepEqual(chromeMock.calls.duplicate, [])
   assert.equal(chromeMock.tabs.length, 1)
+})
+
+test('tab menu actions reject a reused id whose current URL does not match the rendered target', async (t) => {
+  const chromeMock = installFakeChrome([fakeTab(2, 'https://unrelated.example.test/')])
+  const unregisterRefresh = registerDashboardRefresh(() => {})
+  t.after(() => {
+    unregisterRefresh()
+    chromeMock.restore()
+  })
+
+  assert.equal(await reloadTabTarget({ tabId: 2, tabUrl: 'https://expected.example.test/' }), false)
+  assert.equal(await duplicateTabTarget({ tabId: 2, tabUrl: 'https://expected.example.test/' }), false)
+  assert.deepEqual(chromeMock.calls.reload, [])
+  assert.deepEqual(chromeMock.calls.duplicate, [])
+})
+
+test('URL-only tab menu actions report unknown when the live inventory cannot be read', async (t) => {
+  const chromeMock = installFakeChrome([fakeTab(3, 'https://example.test/docs')])
+  const api = createFakeChromeApi({ tabs: chromeMock.tabs, tabCommandLog: chromeMock.calls })
+  api.tabs.query = async () => {
+    throw new Error('Tab inventory unavailable')
+  }
+  setChromeTabsApi(api)
+  let refreshCount = 0
+  const unregisterRefresh = registerDashboardRefresh(() => {
+    refreshCount += 1
+  })
+  t.after(() => {
+    unregisterRefresh()
+    chromeMock.restore()
+  })
+
+  assert.equal(await reloadTabTarget({ tabUrl: 'https://example.test/docs' }), 'unknown')
+  assert.equal(await duplicateTabTarget({ tabUrl: 'https://example.test/docs' }), 'unknown')
+  assert.deepEqual(chromeMock.calls.reload, [])
+  assert.deepEqual(chromeMock.calls.duplicate, [])
+  assert.equal(refreshCount, 0)
 })

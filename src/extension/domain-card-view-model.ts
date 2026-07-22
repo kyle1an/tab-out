@@ -8,18 +8,21 @@ import { subdomainPrefix } from './domains.js'
 import { resolvePathGroup } from './path-groups.js'
 import { resolveGenericWebsitePathSection, resolveWebsitePathSection } from './website-path-sections.js'
 import { allocateCardSuppressionTones } from './title-suppression-tones.js'
-import { tabMatchesSourceFilter } from './filter-match.js'
+import { tabMatchesCompiledFilter } from './filter-match.js'
+import { compileFilterQuery } from './filter-query.js'
 import { countClosableDuplicateExtras } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
 import { allOpenTargetsSuspended, dashboardItemNameForTabs, isClosedSavedDashboardTab } from './dashboard-source.js'
 import { pathgroupPinId, subdomainPinId, websitePathPinId } from './section-pins.js'
 import { pageChipPinId, pageChipPinKeyForFoldUrls, pageChipPinKeyForUrl, pageChipPinScopeId, pinnedPageChipOrder } from './page-chip-pins.js'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
+import type { CompiledFilterQuery } from './filter-query.js'
 import type { DashboardCardVM, DashboardChipData, DashboardChipPriorityMap, DashboardClusterVM, DashboardSectionVM, DashboardSegment, DashboardSource, DashboardTab, DashboardTitleSuppression, DashboardWebsitePathSectionVM, DomainGroup, PathGroupResult, WebsitePathSectionResult } from './types'
 
 type CardMode = 'matched' | 'unmatched'
 type ComputeCardOptions = {
   filter?: string
+  filterQuery?: CompiledFilterQuery
   mode?: CardMode
   source?: DashboardSource
   allowMutations?: boolean
@@ -614,9 +617,10 @@ function disambiguatingPaths(urls: string[]): string[] {
  * @param {{ filter?: string, mode?: 'matched' | 'unmatched', allowMutations?: boolean, currentWindowId?: number | null }} [opts]
  * @returns {DashboardCardVM}
  */
-export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mode = 'matched', source = 'tabs', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS, pinnedPageChips }: ComputeCardOptions = {}): DashboardCardVM {
+export function computeDomainCardViewModel(group: DomainGroup, { filter = '', filterQuery, mode = 'matched', source = 'tabs', allowMutations = true, currentWindowId = null, chipOrder, chipPriority, pinnedSections = EMPTY_PINNED_SECTIONS, pinnedPageChips }: ComputeCardOptions = {}): DashboardCardVM {
+  const compiledFilter = filterQuery ?? compileFilterQuery(filter)
   const allTabs = group.tabs || []
-  const filtering = filter.trim() !== ''
+  const filtering = compiledFilter.active
   const displayMode = mode === 'unmatched' ? 'unmatched' : 'normal'
   const stableId = domainGroupCardId(group)
   const isAppsGroup = group.domain === '__standalone-apps__'
@@ -633,7 +637,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const tabs =
     filtering
       ? allTabs.filter((t) => {
-          const m = tabMatchesSourceFilter(t, filter)
+          const m = tabMatchesCompiledFilter(t, compiledFilter)
           return mode === 'unmatched' ? !m : m
         })
       : mode === 'unmatched'
@@ -670,7 +674,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
   const isTabOutGroup = group.domain === '__tab-out__'
 
   // Tabs in a Chrome group are preserved by bulk close / dedup actions.
-  const closableTabs = openTabs.filter((t) => !isGroupedTab(t) && !(isTabOutGroup && t.pinned))
+  const isBulkClosableTab = (tab: DashboardTab) => !isGroupedTab(tab) && !(isTabOutGroup && tab.pinned)
+  const closableTabs = openTabs.filter(isBulkClosableTab)
   const closableCount = closableTabs.length
   const suspendableTabs = closableTabs.filter((t) => !t.suspended)
   const suspendableCount = suspendableTabs.length
@@ -1287,6 +1292,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       activeChipFrame,
       isCurrentTabOut: tabOutMeta?.isCurrentTabOut || isCurrentTabOutPage(tab, currentWindowId),
       chromePinned: tabOutMeta?.chromePinned || (isTabOutGroup && !!tab.pinned),
+      chromeGroupId: tab.groupId,
       iconOnly,
       audioState: aggregateAudioState(duplicateTabs),
       envs: null
@@ -1540,7 +1546,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       const pinScopeId = pageChipPinScopeId(group.domain, pinContext.subdomainKey, pinContext.websitePathKey, key)
       const chipData = buildChipDataList(orderedTabs, showChipPrefix, pathByUrl, '', pinScopeId, label)
       const { vis, hid } = splitForOverflow(chipData)
-      const clusterClosable = allowMutations ? orderedTabs.filter((t) => !isGroupedTab(t)) : []
+      const clusterClosable = allowMutations ? orderedTabs.filter(isBulkClosableTab) : []
       return {
         key,
         label,
@@ -1787,7 +1793,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
             key: websitePathSection.key,
             label: websitePathSection.label,
             sectionCount: websitePathSection.tabs.length,
-            sectionClosableUrls: allowMutations ? websitePathSection.tabs.filter((t) => !isGroupedTab(t)).map((t) => t.url) : [],
+            sectionClosableUrls: allowMutations ? websitePathSection.tabs.filter(isBulkClosableTab).map((t) => t.url) : [],
             ...content,
             suppressedTitleParts: [],
             isPinned: pinnedSections.has(websitePathPinId(group.domain, key, websitePathSection.key))
@@ -1801,7 +1807,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     // where the header itself is visible). Filters out tabs already
     // in a Chrome tab group — matches the preserveGroups semantics
     // used elsewhere. Union of every chip's URL in this section.
-    const sectionClosableUrls = allowMutations ? sectionTabs.filter((t) => !isGroupedTab(t)).map((t) => t.url) : []
+    const sectionClosableUrls = allowMutations ? sectionTabs.filter(isBulkClosableTab).map((t) => t.url) : []
 
     return {
       key,
@@ -1977,31 +1983,37 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
       }
     })
 
-  function suppressionUrlsByText(tabs: readonly DashboardTab[]): Record<string, string[]> {
-    const urlsByText: Record<string, string[]> = {}
-    const urlSetByKey = new Map<string, Set<string>>()
+  function suppressionTargetsByText(tabs: readonly DashboardTab[]): Record<string, Array<{ tabId: number; tabUrl: string }>> {
+    const targetsByText: Record<string, Array<{ tabId: number; tabUrl: string }>> = {}
+    const targetsByKey = new Map<string, Array<{ tabId: number; tabUrl: string }>>()
     for (const tab of tabs) {
+      if (typeof tab.id !== 'number') continue
+      const actualTitle = stripTitleNoise(tab.title || '')
       for (const part of titlePresentation(tab).suppressedTitleParts) {
+        // Display presentations are URL-deduplicated, but destructive actions
+        // operate on physical tabs. Same-URL duplicates can carry different
+        // live titles, so only include a tab whose own title contains the token.
+        if (titleSuppressionPartPosition(actualTitle, part) === Number.MAX_SAFE_INTEGER) continue
         const key = titleSuppressionKey(part)
-        let urls = urlSetByKey.get(key)
-        if (!urls) {
-          urls = new Set<string>()
-          urlSetByKey.set(key, urls)
+        let targets = targetsByKey.get(key)
+        if (!targets) {
+          targets = []
+          targetsByKey.set(key, targets)
         }
-        urls.add(tab.url)
+        targets.push({ tabId: tab.id, tabUrl: tab.url })
       }
     }
-    for (const [key, urls] of urlSetByKey) urlsByText[key] = [...urls]
-    return urlsByText
+    for (const [key, targets] of targetsByKey) targetsByText[key] = targets
+    return targetsByText
   }
 
-  // Map each suppressed-title token to the open tab URLs whose title carries it,
+  // Map each suppressed-title token to the exact open tabs whose title carries it,
   // so the dashboard can offer token-scoped "Close N tabs" and "Suspend N tabs".
   // Keyed by the normalized suppression key. Left empty for read-only sources and
   // the unmatched grid, mirroring how every other bulk mutation is suppressed there.
   const allowTitleSuppressionActions = displayMode !== 'unmatched' && allowMutations
-  const suppressionCloseUrlsByText = allowTitleSuppressionActions ? suppressionUrlsByText(closableTabs) : {}
-  const suppressionSuspendUrlsByText = allowTitleSuppressionActions ? suppressionUrlsByText(suspendableTabs) : {}
+  const suppressionCloseTargetsByText = allowTitleSuppressionActions ? suppressionTargetsByText(closableTabs) : {}
+  const suppressionSuspendTargetsByText = allowTitleSuppressionActions ? suppressionTargetsByText(suspendableTabs) : {}
 
   const sectionsDataWithInlineSingletonSuppressions = inlineSingletonSuppressionsInSections(sectionsData, singletonSuppressionKeys)
   const hasMultipleVisibleSuppressionMeaningsAfterMerge = visibleSuppressedTitleParts.length > 1
@@ -2258,8 +2270,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', mo
     displayName,
     suppressedTitleParts: cardSuppressedTitleParts,
     allSuppressedTitleParts: visibleSuppressedTitleParts,
-    suppressionCloseUrlsByText,
-    suppressionSuspendUrlsByText,
+    suppressionCloseTargetsByText,
+    suppressionSuspendTargetsByText,
     cardSuppressionToneScope,
     sections: tonedSections
   }

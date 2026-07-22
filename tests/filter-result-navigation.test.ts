@@ -6,6 +6,7 @@ import {
   EMPTY_FILTER_RESULT_SELECTION,
   filterResultKeyboardIntent,
   reconcileFilterResultSelection,
+  reconcileVisibleFilterResultSelection,
   selectAdjacentFilterResult,
   selectHorizontalFilterResult,
   type FilterResultCandidate,
@@ -47,7 +48,10 @@ function chip(overrides: Partial<DashboardChipData> & { tabUrl: string }): Dashb
   }
 }
 
-function cardWithVisibleChips(visibleChips: DashboardChipData[]): DashboardCardEntry {
+function cardWithChips(
+  visibleChips: DashboardChipData[],
+  hiddenChips: DashboardChipData[] = []
+): DashboardCardEntry {
   return {
     group: {
       domain: 'example.test',
@@ -60,19 +64,23 @@ function cardWithVisibleChips(visibleChips: DashboardChipData[]): DashboardCardE
       filtering: true,
       sections: [{
         key: '',
-        sectionCount: visibleChips.length,
+        sectionCount: visibleChips.length + hiddenChips.length,
         sectionClosableUrls: [],
         showHeader: false,
         isShared: false,
         hasFlat: true,
         flatVisibleChips: visibleChips,
-        flatHiddenChips: [],
-        flatHiddenCount: 0,
+        flatHiddenChips: hiddenChips,
+        flatHiddenCount: hiddenChips.length,
         clusters: [],
         websitePathSections: []
       }]
     }
   }
+}
+
+function cardWithVisibleChips(visibleChips: DashboardChipData[]): DashboardCardEntry {
+  return cardWithChips(visibleChips)
 }
 
 test('the first filter result is selected by default for a committed query', () => {
@@ -113,6 +121,112 @@ test('selection follows the same Dashboard Item Identity when its rendered candi
       identity: 'https://alpha.example.test/'
     }
   )
+})
+
+test('visible selection reconciliation probes only the still-selected candidate', () => {
+  const current = reconcileFilterResultSelection(
+    EMPTY_FILTER_RESULT_SELECTION,
+    'example',
+    candidates
+  )
+  const probedKeys: string[] = []
+
+  const result = reconcileVisibleFilterResultSelection(
+    current,
+    'example',
+    [
+      candidates[0],
+      candidates[1],
+      {
+        key: 'tab:charlie',
+        identity: 'https://charlie.example.test/',
+        domId: 'filter-result-charlie'
+      }
+    ],
+    (candidate) => {
+      probedKeys.push(candidate.key)
+      return true
+    }
+  )
+
+  assert.deepEqual(result.selection, current)
+  assert.equal(result.candidate, candidates[0])
+  assert.deepEqual(probedKeys, ['tab:alpha'])
+})
+
+test('visible selection reconciliation follows identity without probing unrelated candidates', () => {
+  const replacementCandidates: FilterResultCandidate[] = [
+    candidates[1],
+    {
+      key: 'history:alpha-hidden',
+      identity: candidates[0].identity,
+      domId: 'filter-result-alpha-hidden'
+    },
+    {
+      key: 'tab:alpha-replacement',
+      identity: candidates[0].identity,
+      domId: 'filter-result-alpha-replacement'
+    },
+    {
+      key: 'tab:charlie',
+      identity: 'https://charlie.example.test/',
+      domId: 'filter-result-charlie'
+    }
+  ]
+  const probedKeys: string[] = []
+
+  const result = reconcileVisibleFilterResultSelection(
+    {
+      query: 'example',
+      candidateKey: 'history:alpha-removed',
+      identity: candidates[0].identity
+    },
+    'example',
+    replacementCandidates,
+    (candidate) => {
+      probedKeys.push(candidate.key)
+      return candidate.key === 'tab:alpha-replacement'
+    }
+  )
+
+  assert.deepEqual(result.selection, {
+    query: 'example',
+    candidateKey: 'tab:alpha-replacement',
+    identity: candidates[0].identity
+  })
+  assert.equal(result.candidate, replacementCandidates[2])
+  assert.deepEqual(probedKeys, ['history:alpha-hidden', 'tab:alpha-replacement'])
+})
+
+test('visible selection reconciliation stops at the first mounted fallback', () => {
+  const fallbackCandidates: FilterResultCandidate[] = [
+    {
+      key: 'tab:collapsed',
+      identity: 'https://collapsed.example.test/',
+      domId: 'filter-result-collapsed'
+    },
+    candidates[0],
+    candidates[1]
+  ]
+  const probedKeys: string[] = []
+
+  const result = reconcileVisibleFilterResultSelection(
+    EMPTY_FILTER_RESULT_SELECTION,
+    'new query',
+    fallbackCandidates,
+    (candidate) => {
+      probedKeys.push(candidate.key)
+      return candidate.key !== 'tab:collapsed'
+    }
+  )
+
+  assert.equal(result.candidate, candidates[0])
+  assert.deepEqual(result.selection, {
+    query: 'new query',
+    candidateKey: candidates[0].key,
+    identity: candidates[0].identity
+  })
+  assert.deepEqual(probedKeys, ['tab:collapsed', 'tab:alpha'])
 })
 
 test('Arrow navigation moves through results and clamps at either end', () => {
@@ -231,6 +345,23 @@ test('result candidates follow source priority and expose exact folded and same-
     ]
   )
   assert.equal(new Set(result.map((candidate) => candidate.key)).size, result.length)
+})
+
+test('result candidates retain overflow targets so expansion can make them navigable', () => {
+  const visible = chip({ tabUrl: 'https://overflow.example.test/visible' })
+  const collapsed = chip({ tabUrl: 'https://overflow.example.test/collapsed' })
+
+  const result = buildFilterResultCandidates({
+    primaryMatches: [cardWithChips([visible], [collapsed])]
+  })
+
+  assert.deepEqual(
+    result.map((candidate) => candidate.identity),
+    [
+      'https://overflow.example.test/visible',
+      'https://overflow.example.test/collapsed'
+    ]
+  )
 })
 
 test('filter keyboard intent recognizes navigation and activation without stealing IME input', () => {

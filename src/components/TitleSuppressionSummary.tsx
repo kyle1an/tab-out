@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
-import { closeExactTabSection, suspendExactTabSection } from '../extension/tab-actions'
+import { closeExactTabTargets, suspendExactTabTargets } from '../extension/tab-actions'
 import { pointerIsOverElement, startPointerPositionTracking } from './pointer-position'
 import { titleSuppressionKey, titleSuppressionTokenToneClass } from './title-suppression'
 import { useDomainCardContext } from './DomainCardContext'
@@ -24,7 +24,7 @@ export function TitleSuppressionSummary({
   suppressedTitleToneIndexByText,
   className
 }: TitleSuppressionSummaryProps) {
-  const { suppressionCloseUrlsByText, suppressionSuspendUrlsByText } = useDomainCardContext()
+  const { suppressionCloseTargetsByText, suppressionSuspendTargetsByText } = useDomainCardContext()
   // Synchronous flag for which token's context menu is open. Base UI's context menu
   // opens a full-screen backdrop that steals the pointer/focus, firing the token's
   // mouseLeave/blur right after onOpenChange sets the highlight. A ref (not state)
@@ -41,8 +41,8 @@ export function TitleSuppressionSummary({
         const active = activeSuppressedTitle === part.text
         const allocatedToneIndex = suppressedTitleToneIndexByText[titleSuppressionKey(part.text)]
         const toneIndex = typeof allocatedToneIndex === 'number' ? allocatedToneIndex : index
-        const closableUrls = suppressionCloseUrlsByText[titleSuppressionKey(part.text)] ?? []
-        const suspendableUrls = suppressionSuspendUrlsByText[titleSuppressionKey(part.text)] ?? []
+        const closeTargets = suppressionCloseTargetsByText[titleSuppressionKey(part.text)] ?? []
+        const suspendTargets = suppressionSuspendTargetsByText[titleSuppressionKey(part.text)] ?? []
         const tokenButton = (
           <button
             key={part.text}
@@ -66,13 +66,13 @@ export function TitleSuppressionSummary({
           </button>
         )
 
-        if (closableUrls.length === 0 && suspendableUrls.length === 0) return tokenButton
+        if (closeTargets.length === 0 && suspendTargets.length === 0) return tokenButton
 
         return (
           <TitleSuppressionTokenContextMenu
             key={part.text}
-            closableCount={closableUrls.length}
-            suspendableCount={suspendableUrls.length}
+            closableCount={closeTargets.length}
+            suspendableCount={suspendTargets.length}
             onOpenChange={(open) => {
               openMenuTextRef.current = open ? part.text : ''
               if (open) {
@@ -85,13 +85,13 @@ export function TitleSuppressionSummary({
                 setActiveSuppressedTitle(pointerIsOverElement(tokenButtonsRef.current.get(part.text)) ? part.text : '')
               }
             }}
-            onSuspend={suspendableUrls.length > 0 ? async (event) => {
+            onSuspend={suspendTargets.length > 0 ? async (event) => {
               event.stopPropagation()
-              await suspendExactTabSection({ urls: suspendableUrls })
+              await suspendExactTabTargets({ targets: suspendTargets })
             } : undefined}
             onClose={async (event) => {
               event.stopPropagation()
-              await closeExactTabSection({ urls: closableUrls })
+              await closeExactTabTargets({ targets: closeTargets })
             }}
           >
             {tokenButton}

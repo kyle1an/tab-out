@@ -8,6 +8,16 @@
 
 export const PAGE_CHIP_PIN_STORAGE_KEY = 'tabOutPinnedPageChipsV1'
 
+export type PinnedPageChipMutation = {
+  type: 'set-pinned'
+  id: string
+  pinned: boolean
+}
+
+export type PinnedPageChipsLoadResult =
+  | { ok: true; value: string[] }
+  | { ok: false; value: string[] }
+
 const PAGE_CHIP_PIN_KIND = 'page-chip'
 const PAGE_CHIP_PIN_FIELD_COUNT = 3
 const VALID_PAGE_CHIP_PIN_SOURCES = new Set(['tabs', 'bookmarks', 'history'])
@@ -92,7 +102,19 @@ export function normalizePinnedPageChips(ids: unknown = []): string[] {
 export function togglePinnedPageChipInList(ids: unknown = [], id: unknown): string[] {
   const normalized = normalizePinnedPageChips(ids)
   if (!isPinnablePageChipId(id)) return normalized
-  return normalized.includes(id) ? normalized.filter((existing) => existing !== id) : [...normalized, id]
+  return setPinnedPageChipInList(normalized, id, !normalized.includes(id))
+}
+
+function setPinnedPageChipInList(ids: unknown = [], id: unknown, pinned: boolean): string[] {
+  const normalized = normalizePinnedPageChips(ids)
+  if (!isPinnablePageChipId(id)) return normalized
+  const isPinned = normalized.includes(id)
+  if (isPinned === pinned) return normalized
+  return pinned ? [...normalized, id] : normalized.filter((existing) => existing !== id)
+}
+
+export function applyPinnedPageChipMutation(ids: unknown, mutation: PinnedPageChipMutation): string[] {
+  return setPinnedPageChipInList(ids, mutation.id, mutation.pinned)
 }
 
 export function createPinnedPageChipIndex(ids: unknown = []): PinnedPageChipIndex {
@@ -118,19 +140,14 @@ export function pinnedPageChipOrder(
   return typeof order === 'number' ? order : null
 }
 
-export async function loadPinnedPageChips(): Promise<string[]> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return []
+export async function loadPinnedPageChipsResult(): Promise<PinnedPageChipsLoadResult> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ok: false, value: [] }
   try {
     const stored = await chrome.storage.local.get(PAGE_CHIP_PIN_STORAGE_KEY)
-    return normalizePinnedPageChips(stored[PAGE_CHIP_PIN_STORAGE_KEY])
+    const value = stored[PAGE_CHIP_PIN_STORAGE_KEY]
+    if (value !== undefined && !Array.isArray(value)) return { ok: false, value: [] }
+    return { ok: true, value: normalizePinnedPageChips(value) }
   } catch {
-    return []
+    return { ok: false, value: [] }
   }
-}
-
-export async function savePinnedPageChips(ids: unknown = []): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return
-  await chrome.storage.local.set({
-    [PAGE_CHIP_PIN_STORAGE_KEY]: normalizePinnedPageChips(ids)
-  })
 }

@@ -3,10 +3,9 @@ import test from 'node:test'
 
 import {
   SECTION_PIN_STORAGE_KEY,
-  loadPinnedSections,
+  loadPinnedSectionsResult,
   normalizePinnedSections,
   pathgroupPinId,
-  savePinnedSections,
   subdomainPinId,
   togglePinnedSectionInList,
   websitePathPinId
@@ -43,6 +42,25 @@ test('pathgroupPinId distinguishes subdomain-level vs website-path-level parents
   assert.equal(
     pathgroupPinId('google.com', 'docs', '', '/foo'),
     'pathgroup|google.com|docs||/foo'
+  )
+})
+
+test('section pin identities escape delimiters in arbitrary URL-derived keys', () => {
+  const id = websitePathPinId('example.test', '', '/foo|bar')
+
+  assert.equal(id, 'website-path:v2|example.test||/foo%7Cbar')
+  assert.deepEqual(normalizePinnedSections([id]), [id])
+  assert.deepEqual(togglePinnedSectionInList([], id), [id])
+})
+
+test('section pin identities preserve legacy percent-escaped URL paths', () => {
+  assert.equal(
+    websitePathPinId('example.test', '', '/foo%20bar'),
+    'website-path|example.test||/foo%20bar'
+  )
+  assert.notEqual(
+    websitePathPinId('example.test', '', '/foo|bar'),
+    websitePathPinId('example.test', '', '/foo%7Cbar')
   )
 })
 
@@ -101,34 +119,32 @@ test('togglePinnedSectionInList normalizes the existing list before toggling', (
 
 // === load/save (chrome.storage.local shim) ===
 
-test('loadPinnedSections returns [] when chrome.storage is unavailable', async () => {
+test('loadPinnedSectionsResult reports unavailable chrome.storage', async () => {
   const previous = (globalThis as { chrome?: unknown }).chrome
   delete (globalThis as { chrome?: unknown }).chrome
   try {
-    assert.deepEqual(await loadPinnedSections(), [])
+    assert.deepEqual(await loadPinnedSectionsResult(), { ok: false, value: [] })
   } finally {
     if (previous !== undefined) (globalThis as { chrome?: unknown }).chrome = previous
   }
 })
 
-test('loadPinnedSections reads and normalizes the stored value', async () => {
+test('loadPinnedSectionsResult reads and normalizes the stored value', async () => {
   const id = subdomainPinId('a.com', 'x')
   const restore = installChromeStorageMock({
     [SECTION_PIN_STORAGE_KEY]: [id, 'bogus', id]
   })
   try {
-    assert.deepEqual(await loadPinnedSections(), [id])
+    assert.deepEqual(await loadPinnedSectionsResult(), { ok: true, value: [id] })
   } finally {
     restore()
   }
 })
 
-test('savePinnedSections writes a normalized value', async () => {
-  const restore = installChromeStorageMock()
+test('loadPinnedSectionsResult rejects malformed stored state', async () => {
+  const restore = installChromeStorageMock({ [SECTION_PIN_STORAGE_KEY]: {} })
   try {
-    const a = subdomainPinId('a.com', 'x')
-    await savePinnedSections([a, a, 'bogus'])
-    assert.deepEqual(await loadPinnedSections(), [a])
+    assert.deepEqual(await loadPinnedSectionsResult(), { ok: false, value: [] })
   } finally {
     restore()
   }

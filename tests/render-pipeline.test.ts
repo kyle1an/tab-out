@@ -587,7 +587,7 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
   assert.equal(mergedChip.titleVariantChips?.length, 2)
 })
 
-test('computeDomainCardViewModel maps a suppression token to closeable and suspendable tab URLs', () => {
+test('computeDomainCardViewModel maps a suppression token to exact closeable and suspendable tabs', () => {
   const group = {
     domain: 'example.com',
     tabs: [
@@ -601,22 +601,43 @@ test('computeDomainCardViewModel maps a suppression token to closeable and suspe
 
   // The token's display count is 2 titles, but it maps to 3 closable tabs.
   assert.equal(vm.sections?.[0]?.suppressedTitleParts?.[0]?.count, 2)
-  assert.deepEqual(vm.suppressionCloseUrlsByText, {
+  assert.deepEqual(vm.suppressionCloseTargetsByText, {
     '- example workspace': [
-      'https://example.com/content/item?search_id=alpha',
-      'https://example.com/content/item?search_id=bravo',
-      'https://example.com/settings'
+      { tabId: 1, tabUrl: 'https://example.com/content/item?search_id=alpha' },
+      { tabId: 2, tabUrl: 'https://example.com/content/item?search_id=bravo' },
+      { tabId: 3, tabUrl: 'https://example.com/settings' }
     ]
   })
-  assert.deepEqual(vm.suppressionSuspendUrlsByText, {
+  assert.deepEqual(vm.suppressionSuspendTargetsByText, {
     '- example workspace': [
-      'https://example.com/content/item?search_id=alpha',
-      'https://example.com/content/item?search_id=bravo'
+      { tabId: 1, tabUrl: 'https://example.com/content/item?search_id=alpha' },
+      { tabId: 2, tabUrl: 'https://example.com/content/item?search_id=bravo' }
     ]
   })
 })
 
-test('suppression token action URL maps exclude grouped tabs and are empty when mutations are disallowed', () => {
+test('suppression token actions exclude a same-URL duplicate whose own title lacks the token', () => {
+  const sharedUrl = 'https://example.com/shared'
+  const group = {
+    domain: 'example.com',
+    tabs: [
+      makeTab({ id: 1, url: sharedUrl, title: 'Alpha - Example Workspace' }),
+      makeTab({ id: 2, url: sharedUrl, title: 'Unrelated' }),
+      makeTab({ id: 3, url: 'https://example.com/other', title: 'Gamma - Example Workspace' })
+    ]
+  }
+
+  const vm = computeDomainCardViewModel(group)
+
+  assert.deepEqual(vm.suppressionCloseTargetsByText, {
+    '- example workspace': [
+      { tabId: 1, tabUrl: sharedUrl },
+      { tabId: 3, tabUrl: 'https://example.com/other' }
+    ]
+  })
+})
+
+test('suppression token action target maps exclude grouped tabs and are empty when mutations are disallowed', () => {
   const group = {
     domain: 'example.com',
     tabs: [
@@ -627,16 +648,22 @@ test('suppression token action URL maps exclude grouped tabs and are empty when 
   }
 
   const vm = computeDomainCardViewModel(group)
-  assert.deepEqual(vm.suppressionCloseUrlsByText, {
-    '- example workspace': ['https://example.com/a', 'https://example.com/b']
+  assert.deepEqual(vm.suppressionCloseTargetsByText, {
+    '- example workspace': [
+      { tabId: 1, tabUrl: 'https://example.com/a' },
+      { tabId: 2, tabUrl: 'https://example.com/b' }
+    ]
   })
-  assert.deepEqual(vm.suppressionSuspendUrlsByText, {
-    '- example workspace': ['https://example.com/a', 'https://example.com/b']
+  assert.deepEqual(vm.suppressionSuspendTargetsByText, {
+    '- example workspace': [
+      { tabId: 1, tabUrl: 'https://example.com/a' },
+      { tabId: 2, tabUrl: 'https://example.com/b' }
+    ]
   })
 
   const readOnlyVm = computeDomainCardViewModel(group, { allowMutations: false })
-  assert.deepEqual(readOnlyVm.suppressionCloseUrlsByText, {})
-  assert.deepEqual(readOnlyVm.suppressionSuspendUrlsByText, {})
+  assert.deepEqual(readOnlyVm.suppressionCloseTargetsByText, {})
+  assert.deepEqual(readOnlyVm.suppressionSuspendTargetsByText, {})
 })
 
 test('computeDomainCardViewModel skips path suffixes for duplicate titles in different rendered path groups', () => {
@@ -1607,6 +1634,23 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
 })
 
+test('filtered close targets preserve per-tab title scope for same-URL duplicates', () => {
+  const sharedUrl = 'https://example.test/shared'
+  const groups = buildDomainGroups([
+    makeTab({ id: 1, url: sharedUrl, title: 'Alpha match' }),
+    makeTab({ id: 2, url: sharedUrl, title: 'Beta non-match' })
+  ])
+  const vm = buildDashboardViewModel({
+    realTabs: groups.flatMap((group) => group.tabs),
+    domainGroups: groups,
+    filter: 'alpha'
+  })
+
+  assert.deepEqual(vm.filteredCloseUrls, [sharedUrl])
+  assert.deepEqual(vm.filteredCloseTargets, [{ tabId: 1, tabUrl: sharedUrl }])
+  assert.equal(vm.stats.filteredCloseCount, 1)
+})
+
 test('buildDashboardViewModel counts active (unsuspended) open tabs', () => {
   const tabs = [
     makeTab({ id: 1, url: 'https://a.example.com/', title: 'A' }),
@@ -2554,6 +2598,13 @@ test('failed same-query history refreshes retain the previous result candidates'
   assert.equal(retained.historySearchStatus, 'error')
   assert.deepEqual(retained.historyTabs, [historyTab])
   assert.deepEqual(retained.historyDomainGroups, previous.historyDomainGroups)
+  const retainedAfterRetryFailure = retainHistorySearchResultsOnError(
+    { ...next, historyRange: '30d' },
+    retained
+  )
+  assert.equal(retainedAfterRetryFailure.historyRange, '30d')
+  assert.deepEqual(retainedAfterRetryFailure.historyTabs, [historyTab])
+  assert.deepEqual(retainedAfterRetryFailure.historyDomainGroups, previous.historyDomainGroups)
   assert.equal(
     retainHistorySearchResultsOnError(
       { ...next, historySearchQuery: 'another query' },
@@ -2831,6 +2882,19 @@ test('closed saved pages stay searchable without counting as open tabs or close 
   assert.equal(filtered.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'saved-page')
 })
 
+test('New tabs bulk-close scopes exclude pinned physical copies in card and section counts', () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const group = buildDomainGroups([
+    makeTab({ id: 1, url: tabOutUrl, title: 'Pinned Tab Out', isTabOut: true, pinned: true }),
+    makeTab({ id: 2, url: tabOutUrl, title: 'Ordinary Tab Out', isTabOut: true })
+  ])[0]
+
+  const vm = computeDomainCardViewModel(group)
+
+  assert.equal(vm.closableCount, 1)
+  assert.deepEqual(vm.sections.flatMap((section) => section.sectionClosableUrls), [tabOutUrl])
+})
+
 test('closed saved pages render after open tabs within their domain card scope', () => {
   const groups = buildDomainGroups([
     makeTab({ id: 'saved-1', url: 'https://example.test/a-saved', title: 'Alpha Saved', sourceType: 'saved-page' as DashboardTab['sourceType'], saved: true, closedSaved: true } as Partial<DashboardTab> & { url: string }),
@@ -2867,6 +2931,7 @@ test('buildDomainGroups keeps saved-only cards after cards with open tabs despit
 test('manifest keeps only the permissions used by the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
   assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'favicon'])
+  assert.equal(manifest.incognito, 'not_allowed')
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
   assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in global activation history')
   assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')

@@ -1,6 +1,6 @@
 import './styles/app.css'
 import { mountApp } from './components/App'
-import { requestDashboardRefresh } from './extension/dashboard-controller.js'
+import { requestDashboardRefresh, settleDashboardRefresh } from './extension/dashboard-controller.js'
 import type { DashboardRefreshOptions } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
@@ -8,6 +8,7 @@ import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 import { loadHistoryRangePreference } from './extension/history-range.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
+import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
 import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
@@ -36,7 +37,7 @@ function scheduleDashboardRefresh(options: DashboardRefreshOptions = {}) {
   refreshTimer = window.setTimeout(() => {
     const options = refreshTimerOptions
     refreshTimerOptions = {}
-    requestDashboardRefresh(options)
+    void settleDashboardRefresh(requestDashboardRefresh(options))
   }, 250)
 }
 
@@ -55,6 +56,7 @@ if (chrome.tabs) {
   chrome.tabs.onMoved.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onAttached.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onDetached.addListener(scheduleAnimatedDashboardRefresh)
+  chrome.tabs.onReplaced?.addListener(scheduleAnimatedDashboardRefresh)
   chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
     if (
       changeInfo.title !== undefined ||
@@ -104,9 +106,15 @@ if (chrome.history) {
   chrome.history.onVisitRemoved.addListener(schedulePassiveDashboardRefresh)
 }
 
+chrome.storage?.onChanged?.addListener((changes, areaName) => {
+  if (areaName === 'local' && Object.prototype.hasOwnProperty.call(changes, SAVED_PAGES_STORAGE_KEY)) {
+    scheduleAnimatedDashboardRefresh()
+  }
+})
+
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') {
-    requestDashboardRefresh()
+    void settleDashboardRefresh(requestDashboardRefresh())
   }
 })
 

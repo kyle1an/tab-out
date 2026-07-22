@@ -14,18 +14,20 @@
                                   and returns match-scoped fields
    ================================================================ */
 
-import { getCurrentWindow } from './browser-tabs-gateway.js'
+import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, savedPagesStoresEqual, saveSavedPagesStore, type SavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, persistSavedPageMetadataUpdates, savedPageKeyForUrl, savedPageKeysFromStore, savedPagesStoresEqual, type SavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
 import { dashboardSourceAllowsTabActions, isClosedSavedDashboardTab } from './dashboard-source.js'
-import { getFilteredCloseableUrls, tabMatchesSourceFilter } from './filter-match.js'
+import { getFilteredCloseableTabsForQuery, tabMatchesCompiledFilter } from './filter-match.js'
+import { compileFilterQuery } from './filter-query.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import type { DashboardCardEntry, DashboardChipOrderByCard, DashboardChipPriorityMap, DashboardData, DashboardSource, DashboardTab, DashboardViewModel, DomainGroup, HistorySearchStatus, WorkingSetSnapshot } from './types'
 import type { PinnedPageChipIndex } from './page-chip-pins.js'
+import type { CompiledFilterQuery } from './filter-query.js'
 
 export { buildDomainGroups } from './domain-groups.js'
 export { computeDomainCardViewModel, dashboardChipOrderKeyForTab } from './domain-card-view-model.js'
@@ -72,12 +74,13 @@ type FetchDashboardDataOptions = {
 }
 
 export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections, pinnedPageChips }: DashboardViewModelOptions = {}): DashboardViewModel {
-  const filtering = filter.trim().length > 0
+  const filterQuery = compileFilterQuery(filter)
+  const filtering = filterQuery.active
   const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))
   // Active = not parked by a tab-suspender extension. Counted over the same
   // openTabs base as totalTabs so it reads as "loaded out of open".
   const activeTabs = openTabs.filter((t) => !t.suspended).length
-  const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesSourceFilter(t, filter)) : openTabs
+  const visibleTabs = filtering ? openTabs.filter((t) => !t.isApp && tabMatchesCompiledFilter(t, filterQuery)) : openTabs
   // Standalone apps open in dedicated windows; counting them inflates the
   // window stat with windows that hold no regular tabs. Exclude them from
   // both totals so the header reads as "browser windows" only.
@@ -91,7 +94,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   let dedupCount = 0
   for (const group of groups) {
     const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
-    const matchedVm = computeDomainCardViewModel(group, { filter, mode: 'matched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
+    const matchedVm = computeDomainCardViewModel(group, { filter, filterQuery, mode: 'matched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -102,11 +105,15 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, mode: 'unmatched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
+    const unmatchedVm = computeDomainCardViewModel(group, { filter, filterQuery, mode: 'unmatched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 
-  const filteredCloseUrls = allowMutations ? getFilteredCloseableUrls(realTabs, filter) : []
+  const filteredCloseTabs = allowMutations ? getFilteredCloseableTabsForQuery(realTabs, filterQuery) : []
+  const filteredCloseUrls = filteredCloseTabs.map((tab) => tab.url)
+  const filteredCloseTargets = filteredCloseTabs.flatMap((tab) => typeof tab.id === 'number'
+    ? [{ tabId: tab.id, tabUrl: tab.url }]
+    : [])
 
   return {
     source,
@@ -119,7 +126,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
       totalDomains: groups.length,
       visibleDomains: matchedCards.length,
       dedupCount,
-      filteredCloseCount: filteredCloseUrls.length,
+      filteredCloseCount: filteredCloseTargets.length,
       hasCards: groups.length > 0,
       filtering
     },
@@ -127,7 +134,8 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
     unmatchedCards,
     showOtherTabs: unmatchedCards.length > 0,
     globalDedupeUrls,
-    filteredCloseUrls
+    filteredCloseUrls,
+    filteredCloseTargets
   }
 }
 
@@ -147,15 +155,17 @@ export function dashboardChipPriorityFromWorkingSet(workingSet: WorkingSetSnapsh
   return priority
 }
 
-export async function getCurrentWindowId(): Promise<number | null> {
-  const currentWindow = await getCurrentWindow()
-  return typeof currentWindow?.id === 'number' ? currentWindow.id : null
+export async function getCurrentWindowIdResult(): Promise<BrowserReadResult<number | null>> {
+  const currentWindowResult = await getCurrentWindowResult()
+  const currentWindowId = currentWindowResult.value?.id
+  if (!currentWindowResult.ok || !Number.isInteger(currentWindowId) || (currentWindowId as number) < 0) {
+    return { ok: false, value: null }
+  }
+  return { ok: true, value: currentWindowId as number }
 }
 
-async function saveSavedPagesStoreBestEffort(store: Parameters<typeof saveSavedPagesStore>[0]): Promise<void> {
-  try {
-    await saveSavedPagesStore(store)
-  } catch {}
+async function getCurrentWindowId(): Promise<number | null> {
+  return (await getCurrentWindowIdResult()).value
 }
 
 async function dashboardTabsForData(dashboardTabs?: DashboardTab[]): Promise<DashboardTab[]> {
@@ -168,10 +178,10 @@ function dashboardItemIdentityKey(tab: Pick<DashboardTab, 'url' | 'rawUrl'>): st
   return savedPageKeyForUrl(unwrapSuspenderUrl(tab.url || tab.rawUrl || ''))
 }
 
-function addMatchingItemIdentityKeys(keys: Set<string>, tabs: DashboardTab[], filter: string): void {
-  if (!filter.trim()) return
+function addMatchingItemIdentityKeys(keys: Set<string>, tabs: DashboardTab[], filterQuery: CompiledFilterQuery): void {
+  if (!filterQuery.active) return
   for (const tab of tabs) {
-    if (!tabMatchesSourceFilter(tab, filter)) continue
+    if (!tabMatchesCompiledFilter(tab, filterQuery)) continue
     const key = dashboardItemIdentityKey(tab)
     if (key) keys.add(key)
   }
@@ -191,10 +201,11 @@ export function dedupeCompanionSearchTabs(
   bookmarkTabs: DashboardTab[],
   filter: string
 ): { historyTabs: DashboardTab[], bookmarkTabs: DashboardTab[] } {
+  const filterQuery = compileFilterQuery(filter)
   const priorCompanionKeys = new Set<string>()
-  addMatchingItemIdentityKeys(priorCompanionKeys, realTabs, filter)
+  addMatchingItemIdentityKeys(priorCompanionKeys, realTabs, filterQuery)
   const dedupedHistoryTabs = removePriorSourceMatches(historyTabs, priorCompanionKeys)
-  addMatchingItemIdentityKeys(priorCompanionKeys, dedupedHistoryTabs, filter)
+  addMatchingItemIdentityKeys(priorCompanionKeys, dedupedHistoryTabs, filterQuery)
   const dedupedBookmarkTabs = removePriorSourceMatches(bookmarkTabs, priorCompanionKeys)
   return {
     historyTabs: dedupedHistoryTabs,
@@ -226,7 +237,7 @@ export async function buildDashboardDataFromTabs(
   const companionHistoryTabs = includeHistoryMatches ? historyTabs : []
   const savedPagesMerge = mergeSavedPagesWithTabs(dashboardTabs, resolvedSavedPagesStore)
   if (!savedPagesStoresEqual(resolvedSavedPagesStore, savedPagesMerge.store)) {
-    void saveSavedPagesStoreBestEffort(savedPagesMerge.store)
+    void persistSavedPageMetadataUpdates(resolvedSavedPagesStore, savedPagesMerge.store).catch(() => {})
   }
   const realTabs = savedPagesMerge.tabs
   const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)

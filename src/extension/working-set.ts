@@ -10,9 +10,8 @@ import type {
 import { compareNumericText } from './numeric-sort.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import { pickTabFavicon } from './favicons.js'
+import { isBrowserInternalUrl } from './browser-url-policy.js'
 
-export const WORKING_SET_GET_MESSAGE = 'tab-out:get-working-set'
-export const WORKING_SET_DISMISS_MESSAGE = 'tab-out:dismiss-working-set-item'
 export const WORKING_SET_DEFAULT_LIMIT = 8
 export const WORKING_SET_EXPANDED_LIMIT = 16
 const WORKING_SET_MIN_ITEMS = 3
@@ -32,16 +31,6 @@ const NOISY_QUERY_PARAMS = new Set([
   'ref',
   'source'
 ])
-const WORKING_SET_UTILITY_PROTOCOLS = new Set([
-  'about:',
-  'brave:',
-  'chrome:',
-  'chrome-extension:',
-  'chrome-search:',
-  'devtools:',
-  'edge:'
-])
-
 type WorkingSetActivityInput = {
   kind: WorkingSetActivityKind
   at: number
@@ -132,7 +121,7 @@ export function pageIdentityForWorkingSet(url = ''): string {
 
   try {
     const parsed = new URL(effectiveUrl)
-    if (WORKING_SET_UTILITY_PROTOCOLS.has(parsed.protocol)) {
+    if (isBrowserInternalUrl(parsed.href)) {
       return ''
     }
     if (isGoogleSearchResultPage(parsed)) return ''
@@ -184,24 +173,6 @@ export function recordWorkingSetActivity(
     lastActivatedAt: kind === 'activation' ? at : existing?.lastActivatedAt,
     lastNavigatedAt: kind === 'navigation' ? at : existing?.lastNavigatedAt,
     events
-  }
-  return next
-}
-
-export function dismissWorkingSetActivity(
-  store: Partial<WorkingSetActivityStore> | null | undefined,
-  keyOrUrl: string,
-  at = Date.now()
-): WorkingSetActivityStore {
-  const key = pageIdentityForWorkingSet(keyOrUrl)
-  const next = cloneStore(normalizeWorkingSetActivity(store, at))
-  const record = next.records[key]
-  if (!record || !Number.isFinite(at)) return next
-
-  next.records[key] = {
-    ...record,
-    dismissedAt: at,
-    dismissedUntil: nextLocalDayBoundaryAt(at)
   }
   return next
 }
@@ -287,12 +258,6 @@ function isWorkingSetRecordDismissed(record: WorkingSetActivityRecord, now: numb
 
   const latestStrongAt = Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)
   return latestStrongAt <= record.dismissedAt
-}
-
-function nextLocalDayBoundaryAt(at: number): number {
-  const nextDay = new Date(at)
-  nextDay.setHours(24, 0, 0, 0)
-  return nextDay.getTime()
 }
 
 function pickRepresentativeTab(tabs: DashboardTab[], currentWindowId: number | null): DashboardTab | null {

@@ -10,7 +10,7 @@
                        canonical copy of a duplicated URL
    ================================================================ */
 
-import { queryTabGroups } from './browser-tabs-gateway.js'
+import { queryTabGroupsResult } from './browser-tabs-gateway.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 
 type GroupedTabLike = {
@@ -61,17 +61,19 @@ let groupColorCache: Record<number, string> = {} // { groupId: '#hex' } from chr
 
 /**
  * fetchTabGroupColors() — populates the cache from the tabGroups API via
- * the Browser Tabs Gateway. When the API is unavailable (permission not
- * granted) the gateway reports no groups, the cache clears, and dots fall
- * back to the deterministic palette.
+ * the Browser Tabs Gateway. A confirmed unavailable/empty API clears the
+ * cache so dots use the deterministic palette. A transient rejection keeps
+ * the last known colors instead of turning every group into a fallback color.
  */
-export async function fetchTabGroupColors(): Promise<void> {
-  const groups = await queryTabGroups()
+export async function fetchTabGroupColors(): Promise<boolean> {
+  const result = await queryTabGroupsResult()
+  if (!result.ok) return false
   const next: Record<number, string> = {}
-  for (const g of groups) {
+  for (const g of result.value) {
     next[g.id] = CHROME_GROUP_COLOR_HEX[g.color as keyof typeof CHROME_GROUP_COLOR_HEX] || '#999'
   }
   groupColorCache = next
+  return true
 }
 
 /**

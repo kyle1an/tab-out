@@ -101,7 +101,7 @@ function splitBionicTitleWord(word: string, fixationLength: number): [string, st
   return [word, '']
 }
 
-export function bionicTitleTextNodes(
+function bionicTitleTextNodes(
   text: string,
   keyPrefix: string,
   textOffset = 0,

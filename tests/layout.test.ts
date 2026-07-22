@@ -108,6 +108,18 @@ test('user-driven pinned domain order changes prime card move animation', () => 
   assert.match(localStateHookSource, /onBeforeApplyPinnedDomainsRef\.current\?\.\(\{ animate: true \}\)/)
 })
 
+test('pin-driven dashboard refresh cancels its pending animation frame', () => {
+  const source = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
+  const callbackIndex = source.indexOf('callbacksRef.current.onBeforePinnedRefresh?.()')
+  const effectStart = source.lastIndexOf('useEffect(() => {', callbackIndex)
+  const effectEnd = source.indexOf('}, [pinnedDomains, localStateLoaded])', callbackIndex)
+  const effectSource = source.slice(effectStart, effectEnd)
+
+  assert.ok(callbackIndex > -1 && effectStart > -1 && effectEnd > callbackIndex)
+  assert.match(effectSource, /const frame = requestAnimationFrame/)
+  assert.match(effectSource, /return \(\) => cancelAnimationFrame\(frame\)/)
+})
+
 test('no-op pinned domain drag targets use a muted placement state', () => {
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
 
@@ -218,6 +230,8 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(localStateSource, /const localMutationVersionRef = useRef\(0\)/)
   assert.match(localStateSource, /const mutationVersion = localMutationVersionRef\.current/)
   assert.match(localStateSource, /if \(cancelled \|\| mutationVersion !== localMutationVersionRef\.current\) return/)
+  assert.match(localStateSource, /if \(!ok && currentState\.loaded\) return/)
+  assert.match(localStateSource, /if \(ok\) \{[\s\S]*domainPinWriter\.replacePersisted/)
   assert.match(refreshSource, /localState\?: DashboardLocalState \| null/)
   assert.match(refreshSource, /export function createLatestRefreshRunner/)
   assert.match(refreshSource, /if \(requestRevision !== revision\) continue/)
@@ -230,7 +244,7 @@ test('app bootstrap paints filter shell before cached startup content and live r
   // The cache layer + snapshot builder live in the non-React startup-snapshot module (shared with
   // the service worker): any valid session snapshot paints, with a durable chrome.storage.local fallback.
   assert.match(startupSnapshotSource, /export type CachedDashboardStartup =/)
-  assert.match(startupSnapshotSource, /const localState = includeLocalStateKeys/)
+  assert.match(startupSnapshotSource, /const liveLocalState = includeLocalStateKeys/)
   assert.match(startupSnapshotSource, /applyPinnedDomainsToCachedDashboard/)
   assert.match(startupSnapshotSource, /DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS/)
   assert.match(startupSnapshotSource, /export async function buildTabsDashboardStartupSnapshot/)
@@ -261,7 +275,7 @@ test('service worker maintains the startup snapshot on browser startup and tab e
   assert.match(backgroundSource, /chromeApi\.tabGroups\?\.onUpdated/)
   assert.match(serviceSource, /buildTabsDashboardStartupSnapshot/)
   assert.match(serviceSource, /saveCachedDashboardStartupSnapshot/)
-  assert.match(serviceSource, /loadCachedDashboardStartupSnapshot/)
+  assert.match(serviceSource, /loadCachedDashboardStartupResult/)
   assert.match(serviceSource, /seedOpenTabsTitleHistory\(/)
   assert.match(appEntrySource, /seedOpenTabsTitleHistory\(cachedStartup\?\.snapshot\.dashboard\.realTabs \?\? \[\]\)/)
   assert.match(appEntrySource, /changeInfo\.status !== undefined/)
@@ -351,7 +365,18 @@ test('masonry resize observer rebinds after conditional mission grids mount', ()
 
   assert.match(source, /useLayoutEffect\(\(\) => \{/)
   assert.match(source, /observer\.observe\(container\)/)
+  assert.match(source, /if \(!targetsChanged\) return/)
   assert.doesNotMatch(source, /\},\s*containerRefs\.map\(\(ref\) => ref\.current\)\s*\)/)
+})
+
+test('masonry batches card height reads before position writes', () => {
+  const source = readFileSync(new URL('../src/extension/layout.ts', import.meta.url), 'utf8')
+  const heightRead = source.indexOf('const cardHeights = cards.map')
+  const positionWrite = source.indexOf("card.style.left =")
+
+  assert.ok(heightRead > 0)
+  assert.ok(positionWrite > heightRead)
+  assert.doesNotMatch(source.slice(positionWrite), /getBoundingClientRect\(\)\.height/)
 })
 
 test('dashboard edge gutters are owned by panes instead of the shell', () => {

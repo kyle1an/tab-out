@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useState, type ReactNode, type TransitionEvent } from 'react'
 import { pageTargetMatchesHover } from '../extension/page-target.js'
 import { useDomainCardContext } from './DomainCardContext'
-import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
+import { useDashboardActions, useHoverStateSelector, type HoverState } from './DashboardInteractionContext'
 import { PageChip } from './PageChip'
 import { cn } from '@/lib/utils'
 import { TITLE_SUPPRESSION_MARKER_SYMBOL, countHiddenSuppressedTitleMatches, titleSuppressionBadgeClass, titleSuppressionOverflowHighlightClass, titleSuppressionToneForText } from './title-suppression'
@@ -29,12 +29,12 @@ function resolveClassName(className: OverflowContainerClassName | undefined, exp
   return typeof className === 'function' ? className({ expanded }) : className
 }
 
-function chipMatchesActiveHover(chip: DashboardChipData, activeHoverUrl: string, activeHoverUrls: readonly string[]): boolean {
+function chipMatchesActiveHover(chip: DashboardChipData, state: HoverState): boolean {
   return (
-    pageTargetMatchesHover(chip, activeHoverUrl, activeHoverUrls) ||
-    !!chip.titleVariantChips?.some((variant) => chipMatchesActiveHover(variant, activeHoverUrl, activeHoverUrls)) ||
+    pageTargetMatchesHover(chip, state.url, state.urls) ||
+    !!chip.titleVariantChips?.some((variant) => chipMatchesActiveHover(variant, state)) ||
     !!chip.envs?.some((env) => (
-      pageTargetMatchesHover(env, activeHoverUrl, activeHoverUrls)
+      pageTargetMatchesHover(env, state.url, state.urls)
     ))
   )
 }
@@ -52,12 +52,16 @@ export function usePageChipOverflow({
   const layoutScope = `page-chip:${useId()}`
   const expanded = expansionPhase === 'expanded'
   const { activeSuppressedTitle } = useDomainCardContext()
-  const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
+  const hiddenHoverMatched = useHoverStateSelector((state) => (
+    !!state.source &&
+    state.source !== 'chip' &&
+    !!state.url &&
+    hiddenChips.some((chip) => chipMatchesActiveHover(chip, state))
+  ))
   const { onLayoutChange } = useDashboardActions()
   const activeSuppressionTone = titleSuppressionToneForText(activeSuppressedTitle, suppressedTitleToneByText)
   const hiddenSuppressionMatchCount = countHiddenSuppressedTitleMatches(hiddenChips, activeSuppressedTitle)
   const hiddenSuppressionCoversAll = hiddenSuppressionMatchCount > 0 && hiddenSuppressionMatchCount === hiddenCount
-  const hiddenHoverMatched = !!activeHoverSource && activeHoverSource !== 'chip' && !!activeHoverUrl && hiddenChips.some((chip) => chipMatchesActiveHover(chip, activeHoverUrl, activeHoverUrls))
 
   function finishExpansion() {
     setExpansionPhase('expanded')
@@ -99,7 +103,7 @@ export function usePageChipOverflow({
           // boundary paints one shared trim line too.
           className={cn('page-chips-overflow page-chips-overflow-reveal [&>.chip-slot-row:first-child]:-mt-px', resolveClassName(overflowContainerClassName, expanded), expanded ? 'contents' : 'hidden')}
         >
-          {hiddenChips.map((chip) => (
+          {expansionPhase !== 'collapsed' && hiddenChips.map((chip) => (
             <PageChip key={chip.rawUrl} chip={chip} filter={filter} layoutScope={layoutScope} suppressedTitleToneByText={suppressedTitleToneByText} />
           ))}
         </div>

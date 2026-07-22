@@ -246,6 +246,36 @@ test('buildHistoryPanelRows hides a closed-ghost dismissed at or after its close
   assert.equal(rows.length, 0)
 })
 
+test('buildHistoryPanelRows suppresses closed ghosts while dismissal state is unknown', () => {
+  const rows = buildHistoryPanelRows({
+    snapshot: snapshotOf([
+      makeStackEntry({ index: 0, tabId: 1, url: 'https://example.com/open', lastActivatedAt: 100 })
+    ]),
+    workingSet: null,
+    closedTabs: [
+      makeClosed({ sessionId: 'c', url: 'https://example.com/forgotten', lastClosedAt: 3000 })
+    ],
+    filter: '',
+    dismissedClosedGhosts: null
+  })
+
+  assert.deepEqual(rows.map((row) => row.kind), ['stack'])
+})
+
+test('buildHistoryPanelRows shows closed ghosts after a confirmed empty dismissal read', () => {
+  const rows = buildHistoryPanelRows({
+    snapshot: null,
+    workingSet: null,
+    closedTabs: [
+      makeClosed({ sessionId: 'c', url: 'https://example.com/recent', lastClosedAt: 3000 })
+    ],
+    filter: '',
+    dismissedClosedGhosts: new Map()
+  })
+
+  assert.deepEqual(rows.map((row) => row.kind), ['closed-ghost'])
+})
+
 test('buildHistoryPanelRows keeps a closed-ghost re-closed after its dismissal timestamp', () => {
   const closed = makeClosed({ sessionId: 'c', url: 'https://example.com/forgotten', lastClosedAt: 5000 })
   const rows = buildHistoryPanelRows({

@@ -27,6 +27,12 @@ export interface DashboardTab {
   index?: number
 }
 
+/** A destructive live-tab target guarded by both session-scoped id and URL. */
+export interface DashboardTabMutationTarget {
+  tabId: number
+  tabUrl: string
+}
+
 export interface TabSnapshot {
   url: string
   rawUrl?: string
@@ -150,6 +156,7 @@ export interface DashboardChipData {
   activeChipFrame?: boolean
   isCurrentTabOut?: boolean
   chromePinned?: boolean
+  chromeGroupId?: number
   iconOnly?: boolean
   envs: DashboardChipEnv[] | null
   titleVariantChips?: DashboardChipData[]
@@ -228,8 +235,8 @@ export interface DashboardCardVM {
   displayName?: string
   suppressedTitleParts?: DashboardTitleSuppression[]
   allSuppressedTitleParts?: DashboardTitleSuppression[]
-  suppressionCloseUrlsByText?: Record<string, string[]>
-  suppressionSuspendUrlsByText?: Record<string, string[]>
+  suppressionCloseTargetsByText?: Record<string, DashboardTabMutationTarget[]>
+  suppressionSuspendTargetsByText?: Record<string, DashboardTabMutationTarget[]>
   /** Populated by computeDomainCardViewModel's tone allocation walk. */
   cardSuppressionToneScope?: TitleSuppressionToneScope
   sections?: DashboardSectionVM[]
@@ -262,6 +269,7 @@ export interface DashboardViewModel {
   showOtherTabs: boolean
   globalDedupeUrls: string[]
   filteredCloseUrls: string[]
+  filteredCloseTargets: DashboardTabMutationTarget[]
 }
 
 export interface DashboardData {

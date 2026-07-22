@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  DOMAIN_PIN_STORAGE_KEY,
+  loadPinnedDomainsResult,
   movePinnedDomainInList,
   normalizePinnedDomains,
   reorderPinnedDomainInList,
@@ -63,4 +65,21 @@ test('movePinnedDomainInList ignores edge and unknown domains', () => {
   assert.deepEqual(movePinnedDomainInList(domains, 'alpha.test', 'previous'), domains)
   assert.deepEqual(movePinnedDomainInList(domains, 'bravo.test', 'next'), domains)
   assert.deepEqual(movePinnedDomainInList(domains, 'missing.test', 'next'), domains)
+})
+
+test('loadPinnedDomainsResult rejects malformed stored state', async () => {
+  const previous = globalThis.chrome
+  globalThis.chrome = {
+    storage: {
+      local: {
+        get: async () => ({ [DOMAIN_PIN_STORAGE_KEY]: {} })
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+
+  try {
+    assert.deepEqual(await loadPinnedDomainsResult(), { ok: false, value: [] })
+  } finally {
+    globalThis.chrome = previous
+  }
 })

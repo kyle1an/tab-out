@@ -12,6 +12,10 @@ import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 const MAC = 'MacIntel'
 const WIN = 'Win32'
 
+function liveTab(id: number, windowId: number, url: string): chrome.tabs.Tab {
+  return { id, windowId, url } as chrome.tabs.Tab
+}
+
 test('chipActivationMode returns focus when there is no event', () => {
   assert.equal(chipActivationMode(undefined, MAC), 'focus')
   assert.equal(chipActivationMode(null, MAC), 'focus')
@@ -90,8 +94,179 @@ test('modifier activation opens a missing target with the requested current-wind
     tabUrl: 'https://example.test/docs'
   })
 
-  assert.equal(handled, true)
+  assert.equal(handled, 'handled')
   assert.equal(tabs.length, 1)
   assert.equal(tabs[0]?.url, 'https://example.test/docs')
   assert.equal(tabs[0]?.active, false)
+})
+
+test('modifier activation does not open a duplicate when the tab inventory is unknown', async (t) => {
+  const tabs: chrome.tabs.Tab[] = [
+    liveTab(7, 2, 'https://example.test/docs')
+  ]
+  const api = createFakeChromeApi({ tabs })
+  api.tabs.query = async () => {
+    throw new Error('tabs unavailable')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const handled = await performDashboardItemActivation('bring-background', {
+    tabId: 7,
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(handled, 'failed')
+  assert.equal(tabs.length, 1)
+})
+
+test('modifier activation does not open a duplicate when the current window is unknown', async (t) => {
+  const tabs: chrome.tabs.Tab[] = [
+    liveTab(7, 2, 'https://example.test/docs')
+  ]
+  const api = createFakeChromeApi({ tabs })
+  api.windows.getCurrent = async () => {
+    throw new Error('window unavailable')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const handled = await performDashboardItemActivation('bring-background', {
+    tabId: 7,
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(handled, 'failed')
+  assert.equal(tabs.length, 1)
+})
+
+test('modifier activation does not open a duplicate when Chrome refuses the move', async (t) => {
+  const tabs: chrome.tabs.Tab[] = [
+    liveTab(7, 2, 'https://example.test/docs')
+  ]
+  const api = createFakeChromeApi({ tabs })
+  let moveAttempts = 0
+  api.tabs.move = async () => {
+    moveAttempts += 1
+    throw new Error('move refused')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const handled = await performDashboardItemActivation('bring-background', {
+    tabId: 7,
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(handled, 'failed')
+  assert.equal(moveAttempts, 1)
+  assert.equal(tabs.length, 1)
+})
+
+test('foreground modifier activation reports failure when a same-window tab cannot be activated', async (t) => {
+  const tabs: chrome.tabs.Tab[] = [
+    liveTab(7, 1, 'https://example.test/docs')
+  ]
+  const api = createFakeChromeApi({ tabs })
+  let updateAttempts = 0
+  api.tabs.update = async () => {
+    updateAttempts += 1
+    throw new Error('activation refused')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const result = await performDashboardItemActivation('bring-foreground', {
+    tabId: 7,
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(result, 'failed')
+  assert.equal(updateAttempts, 1)
+  assert.equal(tabs.length, 1)
+})
+
+test('Shift activation does not open a duplicate when the tab inventory is unknown', async (t) => {
+  const tabs: chrome.tabs.Tab[] = [
+    liveTab(7, 1, 'https://example.test/docs')
+  ]
+  const api = createFakeChromeApi({ tabs })
+  let createAttempts = 0
+  api.tabs.query = async () => {
+    throw new Error('tabs unavailable')
+  }
+  api.windows.create = async () => {
+    createAttempts += 1
+    throw new Error('unexpected create')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const handled = await performDashboardItemActivation('open-window', {
+    tabId: 7,
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(handled, 'failed')
+  assert.equal(createAttempts, 0)
+  assert.equal(tabs.length, 1)
+})
+
+test('Shift activation does not retry by URL when Chrome refuses to move the live tab', async (t) => {
+  const tabs: chrome.tabs.Tab[] = [
+    liveTab(7, 1, 'https://example.test/docs')
+  ]
+  const api = createFakeChromeApi({ tabs })
+  const createRequests: chrome.windows.CreateData[] = []
+  api.windows.create = async (request) => {
+    createRequests.push({ ...request })
+    throw new Error('create refused')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const handled = await performDashboardItemActivation('open-window', {
+    tabId: 7,
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(handled, 'failed')
+  assert.deepEqual(createRequests, [{ tabId: 7, focused: true, type: 'normal' }])
+  assert.equal(tabs.length, 1)
+})
+
+test('modifier activation reports failure when Chrome refuses to create the fallback tab', async (t) => {
+  const tabs: chrome.tabs.Tab[] = []
+  const api = createFakeChromeApi({ tabs })
+  api.tabs.create = async () => {
+    throw new Error('create refused')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const result = await performDashboardItemActivation('bring-background', {
+    tabUrl: 'https://example.test/docs'
+  })
+
+  assert.equal(result, 'failed')
+  assert.equal(tabs.length, 0)
+})
+
+test('new-window activation reports failure when Chrome refuses to create the fallback window', async (t) => {
+  const tabs: chrome.tabs.Tab[] = []
+  const api = createFakeChromeApi({ tabs })
+  api.windows.create = async () => {
+    throw new Error('window create refused')
+  }
+  setChromeTabsApi(api)
+  t.after(() => setChromeTabsApi(null))
+
+  const result = await performDashboardItemActivation(
+    'open-window',
+    { tabUrl: 'https://example.test/docs' },
+    { moveExisting: false }
+  )
+
+  assert.equal(result, 'failed')
+  assert.equal(tabs.length, 0)
 })

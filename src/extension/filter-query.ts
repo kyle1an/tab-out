@@ -10,6 +10,16 @@ export type FilterQuery = {
   terms: FilterQueryTerm[]
 }
 
+export type CompiledFilterQuery = {
+  raw: string
+  active: boolean
+  terms: ReadonlyArray<{
+    kind: FilterQueryTerm['kind']
+    value: string
+    matchValues: readonly string[]
+  }>
+}
+
 type DashboardItemSearchableParts = {
   title: string
   url: string
@@ -64,6 +74,22 @@ export function matchValuesForFilterTerm(term: FilterQueryTerm): string[] {
     ? [term.value, ...(TOKEN_MATCH_ALIASES[term.value] || [])]
     : [term.value]
   return [...new Set(values.flatMap(separatorMatchVariants))]
+}
+
+/**
+ * Parse a filter and expand its aliases/separator variants once so a caller
+ * can reuse the result while walking a whole dashboard snapshot.
+ */
+export function compileFilterQuery(input = ''): CompiledFilterQuery {
+  const query = parseFilterQuery(input)
+  return {
+    raw: query.raw,
+    active: query.raw.trim().length > 0,
+    terms: query.terms.map((term) => ({
+      ...term,
+      matchValues: matchValuesForFilterTerm(term)
+    }))
+  }
 }
 
 function searchablePartsForDashboardItem(tab: Pick<DashboardTab, 'title' | 'url' | 'isTabOut'>): DashboardItemSearchableParts {

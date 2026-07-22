@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { countClosableDuplicateExtras, pickDuplicateTabsToClose } from '../src/extension/tab-dedupe-policy.js'
-import { closeDuplicateTabs, fetchOpenTabs, openTabs } from '../src/extension/tabs.js'
+import { closeDuplicateTabs, closeDuplicateTabsResult, fetchOpenTabs, openTabs } from '../src/extension/tabs.js'
 
 function createChromeMock(initialTabs: any[]) {
   let tabs = initialTabs.map((tab) => ({ ...tab }))
@@ -215,6 +215,22 @@ test('global dedupe keeps the current Tab Out tab when a grouped duplicate exist
   assert.deepEqual(removedIds, [])
 })
 
+test('global dedupe aborts for Tab Out pages when current-window identity is unavailable', async () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
+    { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+  ])
+  ;(globalThis as any).chrome.windows.getCurrent = async () => {
+    throw new Error('Current window disappeared')
+  }
+
+  const snapshot = await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+
+  assert.deepEqual(snapshot, [])
+  assert.deepEqual(removedIds, [])
+})
+
 test('global dedupe returns an undo snapshot for closed Tab Out duplicates', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   createChromeMock([
@@ -235,6 +251,152 @@ test('global dedupe returns an undo snapshot for closed Tab Out duplicates', asy
       index: 1
     }
   ])
+})
+
+test('dedupe snapshots a confirmed Tab Out close independently of its preservation policy', async () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  createChromeMock([
+    { id: 1, url: tabOutUrl, title: 'Current Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
+    { id: 2, url: tabOutUrl, title: 'Sibling Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
+  ])
+
+  const result = await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: false })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.removedCount, 1)
+  assert.deepEqual(result.value.map((tab) => ({ url: tab.url, title: tab.title })), [
+    { url: tabOutUrl, title: 'Sibling Tab Out' }
+  ])
+})
+
+test('closeDuplicateTabsResult reports a partial duplicate close with confirmed snapshots', async () => {
+  const url = 'https://example.test/docs'
+  createChromeMock([
+    { id: 1, url, title: 'Oldest', windowId: 1, index: 0, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
+    { id: 2, url, title: 'Middle', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 },
+    { id: 3, url, title: 'Newest', windowId: 1, index: 2, active: true, pinned: false, groupId: -1, lastAccessed: 300 }
+  ])
+  const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
+  ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
+    if (Array.isArray(tabIds)) throw new Error('Batch removal unavailable')
+    if (tabIds === 1) throw new Error('Tab is managed')
+    await removeTab(tabIds)
+  }
+
+  const result = await closeDuplicateTabsResult([url])
+
+  assert.equal(result.ok, false)
+  assert.equal(result.status, 'partial')
+  assert.equal(result.attemptedCount, 2)
+  assert.equal(result.removedCount, 1)
+  assert.equal(result.failedCount, 1)
+  assert.deepEqual(result.value.map((tab) => tab.title), ['Middle'])
+})
+
+test('global dedupe does not close a tab whose pending navigation left the duplicate URL', async () => {
+  const url = 'https://example.test/docs'
+  const { removedIds } = createChromeMock([
+    { id: 1, url, title: 'Newest', windowId: 1, index: 0, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
+    { id: 2, url, pendingUrl: 'https://example.test/other', title: 'Leaving', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 100 },
+    { id: 3, url, title: 'Middle', windowId: 1, index: 2, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
+  ])
+
+  const result = await closeDuplicateTabsResult([url])
+
+  assert.equal(result.removedCount, 1)
+  assert.deepEqual(removedIds, [3])
+})
+
+test('global dedupe reads tabs after current-window state settles', async () => {
+  const url = 'https://example.test/docs'
+  const pendingUrl = 'https://example.test/other'
+  const { removedIds } = createChromeMock([
+    { id: 1, url, title: 'Current', windowId: 1, index: 0, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
+    { id: 2, url, title: 'Leaving', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 100 }
+  ])
+  let releaseCurrentWindow!: () => void
+  const currentWindowGate = new Promise<void>((resolve) => {
+    releaseCurrentWindow = resolve
+  })
+  let navigationStarted = false
+  let tabQueryCount = 0
+  ;(globalThis as any).chrome.windows.getCurrent = async () => {
+    await currentWindowGate
+    navigationStarted = true
+    return { id: 1 }
+  }
+  ;(globalThis as any).chrome.tabs.query = async () => {
+    tabQueryCount += 1
+    return [
+      { id: 1, url, title: 'Current', windowId: 1, index: 0, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
+      {
+        id: 2,
+        url,
+        ...(navigationStarted ? { pendingUrl } : {}),
+        title: 'Leaving',
+        windowId: 1,
+        index: 1,
+        active: false,
+        pinned: false,
+        groupId: -1,
+        lastAccessed: 100
+      }
+    ]
+  }
+
+  const resultPromise = closeDuplicateTabsResult([url])
+  await Promise.resolve()
+
+  assert.equal(tabQueryCount, 0)
+  releaseCurrentWindow()
+  const result = await resultPromise
+
+  assert.equal(tabQueryCount, 1)
+  assert.equal(result.removedCount, 0)
+  assert.deepEqual(removedIds, [])
+})
+
+test('global dedupe indexes each live tab once when many keys are requested', async () => {
+  const tabCount = 240
+  const urls = Array.from({ length: tabCount }, (_, index) => `https://example.test/page-${index}`)
+  let queryCount = 0
+  let urlReadCount = 0
+  const tabs = urls.map((url, index) => new Proxy({
+    id: index + 1,
+    url,
+    title: `Page ${index}`,
+    windowId: 1,
+    index,
+    active: index === 0,
+    pinned: false,
+    groupId: -1
+  }, {
+    get(target, property, receiver) {
+      if (property === 'url') urlReadCount += 1
+      return Reflect.get(target, property, receiver)
+    }
+  }))
+  ;(globalThis as any).chrome = {
+    runtime: { id: 'tab-out' },
+    tabs: {
+      async query() {
+        queryCount += 1
+        return tabs
+      },
+      async remove() {}
+    },
+    windows: {
+      async getCurrent() {
+        return { id: 1 }
+      }
+    }
+  }
+
+  const result = await closeDuplicateTabsResult(urls)
+
+  assert.equal(result.attemptedCount, 0)
+  assert.equal(queryCount, 1)
+  assert.equal(urlReadCount, tabCount)
 })
 
 test('global dedupe returns an undo snapshot for closed native new-tab duplicates', async () => {
@@ -309,8 +471,7 @@ test('global dedupe preserves a pinned dashboard even when filters differ', asyn
   assert.deepEqual(removedIds, [2])
 })
 
-test('closeDuplicateTabs collapses two Jira URL forms of the same comment', async () => {
-  const canonical = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100'
+test('closeDuplicateTabs accepts a non-canonical requested URL for equivalent Jira comments', async () => {
   const longForm =
     'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-100'
   const shortForm = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention'
@@ -319,7 +480,7 @@ test('closeDuplicateTabs collapses two Jira URL forms of the same comment', asyn
     { id: 2, url: shortForm, title: 'ABC-123', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
   ])
 
-  await closeDuplicateTabs([canonical], true)
+  await closeDuplicateTabs([longForm], true)
 
   assert.deepEqual(removedIds, [1])
 })

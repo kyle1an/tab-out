@@ -8,6 +8,8 @@ import {
   isSavedPageEligible,
   mergeSavedPagesWithTabs,
   normalizeSavedPagesStore,
+  removeSavedPageFromStore,
+  restoreSavedPageToStore,
   savedPageKeyForUrl,
   savedPageKeysFromStore,
   savedPagesStoresEqual
@@ -44,6 +46,7 @@ test('isSavedPageEligible excludes browser utility pages and standalone apps', (
   assert.equal(isSavedPageEligible({ url: 'https://example.test/docs' }), true)
   assert.equal(isSavedPageEligible({ url: 'chrome://settings/' }), false)
   assert.equal(isSavedPageEligible({ url: 'chrome-extension://tab-out/index.html' }), false)
+  assert.equal(isSavedPageEligible({ url: 'chrome-untrusted://new-tab-page/' }), false)
   assert.equal(isSavedPageEligible({ url: 'https://mail.example.test/', isApp: true }), false)
   assert.equal(isSavedPageEligible({ url: 'chrome://newtab/', isTabOut: true }), false)
 })
@@ -177,4 +180,23 @@ test('savedPageKeysFromStore returns the normalized keys of every saved page', (
 
 test('savedPageKeysFromStore returns [] for a nullish store', () => {
   assert.deepEqual(savedPageKeysFromStore(null), [])
+})
+
+test('Saved Page Undo does not overwrite a newer re-save of the same URL', () => {
+  const original = addSavedPageToStore(
+    emptySavedPagesStore(),
+    makeTab({ url: 'https://example.test/article', title: 'Original title' }),
+    100
+  )
+  const { store: removedStore, removed } = removeSavedPageFromStore(original, 'https://example.test/article')
+  const resaved = addSavedPageToStore(
+    removedStore,
+    makeTab({ url: 'https://example.test/article', title: 'New title' }),
+    200
+  )
+
+  const afterUndo = restoreSavedPageToStore(resaved, removed)
+
+  assert.equal(afterUndo.pages['https://example.test/article']?.title, 'New title')
+  assert.equal(afterUndo.pages['https://example.test/article']?.savedAt, 200)
 })

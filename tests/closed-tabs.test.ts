@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import FakeTimers from '@sinonjs/fake-timers'
 
-import { fetchClosedTabs, isClosedTabFetchSuppressed, restoreClosedTab, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
+import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabs, fetchClosedTabsResult, isClosedTabFetchSuppressed, restoreClosedTab, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
 
 type Session = chrome.sessions.Session
 type SessionTab = chrome.tabs.Tab
@@ -52,7 +53,7 @@ test('fetchClosedTabs flattens single tab sessions and window sessions to one en
   assert.equal(result[2].lastClosedAt, 1_700_000_020)
 })
 
-test('fetchClosedTabs drops chrome:// and chrome-extension:// urls', async () => {
+test('fetchClosedTabs drops every browser-internal URL kind', async () => {
   setSessionsApi([
     {
       lastModified: 1,
@@ -64,13 +65,17 @@ test('fetchClosedTabs drops chrome:// and chrome-extension:// urls', async () =>
     },
     {
       lastModified: 3,
-      tab: { sessionId: 'c', id: 3, windowId: 1, url: 'https://example.com/keep', title: 'Keep', favIconUrl: '' } as SessionTab & { sessionId: string }
+      tab: { sessionId: 'c', id: 3, windowId: 1, url: 'chrome-untrusted://new-tab-page/', title: 'New Tab Frame', favIconUrl: '' } as SessionTab & { sessionId: string }
+    },
+    {
+      lastModified: 4,
+      tab: { sessionId: 'd', id: 4, windowId: 1, url: 'https://example.com/keep', title: 'Keep', favIconUrl: '' } as SessionTab & { sessionId: string }
     }
   ])
 
   const result = await fetchClosedTabs()
   assert.equal(result.length, 1)
-  assert.equal(result[0].sessionId, 'c')
+  assert.equal(result[0].sessionId, 'd')
 })
 
 test('fetchClosedTabs drops tabs without urls and entries without sessionId', async () => {
@@ -88,21 +93,46 @@ test('fetchClosedTabs resolves to empty when chrome.sessions is unavailable', as
   assert.deepEqual(result, [])
 })
 
+test('fetchClosedTabsResult distinguishes a rejected sessions read from confirmed empty', async () => {
+  globalThis.chrome = {
+    sessions: {
+      getRecentlyClosed: async () => { throw new Error('sessions database unavailable') }
+    }
+  } as unknown as typeof globalThis.chrome
+
+  assert.deepEqual(await fetchClosedTabsResult(), { ok: false, value: [] })
+  setSessionsApi([])
+  assert.deepEqual(await fetchClosedTabsResult(), { ok: true, value: [] })
+})
+
 test('restoreClosedTab calls chrome.sessions.restore and resolves true on success', async () => {
   let calledWith: string | undefined
+  const restoreEvents: Array<{ phase: string; restored?: boolean } | 'restore'> = []
   globalThis.chrome = {
     sessions: {
       restore: async (id?: string) => {
         calledWith = id
+        restoreEvents.push('restore')
         return undefined
       }
     },
-    runtime: { id: 'tab-out-test' }
+    runtime: {
+      id: 'tab-out-test',
+      sendMessage: async (message: unknown) => {
+        const restoreMessage = message as { phase: string; restored?: boolean }
+        restoreEvents.push({ phase: restoreMessage.phase, restored: restoreMessage.restored })
+      }
+    }
   } as unknown as typeof globalThis.chrome
 
   const ok = await restoreClosedTab('session-xyz')
   assert.equal(ok, true)
   assert.equal(calledWith, 'session-xyz')
+  assert.deepEqual(restoreEvents, [
+    { phase: 'started', restored: undefined },
+    'restore',
+    { phase: 'settled', restored: true }
+  ])
 })
 
 test('restoreClosedTab returns false when chrome.sessions.restore throws', async () => {
@@ -151,13 +181,156 @@ test('subscribeClosedTabChanges registers and unregisters a listener', async () 
     }
   } as unknown as typeof globalThis.chrome
 
-  let fired = 0
-  const unsubscribe = subscribeClosedTabChanges(() => { fired += 1 })
+  const settleDelays: number[] = []
+  const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
   assert.equal(listeners.length, 1)
   listeners[0]()
-  assert.equal(fired, 1)
+  assert.deepEqual(settleDelays, [CLOSED_TAB_SESSION_SETTLE_MS])
   unsubscribe()
   assert.equal(listeners.length, 0)
+})
+
+test('restore suppression is armed before Chrome settles the restore promise', async () => {
+  let finishRestore!: () => void
+  const restoring = new Promise<void>((resolve) => { finishRestore = resolve })
+  globalThis.chrome = {
+    sessions: {
+      restore: async () => restoring
+    },
+    runtime: { id: 'tab-out-test' }
+  } as unknown as typeof globalThis.chrome
+
+  const restore = restoreClosedTab('session-pending')
+  assert.equal(isClosedTabFetchSuppressed(), true)
+  finishRestore()
+  assert.equal(await restore, true)
+})
+
+test('a restore gated beyond 150ms stays suppressed and emits a settled trailing refresh', async () => {
+  const realNow = Date.now()
+  const clock = FakeTimers.install({ now: realNow, toFake: ['Date'] })
+  let finishRestore!: () => void
+  let markRestoreStarted!: () => void
+  const restoring = new Promise<void>((resolve) => { finishRestore = resolve })
+  const restoreStarted = new Promise<void>((resolve) => { markRestoreStarted = resolve })
+  const sessionListeners: Array<() => void> = []
+  const settleDelays: number[] = []
+  globalThis.chrome = {
+    sessions: {
+      restore: async () => {
+        markRestoreStarted()
+        return restoring
+      },
+      onChanged: {
+        addListener: (handler: () => void) => sessionListeners.push(handler),
+        removeListener: () => {}
+      }
+    },
+    tabs: {
+      onRemoved: { addListener: () => {}, removeListener: () => {} }
+    },
+    runtime: { id: 'tab-out-test' }
+  } as unknown as typeof globalThis.chrome
+  const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
+
+  try {
+    const restore = restoreClosedTab('session-slow')
+    await restoreStarted
+    clock.tick(CLOSED_TAB_SESSION_SETTLE_MS + 1)
+    sessionListeners[0]()
+
+    assert.equal(isClosedTabFetchSuppressed(), true)
+    assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
+    assert.deepEqual(settleDelays, [CLOSED_TAB_SESSION_SETTLE_MS])
+
+    clock.setSystemTime(realNow)
+    finishRestore()
+    assert.equal(await restore, true)
+    assert.deepEqual(settleDelays, [CLOSED_TAB_SESSION_SETTLE_MS, CLOSED_TAB_SESSION_SETTLE_MS])
+    assert.equal(isClosedTabFetchSuppressed(), true)
+  } finally {
+    unsubscribe()
+    finishRestore()
+    clock.uninstall()
+  }
+})
+
+test('a second page suppresses reads for a restore broadcast by another page', () => {
+  const runtimeListeners: Array<(message: unknown) => void> = []
+  const settleDelays: number[] = []
+  globalThis.chrome = {
+    sessions: {
+      onChanged: { addListener: () => {}, removeListener: () => {} }
+    },
+    tabs: {
+      onRemoved: { addListener: () => {}, removeListener: () => {} }
+    },
+    runtime: {
+      onMessage: {
+        addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
+        removeListener: () => {}
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+  const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
+
+  try {
+    runtimeListeners[0]({
+      type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
+      restoreId: 'other-page-restore',
+      phase: 'started'
+    })
+    assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
+    assert.deepEqual(settleDelays, [0])
+
+    runtimeListeners[0]({
+      type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
+      restoreId: 'other-page-restore',
+      phase: 'settled',
+      restored: true
+    })
+    assert.notEqual(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
+    assert.deepEqual(settleDelays, [0, CLOSED_TAB_SESSION_SETTLE_MS])
+  } finally {
+    unsubscribe()
+  }
+})
+
+test('a second page releases an orphaned restore broadcast through its watchdog', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const runtimeListeners: Array<(message: unknown) => void> = []
+  const settleDelays: number[] = []
+  globalThis.chrome = {
+    sessions: {
+      onChanged: { addListener: () => {}, removeListener: () => {} }
+    },
+    tabs: {
+      onRemoved: { addListener: () => {}, removeListener: () => {} }
+    },
+    runtime: {
+      onMessage: {
+        addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
+        removeListener: () => {}
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+  const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
+
+  try {
+    runtimeListeners[0]({
+      type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
+      restoreId: 'orphaned-other-page-restore',
+      phase: 'started'
+    })
+    assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
+
+    await clock.tickAsync(CLOSED_TAB_RESTORE_WATCHDOG_MS)
+    assert.notEqual(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
+    assert.deepEqual(settleDelays, [0, CLOSED_TAB_SESSION_SETTLE_MS])
+  } finally {
+    unsubscribe()
+    clock.uninstall()
+  }
 })
 
 test('subscribeClosedTabChanges no-ops when chrome.sessions.onChanged is unavailable', () => {

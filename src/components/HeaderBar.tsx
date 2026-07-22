@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
@@ -11,6 +11,7 @@ import {
   EMPTY_FILTER_RESULT_SELECTION,
   filterResultKeyboardIntent,
   reconcileFilterResultSelection,
+  reconcileVisibleFilterResultSelection,
   selectAdjacentFilterResult,
   selectHorizontalFilterResult,
   type FilterResultCandidate,
@@ -39,6 +40,7 @@ interface HeaderBarProps {
   filter: string
   committedFilter?: string
   filterResultCandidates?: readonly FilterResultCandidate[]
+  filterResultSearchSettled?: boolean
   filterFocusRequest?: number
   historyRange: string
   onFilterChange: (filter: string) => void
@@ -47,6 +49,7 @@ interface HeaderBarProps {
   onDedupAll: () => void | Promise<void>
   onSourceChange: (source: DashboardSource) => void | Promise<void>
   source?: DashboardSource
+  sourceSelection?: DashboardSource
   ready?: boolean
 }
 
@@ -57,6 +60,7 @@ type PendingFilterResultAction =
       kind: 'move'
       direction: FilterResultMoveDirection
       query: string
+      source: DashboardSource
     }
   | {
       kind: 'activate'
@@ -67,19 +71,46 @@ type PendingFilterResultAction =
         shiftKey: boolean
       }
       query: string
+      source: DashboardSource
     }
-
-function sameFilterResultSelection(left: FilterResultSelection, right: FilterResultSelection) {
-  return left.query === right.query &&
-    left.candidateKey === right.candidateKey &&
-    left.identity === right.identity
-}
 
 function filterResultCandidateForSelection(
   selection: FilterResultSelection,
   candidates: readonly FilterResultCandidate[]
 ) {
   return candidates.find((candidate) => candidate.key === selection.candidateKey)
+}
+
+function mountedFilterResultCandidates(candidates: readonly FilterResultCandidate[]) {
+  return candidates.filter(isMountedFilterResultCandidate)
+}
+
+function isMountedFilterResultCandidate(candidate: FilterResultCandidate) {
+  const target = document.getElementById(candidate.domId)
+  return target instanceof HTMLElement && target.getClientRects().length > 0
+}
+
+function applyFilterResultSelection(
+  selection: FilterResultSelection,
+  candidates: readonly FilterResultCandidate[],
+  input: HTMLInputElement | null,
+  previousElement: HTMLElement | null,
+  scroll: boolean
+): HTMLElement | null {
+  const candidate = filterResultCandidateForSelection(selection, candidates)
+  const nextElement = candidate ? document.getElementById(candidate.domId) : null
+  if (previousElement !== nextElement) {
+    previousElement?.removeAttribute('data-tabout-filter-result-selected')
+  }
+  if (!candidate || !(nextElement instanceof HTMLElement)) {
+    input?.removeAttribute('aria-activedescendant')
+    return null
+  }
+
+  nextElement.setAttribute('data-tabout-filter-result-selected', 'true')
+  input?.setAttribute('aria-activedescendant', candidate.domId)
+  if (scroll) nextElement.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  return nextElement
 }
 
 function dispatchFilterResultActivation(
@@ -168,6 +199,7 @@ export function HeaderBar({
   filter,
   committedFilter = filter,
   filterResultCandidates = EMPTY_FILTER_RESULT_CANDIDATES,
+  filterResultSearchSettled = true,
   filterFocusRequest = 0,
   historyRange,
   onFilterChange,
@@ -176,26 +208,19 @@ export function HeaderBar({
   onDedupAll,
   onSourceChange,
   source = 'tabs',
+  sourceSelection = source,
   ready = true,
   stats
 }: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const pendingFilterResultActionRef = useRef<PendingFilterResultAction | null>(null)
   const selectedFilterResultElementRef = useRef<HTMLElement | null>(null)
-  const scrollSelectedFilterResultRef = useRef(false)
-  const [filterResultSelection, setFilterResultSelection] = useState(EMPTY_FILTER_RESULT_SELECTION)
-  const committedCandidates = filter === committedFilter
+  const filterResultSelectionRef = useRef(EMPTY_FILTER_RESULT_SELECTION)
+  const filterResultSourceRef = useRef({ source, sourceSelection })
+  const filterResultNavigationEnabled = source === sourceSelection
+  const committedCandidates = filterResultNavigationEnabled && filter === committedFilter
     ? filterResultCandidates
     : EMPTY_FILTER_RESULT_CANDIDATES
-  const reconciledFilterResultSelection = reconcileFilterResultSelection(
-    filterResultSelection,
-    filter,
-    committedCandidates
-  )
-  const selectedFilterResultCandidate = filterResultCandidateForSelection(
-    reconciledFilterResultSelection,
-    committedCandidates
-  )
 
   function updateFilter(nextValue: string) {
     pendingFilterResultActionRef.current = null
@@ -203,43 +228,85 @@ export function HeaderBar({
   }
 
   useLayoutEffect(() => {
-    let nextSelection = reconciledFilterResultSelection
-    const pendingAction = pendingFilterResultActionRef.current
-    let pendingActivation: Extract<PendingFilterResultAction, { kind: 'activate' }> | null = null
+    const previousSource = filterResultSourceRef.current
+    filterResultSourceRef.current = { source, sourceSelection }
+    if (
+      previousSource.source === source &&
+      previousSource.sourceSelection === sourceSelection
+    ) return
 
-    if (pendingAction?.query === committedFilter && filter === committedFilter) {
+    pendingFilterResultActionRef.current = null
+    filterResultSelectionRef.current = EMPTY_FILTER_RESULT_SELECTION
+    selectedFilterResultElementRef.current = applyFilterResultSelection(
+      EMPTY_FILTER_RESULT_SELECTION,
+      EMPTY_FILTER_RESULT_CANDIDATES,
+      inputRef.current,
+      selectedFilterResultElementRef.current,
+      false
+    )
+  }, [source, sourceSelection])
+
+  useLayoutEffect(() => {
+    const pendingAction = pendingFilterResultActionRef.current
+    const pendingActionMatches = pendingAction?.query === committedFilter &&
+      pendingAction.source === source &&
+      filterResultNavigationEnabled &&
+      filter === committedFilter
+    const mountedCandidates = pendingActionMatches && pendingAction.kind === 'move'
+      ? mountedFilterResultCandidates(committedCandidates)
+      : null
+    let nextSelection: FilterResultSelection
+    let nextCandidate: FilterResultCandidate | undefined
+    if (mountedCandidates) {
+      nextSelection = reconcileFilterResultSelection(
+        filterResultSelectionRef.current,
+        filter,
+        mountedCandidates
+      )
+      nextCandidate = filterResultCandidateForSelection(nextSelection, mountedCandidates)
+    } else {
+      const reconciledResult = reconcileVisibleFilterResultSelection(
+        filterResultSelectionRef.current,
+        filter,
+        committedCandidates,
+        isMountedFilterResultCandidate
+      )
+      nextSelection = reconciledResult.selection
+      nextCandidate = reconciledResult.candidate
+    }
+    let pendingActivation: Extract<PendingFilterResultAction, { kind: 'activate' }> | null = null
+    let scrollSelection = false
+
+    if (
+      pendingActionMatches &&
+      (nextCandidate || filterResultSearchSettled)
+    ) {
       pendingFilterResultActionRef.current = null
       if (pendingAction.kind === 'move') {
         nextSelection = moveFilterResultSelection(
-          reconciledFilterResultSelection,
+          nextSelection,
           committedFilter,
-          committedCandidates,
+          mountedCandidates ?? EMPTY_FILTER_RESULT_CANDIDATES,
           pendingAction.direction
         )
-        scrollSelectedFilterResultRef.current = true
+        nextCandidate = filterResultCandidateForSelection(
+          nextSelection,
+          mountedCandidates ?? EMPTY_FILTER_RESULT_CANDIDATES
+        )
+        scrollSelection = true
       } else {
         pendingActivation = pendingAction
       }
     }
 
-    const previousElement = selectedFilterResultElementRef.current
-    const nextCandidate = filterResultCandidateForSelection(nextSelection, committedCandidates)
-    const nextElement = nextCandidate ? document.getElementById(nextCandidate.domId) : null
-    if (previousElement !== nextElement) previousElement?.removeAttribute('data-tabout-filter-result-selected')
-    if (nextElement instanceof HTMLElement) {
-      nextElement.setAttribute('data-tabout-filter-result-selected', 'true')
-      if (scrollSelectedFilterResultRef.current) {
-        nextElement.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-      }
-      selectedFilterResultElementRef.current = nextElement
-    } else {
-      selectedFilterResultElementRef.current = null
-    }
-    scrollSelectedFilterResultRef.current = false
-
-    if (!sameFilterResultSelection(filterResultSelection, nextSelection)) {
-      setFilterResultSelection(nextSelection)
-    }
+    selectedFilterResultElementRef.current = applyFilterResultSelection(
+      nextSelection,
+      mountedCandidates ?? committedCandidates,
+      inputRef.current,
+      selectedFilterResultElementRef.current,
+      scrollSelection
+    )
+    filterResultSelectionRef.current = nextSelection
 
     if (pendingActivation && nextCandidate) {
       dispatchFilterResultActivation(nextCandidate, pendingActivation.modifiers)
@@ -248,8 +315,9 @@ export function HeaderBar({
     committedCandidates,
     committedFilter,
     filter,
-    filterResultSelection,
-    reconciledFilterResultSelection
+    filterResultNavigationEnabled,
+    filterResultSearchSettled,
+    source,
   ])
 
   useLayoutEffect(() => {
@@ -282,6 +350,7 @@ export function HeaderBar({
       shiftKey: e.shiftKey
     })
     if (!intent || !filter.trim()) return
+    if (!filterResultNavigationEnabled) return
 
     e.preventDefault()
     const action: PendingFilterResultAction = intent === 'activate'
@@ -293,12 +362,14 @@ export function HeaderBar({
             metaKey: e.metaKey,
             shiftKey: e.shiftKey
           },
-          query: filter
+          query: filter,
+          source
         }
       : {
           kind: 'move',
           direction: intent,
-          query: filter
+          query: filter,
+          source
         }
 
     if (filter !== committedFilter) {
@@ -307,17 +378,48 @@ export function HeaderBar({
       return
     }
 
-    if (action.kind === 'move') {
-      scrollSelectedFilterResultRef.current = true
-      setFilterResultSelection(moveFilterResultSelection(
-        reconciledFilterResultSelection,
-        committedFilter,
-        committedCandidates,
-        action.direction
-      ))
+    const mountedCandidates = mountedFilterResultCandidates(committedCandidates)
+    const currentSelection = reconcileFilterResultSelection(
+      filterResultSelectionRef.current,
+      committedFilter,
+      mountedCandidates
+    )
+
+    if (mountedCandidates.length === 0 && !filterResultSearchSettled) {
+      pendingFilterResultActionRef.current = action
       return
     }
 
+    if (action.kind === 'move') {
+      const nextSelection = moveFilterResultSelection(
+        currentSelection,
+        committedFilter,
+        mountedCandidates,
+        action.direction
+      )
+      filterResultSelectionRef.current = nextSelection
+      selectedFilterResultElementRef.current = applyFilterResultSelection(
+        nextSelection,
+        mountedCandidates,
+        inputRef.current,
+        selectedFilterResultElementRef.current,
+        true
+      )
+      return
+    }
+
+    filterResultSelectionRef.current = currentSelection
+    selectedFilterResultElementRef.current = applyFilterResultSelection(
+      currentSelection,
+      mountedCandidates,
+      inputRef.current,
+      selectedFilterResultElementRef.current,
+      false
+    )
+    const selectedFilterResultCandidate = filterResultCandidateForSelection(
+      currentSelection,
+      mountedCandidates
+    )
     if (selectedFilterResultCandidate) {
       dispatchFilterResultActivation(selectedFilterResultCandidate, action.modifiers)
     }
@@ -351,7 +453,6 @@ export function HeaderBar({
               aria-label={filterPlaceholder}
               placeholder={filterPlaceholder}
               value={filter}
-              aria-activedescendant={selectedFilterResultCandidate?.domId}
               aria-controls={filter.trim() ? 'dashboardMissions' : undefined}
               onChange={(e) => updateFilter(e.currentTarget.value)}
               onKeyDown={onFilterKeyDown}
@@ -379,7 +480,7 @@ export function HeaderBar({
           />
         </div>
         <div className="header-controls inline-flex items-center gap-2.5">
-          <SourceSwitch source={source} onSourceChange={onSourceChange} />
+          <SourceSwitch source={sourceSelection} onSourceChange={onSourceChange} />
         </div>
       </div>
     </header>

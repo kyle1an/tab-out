@@ -94,27 +94,37 @@ export function addCurrentTabOutPageToStartupSnapshot(
     const cachedCurrentGroupTab = snapshot.dashboard.domainGroups
       .find((group) => group.domain === '__tab-out__')
       ?.tabs.find((existing) => existing.id === tab.id)
+    const cachedTabOutIdentityIsConsistent = cachedCurrentTab.isTabOut && !!cachedCurrentGroupTab?.isTabOut
     if (
+      cachedTabOutIdentityIsConsistent &&
       snapshot.dashboard.currentWindowId === tab.windowId &&
       sameDashboardTabState(cachedCurrentTab, tab) &&
       !!cachedCurrentGroupTab &&
       sameDashboardTabState(cachedCurrentGroupTab, tab)
     ) return snapshot
     const replaceCurrentTab = (candidate: DashboardTab) => candidate.id === tab.id ? tab : candidate
-    const currentGroupContainsTab = !!cachedCurrentGroupTab
-    const replacedGroups = snapshot.dashboard.domainGroups.map((group) => ({
-      ...group,
-      tabs: group.tabs.map(replaceCurrentTab)
-    }))
+    const nextRealTabs = cachedTabOutIdentityIsConsistent
+      ? snapshot.dashboard.realTabs.map(replaceCurrentTab)
+      : [...snapshot.dashboard.realTabs.filter((candidate) => candidate.id !== tab.id), tab]
+    const groupsWithoutReusedId = snapshot.dashboard.domainGroups
+      .map((group) => ({
+        ...group,
+        tabs: group.tabs.filter((candidate) => candidate.id !== tab.id)
+      }))
+      .filter((group) => group.tabs.length > 0)
+    const nextGroups = cachedTabOutIdentityIsConsistent
+      ? snapshot.dashboard.domainGroups.map((group) => ({
+          ...group,
+          tabs: group.tabs.map(replaceCurrentTab)
+        }))
+      : withTabOutGroup(groupsWithoutReusedId, tab, pinnedDomains)
     const nextSnapshot = {
       ...snapshot,
       dashboard: {
         ...snapshot.dashboard,
         currentWindowId: tab.windowId,
-        realTabs: snapshot.dashboard.realTabs.map(replaceCurrentTab),
-        domainGroups: currentGroupContainsTab
-          ? replacedGroups
-          : withTabOutGroup(replacedGroups, tab, pinnedDomains)
+        realTabs: nextRealTabs,
+        domainGroups: nextGroups
       }
     }
     return {

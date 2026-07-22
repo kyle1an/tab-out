@@ -5,6 +5,7 @@ export const MAX_TAB_HISTORY = 48
 export type GlobalTabHistoryEntry = {
   windowId: number
   tabId: number
+  url: string
 }
 
 export type PendingTabHistoryEntry = GlobalTabHistoryEntry & {
@@ -17,12 +18,26 @@ export type GlobalTabHistory = {
   pending: PendingTabHistoryEntry[]
 }
 
-export type GlobalTabHistoryInput = Partial<GlobalTabHistory> | null | undefined
+type GlobalTabHistoryEntryInput = Partial<GlobalTabHistoryEntry> | null | undefined
+type PendingTabHistoryEntryInput = Partial<PendingTabHistoryEntry> | null | undefined
+
+export type GlobalTabHistoryInput = {
+  stack?: GlobalTabHistoryEntryInput[]
+  index?: number
+  pending?: PendingTabHistoryEntryInput[]
+} | null | undefined
 
 type ActiveTabLike = {
   id?: number
   windowId: number
+  url?: string
+  pendingUrl?: string
 } | null | undefined
+
+type TabIdentityLike = {
+  url?: string
+  pendingUrl?: string
+}
 
 type HistoryChangeResult = {
   history: GlobalTabHistory
@@ -37,23 +52,39 @@ type PrunedHistoryResult = GlobalTabHistory & {
   changed: boolean
 }
 
+export function effectiveUrlForHistoryIdentity(tab: TabIdentityLike | null | undefined): string {
+  return unwrapSuspenderUrl(tab?.pendingUrl || tab?.url || '')
+}
+
+function normalizedHistoryEntry(item: GlobalTabHistoryEntryInput): GlobalTabHistoryEntry | null {
+  if (!item || typeof item.tabId !== 'number' || typeof item.windowId !== 'number') return null
+  return {
+    windowId: item.windowId,
+    tabId: item.tabId,
+    url: unwrapSuspenderUrl(typeof item.url === 'string' ? item.url : '')
+  }
+}
+
 export function normalizeGlobalHistory(entry: GlobalTabHistoryInput): GlobalTabHistory {
   if (!entry) return { stack: [], index: -1, pending: [] }
 
   const stack = Array.isArray(entry.stack)
-    ? entry.stack.filter((item) => item && typeof item.tabId === 'number' && typeof item.windowId === 'number')
+    ? entry.stack.map(normalizedHistoryEntry).filter((item): item is GlobalTabHistoryEntry => item !== null)
     : []
   const maxIndex = stack.length - 1
   const rawIndex = entry.index
   const index = typeof rawIndex === 'number' && Number.isInteger(rawIndex) ? Math.max(-1, Math.min(rawIndex, maxIndex)) : maxIndex
   const pending = Array.isArray(entry.pending)
     ? entry.pending
-        .filter((item) => item && typeof item.tabId === 'number' && typeof item.windowId === 'number')
-        .map((item) => ({
-          windowId: item.windowId,
-          tabId: item.tabId,
-          createdAt: typeof item.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : 0
-        }))
+        .map((item) => {
+          const normalized = normalizedHistoryEntry(item)
+          if (!normalized) return null
+          return {
+            ...normalized,
+            createdAt: typeof item?.createdAt === 'number' && Number.isFinite(item.createdAt) ? item.createdAt : 0
+          }
+        })
+        .filter((item): item is PendingTabHistoryEntry => item !== null)
     : []
   return { stack, index, pending }
 }
@@ -68,12 +99,17 @@ export function historyChanged(a: GlobalTabHistoryInput, b: GlobalTabHistoryInpu
   ) {
     return true
   }
-  if (first.stack.some((entry, index) => entry.tabId !== second.stack[index].tabId || entry.windowId !== second.stack[index].windowId)) {
+  if (first.stack.some((entry, index) => (
+    entry.tabId !== second.stack[index].tabId ||
+    entry.windowId !== second.stack[index].windowId ||
+    entry.url !== second.stack[index].url
+  ))) {
     return true
   }
   return first.pending.some((entry, index) => (
     entry.tabId !== second.pending[index].tabId ||
     entry.windowId !== second.pending[index].windowId ||
+    entry.url !== second.pending[index].url ||
     entry.createdAt !== second.pending[index].createdAt
   ))
 }
@@ -164,6 +200,47 @@ export function removeTabEntriesFromHistory(history: GlobalTabHistoryInput, tabI
   }
 }
 
+export function replaceTabIdInHistory(
+  history: GlobalTabHistoryInput,
+  addedTabId: number,
+  removedTabId: number,
+  replacementWindowId?: number,
+  replacementUrl?: string
+): GlobalTabHistory {
+  const current = normalizeGlobalHistory(history)
+  if (
+    typeof addedTabId !== 'number' ||
+    typeof removedTabId !== 'number' ||
+    addedTabId === removedTabId
+  ) {
+    return canonicalizeGlobalHistory(current).history
+  }
+
+  return canonicalizeGlobalHistory({
+    stack: current.stack.map((entry) => (
+      entry.tabId === removedTabId
+        ? {
+            ...entry,
+            tabId: addedTabId,
+            ...(typeof replacementWindowId === 'number' ? { windowId: replacementWindowId } : {}),
+            ...(typeof replacementUrl === 'string' ? { url: unwrapSuspenderUrl(replacementUrl) } : {})
+          }
+        : entry
+    )),
+    index: current.index,
+    pending: current.pending.map((entry) => (
+      entry.tabId === removedTabId
+        ? {
+            ...entry,
+            tabId: addedTabId,
+            ...(typeof replacementWindowId === 'number' ? { windowId: replacementWindowId } : {}),
+            ...(typeof replacementUrl === 'string' ? { url: unwrapSuspenderUrl(replacementUrl) } : {})
+          }
+        : entry
+    ))
+  }).history
+}
+
 export function historyForBackgroundTabCreation(
   history: GlobalTabHistoryInput,
   pendingEntry: PendingTabHistoryEntry | null | undefined
@@ -176,24 +253,57 @@ export function historyForBackgroundTabCreation(
   ) {
     return { history: current, changed: false }
   }
-  if (
-    current.stack.some((entry) => entry.tabId === pendingEntry.tabId) ||
-    current.pending.some((entry) => entry.tabId === pendingEntry.tabId)
-  ) {
-    return { history: current, changed: false }
-  }
+
+  // onCreated identifies a new physical tab lifetime. If Chrome reused an ID
+  // that survived a missed startup reset, the old activation/pending entry no
+  // longer belongs to this tab and must not prevent the new FIFO target.
+  const historyWithoutReusedId = removeTabEntriesFromHistory(current, pendingEntry.tabId)
 
   const nextHistory = canonicalizeGlobalHistory({
-    ...current,
+    ...historyWithoutReusedId,
     pending: [
-      ...current.pending,
+      ...historyWithoutReusedId.pending,
       {
         windowId: pendingEntry.windowId,
         tabId: pendingEntry.tabId,
+        url: unwrapSuspenderUrl(pendingEntry.url),
         createdAt: Number.isFinite(pendingEntry.createdAt) ? pendingEntry.createdAt : 0
       }
     ]
   }).history
+  return { history: nextHistory, changed: historyChanged(current, nextHistory) }
+}
+
+export function historyForTabNavigation(
+  history: GlobalTabHistoryInput,
+  navigatedEntry: GlobalTabHistoryEntry | null | undefined
+): HistoryChangeResult {
+  const current = canonicalizeGlobalHistory(history).history
+  if (
+    !navigatedEntry ||
+    typeof navigatedEntry.tabId !== 'number' ||
+    typeof navigatedEntry.windowId !== 'number'
+  ) {
+    return { history: current, changed: false }
+  }
+
+  const normalizedEntry: GlobalTabHistoryEntry = {
+    windowId: navigatedEntry.windowId,
+    tabId: navigatedEntry.tabId,
+    url: unwrapSuspenderUrl(navigatedEntry.url)
+  }
+  const nextHistory = canonicalizeGlobalHistory({
+    stack: current.stack.map((entry) => (
+      entry.tabId === normalizedEntry.tabId ? normalizedEntry : entry
+    )),
+    index: current.index,
+    pending: current.pending.map((entry) => (
+      entry.tabId === normalizedEntry.tabId
+        ? { ...entry, ...normalizedEntry }
+        : entry
+    ))
+  }).history
+
   return { history: nextHistory, changed: historyChanged(current, nextHistory) }
 }
 
@@ -203,15 +313,21 @@ export function historyForUserActivation(history: GlobalTabHistoryInput, activeE
     return { history: current, changed: false }
   }
 
+  const normalizedActiveEntry: GlobalTabHistoryEntry = {
+    windowId: activeEntry.windowId,
+    tabId: activeEntry.tabId,
+    url: unwrapSuspenderUrl(activeEntry.url)
+  }
+
   if (current.stack[current.index]?.tabId === activeEntry.tabId) {
     const nextStack = current.stack.slice()
-    nextStack[current.index] = { windowId: activeEntry.windowId, tabId: activeEntry.tabId }
+    nextStack[current.index] = normalizedActiveEntry
     const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: current.index }).history
     return { history: nextHistory, changed: historyChanged(current, nextHistory) }
   }
 
   const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push({ windowId: activeEntry.windowId, tabId: activeEntry.tabId })
+  nextStack.push(normalizedActiveEntry)
   const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: nextStack.length - 1 }).history
 
   return { history: nextHistory, changed: historyChanged(current, nextHistory) }
@@ -223,23 +339,35 @@ export function repairHistoryCursorForActiveTab(history: GlobalTabHistoryInput, 
     return { history: current, activeWasInserted: false, changed: historyChanged(history, current) }
   }
 
-  if (current.stack[current.index]?.tabId === activeTab.id) {
+  const activeUrl = effectiveUrlForHistoryIdentity(activeTab)
+  const normalizedActiveEntry: GlobalTabHistoryEntry = {
+    windowId: activeTab.windowId,
+    tabId: activeTab.id,
+    url: activeUrl
+  }
+
+  if (
+    current.stack[current.index]?.tabId === activeTab.id &&
+    current.stack[current.index]?.url === activeUrl
+  ) {
     const nextStack = current.stack.slice()
-    nextStack[current.index] = { windowId: activeTab.windowId, tabId: activeTab.id }
+    nextStack[current.index] = normalizedActiveEntry
     const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: current.index }).history
     return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
   }
 
-  const latestActiveIndex = current.stack.map((entry) => entry.tabId).lastIndexOf(activeTab.id)
+  const latestActiveIndex = current.stack.map((entry) => (
+    entry.tabId === activeTab.id && entry.url === activeUrl ? activeTab.id : -1
+  )).lastIndexOf(activeTab.id)
   if (latestActiveIndex !== -1) {
     const nextStack = current.stack.slice()
-    nextStack[latestActiveIndex] = { windowId: activeTab.windowId, tabId: activeTab.id }
+    nextStack[latestActiveIndex] = normalizedActiveEntry
     const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: latestActiveIndex }).history
     return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
   }
 
   const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push({ windowId: activeTab.windowId, tabId: activeTab.id })
+  nextStack.push(normalizedActiveEntry)
   const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: nextStack.length - 1 }).history
 
   return { history: nextHistory, activeWasInserted: true, changed: true }
@@ -265,12 +393,13 @@ export function findTabForHistoryEntry<Tab>(history: GlobalTabHistoryInput, tabs
   return entry ? tabsById.get(entry.tabId) || null : null
 }
 
-export function pruneMissingHistoryEntries(history: GlobalTabHistoryInput, existingTabs: Map<number, unknown>): PrunedHistoryResult {
+export function pruneMissingHistoryEntries(history: GlobalTabHistoryInput, existingTabs: Map<number, TabIdentityLike>): PrunedHistoryResult {
   const current = normalizeGlobalHistory(history)
   let nextHistory = current
 
   for (const entry of [...current.stack, ...current.pending]) {
-    if (existingTabs.has(entry.tabId)) continue
+    const liveTab = existingTabs.get(entry.tabId)
+    if (liveTab && effectiveUrlForHistoryIdentity(liveTab) === entry.url) continue
     nextHistory = removeTabEntriesFromHistory(nextHistory, entry.tabId)
   }
 

@@ -9,14 +9,14 @@
      dev2ca apart from dev11us at a glance. "www" is filtered as
      noise.
 
-   Hardcoded subset of publicsuffix.org: user-space suffixes (github.io,
-   vercel.app, …) and multi-label ccTLDs (co.uk, com.au, …) are treated
-   as single eTLD units so user.github.io stays on its own card.
+   The complete Public Suffix List supplies registry and private suffixes.
+   A short product override list retains user-space providers that intentionally
+   isolate customer subdomains regardless of upstream PSL classification changes.
    ================================================================ */
 
-const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/
+import { getDomain, getPublicSuffix } from 'tldts'
 
-const PUBLIC_SUFFIXES = new Set([
+const USER_SPACE_SUFFIX_OVERRIDES = new Set([
   // User-space subdomains: each subdomain is an independent site, so
   // rolling up would merge unrelated projects. Keep intact.
   'github.io',
@@ -38,22 +38,25 @@ const PUBLIC_SUFFIXES = new Set([
   'surge.sh',
   'blogspot.com',
   'wordpress.com',
-  'tumblr.com',
-  // Multi-label ccTLDs: the "TLD" is already two labels, so the
-  // registrable domain is three labels (example.co.uk, not co.uk).
-  'co.uk',
-  'co.jp',
-  'co.kr',
-  'co.nz',
-  'co.in',
-  'com.au',
-  'com.br',
-  'com.cn',
-  'com.mx',
-  'ac.uk',
-  'gov.uk',
-  'edu.au'
+  'tumblr.com'
 ])
+
+// Callers already pass a normalized hostname extracted by the platform URL
+// parser. Skip tldts' duplicate URL-host extraction on every grouping pass.
+const PUBLIC_SUFFIX_OPTIONS = { allowPrivateDomains: true, extractHostname: false } as const
+
+function normalizeHostname(hostname: string): string {
+  return hostname.trim().toLowerCase().replace(/\.+$/, '')
+}
+
+function overriddenUserSpaceSuffix(hostname: string): string | null {
+  let match: string | null = null
+  for (const suffix of USER_SPACE_SUFFIX_OVERRIDES) {
+    if (hostname !== suffix && !hostname.endsWith(`.${suffix}`)) continue
+    if (!match || suffix.length > match.length) match = suffix
+  }
+  return match
+}
 
 /**
  * registrableDomain(hostname) — the "eTLD+1" of hostname.
@@ -66,32 +69,29 @@ const PUBLIC_SUFFIXES = new Set([
  *   ""                          → ""
  */
 export function registrableDomain(hostname: string): string {
-  if (!hostname) return ''
-  if (IPV4_RE.test(hostname)) return hostname
-  const parts = hostname.split('.')
-  if (parts.length <= 2) return hostname
-
-  const lastTwo = parts.slice(-2).join('.')
-  if (PUBLIC_SUFFIXES.has(lastTwo)) {
-    return parts.slice(-3).join('.')
+  const normalized = normalizeHostname(hostname)
+  if (!normalized) return ''
+  const override = overriddenUserSpaceSuffix(normalized)
+  if (override && normalized !== override) {
+    const prefix = normalized.slice(0, -(override.length + 1))
+    const registrableLabel = prefix.split('.').at(-1)
+    if (registrableLabel) return `${registrableLabel}.${override}`
   }
-  return parts.slice(-2).join('.')
+  return getDomain(normalized, PUBLIC_SUFFIX_OPTIONS) || normalized
 }
 
 export function splitDomainForDisplay(domain: string): { name: string; suffix: string } {
-  if (!domain || IPV4_RE.test(domain)) return { name: domain, suffix: '' }
-  const parts = domain.split('.')
-  if (parts.length < 2) return { name: domain, suffix: '' }
-
-  const lastTwo = parts.slice(-2).join('.')
-  const suffix = parts.length >= 3 && PUBLIC_SUFFIXES.has(lastTwo)
-    ? lastTwo
-    : parts[parts.length - 1]
+  const normalized = normalizeHostname(domain)
+  if (!normalized) return { name: normalized, suffix: '' }
+  const matchedOverride = overriddenUserSpaceSuffix(normalized)
+  const override = matchedOverride && normalized !== matchedOverride ? matchedOverride : null
+  const suffix = override || getPublicSuffix(normalized, PUBLIC_SUFFIX_OPTIONS)
+  if (!suffix || suffix === normalized) return { name: normalized, suffix: '' }
   const suffixWithDot = `.${suffix}`
-  if (!domain.endsWith(suffixWithDot)) return { name: domain, suffix: '' }
+  if (!normalized.endsWith(suffixWithDot)) return { name: normalized, suffix: '' }
 
-  const name = domain.slice(0, -suffixWithDot.length)
-  if (!name) return { name: domain, suffix: '' }
+  const name = normalized.slice(0, -suffixWithDot.length)
+  if (!name) return { name: normalized, suffix: '' }
   return { name, suffix: suffixWithDot }
 }
 
@@ -100,16 +100,18 @@ export function splitDomainForDisplay(domain: string): { name: string; suffix: s
  * above `registrable`. Returns "" when there's nothing meaningful
  * to show (no subdomain, or a lone "www").
  *
- *   ("dev1.example.com", "example.com") → "dev2ca"
+ *   ("dev1.example.com", "example.com") → "dev1"
  *   ("a.b.example.com",    "example.com") → "a.b"
  *   ("www.example.com",     "example.com")  → ""
  *   ("example.com",         "example.com")  → ""
  */
 export function subdomainPrefix(hostname: string, registrable: string): string {
-  if (!hostname || !registrable || hostname === registrable) return ''
-  const suffix = '.' + registrable
-  if (!hostname.endsWith(suffix)) return ''
-  const prefix = hostname.slice(0, -suffix.length)
+  const normalizedHostname = normalizeHostname(hostname)
+  const normalizedRegistrable = normalizeHostname(registrable)
+  if (!normalizedHostname || !normalizedRegistrable || normalizedHostname === normalizedRegistrable) return ''
+  const suffix = '.' + normalizedRegistrable
+  if (!normalizedHostname.endsWith(suffix)) return ''
+  const prefix = normalizedHostname.slice(0, -suffix.length)
   if (prefix === 'www') return ''
   return prefix
 }

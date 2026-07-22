@@ -1,12 +1,17 @@
-import { queryAllTabs, removeTabs } from './browser-tabs-gateway.js'
+import { queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
 import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isSuspended } from './suspension.js'
-import { focusExistingTabTarget } from './tab-focus.js'
+import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab-focus.js'
+import { liveTabByValidatedId } from './live-tab-matching.js'
 import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot, WorkingSetItem } from './types'
 import type { ClosedTabEntry } from './closed-tabs.js'
 
 const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
+
+export type TabHistoryFetchResult =
+  | { ok: true; value: TabHistorySnapshot }
+  | { ok: false; value: TabHistorySnapshot }
 
 function emptySnapshot(): TabHistorySnapshot {
   return {
@@ -161,24 +166,30 @@ export function normalizeTabHistorySnapshot(snapshot: Partial<TabHistorySnapshot
   }
 }
 
-async function sendHistoryMessage(message: Record<string, unknown>): Promise<TabHistorySnapshot> {
-  if (!globalThis.chrome?.runtime?.sendMessage) return emptySnapshot()
+async function sendHistoryMessageResult(message: Record<string, unknown>): Promise<TabHistoryFetchResult> {
+  if (!globalThis.chrome?.runtime?.sendMessage) return { ok: false, value: emptySnapshot() }
   try {
     const response = await chrome.runtime.sendMessage(message)
-    if (!response?.ok) return emptySnapshot()
-    return normalizeTabHistorySnapshot(response.snapshot)
+    if (!response?.ok || !response.snapshot || !Array.isArray(response.snapshot.entries)) {
+      return { ok: false, value: emptySnapshot() }
+    }
+    return { ok: true, value: normalizeTabHistorySnapshot(response.snapshot) }
   } catch {
-    return emptySnapshot()
+    return { ok: false, value: emptySnapshot() }
   }
 }
 
-export function fetchTabHistorySnapshot(): Promise<TabHistorySnapshot> {
-  return sendHistoryMessage({ type: TAB_HISTORY_GET_MESSAGE })
+export function fetchTabHistorySnapshotResult(): Promise<TabHistoryFetchResult> {
+  return sendHistoryMessageResult({ type: TAB_HISTORY_GET_MESSAGE })
 }
 
-export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean> {
-  if (!entry?.exists) return false
-  return focusExistingTabTarget({
+export async function fetchTabHistorySnapshot(): Promise<TabHistorySnapshot> {
+  return (await fetchTabHistorySnapshotResult()).value
+}
+
+export async function focusHistoryEntryResult(entry: TabHistoryEntry): Promise<ExistingTabFocusResult> {
+  if (!entry?.exists) return { status: 'not-found' }
+  return focusExistingTabTargetResult({
     tabId: entry.tabId,
     windowId: entry.windowId,
     url: entry.url,
@@ -186,16 +197,36 @@ export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean
   })
 }
 
-export async function closeHistoryEntry(entry: TabHistoryEntry): Promise<{ closed: boolean; snapshot: TabSnapshot[] }> {
+export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean> {
+  return (await focusHistoryEntryResult(entry)).status === 'focused'
+}
+
+export type CloseHistoryEntryResult = {
+  status: 'closed' | 'not-found' | 'unknown' | 'failed'
+  closed: boolean
+  snapshot: TabSnapshot[]
+}
+
+export async function closeHistoryEntry(entry: TabHistoryEntry): Promise<CloseHistoryEntryResult> {
   const tabId = entry?.tabId
-  if (!entry?.exists || typeof tabId !== 'number' || !Number.isInteger(tabId)) return { closed: false, snapshot: [] }
+  if (!entry?.exists || typeof tabId !== 'number' || !Number.isInteger(tabId)) {
+    return { status: 'not-found', closed: false, snapshot: [] }
+  }
 
-  const allTabs = await queryAllTabs()
-  const tab = allTabs.find((candidate) => candidate.id === tabId)
-  if (!tab) return { closed: false, snapshot: [] }
+  const allTabsResult = await queryAllTabsResult()
+  if (!allTabsResult.ok) return { status: 'unknown', closed: false, snapshot: [] }
 
-  const snapshot = snapshotChromeTabs([tab])
+  const tab = liveTabByValidatedId(allTabsResult.value, {
+    tabId,
+    url: entry.url,
+    rawUrl: entry.rawUrl
+  })
+  if (!tab) return { status: 'not-found', closed: false, snapshot: [] }
+
+  // Activation History can contain Tab Out/new-tab rows. Preserve those URLs
+  // in the Undo snapshot just like ordinary web tabs.
+  const snapshot = snapshotChromeTabs([tab], { includeTabOutUrls: true })
   const removed = await removeTabs([tabId])
-  if (removed === 0) return { closed: false, snapshot: [] }
-  return { closed: true, snapshot }
+  if (removed.length === 0) return { status: 'failed', closed: false, snapshot: [] }
+  return { status: 'closed', closed: true, snapshot }
 }

@@ -1,1 +1,0 @@
-import{sn as e}from"./ReactStore-DR8roNFl.js";function t(t){return e(19)?t:t?`true`:void 0}export{t};

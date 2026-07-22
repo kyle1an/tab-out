@@ -1,11 +1,13 @@
+import { useSyncExternalStore } from 'react'
+import type { UrlPreviewStore } from '../hooks/useUrlPreview'
 import { cn } from '@/lib/utils'
 
 interface UrlPreviewProps {
-  url: string
-  visible?: boolean
+  store: UrlPreviewStore
 }
 
-export function UrlPreview({ url, visible = !!url }: UrlPreviewProps) {
+export function UrlPreview({ store }: UrlPreviewProps) {
+  const { url, visible } = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
   const isVisible = visible && !!url
 
   return (

@@ -4,14 +4,22 @@
    Resolves the live tab (by numeric tabId, else by effective URL,
    preferring a tab in another window for current-window moves),
    relocates it, and reuses the shared focus/activation path where
-   needed. Returns false when no live tab exists, so callers can fall
-   back to opening the page. All browser access goes through the
-   Browser Tabs Gateway.
+   needed. Its result distinguishes a confirmed missing tab from an
+   unknown/failed browser operation so callers never open a duplicate
+   after a transient Chrome API failure. All browser access goes through
+   the Browser Tabs Gateway.
    ================================================================ */
 
-import { createWindow, getCurrentWindow, moveTab, queryAllTabs } from './browser-tabs-gateway.js'
+import {
+  createWindow,
+  getTab,
+  getCurrentWindowResult,
+  moveTab,
+  queryAllTabsResult
+} from './browser-tabs-gateway.js'
 import { unwrapSuspenderUrl } from './suspension.js'
-import { focusExistingTabTarget, unsuspendExistingTab } from './tab-focus.js'
+import { focusResolvedTabTargetResult, unsuspendExistingTab } from './tab-focus.js'
+import { liveTabByValidatedId, liveTabUrlForIdentity } from './live-tab-matching.js'
 
 export type MoveTabTarget = {
   // A real open tab has a numeric id; saved/history chips carry a synthetic
@@ -24,14 +32,28 @@ export type MoveTabTarget = {
   rawUrl?: string
 }
 
+export type MoveTabResult = 'handled' | 'not-found' | 'failed'
+
+async function focusLatestResolvedTarget(tabId: number, target: MoveTabTarget) {
+  const liveTab = await getTab(tabId)
+  if (!liveTab) return { status: 'not-found' as const }
+  return focusResolvedTabTargetResult(liveTab, {
+    tabId,
+    url: target.tabUrl,
+    rawUrl: target.rawUrl
+  })
+}
+
 function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, currentWindowId: number): chrome.tabs.Tab | null {
   if (typeof target.tabId === 'number') {
-    const byId = tabs.find((tab) => tab.id === target.tabId)
-    if (byId) return byId
+    // A rendered numeric ID identifies one physical tab. If it is gone or has
+    // been reused for another URL, do not silently move a same-URL sibling;
+    // callers can apply the documented missing-target fallback instead.
+    return liveTabByValidatedId(tabs, target)
   }
   const targetEffective = unwrapSuspenderUrl(target.tabUrl || target.rawUrl || '')
   if (!targetEffective) return null
-  const matches = tabs.filter((tab) => unwrapSuspenderUrl(tab.url || '') === targetEffective)
+  const matches = tabs.filter((tab) => unwrapSuspenderUrl(liveTabUrlForIdentity(tab)) === targetEffective)
   if (matches.length === 0) return null
   return matches.find((tab) => tab.windowId !== currentWindowId) || matches[0]
 }
@@ -44,33 +66,47 @@ function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, curren
  *
  * @param {{ tabId?: number | string, tabUrl?: string, rawUrl?: string }} target
  * @param {{ activate?: boolean }} [opts]
- * @returns {Promise<boolean>} true if a live tab was moved/activated; false if none found
+ * @returns {Promise<MoveTabResult>} whether the target was handled, confirmed
+ * missing, or could not be resolved/moved because a browser operation failed
  */
-export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { activate?: boolean } = {}): Promise<boolean> {
+export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { activate?: boolean } = {}): Promise<MoveTabResult> {
   const { activate = false } = opts
 
-  const tabs = await queryAllTabs()
-  const currentWindowId = (await getCurrentWindow())?.id ?? -1
-  if (currentWindowId === -1) return false
+  const currentWindowResult = await getCurrentWindowResult()
+  const currentWindowId = currentWindowResult.value?.id
+  if (!currentWindowResult.ok || typeof currentWindowId !== 'number') return 'failed'
+  // The inventory is deliberately the final awaited read before moving. A
+  // slow window lookup must not leave a stale URL identity behind.
+  const tabsResult = await queryAllTabsResult()
+  if (!tabsResult.ok) return 'failed'
 
-  const match = findTabForTarget(tabs, target, currentWindowId)
-  if (!match || typeof match.id !== 'number') return false
+  const match = findTabForTarget(tabsResult.value, target, currentWindowId)
+  if (!match || typeof match.id !== 'number') return 'not-found'
 
-  if (match.windowId !== currentWindowId) {
+  const movedToCurrentWindow = match.windowId !== currentWindowId
+  if (movedToCurrentWindow) {
     const moved = await moveTab(match.id, { windowId: currentWindowId, index: -1 })
-    if (!moved) return false
+    if (!moved) return 'failed'
   }
 
   if (activate) {
-    // The move (the primary effect) has already happened, so we report success
-    // even if this activation no-ops (e.g. the tab was closed mid-gesture) —
-    // returning false here would make the caller open a duplicate tab.
-    await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
+    // A completed physical move remains handled even if the follow-up focus
+    // no-ops, because falling back would open a duplicate. With no preceding
+    // move, however, activation itself is the primary effect and must be
+    // confirmed before callers refresh or report the gesture as handled.
+    const focusResult = await focusLatestResolvedTarget(match.id, target)
+    if (
+      !movedToCurrentWindow &&
+      focusResult.status !== 'focused' &&
+      focusResult.status !== 'activated'
+    ) {
+      return 'failed'
+    }
   } else {
     await unsuspendExistingTab(match, { url: target.tabUrl, rawUrl: target.rawUrl })
   }
 
-  return true
+  return 'handled'
 }
 
 /**
@@ -78,18 +114,23 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
  * Chrome window. Resolves the tab by numeric tabId, else by effective URL.
  *
  * @param {{ tabId?: number | string, tabUrl?: string, rawUrl?: string }} target
- * @returns {Promise<boolean>} true if a live tab was moved; false if none found
+ * @returns {Promise<MoveTabResult>} whether the target was handled, confirmed
+ * missing, or could not be resolved/moved because a browser operation failed
  */
-export async function moveTabToNewWindow(target: MoveTabTarget): Promise<boolean> {
-  const tabs = await queryAllTabs()
-  const currentWindowId = (await getCurrentWindow())?.id ?? -1
+export async function moveTabToNewWindow(target: MoveTabTarget): Promise<MoveTabResult> {
+  const currentWindowResult = await getCurrentWindowResult()
+  const currentWindowId = currentWindowResult.ok && typeof currentWindowResult.value?.id === 'number'
+    ? currentWindowResult.value.id
+    : -1
+  const tabsResult = await queryAllTabsResult()
+  if (!tabsResult.ok) return 'failed'
 
-  const match = findTabForTarget(tabs, target, currentWindowId)
-  if (!match || typeof match.id !== 'number') return false
+  const match = findTabForTarget(tabsResult.value, target, currentWindowId)
+  if (!match || typeof match.id !== 'number') return 'not-found'
 
   const created = await createWindow({ tabId: match.id, focused: true, type: 'normal' })
-  if (!created) return false
+  if (!created) return 'failed'
 
-  await focusExistingTabTarget({ tabId: match.id, url: target.tabUrl, rawUrl: target.rawUrl })
-  return true
+  await focusLatestResolvedTarget(match.id, target)
+  return 'handled'
 }

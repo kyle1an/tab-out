@@ -9,21 +9,45 @@
 
 export const SECTION_PIN_STORAGE_KEY = 'tabOutPinnedSectionsV1'
 
+export type PinnedSectionMutation = {
+  type: 'set-pinned'
+  id: string
+  pinned: boolean
+}
+
+export type PinnedSectionsLoadResult =
+  | { ok: true; value: string[] }
+  | { ok: false; value: string[] }
+
 const PIN_KIND_SUBDOMAIN = 'subdomain'
 const PIN_KIND_WEBSITE_PATH = 'website-path'
 const PIN_KIND_PATHGROUP = 'pathgroup'
+const PIN_KIND_V2_SUFFIX = ':v2'
 
 // Identity layout per kind. Field counts are fixed (including for empty
 // slots) so that two ids with the same labels but different parents
 // never collide.
 const PIN_KIND_FIELD_COUNTS: Record<string, number> = {
   [PIN_KIND_SUBDOMAIN]: 2,
+  [`${PIN_KIND_SUBDOMAIN}${PIN_KIND_V2_SUFFIX}`]: 2,
   [PIN_KIND_WEBSITE_PATH]: 3,
-  [PIN_KIND_PATHGROUP]: 4
+  [`${PIN_KIND_WEBSITE_PATH}${PIN_KIND_V2_SUFFIX}`]: 3,
+  [PIN_KIND_PATHGROUP]: 4,
+  [`${PIN_KIND_PATHGROUP}${PIN_KIND_V2_SUFFIX}`]: 4
+}
+
+function encodePinField(field: string): string {
+  // Keep every legacy delimiter-safe id byte-for-byte stable while escaping
+  // the delimiter for arbitrary URL-derived section keys.
+  return field.replaceAll('%', '%25').replaceAll('|', '%7C')
 }
 
 function buildPinId(kind: string, fields: string[]): string {
-  return [kind, ...fields].join('|')
+  // Preserve every legacy id when its fields are delimiter-safe, including
+  // existing URL escapes such as `%20`. Only unsafe identities enter a
+  // versioned namespace where escaping `%` cannot collide with legacy text.
+  if (!fields.some((field) => field.includes('|'))) return [kind, ...fields].join('|')
+  return [`${kind}${PIN_KIND_V2_SUFFIX}`, ...fields.map(encodePinField)].join('|')
 }
 
 export function subdomainPinId(domain: string, subdomainKey: string): string {
@@ -65,22 +89,29 @@ export function normalizePinnedSections(ids: unknown = []): string[] {
 export function togglePinnedSectionInList(ids: unknown = [], id: unknown): string[] {
   const normalized = normalizePinnedSections(ids)
   if (!isPinnableSectionId(id)) return normalized
-  return normalized.includes(id) ? normalized.filter((existing) => existing !== id) : [...normalized, id]
+  return setPinnedSectionInList(normalized, id, !normalized.includes(id))
 }
 
-export async function loadPinnedSections(): Promise<string[]> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return []
+function setPinnedSectionInList(ids: unknown = [], id: unknown, pinned: boolean): string[] {
+  const normalized = normalizePinnedSections(ids)
+  if (!isPinnableSectionId(id)) return normalized
+  const isPinned = normalized.includes(id)
+  if (isPinned === pinned) return normalized
+  return pinned ? [...normalized, id] : normalized.filter((existing) => existing !== id)
+}
+
+export function applyPinnedSectionMutation(ids: unknown, mutation: PinnedSectionMutation): string[] {
+  return setPinnedSectionInList(ids, mutation.id, mutation.pinned)
+}
+
+export async function loadPinnedSectionsResult(): Promise<PinnedSectionsLoadResult> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ok: false, value: [] }
   try {
     const stored = await chrome.storage.local.get(SECTION_PIN_STORAGE_KEY)
-    return normalizePinnedSections(stored[SECTION_PIN_STORAGE_KEY])
+    const value = stored[SECTION_PIN_STORAGE_KEY]
+    if (value !== undefined && !Array.isArray(value)) return { ok: false, value: [] }
+    return { ok: true, value: normalizePinnedSections(value) }
   } catch {
-    return []
+    return { ok: false, value: [] }
   }
-}
-
-export async function savePinnedSections(ids: unknown = []): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return
-  await chrome.storage.local.set({
-    [SECTION_PIN_STORAGE_KEY]: normalizePinnedSections(ids)
-  })
 }

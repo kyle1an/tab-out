@@ -1,4 +1,5 @@
 import { makeDashboardItem } from './dashboard-item.js'
+import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import type { BookmarkTreeNode, DashboardTab } from './types'
 
 /**
@@ -36,12 +37,13 @@ export function flattenBookmarkNodes(nodes: BookmarkTreeNode[]): DashboardTab[] 
  *
  * @returns {Promise<DashboardTab[]>}
  */
-export async function fetchBookmarksSourceItems(): Promise<DashboardTab[]> {
-  if (!chrome.bookmarks?.getTree) return []
+export async function fetchBookmarksSourceItemsResult(): Promise<BrowserReadResult<DashboardTab[]>> {
+  if (!chrome.bookmarks?.getTree) return { ok: true, value: [] }
   try {
     const tree = await chrome.bookmarks.getTree()
-    return flattenBookmarkNodes(tree)
+    if (!Array.isArray(tree)) return { ok: false, value: [] }
+    return { ok: true, value: flattenBookmarkNodes(tree) }
   } catch {
-    return []
+    return { ok: false, value: [] }
   }
 }

@@ -1,13 +1,14 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, FocusEvent, KeyboardEvent, MouseEvent, PointerEvent, ReactNode, RefObject, SetStateAction } from 'react'
 import { EyeOff, X } from 'lucide-react'
-import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntry, historyEntryFromClosedTab, historyEntryFromWorkingSetItem } from '../extension/tab-history.js'
+import { closeHistoryEntry, fetchTabHistorySnapshot, focusHistoryEntryResult, historyEntryFromClosedTab, historyEntryFromWorkingSetItem } from '../extension/tab-history.js'
 import { audioStateForTab, nextMutedForAudioState } from '../extension/tab-audio.js'
 import { duplicateTabTarget, reloadTabTarget, setHistoryEntryMuted, suspendHistoryEntry } from '../extension/tab-actions'
 import { restoreClosedTab } from '../extension/closed-tabs.js'
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
-import { dismissClosedGhost, loadClosedGhostDismissals, restoreClosedGhost, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
-import { focusWorkingSetItem } from '../extension/working-set-client.js'
+import { closedGhostDismissalKey, dismissClosedGhost, loadClosedGhostDismissalsResult, restoreClosedGhost, subscribeClosedGhostDismissals, type ClosedGhostDismissals } from '../extension/closed-ghost-dismissals.js'
+import { focusWorkingSetItemResult } from '../extension/working-set-client.js'
+import { tabFocusResultToastMessage, type ExistingTabFocusResult } from '../extension/tab-focus.js'
 import { pageTargetMatchesHover, pageTargetMatchUrls, pageTargetUrl } from '../extension/page-target.js'
 import { markClosure } from '../extension/undo.js'
 import { showToast } from '../extension/toast.js'
@@ -29,10 +30,11 @@ import type { HoverUrlChangeHandler, HoverUrlSource, SnapshotChangeHandler, TabH
 import type { TabHistoryEntry, WorkingSetItem, WorkingSetSnapshot } from '../extension/types'
 import { useHistoryPanelRows, type HistoryPanelRow } from '../hooks/useHistoryPanelRows.js'
 import { useHistoryScrollbar, type HistoryScrollbar } from '../hooks/useHistoryScrollbar.js'
-import { useDashboardActions, useHoverState } from './DashboardInteractionContext'
+import { useDashboardActions, useHoverStateSelector } from './DashboardInteractionContext'
 import { startLayoutRemovalAnimation } from './LayoutRemovalAnimation.js'
 import { animateHistoryEntryMoves, snapshotHistoryEntryPositions, waitForHistoryEntryMoves } from '../extension/history-entry-move-animation.js'
 import { createSizeChangeObserver, type ObservedElementSize, type SizeChangeObserver } from './size-change-observer.js'
+import { subscribeFontMetricsInvalidation } from './font-metrics-invalidation.js'
 
 let historyTitleResizeObserver: SizeChangeObserver | null = null
 const historyTitleMeasuredSizes = new WeakMap<HTMLElement, ObservedElementSize>()
@@ -84,9 +86,9 @@ const historyTitleTruncationCallbacks = new WeakMap<
   HTMLElement,
   (metrics: HistoryTitleMetrics) => void
 >()
-const EMPTY_HOVER_URLS: readonly string[] = []
 const EMPTY_HIGHLIGHT_TERMS: readonly string[] = []
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
+const CLOSED_GHOST_DISMISSAL_LOAD_RETRY_MS = 250
 const HISTORY_TITLE_EXPANDED_LAYOUT_CACHE_LIMIT = 240
 const historyTitleExpandedLayoutCache = new Map<string, HistoryTitleExpandedLayoutMetrics>()
 const historyEntryExpansionLane = createTitleExpansionLane()
@@ -151,9 +153,6 @@ interface HistoryEntryProps {
   highlightTerms?: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
-  activeHoverUrl?: string
-  activeHoverUrls?: readonly string[]
-  activeHoverSource?: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
   onForgetClosedGhost?: (closed: ClosedTabEntry) => void
 }
@@ -751,7 +750,6 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
     })
     observer.observe(titleEl, historyTitleMeasuredSizes.get(titleEl))
 
-    const fontSet = document.fonts
     const onFontsDone = () => {
       if (disposed) return
       if (titleExpandedRef.current) return
@@ -759,14 +757,13 @@ function useHistoryEntryExpansion(contextMenuOpenRef: RefObject<boolean>, titleC
       setTitleLayout((current) => current.clamp ? { ...current, clamp: null } : current)
       updateTitleTruncation(titleEl, setTitleMetrics)
     }
-    fontSet.addEventListener('loadingdone', onFontsDone)
-    if (fontSet.status !== 'loaded') void fontSet.ready.then(onFontsDone)
+    const unsubscribeFontMetrics = subscribeFontMetricsInvalidation(onFontsDone)
 
     return () => {
       disposed = true
       observer.unobserve(titleEl)
       historyTitleTruncationCallbacks.delete(titleEl)
-      fontSet.removeEventListener('loadingdone', onFontsDone)
+      unsubscribeFontMetrics()
     }
   }, [])
 
@@ -891,12 +888,23 @@ type HistoryEntryActionsOptions = {
 }
 
 function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canActivateEntry, entrySlotRef, contextMenuOpenRef, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryActionsOptions) {
+  function focusChangedActiveTab(result: ExistingTabFocusResult): boolean {
+    const message = tabFocusResultToastMessage(result.status)
+    if (message) showToast(message)
+    return result.status === 'focused' || result.status === 'activated'
+  }
+
   async function refreshAfterMutation() {
-    if (onTabsChange) {
-      await onTabsChange()
-      return
+    try {
+      if (onTabsChange) {
+        await onTabsChange()
+        return
+      }
+      onSnapshotChange?.(await fetchTabHistorySnapshot())
+    } catch {
+      // The browser mutation is already authoritative; an unavailable refresh
+      // must not turn it into a failed action or suppress Undo/success state.
     }
-    onSnapshotChange?.(await fetchTabHistorySnapshot())
   }
 
   async function onFocusEntry() {
@@ -915,8 +923,8 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     }
 
     if (workingSetItem) {
-      const focused = await focusWorkingSetItem(workingSetItem)
-      if (!focused) return
+      const result = await focusWorkingSetItemResult(workingSetItem)
+      if (!focusChangedActiveTab(result)) return
       if (onTabsChange) {
         await onTabsChange()
         return
@@ -925,8 +933,8 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
       return
     }
 
-    const focused = await focusHistoryEntry(entry)
-    if (!focused) return
+    const result = await focusHistoryEntryResult(entry)
+    if (!focusChangedActiveTab(result)) return
     onSnapshotChange?.(await fetchTabHistorySnapshot())
   }
 
@@ -936,16 +944,19 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     const tabId = workingSetItem ? workingSetItem.tabId : entry.tabId
     const tabUrl = workingSetItem ? workingSetItem.tabUrl : entry.url
     const rawUrl = workingSetItem ? workingSetItem.rawUrl : entry.rawUrl
-    if (mode === 'focus' || (!hasLiveTab && mode !== 'open-window')) {
+    // Only a plain click restores a closed session. Modifier gestures on a
+    // no-live-target row follow the same URL-opening contract as other chips:
+    // background/foreground in this window, or a new window for Shift.
+    if (mode === 'focus') {
       await onFocusEntry()
       return
     }
-    await performDashboardItemActivation(
+    const activationResult = await performDashboardItemActivation(
       mode,
       { tabId, tabUrl, rawUrl },
       { moveExisting: hasLiveTab }
     )
-    await refreshAfterMutation()
+    if (activationResult === 'handled') await refreshAfterMutation()
   }
 
   function onEntryKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -968,19 +979,25 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
     const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
     const result = await closeHistoryEntry(entry)
     if (!result.closed) {
-      showToast('Nothing to close')
+      if (result.status === 'unknown') {
+        showToast("Couldn't read open tabs, so the tab wasn't closed")
+      } else if (result.status === 'failed') {
+        showToast("Couldn't close that tab")
+      } else {
+        showToast('Nothing to close')
+      }
       return
     }
-
-    if (startHistoryEntryRemoval(row)) await waitForHistoryEntryMoves()
-    onHoverUrlChange?.('')
-    await refreshAfterMutation()
 
     if (result.snapshot.length > 0) {
       markClosure(result.snapshot, 'Tab closed')
     } else {
       showToast('Tab closed')
     }
+
+    if (startHistoryEntryRemoval(row)) await waitForHistoryEntryMoves()
+    onHoverUrlChange?.('')
+    await refreshAfterMutation()
   }
 
   function onMouseEnter() {
@@ -1203,7 +1220,7 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
   function onToggleEntrySuspend(e: StopPropagationEvent) {
     e.stopPropagation()
     if (!Number.isInteger(entry.tabId)) return
-    void suspendHistoryEntry(entry.tabId)
+    void suspendHistoryEntry({ tabId: entry.tabId, tabUrl: entry.url, rawUrl: entry.rawUrl })
   }
 
   function onReloadEntry(e: StopPropagationEvent) {
@@ -1237,7 +1254,7 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
   )
 }
 
-function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, activeHoverUrl = '', activeHoverUrls = EMPTY_HOVER_URLS, activeHoverSource = null, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const titleClampKey = JSON.stringify([entry.title, highlightTerms])
   const {
@@ -1317,10 +1334,12 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
     ...pageTargetMatchUrls(entry),
     ...workingSetUrls(workingSetItem ?? undefined)
   ])
-  const hoverMatched = !!activeHoverSource && activeHoverSource !== hoverSource && (
-    pageTargetMatchesHover(entry, activeHoverUrl, activeHoverUrls) ||
-    matchUrls.some((url) => url === activeHoverUrl || activeHoverUrls.includes(url))
-  )
+  const hoverMatched = useHoverStateSelector((state) => (
+    !!state.source && state.source !== hoverSource && (
+      pageTargetMatchesHover(entry, state.url, state.urls) ||
+      matchUrls.some((url) => url === state.url || state.urls.includes(url))
+    )
+  ))
   const isIndexHighlighted = isActiveEntry || entry.previousTarget || entry.nextTarget || hoverMatched
   const entryLabel = entry.title || entry.displayUrl || entry.url
   const faviconUrl = entry.favIconUrl || workingSetItem?.faviconUrl || ''
@@ -1334,7 +1353,10 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, snapshot, workingSet
   const audioState = entry.exists ? audioStateForTab(entry) : null
   function onToggleEntryAudio() {
     if (!audioState || !Number.isInteger(entry.tabId)) return
-    void setHistoryEntryMuted(entry.tabId, nextMutedForAudioState(audioState))
+    void setHistoryEntryMuted(
+      { tabId: entry.tabId, tabUrl: entry.url, rawUrl: entry.rawUrl },
+      nextMutedForAudioState(audioState)
+    )
   }
   function onHistoryEntryMenuOpenChange(open: boolean) {
     onHistoryEntryContextMenuOpenChange(open)
@@ -1526,6 +1548,7 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
         onPointerLeave={onPointerLeave}
       >
         <div
+          data-dragging={dragging || undefined}
           className={cn(
             'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-[length:var(--dashboard-scrollbar-padding)] border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content [transition:opacity_300ms_ease-out,border-width_var(--dashboard-scrollbar-grow-duration)_ease-out] [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] hover:border-[length:var(--dashboard-scrollbar-padding-hover)]',
             active ? 'opacity-100' : 'opacity-0',
@@ -1547,25 +1570,87 @@ export function TabHistoryPanel({
   onSnapshotChange,
   onTabsChange
 }: TabHistoryPanelProps) {
-  const { url: activeHoverUrl, urls: activeHoverUrls, source: activeHoverSource } = useHoverState()
   const { onHoverUrlChange } = useDashboardActions()
-  const [dismissedClosedGhosts, setDismissedClosedGhosts] = useState<ClosedGhostDismissals>(() => new Map<string, number>())
+  const [dismissedClosedGhosts, setDismissedClosedGhosts] = useState<ClosedGhostDismissals | null>(null)
+  const closedGhostMutationRevisionRef = useRef(0)
   useEffect(() => {
     let active = true
-    loadClosedGhostDismissals().then((map) => {
-      if (active) setDismissedClosedGhosts(map)
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
+    const unsubscribe = subscribeClosedGhostDismissals((dismissals) => {
+      closedGhostMutationRevisionRef.current += 1
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
+      setDismissedClosedGhosts(dismissals)
     })
+
+    async function loadDismissals(retriesRemaining: number) {
+      const loadRevision = closedGhostMutationRevisionRef.current
+      const result = await loadClosedGhostDismissalsResult()
+      if (!active || loadRevision !== closedGhostMutationRevisionRef.current) return
+
+      if (result.ok) {
+        setDismissedClosedGhosts(result.value)
+        return
+      }
+
+      // Keep the state unknown (and therefore closed ghosts suppressed) after
+      // a failed read. One delayed retry covers transient storage failures
+      // without installing a polling loop; a later storage event is also an
+      // authoritative recovery signal and cancels the pending retry.
+      if (retriesRemaining > 0) {
+        retryTimer = setTimeout(() => {
+          retryTimer = null
+          void loadDismissals(retriesRemaining - 1)
+        }, CLOSED_GHOST_DISMISSAL_LOAD_RETRY_MS)
+      }
+    }
+
+    void loadDismissals(1)
     return () => {
       active = false
+      if (retryTimer !== null) clearTimeout(retryTimer)
+      unsubscribe()
     }
   }, [])
 
   async function handleForgetClosedGhost(closed: ClosedTabEntry) {
-    setDismissedClosedGhosts(await dismissClosedGhost(closed))
+    const mutationRevision = closedGhostMutationRevisionRef.current
+    let dismissals: Map<string, number>
+    try {
+      dismissals = await dismissClosedGhost(closed)
+    } catch {
+      showToast('Could not remove from recently closed')
+      return
+    }
+
+    const expectedDismissedAt = dismissals.get(closedGhostDismissalKey(closed))
+    if (typeof expectedDismissedAt !== 'number') {
+      showToast('Could not remove from recently closed')
+      return
+    }
+
+    if (closedGhostMutationRevisionRef.current === mutationRevision) {
+      closedGhostMutationRevisionRef.current += 1
+      setDismissedClosedGhosts(dismissals)
+    }
     showToast('Removed from recently closed', {
       label: 'Undo',
       description: 'You can undo this action.',
-      onClick: async () => setDismissedClosedGhosts(await restoreClosedGhost(closed))
+      onClick: async () => {
+        const undoRevision = closedGhostMutationRevisionRef.current
+        try {
+          const restoredDismissals = await restoreClosedGhost(closed, expectedDismissedAt)
+          if (closedGhostMutationRevisionRef.current === undoRevision) {
+            closedGhostMutationRevisionRef.current += 1
+            setDismissedClosedGhosts(restoredDismissals)
+          }
+        } catch {
+          showToast('Could not restore recently closed page')
+        }
+      }
     })
   }
 
@@ -1598,18 +1683,23 @@ export function TabHistoryPanel({
           />
         </div>
         <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
-          {rows.map((row) => renderPanelRow(row, {
-            snapshot,
-            savedKeys: savedKeySet,
-            highlightTerms,
-            onSnapshotChange,
-            onHoverUrlChange,
-            activeHoverUrl,
-            activeHoverUrls,
-            activeHoverSource,
-            onTabsChange,
-            onForgetClosedGhost: handleForgetClosedGhost
-          }))}
+          {rows.map((row) => {
+            const layoutKey = historyPanelRowLayoutKey(row)
+            return (
+              <HistoryPanelRow
+                key={layoutKey}
+                row={row}
+                layoutKey={layoutKey}
+                snapshot={snapshot}
+                savedKeys={savedKeySet}
+                highlightTerms={highlightTerms}
+                onSnapshotChange={onSnapshotChange}
+                onHoverUrlChange={onHoverUrlChange}
+                onTabsChange={onTabsChange}
+                onForgetClosedGhost={handleForgetClosedGhost}
+              />
+            )
+          })}
         </div>
       </div>
       <HistoryEntryScrollbar scrollbar={scrollbar} />
@@ -1617,80 +1707,80 @@ export function TabHistoryPanel({
   )
 }
 
-function renderPanelRow(row: HistoryPanelRow, ctx: {
+function historyPanelRowLayoutKey(row: HistoryPanelRow): string {
+  if (row.kind === 'stack') return `stack:${row.entry.windowId}:${row.entry.tabId}:${row.entry.index}`
+  if (row.kind === 'open-ghost') return `open-ghost:${row.item.key}`
+  return `closed-ghost:${row.closed.sessionId}`
+}
+
+function HistoryPanelRow({
+  row,
+  layoutKey,
+  snapshot,
+  savedKeys,
+  highlightTerms,
+  onSnapshotChange,
+  onHoverUrlChange,
+  onTabsChange,
+  onForgetClosedGhost
+}: {
+  row: HistoryPanelRow
+  layoutKey: string
   snapshot: TabHistorySnapshot | null
   savedKeys: ReadonlySet<string>
   highlightTerms: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
   onHoverUrlChange?: HoverUrlChangeHandler
-  activeHoverUrl: string
-  activeHoverUrls: readonly string[]
-  activeHoverSource: HoverUrlSource | null
   onTabsChange?: TabsChangeHandler
   onForgetClosedGhost?: (closed: ClosedTabEntry) => void
 }): ReactNode {
   if (row.kind === 'stack') {
-    const layoutKey = `stack:${row.entry.windowId}:${row.entry.tabId}:${row.entry.index}`
     return (
       <HistoryEntry
-        key={layoutKey}
         entry={row.entry}
         layoutKey={layoutKey}
-        indexLabel={historyEntryIndexLabel(row.entry, ctx.snapshot, row.entry.index + 1)}
-        snapshot={ctx.snapshot}
+        indexLabel={historyEntryIndexLabel(row.entry, snapshot, row.entry.index + 1)}
+        snapshot={snapshot}
         kind="stack"
-        savedKeys={ctx.savedKeys}
-        highlightTerms={ctx.highlightTerms}
-        onSnapshotChange={ctx.onSnapshotChange}
-        onHoverUrlChange={ctx.onHoverUrlChange}
-        activeHoverUrl={ctx.activeHoverUrl}
-        activeHoverUrls={ctx.activeHoverUrls}
-        activeHoverSource={ctx.activeHoverSource}
-        onTabsChange={ctx.onTabsChange}
+        savedKeys={savedKeys}
+        highlightTerms={highlightTerms}
+        onSnapshotChange={onSnapshotChange}
+        onHoverUrlChange={onHoverUrlChange}
+        onTabsChange={onTabsChange}
       />
     )
   }
   if (row.kind === 'open-ghost') {
-    const layoutKey = `open-ghost:${row.item.key}`
     return (
       <HistoryEntry
-        key={layoutKey}
         entry={historyEntryFromWorkingSetItem(row.item)}
         layoutKey={layoutKey}
         indexLabel={null}
-        snapshot={ctx.snapshot}
+        snapshot={snapshot}
         kind="open-ghost"
         workingSetItem={row.item}
-        savedKeys={ctx.savedKeys}
-        highlightTerms={ctx.highlightTerms}
-        onSnapshotChange={ctx.onSnapshotChange}
-        onHoverUrlChange={ctx.onHoverUrlChange}
-        activeHoverUrl={ctx.activeHoverUrl}
-        activeHoverUrls={ctx.activeHoverUrls}
-        activeHoverSource={ctx.activeHoverSource}
-        onTabsChange={ctx.onTabsChange}
+        savedKeys={savedKeys}
+        highlightTerms={highlightTerms}
+        onSnapshotChange={onSnapshotChange}
+        onHoverUrlChange={onHoverUrlChange}
+        onTabsChange={onTabsChange}
       />
     )
   }
-  const layoutKey = `closed-ghost:${row.closed.sessionId}`
   return (
     <HistoryEntry
-      key={layoutKey}
       entry={historyEntryFromClosedTab(row.closed)}
       layoutKey={layoutKey}
       indexLabel={null}
-      snapshot={ctx.snapshot}
+      snapshot={snapshot}
       kind="closed-ghost"
       closedTab={row.closed}
-      savedKeys={ctx.savedKeys}
-      highlightTerms={ctx.highlightTerms}
-      onSnapshotChange={ctx.onSnapshotChange}
-      onHoverUrlChange={ctx.onHoverUrlChange}
-      activeHoverUrl={ctx.activeHoverUrl}
-      activeHoverUrls={ctx.activeHoverUrls}
-      activeHoverSource={ctx.activeHoverSource}
-      onTabsChange={ctx.onTabsChange}
-      onForgetClosedGhost={ctx.onForgetClosedGhost}
+      savedKeys={savedKeys}
+      highlightTerms={highlightTerms}
+      onSnapshotChange={onSnapshotChange}
+      onHoverUrlChange={onHoverUrlChange}
+      onTabsChange={onTabsChange}
+      onForgetClosedGhost={onForgetClosedGhost}
     />
   )
 }

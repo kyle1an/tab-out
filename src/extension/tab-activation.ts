@@ -10,6 +10,7 @@
 
 import { moveTabToCurrentWindow, moveTabToNewWindow } from './tab-move.js'
 import { openTabUrl, openTabUrlInNewWindow } from './tabs.js'
+import { showToast } from './toast.js'
 
 export type ChipActivationMode = 'focus' | 'open-window' | 'bring-background' | 'bring-foreground'
 
@@ -72,29 +73,45 @@ export type DashboardItemActivationOptions = {
   moveExisting?: boolean
 }
 
+export type DashboardItemActivationResult = 'unhandled' | 'handled' | 'failed'
+
+function reportOpenFailure(): DashboardItemActivationResult {
+  showToast('Could not open page')
+  return 'failed'
+}
+
 /**
  * Perform the modifier-driven half of Dashboard Item activation. Plain focus
  * remains surface-specific because Page Chips, Working Set rows, history rows,
  * and closed ghosts resolve that intent differently.
  *
- * Returns false only for the plain-focus mode so the caller can continue with
- * its local focus path.
+ * `unhandled` is reserved for the plain-focus mode so the caller can continue
+ * with its local focus path. A failed modifier action remains terminal: falling
+ * through could activate or open a different target than the user's gesture.
  */
 export async function performDashboardItemActivation(
   mode: ChipActivationMode,
   target: DashboardItemActivationTarget,
   { moveExisting = true }: DashboardItemActivationOptions = {}
-): Promise<boolean> {
-  if (mode === 'focus' || !target.tabUrl) return false
+): Promise<DashboardItemActivationResult> {
+  if (mode === 'focus' || !target.tabUrl) return 'unhandled'
 
   if (mode === 'open-window') {
-    const moved = moveExisting ? await moveTabToNewWindow(target) : false
-    if (!moved) await openTabUrlInNewWindow(target.tabUrl)
-    return true
+    if (!moveExisting) {
+      return await openTabUrlInNewWindow(target.tabUrl) ? 'handled' : reportOpenFailure()
+    }
+    const result = await moveTabToNewWindow(target)
+    if (result === 'failed') return reportOpenFailure()
+    if (result === 'not-found' && !(await openTabUrlInNewWindow(target.tabUrl))) return reportOpenFailure()
+    return 'handled'
   }
 
   const activate = mode === 'bring-foreground'
-  const moved = moveExisting ? await moveTabToCurrentWindow(target, { activate }) : false
-  if (!moved) await openTabUrl(target.tabUrl, { active: activate })
-  return true
+  if (!moveExisting) {
+    return await openTabUrl(target.tabUrl, { active: activate }) ? 'handled' : reportOpenFailure()
+  }
+  const result = await moveTabToCurrentWindow(target, { activate })
+  if (result === 'failed') return reportOpenFailure()
+  if (result === 'not-found' && !(await openTabUrl(target.tabUrl, { active: activate }))) return reportOpenFailure()
+  return 'handled'
 }

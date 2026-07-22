@@ -19,6 +19,14 @@ function loadToastRuntime(): Promise<ToastRuntime> {
 }
 
 export function showToast(title: string, action: ToastAction | null = null): void {
+  // Toasts are a page-only enhancement. Some shared action modules also run
+  // in tests or worker-like contexts, where importing the React mount would
+  // fail after doing unnecessary chunk work.
+  if (
+    typeof document === 'undefined' ||
+    typeof document.getElementById !== 'function' ||
+    !document.body
+  ) return
   void loadToastRuntime()
     .then(({ showMountedToast }) => showMountedToast(title, action))
     .catch((error: unknown) => {

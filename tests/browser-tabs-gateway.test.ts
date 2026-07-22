@@ -7,13 +7,18 @@ import {
   duplicateTab,
   focusWindow,
   getAllWindows,
+  getAllWindowsResult,
   getCurrentWindow,
+  getCurrentWindowResult,
   getRecentlyClosed,
+  getRecentlyClosedResult,
   getTab,
   groupTabs,
   moveTab,
   queryAllTabs,
+  queryAllTabsResult,
   queryTabGroups,
+  queryTabGroupsResult,
   reloadTab,
   removeTabs,
   requestExternalUnsuspend,
@@ -72,8 +77,9 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   })
 
   assert.deepEqual(await queryAllTabs(), [])
+  assert.deepEqual(await queryAllTabsResult(), { ok: false, value: [] })
   assert.equal(await getTab(1), null)
-  assert.equal(await removeTabs([1, 2]), 0)
+  assert.deepEqual(await removeTabs([1, 2]), [])
   assert.equal(await updateTab(1, { muted: true }), null)
   assert.equal(await createTab({ url: 'https://a.test/' }), null)
   assert.equal(await reloadTab(1), false)
@@ -81,10 +87,14 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   assert.equal(await groupTabs([1], 5), false)
   assert.equal(await moveTab(1, { index: 0 }), null)
   assert.deepEqual(await getAllWindows(), [])
+  assert.deepEqual(await getAllWindowsResult(), { ok: false, value: [] })
   assert.equal(await getCurrentWindow(), null)
+  assert.deepEqual(await getCurrentWindowResult(), { ok: false, value: null })
   assert.equal(await focusWindow(1), false)
   assert.deepEqual(await queryTabGroups(), [])
+  assert.deepEqual(await queryTabGroupsResult(), { ok: true, value: [] })
   assert.deepEqual(await getRecentlyClosed(), [])
+  assert.deepEqual(await getRecentlyClosedResult(), { ok: true, value: [] })
 
   const rejecting = {
     tabs: {
@@ -99,6 +109,22 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   setChromeTabsApi(rejecting)
   assert.deepEqual(await queryAllTabs(), [])
   assert.equal(await getTab(1), null)
+})
+
+test('collection read results distinguish Chrome rejection from confirmed empty state', async (t) => {
+  t.after(() => setChromeTabsApi(null))
+  setChromeTabsApi({
+    tabs: { query: async () => [] },
+    tabGroups: {
+      query: async () => { throw new Error('group metadata unavailable') }
+    },
+    sessions: {
+      getRecentlyClosed: async () => { throw new Error('sessions unavailable') }
+    }
+  } as unknown as ChromeTabsApi)
+
+  assert.deepEqual(await queryTabGroupsResult(), { ok: false, value: [] })
+  assert.deepEqual(await getRecentlyClosedResult(), { ok: false, value: [] })
 })
 
 test('reloadTab and duplicateTab normalize Chrome tab commands', async (t) => {
@@ -138,7 +164,7 @@ test('reloadTab and duplicateTab normalize Chrome tab commands', async (t) => {
   assert.equal(await duplicateTab(4), null)
 })
 
-test('removeTabs falls back to per-id removal when the batch rejects, and reports the true count', async (t) => {
+test('removeTabs falls back to per-id removal when the batch rejects, and reports the exact ids', async (t) => {
   t.after(() => setChromeTabsApi(null))
 
   const removed: number[] = []
@@ -154,17 +180,17 @@ test('removeTabs falls back to per-id removal when the batch rejects, and report
   } as unknown as ChromeTabsApi
   setChromeTabsApi(api)
 
-  assert.equal(await removeTabs([1, 2, 3]), 2)
+  assert.deepEqual(await removeTabs([1, 2, 3]), [1, 3])
   assert.deepEqual(removed, [1, 3])
 })
 
-test('removeTabs mutates fake state in place and returns the batch count', async (t) => {
+test('removeTabs mutates fake state in place and returns the batch ids', async (t) => {
   t.after(() => setChromeTabsApi(null))
 
   const tabs = [fakeTab(1, 'https://a.test/'), fakeTab(2, 'https://b.test/'), fakeTab(3, 'https://c.test/')]
   setChromeTabsApi(createFakeChromeApi({ tabs }))
 
-  assert.equal(await removeTabs([1, 3]), 2)
+  assert.deepEqual(await removeTabs([1, 3]), [1, 3])
   assert.deepEqual(tabs.map((tab) => tab.id), [2])
 })
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import type { CDPSession } from '@playwright/test'
 
 const RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY = process.env.HISTORY_SCROLLBAR_OVERLAP_ONLY === '1'
@@ -287,20 +287,36 @@ async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
       window.__tabOutSmokeSetBookmarks?.(1008)
       const trigger = Array.from(document.querySelectorAll('[data-tabout-part="source-option"]'))
         .find((candidate) => candidate.textContent?.trim() === 'Bookmarks')
-      trigger?.click()
       const start = performance.now()
       let initial = null
-      const wait = () => {
-        const activeSource = document.querySelector('[data-tabout-part="source-option"][data-active]')?.textContent?.trim() || ''
-        const count = document.querySelectorAll('.domain-block').length
-        if (activeSource === 'Bookmarks' && count > 0 && !initial) {
-          initial = {
-            count,
-            elapsedMs: Math.round(performance.now() - start),
-            measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
-          }
+      const committedSource = () => document.querySelector('[data-tabout="dashboard-shell"]')?.getAttribute('data-source') || ''
+      const cardCount = () => document.querySelectorAll('#openTabsMissions .domain-block').length
+      const captureInitialCommit = () => {
+        if (initial || committedSource() !== 'bookmarks') return
+        const count = cardCount()
+        if (count === 0) return
+        initial = {
+          count,
+          elapsedMs: Math.round(performance.now() - start),
+          measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
         }
-        if (initial && count >= 1008) {
+      }
+      const observer = new MutationObserver(captureInitialCommit)
+      const appRoot = document.getElementById('appRoot')
+      if (appRoot) {
+        observer.observe(appRoot, {
+          attributes: true,
+          attributeFilter: ['data-source'],
+          subtree: true
+        })
+      }
+      trigger?.click()
+      captureInitialCommit()
+      const wait = () => {
+        captureInitialCommit()
+        const count = cardCount()
+        if (initial && committedSource() === 'bookmarks' && count >= 1008) {
+          observer.disconnect()
           resolve({
             initial,
             final: {
@@ -312,6 +328,7 @@ async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
           return
         }
         if (performance.now() - start > 12000) {
+          observer.disconnect()
           resolve({
             initial,
             final: {
@@ -493,7 +510,6 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
     expression: `new Promise((resolve) => {
       const start = Date.now()
       let forceSettled = false
-      let overflowExpanded = false
       const wait = () => {
         const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
@@ -501,15 +517,16 @@ async function measureMarkerWrapExpansionReflow(session: CdpSession, options: { 
             !candidate.closest('[data-slot="tooltip-content"]') &&
             candidate.textContent?.includes(${JSON.stringify(MARKER_WRAP_REFLOW_SMOKE_LABEL)})
           )
-        if (chipText instanceof HTMLElement && !overflowExpanded && chipText.closest('.page-chips-overflow')) {
-          // The crowded contentful card tucks this path group behind its
-          // "+N more" overflow; reveal it before forcing geometry.
-          overflowExpanded = true
-          const card = chipText.closest('.domain-block')
-          const toggle = card && Array.from(card.querySelectorAll('button')).find((button) => /more/i.test(button.textContent || ''))
-          toggle?.click()
-          setTimeout(wait, 300)
-          return
+        if (!(chipText instanceof HTMLElement) || chipText.closest('.page-chips-overflow')) {
+          // The crowded contentful card can tuck this path group behind an
+          // overflow whose Page Chips are not mounted until it is expanded.
+          const card = document.querySelector('[data-tabout="domain-card"][data-tabout-domain="contentful.com"]')
+          const toggles = card?.querySelectorAll('[data-tabout-part="overflow-expander"]') ?? []
+          if (toggles.length > 0) {
+            toggles.forEach((toggle) => toggle.click())
+            setTimeout(wait, 300)
+            return
+          }
         }
         if (chipText instanceof HTMLElement && !forceSettled) {
           const forcedTextWidth = ${JSON.stringify(options.forcedTextWidth || 0)}
@@ -669,7 +686,6 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       let forceSettled = false
-      let overflowExpanded = false
       const wait = () => {
         const chipText = Array.from(document.querySelectorAll('.page-chip .chip-text'))
           .find((candidate) =>
@@ -678,13 +694,14 @@ async function measureMarkerOnlyLineExpansion(session: CdpSession) {
             candidate.textContent?.includes(${JSON.stringify(MARKER_ONLY_LINE_SMOKE_LABEL)}) &&
             candidate.textContent?.includes('assignee')
           )
-        if (chipText instanceof HTMLElement && !overflowExpanded && chipText.closest('.page-chips-overflow')) {
-          overflowExpanded = true
-          const card = chipText.closest('.domain-block')
-          const toggle = card && Array.from(card.querySelectorAll('button')).find((button) => /more/i.test(button.textContent || ''))
-          toggle?.click()
-          setTimeout(wait, 300)
-          return
+        if (!(chipText instanceof HTMLElement) || chipText.closest('.page-chips-overflow')) {
+          const card = document.querySelector('[data-tabout="domain-card"][data-tabout-domain="atlassian.net"]')
+          const toggles = card?.querySelectorAll('[data-tabout-part="overflow-expander"]') ?? []
+          if (toggles.length > 0) {
+            toggles.forEach((toggle) => toggle.click())
+            setTimeout(wait, 300)
+            return
+          }
         }
         if (chipText instanceof HTMLElement && !forceSettled) {
           chipText.style.flex = '0 0 276px'
@@ -6029,4 +6046,128 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(largeBookmarks.initial.measureNodeCount, 0, `large bookmark switch should not create hidden page-chip measure nodes initially: ${JSON.stringify(largeBookmarks)}`)
   assert.equal(largeBookmarks.final.count, 1008, `large bookmark source should eventually render every synthetic bookmark card: ${JSON.stringify(largeBookmarks)}`)
   assert.equal(largeBookmarks.final.measureNodeCount, 0, `large bookmark source should not create hidden page-chip measure nodes after all chunks render: ${JSON.stringify(largeBookmarks)}`)
+})
+
+test('rapid domain pin writes preserve the latest optimistic state', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const storage = window.chrome.storage.local
+    const originalSet = storage.set.bind(storage)
+    let releaseFirstWrite!: () => void
+    const firstWriteGate = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve
+    })
+    const audit = {
+      active: 0,
+      maxActive: 0,
+      releaseFirstWrite,
+      writes: [] as string[][]
+    }
+    ;(window as typeof window & { __tabOutPinWriteAudit: typeof audit }).__tabOutPinWriteAudit = audit
+    storage.set = async (items) => {
+      if (!Object.prototype.hasOwnProperty.call(items, 'tabOutPinnedDomainsV1')) {
+        await originalSet(items)
+        return
+      }
+      const value = Array.isArray(items.tabOutPinnedDomainsV1)
+        ? items.tabOutPinnedDomainsV1.slice() as string[]
+        : []
+      audit.writes.push(value)
+      audit.active += 1
+      audit.maxActive = Math.max(audit.maxActive, audit.active)
+      if (audit.writes.length === 1) await firstWriteGate
+      await originalSet(items)
+      audit.active -= 1
+    }
+  })
+
+  await page.getByRole('button', { name: 'Pin contentful.com', exact: true }).click()
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __tabOutPinWriteAudit: { writes: string[][] } }
+  ).__tabOutPinWriteAudit.writes.length)).toBe(1)
+  await page.getByRole('button', { name: 'Pin suppression-smoke.example', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Unpin contentful.com', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Unpin suppression-smoke.example', exact: true })).toBeVisible()
+
+  await page.evaluate(() => (
+    window as typeof window & { __tabOutPinWriteAudit: { releaseFirstWrite(): void } }
+  ).__tabOutPinWriteAudit.releaseFirstWrite())
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & { __tabOutPinWriteAudit: { writes: string[][] } }
+  ).__tabOutPinWriteAudit.writes.length)).toBe(2)
+
+  const result = await page.evaluate(async () => {
+    const audit = (
+      window as typeof window & {
+        __tabOutPinWriteAudit: { active: number; maxActive: number; writes: string[][] }
+      }
+    ).__tabOutPinWriteAudit
+    const stored = await window.chrome.storage.local.get('tabOutPinnedDomainsV1')
+    return {
+      active: audit.active,
+      maxActive: audit.maxActive,
+      stored: stored.tabOutPinnedDomainsV1,
+      writes: audit.writes
+    }
+  })
+
+  expect(result).toEqual({
+    active: 0,
+    maxActive: 1,
+    stored: ['contentful.com', 'suppression-smoke.example'],
+    writes: [
+      ['contentful.com'],
+      ['contentful.com', 'suppression-smoke.example']
+    ]
+  })
+})
+
+test('history scrollbar cancels a drag on pointer cancellation', async ({ page }) => {
+  await page.setViewportSize({ width: 1420, height: 360 })
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  const thumb = page.locator('.history-entry-scrollbar-thumb')
+  await expect(thumb).toBeAttached()
+  const start = await thumb.evaluate((element) => {
+    const list = document.querySelector<HTMLElement>('.history-entry-list')
+    const rect = element.getBoundingClientRect()
+    if (!list) throw new Error('History list is missing')
+    list.scrollTop = 0
+    return { clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 }
+  })
+
+  await thumb.dispatchEvent('pointerdown', {
+    bubbles: true,
+    button: 0,
+    buttons: 1,
+    clientX: start.clientX,
+    clientY: start.clientY,
+    pointerId: 7,
+    pointerType: 'mouse'
+  })
+  await expect(thumb).toHaveAttribute('data-dragging', 'true')
+
+  await page.evaluate(() => {
+    window.dispatchEvent(new PointerEvent('pointercancel', {
+      bubbles: true,
+      pointerId: 7,
+      pointerType: 'mouse'
+    }))
+  })
+  await expect(thumb).not.toHaveAttribute('data-dragging')
+  const afterCancel = await page.locator('.history-entry-list').evaluate((element) => element.scrollTop)
+
+  await page.evaluate(({ clientX, clientY }) => {
+    window.dispatchEvent(new PointerEvent('pointermove', {
+      bubbles: true,
+      buttons: 1,
+      clientX,
+      clientY: clientY + 200,
+      pointerId: 7,
+      pointerType: 'mouse'
+    }))
+  }, start)
+  const afterMove = await page.locator('.history-entry-list').evaluate((element) => element.scrollTop)
+  expect(afterMove).toBe(afterCancel)
 })

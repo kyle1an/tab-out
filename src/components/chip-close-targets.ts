@@ -18,6 +18,15 @@ export interface VariantCloseTargets {
   tabEnvs: DashboardChipEnv[]
 }
 
+type TabCloseCompletion = {
+  ok: boolean
+  shouldAnimateRemoval: boolean
+}
+
+type HistoryDeleteCompletion = {
+  deletedCount: number
+}
+
 /**
  * variantClosable(v) — mirrors PageChip's per-variant `variantCanClose`:
  * saved pages and closed-saved tabs can't be closed, and read-only sources
@@ -48,6 +57,28 @@ export function partitionVariantCloseTargets(variants: readonly CloseTargetVaria
     .filter((v) => v.sourceType !== 'history')
     .map((v) => ({ prefix: '', tabUrl: v.tabUrl, rawUrl: v.rawUrl }))
   return { historyUrls, tabEnvs }
+}
+
+export function historyDeleteFullyRemoved(
+  requestedCount: number,
+  result: HistoryDeleteCompletion | null
+): boolean {
+  return requestedCount === 0 || result?.deletedCount === requestedCount
+}
+
+export function titleVariantGroupRemovalConfirmed({
+  requestedTabCount,
+  tabResult,
+  requestedHistoryCount,
+  historyResult
+}: {
+  requestedTabCount: number
+  tabResult: TabCloseCompletion | null
+  requestedHistoryCount: number
+  historyResult: HistoryDeleteCompletion | null
+}): boolean {
+  const tabsRemoved = requestedTabCount === 0 || !!tabResult?.ok && tabResult.shouldAnimateRemoval
+  return tabsRemoved && historyDeleteFullyRemoved(requestedHistoryCount, historyResult)
 }
 
 /**

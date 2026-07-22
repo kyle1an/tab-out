@@ -121,6 +121,7 @@ export function useHistoryScrollbar(
   const hideTimerRef = useRef<number | null>(null)
   const hoveringRef = useRef(false)
   const draggingRef = useRef(false)
+  const dragListenerCleanupRef = useRef<(() => void) | null>(null)
 
   const clearHideTimer = useCallback(() => {
     if (hideTimerRef.current === null) return
@@ -224,6 +225,7 @@ export function useHistoryScrollbar(
     // Stop the track handler (jump-to-position) from also firing.
     event.preventDefault()
     event.stopPropagation()
+    dragListenerCleanupRef.current?.()
 
     draggingRef.current = true
     setDragging(true)
@@ -240,15 +242,27 @@ export function useHistoryScrollbar(
         : 0
       listEl.scrollTop = clamp(startScrollTop + deltaScroll, 0, maxScrollTop)
     }
-    const onUp = () => {
+    const cleanupListeners = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', finishDrag)
+      window.removeEventListener('pointercancel', finishDrag)
+      window.removeEventListener('blur', finishDrag)
+      if (dragListenerCleanupRef.current === cleanupListeners) {
+        dragListenerCleanupRef.current = null
+      }
+    }
+    const finishDrag = () => {
+      cleanupListeners()
+      if (!draggingRef.current) return
       draggingRef.current = false
       setDragging(false)
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
       scheduleHide()
     }
+    dragListenerCleanupRef.current = cleanupListeners
     window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointerup', finishDrag)
+    window.addEventListener('pointercancel', finishDrag)
+    window.addEventListener('blur', finishDrag)
   }, [listRef, clearHideTimer, scheduleHide])
 
   const onPointerEnter = useCallback(() => {
@@ -262,8 +276,12 @@ export function useHistoryScrollbar(
     scheduleHide()
   }, [scheduleHide])
 
-  // Clean up any pending fade timer on unmount.
-  useEffect(() => clearHideTimer, [clearHideTimer])
+  // Clean up any pending fade timer or global drag listeners on unmount.
+  useEffect(() => () => {
+    draggingRef.current = false
+    dragListenerCleanupRef.current?.()
+    clearHideTimer()
+  }, [clearHideTimer])
 
   return {
     metrics,

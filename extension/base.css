@@ -252,29 +252,6 @@ body[data-tabout-domain-reorder-active='true'] {
   user-select: none;
 }
 
-/* While the working-set FLIP animation moves or settles the toggle
-   (classes written imperatively by working-set-move-animation.ts), every
-   interaction state's styling is suppressed so the flying element doesn't
-   flash hover/focus chrome mid-animation. Kept as raw CSS: expressing
-   this as utilities means re-stating four properties across five
-   pseudo-states for two markers (~40 compound arbitrary variants) and
-   still fighting the hover-utility specificity tie. */
-.working-set-toggle.working-set-layout-moving,
-.working-set-toggle.working-set-layout-settling,
-.working-set-toggle.working-set-layout-moving:hover,
-.working-set-toggle.working-set-layout-settling:hover,
-.working-set-toggle.working-set-layout-moving:active,
-.working-set-toggle.working-set-layout-settling:active,
-.working-set-toggle.working-set-layout-moving:focus,
-.working-set-toggle.working-set-layout-settling:focus,
-.working-set-toggle.working-set-layout-moving:focus-visible,
-.working-set-toggle.working-set-layout-settling:focus-visible {
-  border-color: var(--warm-gray);
-  background: var(--card-bg);
-  color: var(--color-muted-foreground);
-  box-shadow: none;
-}
-
 /* Hovering ANY non-URL surface of a same-title group chip (title row, blank
    padding, favicon gutter, edge strips, AND the rounded-corner gutter)
    highlights the default URL variant — the pill a click on that surface

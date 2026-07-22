@@ -28,6 +28,7 @@
    ================================================================ */
 
 const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
+const SUSPEND_TARGET_STORAGE_WRITE_LOCK = 'tab-out:suspend-target-write'
 const SUSPENDED_PATH_SUFFIX = '/suspended.html'
 
 export function unwrapSuspenderUrl(url?: string): string {
@@ -92,7 +93,19 @@ export interface SuspendTarget {
   template: string
 }
 
+interface StoredSuspendTarget extends SuspendTarget {
+  observedAt: number
+}
+
+interface PendingSuspendTargetSave {
+  target: SuspendTarget
+  observedAt: number
+}
+
 let cachedTarget: SuspendTarget | null = null
+let cachedTargetRevision = 0
+let suspendTargetSaveInFlight: Promise<void> | null = null
+let pendingSuspendTargetSave: PendingSuspendTargetSave | null = null
 
 export function extractSuspenderId(rawUrl: string | undefined): string | null {
   if (!rawUrl || !rawUrl.startsWith('chrome-extension://')) return null
@@ -148,22 +161,105 @@ async function loadSuspendTarget(): Promise<SuspendTarget | null> {
   try {
     const stored = await chrome.storage.local.get(SUSPEND_TARGET_STORAGE_KEY)
     const value = stored[SUSPEND_TARGET_STORAGE_KEY]
-    return isSuspendTarget(value) ? value : null
+    return isSuspendTarget(value) ? { id: value.id, template: value.template } : null
   } catch {
     return null
   }
 }
 
-async function saveSuspendTarget(target: SuspendTarget): Promise<void> {
+function storedSuspendTargetObservedAt(value: unknown): number | null {
+  if (!isSuspendTarget(value)) return null
+  const observedAt = (value as Partial<StoredSuspendTarget>).observedAt
+  return typeof observedAt === 'number' && Number.isFinite(observedAt) ? observedAt : null
+}
+
+function nextSuspendTargetObservationAt(): number {
+  if (typeof performance !== 'undefined') {
+    const highResolutionNow = performance.timeOrigin + performance.now()
+    if (Number.isFinite(highResolutionNow)) return highResolutionNow
+  }
+  return Date.now()
+}
+
+async function saveSuspendTarget(save: PendingSuspendTargetSave): Promise<void> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) return
+  const storage = chrome.storage.local
+  const storedTarget: StoredSuspendTarget = {
+    ...save.target,
+    observedAt: save.observedAt
+  }
+
+  const locks = typeof navigator === 'undefined' ? null : navigator.locks
+  if (!locks?.request) {
+    // Module-local serialization still gives older browsers the same bounded,
+    // last-observation-wins fallback they had before Web Locks were available.
+    try {
+      await storage.set({ [SUSPEND_TARGET_STORAGE_KEY]: storedTarget })
+    } catch {}
+    return
+  }
+
   try {
-    await chrome.storage.local.set({ [SUSPEND_TARGET_STORAGE_KEY]: target })
+    await locks.request(SUSPEND_TARGET_STORAGE_WRITE_LOCK, async () => {
+      let existingValue: unknown
+      try {
+        const stored = await storage.get(SUSPEND_TARGET_STORAGE_KEY)
+        existingValue = stored[SUSPEND_TARGET_STORAGE_KEY]
+      } catch {
+        // Without the current generation it is unsafe to replace a value that
+        // may have been written by a newer page or service-worker context.
+        return
+      }
+
+      const existingObservedAt = storedSuspendTargetObservedAt(existingValue)
+      if (existingObservedAt !== null && existingObservedAt > save.observedAt) return
+      await storage.set({ [SUSPEND_TARGET_STORAGE_KEY]: storedTarget })
+    })
   } catch {}
+}
+
+function startPendingSuspendTargetSave(): void {
+  if (suspendTargetSaveInFlight || !pendingSuspendTargetSave) return
+  const saveRequest = pendingSuspendTargetSave
+  pendingSuspendTargetSave = null
+  const save = saveSuspendTarget(saveRequest)
+  suspendTargetSaveInFlight = save
+  const continueWithLatest = () => {
+    if (suspendTargetSaveInFlight !== save) return
+    suspendTargetSaveInFlight = null
+    startPendingSuspendTargetSave()
+  }
+  void save.then(continueWithLatest, continueWithLatest)
+}
+
+function queueSuspendTargetSave(target: SuspendTarget): void {
+  const saveRequest = {
+    target,
+    observedAt: nextSuspendTargetObservationAt()
+  }
+
+  if (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function') {
+    // Request the shared lock at observation time. Deferring this request until
+    // an older module-local write settles can reverse two contexts when their
+    // clocks report the same observedAt generation.
+    void saveSuspendTarget(saveRequest)
+    return
+  }
+
+  // Older browsers retain a bounded module-local queue: one active write plus
+  // only the latest trailing target.
+  pendingSuspendTargetSave = saveRequest
+  startPendingSuspendTargetSave()
 }
 
 export async function getSuspendTarget(): Promise<SuspendTarget | null> {
   if (cachedTarget) return cachedTarget
-  cachedTarget = await loadSuspendTarget()
+  const revisionBeforeLoad = cachedTargetRevision
+  const storedTarget = await loadSuspendTarget()
+  // Live tab collection is synchronous and authoritative. Do not let a storage
+  // read that started earlier replace a target learned while that read waited.
+  if (cachedTarget || cachedTargetRevision !== revisionBeforeLoad) return cachedTarget
+  cachedTarget = storedTarget
   return cachedTarget
 }
 
@@ -184,8 +280,9 @@ export function rememberSuspendTargetFromTabs(
     if (!id) continue
     if (cachedTarget?.id === id && cachedTarget.template === tab.rawUrl) return
     const idChanged = cachedTarget?.id !== id
+    cachedTargetRevision += 1
     cachedTarget = { id, template: tab.rawUrl }
-    if (idChanged) void saveSuspendTarget(cachedTarget)
+    if (idChanged) queueSuspendTargetSave(cachedTarget)
     return
   }
 }

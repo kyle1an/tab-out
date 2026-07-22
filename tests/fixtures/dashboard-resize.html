@@ -21,45 +21,6 @@
         window.__tabOutSmokeErrors.push(String(event.reason?.message || event.reason))
       })
 
-      const workingSetSnapshot = {
-        defaultLimit: 8,
-        expandedLimit: 16,
-        items: [
-          {
-            key: 'working-set-smoke-1',
-            tabId: 3,
-            windowId: 1,
-            tabUrl: 'https://tab-out-smoke-03.com/docs/3',
-            rawUrl: 'https://tab-out-smoke-03.com/docs/3',
-            title: 'Working set item with enough tooltip text to prove pointer-click return focus stays quiet after switching away from Tab Out and then returning to the dashboard without hovering the item again',
-            displayUrl: 'tab-out-smoke-03.com/docs/3',
-            faviconUrl: '',
-            dupeCount: 1,
-            active: false,
-            activeInOtherWindow: false,
-            score: 10
-          },
-          ...Array.from({ length: 11 }, (_, index) => {
-            const itemNumber = index + 2
-            const tabId = itemNumber + 2
-            const domain = `tab-out-smoke-${String(tabId).padStart(2, '0')}.com`
-            return {
-              key: `working-set-smoke-${itemNumber}`,
-              tabId,
-              windowId: 1,
-              tabUrl: `https://${domain}/docs/${tabId}`,
-              rawUrl: `https://${domain}/docs/${tabId}`,
-              title: `Working set smoke item ${itemNumber}`,
-              displayUrl: `${domain}/docs/${tabId}`,
-              faviconUrl: '',
-              dupeCount: 1,
-              active: false,
-              activeInOtherWindow: false,
-              score: 10 - itemNumber
-            }
-          })
-        ]
-      }
       const tabHistorySnapshot = {
         stackSize: 1,
         maxSize: 48,
@@ -107,6 +68,7 @@
             encodeURIComponent('url:https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A838adb9a-07e8-48f3-ac56-0db51007ac44')
         ]
       }
+      const windows = [{ id: 1, type: 'normal', focused: true }]
       const tabs = [
         ...(new URLSearchParams(window.location.search).has('motion')
           ? [
@@ -465,6 +427,7 @@
       let dashboardServiceStateRequestCount = 0
       const chromeApi = createFakeChromeApi({
         tabs,
+        windows,
         getBookmarkTree: () => bookmarkTree,
         storageSeed: localStorageStore,
         getURL: (path) => `${window.location.origin}${path}`,
@@ -482,14 +445,15 @@
             return {
               ok: true,
               tabHistory: tabHistorySnapshot,
-              workingSetActivity: workingSetActivityFromTabs()
+              workingSetActivity: workingSetActivityFromTabs(),
+              openTabsSnapshot: {
+                tabs: tabs.slice(),
+                windows: windows.slice()
+              }
             }
           }
           if (message?.type === 'tab-out:get-tab-history') {
             return { ok: true, snapshot: tabHistorySnapshot }
-          }
-          if (message?.type === 'tab-out:get-working-set') {
-            return { ok: true, snapshot: workingSetSnapshot }
           }
           return { ok: false }
         }

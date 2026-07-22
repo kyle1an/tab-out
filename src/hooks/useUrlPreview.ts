@@ -1,47 +1,87 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-const URL_PREVIEW_HIDE_DELAY_MS = 120
+export const URL_PREVIEW_HIDE_DELAY_MS = 120
 
 type UrlPreviewState = {
   url: string
   visible: boolean
 }
 
-type TimerRef = {
-  current: number | null
+export type UrlPreviewStore = {
+  getSnapshot: () => UrlPreviewState
+  subscribe: (listener: () => void) => () => void
 }
 
-function clearHideTimer(timerRef: TimerRef) {
-  if (timerRef.current === null) return
-  clearTimeout(timerRef.current)
-  timerRef.current = null
+export type UrlPreviewController = {
+  clearUrlPreviewNow: () => void
+  dispose: () => void
+  setUrlPreview: (url: string) => void
+  store: UrlPreviewStore
 }
 
-export function useUrlPreview() {
-  const [urlPreview, setUrlPreviewState] = useState<UrlPreviewState>({ url: '', visible: false })
-  const hideTimerRef = useRef<number | null>(null)
+type TimerHandle = ReturnType<typeof globalThis.setTimeout>
 
-  const setUrlPreview = useCallback(function setUrlPreview(url: string) {
+export function createUrlPreviewController(): UrlPreviewController {
+  let state: UrlPreviewState = { url: '', visible: false }
+  let hideTimer: TimerHandle | null = null
+  const listeners = new Set<() => void>()
+
+  function update(next: UrlPreviewState) {
+    if (state.url === next.url && state.visible === next.visible) return
+    state = next
+    for (const listener of listeners) listener()
+  }
+
+  function clearHideTimer() {
+    if (hideTimer === null) return
+    globalThis.clearTimeout(hideTimer)
+    hideTimer = null
+  }
+
+  const store: UrlPreviewStore = {
+    getSnapshot() {
+      return state
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }
+  }
+
+  function setUrlPreview(url: string) {
     const nextUrl = url || ''
     if (nextUrl) {
-      clearHideTimer(hideTimerRef)
-      setUrlPreviewState((prev) => (prev.url === nextUrl && prev.visible ? prev : { url: nextUrl, visible: true }))
+      clearHideTimer()
+      update({ url: nextUrl, visible: true })
       return
     }
 
-    clearHideTimer(hideTimerRef)
-    hideTimerRef.current = window.setTimeout(() => {
-      hideTimerRef.current = null
-      setUrlPreviewState((prev) => (prev.visible ? { ...prev, visible: false } : prev))
+    clearHideTimer()
+    hideTimer = globalThis.setTimeout(() => {
+      hideTimer = null
+      if (state.visible) update({ ...state, visible: false })
     }, URL_PREVIEW_HIDE_DELAY_MS)
-  }, [])
+  }
 
-  const clearUrlPreviewNow = useCallback(function clearUrlPreviewNow() {
-    clearHideTimer(hideTimerRef)
-    setUrlPreviewState((prev) => (prev.url || prev.visible ? { url: '', visible: false } : prev))
-  }, [])
+  function clearUrlPreviewNow() {
+    clearHideTimer()
+    if (state.url || state.visible) update({ url: '', visible: false })
+  }
 
-  useEffect(() => () => clearHideTimer(hideTimerRef), [])
+  function dispose() {
+    clearHideTimer()
+    listeners.clear()
+  }
 
-  return { urlPreview, setUrlPreview, clearUrlPreviewNow }
+  return { clearUrlPreviewNow, dispose, setUrlPreview, store }
+}
+
+export function useUrlPreview() {
+  const [controller] = useState(createUrlPreviewController)
+  const setUrlPreview = useCallback((url: string) => controller.setUrlPreview(url), [controller])
+  const clearUrlPreviewNow = useCallback(() => controller.clearUrlPreviewNow(), [controller])
+
+  useEffect(() => () => controller.dispose(), [controller])
+
+  return { urlPreviewStore: controller.store, setUrlPreview, clearUrlPreviewNow }
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerDashboardRefresh, requestDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { registerDashboardRefresh, requestDashboardRefresh, settleDashboardRefresh } from '../src/extension/dashboard-controller.js'
 import type { DashboardRefreshOptions } from '../src/extension/dashboard-controller.js'
 
 test('dashboard refresh options expose only supported coordination flags', () => {
@@ -38,4 +38,22 @@ test('requestDashboardRefresh preserves options queued before registration', asy
   unregister()
 
   assert.deepEqual(receivedOptions, { animateCards: true })
+})
+
+test('queued dashboard refreshes preserve stronger coordination flags', async () => {
+  let receivedOptions = null
+
+  await requestDashboardRefresh({ animateCards: true })
+  await requestDashboardRefresh({ startupSnapshot: true })
+  await requestDashboardRefresh()
+  const unregister = registerDashboardRefresh((options) => {
+    receivedOptions = options
+  })
+  unregister()
+
+  assert.deepEqual(receivedOptions, { animateCards: true, startupSnapshot: true })
+})
+
+test('automatic dashboard refresh settlement absorbs a rejected handler', async () => {
+  await assert.doesNotReject(settleDashboardRefresh(Promise.reject(new Error('refresh failed'))))
 })

@@ -9,6 +9,71 @@ type DashboardGeometry = {
   sourceSwitchRight: number | null
 }
 
+type BookmarkTreeFixture = {
+  id: string
+  title: string
+  url?: string
+  children?: BookmarkTreeFixture[]
+}
+
+type BookmarkFetchGate = {
+  callCount: number
+  completedCount: number
+  release: () => void
+  started: boolean
+}
+
+async function installBookmarkFetchGate(
+  page: Page,
+  replacementTree: BookmarkTreeFixture[] | null = null,
+  bookmarkCount = 1
+) {
+  await page.evaluate(({ nextTree, nextBookmarkCount }) => {
+    const fixtureWindow = window as typeof window & {
+      __tabOutSmokeSetBookmarks?: (count: number) => void
+      __tabOutBookmarkFetchGate?: BookmarkFetchGate
+    }
+    if (!nextTree) fixtureWindow.__tabOutSmokeSetBookmarks?.(nextBookmarkCount)
+
+    const originalGetTree = window.chrome.bookmarks.getTree.bind(window.chrome.bookmarks)
+    let release = () => {}
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const gate: BookmarkFetchGate = {
+      callCount: 0,
+      completedCount: 0,
+      release,
+      started: false
+    }
+    fixtureWindow.__tabOutBookmarkFetchGate = gate
+    window.chrome.bookmarks.getTree = async () => {
+      gate.callCount += 1
+      gate.started = true
+      await blocked
+      const tree = nextTree ?? await originalGetTree()
+      gate.completedCount += 1
+      return tree
+    }
+  }, { nextTree: replacementTree, nextBookmarkCount: bookmarkCount })
+}
+
+async function releaseBookmarkFetchGate(page: Page) {
+  await page.evaluate(() => {
+    const fixtureWindow = window as typeof window & {
+      __tabOutBookmarkFetchGate?: BookmarkFetchGate
+    }
+    fixtureWindow.__tabOutBookmarkFetchGate?.release()
+  })
+}
+
+async function waitForBookmarkFetch(page: Page) {
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutBookmarkFetchGate?: BookmarkFetchGate })
+      .__tabOutBookmarkFetchGate?.started === true
+  ))
+}
+
 async function collapsedTitleFadeState(title: Locator, truncatedClass: string) {
   return title.evaluate((element, className) => {
     const titleElement = element as HTMLElement
@@ -107,6 +172,71 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(Math.abs((wide.headerControlsRight ?? 0) - (wide.missionsRight ?? 0))).toBeLessThanOrEqual(1)
   expect(Math.abs((wide.sourceSwitchRight ?? 0) - (wide.missionsRight ?? 0))).toBeLessThanOrEqual(1)
   expect(pageErrors).toEqual([])
+})
+
+test('ordinary dashboard renders keep masonry observers attached', async ({ page }) => {
+  await page.addInitScript(() => {
+    const counters = { mutationDisconnects: 0, resizeDisconnects: 0 }
+    ;(window as typeof window & { __tabOutObserverDisconnects?: typeof counters }).__tabOutObserverDisconnects = counters
+
+    const NativeResizeObserver = window.ResizeObserver
+    window.ResizeObserver = class extends NativeResizeObserver {
+      override disconnect() {
+        counters.resizeDisconnects += 1
+        super.disconnect()
+      }
+    }
+    const NativeMutationObserver = window.MutationObserver
+    window.MutationObserver = class extends NativeMutationObserver {
+      override disconnect() {
+        counters.mutationDisconnects += 1
+        super.disconnect()
+      }
+    }
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await expect(page.locator('.missions:not(.missions-empty)').first()).toHaveClass(/is-packed/)
+
+  const readDisconnects = () => page.evaluate(() => (
+    (window as typeof window & {
+      __tabOutObserverDisconnects?: { mutationDisconnects: number; resizeDisconnects: number }
+    }).__tabOutObserverDisconnects
+  ))
+  const before = await readDisconnects()
+  const chip = page.locator('[data-tabout="page-chip"]').first()
+  await chip.hover()
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  await page.locator('[data-tabout="dashboard-shell"]').hover({ position: { x: 1, y: 1 } })
+  await expect(chip).not.toHaveAttribute('data-expanded', 'true')
+  await page.waitForTimeout(50)
+
+  expect(await readDisconnects()).toEqual(before)
+})
+
+test('measured dashboard titles share one document font listener', async ({ page }) => {
+  await page.addInitScript(() => {
+    const counts = { loadingdone: 0, loadingerror: 0 }
+    ;(window as typeof window & { __tabOutFontListenerCounts?: typeof counts }).__tabOutFontListenerCounts = counts
+    const nativeAddEventListener = EventTarget.prototype.addEventListener
+    EventTarget.prototype.addEventListener = function addEventListener(type, listener, options) {
+      if (this === document.fonts && (type === 'loadingdone' || type === 'loadingerror')) {
+        counts[type] += 1
+      }
+      return nativeAddEventListener.call(this, type, listener, options)
+    }
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="page-chip"]').count()).toBeGreaterThan(20)
+
+  const counts = await page.evaluate(() => (
+    (window as typeof window & {
+      __tabOutFontListenerCounts?: { loadingdone: number; loadingerror: number }
+    }).__tabOutFontListenerCounts
+  ))
+  expect(counts).toEqual({ loadingdone: 1, loadingerror: 1 })
 })
 
 test('Path Group tooltip follows observer-driven label truncation', async ({ page }) => {
@@ -273,6 +403,18 @@ test('filter keyboard navigation selects the first true match and moves without 
   expect(leftBounds.x + leftBounds.width).toBeLessThanOrEqual(rightBounds.x + 1)
 })
 
+test('filter result ownership exposes a labelled accessibility group', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Example')
+
+  await expect(input).toHaveAttribute('aria-controls', 'dashboardMissions')
+  await expect(page.locator('#dashboardMissions')).toHaveAttribute('role', 'group')
+  await expect(page.locator('#dashboardMissions')).toHaveAccessibleName('Filter results')
+})
+
 test('filter Enter activates the current query and primary-modifier Shift Enter brings the tab here', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
@@ -299,6 +441,105 @@ test('filter Enter activates the current query and primary-modifier Shift Enter 
     const tab = await window.chrome.tabs.get(3)
     return { active: tab.active, windowId: tab.windowId }
   })).toEqual({ active: true, windowId: 1 })
+})
+
+test('filter Enter waits for the first matching companion result to mount', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Bookmark')
+  await input.press('Enter')
+  await waitForBookmarkFetch(page)
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+
+  await releaseBookmarkFetchGate(page)
+  await expect.poll(() => page.evaluate(async () => {
+    const target = (await window.chrome.tabs.query({})).find(
+      (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1'
+    )
+    return target ? { active: target.active, url: target.url } : null
+  })).toEqual({ active: true, url: 'https://bookmark-smoke-0001.test/docs/1' })
+  await expect(input).toBeFocused()
+})
+
+test('filter Arrow Down waits for companion hydration before moving from the first result', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page, null, 3)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Bookmark')
+  await input.press('ArrowDown')
+  await waitForBookmarkFetch(page)
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+
+  await releaseBookmarkFetchGate(page)
+  const candidates = page.locator('#bookmarkMatchesMissions [data-tabout-filter-result]')
+  await expect(candidates).toHaveCount(3)
+  const secondId = await candidates.nth(1).getAttribute('id')
+  await expect(input).toHaveAttribute('aria-activedescendant', secondId ?? '')
+  await expect(candidates.nth(1)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+})
+
+test('filter navigation only selects progressive bookmark results after they mount', async ({ page }) => {
+  await page.addInitScript(() => {
+    const idleCallbacks = new Map<number, IdleRequestCallback>()
+    let nextIdleId = 1
+    window.requestIdleCallback = (callback) => {
+      const idleId = nextIdleId
+      nextIdleId += 1
+      idleCallbacks.set(idleId, callback)
+      return idleId
+    }
+    window.cancelIdleCallback = (idleId) => {
+      idleCallbacks.delete(idleId)
+    }
+    ;(window as typeof window & { __tabOutRunNextIdle?: () => boolean }).__tabOutRunNextIdle = () => {
+      const next = idleCallbacks.entries().next().value
+      if (!next) return false
+      const [idleId, callback] = next
+      idleCallbacks.delete(idleId)
+      callback({ didTimeout: false, timeRemaining: () => 50 })
+      return true
+    }
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await page.evaluate(() => {
+    ;(window as typeof window & { __tabOutSmokeSetBookmarks: (count: number) => void })
+      .__tabOutSmokeSetBookmarks(100)
+  })
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+
+  const cards = page.locator('#openTabsMissions [data-tabout="domain-card"]')
+  await expect(cards).toHaveCount(24)
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Bookmark')
+  const candidates = page.locator('#openTabsMissions [data-tabout-filter-result]')
+  await expect(candidates).toHaveCount(24)
+  const lastInitiallyMountedId = await candidates.nth(23).getAttribute('id')
+
+  for (let step = 0; step < 24; step += 1) {
+    await input.press('ArrowDown')
+  }
+  await expect(input).toHaveAttribute('aria-activedescendant', lastInitiallyMountedId ?? '')
+  await expect(candidates.nth(23)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+  await expect.poll(() => input.evaluate((element) => {
+    const activeDescendant = element.getAttribute('aria-activedescendant')
+    return !!activeDescendant && !!document.getElementById(activeDescendant)
+  })).toBe(true)
+
+  expect(await page.evaluate(() => (
+    (window as typeof window & { __tabOutRunNextIdle?: () => boolean }).__tabOutRunNextIdle?.()
+  ))).toBe(true)
+  await expect(candidates).toHaveCount(48)
+  const firstNewlyMountedId = await candidates.nth(24).getAttribute('id')
+  await input.press('ArrowDown')
+  await expect(input).toHaveAttribute('aria-activedescendant', firstNewlyMountedId ?? '')
+  await expect(candidates.nth(24)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
 })
 
 test('filter keyboard selection keeps its identity when a higher-priority companion result arrives', async ({ page }) => {
@@ -391,6 +632,132 @@ test('a slow Tabs startup refresh cannot overwrite a completed Bookmarks switch'
   await page.waitForTimeout(600)
   await expect(bookmarkCard).toHaveCount(1)
   await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(0)
+})
+
+test('a replaced Chrome tab refreshes an already-open dashboard', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  const previousCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')
+  await expect(previousCard).toHaveCount(1)
+
+  await page.evaluate(async () => {
+    const replacedTab = await window.chrome.tabs.get(2)
+    Object.assign(replacedTab, {
+      id: 2002,
+      title: 'Prerender replacement',
+      url: 'https://prerender-replacement.test/ready'
+    })
+    ;(window.chrome.tabs.onReplaced as unknown as {
+      dispatch: (addedTabId: number, removedTabId: number) => void
+    }).dispatch(2002, 2)
+  })
+
+  await expect(page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="prerender-replacement.test"]'
+  )).toHaveCount(1)
+  await expect(previousCard).toHaveCount(0)
+})
+
+test('returning to Tabs cancels a pending Bookmarks source switch', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page)
+
+  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  await bookmarksSource.click()
+  await waitForBookmarkFetch(page)
+  await expect(bookmarksSource).toHaveAttribute('data-active', '')
+
+  await tabsSource.click()
+  await expect(tabsSource).toHaveAttribute('data-active', '')
+  await releaseBookmarkFetchGate(page)
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutBookmarkFetchGate?: BookmarkFetchGate })
+      .__tabOutBookmarkFetchGate?.completedCount === 1
+  ))
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
+
+  await expect(tabsSource).toHaveAttribute('data-active', '')
+  await expect(bookmarksSource).not.toHaveAttribute('data-active', '')
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')).toHaveCount(0)
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]')).toHaveCount(1)
+})
+
+test('filter Enter cannot activate stale Tabs results during a Bookmarks switch', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('https://tab-out-smoke-02.com/docs/2')
+  await expect(input).toHaveAttribute('aria-activedescendant', /.+/)
+  await installBookmarkFetchGate(page)
+
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+  await waitForBookmarkFetch(page)
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+  await input.focus()
+  await input.press('Enter')
+
+  await expect.poll(() => page.evaluate(async () => (await window.chrome.tabs.get(2)).active)).toBe(false)
+  await releaseBookmarkFetchGate(page)
+  await expect(input).toHaveAttribute('aria-label', 'Filter bookmarks…')
+  await expect.poll(() => page.evaluate(async () => (await window.chrome.tabs.get(2)).active)).toBe(false)
+})
+
+test('a pending filter Enter is cancelled when the selected source changes', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Bookmark')
+  await input.press('Enter')
+  await waitForBookmarkFetch(page)
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+  await releaseBookmarkFetchGate(page)
+
+  await expect(page.locator('[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]')).toHaveCount(1)
+  await expect.poll(() => page.evaluate(async () => (
+    (await window.chrome.tabs.query({})).filter(
+      (tab) => tab.url === 'https://bookmark-smoke-0001.test/docs/1'
+    ).length
+  ))).toBe(0)
+})
+
+test('a pending source switch rebuilds with the latest domain pins', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page, [{
+    id: 'root',
+    title: '',
+    children: [{
+      id: 'bar',
+      title: 'Bookmarks Bar',
+      children: [{
+        id: 'same-domain-bookmark',
+        title: 'Same domain bookmark',
+        url: 'https://tab-out-smoke-02.com/bookmark'
+      }]
+    }]
+  }])
+
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  await bookmarksSource.click()
+  await waitForBookmarkFetch(page)
+  await expect(bookmarksSource).toHaveAttribute('data-active', '')
+
+  const tabsCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')
+  await tabsCard.locator('[data-tabout-part="pin-button"]').click()
+  await expect(tabsCard.locator('[data-tabout-part="pin-button"]')).toHaveAttribute('aria-pressed', 'true')
+
+  await releaseBookmarkFetchGate(page)
+  const bookmarkCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')
+  await expect(bookmarkCard).toHaveCount(1)
+  await expect(bookmarkCard).toContainText('Same domain bookmark')
+  await expect(bookmarkCard).toHaveAttribute('data-tabout-domain-pinned', 'true')
+  await expect(bookmarkCard.locator('[data-tabout-part="pin-button"]')).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('a slow unfiltered startup snapshot still hydrates after the filter changes', async ({ page }) => {
@@ -971,6 +1338,7 @@ test('Page Chip overflow expansion fades the expander and reveals hidden chips t
   const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
   const expander = card.locator('[data-tabout-part="overflow-expander"]')
   await expect(expander).toHaveCount(1)
+  await expect(card.locator('.page-chips-overflow-reveal [data-tabout="page-chip"]')).toHaveCount(0)
 
   const motion = await expander.evaluate((button) => new Promise<{
     fadeKeyframes: Keyframe[]
@@ -1113,13 +1481,11 @@ test('closing the last rendered Page Chip before overflow uses the refresh move 
   await page.goto('/tests/fixtures/dashboard-resize.html?motion=1&slowCloseRefresh=1')
   const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="overflow-motion.test"]')
   const slots = card.locator('[data-tabout-part="slot"][data-tabout-layout-item]')
-  const renderedSlotIndexes = await slots.evaluateAll((items) => items.flatMap((item, index) => (
-    item.getClientRects().length > 0 ? [index] : []
-  )))
-  expect(renderedSlotIndexes.length).toBeGreaterThan(0)
-  expect(renderedSlotIndexes.length).toBeLessThan(await slots.count())
+  const expander = card.locator('[data-tabout-part="overflow-expander"]')
+  await expect(slots).not.toHaveCount(0)
+  await expect(expander).toHaveText(/\+\d+ more/)
 
-  const slot = slots.nth(renderedSlotIndexes.at(-1) ?? -1)
+  const slot = slots.last()
   const scope = await slot.getAttribute('data-tabout-layout-scope')
   expect(scope).toBeTruthy()
   await slot.evaluate((element) => element.setAttribute('data-motion-target-slot', ''))

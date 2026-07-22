@@ -4,13 +4,12 @@ import test from 'node:test'
 import {
   PAGE_CHIP_PIN_STORAGE_KEY,
   createPinnedPageChipIndex,
-  loadPinnedPageChips,
+  loadPinnedPageChipsResult,
   normalizePinnedPageChips,
   pageChipPinId,
   pageChipPinKeyForUrl,
   pageChipPinScopeId,
   pinnedPageChipOrder,
-  savePinnedPageChips,
   togglePinnedPageChipInList
 } from '../src/extension/page-chip-pins.js'
 import { installChromeStorageMock } from './helpers/chrome-storage.js'
@@ -61,36 +60,33 @@ test('createPinnedPageChipIndex exposes per-source and per-scope pin order', () 
   assert.equal(pinnedPageChipOrder(index, 'tabs', rootScope, pageChipPinKeyForUrl('https://example.com/c')), null)
 })
 
-test('loadPinnedPageChips returns [] when chrome.storage is unavailable', async () => {
+test('loadPinnedPageChipsResult reports unavailable chrome.storage', async () => {
   const previous = (globalThis as { chrome?: unknown }).chrome
   delete (globalThis as { chrome?: unknown }).chrome
   try {
-    assert.deepEqual(await loadPinnedPageChips(), [])
+    assert.deepEqual(await loadPinnedPageChipsResult(), { ok: false, value: [] })
   } finally {
     if (previous !== undefined) (globalThis as { chrome?: unknown }).chrome = previous
   }
 })
 
-test('loadPinnedPageChips reads and normalizes the stored value', async () => {
+test('loadPinnedPageChipsResult reads and normalizes the stored value', async () => {
   const scopeId = pageChipPinScopeId('example.com', '', '', '')
   const id = pageChipPinId('tabs', scopeId, pageChipPinKeyForUrl('https://example.com/a'))
   const restore = installChromeStorageMock({
     [PAGE_CHIP_PIN_STORAGE_KEY]: [id, 'bogus', id]
   })
   try {
-    assert.deepEqual(await loadPinnedPageChips(), [id])
+    assert.deepEqual(await loadPinnedPageChipsResult(), { ok: true, value: [id] })
   } finally {
     restore()
   }
 })
 
-test('savePinnedPageChips writes a normalized value', async () => {
-  const restore = installChromeStorageMock()
+test('loadPinnedPageChipsResult rejects malformed stored state', async () => {
+  const restore = installChromeStorageMock({ [PAGE_CHIP_PIN_STORAGE_KEY]: {} })
   try {
-    const scopeId = pageChipPinScopeId('example.com', '', '', '')
-    const id = pageChipPinId('tabs', scopeId, pageChipPinKeyForUrl('https://example.com/a'))
-    await savePinnedPageChips([id, id, 'bogus'])
-    assert.deepEqual(await loadPinnedPageChips(), [id])
+    assert.deepEqual(await loadPinnedPageChipsResult(), { ok: false, value: [] })
   } finally {
     restore()
   }

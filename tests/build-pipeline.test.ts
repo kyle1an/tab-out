@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 
 import { createExtensionManifest } from '../src/extension/manifest.js'
 
@@ -78,6 +78,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.deepEqual(manifest, createExtensionManifest({ version: pkg.version }))
   assert.equal(manifest.background?.service_worker, 'dist/background.js')
   assert.equal(manifest.version, pkg.version)
+  assert.equal(manifest.incognito, 'not_allowed')
 
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   const buildScript = readFileSync('scripts/build-extension.mjs', 'utf8')
@@ -110,7 +111,9 @@ test('extension HTML loads the Vite-built React entry', () => {
   const appSource = readFileSync('src/app.tsx', 'utf8')
   const appStylesheet = readFileSync('src/styles/app.css', 'utf8')
   const appComponentSource = readFileSync('src/components/App.tsx', 'utf8')
+  const dashboardInteractionContextSource = readFileSync('src/components/DashboardInteractionContext.tsx', 'utf8')
   const useHoverMatchSource = readFileSync('src/hooks/useHoverMatch.ts', 'utf8')
+  const useUrlPreviewSource = readFileSync('src/hooks/useUrlPreview.ts', 'utf8')
   const baseStylesheet = readFileSync('extension/base.css', 'utf8')
   const domainCardSource = readFileSync('src/components/DomainCard.tsx', 'utf8')
   const domainCardContextSource = readFileSync('src/components/DomainCardContext.tsx', 'utf8')
@@ -348,8 +351,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   // (regression: right-clicking an already-expanded chip duplicated the marker).
   assert.match(pageChipSource, /function openChipExpansion\(\) \{[\s\S]*if \(!chipExpandedRef\.current\) \{[\s\S]*updateChipSlotMeasurements\(\)[\s\S]*\}/)
   assert.match(pageChipSource, /pageTargetMatchUrls\(target\)/)
-  assert.match(pageChipSource, /pageTargetMatchesHover\(target, activeHoverUrl, activeHoverUrls\)/)
-  assert.match(pageChipOverflowSource, /pageTargetMatchesHover\(chip, activeHoverUrl, activeHoverUrls\)/)
+  assert.match(pageChipSource, /pageTargetMatchesHover\(target, state\.url, state\.urls\)/)
+  assert.match(pageChipOverflowSource, /pageTargetMatchesHover\(chip, state\.url, state\.urls\)/)
   assert.match(pageChipSource, /chip-text-expansion-hit-area -my-\[5px\][\s\S]*py-\[5px\]/)
   assert.match(pageChipSource, /function onChipPointerEnter\(\) \{[\s\S]*openChipExpansion\(\)/)
   assert.match(pageChipSource, /function isPointerInsideChipSlot\(e: PointerEvent<HTMLDivElement>\) \{[\s\S]*chipSlotRef\.current\?\.getBoundingClientRect\(\)/)
@@ -440,7 +443,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(tabHistoryPanelSource, /function onHistoryEntryPointerMove\(e: PointerEvent<HTMLDivElement>\)/)
   assert.match(tabHistoryPanelSource, /window\.addEventListener\('pointermove', closeOnPointerMove, true\)/)
   assert.match(tabHistoryPanelSource, /history-entry-title-expansion-hit-area/)
-  assert.match(tabHistoryPanelSource, /pageTargetMatchesHover\(entry, activeHoverUrl, activeHoverUrls\)/)
+  assert.match(tabHistoryPanelSource, /pageTargetMatchesHover\(entry, state\.url, state\.urls\)/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_CLICKABLE_INTERACTION_BG = 'color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)'/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_INTERACTION_CLASSES = 'group-hover\/history-row:bg-\(--history-entry-interaction-bg\)[\s\S]*\[\&\.history-entry-expanded-open\]:bg-\(--history-entry-interaction-bg\)/)
   assert.match(tabHistoryPanelSource, /HISTORY_ENTRY_ACTIVE_OTHER_INTERACTION_CLASSES = `bg-\(--history-entry-rest-bg\)/)
@@ -630,14 +633,18 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(pageChipSource, /dedupeBadgesClosing && 'closing'/)
   assert.match(domainCardContextSource, /createContext\(defaultDomainCardContext\)/)
   assert.match(domainCardSource, /<DomainCardProvider value=\{cardContext\}>/)
-  assert.match(useHoverMatchSource, /const \[hoverMatch, setHoverMatch\] = useState/)
-  assert.match(useHoverMatchSource, /useState<HoverMatchState>\(\{ url: '', urls: \[\], source: null \}\)/)
+  assert.match(dashboardInteractionContextSource, /createHoverStateStore/)
+  assert.match(dashboardInteractionContextSource, /subscribeSelector/)
+  assert.match(dashboardInteractionContextSource, /useSyncExternalStore/)
+  assert.match(useHoverMatchSource, /const \[hoverStateStore\] = useState\(createHoverStateStore\)/)
   assert.match(useHoverMatchSource, /function sameHoverUrls/)
   assert.match(useHoverMatchSource, /function handleHoverUrlChange\(url: string, source: HoverUrlSource = 'chip', matchUrls\?: readonly string\[\]\)/)
-  assert.match(useHoverMatchSource, /setHoverMatch/)
+  assert.match(useHoverMatchSource, /hoverStateStore\.setSnapshot/)
   assert.match(useHoverMatchSource, /setUrlPreview\(nextUrl\)/)
-  assert.match(appComponentSource, /<HoverStateProvider value=\{hoverMatch\}>/)
-  assert.match(tabHistoryPanelSource, /useHoverState\(\)/)
+  assert.match(useUrlPreviewSource, /URL_PREVIEW_HIDE_DELAY_MS = 120/)
+  assert.match(appComponentSource, /<HoverStateProvider store=\{hoverStateStore\}>/)
+  assert.match(appComponentSource, /<UrlPreview store=\{urlPreviewStore\}/)
+  assert.match(tabHistoryPanelSource, /useHoverStateSelector/)
   assert.match(`${flatSectionSource}\n${pageChipSource}\n${pathgroupSectionSource}\n${subdomainSectionSource}`, /useDomainCardContext/)
   assert.doesNotMatch(`${flatSectionSource}\n${pathgroupSectionSource}\n${subdomainSectionSource}`, /dedupeBadgesClosing\?:|onActiveSuppressedTitleChange\?:|onHoverUrlChange\?:|onLayoutChange\?:/)
   assert.doesNotMatch(domainCardSource, /querySelectorAll/)
@@ -665,9 +672,23 @@ test('built extension bundle is packaged locally', () => {
   const assetFiles = readdirSync('extension/dist/assets').sort()
   const assetJsFiles = assetFiles.filter((name) => name.endsWith('.js'))
   const indexHtml = readFileSync('extension/index.html', 'utf8')
+  const appBundleBytes = statSync('extension/dist/app.js').size
+  const backgroundBundleBytes = statSync('extension/dist/background.js').size
+  const stylesheetBytes = statSync('extension/dist/assets/app.css').size
+  const totalJavaScriptBytes = appBundleBytes + backgroundBundleBytes +
+    statSync('extension/dist/filter-focus-boot.js').size +
+    assetJsFiles.reduce((total, name) => total + statSync(`extension/dist/assets/${name}`).size, 0)
   assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'filter-focus-boot.js'])
   assert.ok(assetFiles.includes('app.css'))
   assert.equal(assetJsFiles.length, 16)
+  // Caps are anchored to the pinned-Node production build with modest growth
+  // room. The complete exact Public Suffix List is deliberately present in
+  // both entry contexts, so avoid replacing correctness with the smaller
+  // probabilistic parser merely to hit an arbitrary legacy size.
+  assert.ok(appBundleBytes <= 925_000, `app bundle exceeded 925000 bytes: ${appBundleBytes}`)
+  assert.ok(backgroundBundleBytes <= 390_000, `background bundle exceeded 390000 bytes: ${backgroundBundleBytes}`)
+  assert.ok(stylesheetBytes <= 125_000, `stylesheet exceeded 125000 bytes: ${stylesheetBytes}`)
+  assert.ok(totalJavaScriptBytes <= 1_550_000, `total JavaScript exceeded 1550000 bytes: ${totalJavaScriptBytes}`)
   assert.ok(assetJsFiles.some((name) => /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^bookmarks-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^CardActionsMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))

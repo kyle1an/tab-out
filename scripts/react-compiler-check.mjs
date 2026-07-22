@@ -19,7 +19,7 @@ const REPO = resolve(import.meta.dirname, '..')
 
 // file (repo-relative) -> expected CompileError count
 const BASELINE = new Map([
-  ['src/components/App.tsx', 5], // deliberate ordering-cache ref reads in render
+  ['src/components/App.tsx', 1], // deliberate ordering-cache ref read in render
   ['src/components/title-expansion/use-title-expansion.ts', 1], // lazy-init ref facade (stable return)
   ['src/components/ui/tooltip.tsx', 3], // mergeRefs composition (documented suppressions)
   ['src/extension/layout.ts', 2], // latest-ref render writes; returns are manual useCallbacks

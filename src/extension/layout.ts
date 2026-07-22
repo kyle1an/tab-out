@@ -140,8 +140,12 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
     card.style.width = `${colWidth}px`
   })
 
+  // Width is the only write that can change card height. Read every resulting
+  // height together before positioning any card so the loop below stays
+  // write-only instead of forcing a layout after each left/top mutation.
+  const cardHeights = cards.map((card) => card.getBoundingClientRect().height)
   const colHeights: number[] = new Array(colCount).fill(0)
-  cards.forEach((card) => {
+  cards.forEach((card, index) => {
     let col = 0
     const prev = parseInt(card.dataset.masonryCol || '', 10)
     if (Number.isInteger(prev) && prev >= 0 && prev < colCount) {
@@ -155,7 +159,7 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
     }
     card.style.left = `${col * (colWidth + options.gap)}px`
     card.style.top = `${colHeights[col] ?? 0}px`
-    colHeights[col] = (colHeights[col] ?? 0) + card.getBoundingClientRect().height + options.gap
+    colHeights[col] = (colHeights[col] ?? 0) + (cardHeights[index] ?? 0) + options.gap
   })
 
   container.style.height = `${Math.max(...colHeights) - options.gap}px`
@@ -170,6 +174,7 @@ export function useMissionsMasonry(...args: unknown[]) {
   const rafIdRef = useRef(0)
   const observerRef = useRef<ResizeObserver | null>(null)
   const mutationObserverRef = useRef<MutationObserver | null>(null)
+  const observedContainersRef = useRef(new Set<HTMLElement>())
   const observedContainerWidthsRef = useRef(new WeakMap<HTMLElement, number>())
   const containerRefsRef = useRef(containerRefs)
   const optionsRef = useRef({ onAfterLayout, onBeforePack, onAfterPack })
@@ -232,21 +237,32 @@ export function useMissionsMasonry(...args: unknown[]) {
       })
       mutationObserverRef.current = mutationObserver
     }
-    observer.disconnect()
-    mutationObserver.disconnect()
+    const nextContainers = new Set<HTMLElement>()
     containerRefs.forEach((ref) => {
       const container = ref.current
       if (!container) return
+      nextContainers.add(container)
+    })
+    const observedContainers = observedContainersRef.current
+    const targetsChanged = observedContainers.size !== nextContainers.size ||
+      Array.from(observedContainers).some((container) => !nextContainers.has(container))
+    if (!targetsChanged) return
+
+    // Most App renders do not replace a mission grid. Keep the observers
+    // attached in that common case; disconnect/re-observe churn otherwise
+    // delivers redundant initial ResizeObserver records for every hover or
+    // selection update. Conditional grids still rebind on the first render
+    // where their ref target actually changes.
+    observer.disconnect()
+    mutationObserver.disconnect()
+    nextContainers.forEach((container) => {
       if (!observedContainerWidthsRef.current.has(container)) {
         observedContainerWidthsRef.current.set(container, container.clientWidth)
       }
       observer.observe(container)
       mutationObserver.observe(container, { childList: true })
     })
-    return () => {
-      observer.disconnect()
-      mutationObserver.disconnect()
-    }
+    observedContainersRef.current = nextContainers
   })
 
   useEffect(
@@ -254,6 +270,7 @@ export function useMissionsMasonry(...args: unknown[]) {
       cancelAnimationFrame(rafIdRef.current)
       observerRef.current?.disconnect()
       mutationObserverRef.current?.disconnect()
+      observedContainersRef.current.clear()
     },
     []
   )

@@ -3,9 +3,11 @@ import test from 'node:test'
 
 import {
   closeTargetLeavesSavedPage,
+  historyDeleteFullyRemoved,
   variantClosable,
   partitionVariantCloseTargets,
   groupCloseActionLabel,
+  titleVariantGroupRemovalConfirmed,
 } from '../src/components/chip-close-targets.js'
 
 test('variantClosable: open tabs and history entries are closable', () => {
@@ -56,4 +58,37 @@ test('groupCloseActionLabel: singular labels match single-chip wording', () => {
 test('groupCloseActionLabel: plural labels are count-aware', () => {
   assert.equal(groupCloseActionLabel({ count: 3, allHistory: false }), 'Close 3 tabs')
   assert.equal(groupCloseActionLabel({ count: 2, allHistory: true }), 'Delete 2 from history')
+})
+
+test('historyDeleteFullyRemoved rejects partial history deletion', () => {
+  assert.equal(historyDeleteFullyRemoved(2, { deletedCount: 2 }), true)
+  assert.equal(historyDeleteFullyRemoved(2, { deletedCount: 1 }), false)
+  assert.equal(historyDeleteFullyRemoved(2, null), false)
+})
+
+test('titleVariantGroupRemovalConfirmed requires every requested tab and history target to be removed', () => {
+  assert.equal(titleVariantGroupRemovalConfirmed({
+    requestedTabCount: 2,
+    tabResult: { ok: true, shouldAnimateRemoval: true },
+    requestedHistoryCount: 2,
+    historyResult: { deletedCount: 2 }
+  }), true)
+  assert.equal(titleVariantGroupRemovalConfirmed({
+    requestedTabCount: 2,
+    tabResult: { ok: true, shouldAnimateRemoval: false },
+    requestedHistoryCount: 2,
+    historyResult: { deletedCount: 2 }
+  }), false)
+  assert.equal(titleVariantGroupRemovalConfirmed({
+    requestedTabCount: 2,
+    tabResult: { ok: false, shouldAnimateRemoval: false },
+    requestedHistoryCount: 2,
+    historyResult: { deletedCount: 2 }
+  }), false)
+  assert.equal(titleVariantGroupRemovalConfirmed({
+    requestedTabCount: 2,
+    tabResult: { ok: true, shouldAnimateRemoval: true },
+    requestedHistoryCount: 2,
+    historyResult: { deletedCount: 1 }
+  }), false)
 })

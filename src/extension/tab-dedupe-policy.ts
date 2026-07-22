@@ -3,6 +3,7 @@ import { isGroupedTab, compareForKeep } from './groups.js'
 export type DedupeTabCandidate = {
   id?: number | string
   url?: string
+  pendingUrl?: string
   groupId?: number
   active?: boolean
   pinned?: boolean
@@ -25,8 +26,12 @@ export type DuplicateCountOptions = {
   isTabOutUrl?: (url?: string) => boolean
 }
 
+function candidateUrl(tab: DedupeTabCandidate): string | undefined {
+  return tab.pendingUrl || tab.url
+}
+
 function isCurrentTabOutPage(tab: DedupeTabCandidate, currentWindowId: number, isTabOutUrl: (url?: string) => boolean): boolean {
-  return currentWindowId >= 0 && tab.active === true && tab.windowId === currentWindowId && isTabOutUrl(tab.url)
+  return currentWindowId >= 0 && tab.active === true && tab.windowId === currentWindowId && isTabOutUrl(candidateUrl(tab))
 }
 
 export function countClosableDuplicateExtras(
@@ -84,7 +89,7 @@ export function pickDuplicateTabsToClose<Tab extends DedupeTabCandidate>(
   }
 
   if (preservePinned || preservePinnedTabOut) {
-    const pinned = matching.filter((tab) => tab.pinned && (preservePinned || isTabOutUrl(tab.url)))
+    const pinned = matching.filter((tab) => tab.pinned && (preservePinned || isTabOutUrl(candidateUrl(tab))))
     if (pinned.length >= 1) {
       const pinnedIds = new Set(pinned.map((tab) => tab.id))
       return pickGroupAwareCloseTargets(matching.filter((tab) => !pinnedIds.has(tab.id)), true)

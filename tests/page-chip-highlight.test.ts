@@ -65,8 +65,8 @@ function renderWithDomainCardContext(element: React.ReactElement, overrides: Ren
     activeSuppressedTitle: overrides.activeSuppressedTitle ?? '',
     setActiveSuppressedTitle: overrides.setActiveSuppressedTitle ?? (() => {}),
     dedupeBadgesClosing: overrides.dedupeBadgesClosing ?? false,
-    suppressionCloseUrlsByText: overrides.suppressionCloseUrlsByText ?? {},
-    suppressionSuspendUrlsByText: overrides.suppressionSuspendUrlsByText ?? {}
+    suppressionCloseTargetsByText: overrides.suppressionCloseTargetsByText ?? {},
+    suppressionSuspendTargetsByText: overrides.suppressionSuspendTargetsByText ?? {}
   }
   const hoverState = {
     url: overrides.activeHoverUrl ?? '',
@@ -789,7 +789,7 @@ test('PageChip skips close removal animation when a saved open chip remains as a
 
   assert.match(pageChipSource, /const chipCloseLeavesSavedPage =/)
   assert.match(pageChipSource, /shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl/)
-  assert.match(pageChipSource, /if \(!chipCloseLeavesSavedPage && chipEl\) startPageChipCloseAnimation/)
+  assert.match(pageChipSource, /!chipCloseLeavesSavedPage &&\s*chipEl &&\s*titleVariantGroupRemovalConfirmed/)
 })
 
 test('PageChip outlines matching live chips when an external row owns the match', () => {
@@ -940,7 +940,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.doesNotMatch(pageChipSource, /titleVariantGroupContainsRelatedTarget/)
   assert.doesNotMatch(pageChipSource, /defaultTitleVariantHoverUrl/)
   assert.doesNotMatch(pageChipSource, /chipMatchesDefaultTitleVariantHover/)
-  assert.match(pageChipSource, /variantHoverMatched = externalHoverActive && chipMatchesActiveHover\(variant\)/)
+  assert.match(pageChipSource, /variantHoverMatched = hoverMatchKey\[index \+ 1\] === '1'/)
   assert.match(pageChipSource, /variantHoverMatched && 'bg-\(--chip-target-interaction-bg\) text-tab-live'/)
   assert.match(pageChipSource, /variantCurrent && 'bg-neutral-100 text-tab-live shadow-\[inset_2px_0_0_0_var\(--accent-amber\)\]'/)
   assert.match(pageChipSource, /variantActive && 'bg-neutral-600\/\[0\.075\] text-tab-live'/)
@@ -2317,7 +2317,6 @@ test('cross-surface hover match styling is outline-only', () => {
   const OUTLINE_UTILITIES = /outline outline-1 outline-offset-1 outline-\(--accent-amber\)/
   const surfaces: Array<[string, RegExp]> = [
     ['../src/components/TabHistoryPanel.tsx', /hoverMatched && 'history-entry-hover-match ([^']*)'/],
-    ['../src/components/WorkingSetPanel.tsx', /hoverMatched && 'working-set-item-hover-match ([^']*)'/],
     ['../src/components/PageChipOverflow.tsx', /hiddenHoverMatched && 'page-chip-overflow-hover-match ([^']*)'/],
     ['../src/components/PageChip.tsx', /hoverMatched && `\$\{CHIP_TRIM_TOKENS\.hoverMatch\} ([^`]*)`/]
   ]
@@ -2850,6 +2849,30 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
     assert.ok(moreTextMatch, 'overflow more-count text should render')
     assert.match(moreTextMatch[1], /text-\[13px\]/)
   }
+})
+
+test('Collapsed overflow defers hidden Page Chip rendering until expansion', () => {
+  const html = renderWithDomainCardContext(
+    React.createElement(FlatSection, {
+      visibleChips: [makeChip({
+        rawUrl: 'https://example.test/visible',
+        tabUrl: 'https://example.test/visible',
+        displaySegments: ['Visible page']
+      })],
+      hiddenChips: [makeChip({
+        rawUrl: 'https://example.test/deferred',
+        tabUrl: 'https://example.test/deferred',
+        displaySegments: ['Deferred hidden page']
+      })],
+      hiddenCount: 1
+    })
+  )
+
+  assert.equal([...html.matchAll(/data-tabout="page-chip"/g)].length, 1)
+  assert.match(html, /page:https:\/\/example\.test\/visible/)
+  assert.doesNotMatch(html, /example\.test\/deferred/)
+  assert.doesNotMatch(html, /Deferred hidden page/)
+  assert.match(html, /data-tabout-part="overflow-expander"/)
 })
 
 test('Overflow expanders keep the row neutral when only some hidden chips match active suppressed title text', () => {
@@ -3691,29 +3714,15 @@ test('HistoryEntry renders open-ghost marker with data-tabout-part attribute', (
   assert.doesNotMatch(html, /history-entry-marker-(open|closed)-ghost/)
 })
 
-test('closed-ghost row exposes a forget affordance instead of a tab-close', () => {
-  const html = renderToStaticMarkup(
-    React.createElement(TabHistoryPanel as React.ComponentType<any>, {
-      snapshot: makeHistorySnapshot(),
-      closedTabs: [
-        {
-          sessionId: 'session-forget',
-          tabId: 556,
-          url: 'https://example.com/closed',
-          rawUrl: 'https://example.com/closed',
-          displayUrl: 'example.com/closed',
-          title: 'Closed Page',
-          favIconUrl: '',
-          lastClosedAt: Date.now() - 60_000
-        }
-      ]
-    })
-  )
+test('closed-ghost rows declare a forget affordance instead of a tab-close', () => {
+  // A server render intentionally keeps closed rows hidden because effects
+  // have not established whether dismissal storage is known. The pure row
+  // builder covers that state gate; guard the rendered action wiring here.
+  const source = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
 
-  assert.match(html, /data-tabout-part="forget-button"/)
-  assert.match(html, /aria-label="Remove Closed Page from recently closed"/)
-  // Non-destructive forget uses the eye-off glyph, not the tab-close X.
-  assert.match(html, /lucide-eye-off/)
+  assert.match(source, /data-tabout-part=\{canForgetClosedGhost \? 'forget-button' : 'close-button'\}/)
+  assert.match(source, /aria-label=\{canForgetClosedGhost \? `Remove \$\{entryLabel\} from recently closed` : `Close \$\{entryLabel\}`\}/)
+  assert.match(source, /canForgetClosedGhost \? \(\s*<EyeOff/)
 })
 
 test('TabHistoryPanel highlights filter matches in history-row titles', () => {

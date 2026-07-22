@@ -8,6 +8,7 @@ import { CardActionsMenu } from './CardActionsMenu'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
+import { domainCardCloseRemovesAllItems } from './domain-card-close-policy.js'
 import { useRef, useState } from 'react'
 import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 import { emptyTitleSuppressionToneScope } from './title-suppression'
@@ -180,8 +181,8 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
     activeSuppressedTitle,
     setActiveSuppressedTitle,
     dedupeBadgesClosing,
-    suppressionCloseUrlsByText: vm.suppressionCloseUrlsByText ?? {},
-    suppressionSuspendUrlsByText: vm.suppressionSuspendUrlsByText ?? {}
+    suppressionCloseTargetsByText: vm.suppressionCloseTargetsByText ?? {},
+    suppressionSuspendTargetsByText: vm.suppressionSuspendTargetsByText ?? {}
   }
   if (vm.isHidden) return null
   const hideCardClose = group.domain === '__standalone-apps__'
@@ -207,8 +208,13 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
       group,
       filter,
       displayName,
-      onAfterClose: async () => {
-        if (block && !filter) {
+      onAfterClose: async ({ snapshot }) => {
+        if (block && domainCardCloseRemovesAllItems({
+          closableCount,
+          filter,
+          group,
+          removedCount: snapshot.length
+        })) {
           block.classList.add('closing')
           await new Promise((resolve) => setTimeout(resolve, 250))
         }
@@ -229,10 +235,13 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
     await dedupeTabs({
       urls,
       preservePinnedTabOut: group.domain === '__tab-out__',
-      onAfterClose: async () => {
+      onAfterClose: async ({ snapshot }) => {
+        if (snapshot.length === 0) return
         setDedupeBadgesClosing(true)
         await new Promise((resolve) => setTimeout(resolve, 200))
       }
+    }).finally(() => {
+      setDedupeBadgesClosing(false)
     })
   }
 
