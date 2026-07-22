@@ -166,6 +166,11 @@ test('chip-trim: the expanded fill spares flush edges and extends grown edges', 
   assert.equal(inPlaceDown.top, '1px')
   assert.equal(inPlaceDown.bottom, '1px')
   assert.equal(inPlaceDown.background, OPAQUE_CLICKABLE)
+  assert.ok(inPlaceDown.classes.includes('opacity-0'))
+  assert.ok(inPlaceDown.classes.includes('group-hover/page-chip:opacity-100'))
+  assert.ok(inPlaceDown.classes.includes('group-focus-visible/page-chip:opacity-100'))
+  assert.ok(inPlaceDown.classes.includes('group-[.page-chip-context-menu-open]/page-chip:opacity-100'))
+  assert.ok(inPlaceDown.classes.includes('group-[.page-chip-tooltip-open]/page-chip:opacity-100'))
 
   const grownDown = chipTrim(facts({ expanded: { grewTaller: true, y: 'down' } })).expandedFill
   assert.ok(grownDown)

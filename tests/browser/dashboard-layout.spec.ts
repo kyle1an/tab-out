@@ -215,6 +215,70 @@ test('ordinary dashboard renders keep masonry observers attached', async ({ page
   expect(await readDisconnects()).toEqual(before)
 })
 
+test('Page Chip clears its interaction chrome as soon as the pointer leaves', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const chip = page.locator('[data-tabout="page-chip"]').first()
+  const restingPaint = await chip.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      root: {
+        backgroundColor: style.backgroundColor,
+        boxShadow: style.boxShadow,
+        outline: style.outline
+      },
+      actionFadeOpacity: getComputedStyle(element, '::after').opacity
+    }
+  })
+
+  await chip.hover()
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  const expandedChipElement = await chip.elementHandle()
+  expect(expandedChipElement).not.toBeNull()
+  const readExpandedInteractionPaint = () => expandedChipElement!.evaluate((element) => {
+    const style = getComputedStyle(element)
+    const expandedFill = element.querySelector<HTMLElement>('.page-chip-expanded-fill')
+    return {
+      root: {
+        backgroundColor: style.backgroundColor,
+        boxShadow: style.boxShadow,
+        outline: style.outline
+      },
+      actionFadeOpacity: getComputedStyle(element, '::after').opacity,
+      expandedFillOpacity: expandedFill ? getComputedStyle(expandedFill).opacity : null
+    }
+  })
+  const hoveredPaint = await readExpandedInteractionPaint()
+  expect(hoveredPaint.root).not.toEqual(restingPaint.root)
+  expect(hoveredPaint.expandedFillOpacity).toBe('1')
+
+  const expandedBounds = await expandedChipElement!.boundingBox()
+  expect(expandedBounds).not.toBeNull()
+  await page.evaluate(() => {
+    const nativeSetTimeout = window.setTimeout.bind(window)
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => (
+      nativeSetTimeout(handler, timeout && timeout <= 500 ? 10_000 : timeout, ...args)
+    )) as typeof window.setTimeout
+  })
+
+  await page.mouse.move(
+    (expandedBounds?.x ?? 0) + (expandedBounds?.width ?? 0) + 2,
+    (expandedBounds?.y ?? 0) + (expandedBounds?.height ?? 0) / 2
+  )
+  expect(await expandedChipElement!.evaluate((element) => ({
+    expanded: element.getAttribute('data-expanded'),
+    hovered: element.matches(':hover')
+  }))).toEqual({
+    expanded: 'true',
+    hovered: false
+  })
+  expect(await readExpandedInteractionPaint()).toEqual({
+    ...restingPaint,
+    expandedFillOpacity: '0'
+  })
+})
+
 test('measured dashboard titles share one document font listener', async ({ page }) => {
   await page.addInitScript(() => {
     const counts = { loadingdone: 0, loadingerror: 0 }

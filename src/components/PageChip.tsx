@@ -2059,7 +2059,6 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const hasTitleSuppressionMarkers = suppressedTitleParts.length > 0 || chip.displaySegments.some(isTitleSuppressionSegment)
   const hasStructuralPlaceholders = chip.displaySegments.some((segment) => isStructuralPlaceholderSegment(segment) && !!(segment.label || chip.pathGroupLabel))
   const shouldExpandChip = !chip.iconOnly && (hasExpandableContent || hasTitleSuppressionMarkers || hasStructuralPlaceholders)
-  const chipVisualOpen = chipExpanded || chipTooltipOpen
   const chipSlotStyle: CSSVariableProperties | undefined = chipExpanded && chipSlotSize.width > 0 && chipSlotSize.height > 0 ? {
     height: `${chipSlotSize.height}px`,
     width: `${chipSlotSize.width}px`
@@ -2708,8 +2707,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
           "page-chip group/page-chip relative flex items-start gap-2 rounded-[10px] border-0 bg-transparent py-[5px] pr-1 pl-3 text-left text-[13px] leading-tight text-tab-live [font-family:inherit] [corner-shape:squircle] transition-[color,box-shadow] duration-100 before:pointer-events-none before:absolute before:top-[7px] before:bottom-[7px] before:left-1 before:w-0.5 before:rounded-[1px] before:bg-(--group-color,transparent) before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-(--chip-hover-fade-width) after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--chip-hover-fade-bg)_34%,var(--chip-hover-fade-bg)_100%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none",
           !chip.iconOnly && 'w-full',
           parentInteractive && 'clickable cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--accent-amber) data-[tabout-filter-result-selected=true]:bg-(--chip-interaction-bg) data-[tabout-filter-result-selected=true]:outline-1 data-[tabout-filter-result-selected=true]:outline-offset-2 data-[tabout-filter-result-selected=true]:outline-(--accent-amber)',
-          chipVisualOpen && CHIP_TRIM_TOKENS.tooltipOpen,
-          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) !overflow-visible !transition-none w-(--page-chip-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
+          chipTooltipOpen && CHIP_TRIM_TOKENS.tooltipOpen,
+          chipExpanded && 'page-chip-expanded absolute z-30 min-w-0 max-w-(--page-chip-expanded-max-width) !overflow-visible !transition-none w-(--page-chip-expanded-width) hover:shadow-[0_3px_10px_rgba(10,10,10,0.055)] focus-visible:shadow-[0_3px_10px_rgba(10,10,10,0.055)] [&.page-chip-context-menu-open]:shadow-[0_3px_10px_rgba(10,10,10,0.055)] [&.page-chip-tooltip-open]:shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           chipExpanded && 'left-0',
           chipExpanded && (chipExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           trim.chipClasses,

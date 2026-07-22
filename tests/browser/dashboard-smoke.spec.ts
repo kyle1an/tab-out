@@ -2626,6 +2626,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
         const closeButton = chip.querySelector('.chip-close-favicon')
         const faviconContent = chip.querySelector('.chip-favicon-content')
         const duplicateStack = chip.querySelector('.chip-favicon-stack')
+        const expandedFill = chip.querySelector('.page-chip-expanded-fill')
         const readPart = (part) => {
           if (!(part instanceof HTMLElement)) return null
           const partStyles = window.getComputedStyle(part)
@@ -2644,6 +2645,12 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
           width: Math.round(chip.getBoundingClientRect().width),
           closeButton: readPart(closeButton),
           duplicateStack: readPart(duplicateStack),
+          expandedFill: expandedFill instanceof HTMLElement
+            ? {
+                backgroundColor: window.getComputedStyle(expandedFill).backgroundColor,
+                opacity: window.getComputedStyle(expandedFill).opacity
+              }
+            : null,
           faviconContent: readPart(faviconContent),
           hover: chip.matches(':hover'),
           urlPreview: document.querySelector('.url-preview span')?.textContent || ''
@@ -2812,7 +2819,7 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
     y: replacementTarget.y
   })
   await waitForPageChipExpansionRect(session, 'Example 2 with enough tooltip text')
-  const tooltipOpenChipState = await readPageChipVisualState(replacementTarget)
+  const expandedHoverChipState = await readPageChipVisualState(replacementTarget)
   const visibleTooltipCountBeforeMenu = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
     expression: `Array.from(document.querySelectorAll('[data-slot="tooltip-content"]')).filter((tooltip) => {
@@ -2820,17 +2827,19 @@ async function measurePageChipContextMenuSave(session: CdpSession) {
       return rect.width > 0 && rect.height > 0 && !tooltip.hasAttribute('data-ending-style')
     }).length`
   }).then((result: any) => result.result.value)
-  assert.equal(tooltipOpenChipState?.expanded, true, `page chip should expand in place before context-menu shield check: ${JSON.stringify({ replacementTarget, tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.tooltipOpen, true, `page chip should keep the visual-open class while expanded in place: ${JSON.stringify({ tooltipOpenChipState })}`)
-  assert.equal(visibleTooltipCountBeforeMenu, 0, `in-place page chip expansion should not create a tooltip popup before context-menu shield check: ${JSON.stringify({ replacementTarget, tooltipOpenChipState, visibleTooltipCountBeforeMenu })}`)
-  assert.notEqual(tooltipOpenChipState?.backgroundColor, 'rgba(0, 0, 0, 0)', `expanded page chip should paint an opaque background instead of letting content behind it show through: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.doesNotMatch(tooltipOpenChipState?.backgroundColor || '', /rgba\([^)]*,\s*0\.\d+\)/, `expanded page chip background should not be a low-alpha overlay: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.doesNotMatch(tooltipOpenChipState?.transitionProperty || '', /box-shadow/, `expanded page chip shadow should appear in the same frame as the background instead of transitioning later: ${JSON.stringify({ tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip expansion should not reveal the favicon-slot close button: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
-  assert.equal(tooltipOpenChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip expansion should keep the favicon visible away from favicon hover: ${JSON.stringify({ hoverChipState, tooltipOpenChipState })}`)
+  assert.equal(expandedHoverChipState?.expanded, true, `page chip should expand in place before context-menu shield check: ${JSON.stringify({ replacementTarget, expandedHoverChipState })}`)
+  assert.equal(expandedHoverChipState?.hover, true, `expanded page chip should still be under the pointer before context-menu shield check: ${JSON.stringify({ expandedHoverChipState })}`)
+  assert.equal(expandedHoverChipState?.tooltipOpen, false, `in-place expansion should not impersonate an open tooltip: ${JSON.stringify({ expandedHoverChipState })}`)
+  assert.equal(visibleTooltipCountBeforeMenu, 0, `in-place page chip expansion should not create a tooltip popup before context-menu shield check: ${JSON.stringify({ replacementTarget, expandedHoverChipState, visibleTooltipCountBeforeMenu })}`)
+  assert.equal(expandedHoverChipState?.expandedFill?.opacity, '1', `hovered expanded page chip should show its opaque backing fill: ${JSON.stringify({ hoverChipState, expandedHoverChipState })}`)
+  assert.notEqual(expandedHoverChipState?.expandedFill?.backgroundColor, 'rgba(0, 0, 0, 0)', `hovered expanded page chip should paint a backing fill instead of letting content behind it show through: ${JSON.stringify({ hoverChipState, expandedHoverChipState })}`)
+  assert.doesNotMatch(expandedHoverChipState?.expandedFill?.backgroundColor || '', /(?:rgba\([^)]*,\s*0\.\d+\)|\/\s*0\.\d+)/, `expanded page chip backing fill should not be a low-alpha overlay: ${JSON.stringify({ hoverChipState, expandedHoverChipState })}`)
+  assert.doesNotMatch(expandedHoverChipState?.transitionProperty || '', /box-shadow/, `expanded page chip shadow should appear in the same frame as the background instead of transitioning later: ${JSON.stringify({ expandedHoverChipState })}`)
+  assert.equal(expandedHoverChipState?.closeButton?.opacity, hoverChipState.closeButton?.opacity, `page chip expansion should not reveal the favicon-slot close button: ${JSON.stringify({ hoverChipState, expandedHoverChipState })}`)
+  assert.equal(expandedHoverChipState?.faviconContent?.opacity, hoverChipState.faviconContent?.opacity, `page chip expansion should keep the favicon visible away from favicon hover: ${JSON.stringify({ hoverChipState, expandedHoverChipState })}`)
   await openContextMenuAt(replacementTarget)
   const expandedAfterMenu = await readPageChipVisualState(replacementTarget)
-  assert.equal(expandedAfterMenu?.expanded, true, `right-clicking to open a page chip context menu should not collapse an in-place expansion: ${JSON.stringify({ tooltipOpenChipState, expandedAfterMenu })}`)
+  assert.equal(expandedAfterMenu?.expanded, true, `right-clicking to open a page chip context menu should not collapse an in-place expansion: ${JSON.stringify({ expandedHoverChipState, expandedAfterMenu })}`)
   const backdropDismissPoint = await findPageChipTarget('Example 2 with enough tooltip text', 40)
   assert.ok(backdropDismissPoint, `expected a page-chip point outside the context menu for backdrop-dismiss smoke: ${JSON.stringify({ replacementTarget })}`)
   const backdropDismissOpenState = await readPageChipVisualState(replacementTarget)

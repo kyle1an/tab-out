@@ -95,7 +95,7 @@ export type ChipTrim = {
   expandedFill: null | { classes: string; top: string; bottom: string; background: string }
 }
 
-const EXPANDED_FILL_CLASSES = 'page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1 rounded-[9px] [corner-shape:squircle]'
+const EXPANDED_FILL_CLASSES = 'page-chip-expanded-fill pointer-events-none absolute inset-x-0 -z-1 rounded-[9px] opacity-0 [corner-shape:squircle] group-hover/page-chip:opacity-100 group-focus-visible/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:opacity-100'
 
 export function chipTrim(facts: ChipTrimFacts): ChipTrim {
   const hasActiveChipFrame = facts.activeChipFrame || facts.activeInOtherWindow
