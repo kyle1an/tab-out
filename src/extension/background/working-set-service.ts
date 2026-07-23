@@ -1,6 +1,7 @@
 import {
   emptyWorkingSetActivity,
   normalizeWorkingSetActivity,
+  pageIdentityForWorkingSet,
   recordWorkingSetActivity
 } from '../working-set.js'
 import { normalizeChromeTabToDashboardItem } from '../dashboard-tab-normalization.js'
@@ -30,6 +31,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
   let activityCache: WorkingSetActivityStore | null = null
   let activityQueue: Promise<void> = Promise.resolve()
   let lastActivityAt = 0
+  const lastPageIdentityByTabId = new Map<number, string>()
   let lastActivationSignal: {
     source: ActivationSignalSource
     tabId: number
@@ -99,6 +101,13 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     }
   }
 
+  function pageIdentityForTab(tab: chrome.tabs.Tab | DashboardTab): string {
+    const dashboardTab = isDashboardTab(tab)
+      ? tab
+      : normalizeChromeTabToDashboardItem(tab, { runtimeId: chromeApi.runtime?.id ?? null })
+    return pageIdentityForWorkingSet(dashboardTab.url || dashboardTab.rawUrl || '')
+  }
+
   function activityAfterActivationSignal(
     activity: WorkingSetActivityStore,
     tab: chrome.tabs.Tab,
@@ -113,6 +122,11 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
       windowId: tab.windowId,
       observedAt
     }
+    const pageIdentity = pageIdentityForTab(tab)
+    const commitSignal = () => {
+      lastActivationSignal = nextSignal
+      lastPageIdentityByTabId.set(tab.id as number, pageIdentity)
+    }
     if (
       previousSignal &&
       previousSignal.source !== source &&
@@ -122,9 +136,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     ) {
       return {
         activity,
-        commit: () => {
-          lastActivationSignal = nextSignal
-        }
+        commit: commitSignal
       }
     }
     const mutation = activityAfterTabEvent(activity, 'activation', tab)
@@ -132,14 +144,9 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
       activity: mutation.activity,
       commit: () => {
         mutation.commit?.()
-        lastActivationSignal = nextSignal
+        commitSignal()
       }
     }
-  }
-
-  async function recordTabActivity(kind: WorkingSetActivityKind, tab: chrome.tabs.Tab | DashboardTab | null | undefined): Promise<void> {
-    if (!tab || typeof tab.id !== 'number') return
-    await enqueueActivityMutation((activity) => activityAfterTabEvent(activity, kind, tab))
   }
 
   async function getWorkingSetActivity(): Promise<WorkingSetActivityStore> {
@@ -191,19 +198,43 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
       const nextSignal = lastActivationSignal?.tabId === removedTabId
         ? { ...lastActivationSignal, tabId: addedTabId }
         : lastActivationSignal
+      const replacedPageIdentity = lastPageIdentityByTabId.get(removedTabId)
       return {
         activity,
         commit: () => {
           lastActivationSignal = nextSignal
+          lastPageIdentityByTabId.delete(removedTabId)
+          if (replacedPageIdentity !== undefined) {
+            lastPageIdentityByTabId.set(addedTabId, replacedPageIdentity)
+          }
         }
       }
     })
   }
 
-  async function recordTabNavigation(_tabId: number, changeInfo: { url?: string; title?: string }, tab: chrome.tabs.Tab): Promise<void> {
+  async function recordTabNavigation(tabId: number, changeInfo: { url?: string; title?: string }, tab: chrome.tabs.Tab): Promise<void> {
     if (!tab?.active) return
     if (!changeInfo?.url) return
-    await recordTabActivity('navigation', tab)
+    if (typeof tabId !== 'number' || tab.id !== tabId) return
+    const nextPageIdentity = pageIdentityForTab(tab)
+    await enqueueActivityMutation((activity) => {
+      const commitPageIdentity = () => {
+        lastPageIdentityByTabId.set(tabId, nextPageIdentity)
+      }
+      // Chrome can surface a URL update while reloading the same page. Only a
+      // normalized page-identity change is meaningful Working Set navigation.
+      if (lastPageIdentityByTabId.get(tabId) === nextPageIdentity) {
+        return { activity, commit: commitPageIdentity }
+      }
+      const mutation = activityAfterTabEvent(activity, 'navigation', tab)
+      return {
+        activity: mutation.activity,
+        commit: () => {
+          mutation.commit?.()
+          commitPageIdentity()
+        }
+      }
+    })
   }
 
   return {

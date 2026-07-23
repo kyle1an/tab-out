@@ -183,6 +183,33 @@ test('Working Set counts paired tab-activation and window-focus signals once', a
   assert.equal(writeCount, 1, 'the deduped paired signal must not rewrite the activity store')
 })
 
+test('Working Set does not treat same-page reloads as navigation activity', async () => {
+  const tab = chromeTab(1, 'workflows')
+  let storedActivity = emptyWorkingSetActivity()
+  const chromeApi = {
+    tabs: { query: async () => [tab] },
+    windows: {
+      WINDOW_ID_NONE: -1,
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }]
+    },
+    storage: {
+      local: {
+        get: async () => ({ [WORKING_SET_ACTIVITY_KEY]: storedActivity }),
+        set: async (value: Record<string, unknown>) => {
+          storedActivity = value[WORKING_SET_ACTIVITY_KEY] as WorkingSetActivityStore
+        }
+      }
+    }
+  } as unknown as ChromeApi
+  const service = createWorkingSetService(chromeApi)
+
+  await service.recordTabActivation(1, 1)
+  await service.recordTabNavigation(1, { url: tab.url }, tab)
+
+  const record = (await service.getWorkingSetActivity()).records['https://example.test/workflows']
+  assert.deepEqual(record?.events.map((event) => event.kind), ['activation'])
+})
+
 test('Working Set tab lookup failures do not rewrite unchanged activity', async () => {
   let writeCount = 0
   const chromeApi = {
@@ -310,10 +337,11 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
   releaseActivationLookup([removedTab])
   await Promise.all([activation, replacement])
   await service.recordFocusedWindowActiveTab(1)
+  await service.recordTabNavigation(4, { url: tabs[0].url }, tabs[0])
 
   const record = (await service.getWorkingSetActivity()).records['https://example.test/replacement']
   assert.equal(record?.events.filter((event) => event.kind === 'activation').length, 1)
-  assert.equal(writeCount, 1, 'tab-id rebasing and the paired focus signal are in-memory only')
+  assert.equal(writeCount, 1, 'tab-id rebasing, paired focus, and same-page refresh are in-memory only')
 })
 
 test('Working Set mutation retries persisted activity after a transient initial storage read failure', async () => {

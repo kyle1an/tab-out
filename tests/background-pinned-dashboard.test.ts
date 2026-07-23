@@ -1772,6 +1772,49 @@ test('combined service state ranks activated and actively navigated open tabs', 
   }
 })
 
+test('combined service state ignores a same-page refresh signal', async () => {
+  const mock = await loadBackground([
+    {
+      id: 501,
+      windowId: 1,
+      url: 'https://example.test/workflows',
+      title: 'Workflows',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ])
+  const onActivated = mock.listeners.tabsOnActivated[0]
+  const onUpdated = mock.listeners.tabsOnUpdated[0]
+  assert.equal(typeof onActivated, 'function')
+  assert.equal(typeof onUpdated, 'function')
+
+  onActivated({ tabId: 501, windowId: 1 })
+  await flushBackgroundWork()
+  const before = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
+
+  onUpdated(
+    501,
+    { url: mock.state.tabsById[501].url, status: 'loading' },
+    clone(mock.state.tabsById[501])
+  )
+  await flushBackgroundWork()
+  const after = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
+
+  assert.equal(before.ok, true)
+  assert.equal(after.ok, true)
+  assert.deepEqual(
+    after.workingSetActivity.records['https://example.test/workflows'].events.map((event: any) => event.kind),
+    ['activation']
+  )
+  assert.deepEqual(
+    after.tabHistory.entries.map((entry: any) => entry.tabId),
+    before.tabHistory.entries.map((entry: any) => entry.tabId)
+  )
+  assert.equal(after.tabHistory.currentIndex, before.tabHistory.currentIndex)
+})
+
 test('combined service state ignores title-only updates so idle tabs do not reshuffle', async () => {
   const originalDateNow = Date.now
   let now = Date.UTC(2026, 4, 17, 12)
