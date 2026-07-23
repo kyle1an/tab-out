@@ -674,6 +674,42 @@ test('closeTabsByTargetsResult preserves confirmed snapshots and reports a parti
   assert.deepEqual(tabs.map((tab) => tab.id), [1, 2])
 })
 
+test('batch-close fallback revalidates remaining tab identities before retrying', async () => {
+  const keptUrl = 'https://example.test/kept'
+  const staleTargetUrl = 'https://example.test/stale-target'
+  const unrelatedUrl = 'https://example.test/unrelated'
+  const { tabs } = createChromeMock([
+    { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+    { id: 2, windowId: 1, url: keptUrl, title: 'Kept', active: false, pinned: false, groupId: -1 },
+    { id: 3, windowId: 1, url: staleTargetUrl, title: 'Stale target', active: false, pinned: false, groupId: -1 }
+  ])
+  const removeTab = (globalThis as any).chrome.tabs.remove.bind((globalThis as any).chrome.tabs)
+  ;(globalThis as any).chrome.tabs.remove = async (tabIds: number | number[]) => {
+    if (Array.isArray(tabIds)) throw new Error('Batch removal unavailable')
+    if (tabIds === 2) {
+      const remaining = tabs.find((tab) => tab.id === 3)
+      remaining.url = unrelatedUrl
+      remaining.pendingUrl = unrelatedUrl
+      throw new Error('Tab is managed')
+    }
+    await removeTab(tabIds)
+  }
+
+  const result = await closeTabsByTargetsResult([
+    { tabId: 2, tabUrl: keptUrl },
+    { tabId: 3, tabUrl: staleTargetUrl }
+  ])
+
+  assert.equal(result.status, 'failed')
+  assert.equal(result.removedCount, 0)
+  assert.deepEqual(result.value, [])
+  assert.deepEqual(tabs.map((tab) => ({ id: tab.id, url: tab.url })), [
+    { id: 1, url: 'chrome-extension://tab-out/index.html' },
+    { id: 2, url: keptUrl },
+    { id: 3, url: unrelatedUrl }
+  ])
+})
+
 test('close paths prefer a pending navigation over the stale committed URL', async () => {
   const targetUrl = 'https://example.test/target'
   const otherUrl = 'https://example.test/other'
@@ -903,6 +939,44 @@ test('focusTab asks the owning suspender extension to unsuspend an exact suspend
   ])
   assert.deepEqual(calls.tabsUpdate, [{ tabId: 2, updateProperties: { active: true } }])
   assert.deepEqual(calls.windowsUpdate, [{ windowId: 2, updateProperties: { focused: true } }])
+})
+
+test('suspended-tab focus revalidates identity after external unsuspend messaging', async () => {
+  const targetUrl = 'https://example.com/docs'
+  const suspendedUrl = 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'
+
+  for (const messageOutcome of ['success', 'failure'] as const) {
+    const { calls, tabs } = createChromeMock([
+      { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
+      { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    ])
+    let releaseMessage!: () => void
+    let markMessageStarted!: () => void
+    const messageBlocked = new Promise<void>((resolve) => { releaseMessage = resolve })
+    const messageStarted = new Promise<void>((resolve) => { markMessageStarted = resolve })
+    ;(globalThis as any).chrome.runtime.sendMessage = async () => {
+      markMessageStarted()
+      await messageBlocked
+      if (messageOutcome === 'failure') throw new Error('Suspender unavailable')
+      return undefined
+    }
+
+    const focusPromise = focusExistingTabTargetResult({
+      tabId: 2,
+      url: targetUrl,
+      rawUrl: suspendedUrl
+    })
+    await messageStarted
+    const target = tabs.find((tab) => tab.id === 2)
+    target.url = 'https://example.test/unrelated'
+    target.pendingUrl = 'https://example.test/unrelated'
+    releaseMessage()
+
+    assert.deepEqual(await focusPromise, { status: 'not-found' }, messageOutcome)
+    assert.deepEqual(calls.tabsUpdate, [], messageOutcome)
+    assert.deepEqual(calls.windowsUpdate, [], messageOutcome)
+    assert.equal(target.url, 'https://example.test/unrelated', messageOutcome)
+  }
 })
 
 test('focusTab unsuspends directly when the owning suspender extension cannot be messaged', async () => {

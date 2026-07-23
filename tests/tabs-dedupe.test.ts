@@ -16,6 +16,11 @@ function createChromeMock(initialTabs: any[]) {
       async query() {
         return tabs.map((tab) => ({ ...tab }))
       },
+      async get(tabId: number) {
+        const tab = tabs.find((candidate) => candidate.id === tabId)
+        if (!tab) throw new Error(`Missing tab ${tabId}`)
+        return { ...tab }
+      },
       async remove(tabIds: number | number[]) {
         const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
         removedIds.push(...ids)

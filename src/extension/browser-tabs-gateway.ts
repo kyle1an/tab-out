@@ -96,7 +96,14 @@ export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
  * batch when any id is already gone, so a failed batch retries one id at a
  * time. Returns the exact ids Chrome accepted for removal.
  */
-export async function removeTabs(tabIds: number[]): Promise<number[]> {
+type RemoveTabsOptions = {
+  beforeSingleRemove?: (tabId: number) => boolean | Promise<boolean>
+}
+
+export async function removeTabs(
+  tabIds: number[],
+  { beforeSingleRemove }: RemoveTabsOptions = {}
+): Promise<number[]> {
   const api = chromeTabsApi()
   if (!api?.tabs?.remove || tabIds.length === 0) return []
   try {
@@ -105,6 +112,7 @@ export async function removeTabs(tabIds: number[]): Promise<number[]> {
   } catch {
     const removed: number[] = []
     for (const tabId of tabIds) {
+      if (beforeSingleRemove && !(await beforeSingleRemove(tabId))) continue
       try {
         await api.tabs.remove(tabId)
         removed.push(tabId)

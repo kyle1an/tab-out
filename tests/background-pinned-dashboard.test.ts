@@ -1605,9 +1605,13 @@ test('tab history command unsuspends the selected history target', async () => {
       message: { action: 'unsuspend', tabId: 87 }
     }
   ])
-  assert.deepEqual(mock.calls.update.at(-1), {
+  assert.deepEqual(mock.calls.update.filter((call) => call.updateProperties.active === true && call.tabId === 87).at(-1), {
     tabId: 87,
     updateProperties: { active: true, url: 'https://example.com/docs' }
+  })
+  assert.deepEqual(mock.calls.update.at(-1), {
+    tabId: 87,
+    updateProperties: { openerTabId: 88 }
   })
   assert.equal(mock.state.tabsById[87].url, 'https://example.com/docs')
   assert.equal(mock.state.tabsById[87].active, true)

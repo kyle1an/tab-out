@@ -186,6 +186,22 @@ test('history snapshot rejects unknown window state instead of returning a parti
   )
 })
 
+test('history snapshot rejects a focused window missing from the captured tabs generation', async () => {
+  const chromeApi = makeChromeApi({
+    history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
+    tabs: [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab]
+  })
+  chromeApi.windows.getAll = async () => [
+    { id: 1, focused: false, type: 'normal' } as chrome.windows.Window,
+    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window
+  ]
+
+  await assert.rejects(
+    createTabHistoryService(chromeApi).getTabHistorySnapshot(emptyWorkingSetActivity()),
+    /focus state is unavailable/
+  )
+})
+
 test('history mutation retries persisted state after a transient initial storage read failure', async () => {
   const tabs = [
     { id: 1, windowId: 1, url: 'https://example.test/one', title: 'One', active: false } as chrome.tabs.Tab,
@@ -347,6 +363,61 @@ test('history switch prunes a reused target before cursor repair can focus it', 
 
   assert.deepEqual(snapshot.entries.map((entry) => entry.tabId), [20])
   assert.equal(snapshot.previousIndex, -1)
+})
+
+test('history switch does not mutate an opener before fresh target validation', async () => {
+  const capturedTabs = [
+    { id: 10, windowId: 1, url: 'https://example.test/target', title: 'Target', active: false } as chrome.tabs.Tab,
+    { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab
+  ]
+  const liveTabs = capturedTabs.map((tab) => ({ ...tab }))
+  const chromeApi = makeChromeApi({
+    history: {
+      stack: [
+        { windowId: 1, tabId: 10, url: 'https://example.test/target' },
+        { windowId: 1, tabId: 20, url: 'https://example.test/current' }
+      ],
+      index: 1
+    },
+    tabs: capturedTabs
+  })
+  let fullTabReads = 0
+  chromeApi.tabs.query = async (queryInfo: chrome.tabs.QueryInfo) => {
+    if (Object.keys(queryInfo).length === 0) {
+      fullTabReads += 1
+      return (fullTabReads === 1 ? capturedTabs : liveTabs).map((tab) => ({ ...tab }))
+    }
+    return liveTabs.filter((tab) => (
+      (typeof queryInfo.windowId !== 'number' || tab.windowId === queryInfo.windowId) &&
+      (queryInfo.active === undefined || tab.active === queryInfo.active)
+    ))
+  }
+  chromeApi.windows.getAll = async () => {
+    liveTabs[0] = {
+      ...liveTabs[0],
+      url: 'https://example.test/unrelated',
+      title: 'Unrelated'
+    }
+    return [{ id: 1, focused: true, type: 'normal' } as chrome.windows.Window]
+  }
+  const openerUpdates: Array<{ tabId: number; openerTabId?: number }> = []
+  chromeApi.tabs.update = (async (tabId: number, updateProperties: chrome.tabs.UpdateProperties) => {
+    openerUpdates.push({ tabId, openerTabId: updateProperties.openerTabId })
+    return liveTabs.find((tab) => tab.id === tabId)
+  }) as typeof chromeApi.tabs.update
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  globalThis.chrome = chromeApi as unknown as typeof globalThis.chrome
+
+  try {
+    await assert.rejects(
+      createTabHistoryService(chromeApi).switchTabHistory(-1),
+      /Could not activate tab history target/
+    )
+    assert.deepEqual(openerUpdates, [])
+  } finally {
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
 })
 
 test('history switch fails closed when the last-focused active-tab read is unknown', async () => {
@@ -782,7 +853,7 @@ test('failed browser startup reset remains a barrier before the next activation'
 })
 
 test('tab replacement preserves activated history position under the new tab id', async () => {
-  const service = createTabHistoryService(makeChromeApi({
+  const chromeApi = makeChromeApi({
     history: {
       stack: [
         { windowId: 1, tabId: 10 },
@@ -794,7 +865,12 @@ test('tab replacement preserves activated history position under the new tab id'
       { id: 30, windowId: 2, url: 'https://replacement.example.test/', title: 'Replacement', active: true } as chrome.tabs.Tab,
       { id: 20, windowId: 1, url: 'https://other.example.test/', title: 'Other', active: false } as chrome.tabs.Tab
     ]
-  }))
+  })
+  chromeApi.windows.getAll = async () => [
+    { id: 1, focused: false, type: 'normal' } as chrome.windows.Window,
+    { id: 2, focused: true, type: 'normal' } as chrome.windows.Window
+  ]
+  const service = createTabHistoryService(chromeApi)
 
   await service.replaceTabId(30, 10)
   const snapshot = await service.getTabHistorySnapshot()

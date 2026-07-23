@@ -8,7 +8,7 @@
    extension pages).
    ================================================================ */
 
-import { createTab, createWindow, getAllWindowsResult, getCurrentWindowResult, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
+import { createTab, createWindow, getAllWindowsResult, getCurrentWindowResult, getTab, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
 import { rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
@@ -17,7 +17,7 @@ import { canonicalDedupeKey } from './url-canonical.js'
 import { isTabOutPageUrl } from './tab-out-url.js'
 import { focusExactTabTargetResult, focusTabTarget } from './tab-focus.js'
 import { isBrowserInternalUrl } from './browser-url-policy.js'
-import { liveTabUrlForIdentity } from './live-tab-matching.js'
+import { liveTabByValidatedId, liveTabUrlForIdentity } from './live-tab-matching.js'
 import type { DashboardTab, DashboardTabMutationTarget, TabSnapshot } from './types'
 
 type SnapshotTab = Pick<chrome.tabs.Tab, 'url' | 'pendingUrl' | 'title' | 'pinned' | 'groupId' | 'windowId' | 'index'>
@@ -212,7 +212,23 @@ export async function closeResolvedTabsResult(
   })
   if (attemptedTabs.length === 0) return emptyTabCloseResult('complete')
 
-  const removedIds = new Set(await removeTabs(tabIds(attemptedTabs)))
+  const attemptedTabsById = new Map(
+    attemptedTabs.map((tab) => [tab.id as number, tab])
+  )
+  const removedIds = new Set(await removeTabs(tabIds(attemptedTabs), {
+    // A rejected batch introduces one await per retry. Revalidate the original
+    // physical page immediately before each of those delayed single-ID writes
+    // so a navigation or reused ID cannot turn a stale close into data loss.
+    beforeSingleRemove: async (tabId) => {
+      const expectedTab = attemptedTabsById.get(tabId)
+      const liveTab = await getTab(tabId)
+      if (!expectedTab || !liveTab) return false
+      return !!liveTabByValidatedId([liveTab], {
+        tabId,
+        url: liveTabUrlForIdentity(expectedTab)
+      })
+    }
+  }))
   const removedTabs = attemptedTabs.filter((tab) => typeof tab.id === 'number' && removedIds.has(tab.id))
   const removedCount = removedTabs.length
   const failedCount = attemptedTabs.length - removedCount

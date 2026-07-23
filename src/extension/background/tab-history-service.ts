@@ -392,7 +392,18 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
 
     const lastFocusedTab = await findLastFocusedActiveTab()
     if (!lastFocusedTab.known) return { tab: null, chromeFocused: false, known: false }
-    return { tab: lastFocusedTab.tab, chromeFocused: false, known: true }
+    if (!lastFocusedTab.tab) return { tab: null, chromeFocused: false, known: true }
+    const capturedTab = typeof lastFocusedTab.tab.id === 'number'
+      ? tabsById.get(lastFocusedTab.tab.id)
+      : null
+    if (
+      !capturedTab?.active ||
+      capturedTab.windowId !== lastFocusedTab.tab.windowId ||
+      effectiveUrlForHistoryIdentity(capturedTab) !== effectiveUrlForHistoryIdentity(lastFocusedTab.tab)
+    ) {
+      return { tab: null, chromeFocused: false, known: false }
+    }
+    return { tab: capturedTab, chromeFocused: false, known: true }
   }
 
   async function focusExistingTabResult(tab: chrome.tabs.Tab | null): Promise<ExistingTabFocusResult> {
@@ -667,14 +678,13 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
         return
       }
 
-      if (focusAction.openerTabId && typeof focusAction.tab.id === 'number') {
+      const focusResult = await focusExistingTabResult(focusAction.tab)
+      const activationConfirmed = focusResult.status === 'focused' || focusResult.status === 'activated'
+      if (activationConfirmed && focusAction.openerTabId && typeof focusAction.tab.id === 'number') {
         try {
           await chromeApi.tabs.update(focusAction.tab.id, { openerTabId: focusAction.openerTabId })
         } catch {}
       }
-
-      const focusResult = await focusExistingTabResult(focusAction.tab)
-      const activationConfirmed = focusResult.status === 'focused' || focusResult.status === 'activated'
       let committedHistory = activationConfirmed ? nextHistory : baseHistory
       if (focusResult.status === 'not-found' && typeof focusAction.tab.id === 'number') {
         committedHistory = removeTabEntriesFromHistory(committedHistory, focusAction.tab.id)
@@ -699,6 +709,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
         identityPrunedHistory,
         focusedWindowLookupFromWindows(windows)
       )
+      if (!activeTabLookup.known) throw new Error('Chrome focus state is unavailable')
       const { tab: activeTab } = activeTabLookup
       const repairedHistory = repairHistoryCursorForActiveTab(identityPrunedHistory, activeTab)
       const prunedHistory = pruneMissingHistoryEntries(repairedHistory.history, existingTabs)
