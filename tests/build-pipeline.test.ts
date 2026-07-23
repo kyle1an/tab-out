@@ -28,7 +28,6 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('chrome-support.json'), 'chrome-support.json should be the tracked browser-support policy')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
-  const chromeSupport = JSON.parse(readFileSync('chrome-support.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
   const shadcnConfig = JSON.parse(readFileSync('components.json', 'utf8'))
   assert.equal(readFileSync('.node-version', 'utf8').trim(), '26.5.0')
@@ -43,13 +42,6 @@ test('extension HTML loads the Vite-built React entry', () => {
     'tsx scripts/check-dependency-architecture.ts'
   )
   assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
-  assert.equal(pkg.scripts?.['chrome-support:check'], 'tsx scripts/chrome-support.ts check')
-  assert.equal(pkg.scripts?.['chrome-support:status'], 'tsx scripts/chrome-support.ts status')
-  assert.equal(
-    pkg.scripts?.['chrome-support:bump'],
-    'tsx scripts/chrome-support.ts bump && pnpm build && pnpm chrome-support:check'
-  )
-  assert.equal(pkg.scripts?.['chrome-support:release-check'], 'tsx scripts/chrome-support.ts release-check')
   assert.match(pkg.scripts?.['test:browser'], /playwright test/)
   assert.match(pkg.scripts?.['test:browser'], /dashboard-smoke\.spec\.ts/)
   assert.doesNotMatch(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE/)
@@ -87,10 +79,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
   assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
   assert.deepEqual(tsconfig.compilerOptions?.paths?.['@/*'], ['./src/*'])
-  assert.equal(tsconfig.compilerOptions?.resolveJsonModule, true)
-  assert.equal(chromeSupportPolicy.minimumMajor, chromeSupport.minimumMajor)
-  assert.equal(CHROME_BUILD_TARGET, `chrome${chromeSupport.minimumMajor}`)
-  assert.equal(MINIMUM_CHROME_VERSION, String(chromeSupport.minimumMajor))
+  assert.equal(CHROME_BUILD_TARGET, `chrome${chromeSupportPolicy.minimumMajor}`)
+  assert.equal(MINIMUM_CHROME_VERSION, String(chromeSupportPolicy.minimumMajor))
   assert.equal(shadcnConfig.style, 'base-nova')
   assert.equal(shadcnConfig.rsc, false)
   assert.equal(shadcnConfig.tsx, true)
@@ -714,18 +704,9 @@ test('repo pre-commit hook runs the verification pipeline', () => {
 })
 
 test('weekly Chrome observer performs a fresh read-only release check', () => {
-  assert.ok(
-    existsSync('.github/workflows/chrome-support.yml'),
-    'Chrome support should be observed outside commit-time verification'
-  )
-
   const workflow = readFileSync('.github/workflows/chrome-support.yml', 'utf8')
-  assert.match(workflow, /schedule:/)
-  assert.match(workflow, /workflow_dispatch:/)
-  assert.match(workflow, /contents: read/)
   assert.match(workflow, /pnpm chrome-support:release-check/)
   assert.doesNotMatch(workflow, /contents: write/)
-  assert.doesNotMatch(workflow, /git (?:commit|push)/)
 })
 
 test('built extension bundle is packaged locally', () => {

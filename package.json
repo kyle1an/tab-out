@@ -15,7 +15,6 @@
     "deps:architecture": "tsx scripts/check-dependency-architecture.ts",
     "deps:nolyfill": "pnpm dlx nolyfill --pm pnpm",
     "chrome-support:check": "tsx scripts/chrome-support.ts check",
-    "chrome-support:status": "tsx scripts/chrome-support.ts status",
     "chrome-support:bump": "tsx scripts/chrome-support.ts bump && pnpm build && pnpm chrome-support:check",
     "chrome-support:release-check": "tsx scripts/chrome-support.ts release-check",
     "react-doctor": "react-doctor .",
