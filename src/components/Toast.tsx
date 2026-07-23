@@ -23,7 +23,7 @@ function ToastList() {
       key={toast.id}
       toast={toast}
       className={cn(
-        "absolute bottom-0 left-0 right-auto box-border w-full cursor-default select-none rounded-3xl [corner-shape:squircle] border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] antialiased [-moz-osx-font-smoothing:grayscale] [-webkit-user-select:none] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] [font-synthesis:none] origin-[bottom_center]",
+        "absolute bottom-0 left-0 right-auto box-border w-full cursor-default select-none rounded-3xl [corner-shape:squircle] border border-[oklch(12%_0.036_264deg/7%)] bg-clip-padding p-4! text-[oklch(12%_0.02_264deg/90%)] antialiased [-webkit-user-select:none] [background:oklch(98%_0.001_264deg)] [box-shadow:0_2px_10px_rgb(0_0_0/0.1)] [font-synthesis:none] origin-[bottom_center]",
         '[--gap:0.75rem] [--peek:0.75rem] [--scale:calc(max(0,1-(var(--toast-index)*0.1)))] [--shrink:calc(1-var(--scale))] [--height:var(--toast-frontmost-height,var(--toast-height))]',
         '[--offset-y:calc(var(--toast-offset-y)*-1+(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] z-[calc(1000-var(--toast-index))] h-(--height)',
         'transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))]',

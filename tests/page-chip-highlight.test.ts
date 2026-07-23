@@ -2517,6 +2517,8 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.match(pageChipSource, /const shouldExpandChip = !chip\.iconOnly && \(hasExpandableContent \|\| hasTitleSuppressionMarkers \|\| hasStructuralPlaceholders\)/)
   assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = 'chip-title-suppression-marker inline rounded-lg border-0[\s\S]*text-\[12px\][\s\S]*leading-\[inherit\][\s\S]*align-baseline/)
   assert.match(pageChipSource, /PAGE_CHIP_TOOLTIP_SUPPRESSION_MARKER_CLASS_NAME = [\s\S]*\[box-decoration-break:clone\]/)
+  assert.match(pageChipSource, /group-\[\.page-chip-expanded\]\/page-chip:\[box-decoration-break:clone\]/)
+  assert.doesNotMatch(pageChipSource, /-webkit-box-decoration-break/)
   assert.match(pageChipSource, /chip-title-suppression-label hidden group-\[\.page-chip-expanded\]\/page-chip:inline/)
   assert.match(pageChipSource, /highlightedTextNodes\(part, highlightTerms/)
   assert.doesNotMatch(pageChipSource, /title-suppression-marker-tooltip/)

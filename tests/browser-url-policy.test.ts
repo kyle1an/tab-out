@@ -7,19 +7,19 @@ import { isBrowserInternalUrl } from '../src/extension/browser-url-policy.js'
 import { getDashboardTabsFromOpenTabs } from '../src/extension/tabs.js'
 import type { DashboardTab } from '../src/extension/types'
 
-test('browser URL policy classifies Chromium internal schemes without hiding files', () => {
+test('browser URL policy classifies Chrome internal schemes without hiding files', () => {
   for (const url of [
     'about:blank',
-    'brave://settings/',
     'chrome://settings/',
     'chrome-extension://example-id/index.html',
     'chrome-search://local-ntp/local-ntp.html',
     'chrome-untrusted://new-tab-page/one-google-bar',
-    'devtools://devtools/bundled/inspector.html',
-    'edge://settings/'
+    'devtools://devtools/bundled/inspector.html'
   ]) {
     assert.equal(isBrowserInternalUrl(url), true, url)
   }
+  assert.equal(isBrowserInternalUrl('brave://settings/'), false)
+  assert.equal(isBrowserInternalUrl('edge://settings/'), false)
   assert.equal(isBrowserInternalUrl('file:///tmp/example.html'), false)
   assert.equal(isBrowserInternalUrl('https://example.test/'), false)
 })

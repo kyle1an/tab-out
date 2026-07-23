@@ -107,7 +107,8 @@ test('fetchClosedTabsResult distinguishes a rejected sessions read from confirme
 
 test('restoreClosedTab calls chrome.sessions.restore and resolves true on success', async () => {
   let calledWith: string | undefined
-  const restoreEvents: Array<{ phase: string; restored?: boolean } | 'restore'> = []
+  const restoreEvents: string[] = []
+  const restoreMessages: Array<{ phase: string; restoreId: string; restored?: boolean }> = []
   globalThis.chrome = {
     sessions: {
       restore: async (id?: string) => {
@@ -119,8 +120,9 @@ test('restoreClosedTab calls chrome.sessions.restore and resolves true on succes
     runtime: {
       id: 'tab-out-test',
       sendMessage: async (message: unknown) => {
-        const restoreMessage = message as { phase: string; restored?: boolean }
-        restoreEvents.push({ phase: restoreMessage.phase, restored: restoreMessage.restored })
+        const restoreMessage = message as { phase: string; restoreId: string; restored?: boolean }
+        restoreEvents.push(restoreMessage.phase)
+        restoreMessages.push(restoreMessage)
       }
     }
   } as unknown as typeof globalThis.chrome
@@ -128,11 +130,10 @@ test('restoreClosedTab calls chrome.sessions.restore and resolves true on succes
   const ok = await restoreClosedTab('session-xyz')
   assert.equal(ok, true)
   assert.equal(calledWith, 'session-xyz')
-  assert.deepEqual(restoreEvents, [
-    { phase: 'started', restored: undefined },
-    'restore',
-    { phase: 'settled', restored: true }
-  ])
+  assert.deepEqual(restoreEvents, ['started', 'restore', 'settled'])
+  assert.match(restoreMessages[0]?.restoreId || '', /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
+  assert.equal(restoreMessages[1]?.restoreId, restoreMessages[0]?.restoreId)
+  assert.equal(restoreMessages[1]?.restored, true)
 })
 
 test('restoreClosedTab returns false when chrome.sessions.restore throws', async () => {

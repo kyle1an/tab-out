@@ -4,7 +4,6 @@ import { isBrowserInternalUrl } from './browser-url-policy.js'
 
 let closedTabFetchSuppressUntilMs = 0
 let successfulRestoreSuppressUntilMs = 0
-let nextRestoreSuppressionId = 0
 const pendingRestoreSuppressions = new Set<string>()
 const remoteRestoreWatchdogTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const closedTabChangeHandlers = new Set<(settleDelayMs: number) => void>()
@@ -83,11 +82,6 @@ function applyRemoteRestoreState(message: ClosedTabRestoreStateMessage): number 
   return message.restored ? CLOSED_TAB_SESSION_SETTLE_MS : 0
 }
 
-function restoreMessageId(suppressionId: number): string {
-  const randomId = globalThis.crypto?.randomUUID?.()
-  return randomId ? `${suppressionId}:${randomId}` : `${Date.now()}:${suppressionId}:${Math.random()}`
-}
-
 async function broadcastRestoreState(message: ClosedTabRestoreStateMessage): Promise<void> {
   const runtime = globalThis.chrome?.runtime
   if (!runtime?.sendMessage) return
@@ -161,8 +155,7 @@ export async function restoreClosedTab(sessionId: string): Promise<boolean> {
   // Arm before calling Chrome: sessions.onChanged may fire before the restore
   // promise settles. Each in-flight restore owns one marker so a slow, failed,
   // or overlapping restore cannot expire or clear another restore's protection.
-  const suppressionId = ++nextRestoreSuppressionId
-  const messageId = restoreMessageId(suppressionId)
+  const messageId = crypto.randomUUID()
   pendingRestoreSuppressions.add(messageId)
   let restored = false
   try {

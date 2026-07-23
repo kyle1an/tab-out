@@ -13,6 +13,8 @@ test('highlightedTextNodes wraps a matching term in a chip-filter-match <mark>',
   const html = renderNodes(highlightedTextNodes('Example Docs', ['docs'], 'k'))
   assert.match(html, /<mark[^>]*class="[^"]*chip-filter-match[^"]*"[^>]*>Docs<\/mark>/)
   assert.match(html, /Example /)
+  assert.match(html, /\[box-decoration-break:clone\]/)
+  assert.doesNotMatch(html, /\[-webkit-box-decoration-break:clone\]/)
 })
 
 test('highlightedTextNodes returns plain renderText output with no <mark> when there are no terms', () => {

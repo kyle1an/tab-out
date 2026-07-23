@@ -1,12 +1,10 @@
 const BROWSER_INTERNAL_PROTOCOLS = new Set([
   'about:',
-  'brave:',
   'chrome:',
   'chrome-extension:',
   'chrome-search:',
   'chrome-untrusted:',
-  'devtools:',
-  'edge:'
+  'devtools:'
 ])
 
 export function isBrowserInternalUrl(url: string | null | undefined): boolean {
