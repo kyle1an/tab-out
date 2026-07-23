@@ -412,12 +412,9 @@ export function pruneMissingHistoryEntries(history: GlobalTabHistoryInput, exist
 export function displayUrlForHistory(url = ''): string {
   const effectiveUrl = unwrapSuspenderUrl(url)
   if (!effectiveUrl) return ''
-  try {
-    const parsed = new URL(effectiveUrl)
-    if (parsed.protocol === 'chrome-extension:' && parsed.pathname.endsWith('/index.html')) return 'Tab Out'
-    if (parsed.protocol === 'chrome:') return parsed.href
-    return parsed.hostname + parsed.pathname
-  } catch {
-    return effectiveUrl
-  }
+  const parsed = URL.parse(effectiveUrl)
+  if (!parsed) return effectiveUrl
+  if (parsed.protocol === 'chrome-extension:' && parsed.pathname.endsWith('/index.html')) return 'Tab Out'
+  if (parsed.protocol === 'chrome:') return parsed.href
+  return parsed.hostname + parsed.pathname
 }

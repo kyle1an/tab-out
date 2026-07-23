@@ -68,6 +68,19 @@ test('buildDomainGroups keeps homepage routes inside their native domain cards',
   assert.deepEqual(githubGroup.tabs.map((tab) => tab.url), ['https://github.com/', 'https://github.com/openai/openai'])
 })
 
+test('computeDomainCardViewModel preserves title suffixes for hostless file URLs', () => {
+  const vm = computeDomainCardViewModel({
+    domain: 'local-files',
+    tabs: [makeTab({
+      url: 'file:///Users/example/Example%20Document.txt',
+      title: 'Example Document - Local Files'
+    })]
+  })
+
+  assert.deepEqual(vm.sections[0].flatVisibleChips[0].displaySegments, ['Example Document - Local Files'])
+  assert.deepEqual(vm.sections[0].flatVisibleChips[0].suppressedTitleParts, [])
+})
+
 test('buildDomainGroups orders normal domain cards by tab count', () => {
   const groups = buildDomainGroups([
     makeTab({ url: 'https://github.com/', title: 'GitHub' }),

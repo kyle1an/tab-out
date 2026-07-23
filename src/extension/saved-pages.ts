@@ -70,13 +70,9 @@ function parseSavedPagesStoreValue(stored: unknown): SavedPagesStoreLoadResult {
 
 export function savedPageKeyForUrl(url = ''): string {
   if (!url) return ''
-  try {
-    const parsed = new URL(url)
-    if (isBrowserInternalUrl(parsed.href)) return ''
-    return parsed.href
-  } catch {
-    return ''
-  }
+  const parsed = URL.parse(url)
+  if (!parsed || isBrowserInternalUrl(parsed.href)) return ''
+  return parsed.href
 }
 
 export function isSavedPageEligible(candidate: Pick<DashboardTab, 'url'> & Partial<Pick<DashboardTab, 'isTabOut' | 'isApp'>>): boolean {
@@ -329,13 +325,10 @@ function savedPageRecordToDashboardTab(record: SavedPageRecord): DashboardTab {
 }
 
 function displayUrlForSavedPage(url = ''): string {
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol === 'file:') return parsed.pathname
-    return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
-  } catch {
-    return url
-  }
+  const parsed = URL.parse(url)
+  if (!parsed) return url
+  if (parsed.protocol === 'file:') return parsed.pathname
+  return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
 }
 
 export async function loadSavedPagesStoreResult(): Promise<SavedPagesStoreLoadResult> {

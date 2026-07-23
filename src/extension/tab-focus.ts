@@ -49,13 +49,9 @@ function tabTargetEffectiveUrl(target: PageTarget | null | undefined, fallbackUr
 
 function suspenderExtensionId(url?: string): string {
   if (!url || !url.startsWith('chrome-extension://')) return ''
-  try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith('/suspended.html')) return ''
-    return parsed.hostname
-  } catch {
-    return ''
-  }
+  const parsed = URL.parse(url)
+  if (!parsed || !parsed.pathname.endsWith('/suspended.html')) return ''
+  return parsed.hostname
 }
 
 function isSuspendedUrlForTarget(tabUrl: string | undefined, targetEffective: string): boolean {
@@ -164,16 +160,13 @@ export async function focusTabTarget(url: string): Promise<boolean> {
   let matches = liveTabsMatchingTarget(allTabs, { tabUrl: url })
 
   if (matches.length === 0) {
-    try {
-      const targetHost = new URL(targetEffective).hostname
+    const targetParsed = URL.parse(targetEffective)
+    if (targetParsed) {
+      const targetHost = targetParsed.hostname
       matches = allTabs.filter((tab) => {
-        try {
-          return new URL(unwrapSuspenderUrl(liveTabUrlForIdentity(tab))).hostname === targetHost
-        } catch {
-          return false
-        }
+        return URL.parse(unwrapSuspenderUrl(liveTabUrlForIdentity(tab)))?.hostname === targetHost
       })
-    } catch {}
+    }
   }
 
   if (matches.length === 0) return false

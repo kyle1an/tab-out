@@ -145,12 +145,8 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
 
 export function resolvePathGroup(url: string): PathGroupResult | null {
   if (!url) return null
-  let parsed
-  try {
-    parsed = new URL(url)
-  } catch {
-    return null
-  }
+  const parsed = URL.parse(url)
+  if (!parsed) return null
 
   for (const rule of BUILT_IN_PATH_GROUPERS) {
     const hostMatch = rule.hostname ? parsed.hostname === rule.hostname : rule.hostnameEndsWith ? parsed.hostname.endsWith(rule.hostnameEndsWith) : false

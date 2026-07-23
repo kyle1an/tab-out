@@ -20,37 +20,30 @@ export function buildDomainGroups(
   const tabOutTabs: DashboardTab[] = []
 
   for (const tab of realTabs) {
-    try {
-      if (tab.isTabOut) {
-        tabOutTabs.push(tab)
-        continue
-      }
+    if (tab.isTabOut) {
+      tabOutTabs.push(tab)
+      continue
+    }
 
-      if (tab.isApp) {
-        appTabs.push(tab)
-        continue
-      }
+    if (tab.isApp) {
+      appTabs.push(tab)
+      continue
+    }
 
-      let hostname
-      if (tab.url && tab.url.startsWith('file://')) {
-        hostname = 'local-files'
-      } else {
-        hostname = new URL(tab.url).hostname
-      }
-      if (!hostname) continue
+    const hostname = tab.url && tab.url.startsWith('file://')
+      ? 'local-files'
+      : URL.parse(tab.url)?.hostname
+    if (!hostname) continue
 
-      // Roll up subdomains so dev1.foo.com + dev2.foo.com share one
-      // card. registrableDomain() is a no-op for IPs, localhost, and
-      // user-space suffixes like user.github.io — see domains.js.
-      const key = registrableDomain(hostname)
-      const group = groupMap.get(key)
-      if (group) {
-        group.tabs.push(tab)
-      } else {
-        groupMap.set(key, { domain: key, tabs: [tab] })
-      }
-    } catch {
-      // Skip malformed URLs
+    // Roll up subdomains so dev1.foo.com + dev2.foo.com share one
+    // card. registrableDomain() is a no-op for IPs, localhost, and
+    // user-space suffixes like user.github.io — see domains.js.
+    const key = registrableDomain(hostname)
+    const group = groupMap.get(key)
+    if (group) {
+      group.tabs.push(tab)
+    } else {
+      groupMap.set(key, { domain: key, tabs: [tab] })
     }
   }
 

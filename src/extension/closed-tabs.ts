@@ -107,24 +107,16 @@ export interface ClosedTabEntry {
 }
 
 function displayUrlForClosedTab(url: string): string {
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol === 'file:') return parsed.pathname
-    return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
-  } catch {
-    return url
-  }
+  const parsed = URL.parse(url)
+  if (!parsed) return url
+  if (parsed.protocol === 'file:') return parsed.pathname
+  return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
 }
 
 function isJunkUrl(url: string): boolean {
   if (!url) return true
   if (isBrowserInternalUrl(url)) return true
-  try {
-    new URL(url)
-  } catch {
-    return true
-  }
-  return false
+  return URL.parse(url) === null
 }
 
 function normalizeClosedTab(tab: chrome.tabs.Tab | undefined, lastModifiedMs: number): ClosedTabEntry | null {

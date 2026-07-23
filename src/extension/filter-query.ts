@@ -98,11 +98,11 @@ function searchablePartsForDashboardItem(tab: Pick<DashboardTab, 'title' | 'url'
   let url = tab.url || ''
 
   if (tab.isTabOut) {
-    try {
-      const parsed = new URL(url)
+    const parsed = URL.parse(url)
+    if (parsed) {
       parsed.search = ''
       url = parsed.toString()
-    } catch {}
+    }
   }
 
   return { title, url }

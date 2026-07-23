@@ -119,30 +119,24 @@ export function pageIdentityForWorkingSet(url = ''): string {
   const effectiveUrl = unwrapSuspenderUrl(url || '')
   if (!effectiveUrl) return ''
 
-  try {
-    const parsed = new URL(effectiveUrl)
-    if (isBrowserInternalUrl(parsed.href)) {
-      return ''
-    }
-    if (isGoogleSearchResultPage(parsed)) return ''
+  const parsed = URL.parse(effectiveUrl)
+  if (!parsed || isBrowserInternalUrl(parsed.href)) return ''
+  if (isGoogleSearchResultPage(parsed)) return ''
 
-    parsed.hash = ''
-    const cleanParams = new URLSearchParams()
-    const paramEntries = Array.from(parsed.searchParams.entries())
-      .filter(([name]) => !name.toLowerCase().startsWith('utm_') && !NOISY_QUERY_PARAMS.has(name.toLowerCase()))
-      .sort(([a], [b]) => a.localeCompare(b))
-    for (const [name, value] of paramEntries) cleanParams.append(name, value)
-    parsed.search = cleanParams.toString()
+  parsed.hash = ''
+  const cleanParams = new URLSearchParams()
+  const paramEntries = Array.from(parsed.searchParams.entries())
+    .filter(([name]) => !name.toLowerCase().startsWith('utm_') && !NOISY_QUERY_PARAMS.has(name.toLowerCase()))
+    .sort(([a], [b]) => a.localeCompare(b))
+  for (const [name, value] of paramEntries) cleanParams.append(name, value)
+  parsed.search = cleanParams.toString()
 
-    if (parsed.protocol === 'file:') return parsed.href
+  if (parsed.protocol === 'file:') return parsed.href
 
-    const pathname = parsed.pathname || '/'
-    const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
-    const query = parsed.search ? parsed.search : ''
-    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${query}`
-  } catch {
-    return ''
-  }
+  const pathname = parsed.pathname || '/'
+  const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+  const query = parsed.search ? parsed.search : ''
+  return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${query}`
 }
 
 function isGoogleSearchResultPage(parsed: URL): boolean {
@@ -297,19 +291,12 @@ function latestEventAt(events: WorkingSetActivityEvent[], kind: WorkingSetActivi
 }
 
 function domainForPageIdentity(key: string): string {
-  try {
-    return new URL(key).hostname
-  } catch {
-    return ''
-  }
+  return URL.parse(key)?.hostname || ''
 }
 
 function displayUrlForPageIdentity(key: string): string {
-  try {
-    const parsed = new URL(key)
-    if (parsed.protocol === 'file:') return parsed.pathname
-    return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
-  } catch {
-    return key
-  }
+  const parsed = URL.parse(key)
+  if (!parsed) return key
+  if (parsed.protocol === 'file:') return parsed.pathname
+  return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
 }

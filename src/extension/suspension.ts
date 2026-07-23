@@ -33,16 +33,16 @@ const SUSPENDED_PATH_SUFFIX = '/suspended.html'
 
 export function unwrapSuspenderUrl(url?: string): string {
   if (!url || !url.startsWith('chrome-extension://')) return url || ''
+  const parsed = URL.parse(url)
+  if (!parsed || !parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return url
+  const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+  const marker = '&uri='
+  let encoded
+  const idx = frag.indexOf(marker)
+  if (idx >= 0) encoded = frag.slice(idx + marker.length)
+  else if (frag.startsWith('uri=')) encoded = frag.slice(4)
+  else return url
   try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return url
-    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
-    const marker = '&uri='
-    let encoded
-    const idx = frag.indexOf(marker)
-    if (idx >= 0) encoded = frag.slice(idx + marker.length)
-    else if (frag.startsWith('uri=')) encoded = frag.slice(4)
-    else return url
     return decodeURIComponent(encoded) || url
   } catch {
     return url
@@ -65,12 +65,12 @@ export function unwrapSuspenderUrl(url?: string): string {
  */
 export function unwrapSuspenderTitle(url?: string): string {
   if (!url || !url.startsWith('chrome-extension://')) return ''
+  const parsed = URL.parse(url)
+  if (!parsed || !parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return ''
+  const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
+  const match = frag.match(/(?:^|&)ttl=([^&]*)/)
+  if (!match) return ''
   try {
-    const parsed = new URL(url)
-    if (!parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return ''
-    const frag = parsed.hash.startsWith('#') ? parsed.hash.slice(1) : ''
-    const match = frag.match(/(?:^|&)ttl=([^&]*)/)
-    if (!match) return ''
     return decodeURIComponent(match[1] || '') || ''
   } catch {
     return ''
@@ -93,7 +93,7 @@ export interface SuspendTarget {
   template: string
 }
 
-export interface StoredSuspendTarget extends SuspendTarget {
+interface StoredSuspendTarget extends SuspendTarget {
   observedAt: number
 }
 
@@ -116,13 +116,9 @@ export type SuspendTargetStore = {
 
 export function extractSuspenderId(rawUrl: string | undefined): string | null {
   if (!rawUrl || !rawUrl.startsWith('chrome-extension://')) return null
-  try {
-    const parsed = new URL(rawUrl)
-    if (!parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return null
-    return parsed.hostname || null
-  } catch {
-    return null
-  }
+  const parsed = URL.parse(rawUrl)
+  if (!parsed || !parsed.pathname.endsWith(SUSPENDED_PATH_SUFFIX)) return null
+  return parsed.hostname || null
 }
 
 export function buildSuspendUrl(target: SuspendTarget, opts: { url: string; title: string }): string {

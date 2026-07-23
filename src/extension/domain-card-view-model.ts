@@ -541,15 +541,12 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
  */
 function disambiguatingPaths(urls: string[]): string[] {
   const tokens = urls.map((u) => {
-    try {
-      const parsed = new URL(u)
-      const t = parsed.pathname.split('/').filter(Boolean)
-      if (parsed.search) t.push(parsed.search) // "?foo=bar"
-      if (parsed.hash) t.push(parsed.hash) // "#section"
-      return t
-    } catch {
-      return []
-    }
+    const parsed = URL.parse(u)
+    if (!parsed) return []
+    const t = parsed.pathname.split('/').filter(Boolean)
+    if (parsed.search) t.push(parsed.search) // "?foo=bar"
+    if (parsed.hash) t.push(parsed.hash) // "#section"
+    return t
   })
   const minLen = Math.min(...tokens.map((t) => t.length))
 
@@ -784,10 +781,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   }
 
   function baseTitlePresentation(tab: DashboardTab): BaseTitlePresentation {
-    let hostname = group.domain
-    try {
-      hostname = new URL(tab.url).hostname
-    } catch {}
+    const hostname = URL.parse(tab.url)?.hostname ?? group.domain
     const cleaned = cleanTitleWithRemovedSuffix(stripTitleNoise(tab.title || ''), hostname, titleNoiseSuffixesForUrl(tab.url))
     return {
       displayTitle: cleaned.title,
@@ -796,10 +790,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   }
 
   function titleNoiseSuffixesForUrl(url: string): string[] {
-    try {
-      const parsed = new URL(url)
-      if (parsed.hostname.endsWith('.atlassian.net') && parsed.pathname.startsWith('/wiki/')) return ['Confluence']
-    } catch {}
+    const parsed = URL.parse(url)
+    if (parsed?.hostname.endsWith('.atlassian.net') && parsed.pathname.startsWith('/wiki/')) return ['Confluence']
     return []
   }
 
@@ -1149,25 +1141,21 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   {
     const pageMap = new Map<string, DashboardTab[]>()
     for (const tab of uniqueTabs) {
-      try {
-        const parsed = new URL(tab.url)
-        const sub = subdomainPrefix(parsed.hostname, group.domain)
-        if (!sub) continue // root-level tabs have no env to compare
-        const pathKey = parsed.pathname + parsed.search + parsed.hash
-        const titleKey = displayTitle(tab).trim().toLowerCase()
-        const pageKey = `${pathKey}\u0000${titleKey}`
-        if (!pageMap.has(pageKey)) pageMap.set(pageKey, [])
-        pageMap.get(pageKey)?.push(tab)
-      } catch {
-        // unparseable URL — skip
-      }
+      const parsed = URL.parse(tab.url)
+      if (!parsed) continue
+      const sub = subdomainPrefix(parsed.hostname, group.domain)
+      if (!sub) continue // root-level tabs have no env to compare
+      const pathKey = parsed.pathname + parsed.search + parsed.hash
+      const titleKey = displayTitle(tab).trim().toLowerCase()
+      const pageKey = `${pathKey}\u0000${titleKey}`
+      if (!pageMap.has(pageKey)) pageMap.set(pageKey, [])
+      pageMap.get(pageKey)?.push(tab)
     }
     for (const tabs of pageMap.values()) {
       const subs = new Set<string>()
       for (const t of tabs) {
-        try {
-          subs.add(subdomainPrefix(new URL(t.url).hostname, group.domain))
-        } catch {}
+        const parsed = URL.parse(t.url)
+        if (parsed) subs.add(subdomainPrefix(parsed.hostname, group.domain))
       }
       if (subs.size < 2) continue
       foldGroups.push(tabs)
@@ -1182,14 +1170,14 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   for (const tab of uniqueTabs) {
     if (foldedTabUrls.has(tab.url)) continue
     let key = ''
-    try {
-      const parsed = new URL(tab.url)
+    const parsed = URL.parse(tab.url)
+    if (parsed) {
       if (parsed.hostname === 'localhost' && parsed.port) {
         key = parsed.port
       } else {
         key = subdomainPrefix(parsed.hostname, group.domain)
       }
-    } catch {}
+    }
     if (!bySubdomain.has(key)) bySubdomain.set(key, [])
     bySubdomain.get(key)?.push(tab)
   }
@@ -1236,10 +1224,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     stripLabel = '',
     { iconOnly = false, rawTitle = false }: { iconOnly?: boolean; rawTitle?: boolean } = {}
   ): DashboardChipData {
-    let parsed: URL | null = null
-    try {
-      parsed = new URL(tab.url)
-    } catch {}
+    const parsed = URL.parse(tab.url)
     // rawTitle: bypass the presentation pipeline entirely (no noise strip,
     // no suppression pills) — app chips mirror the history list, which
     // shows titles exactly as Chrome reports them.
@@ -1370,21 +1355,13 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   }
 
   function titleVariantLabelForUrl(url: string): string {
-    try {
-      const parsed = new URL(url)
-      return `${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || '/'
-    } catch {
-      return url || '/'
-    }
+    const parsed = URL.parse(url)
+    return parsed ? `${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || '/' : url || '/'
   }
 
   function titleVariantHostLabelForUrl(url: string): string {
-    try {
-      const parsed = new URL(url)
-      return `${parsed.host}${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || url || '/'
-    } catch {
-      return url || '/'
-    }
+    const parsed = URL.parse(url)
+    return parsed ? `${parsed.host}${parsed.pathname || '/'}${parsed.search}${parsed.hash}` || url || '/' : url || '/'
   }
 
   function uniqueTitleVariantFallbackLabels(urls: readonly string[]): string[] {
@@ -1655,10 +1632,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     // page identity and subdomain prefix every time.
     const envs = tabs
       .map((t) => {
-        let sub = ''
-        try {
-          sub = subdomainPrefix(new URL(t.url).hostname, group.domain)
-        } catch {}
+        const parsed = URL.parse(t.url)
+        const sub = parsed ? subdomainPrefix(parsed.hostname, group.domain) : ''
         return {
           tabId: t.id,
           prefix: sub || '?',

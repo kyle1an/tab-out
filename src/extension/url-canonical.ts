@@ -61,12 +61,8 @@ export function canonicalDedupeKey(url: string): string {
   // chrome://newtab/ is intentionally left as-is (see tab-out-url.ts).
   if (isTabOutDashboardUrl(url)) return tabOutDashboardCanonicalUrl() ?? url
 
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return url
-  }
+  const parsed = URL.parse(url)
+  if (!parsed) return url
 
   for (const rule of BUILT_IN_CANONICALIZERS) {
     const hostMatch = rule.hostname

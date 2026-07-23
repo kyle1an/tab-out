@@ -45,12 +45,8 @@ const BUILT_IN_WEBSITE_PATH_SECTION_RULES: WebsitePathSectionRule[] = [
 
 export function resolveWebsitePathSection(url: string): WebsitePathSectionResult | null {
   if (!url) return null
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    return null
-  }
+  const parsed = URL.parse(url)
+  if (!parsed) return null
 
   for (const rule of BUILT_IN_WEBSITE_PATH_SECTION_RULES) {
     const hostMatch = rule.hostname
@@ -72,9 +68,6 @@ export function resolveWebsitePathSection(url: string): WebsitePathSectionResult
 
 export function resolveGenericWebsitePathSection(url: string): WebsitePathSectionResult | null {
   if (!url) return null
-  try {
-    return pathSection(firstPathSegment(new URL(url).pathname))
-  } catch {
-    return null
-  }
+  const parsed = URL.parse(url)
+  return parsed ? pathSection(firstPathSegment(parsed.pathname)) : null
 }

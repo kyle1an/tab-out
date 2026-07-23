@@ -26,7 +26,7 @@ export type ChromeSupportAssessment = {
 
 const CHROME_VERSION_PATTERN = /^(\d+)\./
 
-export function chromeMajor(version: string): number {
+function chromeMajor(version: string): number {
   const match = CHROME_VERSION_PATTERN.exec(version)
   if (!match) throw new TypeError(`Invalid Chrome version: ${version}`)
   return Number(match[1])
