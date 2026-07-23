@@ -44,6 +44,61 @@ layout math.
 automated form of the same idea: Playwright serves the repo, loads the fixture
 in headless Chrome, and asserts on layout / expansion behavior.
 
+## Inspecting Page Chip title expansion
+
+Truncated Page Chip titles expand in place as `.page-chip-expanded`; they do
+not open a tooltip popup. Small auxiliary controls can still use
+`[data-slot="tooltip-content"]`. When a real-extension result differs from the
+fixture, hover the affected Page Chip and run this geometry-only probe in the
+Tab Out console. It intentionally omits title and URL data so the output can be
+shared safely:
+
+```js
+(() => {
+  const chip = document.querySelector('.page-chip-expanded')
+  const text = chip?.querySelector('.chip-text')
+  if (!(chip instanceof HTMLElement) || !(text instanceof HTMLElement)) {
+    return null
+  }
+
+  const chipRect = chip.getBoundingClientRect()
+  const textRect = text.getBoundingClientRect()
+  const range = document.createRange()
+  range.selectNodeContents(text)
+  const paintedRect = range.getBoundingClientRect()
+  const lines = [...text.querySelectorAll('.page-chip-expanded-line')]
+
+  return {
+    chip: { width: chipRect.width, height: chipRect.height, right: chipRect.right },
+    text: {
+      width: textRect.width,
+      height: textRect.height,
+      clientWidth: text.clientWidth,
+      scrollWidth: text.scrollWidth,
+      clientHeight: text.clientHeight,
+      scrollHeight: text.scrollHeight
+    },
+    painted: {
+      right: paintedRect.right,
+      bottom: paintedRect.bottom,
+      fitsRight: paintedRect.right <= chipRect.right + 1,
+      fitsBottom: paintedRect.bottom <= chipRect.bottom + 1
+    },
+    lines: lines.map((line) => ({
+      clientWidth: line.clientWidth,
+      scrollWidth: line.scrollWidth,
+      overflows: line.scrollWidth > line.clientWidth + 1
+    })),
+    visiblePopupTooltips: [...document.querySelectorAll('[data-slot="tooltip-content"]')]
+      .filter((popup) => popup.getClientRects().length > 0).length
+  }
+})()
+```
+
+Measure the expanded element itself, not its resting slot. If the issue depends
+on live tab state or extension focus, reproduce it on the real extension page;
+the fixture proves layout only.
+
 ## Visualizing re-renders (react-scan)
 
 To *see* which components render on a hover or a filter keystroke (e.g. to

@@ -11,3 +11,7 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `wontfix`                  | `wontfix`                | Will not be actioned                     |
 
 When a skill mentions a role, use the corresponding status string from this table.
+
+These five values describe triage while an issue is open. `Status: resolved`
+and the terminal `Resolution:` field are lifecycle metadata defined in
+`issue-tracker.md`, not additional triage labels.

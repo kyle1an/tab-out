@@ -116,4 +116,4 @@ For installation or onboarding, use the canonical product copy and setup flow in
 - Issue tracker: local markdown issues live under `.scratch/<feature>/`; see `docs/agents/issue-tracker.md`.
 - Triage labels: use the default five-status vocabulary; see `docs/agents/triage-labels.md`.
 - Domain docs: this is a single-context repo with root `CONTEXT.md` and optional `docs/adr/`; see `docs/agents/domain.md`.
-- UI debugging notes: `docs/debugging-the-dashboard.md` covers running the dashboard against fake tab data without an extension reload loop; `docs/tooltip-migration-notes.md` records tooltip migration decisions and open issues.
+- UI debugging: `docs/debugging-the-dashboard.md` covers fixture-based inspection and real-extension geometry probes; completed engineering audits are summarized in `docs/engineering-change-ledger.md`.
