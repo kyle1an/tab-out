@@ -13,10 +13,13 @@ import {
   getRecentlyClosed,
   getRecentlyClosedResult,
   getTab,
+  getWindow,
   groupTabs,
+  highlightTabs,
   moveTab,
   queryAllTabs,
   queryAllTabsResult,
+  queryTabsInWindowResult,
   queryTabGroups,
   queryTabGroupsResult,
   reloadTab,
@@ -84,10 +87,12 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   assert.equal(await createTab({ url: 'https://a.test/' }), null)
   assert.equal(await reloadTab(1), false)
   assert.equal(await duplicateTab(1), null)
+  assert.equal(await highlightTabs(1, [0]), false)
   assert.equal(await groupTabs([1], 5), false)
   assert.equal(await moveTab(1, { index: 0 }), null)
   assert.deepEqual(await getAllWindows(), [])
   assert.deepEqual(await getAllWindowsResult(), { ok: false, value: [] })
+  assert.equal(await getWindow(1), null)
   assert.equal(await getCurrentWindow(), null)
   assert.deepEqual(await getCurrentWindowResult(), { ok: false, value: null })
   assert.equal(await focusWindow(1), false)
@@ -109,6 +114,53 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   setChromeTabsApi(rejecting)
   assert.deepEqual(await queryAllTabs(), [])
   assert.equal(await getTab(1), null)
+})
+
+test('window tab reads and native highlighting stay scoped to the requested window', async (t) => {
+  t.after(() => setChromeTabsApi(null))
+
+  const calls = {
+    highlight: [] as chrome.tabs.HighlightInfo[],
+    query: [] as chrome.tabs.QueryInfo[],
+    windows: [] as number[]
+  }
+  const targetWindow = {
+    id: 4,
+    type: 'normal',
+    focused: false,
+    alwaysOnTop: false,
+    incognito: false
+  } as chrome.windows.Window
+  setChromeTabsApi({
+    tabs: {
+      query: async (queryInfo) => {
+        calls.query.push(queryInfo)
+        return [fakeTab(8, 'https://target.test/', { windowId: 4, index: 2 })]
+      },
+      highlight: async (highlightInfo) => {
+        calls.highlight.push(highlightInfo)
+        return targetWindow
+      }
+    },
+    windows: {
+      get: async (windowId) => {
+        calls.windows.push(windowId)
+        return targetWindow
+      }
+    }
+  })
+
+  assert.deepEqual(await queryTabsInWindowResult(4), {
+    ok: true,
+    value: [fakeTab(8, 'https://target.test/', { windowId: 4, index: 2 })]
+  })
+  assert.equal((await getWindow(4))?.id, 4)
+  assert.equal(await highlightTabs(4, [2, 2, -1, 0]), true)
+  assert.deepEqual(calls, {
+    highlight: [{ windowId: 4, tabs: [2, 0] }],
+    query: [{ windowId: 4 }],
+    windows: [4]
+  })
 })
 
 test('collection read results distinguish Chrome rejection from confirmed empty state', async (t) => {

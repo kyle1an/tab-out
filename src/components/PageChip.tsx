@@ -1458,6 +1458,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     target?: Pick<DashboardChipData, 'rawUrl' | 'tabId'>
   ) {
     if (!targetUrl) return
+    await setPreview('')
     const mode = chipActivationMode(e, navigator.platform)
     const activationResult = await performDashboardItemActivation(mode, {
       tabId: target?.tabId,
@@ -1477,7 +1478,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function previewDefaultTitleVariant() {
     const variant = defaultTitleVariantChip()
     if (!variant) return
-    setPreview(variant.tabUrl, previewUrlsForChip(variant))
+    setPreview(variant.tabUrl, previewUrlsForChip(variant), variant)
   }
 
   function titleVariantEventTargetsExactVariant(target: EventTarget | null) {
@@ -1566,18 +1567,19 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   async function onEnvClick(e: MouseEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     e.stopPropagation()
-    await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType)
+    await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType, env)
   }
 
   async function onEnvKeyDown(e: KeyboardEvent<HTMLButtonElement>, env: DashboardChipEnv) {
     if (!isKeyboardActivation(e)) return
     e.preventDefault()
     e.stopPropagation()
-    await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType)
+    await activateChipTarget(e, env.tabUrl, env.sourceType || chip.sourceType, env)
   }
 
-  function setPreview(url: string, matchUrls: readonly string[] = [url]) {
-    if (onHoverUrlChange) onHoverUrlChange(url || '', 'chip', matchUrls)
+  function setPreview(url: string, matchUrls: readonly string[] = [url], target?: Pick<DashboardChipData, 'tabId'>) {
+    const tabId = typeof target?.tabId === 'number' ? target.tabId : undefined
+    return onHoverUrlChange?.(url || '', 'chip', matchUrls, tabId)
   }
 
   function previewUrlsForChip(target: DashboardChipData): string[] {
@@ -1588,7 +1590,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     contextMenuOpenRef.current = open
     if (open) {
       openChipExpansion()
-      setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
+      if (isTitleVariantGroup) {
+        previewDefaultTitleVariant()
+      } else {
+        setPreview(primaryPreviewUrl, previewUrlsForChip(chip), chip)
+      }
       return
     }
     closeChipExpansion()
@@ -1598,7 +1604,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function onEnvContextMenuOpenChange(open: boolean, env: DashboardChipEnv) {
     contextMenuOpenRef.current = open
     if (open) {
-      setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
+      setPreview(env.tabUrl, [env.tabUrl, env.rawUrl], env)
       return
     }
     setPreview('')
@@ -1607,7 +1613,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function onTitleVariantContextMenuOpenChange(open: boolean, variant: DashboardChipData) {
     contextMenuOpenRef.current = open
     if (open) {
-      setPreview(variant.tabUrl, previewUrlsForChip(variant))
+      setPreview(variant.tabUrl, previewUrlsForChip(variant), variant)
       return
     }
     setPreview('')
@@ -1615,7 +1621,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   function onChipMouseEnter() {
     if (isFolded) return
-    setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
+    setPreview(primaryPreviewUrl, previewUrlsForChip(chip), chip)
   }
 
   function onChipMouseLeave(e: MouseEvent<HTMLDivElement>) {
@@ -1694,7 +1700,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   function onChipFocus(e: FocusEvent<HTMLDivElement>) {
     if (isFolded) return
     if (e.target === e.currentTarget && e.currentTarget.matches(':focus-visible')) openChipExpansion()
-    setPreview(primaryPreviewUrl, previewUrlsForChip(chip))
+    setPreview(primaryPreviewUrl, previewUrlsForChip(chip), chip)
   }
 
   function onChipBlur(e: FocusEvent<HTMLDivElement>) {
@@ -1744,13 +1750,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onEnvMouseEnter(env: DashboardChipEnv) {
-    setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
+    setPreview(env.tabUrl, [env.tabUrl, env.rawUrl], env)
   }
 
   function onEnvMouseLeave(e: MouseEvent<HTMLElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (!isFolded && chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
-      setPreview(primaryPreviewUrl)
+      setPreview(primaryPreviewUrl, [primaryPreviewUrl], chip)
       return
     }
     if (contextMenuOpenRef.current) return
@@ -1758,13 +1764,13 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   }
 
   function onEnvFocus(env: DashboardChipEnv) {
-    setPreview(env.tabUrl, [env.tabUrl, env.rawUrl])
+    setPreview(env.tabUrl, [env.tabUrl, env.rawUrl], env)
   }
 
   function onEnvBlur(e: FocusEvent<HTMLElement>) {
     const chipEl = e.currentTarget.closest('.page-chip')
     if (!isFolded && chipEl && e.relatedTarget instanceof Node && chipEl.contains(e.relatedTarget)) {
-      setPreview(primaryPreviewUrl)
+      setPreview(primaryPreviewUrl, [primaryPreviewUrl], chip)
       return
     }
     if (contextMenuOpenRef.current) return
@@ -1885,7 +1891,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   function onTitleVariantMouseEnter(variant: DashboardChipData) {
     setDefaultVariantSurfaceHover(false)
-    setPreview(variant.tabUrl, previewUrlsForChip(variant))
+    setPreview(variant.tabUrl, previewUrlsForChip(variant), variant)
   }
 
   function onTitleVariantMouseLeave(e: MouseEvent<HTMLElement>) {
@@ -1905,7 +1911,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
   function onTitleVariantFocusIn(variant: DashboardChipData) {
     setDefaultVariantSurfaceHover(false)
-    setPreview(variant.tabUrl, previewUrlsForChip(variant))
+    setPreview(variant.tabUrl, previewUrlsForChip(variant), variant)
   }
 
   function onTitleVariantBlur(e: FocusEvent<HTMLElement>) {

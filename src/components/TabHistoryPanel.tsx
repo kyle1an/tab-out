@@ -973,6 +973,7 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
   }
 
   async function activateHistoryEntry(e?: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) {
+    await onHoverUrlChange?.('')
     const mode = chipActivationMode(e, navigator.platform)
     const hasLiveTab = !!workingSetItem || entry.exists
     const tabId = workingSetItem ? workingSetItem.tabId : entry.tabId
@@ -1044,7 +1045,8 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
       ...pageTargetMatchUrls(entry),
       ...workingSetUrls(workingSetItem ?? undefined)
     ])
-    onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls)
+    const tabId = workingSetItem?.tabId ?? (entry.exists ? entry.tabId : undefined)
+    onHoverUrlChange?.(hoverUrl, hoverSource, hoverUrls, tabId)
   }
 
   function onMouseLeave() {

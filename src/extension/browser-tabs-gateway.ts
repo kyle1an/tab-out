@@ -21,6 +21,7 @@ export type ChromeTabsApi = {
     query(queryInfo: chrome.tabs.QueryInfo): Promise<chrome.tabs.Tab[]>
     get?(tabId: number): Promise<chrome.tabs.Tab>
     getCurrent?(): Promise<chrome.tabs.Tab | undefined>
+    highlight?(highlightInfo: chrome.tabs.HighlightInfo): Promise<chrome.windows.Window>
     remove?(tabIds: number | number[]): Promise<void>
     update?(tabId: number, updateProperties: chrome.tabs.UpdateProperties): Promise<chrome.tabs.Tab | undefined>
     create?(createProperties: chrome.tabs.CreateProperties): Promise<chrome.tabs.Tab>
@@ -30,6 +31,7 @@ export type ChromeTabsApi = {
     group?(options: { tabIds: number | number[]; groupId?: number }): Promise<number>
   }
   windows?: {
+    get?(windowId: number): Promise<chrome.windows.Window>
     getAll?(): Promise<chrome.windows.Window[]>
     getCurrent?(): Promise<chrome.windows.Window>
     update?(windowId: number, updateInfo: chrome.windows.UpdateInfo): Promise<chrome.windows.Window | undefined>
@@ -79,6 +81,16 @@ export async function queryAllTabsResult(): Promise<BrowserReadResult<chrome.tab
 
 export async function queryAllTabs(): Promise<chrome.tabs.Tab[]> {
   return (await queryAllTabsResult()).value
+}
+
+export async function queryTabsInWindowResult(windowId: number): Promise<BrowserReadResult<chrome.tabs.Tab[]>> {
+  const api = chromeTabsApi()
+  if (!api?.tabs?.query) return { ok: false, value: [] }
+  try {
+    return { ok: true, value: await api.tabs.query({ windowId }) }
+  } catch {
+    return { ok: false, value: [] }
+  }
 }
 
 export async function getTab(tabId: number): Promise<chrome.tabs.Tab | null> {
@@ -165,6 +177,19 @@ export async function duplicateTab(tabId: number): Promise<chrome.tabs.Tab | nul
   }
 }
 
+/** highlightTabs -- replace a window's native tab selection without focusing the window itself. */
+export async function highlightTabs(windowId: number, tabIndexes: number[]): Promise<boolean> {
+  const api = chromeTabsApi()
+  const tabs = [...new Set(tabIndexes.filter((index) => Number.isInteger(index) && index >= 0))]
+  if (!api?.tabs?.highlight || tabs.length === 0) return false
+  try {
+    await api.tabs.highlight({ windowId, tabs })
+    return true
+  } catch {
+    return false
+  }
+}
+
 /**
  * createTabWithFallbackUrl — Chrome refuses to create tabs for another
  * extension's URL (e.g. a suspender page). Try the requested URL first,
@@ -219,6 +244,16 @@ export async function getAllWindowsResult(): Promise<BrowserReadResult<chrome.wi
 
 export async function getAllWindows(): Promise<chrome.windows.Window[]> {
   return (await getAllWindowsResult()).value
+}
+
+export async function getWindow(windowId: number): Promise<chrome.windows.Window | null> {
+  const api = chromeTabsApi()
+  if (!api?.windows?.get) return null
+  try {
+    return (await api.windows.get(windowId)) ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function getCurrentWindowResult(): Promise<BrowserReadResult<chrome.windows.Window | null>> {

@@ -1,6 +1,7 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useUrlPreview } from './useUrlPreview'
 import { createHoverStateStore } from '../components/DashboardInteractionContext'
+import { createNativeTabHighlightController } from '../extension/native-tab-highlight.js'
 import type { HoverUrlSource } from '../components/types'
 
 function sameHoverUrls(a: readonly string[], b: readonly string[]) {
@@ -15,8 +16,9 @@ function sameHoverUrls(a: readonly string[], b: readonly string[]) {
 export function useHoverMatch() {
   const { urlPreviewStore, setUrlPreview, clearUrlPreviewNow } = useUrlPreview()
   const [hoverStateStore] = useState(createHoverStateStore)
+  const [nativeTabHighlightController] = useState(createNativeTabHighlightController)
 
-  const handleHoverUrlChange = useCallback(function handleHoverUrlChange(url: string, source: HoverUrlSource = 'chip', matchUrls?: readonly string[]) {
+  const handleHoverUrlChange = useCallback(function handleHoverUrlChange(url: string, source: HoverUrlSource = 'chip', matchUrls?: readonly string[], tabId?: number) {
     const nextUrl = url || ''
     const nextUrls = nextUrl
       ? [...new Set((matchUrls && matchUrls.length > 0 ? matchUrls : [nextUrl]).filter(Boolean))]
@@ -27,7 +29,8 @@ export function useHoverMatch() {
       hoverStateStore.setSnapshot({ url: nextUrl, urls: nextUrls, source: nextSource })
     }
     setUrlPreview(nextUrl)
-  }, [hoverStateStore, setUrlPreview])
+    return nativeTabHighlightController.setTarget(nextUrl ? tabId : null)
+  }, [hoverStateStore, nativeTabHighlightController, setUrlPreview])
 
   const clearHoverUrlNow = useCallback(function clearHoverUrlNow() {
     const current = hoverStateStore.getSnapshot()
@@ -35,7 +38,12 @@ export function useHoverMatch() {
       hoverStateStore.setSnapshot({ url: '', urls: [], source: null })
     }
     clearUrlPreviewNow()
-  }, [clearUrlPreviewNow, hoverStateStore])
+    return nativeTabHighlightController.clear()
+  }, [clearUrlPreviewNow, hoverStateStore, nativeTabHighlightController])
+
+  useEffect(() => () => {
+    void nativeTabHighlightController.clear()
+  }, [nativeTabHighlightController])
 
   return { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow }
 }

@@ -986,7 +986,7 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.match(pageChipSource, /function onVariantGroupChipMouseEnter\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?previewDefaultTitleVariantSurface\(e\.target\)[\s\S]*?openChipExpansion\(\)/)
   assert.match(pageChipSource, /function onVariantGroupChipMouseLeave\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?contextMenuOpenRef\.current[\s\S]*?setDefaultVariantSurfaceHover\(false\)[\s\S]*?setPreview\(''\)/)
   assert.match(pageChipSource, /function onTitleVariantMouseLeave\(e: MouseEvent<HTMLElement>\)[\s\S]*?closest\('\.page-chip'\)[\s\S]*?!titleVariantEventTargetsDefaultSurfaceBlocker\(e\.relatedTarget\)[\s\S]*?previewDefaultTitleVariantSurface\(e\.relatedTarget\)/)
-  assert.match(pageChipSource, /function previewDefaultTitleVariant\(\) \{[\s\S]*?setPreview\(variant\.tabUrl, previewUrlsForChip\(variant\)\)[\s\S]*?\}/)
+  assert.match(pageChipSource, /function previewDefaultTitleVariant\(\) \{[\s\S]*?setPreview\(variant\.tabUrl, previewUrlsForChip\(variant\), variant\)[\s\S]*?\}/)
   assert.match(pageChipSource, /const variantGroupInteractionProps = isTitleVariantGroup[\s\S]*?onClick: onVariantGroupChipClick[\s\S]*?onMouseDown: onVariantGroupChipMouseDown[\s\S]*?onMouseEnter: onVariantGroupChipMouseEnter[\s\S]*?onMouseMove: onVariantGroupChipMouseMove[\s\S]*?onMouseLeave: onVariantGroupChipMouseLeave/)
   assert.match(pageChipSource, /className="chip-title-variant-content flex w-full min-w-0 flex-col items-start gap-0\.5">/)
   assert.doesNotMatch(pageChipSource, /onTitleVariantGroupMouseEnter|onTitleVariantGroupMouseLeave/)
