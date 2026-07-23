@@ -25,6 +25,8 @@
       const shortHistoryTitleCase = fixtureParams.has('shortHistoryTitle')
       const tallGlyphTitleCase = fixtureParams.has('tallGlyphTitle')
       const historyReorderMotionCase = fixtureParams.has('historyReorderMotion')
+      const appLoadingFaviconCase = fixtureParams.has('appLoadingFavicon')
+      const appLoadingTitle = 'Inbox (417) - example.user@example.test'
       const historyTitle = shortHistoryTitleCase
         ? 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
         : 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup'
@@ -109,21 +111,22 @@
           {
             index: 0,
             tabId: 9001,
-            windowId: 1,
+            windowId: appLoadingFaviconCase ? 2 : 1,
             exists: true,
             active: false,
             activeInOtherWindow: false,
-            isApp: false,
+            isApp: appLoadingFaviconCase,
             pinned: false,
             discarded: false,
+            loading: appLoadingFaviconCase,
             cursor: false,
             current: false,
             previousTarget: false,
             nextTarget: false,
-            title: historyTitle,
-            url: 'chrome://settings/appearance',
-            rawUrl: 'chrome://settings/appearance',
-            displayUrl: 'chrome://settings/appearance',
+            title: appLoadingFaviconCase ? appLoadingTitle : historyTitle,
+            url: appLoadingFaviconCase ? 'https://app.example.test/inbox' : 'chrome://settings/appearance',
+            rawUrl: appLoadingFaviconCase ? 'https://app.example.test/inbox' : 'chrome://settings/appearance',
+            displayUrl: appLoadingFaviconCase ? 'app.example.test/inbox' : 'chrome://settings/appearance',
             favIconUrl: '',
             lastActivatedAt: 1800000001000
           }
@@ -141,7 +144,10 @@
             encodeURIComponent('url:https://example-team.atlassian.net/jira/software/c/projects/OPS2/boards/1226/backlog?assignee=712020%3A838adb9a-07e8-48f3-ac56-0db51007ac44')
         ]
       }
-      const windows = [{ id: 1, type: 'normal', focused: true }]
+      const windows = [
+        { id: 1, type: 'normal', focused: true },
+        ...(appLoadingFaviconCase ? [{ id: 2, type: 'app', focused: false }] : [])
+      ]
       const tabs = [
         ...(historyReorderMotionCase
           ? [
@@ -285,11 +291,11 @@
           : []),
         {
           id: 9001,
-          url: 'chrome://settings/appearance',
-          title: historyTitle,
+          url: appLoadingFaviconCase ? 'https://app.example.test/inbox' : 'chrome://settings/appearance',
+          title: appLoadingFaviconCase ? appLoadingTitle : historyTitle,
           favIconUrl: '',
-          status: shortHistoryTitleCase ? 'loading' : 'complete',
-          windowId: 1,
+          status: appLoadingFaviconCase || shortHistoryTitleCase ? 'loading' : 'complete',
+          windowId: appLoadingFaviconCase ? 2 : 1,
           active: false,
           pinned: false,
           groupId: -1,

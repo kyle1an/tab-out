@@ -1130,7 +1130,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
       <span
         className={cn(
           'chip-favicon-content relative z-2 grid size-4 place-items-center',
-          chip.isApp && !chip.iconOnly && 'chip-app-favicon-ring h-full w-full overflow-hidden rounded-[8px] border border-[rgba(115,115,115,0.32)] p-[2px] [corner-shape:squircle]',
+          chip.isApp && !chip.iconOnly && 'chip-app-favicon-ring h-full w-full place-content-center overflow-hidden rounded-[8px] border border-[rgba(115,115,115,0.32)] p-[2px] [corner-shape:squircle]',
           !chip.iconOnly && dupeCount > 1 && 'rounded-[4px] bg-(--card-bg) ring-1 ring-neutral-300/45 shadow-[0_1px_2px_rgba(10,10,10,0.08)] [corner-shape:squircle]',
           showFaviconCloseAction && 'group-hover/favicon-frame:opacity-0'
         )}

@@ -1167,7 +1167,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
           // keeps full strength — only the icon dims with liveness.
           'history-entry-favicon-content grid place-items-center',
           isApp
-            ? 'history-entry-app-favicon -mx-0.5 -my-0.5 size-5 overflow-hidden rounded-[8px] border border-[rgba(115,115,115,0.32)] p-[2px] [corner-shape:squircle]'
+            ? 'history-entry-app-favicon -mx-0.5 -my-0.5 size-5 place-content-center overflow-hidden rounded-[8px] border border-[rgba(115,115,115,0.32)] p-[2px] [corner-shape:squircle]'
             : 'h-full w-full',
           canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
         )}

@@ -792,6 +792,35 @@ test('Activation History marker stays aligned with the favicon and first title l
   expect(Math.abs(expandedMarkerTop - (geometry?.markerTop ?? Number.POSITIVE_INFINITY))).toBeLessThanOrEqual(0.5)
 })
 
+test('loading indicators stay centered inside app favicon outlines', async ({ page }) => {
+  const appTitle = 'Inbox (417) - example.user@example.test'
+  await page.goto('/tests/fixtures/dashboard-resize.html?appLoadingFavicon=1')
+
+  const historyOutline = page.locator('[data-tabout="activation-history-entry"]')
+    .filter({ hasText: appTitle })
+    .locator('.history-entry-app-favicon')
+  const chipOutline = page.locator('[data-tabout="page-chip"]')
+    .filter({ hasText: appTitle })
+    .locator('.chip-app-favicon-ring')
+
+  for (const outline of [historyOutline, chipOutline]) {
+    await expect(outline).toBeVisible()
+    const geometry = await outline.evaluate((element) => {
+      const indicator = element.querySelector<SVGElement>('[data-tabout-part="loading-indicator"]')
+      if (!indicator) throw new Error('App loading indicator fixture is unavailable')
+      const outlineRect = element.getBoundingClientRect()
+      const indicatorRect = indicator.getBoundingClientRect()
+      return {
+        x: (indicatorRect.left + indicatorRect.right - outlineRect.left - outlineRect.right) / 2,
+        y: (indicatorRect.top + indicatorRect.bottom - outlineRect.top - outlineRect.bottom) / 2
+      }
+    })
+
+    expect(Math.abs(geometry.x)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(geometry.y)).toBeLessThanOrEqual(0.5)
+  }
+})
+
 test('Activation History scrollbar follows filtered row content', async ({ page }) => {
   await page.setViewportSize({ width: 1420, height: 360 })
   await page.goto('/tests/fixtures/dashboard-resize.html')
