@@ -39,7 +39,7 @@ function createStaleWindowCommandApi() {
       },
       async update(windowId: number, updateInfo: chrome.windows.UpdateInfo) {
         calls.windowUpdate.push({ windowId, updateInfo })
-        return { id: windowId, type: 'normal' } as chrome.windows.Window
+        return { id: windowId, type: 'normal', focused: true } as chrome.windows.Window
       },
       async create(createData: chrome.windows.CreateData) {
         calls.windowCreate.push(createData)
@@ -70,6 +70,34 @@ test('open-filter retries a fresh normal-window selection when the selected wind
   ])
   assert.deepEqual(calls.windowUpdate, [{ windowId: 2, updateInfo: { focused: true } }])
   assert.deepEqual(calls.windowCreate, [])
+})
+
+test('open-filter retries window activation when Chrome leaves the target unfocused', async () => {
+  const windowUpdates: Array<{ windowId: number; updateInfo: chrome.windows.UpdateInfo }> = []
+  const chromeApi = {
+    runtime: { id: 'tab-out' },
+    tabs: {
+      create: async () => ({ id: 10, windowId: 2 }) as chrome.tabs.Tab
+    },
+    windows: {
+      getLastFocused: async () => ({ id: 2, type: 'normal', focused: false }) as chrome.windows.Window,
+      getAll: async () => [{ id: 2, type: 'normal', focused: false }] as chrome.windows.Window[],
+      update: async (windowId: number, updateInfo: chrome.windows.UpdateInfo) => {
+        windowUpdates.push({ windowId, updateInfo })
+        return { id: windowId, type: 'normal', focused: windowUpdates.length > 1 } as chrome.windows.Window
+      },
+      create: async () => {
+        throw new Error('should not create a replacement window')
+      }
+    }
+  } as unknown as ChromeApi
+
+  await openFilterTab(chromeApi)
+
+  assert.deepEqual(windowUpdates, [
+    { windowId: 2, updateInfo: { focused: true } },
+    { windowId: 2, updateInfo: { focused: true } }
+  ])
 })
 
 test('open-new-tab retries a fresh normal-window selection when the selected window closes', async () => {
@@ -103,7 +131,7 @@ test('open-new-tab tries every existing normal window before creating another', 
         { id: 2, type: 'normal', focused: false },
         { id: 3, type: 'normal', focused: false }
       ],
-      update: async (windowId: number) => ({ id: windowId, type: 'normal' }),
+      update: async (windowId: number) => ({ id: windowId, type: 'normal', focused: true }),
       create: async () => { throw new Error('should not create a fourth window') }
     }
   } as unknown as ChromeApi
