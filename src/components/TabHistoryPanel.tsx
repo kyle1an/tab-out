@@ -18,6 +18,7 @@ import { historyEntrySaveTarget, historyEntrySaved, isHistoryEntrySaveEligible }
 import { PageChipContextMenu } from './PageChipContextMenu'
 import type { PageChipContextMenuTriggerElement } from './PageChipContextMenu'
 import { DefaultFavicon } from './DefaultFavicon'
+import { FaviconImage } from './FaviconImage'
 import { FAVICON_DIM_CLASS_NAME } from './liveness-dim'
 import { TabAudioButton } from './TabAudioButton'
 import { TabLoadingIndicator } from './TabLoadingIndicator'
@@ -1025,7 +1026,7 @@ function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntry
     <span
       data-tabout-part="history-entry-marker"
       className={cn(
-        'mt-[5px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-[rgba(115,115,115,0.42)] group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        'mt-[5px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-muted-foreground group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
         isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live'
       )}
     >
@@ -1127,7 +1128,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
         )}
         aria-hidden="true"
       >
-        {loading ? <TabLoadingIndicator /> : faviconUrl ? <img className={cn('block h-full w-full object-contain', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} /> : null}
+        {loading ? <TabLoadingIndicator /> : faviconUrl ? <FaviconImage className={cn('block h-full w-full object-contain', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} /> : null}
       </span>
       {canRemoveEntry && (
         <button
@@ -1428,6 +1429,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
           role="button"
           tabIndex={!expanded && canActivateEntry ? 0 : -1}
           data-tabout-part="focus-button"
+          aria-label={entryLabel}
           aria-disabled={!canActivateEntry || expanded}
           aria-busy={entry.loading ? true : undefined}
           className="history-entry-main flex w-full cursor-default items-start gap-2 border-0 bg-transparent px-2.25 py-1.25 text-left text-[13px] font-normal text-inherit font-[inherit] leading-tight outline-none focus-visible:outline-none"

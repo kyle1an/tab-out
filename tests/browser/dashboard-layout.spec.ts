@@ -630,6 +630,129 @@ test('Activation History scrollbar follows filtered row content', async ({ page 
   await expect(scrollbar).toHaveCount(1)
 })
 
+test('lazy context-menu arming preserves keyboard focus on chips and history entries', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  for (const trigger of [
+    page.locator('[data-tabout="page-chip"][tabindex="0"]').first(),
+    page.locator('[data-tabout="activation-history-entry"] [data-tabout-part="focus-button"][tabindex="0"]').first()
+  ]) {
+    await trigger.focus()
+    await page.waitForTimeout(300)
+    await expect.poll(() => trigger.evaluate((element) => (
+      element === document.activeElement || element.contains(document.activeElement)
+    ))).toBe(true)
+  }
+})
+
+test('keyboard focus reveals section actions and lifts unmatched-card dimming', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeAddPathGroupPlaceholderTabs?: () => Promise<void>
+    }).__tabOutSmokeAddPathGroupPlaceholderTabs?.()
+  })
+
+  for (const selector of [
+    '.section-pin-btn:not(.is-pinned)',
+    '.subdomain-close-btn',
+    '.website-path-section-close-btn',
+    '.pathgroup-close-btn'
+  ]) {
+    const control = page.locator(selector).first()
+    if (await control.count() === 0) continue
+    await control.evaluate((element) => {
+      (element as HTMLElement).focus({ focusVisible: true } as FocusOptions & { focusVisible: boolean })
+    })
+    await expect.poll(() => control.evaluate((element) => getComputedStyle(element).opacity)).toBe('1')
+  }
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Example')
+  const unmatchedFocusTarget = page.locator('.card-unmatched [data-tabout="page-chip"][tabindex="0"]').first()
+  await expect(unmatchedFocusTarget).toHaveCount(1)
+  await unmatchedFocusTarget.evaluate((element) => {
+    (element as HTMLElement).focus({ focusVisible: true } as FocusOptions & { focusVisible: boolean })
+  })
+  await expect.poll(() => unmatchedFocusTarget.evaluate((element) => (
+    element.closest('.card-unmatched')
+      ? getComputedStyle(element.closest('.card-unmatched') as HTMLElement).opacity
+      : null
+  ))).toBe('1')
+})
+
+test('meaningful secondary text avoids opacity layering and the dashboard exposes a main landmark', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?motion=1')
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeAddPathGroupPlaceholderTabs?: () => Promise<void>
+    }).__tabOutSmokeAddPathGroupPlaceholderTabs?.()
+  })
+
+  await expect(page.getByRole('main', { name: 'Dashboard' })).toHaveCount(1)
+  await expect(page.locator('.pathgroup-header-count').first()).toBeVisible()
+
+  const secondaryText = await page.evaluate(() => {
+    const selectors = [
+      '.domain-title-subdomain',
+      '.domain-title-suffix',
+      '.tab-count-badge-total',
+      '.subdomain-header-count',
+      '.website-path-section-header-count',
+      '.pathgroup-header-count',
+      '.chip-path'
+    ]
+
+    return selectors.map((selector) => {
+      const element = document.querySelector<HTMLElement>(selector)
+      return {
+        opacity: element ? getComputedStyle(element).opacity : null,
+        selector
+      }
+    })
+  })
+
+  for (const requiredSelector of ['.domain-title-suffix', '.pathgroup-header-count']) {
+    expect(secondaryText.find(({ selector }) => selector === requiredSelector)?.opacity).not.toBeNull()
+  }
+  expect(secondaryText.filter(({ opacity }) => opacity !== null && opacity !== '1')).toEqual([])
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Gamma')
+  const filteredTotal = page.locator('.tab-count-badge-total').first()
+  await expect(filteredTotal).toBeVisible()
+  await expect.poll(() => filteredTotal.evaluate((element) => getComputedStyle(element).opacity)).toBe('1')
+})
+
+test('a favicon recovers after the same image node receives a valid source', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  const chip = page.locator('[data-tabout="page-chip"]').filter({
+    hasText: 'Short title'
+  }).first()
+  const setFavicon = async (faviconUrl: string) => {
+    await page.evaluate(async (url) => {
+      await (window as typeof window & {
+        __tabOutSmokeSetTabFavicon?: (tabId: number, faviconUrl: string) => Promise<void>
+      }).__tabOutSmokeSetTabFavicon?.(1, url)
+    }, faviconUrl)
+  }
+
+  await setFavicon('/missing-favicon-for-recovery-test.svg')
+  const favicon = chip.locator('img.chip-favicon')
+  await expect.poll(async () => {
+    if (await favicon.count() === 0) return true
+    return favicon.evaluate((image) => (
+      (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth === 0
+    ))
+  }).toBe(true)
+
+  await setFavicon('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="16" height="16"%3E%3Crect width="16" height="16" fill="%2300a86b"/%3E%3C/svg%3E')
+  await expect.poll(() => favicon.evaluate((image) => ({
+    display: getComputedStyle(image).display,
+    naturalWidth: (image as HTMLImageElement).naturalWidth
+  }))).toEqual({ display: 'block', naturalWidth: 16 })
+})
+
 test('filter keyboard navigation selects the first true match and moves without leaving the input', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
@@ -780,6 +903,10 @@ test('filter Arrow Down waits for companion hydration before moving from the fir
 
 test('filter navigation only selects progressive bookmark results after they mount', async ({ page }) => {
   await page.addInitScript(() => {
+    Object.defineProperty(window, 'IntersectionObserver', {
+      configurable: true,
+      value: undefined
+    })
     const idleCallbacks = new Map<number, IdleRequestCallback>()
     let nextIdleId = 1
     window.requestIdleCallback = (callback) => {
@@ -835,6 +962,30 @@ test('filter navigation only selects progressive bookmark results after they mou
   await input.press('ArrowDown')
   await expect(input).toHaveAttribute('aria-activedescendant', firstNewlyMountedId ?? '')
   await expect(candidates.nth(24)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+})
+
+test('large bookmark rendering stays bounded at the top and hydrates on scroll demand', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await page.evaluate(() => {
+    ;(window as typeof window & { __tabOutSmokeSetBookmarks: (count: number) => void })
+      .__tabOutSmokeSetBookmarks(200)
+  })
+  await page.getByRole('tab', { name: 'Bookmarks' }).click()
+
+  const cards = page.locator('#openTabsMissions [data-tabout="domain-card"]')
+  await expect.poll(() => cards.count()).toBeGreaterThanOrEqual(24)
+  await page.waitForTimeout(1_200)
+  expect(await cards.count()).toBeLessThanOrEqual(96)
+  expect(await page.locator('#openTabsMissions *').count()).toBeLessThanOrEqual(3_500)
+
+  const scrollRegion = page.locator('[data-tabout-part="scroll-region"]')
+  for (let pass = 0; pass < 20 && await cards.count() < 200; pass += 1) {
+    await scrollRegion.evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    await page.waitForTimeout(100)
+  }
+  await expect(cards).toHaveCount(200)
 })
 
 test('filter keyboard selection keeps its identity when a higher-priority companion result arrives', async ({ page }) => {

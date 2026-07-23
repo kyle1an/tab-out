@@ -13,6 +13,7 @@ import { closeChipTarget, deleteHistoryUrls, duplicateTabTarget, reloadTabTarget
 import { showToast } from '../extension/toast.js'
 import { nextMutedForAudioState } from '../extension/tab-audio.js'
 import { DefaultFavicon } from './DefaultFavicon'
+import { FaviconImage } from './FaviconImage'
 import { useDomainCardContext } from './DomainCardContext'
 import { useDashboardActions, useHoverStateSelector, type HoverState } from './DashboardInteractionContext'
 import { startPageChipCloseAnimation } from './PageChipCloseAnimation'
@@ -57,7 +58,7 @@ const PAGE_CHIP_TOOLTIP_STRUCTURAL_MARKER_CLASS_NAME = 'chip-strip-indicator inl
 // Expanded chips reveal the full path suffix, so the cloned/measured copy must
 // wrap (and break long, space-free query strings) instead of staying on the
 // single nowrap line it uses while collapsed — otherwise it overflows the chip.
-const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path font-normal text-muted-foreground opacity-75 inline-block max-w-full whitespace-normal wrap-break-word'
+const PAGE_CHIP_EXPANDED_PATH_CLASS_NAME = 'chip-path font-normal text-muted-foreground inline-block max-w-full whitespace-normal wrap-break-word'
 const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
   grewTaller: false,
   lineHtml: [],
@@ -1138,7 +1139,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         {chip.loading ? (
           <TabLoadingIndicator />
         ) : chip.faviconUrl ? (
-          <img className={cn('chip-favicon block h-full w-full rounded-none object-cover', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={chip.faviconUrl} alt="" />
+          <FaviconImage className={cn('chip-favicon block h-full w-full rounded-none object-cover', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={chip.faviconUrl} alt="" />
         ) : showDefaultFavicon ? (
           <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} />
         ) : null}
@@ -1179,7 +1180,7 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
 }
 
 function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTitleToneByText }: PageChipProps) {
-  const { activeSuppressedTitle, dedupeBadgesClosing } = useDomainCardContext()
+  const { activeSuppressedTitle, dedupeBadgesClosing, highlightTerms: cardHighlightTerms } = useDomainCardContext()
   const { onHoverUrlChange, onLayoutChange, onTogglePinnedPageChip } = useDashboardActions()
   const envs = Array.isArray(chip.envs) ? chip.envs : []
   const isFolded = envs.length > 0
@@ -1199,7 +1200,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   const hasFilter = filter.trim().length > 0
   const isHistorySource = chip.sourceType === 'history'
   const isClosedSavedPage = chip.sourceType === 'saved-page' || !!chip.closedSaved
-  const highlightTerms = highlightTermsForFilter(filter)
+  const highlightTerms = cardHighlightTerms ?? highlightTermsForFilter(filter)
   const isReadOnlySource = isReadOnlyDashboardSourceType(chip.sourceType)
   const readOnlyFilterResult = hasFilter && isReadOnlySource
   const primaryPreviewUrl = pageTargetUrl(chip)
@@ -2325,7 +2326,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             {' '}
             <span
               className={cn(
-                'chip-path font-normal text-muted-foreground opacity-75',
+                'chip-path font-normal text-muted-foreground',
                 mode === 'chip'
                   ? 'inline-block whitespace-nowrap group-[.page-chip-expanded]/page-chip:max-w-full group-[.page-chip-expanded]/page-chip:whitespace-normal group-[.page-chip-expanded]/page-chip:wrap-break-word'
                   : 'inline-block max-w-[calc(100%-6px)] whitespace-normal break-normal w-max wrap-break-word'

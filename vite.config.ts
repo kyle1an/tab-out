@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
@@ -5,6 +6,10 @@ import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 
 const buildEntry = process.env.TAB_OUT_BUILD_ENTRY
+const tldtsMinifiedEsm = resolve(__dirname, 'node_modules/tldts/dist/index.esm.min.js')
+if (!existsSync(tldtsMinifiedEsm)) {
+  throw new Error('The installed tldts package no longer ships dist/index.esm.min.js')
+}
 const buildInputs: Record<string, string> =
   buildEntry === 'app'
     ? {
@@ -21,9 +26,14 @@ const buildInputs: Record<string, string> =
 export default defineConfig({
   plugins: [tailwindcss(), react(), babel({ presets: [reactCompilerPreset()] })],
   resolve: {
-    alias: {
-      '@': resolve(__dirname, 'src')
-    }
+    alias: [
+      { find: '@', replacement: resolve(__dirname, 'src') },
+      // Keep source and TypeScript on the public `tldts` API while directing
+      // both production entries to its complete, pre-minified PSL bundle.
+      // The existence guard above makes an upstream packaging change fail
+      // loudly instead of silently restoring ~134 kB to each entry.
+      { find: /^tldts$/, replacement: tldtsMinifiedEsm }
+    ]
   },
   build: {
     target: 'esnext',

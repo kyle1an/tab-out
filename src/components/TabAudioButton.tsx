@@ -40,7 +40,7 @@ export function TabAudioButton({ state, onToggle, className }: TabAudioButtonPro
         onMouseDown={stopPress}
         className={cn(
           'inline-flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 outline-none hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-          muted ? 'text-muted-foreground opacity-70' : 'text-foreground',
+          muted ? 'text-muted-foreground' : 'text-foreground',
           className
         )}
       >

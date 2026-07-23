@@ -62,7 +62,7 @@ export function TitleSuppressionSummary({
             onBlur={() => { if (openMenuTextRef.current !== part.text) setActiveSuppressedTitle('') }}
           >
             <span className="title-suppression-token-text max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{part.text}</span>
-            {part.count > 1 && <span className="title-suppression-token-count tabular-nums opacity-65">{part.count}</span>}
+            {part.count > 1 && <span className="title-suppression-token-count tabular-nums">{part.count}</span>}
           </button>
         )
 

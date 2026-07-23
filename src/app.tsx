@@ -3,7 +3,7 @@ import { mountApp } from './components/App'
 import { requestDashboardRefresh, settleDashboardRefresh } from './extension/dashboard-controller.js'
 import type { DashboardRefreshOptions } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'
-import { loadDashboardLocalState } from './hooks/useDashboardLocalState'
+import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
 import { loadHistoryRangePreference } from './extension/history-range.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
@@ -117,15 +117,6 @@ document.addEventListener('visibilitychange', () => {
     void settleDashboardRefresh(requestDashboardRefresh())
   }
 })
-
-document.addEventListener(
-  'error',
-  (e) => {
-    const el = e.target as HTMLElement | null
-    if (el && el.tagName === 'IMG') el.style.display = 'none'
-  },
-  true
-)
 
 async function initializeApp() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')

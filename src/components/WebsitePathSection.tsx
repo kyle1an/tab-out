@@ -56,7 +56,7 @@ function WebsitePathSectionCloseButton({ count, isFirstContent = false, onClick 
       <button
         type="button"
         className={cn(
-          'website-path-section-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/website-path-section:opacity-100 hover:bg-[#ededed]',
+          'website-path-section-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/website-path-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           isFirstContent && 'top-[calc(50%_-_1px)]'
         )}
         aria-label={title}
@@ -128,7 +128,7 @@ export function WebsitePathSection({
         <span className="website-path-section-label inline-block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-semibold tracking-wide text-muted-foreground align-baseline">
           {label}
         </span>
-        <span className="website-path-section-header-count text-xs tabular-nums text-muted-foreground opacity-70">{sectionCount}</span>
+        <span className="website-path-section-header-count text-xs tabular-nums text-muted-foreground">{sectionCount}</span>
         {canPin && (
           <SectionPinButton
             pinned={isPinned}

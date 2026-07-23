@@ -18,6 +18,7 @@ interface DomainCardProps {
   group: DomainGroup
   vm: DashboardCardVM
   filter?: string
+  highlightTerms?: readonly string[]
 }
 
 const DOMAIN_REORDER_DRAG_THRESHOLD_PX = 4
@@ -79,7 +80,7 @@ function TabBadge({ label }: { label?: string | number }) {
     return (
       <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]">
         <span className="tab-count-badge-current font-bold text-(--accent-amber)">{labelText.slice(0, slashIndex)}</span>
-        <span className="tab-count-badge-total font-medium text-muted-foreground opacity-80">{labelText.slice(slashIndex)}</span>
+        <span className="tab-count-badge-total font-medium text-muted-foreground">{labelText.slice(slashIndex)}</span>
       </span>
     )
   }
@@ -165,20 +166,21 @@ function DomainTitle({ displayName, subdomainKey = '' }: { displayName: string; 
 
   return (
     <>
-      {subdomainKey && <span className="domain-title-subdomain font-semibold text-muted-foreground opacity-85">{subdomainKey}.</span>}
+      {subdomainKey && <span className="domain-title-subdomain font-semibold text-muted-foreground">{subdomainKey}.</span>}
       <span className="domain-title-name">{suffix ? name : displayName}</span>
-      {suffix && <span className="domain-title-suffix font-semibold text-muted-foreground opacity-75">{suffix}</span>}
+      {suffix && <span className="domain-title-suffix font-semibold text-muted-foreground">{suffix}</span>}
     </>
   )
 }
 
-export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
+export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCardProps) {
   const { onReorderPinnedDomain, onTogglePinnedDomain, onTogglePinnedSection } = useDashboardActions()
   const [activeSuppressedTitle, setActiveSuppressedTitle] = useState('')
   const [dedupeBadgesClosing, setDedupeBadgesClosing] = useState(false)
   const blockRef = useRef<HTMLDivElement>(null)
   const cardContext = {
     activeSuppressedTitle,
+    highlightTerms: highlightTerms ?? null,
     setActiveSuppressedTitle,
     dedupeBadgesClosing,
     suppressionCloseTargetsByText: vm.suppressionCloseTargetsByText ?? {},
@@ -365,7 +367,7 @@ export function DomainCard({ group, vm, filter = '' }: DomainCardProps) {
           // React state); the indicator bar and its noop/placement variants
           // react to them below.
           "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-[3px] data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_3px_rgba(10,10,10,0.12)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_2px_rgba(10,10,10,0.06)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
-          vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100',
+          vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100 focus-within:opacity-100',
           isAppsCard && 'domain-block-apps',
           group.pinned && 'domain-block-pinned'
         )}

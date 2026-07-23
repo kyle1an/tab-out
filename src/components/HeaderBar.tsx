@@ -189,7 +189,7 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
           </TabsTrigger>
         ))}
         {/* Animates width (not scaleX): scaling would distort the squircle corners mid-slide. */}
-        <TabsPrimitive.Indicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-(--active-tab-width) rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] transition-[width,transform] duration-200 ease-swift" />
+        <TabsPrimitive.Indicator className="source-switch-indicator absolute top-1/2 left-0 z-0 h-6 w-(--active-tab-width) rounded-[calc(var(--header-control-radius)_-_6px)] bg-[rgba(115,115,115,0.12)] [corner-shape:squircle] [transform:translateX(var(--active-tab-left))_translateY(-50%)] transition-[width,transform] duration-200 ease-swift motion-reduce:transition-none" />
       </TabsList>
     </Tabs>
   )

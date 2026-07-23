@@ -289,8 +289,17 @@ async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
         .find((candidate) => candidate.textContent?.trim() === 'Bookmarks')
       const start = performance.now()
       let initial = null
+      let steady = null
+      let lastScrollAt = 0
       const committedSource = () => document.querySelector('[data-tabout="dashboard-shell"]')?.getAttribute('data-source') || ''
       const cardCount = () => document.querySelectorAll('#openTabsMissions .domain-block').length
+      const snapshot = () => ({
+        count: cardCount(),
+        elapsedMs: Math.round(performance.now() - start),
+        elementCount: document.querySelectorAll('#openTabsMissions *').length,
+        measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length,
+        scrollTop: Math.round(document.querySelector('[data-tabout-part="scroll-region"]')?.scrollTop || 0)
+      })
       const captureInitialCommit = () => {
         if (initial || committedSource() !== 'bookmarks') return
         const count = cardCount()
@@ -314,28 +323,31 @@ async function measureLargeBookmarkProgressiveRender(session: CdpSession) {
       captureInitialCommit()
       const wait = () => {
         captureInitialCommit()
-        const count = cardCount()
-        if (initial && committedSource() === 'bookmarks' && count >= 1008) {
+        const elapsed = performance.now() - start
+        const current = snapshot()
+        if (initial && !steady && committedSource() === 'bookmarks' && elapsed >= 1200) {
+          steady = current
+        }
+        if (steady && current.count < 1008 && elapsed - lastScrollAt >= 40) {
+          const scrollRegion = document.querySelector('[data-tabout-part="scroll-region"]')
+          if (scrollRegion) scrollRegion.scrollTop = scrollRegion.scrollHeight
+          lastScrollAt = elapsed
+        }
+        if (initial && steady && committedSource() === 'bookmarks' && current.count >= 1008) {
           observer.disconnect()
           resolve({
             initial,
-            final: {
-              count,
-              elapsedMs: Math.round(performance.now() - start),
-              measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
-            }
+            steady,
+            final: current
           })
           return
         }
-        if (performance.now() - start > 12000) {
+        if (elapsed > 12000) {
           observer.disconnect()
           resolve({
             initial,
-            final: {
-              count,
-              elapsedMs: Math.round(performance.now() - start),
-              measureNodeCount: document.querySelectorAll('.page-chip-tooltip-measure').length
-            }
+            steady,
+            final: current
           })
           return
         }
@@ -6053,7 +6065,11 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.ok(largeBookmarks.initial, `bookmark source should render an initial progressive chunk: ${JSON.stringify(largeBookmarks)}`)
   assert.ok(largeBookmarks.initial.count <= 24, `bookmark source should not mount all large-list cards in the first chunk: ${JSON.stringify(largeBookmarks)}`)
   assert.equal(largeBookmarks.initial.measureNodeCount, 0, `large bookmark switch should not create hidden page-chip measure nodes initially: ${JSON.stringify(largeBookmarks)}`)
-  assert.equal(largeBookmarks.final.count, 1008, `large bookmark source should eventually render every synthetic bookmark card: ${JSON.stringify(largeBookmarks)}`)
+  assert.ok(largeBookmarks.steady, `bookmark source should reach a bounded top-of-list steady state: ${JSON.stringify(largeBookmarks)}`)
+  assert.ok(largeBookmarks.steady.count <= 96, `bookmark source should not drain every card while the user remains at the top: ${JSON.stringify(largeBookmarks)}`)
+  assert.ok(largeBookmarks.steady.elementCount <= 3_500, `bookmark source should keep its top-of-list DOM bounded: ${JSON.stringify(largeBookmarks)}`)
+  assert.equal(largeBookmarks.steady.scrollTop, 0, `progressive rendering should not move the user's scroll position: ${JSON.stringify(largeBookmarks)}`)
+  assert.equal(largeBookmarks.final.count, 1008, `scrolling through a large bookmark source should keep every synthetic card reachable: ${JSON.stringify(largeBookmarks)}`)
   assert.equal(largeBookmarks.final.measureNodeCount, 0, `large bookmark source should not create hidden page-chip measure nodes after all chunks render: ${JSON.stringify(largeBookmarks)}`)
 })
 

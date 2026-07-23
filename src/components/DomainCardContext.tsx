@@ -6,6 +6,7 @@ import type { DashboardTabMutationTarget } from '../extension/types'
 // top instead of drilled down to every card.
 export type DomainCardContextValue = {
   activeSuppressedTitle: string
+  highlightTerms?: readonly string[] | null
   setActiveSuppressedTitle: (text: string) => void
   dedupeBadgesClosing: boolean
   suppressionCloseTargetsByText: Record<string, DashboardTabMutationTarget[]>
@@ -14,6 +15,7 @@ export type DomainCardContextValue = {
 
 const defaultDomainCardContext: DomainCardContextValue = {
   activeSuppressedTitle: '',
+  highlightTerms: null,
   setActiveSuppressedTitle: () => {},
   dedupeBadgesClosing: false,
   suppressionCloseTargetsByText: {},

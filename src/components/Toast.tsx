@@ -28,6 +28,7 @@ function ToastList() {
         '[--offset-y:calc(var(--toast-offset-y)*-1+(var(--toast-index)*var(--gap)*-1)+var(--toast-swipe-movement-y))] z-[calc(1000-var(--toast-index))] h-(--height)',
         'transform-[translateX(var(--toast-swipe-movement-x))_translateY(calc(var(--toast-swipe-movement-y)-(var(--toast-index)*var(--peek))-(var(--shrink)*var(--height))))_scale(var(--scale))]',
         '[transition:transform_0.5s_cubic-bezier(0.22,1,0.36,1),opacity_0.5s,height_0.15s]',
+        'motion-reduce:[transition:opacity_0.1s,height_0.1s] motion-reduce:data-starting-style:transform-none! motion-reduce:data-ending-style:transform-none!',
         'after:absolute after:top-full after:left-0 after:h-[calc(var(--gap)+1px)] after:w-full after:content-[""]',
         'data-expanded:h-(--toast-height) data-expanded:transform-[translateX(var(--toast-swipe-movement-x))_translateY(var(--offset-y))]',
         'data-starting-style:transform-[translateY(150%)] data-ending-style:opacity-0 data-ending-style:transform-[translateY(150%)] data-limited:opacity-0',

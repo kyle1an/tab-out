@@ -93,9 +93,12 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
   assert.match(viteConfig, /@tailwindcss\/vite/)
   assert.match(viteConfig, /TAB_OUT_BUILD_ENTRY/)
+  assert.match(viteConfig, /find: \/\^tldts\$\//)
+  assert.match(viteConfig, /tldts\/dist\/index\.esm\.min\.js/)
+  assert.ok(existsSync('node_modules/tldts/dist/index.esm.min.js'))
   assert.match(viteConfig, /buildEntry === 'background' \? \{ codeSplitting: false \} : \{\}/)
   assert.match(viteConfig, /chunkFileNames: 'assets\/\[name\]-\[hash\]\.js'/)
-  assert.match(viteConfig, /alias:\s*\{\n\s+'@': resolve\(__dirname, 'src'\)/)
+  assert.match(viteConfig, /\{ find: '@', replacement: resolve\(__dirname, 'src'\) \}/)
   assert.match(viteConfig, /src\/extension\/background\.ts/)
   assert.match(buildScript, /write-manifest\.ts/)
   assert.match(buildScript, /runBuild\('app'\)/)
@@ -686,13 +689,12 @@ test('built extension bundle is packaged locally', () => {
   assert.ok(assetFiles.includes('app.css'))
   assert.equal(assetJsFiles.length, 16)
   // Caps are anchored to the pinned-Node production build with modest growth
-  // room. The complete exact Public Suffix List is deliberately present in
-  // both entry contexts, so avoid replacing correctness with the smaller
-  // probabilistic parser merely to hit an arbitrary legacy size.
-  assert.ok(appBundleBytes <= 925_000, `app bundle exceeded 925000 bytes: ${appBundleBytes}`)
-  assert.ok(backgroundBundleBytes <= 390_000, `background bundle exceeded 390000 bytes: ${backgroundBundleBytes}`)
+  // room. Both entries retain the complete exact Public Suffix List through
+  // tldts's pre-minified ESM build rather than duplicating its source payload.
+  assert.ok(appBundleBytes <= 800_000, `app bundle exceeded 800000 bytes: ${appBundleBytes}`)
+  assert.ok(backgroundBundleBytes <= 260_000, `background bundle exceeded 260000 bytes: ${backgroundBundleBytes}`)
   assert.ok(stylesheetBytes <= 125_000, `stylesheet exceeded 125000 bytes: ${stylesheetBytes}`)
-  assert.ok(totalJavaScriptBytes <= 1_550_000, `total JavaScript exceeded 1550000 bytes: ${totalJavaScriptBytes}`)
+  assert.ok(totalJavaScriptBytes <= 1_350_000, `total JavaScript exceeded 1350000 bytes: ${totalJavaScriptBytes}`)
   assert.ok(assetJsFiles.some((name) => /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^bookmarks-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^CardActionsMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))

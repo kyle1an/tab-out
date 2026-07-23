@@ -810,6 +810,13 @@
         tabActivatedListeners.dispatch({ tabId, windowId: 1 })
         await new Promise((resolve) => setTimeout(resolve, 350))
       }
+      window.__tabOutSmokeSetTabFavicon = async (tabId, favIconUrl) => {
+        const tab = tabs.find((candidate) => candidate.id === tabId)
+        if (!tab) return
+        tab.favIconUrl = favIconUrl
+        window.chrome.tabs.onUpdated.dispatch(tabId, { favIconUrl }, { ...tab })
+        await new Promise((resolve) => setTimeout(resolve, 350))
+      }
     </script>
     <script type="module" src="/extension/dist/app.js"></script>
   </body>

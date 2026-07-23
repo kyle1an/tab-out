@@ -1264,13 +1264,15 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(contextMenuComponentSource, /export function PageChipContextMenu\(/)
   assert.match(contextMenuComponentSource, /onOpenChange\?: \(open: boolean\) => void/)
   assert.doesNotMatch(contextMenuComponentSource, /from '\.\/ui\/context-menu'/)
-  assert.match(contextMenuComponentSource, /lazy\(\(\) => import\('\.\/PageChipContextMenuLoaded'\)/)
-  assert.match(contextMenuComponentSource, /<Suspense fallback=\{armedTrigger\}>/)
-  assert.match(contextMenuComponentSource, /const \[armed, setArmed\] = useState\(false\)/)
-  assert.match(contextMenuComponentSource, /onPointerEnter: \(event\) => \{[\s\S]*setArmed\(true\)/)
-  assert.match(contextMenuComponentSource, /onFocus: \(event\) => \{[\s\S]*setArmed\(true\)/)
-  assert.match(contextMenuComponentSource, /if \(event\.button === 2\) setArmed\(true\)/)
-  assert.match(contextMenuComponentSource, /if \(!armed\) return armedTrigger/)
+  assert.match(contextMenuComponentSource, /import\('\.\/PageChipContextMenuLoaded'\)/)
+  assert.doesNotMatch(contextMenuComponentSource, /\blazy\b|\bSuspense\b/)
+  assert.match(contextMenuComponentSource, /function loadPageChipContextMenu\(\)/)
+  assert.match(contextMenuComponentSource, /onPointerEnter: \(event\) => \{[\s\S]*armContextMenu\(\)/)
+  assert.match(contextMenuComponentSource, /onFocus: \(event\) => \{[\s\S]*const path = focusPath[\s\S]*pendingFocusPaths\.set[\s\S]*armContextMenu\(\)/)
+  assert.match(contextMenuComponentSource, /if \(event\.button === 2\) armContextMenu\(\)/)
+  assert.match(contextMenuComponentSource, /if \(!LoadedMenu\) return armedTrigger/)
+  assert.match(contextMenuComponentSource, /useLayoutEffect\(\(\) => \{[\s\S]*focus\(\{ preventScroll: true \}\)/)
+  assert.match(tabHistoryPanelSource, /data-tabout-part="focus-button"[\s\S]*aria-label=\{entryLabel\}/)
 
   // The loaded chunk owns the visual-open lifecycle and trigger cloning.
   assert.match(contextMenuLoadedSource, /PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80/)
@@ -1898,7 +1900,7 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
   assert.equal(highlighted.length, 1)
   assert.equal(muted.length, 1)
   assert.match(highlighted[0][1], /\btext-tab-live\b/)
-  assert.match(muted[0][1], /text-\[rgba\(115,115,115,0\.42\)\]/)
+  assert.match(muted[0][1], /\btext-muted-foreground\b/)
 })
 
 test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority attribute', () => {
@@ -3046,7 +3048,8 @@ test('DomainCard renders the public suffix as less prominent title text', () => 
   )
 
   assert.match(html, /<span class="domain-title-name">example<\/span>/)
-  assert.match(html, /<span class="domain-title-suffix[^"]*\bfont-semibold\b[^"]*\btext-muted-foreground\b[^"]*\bopacity-75\b[^"]*">\.co\.uk<\/span>/)
+  assert.match(html, /<span class="domain-title-suffix[^"]*\bfont-semibold\b[^"]*\btext-muted-foreground\b[^"]*">\.co\.uk<\/span>/)
+  assert.doesNotMatch(html, /domain-title-suffix[^"]*\bopacity-/)
   assert.match(html, /<span class="mission-name[^"]*font-black[^"]*"/)
   assert.doesNotMatch(html, /domain-title-subdomain/)
 })
@@ -3074,7 +3077,8 @@ test('DomainCard inlines a single non-port subdomain into the title', () => {
     })
   )
 
-  assert.match(html, /<span class="domain-title-subdomain[^"]*\bfont-semibold\b[^"]*\btext-muted-foreground\b[^"]*\bopacity-85\b[^"]*">docs\.<\/span>/)
+  assert.match(html, /<span class="domain-title-subdomain[^"]*\bfont-semibold\b[^"]*\btext-muted-foreground\b[^"]*">docs\.<\/span>/)
+  assert.doesNotMatch(html, /domain-title-subdomain[^"]*\bopacity-/)
   assert.match(html, /<span class="domain-title-name">example<\/span>/)
   assert.match(html, /<span class="domain-title-suffix[^"]*">\.com<\/span>/)
   assert.doesNotMatch(html, /\bmission-subdomain\b/)

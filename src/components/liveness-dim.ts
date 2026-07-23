@@ -17,4 +17,4 @@
 
 export const FAVICON_DIM_CLASS_NAME = 'chip-favicon-dimmed opacity-65 saturate-[80%]'
 
-export const VARIANT_LABEL_DIM_CLASS_NAME = 'chip-variant-label-dimmed text-neutral-500 opacity-85'
+export const VARIANT_LABEL_DIM_CLASS_NAME = 'chip-variant-label-dimmed text-neutral-500'

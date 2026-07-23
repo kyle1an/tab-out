@@ -98,7 +98,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
       <button
         type="button"
         className={cn(
-          'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed]',
+          'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           isFirstContent && 'top-[calc(50%_-_1px)]'
         )}
         aria-label={title}
@@ -197,7 +197,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
             PRs
           </span>
         )}
-        <span className="pathgroup-header-count text-xs tabular-nums text-muted-foreground opacity-70">{count}</span>
+        <span className="pathgroup-header-count text-xs tabular-nums text-muted-foreground">{count}</span>
         {canPin && (
           <SectionPinButton
             pinned={isPinned}
