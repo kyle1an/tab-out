@@ -1,5 +1,3 @@
-import { runWithWebLock, type ExclusiveTaskRunner } from './web-lock.js'
-
 export const DEFAULT_HISTORY_RANGE = '1d'
 export const HISTORY_FILTER_OFF = 'off'
 export const HISTORY_RANGE_STORAGE_KEY = 'tabOutHistoryRangeV1'
@@ -17,7 +15,7 @@ export const HISTORY_RANGE_OPTIONS = [
 
 type HistoryRangePreferenceWriterAdapter = {
   write: (value: string) => Promise<void>
-  runExclusive: ExclusiveTaskRunner
+  runExclusive: <Value>(task: () => Promise<Value>) => Promise<Value>
 }
 
 type HistoryRangePreferenceWriter = {
@@ -52,7 +50,7 @@ const historyRangePreferenceWriter = createHistoryRangePreferenceWriter({
     await chrome.storage.local.set({ [HISTORY_RANGE_STORAGE_KEY]: value })
   },
   runExclusive: <Value>(task: () => Promise<Value>) => (
-    runWithWebLock(HISTORY_RANGE_STORAGE_WRITE_LOCK, task)
+    navigator.locks.request(HISTORY_RANGE_STORAGE_WRITE_LOCK, task)
   )
 })
 

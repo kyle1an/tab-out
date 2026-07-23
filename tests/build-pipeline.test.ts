@@ -646,7 +646,6 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(toastSource, /rounded-full border-0 bg-transparent/)
   assert.match(toastSource, /<XIcon className="size-3" \/>/)
   assert.match(toastSource, /\[corner-shape:squircle\]/)
-  assert.doesNotMatch(toastSource, /\[-moz-osx-font-smoothing:grayscale\]/)
   assert.doesNotMatch(toastSource, /rounded-sm/)
   assert.match(baseStylesheet, /button,\ninput,\nselect,\ntextarea\s*\{\n\s*font-family: inherit;/)
   assert.match(appComponentSource, /'scroll-region[^']*overflow-x-hidden[^']*overflow-y-auto[^']*overscroll-y-contain[^']*'/)

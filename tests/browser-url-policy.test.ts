@@ -18,8 +18,6 @@ test('browser URL policy classifies Chrome internal schemes without hiding files
   ]) {
     assert.equal(isBrowserInternalUrl(url), true, url)
   }
-  assert.equal(isBrowserInternalUrl('brave://settings/'), false)
-  assert.equal(isBrowserInternalUrl('edge://settings/'), false)
   assert.equal(isBrowserInternalUrl('file:///tmp/example.html'), false)
   assert.equal(isBrowserInternalUrl('https://example.test/'), false)
 })

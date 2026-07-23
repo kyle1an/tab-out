@@ -15,7 +15,6 @@ import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-se
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPagesStore } from './saved-pages.js'
 import type { DashboardData, DashboardTab, DashboardViewModel, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
-import { runWithWebLock } from './web-lock.js'
 
 export type DashboardStartupViewModel = {
   pinnedDomains: readonly string[]
@@ -544,7 +543,7 @@ function cachedCaptureStartedAt(cached: CachedDashboardStartupSnapshot | null): 
 async function withStartupSnapshotCacheMutationLock<T>(mutation: () => Promise<T>): Promise<T> {
   const previousMutation = startupSnapshotCacheMutationQueue.catch(() => {})
   const nextMutation = previousMutation.then(() => (
-    runWithWebLock(DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK, mutation)
+    navigator.locks.request(DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK, mutation)
   ))
   startupSnapshotCacheMutationQueue = nextMutation.then(() => undefined, () => undefined)
   return nextMutation

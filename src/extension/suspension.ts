@@ -27,8 +27,6 @@
      unwrapSuspenderTitle.
    ================================================================ */
 
-import { runWithWebLock, type ExclusiveTaskRunner } from './web-lock.js'
-
 const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
 const SUSPEND_TARGET_STORAGE_WRITE_LOCK = 'tab-out:suspend-target-write'
 const SUSPENDED_PATH_SUFFIX = '/suspended.html'
@@ -107,7 +105,7 @@ interface PendingSuspendTargetSave {
 export type SuspendTargetStoreAdapter = {
   now: () => number
   read: () => Promise<unknown>
-  runExclusive: ExclusiveTaskRunner
+  runExclusive: <Value>(task: () => Promise<Value>) => Promise<Value>
   write: (value: StoredSuspendTarget) => Promise<void>
 }
 
@@ -269,7 +267,7 @@ const suspendTargetStore = createSuspendTargetStore({
   now: nextSuspendTargetObservationAt,
   read: readStoredSuspendTarget,
   runExclusive: <Value>(task: () => Promise<Value>) => (
-    runWithWebLock(SUSPEND_TARGET_STORAGE_WRITE_LOCK, task)
+    navigator.locks.request(SUSPEND_TARGET_STORAGE_WRITE_LOCK, task)
   ),
   write: writeStoredSuspendTarget
 })
