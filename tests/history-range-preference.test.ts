@@ -116,7 +116,8 @@ test('rapid history range changes persist in invocation order even when the firs
       calls += 1
       if (calls === 1) await firstWrite
       writes.push(value)
-    }
+    },
+    runExclusive: createExclusiveRunner()
   })
 
   const first = writer.save('30d')

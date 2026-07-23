@@ -1,6 +1,7 @@
 import { makeDashboardItem } from './dashboard-item.js'
 import type { DashboardTab } from './types'
 import { isBrowserInternalUrl } from './browser-url-policy.js'
+import { runWithWebLock } from './web-lock.js'
 
 export const SAVED_PAGES_STORAGE_KEY = 'tabOutSavedPagesV1'
 const SAVED_PAGES_VERSION = 1
@@ -370,10 +371,7 @@ async function writeSavedPagesStoreValue(store: SavedPagesStore): Promise<void> 
 }
 
 async function runSavedPagesMutationExclusive<Value>(task: () => Promise<Value>): Promise<Value> {
-  const locks = typeof navigator === 'undefined' ? null : navigator.locks
-  return locks?.request
-    ? locks.request(SAVED_PAGES_MUTATION_LOCK, task)
-    : task()
+  return runWithWebLock(SAVED_PAGES_MUTATION_LOCK, task)
 }
 
 const savedPagesMutationStore = createSavedPagesMutationStore({

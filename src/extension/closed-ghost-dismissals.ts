@@ -14,6 +14,7 @@
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
+import { runWithWebLock } from './web-lock.js'
 
 const CLOSED_GHOST_DISMISSAL_STORAGE_KEY = 'tabOutDismissedClosedGhostsV1'
 const CLOSED_GHOST_DISMISSAL_MUTATION_LOCK = 'tab-out:closed-ghost-dismissal-mutation'
@@ -189,10 +190,7 @@ async function writeClosedGhostDismissalsValue(value: Record<string, number>): P
 }
 
 async function runClosedGhostDismissalMutationExclusive<Value>(task: () => Promise<Value>): Promise<Value> {
-  const locks = typeof navigator === 'undefined' ? null : navigator.locks
-  return locks?.request
-    ? locks.request(CLOSED_GHOST_DISMISSAL_MUTATION_LOCK, task)
-    : task()
+  return runWithWebLock(CLOSED_GHOST_DISMISSAL_MUTATION_LOCK, task)
 }
 
 const closedGhostDismissalMutationStore = createClosedGhostDismissalMutationStore({

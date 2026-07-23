@@ -27,6 +27,8 @@
      unwrapSuspenderTitle.
    ================================================================ */
 
+import { runWithWebLock, type ExclusiveTaskRunner } from './web-lock.js'
+
 const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
 const SUSPEND_TARGET_STORAGE_WRITE_LOCK = 'tab-out:suspend-target-write'
 const SUSPENDED_PATH_SUFFIX = '/suspended.html'
@@ -93,7 +95,7 @@ export interface SuspendTarget {
   template: string
 }
 
-interface StoredSuspendTarget extends SuspendTarget {
+export interface StoredSuspendTarget extends SuspendTarget {
   observedAt: number
 }
 
@@ -102,10 +104,17 @@ interface PendingSuspendTargetSave {
   observedAt: number
 }
 
-let cachedTarget: SuspendTarget | null = null
-let cachedTargetRevision = 0
-let suspendTargetSaveInFlight: Promise<void> | null = null
-let pendingSuspendTargetSave: PendingSuspendTargetSave | null = null
+export type SuspendTargetStoreAdapter = {
+  now: () => number
+  read: () => Promise<unknown>
+  runExclusive: ExclusiveTaskRunner
+  write: (value: StoredSuspendTarget) => Promise<void>
+}
+
+export type SuspendTargetStore = {
+  get: () => Promise<SuspendTarget | null>
+  rememberFromTabs: (tabs: readonly { suspended?: boolean; rawUrl?: string }[]) => void
+}
 
 export function extractSuspenderId(rawUrl: string | undefined): string | null {
   if (!rawUrl || !rawUrl.startsWith('chrome-extension://')) return null
@@ -156,17 +165,6 @@ function isSuspendTarget(value: unknown): value is SuspendTarget {
     && typeof candidate.template === 'string' && candidate.template !== ''
 }
 
-async function loadSuspendTarget(): Promise<SuspendTarget | null> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return null
-  try {
-    const stored = await chrome.storage.local.get(SUSPEND_TARGET_STORAGE_KEY)
-    const value = stored[SUSPEND_TARGET_STORAGE_KEY]
-    return isSuspendTarget(value) ? { id: value.id, template: value.template } : null
-  } catch {
-    return null
-  }
-}
-
 function storedSuspendTargetObservedAt(value: unknown): number | null {
   if (!isSuspendTarget(value)) return null
   const observedAt = (value as Partial<StoredSuspendTarget>).observedAt
@@ -181,108 +179,112 @@ function nextSuspendTargetObservationAt(): number {
   return Date.now()
 }
 
-async function saveSuspendTarget(save: PendingSuspendTargetSave): Promise<void> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return
-  const storage = chrome.storage.local
-  const storedTarget: StoredSuspendTarget = {
-    ...save.target,
-    observedAt: save.observedAt
-  }
+export function createSuspendTargetStore(adapter: SuspendTargetStoreAdapter): SuspendTargetStore {
+  let cachedTarget: SuspendTarget | null = null
+  let cachedTargetRevision = 0
 
-  const locks = typeof navigator === 'undefined' ? null : navigator.locks
-  if (!locks?.request) {
-    // Module-local serialization still gives older browsers the same bounded,
-    // last-observation-wins fallback they had before Web Locks were available.
+  async function save(saveRequest: PendingSuspendTargetSave): Promise<void> {
+    const storedTarget: StoredSuspendTarget = {
+      ...saveRequest.target,
+      observedAt: saveRequest.observedAt
+    }
+
     try {
-      await storage.set({ [SUSPEND_TARGET_STORAGE_KEY]: storedTarget })
+      // Request the shared lock at observation time. Deferring this request
+      // behind a module-local queue can reverse equal-time observations from
+      // separate extension contexts.
+      await adapter.runExclusive(async () => {
+        let existingValue: unknown
+        try {
+          existingValue = await adapter.read()
+        } catch {
+          // Without the current generation it is unsafe to replace a value that
+          // may have been written by a newer page or service-worker context.
+          return
+        }
+
+        const existingObservedAt = storedSuspendTargetObservedAt(existingValue)
+        if (existingObservedAt !== null && existingObservedAt > saveRequest.observedAt) return
+        await adapter.write(storedTarget)
+      })
     } catch {}
-    return
   }
 
-  try {
-    await locks.request(SUSPEND_TARGET_STORAGE_WRITE_LOCK, async () => {
-      let existingValue: unknown
-      try {
-        const stored = await storage.get(SUSPEND_TARGET_STORAGE_KEY)
-        existingValue = stored[SUSPEND_TARGET_STORAGE_KEY]
-      } catch {
-        // Without the current generation it is unsafe to replace a value that
-        // may have been written by a newer page or service-worker context.
-        return
+  async function get(): Promise<SuspendTarget | null> {
+    if (cachedTarget) return cachedTarget
+    const revisionBeforeLoad = cachedTargetRevision
+    let storedTarget: SuspendTarget | null = null
+    try {
+      const value = await adapter.read()
+      if (isSuspendTarget(value)) storedTarget = { id: value.id, template: value.template }
+    } catch {}
+    // Live tab collection is synchronous and authoritative. Do not let a
+    // storage read that started earlier replace a target learned while it waited.
+    if (cachedTarget || cachedTargetRevision !== revisionBeforeLoad) return cachedTarget
+    cachedTarget = storedTarget
+    return cachedTarget
+  }
+
+  function rememberFromTabs(
+    tabs: readonly { suspended?: boolean; rawUrl?: string }[]
+  ): void {
+    for (const tab of tabs) {
+      if (!tab.suspended || !tab.rawUrl) continue
+      const id = extractSuspenderId(tab.rawUrl)
+      if (!id) continue
+      if (cachedTarget?.id === id && cachedTarget.template === tab.rawUrl) return
+      const idChanged = cachedTarget?.id !== id
+      cachedTargetRevision += 1
+      cachedTarget = { id, template: tab.rawUrl }
+      if (idChanged) {
+        void save({
+          target: cachedTarget,
+          observedAt: adapter.now()
+        })
       }
-
-      const existingObservedAt = storedSuspendTargetObservedAt(existingValue)
-      if (existingObservedAt !== null && existingObservedAt > save.observedAt) return
-      await storage.set({ [SUSPEND_TARGET_STORAGE_KEY]: storedTarget })
-    })
-  } catch {}
-}
-
-function startPendingSuspendTargetSave(): void {
-  if (suspendTargetSaveInFlight || !pendingSuspendTargetSave) return
-  const saveRequest = pendingSuspendTargetSave
-  pendingSuspendTargetSave = null
-  const save = saveSuspendTarget(saveRequest)
-  suspendTargetSaveInFlight = save
-  const continueWithLatest = () => {
-    if (suspendTargetSaveInFlight !== save) return
-    suspendTargetSaveInFlight = null
-    startPendingSuspendTargetSave()
-  }
-  void save.then(continueWithLatest, continueWithLatest)
-}
-
-function queueSuspendTargetSave(target: SuspendTarget): void {
-  const saveRequest = {
-    target,
-    observedAt: nextSuspendTargetObservationAt()
+      return
+    }
   }
 
-  if (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function') {
-    // Request the shared lock at observation time. Deferring this request until
-    // an older module-local write settles can reverse two contexts when their
-    // clocks report the same observedAt generation.
-    void saveSuspendTarget(saveRequest)
-    return
-  }
-
-  // Older browsers retain a bounded module-local queue: one active write plus
-  // only the latest trailing target.
-  pendingSuspendTargetSave = saveRequest
-  startPendingSuspendTargetSave()
+  return { get, rememberFromTabs }
 }
 
-export async function getSuspendTarget(): Promise<SuspendTarget | null> {
-  if (cachedTarget) return cachedTarget
-  const revisionBeforeLoad = cachedTargetRevision
-  const storedTarget = await loadSuspendTarget()
-  // Live tab collection is synchronous and authoritative. Do not let a storage
-  // read that started earlier replace a target learned while that read waited.
-  if (cachedTarget || cachedTargetRevision !== revisionBeforeLoad) return cachedTarget
-  cachedTarget = storedTarget
-  return cachedTarget
+function suspendTargetStorageArea(): chrome.storage.StorageArea {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    throw new Error('Suspend target storage is unavailable')
+  }
+  return chrome.storage.local
+}
+
+async function readStoredSuspendTarget(): Promise<unknown> {
+  const stored = await suspendTargetStorageArea().get(SUSPEND_TARGET_STORAGE_KEY)
+  return stored[SUSPEND_TARGET_STORAGE_KEY]
+}
+
+async function writeStoredSuspendTarget(value: StoredSuspendTarget): Promise<void> {
+  await suspendTargetStorageArea().set({ [SUSPEND_TARGET_STORAGE_KEY]: value })
+}
+
+const suspendTargetStore = createSuspendTargetStore({
+  now: nextSuspendTargetObservationAt,
+  read: readStoredSuspendTarget,
+  runExclusive: <Value>(task: () => Promise<Value>) => (
+    runWithWebLock(SUSPEND_TARGET_STORAGE_WRITE_LOCK, task)
+  ),
+  write: writeStoredSuspendTarget
+})
+
+export function getSuspendTarget(): Promise<SuspendTarget | null> {
+  return suspendTargetStore.get()
 }
 
 /**
- * rememberSuspendTargetFromTabs — scan normalized open tabs for the first
- * suspended one whose rawUrl is a recognizable suspended.html URL and cache it
- * as the suspend target. Called on every fetchOpenTabs, so storage writes are
- * kept rare: the target is persisted only when the suspender id changes; a
- * same-id template refresh (a different suspended tab observed first) only
- * updates the in-memory cache.
+ * Scan normalized open tabs for the first recognizable suspended page and cache
+ * it as the target. Persist only when the suspender id changes; a same-id
+ * template refresh updates memory without another storage write.
  */
 export function rememberSuspendTargetFromTabs(
   tabs: readonly { suspended?: boolean; rawUrl?: string }[]
 ): void {
-  for (const tab of tabs) {
-    if (!tab.suspended || !tab.rawUrl) continue
-    const id = extractSuspenderId(tab.rawUrl)
-    if (!id) continue
-    if (cachedTarget?.id === id && cachedTarget.template === tab.rawUrl) return
-    const idChanged = cachedTarget?.id !== id
-    cachedTargetRevision += 1
-    cachedTarget = { id, template: tab.rawUrl }
-    if (idChanged) queueSuspendTargetSave(cachedTarget)
-    return
-  }
+  suspendTargetStore.rememberFromTabs(tabs)
 }

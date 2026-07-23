@@ -1,3 +1,5 @@
+import { runWithWebLock, type ExclusiveTaskRunner } from './web-lock.js'
+
 export const DEFAULT_HISTORY_RANGE = '1d'
 export const HISTORY_FILTER_OFF = 'off'
 export const HISTORY_RANGE_STORAGE_KEY = 'tabOutHistoryRangeV1'
@@ -15,7 +17,7 @@ export const HISTORY_RANGE_OPTIONS = [
 
 type HistoryRangePreferenceWriterAdapter = {
   write: (value: string) => Promise<void>
-  runExclusive?: <Value>(task: () => Promise<Value>) => Promise<Value>
+  runExclusive: ExclusiveTaskRunner
 }
 
 type HistoryRangePreferenceWriter = {
@@ -29,29 +31,17 @@ export function isHistoryRangeValue(value: unknown): value is string {
 /**
  * Keep writes in invocation order. Production requests one origin-wide Web
  * Lock synchronously for every save, so a later page cannot publish its value
- * and then have an older delayed write overwrite it. The queue is the
- * same-context fallback for environments without Web Locks.
+ * and then have an older delayed write overwrite it.
  */
 export function createHistoryRangePreferenceWriter(
   adapter: HistoryRangePreferenceWriterAdapter
 ): HistoryRangePreferenceWriter {
-  let fallbackQueue = Promise.resolve()
-
   async function save(historyRange: unknown): Promise<void> {
     const value = isHistoryRangeValue(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
-    if (adapter.runExclusive) {
-      // Calling runExclusive before the first await enqueues this request with
-      // the shared lock manager at invocation time, preserving cross-context
-      // ordering even while an earlier storage write is still pending.
-      await adapter.runExclusive(() => adapter.write(value))
-      return
-    }
-
-    const write = fallbackQueue
-      .catch(() => {})
-      .then(() => adapter.write(value))
-    fallbackQueue = write.then(() => undefined, () => undefined)
-    await write
+    // Calling runExclusive before the first await enqueues this request with
+    // the shared lock manager at invocation time, preserving cross-context
+    // ordering even while an earlier storage write is still pending.
+    await adapter.runExclusive(() => adapter.write(value))
   }
 
   return { save }
@@ -61,13 +51,9 @@ const historyRangePreferenceWriter = createHistoryRangePreferenceWriter({
   async write(value) {
     await chrome.storage.local.set({ [HISTORY_RANGE_STORAGE_KEY]: value })
   },
-  ...(typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function'
-    ? {
-        runExclusive: <Value>(task: () => Promise<Value>) => (
-          navigator.locks.request(HISTORY_RANGE_STORAGE_WRITE_LOCK, task)
-        )
-      }
-    : {})
+  runExclusive: <Value>(task: () => Promise<Value>) => (
+    runWithWebLock(HISTORY_RANGE_STORAGE_WRITE_LOCK, task)
+  )
 })
 
 export async function loadHistoryRangePreference(): Promise<string> {

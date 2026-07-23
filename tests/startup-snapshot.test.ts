@@ -874,7 +874,7 @@ test('startup snapshot cache keeps both old mirrors when a failed durable write 
   assert.equal((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).captureStartedAt, 100)
 })
 
-test('startup snapshot cache serializes writes in-context when Web Locks are unavailable', async () => {
+test('startup snapshot cache serializes writes in-context before requesting the shared lock', async () => {
   const snapshot = {
     dashboard: { realTabs: [], domainGroups: [] },
     tabHistory: { entries: [] },
@@ -919,7 +919,7 @@ test('startup snapshot cache serializes writes in-context when Web Locks are una
     now: 250
   })
   await Promise.resolve()
-  assert.equal(sessionReads, 1, 'the fallback queue keeps the second mutation outside storage')
+  assert.equal(sessionReads, 1, 'the local queue keeps the second mutation outside storage')
 
   releaseFirstRead()
   await Promise.all([firstSave, latestSave])

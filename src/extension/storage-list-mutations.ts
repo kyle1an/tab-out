@@ -1,3 +1,5 @@
+import { runWithWebLock } from './web-lock.js'
+
 export type StorageListMutationAttempt =
   | {
       ok: true
@@ -89,8 +91,7 @@ export function createChromeStorageListMutationAdapter(
       await localStorageArea().set({ [storageKey]: value })
     },
     async runExclusive(task) {
-      const locks = typeof navigator === 'undefined' ? null : navigator.locks
-      return locks?.request ? locks.request(lockName, task) : task()
+      return runWithWebLock(lockName, task)
     }
   }
 }

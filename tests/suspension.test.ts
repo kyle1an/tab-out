@@ -4,18 +4,11 @@ import test from 'node:test'
 import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
 import { suspendChipTarget, suspendDomainTabs, suspendExactTabTargets, suspendHistoryEntry } from '../src/extension/tab-actions.js'
-import { extractSuspenderId, buildSuspendUrl, isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl, unwrapSuspenderTitle } from '../src/extension/suspension.js'
+import { createSuspendTargetStore, extractSuspenderId, buildSuspendUrl, isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl, unwrapSuspenderTitle } from '../src/extension/suspension.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 
 const SUSPENDER_ID = 'aaaabbbbccccddddeeeeffffgggghhhh'
 const TEMPLATE = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=Old%20Title&pos=0&uri=https://old.example/page`
-const suspensionModuleUrl = new URL('../src/extension/suspension.ts', import.meta.url)
-let suspensionModuleImportId = 0
-
-function importFreshSuspensionModule(scope: string) {
-  return import(`${suspensionModuleUrl.href}?${scope}=${suspensionModuleImportId++}`)
-}
-
 function createSharedLockManager() {
   let tail = Promise.resolve()
   return {
@@ -79,57 +72,44 @@ test('buildSuspendUrl: zeroes the template pos= scroll offset', () => {
 })
 
 test('getSuspendTarget: a slow stored read cannot overwrite a target learned from live tabs', async () => {
-  const suspension = await importFreshSuspensionModule('slow-stored-read')
-  const previousChrome = (globalThis as { chrome?: unknown }).chrome
   const storedId = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
   const liveId = 'cccccccccccccccccccccccccccccccc'
   const storedTemplate = `chrome-extension://${storedId}/suspended.html#ttl=Stored&pos=0&uri=https://stored.example`
   const liveTemplate = `chrome-extension://${liveId}/suspended.html#ttl=Live&pos=0&uri=https://live.example`
-  let resolveStoredRead!: (items: Record<string, unknown>) => void
+  let resolveStoredRead!: (value: unknown) => void
   let markStoredReadStarted!: () => void
-  const storedRead = new Promise<Record<string, unknown>>((resolve) => {
+  const storedRead = new Promise<unknown>((resolve) => {
     resolveStoredRead = resolve
   })
   const storedReadStarted = new Promise<void>((resolve) => {
     markStoredReadStarted = resolve
   })
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => {
+      markStoredReadStarted()
+      return storedRead
+    },
+    runExclusive: (task) => task(),
+    write: async () => {}
+  })
 
-  globalThis.chrome = {
-    storage: {
-      local: {
-        get: async () => {
-          markStoredReadStarted()
-          return storedRead
-        },
-        set: async () => {}
-      }
-    }
-  } as unknown as typeof globalThis.chrome
+  const pendingStoredTarget = store.get()
+  await storedReadStarted
 
-  try {
-    const pendingStoredTarget = suspension.getSuspendTarget()
-    await storedReadStarted
+  store.rememberFromTabs([{ suspended: true, rawUrl: liveTemplate }])
+  resolveStoredRead({ id: storedId, template: storedTemplate })
 
-    suspension.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: liveTemplate }])
-    resolveStoredRead({
-      tabOutSuspendTargetV1: { id: storedId, template: storedTemplate }
-    })
-
-    assert.deepEqual(await pendingStoredTarget, { id: liveId, template: liveTemplate })
-    assert.deepEqual(await suspension.getSuspendTarget(), { id: liveId, template: liveTemplate })
-  } finally {
-    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
-    else (globalThis as { chrome?: unknown }).chrome = previousChrome
-  }
+  assert.deepEqual(await pendingStoredTarget, { id: liveId, template: liveTemplate })
+  assert.deepEqual(await store.get(), { id: liveId, template: liveTemplate })
 })
 
 test('rememberSuspendTargetFromTabs: persistence keeps the newest target when an older write is slow', async () => {
-  const suspension = await importFreshSuspensionModule('slow-persist')
-  const previousChrome = (globalThis as { chrome?: unknown }).chrome
   const olderId = 'dddddddddddddddddddddddddddddddd'
   const newerId = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'
   const olderTemplate = `chrome-extension://${olderId}/suspended.html#ttl=Older&pos=0&uri=https://older.example`
   const newerTemplate = `chrome-extension://${newerId}/suspended.html#ttl=Newer&pos=0&uri=https://newer.example`
+  const lockManager = createSharedLockManager()
   let releaseOlderWrite!: () => void
   let markOlderWriteStarted!: () => void
   let markWritesCompleted!: () => void
@@ -145,54 +125,77 @@ test('rememberSuspendTargetFromTabs: persistence keeps the newest target when an
   let writeCount = 0
   let completedWriteCount = 0
   let storedTarget: unknown = null
-
-  globalThis.chrome = {
-    storage: {
-      local: {
-        get: async () => ({}),
-        set: async (items: Record<string, unknown>) => {
-          writeCount += 1
-          if (writeCount === 1) {
-            markOlderWriteStarted()
-            await olderWriteGate
-          }
-          storedTarget = items.tabOutSuspendTargetV1
-          completedWriteCount += 1
-          if (completedWriteCount === 2) markWritesCompleted()
-        }
+  let now = 1_000
+  const store = createSuspendTargetStore({
+    now: () => ++now,
+    read: async () => storedTarget,
+    runExclusive: (task) => lockManager.request('suspend-target', task),
+    write: async (value) => {
+      writeCount += 1
+      if (writeCount === 1) {
+        markOlderWriteStarted()
+        await olderWriteGate
       }
+      storedTarget = value
+      completedWriteCount += 1
+      if (completedWriteCount === 2) markWritesCompleted()
     }
-  } as unknown as typeof globalThis.chrome
+  })
 
-  try {
-    suspension.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: olderTemplate }])
-    await olderWriteStarted
+  store.rememberFromTabs([{ suspended: true, rawUrl: olderTemplate }])
+  await olderWriteStarted
 
-    suspension.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: newerTemplate }])
-    releaseOlderWrite()
-    await writesCompleted
+  store.rememberFromTabs([{ suspended: true, rawUrl: newerTemplate }])
+  releaseOlderWrite()
+  await writesCompleted
 
-    assert.deepEqual(
-      storedTarget && typeof storedTarget === 'object'
-        ? { id: (storedTarget as Record<string, unknown>).id, template: (storedTarget as Record<string, unknown>).template }
-        : storedTarget,
-      { id: newerId, template: newerTemplate }
-    )
-    assert.equal(Number.isFinite((storedTarget as Record<string, unknown>).observedAt), true)
-    assert.deepEqual(await suspension.getSuspendTarget(), { id: newerId, template: newerTemplate })
-  } finally {
-    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
-    else (globalThis as { chrome?: unknown }).chrome = previousChrome
-  }
+  assert.deepEqual(
+    storedTarget && typeof storedTarget === 'object'
+      ? { id: (storedTarget as Record<string, unknown>).id, template: (storedTarget as Record<string, unknown>).template }
+      : storedTarget,
+    { id: newerId, template: newerTemplate }
+  )
+  assert.equal(Number.isFinite((storedTarget as Record<string, unknown>).observedAt), true)
+  assert.deepEqual(await store.get(), { id: newerId, template: newerTemplate })
+})
+
+test('suspend-target persistence does not write when the current generation cannot be read', async () => {
+  const lockManager = createSharedLockManager()
+  let writeCount = 0
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => { throw new Error('storage unavailable') },
+    runExclusive: (task) => lockManager.request('suspend-target', task),
+    write: async () => { writeCount += 1 }
+  })
+
+  store.rememberFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
+  await lockManager.drain()
+
+  assert.equal(writeCount, 0)
+  assert.deepEqual(await store.get(), { id: SUSPENDER_ID, template: TEMPLATE })
+})
+
+test('suspend-target persistence keeps a newer stored observation', async () => {
+  const lockManager = createSharedLockManager()
+  let writeCount = 0
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => ({ id: 'newer', template: 'chrome-extension://newer/suspended.html', observedAt: 2_000 }),
+    runExclusive: (task) => lockManager.request('suspend-target', task),
+    write: async () => { writeCount += 1 }
+  })
+
+  store.rememberFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
+  await lockManager.drain()
+
+  assert.equal(writeCount, 0)
 })
 
 test('separate extension contexts cannot let an older trailing suspend target overwrite the newest observation', async () => {
-  const previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome')
-  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
-  const previousPerformance = Object.getOwnPropertyDescriptor(globalThis, 'performance')
   const lockManager = createSharedLockManager()
-  let now = 0
-  let storedTarget: Record<string, unknown> | undefined
+  let observationCount = 0
+  let storedTarget: { id: string; template: string; observedAt: number } | undefined
   let releaseFirstWrite!: () => void
   let markFirstWriteStarted!: () => void
   const firstWriteGate = new Promise<void>((resolve) => {
@@ -202,136 +205,102 @@ test('separate extension contexts cannot let an older trailing suspend target ov
     markFirstWriteStarted = resolve
   })
   let writeCount = 0
-
-  Object.defineProperty(globalThis, 'performance', {
-    configurable: true,
-    value: {
-      timeOrigin: 1_000,
-      now: () => {
-        now += 1
-        return 1
+  const createStore = () => createSuspendTargetStore({
+    now: () => {
+      observationCount += 1
+      return 1_001
+    },
+    read: async () => storedTarget,
+    runExclusive: (task) => lockManager.request('suspend-target', task),
+    write: async (value) => {
+      writeCount += 1
+      if (writeCount === 1) {
+        markFirstWriteStarted()
+        await firstWriteGate
       }
+      storedTarget = value
     }
   })
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: { locks: lockManager }
-  })
-  Object.defineProperty(globalThis, 'chrome', {
-    configurable: true,
-    writable: true,
-    value: {
-      storage: {
-        local: {
-          get: async () => ({ tabOutSuspendTargetV1: storedTarget }),
-          set: async (items: Record<string, Record<string, unknown>>) => {
-            writeCount += 1
-            if (writeCount === 1) {
-              markFirstWriteStarted()
-              await firstWriteGate
-            }
-            storedTarget = items.tabOutSuspendTargetV1
-          }
-        }
-      }
-    }
-  })
+  const contextA = createStore()
+  const contextB = createStore()
+  const oldestId = '11111111111111111111111111111111'
+  const olderId = '22222222222222222222222222222222'
+  const newestId = '33333333333333333333333333333333'
+  const suspendedUrl = (id: string) => `chrome-extension://${id}/suspended.html#ttl=Page&pos=0&uri=https://example.test/${id}`
 
-  try {
-    const contextA = await importFreshSuspensionModule('context-a')
-    const contextB = await importFreshSuspensionModule('context-b')
-    const oldestId = '11111111111111111111111111111111'
-    const olderId = '22222222222222222222222222222222'
-    const newestId = '33333333333333333333333333333333'
-    const suspendedUrl = (id: string) => `chrome-extension://${id}/suspended.html#ttl=Page&pos=0&uri=https://example.test/${id}`
+  contextA.rememberFromTabs([{ suspended: true, rawUrl: suspendedUrl(oldestId) }])
+  await firstWriteStarted
+  contextA.rememberFromTabs([{ suspended: true, rawUrl: suspendedUrl(olderId) }])
+  contextB.rememberFromTabs([{ suspended: true, rawUrl: suspendedUrl(newestId) }])
+  assert.equal(observationCount, 3)
 
-    contextA.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: suspendedUrl(oldestId) }])
-    await firstWriteStarted
-    contextA.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: suspendedUrl(olderId) }])
-    contextB.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: suspendedUrl(newestId) }])
-    assert.equal(now, 3)
-
-    releaseFirstWrite()
-    for (let turn = 0; turn < 6; turn += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve))
-      await lockManager.drain()
-    }
-
-    assert.equal(storedTarget?.id, newestId)
-    assert.equal(storedTarget?.template, suspendedUrl(newestId))
-  } finally {
-    if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome)
-    else delete (globalThis as { chrome?: unknown }).chrome
-    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator)
-    else delete (globalThis as { navigator?: unknown }).navigator
-    if (previousPerformance) Object.defineProperty(globalThis, 'performance', previousPerformance)
-    else delete (globalThis as { performance?: unknown }).performance
+  releaseFirstWrite()
+  for (let turn = 0; turn < 6; turn += 1) {
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await lockManager.drain()
   }
+
+  assert.equal(storedTarget?.id, newestId)
+  assert.equal(storedTarget?.template, suspendedUrl(newestId))
 })
 
 test('rememberSuspendTargetFromTabs: captures the first suspended tab; getSuspendTarget returns it', async () => {
-  const suspension = await importFreshSuspensionModule('capture-first')
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => null,
+    runExclusive: (task) => task(),
+    write: async () => {}
+  })
   const raw = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=T&pos=0&uri=https://kept.example`
-  suspension.rememberSuspendTargetFromTabs([
+  store.rememberFromTabs([
     { suspended: false, rawUrl: 'https://live.example' },
     { suspended: true, rawUrl: raw }
   ])
-  const target = await suspension.getSuspendTarget()
+  const target = await store.get()
   assert.deepEqual(target, { id: SUSPENDER_ID, template: raw })
 })
 
 test('rememberSuspendTargetFromTabs: ignores non-suspender and non-suspended tabs', async () => {
-  const suspension = await importFreshSuspensionModule('ignore-invalid')
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => null,
+    runExclusive: (task) => task(),
+    write: async () => {}
+  })
   const good = `chrome-extension://${SUSPENDER_ID}/suspended.html#ttl=T&pos=0&uri=https://good.example`
-  suspension.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: good }])
+  store.rememberFromTabs([{ suspended: true, rawUrl: good }])
   // A later scan whose only "suspended" tab is a non-suspender URL (plus a live
   // tab) must NOT overwrite the previously-learned target.
-  suspension.rememberSuspendTargetFromTabs([
+  store.rememberFromTabs([
     { suspended: true, rawUrl: 'https://not-a-suspender.example' },
     { suspended: false, rawUrl: 'https://live.example' }
   ])
-  assert.deepEqual(await suspension.getSuspendTarget(), { id: SUSPENDER_ID, template: good })
+  assert.deepEqual(await store.get(), { id: SUSPENDER_ID, template: good })
 })
 
 test('rememberSuspendTargetFromTabs: same-suspender template drift updates memory without re-persisting', async () => {
-  const previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome')
-  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
   const lockManager = createSharedLockManager()
   const otherId = 'iiiijjjjkkkkllllmmmmnnnnoooopppp'
   const setCalls: unknown[] = []
-  Object.defineProperty(globalThis, 'navigator', {
-    configurable: true,
-    value: { locks: lockManager }
-  })
-  Object.defineProperty(globalThis, 'chrome', {
-    configurable: true,
-    writable: true,
-    value: {
-      storage: {
-        local: {
-          get: async () => ({}),
-          set: async (items: unknown) => { setCalls.push(items) }
-        }
-      }
+  let storedTarget: unknown = null
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => storedTarget,
+    runExclusive: (task) => lockManager.request('suspend-target', task),
+    write: async (value) => {
+      storedTarget = value
+      setCalls.push(value)
     }
   })
-  try {
-    const suspension = await importFreshSuspensionModule('same-id-template')
-    const first = `chrome-extension://${otherId}/suspended.html#ttl=A&pos=10&uri=https://a.example`
-    const second = `chrome-extension://${otherId}/suspended.html#ttl=B&pos=99&uri=https://b.example`
-    suspension.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: first }])
-    await lockManager.drain()
-    assert.equal(setCalls.length, 1)
-    suspension.rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: second }])
-    await lockManager.drain()
-    assert.equal(setCalls.length, 1)
-    assert.deepEqual(await suspension.getSuspendTarget(), { id: otherId, template: second })
-  } finally {
-    if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome)
-    else delete (globalThis as { chrome?: unknown }).chrome
-    if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator)
-    else delete (globalThis as { navigator?: unknown }).navigator
-  }
+  const first = `chrome-extension://${otherId}/suspended.html#ttl=A&pos=10&uri=https://a.example`
+  const second = `chrome-extension://${otherId}/suspended.html#ttl=B&pos=99&uri=https://b.example`
+  store.rememberFromTabs([{ suspended: true, rawUrl: first }])
+  await lockManager.drain()
+  assert.equal(setCalls.length, 1)
+  store.rememberFromTabs([{ suspended: true, rawUrl: second }])
+  await lockManager.drain()
+  assert.equal(setCalls.length, 1)
+  assert.deepEqual(await store.get(), { id: otherId, template: second })
 })
 
 test('suspend actions report unknown without mutating or refreshing when live tabs cannot be read', async () => {
