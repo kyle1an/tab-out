@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import fc from 'fast-check'
 
 import { canonicalDedupeKey } from '../src/extension/url-canonical.js'
 
@@ -8,9 +9,42 @@ const longForm =
 const shortForm = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100&sourceType=mention'
 const canonical = 'https://example.atlassian.net/browse/ABC-123?focusedCommentId=100'
 
+const uppercaseLetterArbitrary = fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+const projectKeyArbitrary = fc
+  .tuple(
+    uppercaseLetterArbitrary,
+    fc.array(fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), {
+      minLength: 1,
+      maxLength: 8
+    })
+  )
+  .map(([first, rest]) => `${first}${rest.join('')}`)
+
 test('the two Jira URL forms of the same comment produce the same key', () => {
   assert.equal(canonicalDedupeKey(longForm), canonical)
   assert.equal(canonicalDedupeKey(shortForm), canonical)
+})
+
+test('Jira comment canonicalization holds across generated issue and comment ids', () => {
+  fc.assert(
+    fc.property(
+      projectKeyArbitrary,
+      fc.integer({ min: 0, max: 1_000_000 }),
+      fc.integer({ min: 0, max: 1_000_000 }),
+      (projectKey, issueId, commentId) => {
+        const issue = `https://example.atlassian.net/browse/${projectKey}-${issueId}`
+        const expected = `${issue}?focusedCommentId=${commentId}`
+
+        assert.equal(
+          canonicalDedupeKey(
+            `${issue}?focusedCommentId=${commentId}&sourceType=mention&page=comment-panel#comment-${commentId}`
+          ),
+          expected
+        )
+        assert.equal(canonicalDedupeKey(`${issue}#comment-${commentId}`), expected)
+      }
+    )
+  )
 })
 
 test('a hash-only comment link matches a focusedCommentId link', () => {
@@ -40,6 +74,20 @@ test('GitHub repository root trailing slashes collapse to the no-slash key', () 
   assert.equal(canonicalDedupeKey(`${repository}/`), repository)
 })
 
+test('GitHub repository root canonicalization holds across generated identities', () => {
+  fc.assert(
+    fc.property(fc.nat(), fc.nat(), fc.string(), fc.string(), (ownerId, repositoryId, query, fragment) => {
+      const repository = `https://github.com/user-${ownerId}/repo-${repositoryId}`
+      const suffix = `?q=${encodeURIComponent(query)}#section-${encodeURIComponent(fragment)}`
+
+      assert.equal(
+        canonicalDedupeKey(`${repository}/${suffix}`),
+        canonicalDedupeKey(`${repository}${suffix}`)
+      )
+    })
+  )
+})
+
 test('GitHub repository root canonicalization preserves query and hash identity', () => {
   const repository = 'https://github.com/example/repo'
   const canonicalVariant = `${repository}?tab=readme#example-section`
@@ -67,6 +115,15 @@ test('a Confluence /wiki path on atlassian.net is returned unchanged', () => {
 test('malformed URLs are returned unchanged without throwing', () => {
   assert.equal(canonicalDedupeKey('not a url'), 'not a url')
   assert.equal(canonicalDedupeKey(''), '')
+})
+
+test('canonical URL keys are idempotent for arbitrary input', () => {
+  fc.assert(
+    fc.property(fc.string(), (url) => {
+      const canonicalUrl = canonicalDedupeKey(url)
+      assert.equal(canonicalDedupeKey(canonicalUrl), canonicalUrl)
+    })
+  )
 })
 
 function withExtensionId<T>(id: string, fn: () => T): T {

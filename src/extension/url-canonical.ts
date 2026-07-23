@@ -22,14 +22,16 @@ import { isGitHubRepositoryRootPath } from './github-url.js'
 import type { UrlCanonicalizerRule } from './types'
 
 const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
-  // GitHub repository roots: /{owner}/{repo}/ → /{owner}/{repo}.
-  // GitHub advertises the no-slash form as the repository page identity.
+  // GitHub repository roots: normalize both /{owner}/{repo}/ and
+  // /{owner}/{repo} to the serialized no-slash identity. Handling both forms
+  // keeps URL serialization (for example, percent-encoding) consistent.
   // Keep nested and reserved top-level routes exact by default.
   {
     hostname: 'github.com',
     canonicalize: (u: URL) => {
-      if (!u.pathname.endsWith('/') || !isGitHubRepositoryRootPath(u.pathname)) return null
-      return `${u.origin}${u.pathname.slice(0, -1)}${u.search}${u.hash}`
+      if (!isGitHubRepositoryRootPath(u.pathname)) return null
+      const pathname = u.pathname.endsWith('/') ? u.pathname.slice(0, -1) : u.pathname
+      return `${u.origin}${pathname}${u.search}${u.hash}`
     }
   },
 

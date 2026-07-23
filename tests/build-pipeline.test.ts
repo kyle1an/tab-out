@@ -7,12 +7,18 @@ import { createExtensionManifest } from '../src/extension/manifest.js'
 test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('scripts/build-extension.mjs'), 'scripts/build-extension.mjs should build extension entries without shared runtime chunks')
+  assert.ok(existsSync('scripts/check-dependency-architecture.ts'), 'dependency architecture checks should enforce baseline drift')
   assert.ok(existsSync('scripts/write-manifest.ts'), 'scripts/write-manifest.ts should generate the committed manifest package file')
   assert.ok(existsSync('scripts/watch-build.mjs'), 'scripts/watch-build.mjs should drive local rebuilds without watching dist output')
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
   assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
   assert.ok(existsSync('src/extension/manifest.ts'), 'src/extension/manifest.ts should be the manifest source')
   assert.ok(existsSync('components.json'), 'components.json should define the shadcn project setup')
+  assert.ok(existsSync('.dependency-cruiser.cjs'), 'dependency-cruiser should define repository architecture rules')
+  assert.ok(
+    existsSync('.dependency-cruiser-known-violations.json'),
+    'dependency-cruiser should baseline existing graph debt'
+  )
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
@@ -24,14 +30,22 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(pkg.scripts?.build, 'node scripts/build-extension.mjs')
   assert.equal(pkg.scripts?.['build:debug'], 'node scripts/build-extension.mjs --sourcemap')
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
+  assert.equal(
+    pkg.scripts?.['deps:architecture'],
+    'tsx scripts/check-dependency-architecture.ts'
+  )
   assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
   assert.match(pkg.scripts?.['test:browser'], /playwright test/)
   assert.match(pkg.scripts?.['test:browser'], /dashboard-smoke\.spec\.ts/)
   assert.doesNotMatch(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE/)
   assert.match(pkg.scripts?.['test:browser:layout'], /dashboard-layout\.spec\.ts/)
   assert.equal(pkg.scripts?.['verify:bundle'], 'git diff --exit-code -- extension/dist')
-  assert.equal(pkg.scripts?.['verify:quick'], 'pnpm run "/^(typecheck|lint|react-doctor|verify:compiler)$/"')
+  assert.equal(
+    pkg.scripts?.['verify:quick'],
+    'pnpm run "/^(typecheck|lint|deps:architecture|react-doctor|verify:compiler)$/"'
+  )
   assert.match(pkg.scripts?.verify, /pnpm lint/)
+  assert.match(pkg.scripts?.verify, /pnpm deps:architecture/)
   assert.match(pkg.scripts?.verify, /pnpm verify:bundle/)
   assert.match(pkg.scripts?.['verify:browser'], /pnpm test:browser/)
   assert.ok(pkg.dependencies?.react)
@@ -45,6 +59,8 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(pkg.devDependencies?.['@tailwindcss/vite'])
   assert.ok(pkg.devDependencies?.['@iconify-json/ooui'])
   assert.ok(pkg.devDependencies?.['babel-plugin-react-compiler'])
+  assert.ok(pkg.devDependencies?.['dependency-cruiser'])
+  assert.ok(pkg.devDependencies?.['fast-check'])
   assert.ok(pkg.devDependencies?.tailwindcss)
   assert.ok(pkg.devDependencies?.vite)
   assert.ok(pkg.devDependencies?.shadcn)
