@@ -2284,14 +2284,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     return (
       <span key={envKey} className="chip-env-shell group/env relative inline-flex items-center">
         {envFocusTarget}
-        <TooltipAnchor content="Saved page">
-          <span
-            className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-2 inline-flex size-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-(--card-bg) p-0 text-(--accent-amber) opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
-            aria-hidden="true"
-          >
-            <SavedPageIcon saved className="size-2.5" />
-          </span>
-        </TooltipAnchor>
+        <span
+          className="chip-env-saved-hint pointer-events-none absolute -top-1.5 -right-1.5 z-2 inline-flex size-4 cursor-default items-center justify-center rounded-full border border-tab-card bg-(--card-bg) p-0 text-(--accent-amber) opacity-0 shadow-[0_1px_2px_rgba(10,10,10,0.14)] group-hover/env:pointer-events-auto group-hover/env:opacity-100"
+          aria-hidden="true"
+        >
+          <SavedPageIcon saved className="size-2.5" />
+        </span>
       </span>
     )
   }
@@ -2470,14 +2468,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
             variantActionSlotCount > 1 && '-left-[46.5px]'
           )}>
             {variantShowSavedHint && (
-              <TooltipAnchor content="Saved page">
-                <span
-                  className="chip-title-variant-saved-hint pointer-events-none inline-flex size-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-(--accent-amber) opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100"
-                  aria-hidden="true"
-                >
-                  <SavedPageIcon saved className="size-3.5" />
-                </span>
-              </TooltipAnchor>
+              <span
+                className="chip-title-variant-saved-hint pointer-events-none inline-flex size-[19px] cursor-default items-center justify-center rounded-full border-0 bg-transparent p-0 text-(--accent-amber) opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100"
+                aria-hidden="true"
+              >
+                <SavedPageIcon saved className="size-3.5" />
+              </span>
             )}
             {variantCanClose && (
               <button
@@ -2805,14 +2801,12 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       )}
       {!chip.iconOnly && showSavedHint && (
         <div className="chip-actions absolute top-1/2 right-2 z-2 flex -translate-y-1/2 items-center gap-0.5">
-          <TooltipAnchor content="Saved page">
-            <span
-              className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-(--accent-amber) opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 group-[.page-chip-expanded]/page-chip:pointer-events-auto group-[.page-chip-expanded]/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:pointer-events-auto group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:pointer-events-auto group-[.page-chip-tooltip-open]/page-chip:opacity-100"
-              aria-hidden="true"
-            >
-              <SavedPageIcon saved className="size-[14px]" />
-            </span>
-          </TooltipAnchor>
+          <span
+            className="chip-action chip-saved-hint pointer-events-none inline-flex shrink-0 cursor-default items-center justify-center rounded-full border-0 bg-transparent p-1 text-(--accent-amber) opacity-0 group-hover/page-chip:pointer-events-auto group-hover/page-chip:opacity-100 group-[.page-chip-expanded]/page-chip:pointer-events-auto group-[.page-chip-expanded]/page-chip:opacity-100 group-[.page-chip-context-menu-open]/page-chip:pointer-events-auto group-[.page-chip-context-menu-open]/page-chip:opacity-100 group-[.page-chip-tooltip-open]/page-chip:pointer-events-auto group-[.page-chip-tooltip-open]/page-chip:opacity-100"
+            aria-hidden="true"
+          >
+            <SavedPageIcon saved className="size-[14px]" />
+          </span>
         </div>
       )}
       </div>

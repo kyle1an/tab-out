@@ -3,7 +3,6 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
-import { TooltipAnchor } from './ui/tooltip'
 import { isHistoryFilterEnabled } from '../extension/history-range.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
 import { releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
@@ -457,19 +456,17 @@ export function HeaderBar({
               onChange={(e) => updateFilter(e.currentTarget.value)}
               onKeyDown={onFilterKeyDown}
             />
-            <TooltipAnchor content="Clear filter">
-              <button
-                type="button"
-                data-tabout-part="clear-button"
-                className="tab-filter-clear absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-foreground [&_svg]:h-3 [&_svg]:w-3"
-                aria-label="Clear filter"
-                onClick={onClear}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </TooltipAnchor>
+            <button
+              type="button"
+              data-tabout-part="clear-button"
+              className="tab-filter-clear absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-foreground [&_svg]:h-3 [&_svg]:w-3"
+              aria-label="Clear filter"
+              onClick={onClear}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           <HeaderStats
             source={source}

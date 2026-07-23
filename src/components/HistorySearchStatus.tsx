@@ -27,7 +27,6 @@ export function HistorySearchStatus({ onRetry, summary }: HistorySearchStatusPro
           <span
             data-tabout-part="summary-title"
             className="min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-foreground"
-            title={copy.title}
           >
             {copy.title}
           </span>
@@ -36,7 +35,6 @@ export function HistorySearchStatus({ onRetry, summary }: HistorySearchStatusPro
           <span
             data-tabout-part="summary-detail"
             className="min-w-0 max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-muted-foreground"
-            title={copy.detail}
           >
             {copy.detail}
           </span>

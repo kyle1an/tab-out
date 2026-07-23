@@ -129,15 +129,13 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
 function PinnedDomainIndicator({ displayName }: { displayName: string }) {
   const title = `Pinned ${displayName}`
   return (
-    <TooltipAnchor content={title}>
-      <span
-        data-tabout-part="pin-indicator"
-        className="domain-pin-indicator inline-flex size-[22px] min-w-[22px] items-center justify-center text-foreground opacity-70"
-      >
-        <span className="icon-[lucide--pin] size-[13px]" aria-hidden="true" />
-        <span className="sr-only">{title}</span>
-      </span>
-    </TooltipAnchor>
+    <span
+      data-tabout-part="pin-indicator"
+      className="domain-pin-indicator inline-flex size-[22px] min-w-[22px] items-center justify-center text-foreground opacity-70"
+    >
+      <span className="icon-[lucide--pin] size-[13px]" aria-hidden="true" />
+      <span className="sr-only">{title}</span>
+    </span>
   )
 }
 
