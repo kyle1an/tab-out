@@ -174,6 +174,38 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+test('cardless domain headers align with their mission content', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const alignments = await page.locator('[data-tabout="domain-card"]').evaluateAll((cards) => cards.map((card) => {
+    const header = card.querySelector<HTMLElement>('.domain-header')
+    const headerFlow = card.querySelector<HTMLElement>('.domain-header-flow')
+    const missionCard = card.querySelector<HTMLElement>('.mission-card')
+    const missionPages = card.querySelector<HTMLElement>('.mission-pages')
+    if (!header || !headerFlow || !missionCard || !missionPages) return null
+
+    const headerStyle = getComputedStyle(header)
+    const missionStyle = getComputedStyle(missionCard)
+    const headerFlowRect = headerFlow.getBoundingClientRect()
+    const missionPagesRect = missionPages.getBoundingClientRect()
+
+    return {
+      contentLeftDelta: Math.abs(headerFlowRect.left - missionPagesRect.left),
+      paddingLeftDelta: Math.abs(Number.parseFloat(headerStyle.paddingLeft) - Number.parseFloat(missionStyle.paddingLeft)),
+      paddingRightDelta: Math.abs(Number.parseFloat(headerStyle.paddingRight) - Number.parseFloat(missionStyle.paddingRight))
+    }
+  }))
+
+  expect(alignments.length).toBeGreaterThanOrEqual(12)
+  expect(alignments.every((alignment) => alignment !== null)).toBe(true)
+  for (const alignment of alignments) {
+    expect(alignment?.contentLeftDelta).toBeLessThanOrEqual(0.5)
+    expect(alignment?.paddingLeftDelta).toBeLessThanOrEqual(0.5)
+    expect(alignment?.paddingRightDelta).toBeLessThanOrEqual(0.5)
+  }
+})
+
 test('ordinary dashboard renders keep masonry observers attached', async ({ page }) => {
   await page.addInitScript(() => {
     const counters = { mutationDisconnects: 0, resizeDisconnects: 0 }

@@ -375,7 +375,8 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
       >
         <header
           className={cn(
-            'domain-header min-w-0 p-0',
+            'domain-header min-w-0',
+            isAppsCard ? 'px-[7px]' : 'px-2',
             showCardActions && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1'
           )}
         >
