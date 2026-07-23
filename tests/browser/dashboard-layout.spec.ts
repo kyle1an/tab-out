@@ -40,6 +40,15 @@ type HistoryReorderFixtureWindow = typeof window & {
   __tabOutSmokeSetHistoryVisibility?: (visibilityState: 'hidden' | 'visible') => void
 }
 
+type FirstPointerEntry = {
+  cursor: string
+  ownerMatched: boolean
+}
+
+type DirectPointerEntry = FirstPointerEntry & {
+  actionMatchedAfterReveal: boolean
+}
+
 const HISTORY_REORDER_INITIAL_KEYS = ['stack:1:9103', 'stack:1:9102', 'stack:1:9101']
 const HISTORY_REORDER_NEXT_KEYS = ['stack:1:9101', 'stack:1:9103', 'stack:1:9102']
 
@@ -80,6 +89,117 @@ async function expectHistoryReorderMove(page: Page) {
   await expect.poll(async () => (
     (await historyReorderEvents(page)).some((event) => event.type === 'move' && event.active)
   )).toBe(true)
+}
+
+async function probeDirectPointerEntry(
+  page: Page,
+  action: Locator,
+  ownerSelector: string,
+  enterAtEdge = false,
+  repositionPointer = true
+): Promise<DirectPointerEntry> {
+  await action.scrollIntoViewIfNeeded()
+
+  const box = await action.boundingBox()
+  if (!box) throw new Error('Pointer-entry action has no layout box')
+
+  const leftEdge = box.x + 1
+  const targetX = enterAtEdge
+    ? (leftEdge > 0 ? leftEdge : box.x + box.width - 1)
+    : box.x + box.width / 2
+  const targetY = box.y + box.height / 2
+  if (repositionPointer) {
+    const viewportWidth = page.viewportSize()?.width ?? 1420
+    await page.mouse.move(targetX < viewportWidth / 2 ? viewportWidth - 2 : 2, 2)
+  }
+
+  await page.evaluate((nextOwnerSelector) => {
+    const fixtureWindow = window as typeof window & {
+      __tabOutDirectPointerEntry?: FirstPointerEntry | null
+    }
+    fixtureWindow.__tabOutDirectPointerEntry = null
+
+    const onPointerOver = (event: PointerEvent) => {
+      const target = event.target
+      fixtureWindow.__tabOutDirectPointerEntry = {
+        cursor: target instanceof Element ? getComputedStyle(target).cursor : '',
+        ownerMatched: target instanceof Element && !!target.closest(nextOwnerSelector)
+      }
+    }
+    document.addEventListener('pointerover', onPointerOver, { capture: true, once: true })
+  }, ownerSelector)
+
+  await page.mouse.move(targetX, targetY)
+  await expect.poll(() => page.evaluate(() => (
+    (window as typeof window & { __tabOutDirectPointerEntry?: FirstPointerEntry | null })
+      .__tabOutDirectPointerEntry ?? null
+  ))).not.toBeNull()
+  await expect.poll(() => action.evaluate((element, point) => {
+    const hit = document.elementFromPoint(point.x, point.y)
+    return hit !== null && element.contains(hit)
+  }, { x: targetX, y: targetY })).toBe(true)
+
+  const firstEntry = await page.evaluate(() => {
+    const fixtureWindow = window as typeof window & {
+      __tabOutDirectPointerEntry?: FirstPointerEntry | null
+    }
+    if (!fixtureWindow.__tabOutDirectPointerEntry) throw new Error('Direct pointer entry was not captured')
+    return fixtureWindow.__tabOutDirectPointerEntry
+  })
+  return { ...firstEntry, actionMatchedAfterReveal: true }
+}
+
+async function expectStablePointerEntry({
+  action,
+  enterAtEdge = true,
+  expectedSize,
+  label,
+  owner,
+  ownerSelector,
+  page,
+  repositionPointer = true
+}: {
+  action: Locator
+  enterAtEdge?: boolean
+  expectedSize: number
+  label: string
+  owner: Locator
+  ownerSelector: string
+  page: Page
+  repositionPointer?: boolean
+}) {
+  await expect(action).toHaveCount(1)
+  await expect(owner).toHaveCount(1)
+
+  const [actionBox, ownerBox] = await Promise.all([action.boundingBox(), owner.boundingBox()])
+  if (!actionBox || !ownerBox) throw new Error(`${label} pointer owner has no layout box`)
+  expect(Math.abs(actionBox.x - ownerBox.x), `${label} owner x`).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(actionBox.y - ownerBox.y), `${label} owner y`).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(actionBox.width - ownerBox.width), `${label} owner width`).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(actionBox.height - ownerBox.height), `${label} owner height`).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(ownerBox.width - expectedSize), `${label} owner size`).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(ownerBox.height - expectedSize), `${label} owner size`).toBeLessThanOrEqual(0.5)
+
+  expect(
+    await probeDirectPointerEntry(page, action, ownerSelector, enterAtEdge, repositionPointer),
+    `${label} close reveal region should keep the pointer stable on first entry`
+  ).toEqual({ actionMatchedAfterReveal: true, cursor: 'pointer', ownerMatched: true })
+  await expect(action).toHaveCSS('opacity', '1')
+  await expect(action).toHaveCSS('pointer-events', 'auto')
+}
+
+async function expectKeyboardOnlyReveal(page: Page, action: Locator, label: string) {
+  await page.mouse.move(2, 2)
+  await action.focus()
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Shift+Tab')
+  await expect(action, `${label} should return to the tab order`).toBeFocused()
+  await expect.poll(() => action.evaluate((element) => element.matches(':focus-visible'))).toBe(true)
+  await expect(action).toHaveCSS('opacity', '1')
+  await expect(action).toHaveCSS('pointer-events', 'auto')
+  await action.evaluate((element) => (element as HTMLElement).blur())
+  await expect(action).toHaveCSS('opacity', '0')
+  await expect(action).toHaveCSS('pointer-events', 'none')
 }
 
 async function installBookmarkFetchGate(
@@ -352,6 +472,112 @@ test('pinned same-title URL variants stay unified with a close-slot pin marker',
   ))
   expect(expandedLabelStyles.length).toBeGreaterThanOrEqual(2)
   expect(expandedLabelStyles.every(({ flexGrow, textAlign }) => flexGrow === '0' && textAlign === 'left')).toBe(true)
+})
+
+test('hover-revealed close actions keep a stable pointer on direct entry', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?historyReorderMotion=1')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeAddPlainTitleVariantTabs?: () => Promise<void>
+    }).__tabOutSmokeAddPlainTitleVariantTabs?.()
+  })
+
+  const titleGroup = page.locator('[data-tabout="page-chip"]').filter({
+    has: page.locator('[data-tabout-removal-key="page:https://plain-title-variant.test/docs/example"]')
+  }).first()
+  const cases = [
+    {
+      action: page.locator('#openTabsMissions [data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-01.com"] [data-tabout="page-chip"] [data-tabout-part="close-button"]').first(),
+      expectedSize: 20,
+      label: 'Page Chip',
+      owner: page.locator('#openTabsMissions [data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-01.com"] [data-tabout="page-chip"] [data-tabout-part="close-hit-owner"]').first(),
+      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+    },
+    {
+      action: page.locator('[data-tabout="activation-history-entry"][data-tabout-layout-key="stack:1:9101"] [data-tabout-part="close-button"]').first(),
+      expectedSize: 20,
+      label: 'Activation History',
+      owner: page.locator('[data-tabout="activation-history-entry"][data-tabout-layout-key="stack:1:9101"] [data-tabout-part="close-hit-owner"]').first(),
+      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+    },
+    {
+      action: titleGroup.locator('[data-tabout-part="variant-close-button"]').first(),
+      expectedSize: 19,
+      label: 'same-title variant',
+      owner: titleGroup.locator('[data-tabout-part="variant-close-hit-owner"]').first(),
+      ownerSelector: '[data-tabout-part="variant-close-hit-owner"]'
+    }
+  ]
+
+  await expectKeyboardOnlyReveal(page, cases[0].action, 'Page Chip close action')
+  await expectKeyboardOnlyReveal(page, cases[1].action, 'Activation History close action')
+
+  for (const pointerCase of cases) {
+    await expectStablePointerEntry({ page, enterAtEdge: true, ...pointerCase })
+  }
+
+  const variantAction = cases[2].action
+  const variantOwner = cases[2].owner
+  const variantRail = titleGroup.locator('.chip-title-variant-actions').first()
+  await page.mouse.move(2, 2)
+  await expect(variantAction).toHaveCSS('opacity', '0')
+  await expect(variantRail).toHaveCSS('cursor', 'default')
+  const variantOwnerBox = await variantOwner.boundingBox()
+  if (!variantOwnerBox) throw new Error('same-title variant owner has no layout box')
+  await page.mouse.move(variantOwnerBox.x + 0.5, variantOwnerBox.y + 0.5)
+  const variantCorner = await page.evaluate((point) => {
+    const target = document.elementFromPoint(point.x, point.y)
+    return {
+      cursor: target instanceof Element ? getComputedStyle(target).cursor : '',
+      ownerMatched: target instanceof Element && !!target.closest('[data-tabout-part="variant-close-hit-owner"]')
+    }
+  }, { x: variantOwnerBox.x + 0.5, y: variantOwnerBox.y + 0.5 })
+  expect(variantCorner).toEqual({ cursor: 'default', ownerMatched: false })
+  await expect(variantAction).toHaveCSS('opacity', '0')
+  await expect(variantAction).toHaveCSS('pointer-events', 'none')
+
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  const expandedHistoryRow = page.locator('[data-tabout="activation-history-entry"]').filter({
+    hasText: 'Low score history item with enough tooltip text'
+  }).first()
+  await expandedHistoryRow.locator('.history-entry-title').first().hover()
+  const expandedHistory = expandedHistoryRow.locator('.history-entry-expanded')
+  await expect(expandedHistory).toHaveCount(1)
+  await expectStablePointerEntry({
+    action: expandedHistory.locator('[data-tabout-part="close-button"]'),
+    expectedSize: 20,
+    label: 'expanded Activation History',
+    owner: expandedHistory.locator('[data-tabout-part="close-hit-owner"]'),
+    ownerSelector: '[data-tabout-part="close-hit-owner"]',
+    page,
+    repositionPointer: false
+  })
+
+  const appTitle = 'Inbox (417) - example.user@example.test'
+  await page.goto('/tests/fixtures/dashboard-resize.html?appLoadingFavicon=1')
+  const appChip = page.locator('[data-tabout="page-chip"]').filter({ hasText: appTitle }).first()
+  const appHistory = page.locator('[data-tabout="activation-history-entry"]').filter({ hasText: appTitle }).first()
+
+  for (const pointerCase of [
+    {
+      action: appChip.locator('[data-tabout-part="close-button"]'),
+      expectedSize: 20,
+      label: 'app Page Chip',
+      owner: appChip.locator('[data-tabout-part="close-hit-owner"]'),
+      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+    },
+    {
+      action: appHistory.locator('[data-tabout-part="close-button"]').first(),
+      expectedSize: 20,
+      label: 'app Activation History',
+      owner: appHistory.locator('[data-tabout-part="close-hit-owner"]').first(),
+      ownerSelector: '[data-tabout-part="close-hit-owner"]'
+    }
+  ]) {
+    await expectStablePointerEntry({ page, ...pointerCase })
+  }
 })
 
 test('ordinary dashboard renders keep masonry observers attached', async ({ page }) => {

@@ -1153,7 +1153,11 @@ type HistoryEntryFaviconFrameProps = {
 
 function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading, isApp, isWorkingSetExtra, canRemoveEntry, canForgetClosedGhost, entryLabel, onForget, onClose }: HistoryEntryFaviconFrameProps) {
   return (
-    <span className={cn('history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center', expanded && canRemoveEntry && 'pointer-events-auto', !loading && !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible')}>
+    <span className={cn(
+      'history-entry-favicon-frame group/history-favicon-frame relative grid size-4 flex-none place-items-center',
+      canRemoveEntry && 'pointer-events-none',
+      !loading && !faviconUrl && !isWorkingSetExtra && !canRemoveEntry && 'invisible'
+    )}>
       <span
         className={cn(
           // The favicon column is the same 16px cell page chips use, so
@@ -1175,6 +1179,13 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
       >
         {loading ? <TabLoadingIndicator /> : faviconUrl ? <FaviconImage className={cn('block h-full w-full object-contain', faviconDimmed && FAVICON_DIM_CLASS_NAME)} src={faviconUrl} alt="" /> : isWorkingSetExtra || canForgetClosedGhost ? <DefaultFavicon className={faviconDimmed ? FAVICON_DIM_CLASS_NAME : ''} /> : null}
       </span>
+      {canRemoveEntry && (
+        <span
+          data-tabout-part={canForgetClosedGhost ? 'forget-hit-owner' : 'close-hit-owner'}
+          className="history-entry-close-hit-owner pointer-events-auto absolute top-1/2 left-1/2 z-2 size-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
+          aria-hidden="true"
+        />
+      )}
       {canRemoveEntry && (
         <button
           type="button"

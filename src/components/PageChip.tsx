@@ -1104,7 +1104,8 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         // side, so its center-line sits on the same axis as plain favicons.
         chip.isApp && !chip.iconOnly && 'size-5 -mx-0.5 -my-0.5',
         !chip.iconOnly && dupeCount > 1 && 'chip-favicon-stack',
-        chip.isApp && 'is-app'
+        chip.isApp && 'is-app',
+        showFaviconCloseAction && 'pointer-events-none'
       )}
     >
       {!chip.iconOnly && dupeCount > 2 && (
@@ -1156,6 +1157,13 @@ function ChipFaviconFrame({ chip, dupeCount, showDefaultFavicon, showFaviconClos
         >
           <span className="icon-[lucide--pin] size-2.5" aria-hidden="true" />
         </span>
+      )}
+      {showFaviconCloseAction && (
+        <span
+          data-tabout-part="close-hit-owner"
+          className="chip-close-hit-owner pointer-events-auto absolute top-1/2 left-1/2 z-3 size-5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full"
+          aria-hidden="true"
+        />
       )}
       {showFaviconCloseAction && (
         <button
@@ -2476,20 +2484,26 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
               </span>
             )}
             {variantCanClose && (
-              <button
-                type="button"
-                className="chip-title-variant-action pointer-events-none inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/title-variant-actions:pointer-events-auto group-hover/title-variant-actions:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
-                aria-label={titleVariantActionLabel(variant)}
-                onClick={(e) => onCloseTitleVariant(e, variant)}
-                onMouseEnter={() => onTitleVariantMouseEnter(variant)}
-                onMouseLeave={onTitleVariantMouseLeave}
-                onFocus={() => onTitleVariantFocusIn(variant)}
-                onBlur={onTitleVariantBlur}
+              <span
+                data-tabout-part="variant-close-hit-owner"
+                className="chip-title-variant-close-hit-owner group/title-variant-close-owner relative inline-flex size-[19px] shrink-0 cursor-pointer items-center justify-center rounded-full"
               >
-                <svg className="size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                </svg>
-              </button>
+                <button
+                  type="button"
+                  data-tabout-part="variant-close-button"
+                  className="chip-title-variant-action pointer-events-none absolute inset-0 inline-flex size-[19px] cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground opacity-0 group-hover/title-variant-close-owner:pointer-events-auto group-hover/title-variant-close-owner:opacity-100 hover:bg-neutral-600/10 hover:text-foreground hover:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+                  aria-label={titleVariantActionLabel(variant)}
+                  onClick={(e) => onCloseTitleVariant(e, variant)}
+                  onMouseEnter={() => onTitleVariantMouseEnter(variant)}
+                  onMouseLeave={onTitleVariantMouseLeave}
+                  onFocus={() => onTitleVariantFocusIn(variant)}
+                  onBlur={onTitleVariantBlur}
+                >
+                  <svg className="size-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </span>
             )}
             {variant.pagePinned && (
               <span className={cn(
