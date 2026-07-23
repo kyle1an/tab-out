@@ -3123,8 +3123,8 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
   }
 
   const cards = [
-    { domain: '__tab-out__', label: 'New tabs', stableId: 'domain---tab-out--', pinLabel: 'Pin New tabs' },
-    { domain: '__standalone-apps__', label: 'Apps', stableId: 'domain---standalone-apps--', pinLabel: 'Pin Apps' }
+    { domain: '__tab-out__', label: 'New tabs', stableId: 'domain---tab-out--' },
+    { domain: '__standalone-apps__', label: 'Apps', stableId: 'domain---standalone-apps--' }
   ]
 
   for (const card of cards) {
@@ -3135,8 +3135,9 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
       })
     )
 
-    assert.match(html, /\bdomain-pin-btn\b/)
-    assert.match(html, new RegExp(`aria-label="${card.pinLabel}"`))
+    assert.match(html, /data-tabout-part="card-menu"/)
+    assert.match(html, new RegExp(`aria-label="Actions for ${card.label}"`))
+    assert.doesNotMatch(html, /data-tabout-part="pin-indicator"/)
     assert.doesNotMatch(html, /\bdomain-fixed-indicator\b/)
     assert.doesNotMatch(html, /\bdomain-block-fixed\b/)
   }

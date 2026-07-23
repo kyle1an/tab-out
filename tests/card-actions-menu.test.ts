@@ -79,14 +79,37 @@ test('DomainCard keeps the actions menu in the first header row flow', () => {
   assert.match(menuSource, /lazy\(\(\) => import\('\.\/CardActionsMenuLoaded'\)/)
 })
 
-test('CardActionsMenu orders suspend before close', () => {
+test('CardActionsMenu orders pin before suspend and close', () => {
   const source = readFileSync(new URL('../src/components/CardActionsMenuLoaded.tsx', import.meta.url), 'utf8')
 
+  assert.ok(source.indexOf('data-tabout-part="pin-button"') < source.indexOf('data-tabout-part="suspend-button"'))
   assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-button"'))
+  assert.match(source, /pinned \? 'icon-\[lucide--pin-off\]/)
+  assert.match(source, /: 'icon-\[lucide--pin\]/)
 })
 
-test('DomainCard renders no actions menu when there is nothing closable', () => {
+test('CardActionsMenu replays a first press that lands while the menu is loading', () => {
+  const menuSource = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
+  const loadedSource = readFileSync(new URL('../src/components/CardActionsMenuLoaded.tsx', import.meta.url), 'utf8')
+
+  assert.match(menuSource, /onPointerDown=\{onRequestOpen\}/)
+  assert.match(menuSource, /setOpenOnLoad\(true\)/)
+  assert.match(menuSource, /defaultOpen=\{openOnLoad\}/)
+  assert.match(loadedSource, /<Menu defaultOpen=\{defaultOpen\} defaultTriggerId=/)
+})
+
+test('DomainCard keeps a pin-only actions menu when there is nothing closable', () => {
   const group: DomainGroup = { domain: 'google.com', tabs: [] }
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, { group, vm: makeClosableCardVM({ closableCount: 0 }) })
+  )
+
+  assert.match(html, /data-tabout-part="card-menu"/)
+  assert.doesNotMatch(html, /data-tabout-part="pin-indicator"/)
+})
+
+test('DomainCard renders no actions menu when the card is neither mutable nor pinnable', () => {
+  const group: DomainGroup = { domain: '__private__', tabs: [] }
   const html = renderToStaticMarkup(
     React.createElement(DomainCard, { group, vm: makeClosableCardVM({ closableCount: 0 }) })
   )
@@ -94,12 +117,62 @@ test('DomainCard renders no actions menu when there is nothing closable', () => 
   assert.doesNotMatch(html, /data-tabout-part="card-menu"/)
 })
 
-test('DomainCard suppresses the actions menu on the standalone-apps card', () => {
-  // Suppression is gated on the domain key, not the stableId — keep the VM plain
-  // so the test reflects what actually drives the behavior.
+test('DomainCard gives the standalone-apps card a pin-only actions menu', () => {
   const group: DomainGroup = { domain: '__standalone-apps__', tabs: [] }
   const html = renderToStaticMarkup(React.createElement(DomainCard, { group, vm: makeClosableCardVM() }))
 
-  assert.doesNotMatch(html, /data-tabout-part="card-menu"/)
-  assert.match(html, /<header class="domain-header min-w-0 px-\[7px\]"/)
+  assert.match(html, /data-tabout-part="card-menu"/)
+  assert.match(html, /<header class="domain-header min-w-0 px-\[7px\] grid/)
+})
+
+test('DomainCard replaces saved badge copy with the saved-page menu icon', () => {
+  const group: DomainGroup = { domain: 'example.com', tabs: [] }
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm: makeClosableCardVM({ tabCountLabel: '9 +5 saved' })
+    })
+  )
+
+  assert.match(html, /tab-count-badge-saved/)
+  assert.match(html, /tab-count-badge-plus mx-1/)
+  assert.match(html, /tab-count-badge-saved-count[^>]*>5<\/span>/)
+  assert.match(html, /icon-\[mingcute--star-fill\]/)
+  assert.match(html, /ml-px size-3 opacity-50/)
+  assert.match(html, /<span class="sr-only"> saved<\/span>/)
+})
+
+test('DomainCard shows only the saved count and icon when there are no open tabs', () => {
+  const group: DomainGroup = { domain: 'example.com', tabs: [] }
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm: makeClosableCardVM({ tabCountLabel: '0 +5 saved' })
+    })
+  )
+  const badgeHtml = html.match(/<span class="open-tabs-badge[^"]*">[\s\S]*?<span class="sr-only"> saved<\/span><\/span><\/span>/)?.[0] ?? ''
+
+  assert.match(badgeHtml, /tab-count-badge-saved-count[^>]*>5<\/span>/)
+  assert.match(badgeHtml, /icon-\[mingcute--star-fill\]/)
+  assert.doesNotMatch(badgeHtml, /tab-count-badge-plus/)
+  assert.doesNotMatch(badgeHtml, />0<\//)
+})
+
+test('DomainCard shows a header pin marker only after the card is pinned', () => {
+  const unpinnedHtml = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group: { domain: 'example.com', tabs: [] },
+      vm: makeClosableCardVM()
+    })
+  )
+  const pinnedHtml = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group: { domain: 'example.com', tabs: [], pinned: true },
+      vm: makeClosableCardVM()
+    })
+  )
+
+  assert.doesNotMatch(unpinnedHtml, /data-tabout-part="pin-indicator"/)
+  assert.match(pinnedHtml, /data-tabout-part="pin-indicator"/)
+  assert.match(pinnedHtml, /<span class="sr-only">Pinned example\.com<\/span>/)
 })

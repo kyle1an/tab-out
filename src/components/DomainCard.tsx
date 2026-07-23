@@ -5,12 +5,13 @@ import { DomainCardProvider } from './DomainCardContext'
 import { useDashboardActions } from './DashboardInteractionContext'
 import { SubdomainSection } from './SubdomainSection'
 import { CardActionsMenu } from './CardActionsMenu'
+import { SavedPageIcon } from './SavedPageIcon'
 import { TitleSuppressionSummary } from './TitleSuppressionSummary'
 import { TooltipAnchor } from './ui/tooltip'
 import { cn } from '@/lib/utils'
 import { domainCardCloseRemovesAllItems } from './domain-card-close-policy.js'
 import { useRef, useState } from 'react'
-import type { KeyboardEvent, MouseEvent, PointerEvent } from 'react'
+import type { KeyboardEvent, PointerEvent } from 'react'
 import { emptyTitleSuppressionToneScope } from './title-suppression'
 import type { DashboardCardVM, DomainGroup } from './types'
 
@@ -75,19 +76,35 @@ function reorderKeepsPinnedDomainOrder(sourceBlock: HTMLElement, targetBlock: HT
 
 function TabBadge({ label }: { label?: string | number }) {
   const labelText = String(label ?? '')
-  const slashIndex = labelText.indexOf('/')
-  if (slashIndex > 0) {
-    return (
-      <span className="open-tabs-badge tab-count-badge tab-count-badge-filtered inline-flex h-[22px] box-border items-center gap-0 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]">
-        <span className="tab-count-badge-current font-bold text-(--accent-amber)">{labelText.slice(0, slashIndex)}</span>
-        <span className="tab-count-badge-total font-medium text-muted-foreground">{labelText.slice(slashIndex)}</span>
-      </span>
-    )
-  }
+  const savedMatch = labelText.match(/^(.*?) \+(\d+) saved$/)
+  const openCountText = savedMatch?.[1] ?? labelText
+  const savedCount = savedMatch?.[2] ?? ''
+  const slashIndex = openCountText.indexOf('/')
+  const savedOnly = openCountText === '0' && savedCount !== ''
 
   return (
-    <span className="open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center gap-1 rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]">
-      {labelText}
+    <span
+      className={cn(
+        'open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]',
+        slashIndex > 0 && 'tab-count-badge-filtered'
+      )}
+    >
+      {!savedOnly && (
+        slashIndex > 0 ? (
+          <span className="inline-flex items-center gap-0">
+            <span className="tab-count-badge-current font-bold text-(--accent-amber)">{openCountText.slice(0, slashIndex)}</span>
+            <span className="tab-count-badge-total font-medium text-muted-foreground">{openCountText.slice(slashIndex)}</span>
+          </span>
+        ) : openCountText
+      )}
+      {savedCount ? (
+        <span className={cn('tab-count-badge-saved inline-flex items-center', slashIndex > 0 && 'text-muted-foreground')}>
+          {!savedOnly && <span className="tab-count-badge-plus mx-1">+</span>}
+          <span className="tab-count-badge-saved-count">{savedCount}</span>
+          <SavedPageIcon saved className="ml-px size-3 opacity-50" />
+          <span className="sr-only"> saved</span>
+        </span>
+      ) : null}
     </span>
   )
 }
@@ -109,28 +126,17 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
   )
 }
 
-function PinButton({ displayName, pinned, onClick }: { displayName?: string; pinned: boolean; onClick: (e: MouseEvent<HTMLButtonElement>) => void | Promise<void> }) {
-  const action = pinned ? 'Unpin' : 'Pin'
-  const title = `${action} ${displayName}`
+function PinnedDomainIndicator({ displayName }: { displayName: string }) {
+  const title = `Pinned ${displayName}`
   return (
     <TooltipAnchor content={title}>
-      <button
-        type="button"
-        data-tabout-part="pin-button"
-        className={cn(
-          'domain-pin-btn inline-flex size-[22px] min-w-[22px] cursor-pointer items-center justify-center rounded-lg border p-0 transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] focus-visible:opacity-100',
-          pinned
-            ? 'is-pinned border-(--warm-gray) bg-[rgba(82,82,82,0.08)] text-foreground opacity-100 hover:border-[rgba(82,82,82,0.28)] hover:bg-[rgba(82,82,82,0.14)]'
-            : 'border-transparent bg-transparent text-muted-foreground opacity-[0.35] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground hover:opacity-100'
-        )}
-        aria-label={title}
-        aria-pressed={pinned ? 'true' : 'false'}
-        onClick={onClick}
+      <span
+        data-tabout-part="pin-indicator"
+        className="domain-pin-indicator inline-flex size-[22px] min-w-[22px] items-center justify-center text-foreground opacity-70"
       >
-        <svg className="size-[13px]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v5M9 10.8a2 2 0 0 1-1.1 1.8l-1.8.9A2 2 0 0 0 5 15.2V16h14v-.8a2 2 0 0 0-1.1-1.7l-1.8-.9a2 2 0 0 1-1.1-1.8V7h1a2 2 0 0 0 2-2V4H6v1a2 2 0 0 0 2 2h1v3.8Z" />
-        </svg>
-      </button>
+        <span className="icon-[lucide--pin] size-[13px]" aria-hidden="true" />
+        <span className="sr-only">{title}</span>
+      </span>
     </TooltipAnchor>
   )
 }
@@ -198,7 +204,8 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
   const inlineSubdomainKey = vm.singleSubdomainKey && !vm.singleSubdomainIsPort ? vm.singleSubdomainKey : ''
-  const showCardActions = !hideCardClose && closableCount > 0
+  const showBulkActions = !hideCardClose && closableCount > 0
+  const showCardMenu = canPin || showBulkActions
   // Tone allocation happens in computeDomainCardViewModel's walk; each
   // section/cluster arrives carrying its scope and merged tone map.
   const cardSuppressionToneScope = vm.cardSuppressionToneScope ?? emptyTitleSuppressionToneScope()
@@ -247,8 +254,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
     })
   }
 
-  async function onTogglePin(e: MouseEvent<HTMLButtonElement>) {
-    e.preventDefault()
+  async function onTogglePin() {
     await onTogglePinnedDomain?.(group.domain)
   }
 
@@ -366,7 +372,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           // data attributes on this block (imperative dataset writes, not
           // React state); the indicator bar and its noop/placement variants
           // react to them below.
-          "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-[3px] data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_3px_rgba(10,10,10,0.12)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_2px_rgba(10,10,10,0.06)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
+          "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-[2px] data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_2px_rgba(10,10,10,0.1)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_1px_rgba(10,10,10,0.05)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100 focus-within:opacity-100',
           isAppsCard && 'domain-block-apps',
           group.pinned && 'domain-block-pinned'
@@ -377,7 +383,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
           className={cn(
             'domain-header min-w-0',
             isAppsCard ? 'px-[7px]' : 'px-2',
-            showCardActions && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1'
+            showCardMenu && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1'
           )}
         >
           <div className="domain-header-flow flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1">
@@ -391,7 +397,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
                 onPointerDown={onReorderPinnedDomainPointerDown}
               />
             )}
-            {canPin && <PinButton displayName={displayName} pinned={!!group.pinned} onClick={onTogglePin} />}
+            {canPin && group.pinned && <PinnedDomainIndicator displayName={displayName} />}
             {vm.singleSubdomainKey && !inlineSubdomainKey && (
               <span
                 className={cn(
@@ -407,13 +413,15 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
             <TabBadge label={vm.tabCountLabel} />
             {closableExtras > 0 && <DedupButton count={closableExtras} closing={dedupeBadgesClosing} onClick={onDedup} />}
           </div>
-          {showCardActions && (
+          {showCardMenu && (
             <CardActionsMenu
               displayName={displayName}
-              label={vm.closableCountLabel}
-              onClose={onCloseDomain}
-              suspendLabel={suspendableCount > 0 ? vm.suspendableCountLabel : undefined}
-              onSuspend={suspendableCount > 0 ? onSuspendDomain : undefined}
+              pinned={!!group.pinned}
+              onTogglePin={canPin ? onTogglePin : undefined}
+              label={showBulkActions ? vm.closableCountLabel : undefined}
+              onClose={showBulkActions ? onCloseDomain : undefined}
+              suspendLabel={showBulkActions && suspendableCount > 0 ? vm.suspendableCountLabel : undefined}
+              onSuspend={showBulkActions && suspendableCount > 0 ? onSuspendDomain : undefined}
             />
           )}
         </header>

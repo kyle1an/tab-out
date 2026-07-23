@@ -1205,6 +1205,10 @@ test('a pending filter Enter is cancelled when the selected source changes', asy
 })
 
 test('a pending source switch rebuilds with the latest domain pins', async ({ page }) => {
+  await page.route('**/extension/dist/assets/CardActionsMenuLoaded-*.js', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await route.continue()
+  })
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
   await installBookmarkFetchGate(page, [{
@@ -1227,15 +1231,20 @@ test('a pending source switch rebuilds with the latest domain pins', async ({ pa
   await expect(bookmarksSource).toHaveAttribute('data-active', '')
 
   const tabsCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')
-  await tabsCard.locator('[data-tabout-part="pin-button"]').click()
-  await expect(tabsCard.locator('[data-tabout-part="pin-button"]')).toHaveAttribute('aria-pressed', 'true')
+  const cardMenu = tabsCard.locator('[data-tabout-part="card-menu"]')
+  await tabsCard.hover()
+  await cardMenu.click()
+  await expect(page.getByRole('menuitem', { name: 'Pin card' })).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Pin card' }).click()
+  await expect(tabsCard).toHaveAttribute('data-tabout-domain-pinned', 'true')
+  await expect(tabsCard.locator('[data-tabout-part="pin-indicator"]')).toHaveCount(1)
 
   await releaseBookmarkFetchGate(page)
   const bookmarkCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"]')
   await expect(bookmarkCard).toHaveCount(1)
   await expect(bookmarkCard).toContainText('Same domain bookmark')
   await expect(bookmarkCard).toHaveAttribute('data-tabout-domain-pinned', 'true')
-  await expect(bookmarkCard.locator('[data-tabout-part="pin-button"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(bookmarkCard.locator('[data-tabout-part="pin-indicator"]')).toHaveCount(1)
 })
 
 test('a slow unfiltered startup snapshot still hydrates after the filter changes', async ({ page }) => {

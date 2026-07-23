@@ -126,6 +126,9 @@ test('no-op pinned domain drag targets use a muted placement state', () => {
   assert.match(domainCardSource, /data-tabout-reorder-noop/)
   assert.match(domainCardSource, /previousPinnedDomainBlock\(targetBlock\) === sourceBlock/)
   assert.match(domainCardSource, /nextPinnedDomainBlock\(targetBlock\) === sourceBlock/)
+  assert.match(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-\[2px\]/)
+  assert.doesNotMatch(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-px/)
+  assert.doesNotMatch(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-\[3px\]/)
   // The muted placement indicator rides on the domain block; the cardless
   // content wrapper should not regain a frame for a no-op target.
   assert.match(domainCardSource, /data-\[tabout-reorder-noop=true\]:before:bg-\[color-mix\(in_srgb,var\(--accent-amber\)_36%,var\(--warm-gray\)\)\]/)
