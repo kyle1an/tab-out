@@ -68,8 +68,10 @@ pnpm dev
 
 ## Git And Commits
 
+- For implementation tasks, commit each independently verified logical change as soon as it is ready; do not accumulate unrelated fixes in one commit.
+- Stage only the files that belong to that logical change.
 - Do not amend, rewrite history, or push unless explicitly requested.
-- When asked to commit, use a Conventional Commit subject that makes the touched product or code area obvious, such as `fix(page-chip): keep expansion anchored`, `perf(filter): focus input before app mount`, or `build: generate typed extension manifest`.
+- Use a Conventional Commit subject that makes the touched product or code area obvious, such as `fix(page-chip): keep expansion anchored`, `perf(filter): focus input before app mount`, or `build: generate typed extension manifest`.
 - Prefer domain-specific scopes over broad buckets like `ui`; examples include `page-chip`, `domain-card`, `activation-history`, `working-set`, `suspend`, `build`, or another clear repo-local area.
 - For Codex-authored or Codex-assisted commits, include `Co-authored-by: Codex <noreply@openai.com>` as the final non-empty line.
 - Do not leave an extra blank line after the `Co-authored-by` trailer. GitHub may fail to render the co-author even when local `git interpret-trailers` still parses it.
