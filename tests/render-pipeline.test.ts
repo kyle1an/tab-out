@@ -2882,6 +2882,51 @@ test('closed saved pages stay searchable without counting as open tabs or close 
   assert.equal(filtered.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'saved-page')
 })
 
+test('filtered saved-only cards show the matched saved-page fraction in their badge', () => {
+  const groups = buildDomainGroups([
+    makeTab({ id: 1, url: 'https://example.test/open', title: 'Open tab' }),
+    makeTab({ id: 'saved-1', url: 'https://example.test/saved-1', title: 'Matching reference one', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    makeTab({ id: 'saved-2', url: 'https://example.test/saved-2', title: 'Matching reference two', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    makeTab({ id: 'saved-3', url: 'https://example.test/saved-3', title: 'Other saved page', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    makeTab({ id: 'saved-4', url: 'https://example.test/saved-4', title: 'Another saved page', sourceType: 'saved-page', saved: true, closedSaved: true })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const filtered = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: 'matching reference',
+    source: 'tabs'
+  })
+
+  assert.equal(filtered.matchedCards.length, 1)
+  assert.equal(filtered.matchedCards[0].vm.tabCountLabel, '2/4 saved')
+  assert.equal(filtered.matchedCards[0].vm.tabCountTitle, '0 of 1 open tab shown while filtering, 2 of 4 saved pages shown while filtering')
+})
+
+test('filtered cards show the saved-page fraction alongside their open-tab count', () => {
+  const groups = buildDomainGroups([
+    makeTab({ id: 1, url: 'https://example.test/open-match', title: 'Matching open tab' }),
+    makeTab({ id: 2, url: 'https://example.test/open-other', title: 'Other open tab' }),
+    makeTab({ id: 'saved-1', url: 'https://example.test/saved-1', title: 'Matching saved page one', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    makeTab({ id: 'saved-2', url: 'https://example.test/saved-2', title: 'Matching saved page two', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    makeTab({ id: 'saved-3', url: 'https://example.test/saved-3', title: 'Other saved page', sourceType: 'saved-page', saved: true, closedSaved: true }),
+    makeTab({ id: 'saved-4', url: 'https://example.test/saved-4', title: 'Another saved page', sourceType: 'saved-page', saved: true, closedSaved: true })
+  ])
+  const realTabs = groups.flatMap((group) => group.tabs)
+
+  const filtered = buildDashboardViewModel({
+    realTabs,
+    domainGroups: groups,
+    filter: 'matching',
+    source: 'tabs'
+  })
+
+  assert.equal(filtered.matchedCards.length, 1)
+  assert.equal(filtered.matchedCards[0].vm.tabCountLabel, '1/2 +2/4 saved')
+  assert.equal(filtered.matchedCards[0].vm.tabCountTitle, '1 of 2 open tabs shown while filtering, 2 of 4 saved pages shown while filtering')
+})
+
 test('New tabs bulk-close scopes exclude pinned physical copies in card and section counts', () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const group = buildDomainGroups([

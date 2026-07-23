@@ -74,33 +74,42 @@ function reorderKeepsPinnedDomainOrder(sourceBlock: HTMLElement, targetBlock: HT
     : nextPinnedDomainBlock(targetBlock) === sourceBlock
 }
 
+function TabBadgeCount({ count }: { count: string }) {
+  const slashIndex = count.indexOf('/')
+
+  return slashIndex > 0 ? (
+    <span className="inline-flex items-center gap-0">
+      <span className="tab-count-badge-current font-bold text-(--accent-amber)">{count.slice(0, slashIndex)}</span>
+      <span className="tab-count-badge-total font-medium text-muted-foreground">{count.slice(slashIndex)}</span>
+    </span>
+  ) : count
+}
+
 function TabBadge({ label }: { label?: string | number }) {
   const labelText = String(label ?? '')
-  const savedMatch = labelText.match(/^(.*?) \+(\d+) saved$/)
-  const openCountText = savedMatch?.[1] ?? labelText
-  const savedCount = savedMatch?.[2] ?? ''
-  const slashIndex = openCountText.indexOf('/')
-  const savedOnly = openCountText === '0' && savedCount !== ''
+  const savedMatch = labelText.match(/^(.*?) \+(\d+(?:\/\d+)?) saved$/)
+  const savedOnlyMatch = labelText.match(/^(\d+(?:\/\d+)?) saved$/)
+  const openCountText = savedMatch?.[1] ?? (savedOnlyMatch ? '' : labelText)
+  const savedCount = savedMatch?.[2] ?? savedOnlyMatch?.[1] ?? ''
+  const openCountIsFiltered = openCountText.includes('/')
+  const savedCountIsFiltered = savedCount.includes('/')
+  const isFiltered = openCountIsFiltered || savedCountIsFiltered
+  const savedOnly = !!savedOnlyMatch || openCountText === '0' && savedCount !== ''
 
   return (
     <span
       className={cn(
         'open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]',
-        slashIndex > 0 && 'tab-count-badge-filtered'
+        isFiltered && 'tab-count-badge-filtered'
       )}
     >
       {!savedOnly && (
-        slashIndex > 0 ? (
-          <span className="inline-flex items-center gap-0">
-            <span className="tab-count-badge-current font-bold text-(--accent-amber)">{openCountText.slice(0, slashIndex)}</span>
-            <span className="tab-count-badge-total font-medium text-muted-foreground">{openCountText.slice(slashIndex)}</span>
-          </span>
-        ) : openCountText
+        <TabBadgeCount count={openCountText} />
       )}
       {savedCount ? (
-        <span className={cn('tab-count-badge-saved inline-flex items-center', slashIndex > 0 && 'text-muted-foreground')}>
+        <span className={cn('tab-count-badge-saved inline-flex items-center', isFiltered && 'text-muted-foreground')}>
           {!savedOnly && <span className="tab-count-badge-plus mx-1">+</span>}
-          <span className="tab-count-badge-saved-count">{savedCount}</span>
+          <span className="tab-count-badge-saved-count"><TabBadgeCount count={savedCount} /></span>
           <SavedPageIcon saved className="ml-px size-3 opacity-50" />
           <span className="sr-only"> saved</span>
         </span>

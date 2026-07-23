@@ -658,8 +658,15 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const totalClosedSavedCount = totalClosedSavedTabs.length
   const itemLabel = dashboardItemNameForTabs(totalOpenTabs, 'open tab')
   const openCountLabel = filtering && tabCount !== totalTabCount && tabCount > 0 ? `${tabCount}/${totalTabCount}` : `${tabCount}`
-  const savedCountLabel = closedSavedCount > 0 ? ` +${closedSavedCount} saved` : ''
-  const tabCountLabel = `${openCountLabel}${savedCountLabel}`
+  const savedCountText = filtering && closedSavedCount !== totalClosedSavedCount
+    ? `${closedSavedCount}/${totalClosedSavedCount}`
+    : `${closedSavedCount}`
+  const savedOnlyCountLabel =
+    filtering && tabCount === 0 && closedSavedCount > 0 && closedSavedCount !== totalClosedSavedCount
+      ? `${savedCountText} saved`
+      : ''
+  const savedCountLabel = closedSavedCount > 0 ? ` +${savedCountText} saved` : ''
+  const tabCountLabel = savedOnlyCountLabel || `${openCountLabel}${savedCountLabel}`
   const tabCountTitleParts = [
     filtering
       ? `${tabCount} of ${totalTabCount} ${itemLabel}${totalTabCount !== 1 ? 's' : ''} shown while filtering`

@@ -158,6 +158,43 @@ test('DomainCard shows only the saved count and icon when there are no open tabs
   assert.doesNotMatch(badgeHtml, />0<\//)
 })
 
+test('DomainCard formats a filtered saved-only count as a fraction with its saved icon', () => {
+  const group: DomainGroup = { domain: 'example.com', tabs: [] }
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm: makeClosableCardVM({ tabCountLabel: '2/4 saved' })
+    })
+  )
+  const badgeHtml = html.match(/<span class="open-tabs-badge[^"]*">[\s\S]*?<span class="sr-only"> saved<\/span><\/span><\/span>/)?.[0] ?? ''
+
+  assert.match(badgeHtml, /tab-count-badge-filtered/)
+  assert.match(badgeHtml, /tab-count-badge-current[^>]*>2<\/span>/)
+  assert.match(badgeHtml, /tab-count-badge-total[^>]*>\/4<\/span>/)
+  assert.match(badgeHtml, /icon-\[mingcute--star-fill\]/)
+  assert.doesNotMatch(badgeHtml, /tab-count-badge-plus/)
+  assert.doesNotMatch(badgeHtml, />0<\//)
+})
+
+test('DomainCard formats a filtered saved count as a fraction alongside open tabs', () => {
+  const group: DomainGroup = { domain: 'example.com', tabs: [] }
+  const html = renderToStaticMarkup(
+    React.createElement(DomainCard, {
+      group,
+      vm: makeClosableCardVM({ tabCountLabel: '2/10 +2/4 saved' })
+    })
+  )
+  const badgeHtml = html.match(/<span class="open-tabs-badge[^"]*">[\s\S]*?<span class="sr-only"> saved<\/span><\/span><\/span>/)?.[0] ?? ''
+  const savedBadgeHtml = badgeHtml.slice(badgeHtml.indexOf('tab-count-badge-saved-count'))
+
+  assert.match(badgeHtml, /tab-count-badge-current[^>]*>2<\/span>/)
+  assert.match(badgeHtml, /tab-count-badge-total[^>]*>\/10<\/span>/)
+  assert.match(savedBadgeHtml, /tab-count-badge-current[^>]*>2<\/span>/)
+  assert.match(savedBadgeHtml, /tab-count-badge-total[^>]*>\/4<\/span>/)
+  assert.match(savedBadgeHtml, /icon-\[mingcute--star-fill\]/)
+  assert.match(badgeHtml, /tab-count-badge-plus/)
+})
+
 test('DomainCard shows a header pin marker only after the card is pinned', () => {
   const unpinnedHtml = renderToStaticMarkup(
     React.createElement(DomainCard, {
