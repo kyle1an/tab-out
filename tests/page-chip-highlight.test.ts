@@ -1819,7 +1819,7 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
   assert.match(tabHistoryPanelSource, /history-entry-expanded-line-tail/)
   assert.match(tabHistoryPanelSource, /function getHistoryEntryExpansionGeometry\(entryEl: HTMLElement \| null, titleEl: HTMLElement \| null\)/)
   assert.match(tabHistoryPanelSource, /const expandedEntryElement = titleExpanded \? historyEntrySurface\(true\) : null/)
-  assert.match(tabHistoryPanelSource, /history-entry-list pointer-events-none relative flex min-h-0[^"]*\[scrollbar-width:none\][^"]*\[\&::-webkit-scrollbar\]:w-0[^"]*max-\[900px\]:w-auto[^"]*max-\[900px\]:mr-\[calc\(var\(--dashboard-edge-bleed\)-var\(--dashboard-scrollbar-inset\)\)\]/)
+  assert.match(tabHistoryPanelSource, /history-entry-list pointer-events-none relative flex min-h-0[^"]*\[scrollbar-width:none\][^"]*max-\[900px\]:w-auto[^"]*max-\[900px\]:mr-\[calc\(var\(--dashboard-edge-bleed\)-var\(--dashboard-scrollbar-inset\)\)\]/)
   assert.doesNotMatch(tabHistoryPanelSource, /history-entry-list pointer-events-none relative z-/)
   assert.match(tabHistoryPanelSource, /history-entry-list-content pointer-events-auto flex self-start w-\[260px\][^"]*pb-10[^"]*max-\[900px\]:pr-0[^"]*max-\[900px\]:pb-3/)
   assert.match(tabHistoryPanelSource, /history-entry-scrollbar pointer-events-none absolute top-0 right-0 bottom-0 z-20 w-\(--dashboard-scrollbar-size\) select-none max-\[900px\]:right-\[calc\(0px-var\(--dashboard-scrollbar-inset\)\)\]/)

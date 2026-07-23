@@ -42,7 +42,6 @@ export function createExpansionMeasureElement(sourceEl: HTMLElement, { className
     whiteSpace: 'normal',
     width: 'max-content'
   })
-  measureEl.style.setProperty('-webkit-mask-image', 'none')
   measureEl.style.setProperty('hyphenate-character', '')
   measureEl.style.setProperty('mask-image', 'none')
   measureEl.style.setProperty('overflow-wrap', 'break-word')
