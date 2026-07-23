@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildDomainGroups } from '../src/extension/domain-groups.js'
+import { domainCardId } from '../src/extension/domain-card-id.js'
 import { registrableDomain, splitDomainForDisplay, subdomainPrefix } from '../src/extension/domains.js'
 import type { DashboardTab } from '../src/extension/types.js'
 
@@ -63,4 +64,26 @@ test('domain grouping uses exact suffix data for every sibling host', () => {
 
   assert.deepEqual(groups.map((group) => group.domain), ['bxpkteb.test'])
   assert.equal(groups[0]?.tabs.length, 2)
+})
+
+test('domain grouping preserves hostnames that match Object prototype properties', () => {
+  const groups = buildDomainGroups([
+    dashboardTab(1, 'http://constructor/report'),
+    dashboardTab(2, 'http://__proto__/settings'),
+    dashboardTab(3, 'https://example.test/guide')
+  ])
+
+  assert.deepEqual(groups.map((group) => group.domain).sort(), ['__proto__', 'constructor', 'example.test'])
+})
+
+test('domain card ids preserve distinct domain identities', () => {
+  const domains = [
+    'foo-bar.test',
+    'foo_bar.test',
+    'foo.bar.test',
+    'foo-bar-test',
+    '__tab-out__'
+  ]
+
+  assert.equal(new Set(domains.map(domainCardId)).size, domains.length)
 })

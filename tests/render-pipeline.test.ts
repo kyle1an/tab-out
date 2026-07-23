@@ -126,9 +126,9 @@ test('buildDomainGroups keeps saved pin order ahead of previous card order', () 
     {
       pinnedDomains: ['example.com', 'openai.com'],
       previousOrder: new Map([
-        ['domain-github-com', 0],
-        ['domain-openai-com', 1],
-        ['domain-example-com', 2]
+        ['domain-github.com', 0],
+        ['domain-openai.com', 1],
+        ['domain-example.com', 2]
       ])
     }
   )
@@ -140,8 +140,8 @@ test('buildDomainGroups keeps saved pin order ahead of previous card order', () 
 })
 
 test('domainCardId is the shared identity for card order and DOM hooks', () => {
-  assert.equal(domainCardId('github.com'), 'domain-github-com')
-  assert.equal(domainCardId('__tab-out__'), 'domain---tab-out--')
+  assert.equal(domainCardId('github.com'), 'domain-github.com')
+  assert.equal(domainCardId('__tab-out__'), 'domain-__tab-out__')
 })
 
 test('buildDomainGroups leaves utility cards unpinned by default', () => {
@@ -2916,8 +2916,8 @@ test('buildDomainGroups keeps saved-only cards after cards with open tabs despit
     ],
     {
       previousOrder: new Map([
-        ['domain-saved-only-test', 0],
-        ['domain-open-tabs-test', 1]
+        ['domain-saved-only.test', 0],
+        ['domain-open-tabs.test', 1]
       ])
     }
   )

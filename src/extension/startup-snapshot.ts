@@ -1,16 +1,20 @@
 import type { ClosedTabEntry } from './closed-tabs.js'
+import { domainGroupCardId } from './domain-card-id.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
-import { DOMAIN_PIN_STORAGE_KEY, isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
+import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
+import {
+  DASHBOARD_LOCAL_STORAGE_KEYS,
+  sameDashboardLocalState,
+  validDashboardLocalStateFromStorage,
+  type DashboardLocalState
+} from './dashboard-local-state.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { PAGE_CHIP_PIN_STORAGE_KEY, normalizePinnedPageChips } from './page-chip-pins.js'
 import { buildDashboardDataFromTabs } from './render.js'
-import { SECTION_PIN_STORAGE_KEY, normalizePinnedSections } from './section-pins.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPagesStore } from './saved-pages.js'
 import type { DashboardData, DashboardTab, DashboardViewModel, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
-import type { DashboardLocalState } from '../hooks/useDashboardLocalState'
 
 export type DashboardStartupViewModel = {
   pinnedDomains: readonly string[]
@@ -187,21 +191,6 @@ function cachedDashboardLocalState(value: unknown): DashboardLocalState | null {
     pinnedSectionIds,
     pinnedPageChipIds
   }
-}
-
-function dashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState {
-  return {
-    loaded: true,
-    pinnedDomains: normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY]),
-    pinnedSectionIds: normalizePinnedSections(stored[SECTION_PIN_STORAGE_KEY]),
-    pinnedPageChipIds: normalizePinnedPageChips(stored[PAGE_CHIP_PIN_STORAGE_KEY])
-  }
-}
-
-function validDashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState | null {
-  const keys = [DOMAIN_PIN_STORAGE_KEY, SECTION_PIN_STORAGE_KEY, PAGE_CHIP_PIN_STORAGE_KEY]
-  if (keys.some((key) => stored[key] !== undefined && !Array.isArray(stored[key]))) return null
-  return dashboardLocalStateFromStorage(stored)
 }
 
 function isArrayOf(value: unknown, predicate: (item: unknown) => boolean): boolean {
@@ -442,26 +431,25 @@ function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | und
     !isStringArray(viewModel.filteredCloseUrls) ||
     !Array.isArray(viewModel.filteredCloseTargets) || !viewModel.filteredCloseTargets.every(isCachedMutationTarget)
   ) return undefined
+  const normalizeCardId = (entry: DashboardViewModel['matchedCards'][number]) => ({
+    ...entry,
+    vm: {
+      ...entry.vm,
+      // Stable IDs are a derived identity, not persisted product state. Repair
+      // warm caches written before the collision-safe ID encoding changed.
+      stableId: domainGroupCardId(entry.group)
+    }
+  })
   return {
     pinnedDomains,
     pinnedPageChipIds,
     pinnedSectionIds,
-    viewModel: viewModel as DashboardViewModel
+    viewModel: {
+      ...(viewModel as DashboardViewModel),
+      matchedCards: (viewModel.matchedCards as DashboardViewModel['matchedCards']).map(normalizeCardId),
+      unmatchedCards: (viewModel.unmatchedCards as DashboardViewModel['unmatchedCards']).map(normalizeCardId)
+    }
   }
-}
-
-function sameStringArray(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index])
-}
-
-function sameDashboardLocalState(
-  left: DashboardLocalState | null,
-  right: DashboardLocalState
-): boolean {
-  return left?.loaded === true &&
-    sameStringArray(left.pinnedDomains, right.pinnedDomains) &&
-    sameStringArray(left.pinnedSectionIds, right.pinnedSectionIds) &&
-    sameStringArray(left.pinnedPageChipIds, right.pinnedPageChipIds)
 }
 
 export function applyPinnedDomainsToDashboardGroups(
@@ -584,7 +572,7 @@ async function readCachedDashboardStartup(
   if (!storage) return { ok: true, startup: null, liveLocalState: null }
   try {
     const stored = await storage.get(includeLocalStateKeys
-      ? [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DOMAIN_PIN_STORAGE_KEY, SECTION_PIN_STORAGE_KEY, PAGE_CHIP_PIN_STORAGE_KEY]
+      ? [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, ...DASHBOARD_LOCAL_STORAGE_KEYS]
       : DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
     const liveLocalState = includeLocalStateKeys
       ? validDashboardLocalStateFromStorage(stored)

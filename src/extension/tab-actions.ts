@@ -222,7 +222,10 @@ function domainSuspendTargets({ group, filter }: SuspendDomainTabsOptions): Dash
 }
 
 export async function suspendDomainTabs(options: SuspendDomainTabsOptions): Promise<SuspendTabsResult> {
-  const targets = domainSuspendTargets(options)
+  return suspendMutationTargets(domainSuspendTargets(options))
+}
+
+async function suspendMutationTargets(targets: readonly DashboardTabMutationTarget[]): Promise<SuspendTabsResult> {
   if (targets.length === 0) {
     showToast('Nothing to suspend')
     return { ok: true, suspendedCount: 0 }
@@ -537,26 +540,7 @@ function liveTabsForMutationTargets(
 }
 
 export async function suspendExactTabTargets({ targets }: ExactTabTargetsOptions): Promise<SuspendTabsResult> {
-  if (targets.length === 0) {
-    showToast('Nothing to suspend')
-    return { ok: true, suspendedCount: 0 }
-  }
-  const suspendTarget = await getSuspendTarget()
-  if (!suspendTarget) {
-    showToast('No suspender detected')
-    return { ok: true, suspendedCount: 0 }
-  }
-  const allTabsResult = await queryAllTabsResult()
-  if (!allTabsResult.ok) {
-    showOpenTabsReadError()
-    return { ok: false, suspendedCount: 0 }
-  }
-  const liveTargets = liveTabsForMutationTargets(allTabsResult.value, targets)
-    .filter((tab) => !isGroupedTab(tab))
-    .filter((tab) => !(tab.pinned && isTabOutPageUrl(unwrapSuspenderUrl(liveTabUrlForIdentity(tab)))))
-  const updateResult = await applySuspendToTabs(liveTargets, suspendTarget)
-  const ok = await finishSuspendUpdates(updateResult)
-  return { ok, suspendedCount: updateResult.updatedCount }
+  return suspendMutationTargets(targets)
 }
 
 /**

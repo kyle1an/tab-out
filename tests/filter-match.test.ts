@@ -92,6 +92,21 @@ test('compiled filter matching preserves token, phrase, separator, alias, and li
   }
 })
 
+test('filter tokens matching Object prototype properties remain literal search terms', () => {
+  for (const filter of ['constructor', '__proto__']) {
+    const compiled = compileFilterQuery(filter)
+
+    assert.deepEqual(compiled.terms[0]?.matchValues, [filter])
+    assert.equal(
+      tabMatchesCompiledFilter(
+        makeTab({ url: `https://example.test/${filter}`, title: 'Example page' }),
+        compiled
+      ),
+      true
+    )
+  }
+})
+
 test('one compiled query serves every item, card mode, and filtered-close pass', () => {
   let compileCount = 0
   const compileOnce = (filter: string) => {

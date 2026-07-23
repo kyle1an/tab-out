@@ -558,6 +558,77 @@ test('startup snapshot cache drops malformed nested startup view-model sections'
   assert.equal(restored?.snapshot.startupViewModel, undefined)
 })
 
+test('startup snapshot cache repairs legacy colliding domain card ids', async () => {
+  const group = { domain: 'foo_bar.test', tabs: [] }
+  const cached = {
+    savedAt: now,
+    snapshot: {
+      dashboard: { realTabs: [], domainGroups: [group] },
+      tabHistory: { entries: [] },
+      workingSet: { items: [] },
+      closedTabs: [],
+      startupViewModel: {
+        pinnedDomains: [],
+        pinnedSectionIds: [],
+        pinnedPageChipIds: [],
+        viewModel: {
+          source: 'tabs',
+          stats: {
+            totalTabs: 0,
+            activeTabs: 0,
+            visibleTabs: 0,
+            totalWindows: 0,
+            visibleWindows: 0,
+            totalDomains: 1,
+            visibleDomains: 1,
+            dedupCount: 0,
+            filteredCloseCount: 0,
+            hasCards: true,
+            filtering: false
+          },
+          matchedCards: [{
+            group,
+            vm: {
+              stableId: 'domain-foo-bar-test',
+              isHidden: false,
+              displayMode: 'normal',
+              filtering: false,
+              sections: [{
+                key: 'root',
+                sectionCount: 0,
+                sectionClosableUrls: [],
+                showHeader: false,
+                isShared: false,
+                hasFlat: false,
+                flatVisibleChips: [],
+                flatHiddenChips: [],
+                flatHiddenCount: 0,
+                clusters: [],
+                websitePathSections: []
+              }]
+            }
+          }],
+          unmatchedCards: [],
+          showOtherTabs: false,
+          globalDedupeUrls: [],
+          filteredCloseUrls: [],
+          filteredCloseTargets: []
+        }
+      }
+    }
+  }
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: cached }) },
+      local: { get: async () => ({}) }
+    }
+  }
+
+  const restored = await loadCachedDashboardStartup(now)
+
+  assert.equal(restored?.snapshot.startupViewModel?.viewModel.matchedCards[0]?.vm.stableId, 'domain-foo_bar.test')
+})
+
 test('startup snapshot cache compares both copies and performs its dual write inside the shared lock', async () => {
   const snapshot = {
     dashboard: { realTabs: [], domainGroups: [] },

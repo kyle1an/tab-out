@@ -1,10 +1,10 @@
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult } from '../closed-tabs.js'
 import type { CapturedDashboardServiceState } from '../dashboard-service-messages.js'
-import { DOMAIN_PIN_STORAGE_KEY, loadPinnedDomainsResult } from '../domain-pins.js'
-import { loadPinnedPageChipsResult, PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
-import { getCurrentWindowIdResult } from '../render.js'
+import { loadDashboardLocalStateResult } from '../dashboard-local-state.js'
+import { DOMAIN_PIN_STORAGE_KEY } from '../domain-pins.js'
+import { PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
 import { loadSavedPagesStoreResult, SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
-import { loadPinnedSectionsResult, SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
+import { SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
 import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, loadCachedDashboardStartupResult, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
 import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs, seedOpenTabsTitleHistory } from '../tabs.js'
@@ -106,47 +106,39 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
     }
     const [
       dashboardServiceState,
-      currentWindowResult,
       savedPagesResult,
-      pinnedDomainsResult,
-      pinnedSectionsResult,
-      pinnedPageChipsResult,
+      localStateResult,
       closedTabsResult
     ] = await Promise.all([
       deps.getDashboardServiceState(),
-      getCurrentWindowIdResult(),
       loadSavedPagesStoreResult(),
-      loadPinnedDomainsResult(),
-      loadPinnedSectionsResult(),
-      loadPinnedPageChipsResult(),
+      loadDashboardLocalStateResult(),
       fetchClosedTabsResult()
     ])
     const openTabsResult = await fetchOpenTabsSnapshotResult(dashboardServiceState.openTabsSnapshot)
     if (
       !openTabsResult.ok ||
-      !currentWindowResult.ok ||
       !savedPagesResult.ok ||
-      !pinnedDomainsResult.ok ||
-      !pinnedSectionsResult.ok ||
-      !pinnedPageChipsResult.ok ||
+      !localStateResult.ok ||
       !closedTabsResult.ok ||
       pendingSessionRestoreIds.size > 0 ||
       capturedSessionsRevision !== sessionsRevision
     ) return
     const openTabs = openTabsResult.tabs
     const savedPagesStore = savedPagesResult.value
-    const pinnedDomains = pinnedDomainsResult.value
-    const pinnedSectionIds = pinnedSectionsResult.value
-    const pinnedPageChipIds = pinnedPageChipsResult.value
-    const localState = {
-      loaded: true,
-      pinnedDomains,
-      pinnedSectionIds,
-      pinnedPageChipIds
-    }
+    const localState = localStateResult.state
+    const pinnedDomains = localState.pinnedDomains
+    const capturedActiveWindowId = dashboardServiceState.tabHistory.activeWindowId
+    const currentWindowId = typeof capturedActiveWindowId === 'number' &&
+      Number.isInteger(capturedActiveWindowId) && capturedActiveWindowId >= 0
+      ? capturedActiveWindowId
+      : null
     const snapshot = await buildTabsDashboardStartupSnapshot({
       dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
-      currentWindowId: currentWindowResult.value,
+      // The worker's `windows.getCurrent()` is another last-focused-window
+      // read. Reuse the window captured atomically with tabs + history instead
+      // of mixing two browser generations.
+      currentWindowId,
       tabHistory: dashboardServiceState.tabHistory,
       workingSetActivity: dashboardServiceState.workingSetActivity,
       savedPagesStore,

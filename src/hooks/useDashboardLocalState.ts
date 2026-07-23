@@ -10,17 +10,16 @@ import { mutatePinnedDomains, mutatePinnedPageChips, mutatePinnedSections } from
 import { applyPinnedPageChipMutation, createPinnedPageChipIndex, normalizePinnedPageChips, PAGE_CHIP_PIN_STORAGE_KEY, type PinnedPageChipMutation, type PinnedPageChipIndex } from '../extension/page-chip-pins.js'
 import { createSerializedStateWriter } from '../extension/serialized-state-writer.js'
 import { applyPinnedSectionMutation, normalizePinnedSections, SECTION_PIN_STORAGE_KEY, type PinnedSectionMutation } from '../extension/section-pins.js'
+import {
+  emptyDashboardLocalState,
+  loadDashboardLocalStateResult,
+  sameDashboardLocalState,
+  sameStringOrder,
+  type DashboardLocalState
+} from '../extension/dashboard-local-state.js'
 
-export type DashboardLocalState = {
-  loaded: boolean
-  pinnedDomains: string[]
-  pinnedSectionIds: string[]
-  pinnedPageChipIds: string[]
-}
-export type DashboardLocalStateLoadResult = {
-  ok: boolean
-  state: DashboardLocalState
-}
+export { loadDashboardLocalState, loadDashboardLocalStateResult } from '../extension/dashboard-local-state.js'
+export type { DashboardLocalState, DashboardLocalStateLoadResult } from '../extension/dashboard-local-state.js'
 type DashboardLocalStatePinKey = 'pinnedDomains' | 'pinnedSectionIds' | 'pinnedPageChipIds'
 type DashboardLocalStatePendingWrites = Record<DashboardLocalStatePinKey, boolean>
 type DashboardLocalStateStorageReconciliation = {
@@ -38,58 +37,9 @@ type UseDashboardLocalStateOptions = {
   onPageChipPinSaveError?: () => void
 }
 
-const DASHBOARD_LOCAL_STORAGE_KEYS = [
-  DOMAIN_PIN_STORAGE_KEY,
-  SECTION_PIN_STORAGE_KEY,
-  PAGE_CHIP_PIN_STORAGE_KEY
-]
 const EMPTY_PINNED_SECTIONS: ReadonlySet<string> = new Set<string>()
 const EMPTY_PINNED_PAGE_CHIPS: PinnedPageChipIndex = new Map()
-const EMPTY_DASHBOARD_LOCAL_STATE: DashboardLocalState = {
-  loaded: false,
-  pinnedDomains: [],
-  pinnedSectionIds: [],
-  pinnedPageChipIds: []
-}
-
-function dashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState {
-  return {
-    loaded: true,
-    pinnedDomains: normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY]),
-    pinnedSectionIds: normalizePinnedSections(stored[SECTION_PIN_STORAGE_KEY]),
-    pinnedPageChipIds: normalizePinnedPageChips(stored[PAGE_CHIP_PIN_STORAGE_KEY])
-  }
-}
-
-export async function loadDashboardLocalStateResult(): Promise<DashboardLocalStateLoadResult> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    return { ok: true, state: { ...EMPTY_DASHBOARD_LOCAL_STATE, loaded: true } }
-  }
-  try {
-    const stored = await chrome.storage.local.get(DASHBOARD_LOCAL_STORAGE_KEYS)
-    if (DASHBOARD_LOCAL_STORAGE_KEYS.some((key) => stored[key] !== undefined && !Array.isArray(stored[key]))) {
-      return { ok: false, state: { ...EMPTY_DASHBOARD_LOCAL_STATE, loaded: true } }
-    }
-    return { ok: true, state: dashboardLocalStateFromStorage(stored) }
-  } catch {
-    return { ok: false, state: { ...EMPTY_DASHBOARD_LOCAL_STATE, loaded: true } }
-  }
-}
-
-export async function loadDashboardLocalState(): Promise<DashboardLocalState> {
-  return (await loadDashboardLocalStateResult()).state
-}
-
-function sameOrder(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index])
-}
-
-function sameDashboardLocalState(a: DashboardLocalState, b: DashboardLocalState): boolean {
-  return a.loaded === b.loaded &&
-    sameOrder(a.pinnedDomains, b.pinnedDomains) &&
-    sameOrder(a.pinnedSectionIds, b.pinnedSectionIds) &&
-    sameOrder(a.pinnedPageChipIds, b.pinnedPageChipIds)
-}
+const EMPTY_DASHBOARD_LOCAL_STATE = emptyDashboardLocalState()
 
 /**
  * Reconcile one local-storage event with the page's optimistic pin state.
@@ -120,7 +70,7 @@ export function reconcileDashboardLocalStateStorageChanges(
     recognizedChange = true
     const normalizedValue = normalize(nextValue)
     persistedValues[stateKey] = normalizedValue
-    if (pendingWrites[stateKey] || sameOrder(currentState[stateKey], normalizedValue)) return
+    if (pendingWrites[stateKey] || sameStringOrder(currentState[stateKey], normalizedValue)) return
     nextState = { ...nextState, [stateKey]: normalizedValue }
     appliedKeys.push(stateKey)
   }
@@ -188,7 +138,7 @@ export function useDashboardLocalState({
       // state, still mark the shell loaded so a storage outage cannot block it.
       if (!ok && currentState.loaded) return
       if (sameDashboardLocalState(currentState, nextState)) return
-      if (!sameOrder(currentState.pinnedDomains, nextState.pinnedDomains)) {
+      if (!sameStringOrder(currentState.pinnedDomains, nextState.pinnedDomains)) {
         onBeforeApplyPinnedDomainsRef.current?.({ animate: false })
       }
       if (ok) {
@@ -296,14 +246,14 @@ export function useDashboardLocalState({
 
   async function applyPinnedDomainMutationOptimistically(mutation: PinnedDomainMutation) {
     const nextPinnedDomains = applyPinnedDomainMutation(stateRef.current.pinnedDomains, mutation)
-    if (sameOrder(nextPinnedDomains, stateRef.current.pinnedDomains)) return
+    if (sameStringOrder(nextPinnedDomains, stateRef.current.pinnedDomains)) return
     localMutationVersionRef.current += 1
     onBeforeApplyPinnedDomainsRef.current?.({ animate: true })
     updateCurrentState((current) => ({ ...current, pinnedDomains: nextPinnedDomains }))
     await withPendingPinWrite('pinnedDomains', () => domainPinWriter.write(mutation), (result) => {
       if (!result.isLatest) return
       const value = result.ok === true ? result.value : result.rollbackValue
-      if (!sameOrder(stateRef.current.pinnedDomains, value)) {
+      if (!sameStringOrder(stateRef.current.pinnedDomains, value)) {
         onBeforeApplyPinnedDomainsRef.current?.({ animate: false })
         updateCurrentState((current) => ({ ...current, pinnedDomains: value }))
       }
@@ -330,14 +280,14 @@ export function useDashboardLocalState({
       pinned: !stateRef.current.pinnedSectionIds.includes(id)
     }
     const nextIds = applyPinnedSectionMutation(stateRef.current.pinnedSectionIds, mutation)
-    if (sameOrder(nextIds, stateRef.current.pinnedSectionIds)) return
+    if (sameStringOrder(nextIds, stateRef.current.pinnedSectionIds)) return
     localMutationVersionRef.current += 1
     onBeforeApplyPinnedSectionsRef.current?.(id)
     updateCurrentState((current) => ({ ...current, pinnedSectionIds: nextIds }))
     await withPendingPinWrite('pinnedSectionIds', () => sectionPinWriter.write(mutation), (result) => {
       if (!result.isLatest) return
       const value = result.ok === true ? result.value : result.rollbackValue
-      if (!sameOrder(stateRef.current.pinnedSectionIds, value)) {
+      if (!sameStringOrder(stateRef.current.pinnedSectionIds, value)) {
         onBeforeApplyPinnedSectionsRef.current?.(id)
         updateCurrentState((current) => ({ ...current, pinnedSectionIds: value }))
       }
@@ -352,14 +302,14 @@ export function useDashboardLocalState({
       pinned: !stateRef.current.pinnedPageChipIds.includes(id)
     }
     const nextIds = applyPinnedPageChipMutation(stateRef.current.pinnedPageChipIds, mutation)
-    if (sameOrder(nextIds, stateRef.current.pinnedPageChipIds)) return
+    if (sameStringOrder(nextIds, stateRef.current.pinnedPageChipIds)) return
     localMutationVersionRef.current += 1
     onBeforeApplyPinnedPageChipsRef.current?.(id)
     updateCurrentState((current) => ({ ...current, pinnedPageChipIds: nextIds }))
     await withPendingPinWrite('pinnedPageChipIds', () => pageChipPinWriter.write(mutation), (result) => {
       if (!result.isLatest) return
       const value = result.ok === true ? result.value : result.rollbackValue
-      if (!sameOrder(stateRef.current.pinnedPageChipIds, value)) {
+      if (!sameStringOrder(stateRef.current.pinnedPageChipIds, value)) {
         onBeforeApplyPinnedPageChipsRef.current?.(id)
         updateCurrentState((current) => ({ ...current, pinnedPageChipIds: value }))
       }

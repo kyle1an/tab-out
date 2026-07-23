@@ -94,7 +94,8 @@ function capitalize(str: string): string {
 
 function friendlyDomain(hostname: string): string {
   if (!hostname) return ''
-  if (FRIENDLY_DOMAINS[hostname]) return FRIENDLY_DOMAINS[hostname]
+  const friendlyOverride = FRIENDLY_DOMAINS[hostname]
+  if (typeof friendlyOverride === 'string') return friendlyOverride
 
   if (hostname.endsWith('.substack.com') && hostname !== 'substack.com') {
     return capitalize(hostname.replace('.substack.com', '')) + "'s Substack"

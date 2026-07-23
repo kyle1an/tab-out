@@ -11,7 +11,7 @@ import { buildWorkingSetSnapshot } from '../extension/working-set.js'
 import { loadSavedPagesStoreResult, type SavedPagesStore } from '../extension/saved-pages.js'
 import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, saveCachedDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../extension/startup-view-model.js'
-import type { DashboardLocalState } from './useDashboardLocalState'
+import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
 import type { HistorySourceSearchResult } from '../extension/history-source.js'
 

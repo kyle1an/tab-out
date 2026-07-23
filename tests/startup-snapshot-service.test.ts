@@ -75,6 +75,7 @@ test('startup snapshot refreshes only for local state that changes its rendered 
 
 test('startup snapshot service writes render-ready session + durable caches from worker-side inputs', async () => {
   const writes: Record<string, any> = {}
+  const localReadKeys: Array<string | string[]> = []
   let tabsQueryStartedAt = Number.NaN
   const pinnedSectionId = subdomainPinId('example.com', 'www')
   const pinnedPageChipId = pageChipPinId(
@@ -119,7 +120,10 @@ test('startup snapshot service writes render-ready session + durable caches from
         set: async (value: Record<string, unknown>) => { writes.session = value[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] }
       },
       local: {
-        get: async () => localStore,
+        get: async (keys: string | string[]) => {
+          localReadKeys.push(keys)
+          return localStore
+        },
         set: async (value: Record<string, unknown>) => {
           Object.assign(localStore, value)
           if (value[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]) writes.local = value[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
@@ -145,12 +149,26 @@ test('startup snapshot service writes render-ready session + durable caches from
   assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedPageChipIds, [pinnedPageChipId])
   assert.equal(writes.session.snapshot.startupViewModel.viewModel.source, 'tabs')
   assert.equal(writes.session.snapshot.startupViewModel.viewModel.matchedCards.length, 2)
+  assert.equal(localReadKeys.some((keys) => typeof keys === 'string' && [
+    DOMAIN_PIN_STORAGE_KEY,
+    SECTION_PIN_STORAGE_KEY,
+    PAGE_CHIP_PIN_STORAGE_KEY
+  ].includes(keys)), false)
+  assert.equal(localReadKeys.some((keys) => Array.isArray(keys) && [
+    DOMAIN_PIN_STORAGE_KEY,
+    SECTION_PIN_STORAGE_KEY,
+    PAGE_CHIP_PIN_STORAGE_KEY
+  ].every((key) => keys.includes(key))), true)
 })
 
-test('startup snapshot service preserves its warm cache when the current window is unknown', async () => {
+test('startup snapshot service uses captured focus when a worker current-window read would be unknown', async () => {
   installEmptyWorkerChrome()
   let cacheWriteCount = 0
-  ;(chrome.windows.getCurrent as any) = async () => ({ focused: true, type: 'normal' })
+  let currentWindowReads = 0
+  ;(chrome.windows.getCurrent as any) = async () => {
+    currentWindowReads += 1
+    return { focused: true, type: 'normal' }
+  }
   ;(chrome.storage.session.set as any) = async () => { cacheWriteCount += 1 }
   ;(chrome.storage.local.set as any) = async () => { cacheWriteCount += 1 }
 
@@ -159,7 +177,8 @@ test('startup snapshot service preserves its warm cache when the current window 
   })
   await service.refreshNow()
 
-  assert.equal(cacheWriteCount, 0)
+  assert.equal(cacheWriteCount, 2)
+  assert.equal(currentWindowReads, 0)
 })
 
 test('startup snapshot service reuses one browser capture so dashboard and history cannot mix generations', async () => {
@@ -168,6 +187,7 @@ test('startup snapshot service reuses one browser capture so dashboard and histo
   const windows = [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[]
   let tabsQueryCount = 0
   let windowsGetAllCount = 0
+  let windowsGetCurrentCount = 0
   let cachedSnapshot: any = null
 
   ;(globalThis as any).chrome = {
@@ -183,7 +203,10 @@ test('startup snapshot service reuses one browser capture so dashboard and histo
         windowsGetAllCount += 1
         return windows
       },
-      getCurrent: async () => windows[0]
+      getCurrent: async () => {
+        windowsGetCurrentCount += 1
+        return windows[0]
+      }
     },
     tabGroups: { query: async () => [] },
     sessions: { getRecentlyClosed: async () => [] },
@@ -224,6 +247,7 @@ test('startup snapshot service reuses one browser capture so dashboard and histo
 
   assert.equal(tabsQueryCount, 1)
   assert.equal(windowsGetAllCount, 1)
+  assert.equal(windowsGetCurrentCount, 0)
   assert.deepEqual(cachedSnapshot.snapshot.dashboard.realTabs.map((tab: any) => tab.id), [1])
   assert.deepEqual(cachedSnapshot.snapshot.tabHistory.entries.map((entry: any) => entry.tabId), [1])
 })
@@ -277,7 +301,9 @@ test('startup snapshot service does not overwrite a warm cache when a pin read i
       },
       local: {
         get: async (key: string | string[]) => {
-          if (key === SECTION_PIN_STORAGE_KEY) throw new Error('Pin state temporarily unavailable')
+          if (Array.isArray(key) && key.length === 3 && key.includes(SECTION_PIN_STORAGE_KEY)) {
+            throw new Error('Pin state temporarily unavailable')
+          }
           return {}
         },
         set: async (value: Record<string, unknown>) => {

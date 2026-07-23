@@ -25,9 +25,9 @@ type DashboardItemSearchableParts = {
   url: string
 }
 
-const TOKEN_MATCH_ALIASES: Record<string, string[]> = {
-  pr: ['pull request']
-}
+const TOKEN_MATCH_ALIASES = new Map<string, readonly string[]>([
+  ['pr', ['pull request']]
+])
 
 function separatorMatchVariants(value: string): string[] {
   const parts = value.split(/[\s-]+/).filter(Boolean)
@@ -71,7 +71,7 @@ export function parseFilterQuery(input = ''): FilterQuery {
 
 export function matchValuesForFilterTerm(term: FilterQueryTerm): string[] {
   const values = term.kind === 'token'
-    ? [term.value, ...(TOKEN_MATCH_ALIASES[term.value] || [])]
+    ? [term.value, ...(TOKEN_MATCH_ALIASES.get(term.value) ?? [])]
     : [term.value]
   return [...new Set(values.flatMap(separatorMatchVariants))]
 }

@@ -15,7 +15,7 @@ export function buildDomainGroups(
 ): DomainGroup[] {
   // Group tabs by domain. Utility cards (apps / new tabs) still split out,
   // but homepage-like routes stay in their native domain cards.
-  const groupMap: Record<string, DomainGroup> = {}
+  const groupMap = new Map<string, DomainGroup>()
   const appTabs: DashboardTab[] = []
   const tabOutTabs: DashboardTab[] = []
 
@@ -43,22 +43,44 @@ export function buildDomainGroups(
       // card. registrableDomain() is a no-op for IPs, localhost, and
       // user-space suffixes like user.github.io — see domains.js.
       const key = registrableDomain(hostname)
-      if (!groupMap[key]) groupMap[key] = { domain: key, tabs: [] }
-      groupMap[key].tabs.push(tab)
+      const group = groupMap.get(key)
+      if (group) {
+        group.tabs.push(tab)
+      } else {
+        groupMap.set(key, { domain: key, tabs: [tab] })
+      }
     } catch {
       // Skip malformed URLs
     }
   }
 
   if (tabOutTabs.length > 0) {
-    groupMap['__tab-out__'] = { domain: '__tab-out__', label: 'New tabs', tabs: tabOutTabs }
+    groupMap.set('__tab-out__', { domain: '__tab-out__', label: 'New tabs', tabs: tabOutTabs })
   }
   if (appTabs.length > 0) {
-    groupMap['__standalone-apps__'] = { domain: '__standalone-apps__', label: 'Apps', tabs: appTabs }
+    groupMap.set('__standalone-apps__', { domain: '__standalone-apps__', label: 'Apps', tabs: appTabs })
   }
 
   const normalizedPinnedDomains = normalizePinnedDomains(pinnedDomains)
   const pinnedOrder = new Map(normalizedPinnedDomains.map((domain, index) => [domain, index]))
+
+  const groupedDomains = [...groupMap.values()]
+  groupedDomains.forEach((group) => {
+    group.pinned = isPinnableDomain(group.domain) && pinnedOrder.has(group.domain)
+  })
+  const openTabCounts = new Map(
+    groupedDomains.map((group) => [
+      group,
+      group.tabs.reduce(
+        (count, tab) => count + (isClosedSavedDashboardTab(tab) ? 0 : 1),
+        0
+      )
+    ])
+  )
+
+  function orderCount(group: DomainGroup): number {
+    return openTabCounts.get(group) ?? 0
+  }
 
   function orderTier(group: DomainGroup): number {
     if (group.pinned) return 0
@@ -66,37 +88,21 @@ export function buildDomainGroups(
     return 2
   }
 
-  function orderCount(group: DomainGroup): number {
-    return group.tabs.filter((tab) => !isClosedSavedDashboardTab(tab)).length
-  }
-
-  const groupedDomains = Object.values(groupMap)
-  groupedDomains.forEach((group) => {
-    group.pinned = isPinnableDomain(group.domain) && pinnedOrder.has(group.domain)
-  })
-
-  // Sort by user-pinned cards, then tab count. Utility cards stay in the
-  // normal flow unless the user pins them explicitly.
-  groupedDomains.sort((a, b) => {
-    const tierDelta = orderTier(a) - orderTier(b)
-    if (tierDelta !== 0) return tierDelta
-    if (a.pinned && b.pinned) return (pinnedOrder.get(a.domain) ?? 0) - (pinnedOrder.get(b.domain) ?? 0)
-    return orderCount(b) - orderCount(a)
-  })
-
-  // Stable re-sort: previously-seen cards keep their prior order; new
-  // cards stay where the pinned/tab-count sort put them (at the end,
-  // since `return 0` preserves Array.prototype.sort stability).
+  // Keep pinned cards first. Within each remaining tier, previously-seen
+  // cards retain their order and new cards fall back to open-tab count.
   groupedDomains.sort((a, b) => {
     const tierDelta = orderTier(a) - orderTier(b)
     if (tierDelta !== 0) return tierDelta
     if (a.pinned && b.pinned) return (pinnedOrder.get(a.domain) ?? 0) - (pinnedOrder.get(b.domain) ?? 0)
     const aPrev = previousOrder.get(domainGroupCardId(a))
     const bPrev = previousOrder.get(domainGroupCardId(b))
-    if (aPrev !== undefined && bPrev !== undefined) return aPrev - bPrev
+    if (aPrev !== undefined && bPrev !== undefined) {
+      const previousOrderDelta = aPrev - bPrev
+      if (previousOrderDelta !== 0) return previousOrderDelta
+    }
     if (aPrev !== undefined) return -1
     if (bPrev !== undefined) return 1
-    return 0
+    return orderCount(b) - orderCount(a)
   })
 
   return groupedDomains

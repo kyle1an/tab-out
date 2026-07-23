@@ -1,7 +1,7 @@
 import { createPinnedPageChipIndex } from './page-chip-pins.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet } from './render.js'
-import type { DashboardLocalState } from '../hooks/useDashboardLocalState'
+import type { DashboardLocalState } from './dashboard-local-state.js'
 import { applyPinnedDomainsToDashboardGroups } from './startup-snapshot.js'
 import type { DashboardStartupSnapshot, DashboardStartupViewModel } from './startup-snapshot.js'
 import type { DashboardTab, DomainGroup } from './types'
