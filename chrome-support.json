@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "policy": "latest-two-stable-majors",
+  "platforms": ["win", "win64", "win_arm64", "mac", "mac_arm64", "linux"],
+  "minimumMajor": 149,
+  "lastBumpedAt": "2026-07-23",
+  "stableVersionsAtLastBump": {
+    "win": "151.0.7922.47",
+    "win64": "151.0.7922.47",
+    "win_arm64": "151.0.7922.47",
+    "mac": "151.0.7922.47",
+    "mac_arm64": "151.0.7922.47",
+    "linux": "150.0.7871.181"
+  }
+}

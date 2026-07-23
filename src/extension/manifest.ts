@@ -1,3 +1,5 @@
+import { MINIMUM_CHROME_VERSION } from './chrome-support.js'
+
 export type ExtensionManifestInput = {
   version: string
 }
@@ -5,6 +7,7 @@ export type ExtensionManifestInput = {
 export function createExtensionManifest(input: ExtensionManifestInput): chrome.runtime.ManifestV3 {
   return {
     manifest_version: 3,
+    minimum_chrome_version: MINIMUM_CHROME_VERSION,
     name: 'Tab Out',
     version: input.version,
     description: 'Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.',

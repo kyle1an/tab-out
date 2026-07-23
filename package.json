@@ -14,6 +14,10 @@
     "lint": "eslint . --max-warnings=0",
     "deps:architecture": "tsx scripts/check-dependency-architecture.ts",
     "deps:nolyfill": "pnpm dlx nolyfill --pm pnpm",
+    "chrome-support:check": "tsx scripts/chrome-support.ts check",
+    "chrome-support:status": "tsx scripts/chrome-support.ts status",
+    "chrome-support:bump": "tsx scripts/chrome-support.ts bump && pnpm build && pnpm chrome-support:check",
+    "chrome-support:release-check": "tsx scripts/chrome-support.ts release-check",
     "react-doctor": "react-doctor .",
     "react-doctor:diff": "react-doctor . --diff",
     "knip": "knip",
@@ -23,7 +27,7 @@
     "verify:bundle": "git diff --exit-code -- extension/dist",
     "verify:compiler": "node scripts/react-compiler-check.mjs",
     "verify:quick": "pnpm run \"/^(typecheck|lint|deps:architecture|react-doctor|verify:compiler)$/\"",
-    "verify": "pnpm typecheck && pnpm lint && pnpm deps:architecture && pnpm react-doctor && pnpm verify:compiler && pnpm build && pnpm verify:bundle && pnpm test",
+    "verify": "pnpm chrome-support:check && pnpm typecheck && pnpm lint && pnpm deps:architecture && pnpm react-doctor && pnpm verify:compiler && pnpm build && pnpm verify:bundle && pnpm test",
     "verify:browser": "pnpm verify && pnpm test:browser"
   },
   "dependencies": {

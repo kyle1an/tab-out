@@ -2,12 +2,18 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 
+import {
+  CHROME_BUILD_TARGET,
+  MINIMUM_CHROME_VERSION,
+  chromeSupportPolicy
+} from '../src/extension/chrome-support.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 
 test('extension HTML loads the Vite-built React entry', () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('scripts/build-extension.mjs'), 'scripts/build-extension.mjs should build extension entries without shared runtime chunks')
   assert.ok(existsSync('scripts/check-dependency-architecture.ts'), 'dependency architecture checks should enforce baseline drift')
+  assert.ok(existsSync('scripts/chrome-support.ts'), 'scripts/chrome-support.ts should maintain the rolling Chrome floor')
   assert.ok(existsSync('scripts/write-manifest.ts'), 'scripts/write-manifest.ts should generate the committed manifest package file')
   assert.ok(existsSync('scripts/watch-build.mjs'), 'scripts/watch-build.mjs should drive local rebuilds without watching dist output')
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
@@ -19,8 +25,10 @@ test('extension HTML loads the Vite-built React entry', () => {
     existsSync('.dependency-cruiser-known-violations.json'),
     'dependency-cruiser should baseline existing graph debt'
   )
+  assert.ok(existsSync('chrome-support.json'), 'chrome-support.json should be the tracked browser-support policy')
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
+  const chromeSupport = JSON.parse(readFileSync('chrome-support.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
   const shadcnConfig = JSON.parse(readFileSync('components.json', 'utf8'))
   assert.equal(readFileSync('.node-version', 'utf8').trim(), '26.5.0')
@@ -35,6 +43,13 @@ test('extension HTML loads the Vite-built React entry', () => {
     'tsx scripts/check-dependency-architecture.ts'
   )
   assert.equal(pkg.scripts?.['deps:nolyfill'], 'pnpm dlx nolyfill --pm pnpm')
+  assert.equal(pkg.scripts?.['chrome-support:check'], 'tsx scripts/chrome-support.ts check')
+  assert.equal(pkg.scripts?.['chrome-support:status'], 'tsx scripts/chrome-support.ts status')
+  assert.equal(
+    pkg.scripts?.['chrome-support:bump'],
+    'tsx scripts/chrome-support.ts bump && pnpm build && pnpm chrome-support:check'
+  )
+  assert.equal(pkg.scripts?.['chrome-support:release-check'], 'tsx scripts/chrome-support.ts release-check')
   assert.match(pkg.scripts?.['test:browser'], /playwright test/)
   assert.match(pkg.scripts?.['test:browser'], /dashboard-smoke\.spec\.ts/)
   assert.doesNotMatch(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE/)
@@ -44,6 +59,7 @@ test('extension HTML loads the Vite-built React entry', () => {
     pkg.scripts?.['verify:quick'],
     'pnpm run "/^(typecheck|lint|deps:architecture|react-doctor|verify:compiler)$/"'
   )
+  assert.match(pkg.scripts?.verify, /^pnpm chrome-support:check &&/)
   assert.match(pkg.scripts?.verify, /pnpm lint/)
   assert.match(pkg.scripts?.verify, /pnpm deps:architecture/)
   assert.match(pkg.scripts?.verify, /pnpm verify:bundle/)
@@ -71,6 +87,10 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
   assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
   assert.deepEqual(tsconfig.compilerOptions?.paths?.['@/*'], ['./src/*'])
+  assert.equal(tsconfig.compilerOptions?.resolveJsonModule, true)
+  assert.equal(chromeSupportPolicy.minimumMajor, chromeSupport.minimumMajor)
+  assert.equal(CHROME_BUILD_TARGET, `chrome${chromeSupport.minimumMajor}`)
+  assert.equal(MINIMUM_CHROME_VERSION, String(chromeSupport.minimumMajor))
   assert.equal(shadcnConfig.style, 'base-nova')
   assert.equal(shadcnConfig.rsc, false)
   assert.equal(shadcnConfig.tsx, true)
@@ -95,6 +115,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(manifest.background?.service_worker, 'dist/background.js')
   assert.equal(manifest.version, pkg.version)
   assert.equal(manifest.incognito, 'not_allowed')
+  assert.equal(manifest.minimum_chrome_version, MINIMUM_CHROME_VERSION)
 
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   const buildScript = readFileSync('scripts/build-extension.mjs', 'utf8')
@@ -104,11 +125,13 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(writeManifestScript, /createExtensionManifest/)
   assert.match(writeManifestScript, /extension\/manifest\.json/)
   assert.match(manifestSource, /chrome\.runtime\.ManifestV3/)
+  assert.match(manifestSource, /minimum_chrome_version: MINIMUM_CHROME_VERSION/)
   assert.match(manifestSource, /permissions: \['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'favicon'\]/)
   assert.match(viteConfig, /reactCompilerPreset/)
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
   assert.match(viteConfig, /@tailwindcss\/vite/)
   assert.match(viteConfig, /TAB_OUT_BUILD_ENTRY/)
+  assert.match(viteConfig, /target: CHROME_BUILD_TARGET/)
   assert.match(viteConfig, /find: \/\^tldts\$\//)
   assert.match(viteConfig, /tldts\/dist\/index\.esm\.min\.js/)
   assert.ok(existsSync('node_modules/tldts/dist/index.esm.min.js'))
@@ -121,6 +144,7 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(buildScript, /runBuild\('background'\)/)
   assert.match(watchScript, /WATCH_TARGETS/)
   assert.match(watchScript, /package\.json/)
+  assert.match(watchScript, /chrome-support\.json/)
   assert.match(watchScript, /scripts\/write-manifest\.ts/)
   assert.match(watchScript, /\['build'\]/)
   assert.match(watchScript, /POLL_MS/)
@@ -687,6 +711,21 @@ test('repo pre-commit hook runs the verification pipeline', () => {
   const hook = readFileSync('.githooks/pre-commit', 'utf8')
   assert.match(hook, /^#!\/bin\/sh/)
   assert.match(hook, /pnpm verify/)
+})
+
+test('weekly Chrome observer performs a fresh read-only release check', () => {
+  assert.ok(
+    existsSync('.github/workflows/chrome-support.yml'),
+    'Chrome support should be observed outside commit-time verification'
+  )
+
+  const workflow = readFileSync('.github/workflows/chrome-support.yml', 'utf8')
+  assert.match(workflow, /schedule:/)
+  assert.match(workflow, /workflow_dispatch:/)
+  assert.match(workflow, /contents: read/)
+  assert.match(workflow, /pnpm chrome-support:release-check/)
+  assert.doesNotMatch(workflow, /contents: write/)
+  assert.doesNotMatch(workflow, /git (?:commit|push)/)
 })
 
 test('built extension bundle is packaged locally', () => {

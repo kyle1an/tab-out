@@ -5,6 +5,8 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import tailwindcss from '@tailwindcss/vite'
 
+import { CHROME_BUILD_TARGET } from './src/extension/chrome-support.js'
+
 const buildEntry = process.env.TAB_OUT_BUILD_ENTRY
 const tldtsMinifiedEsm = resolve(__dirname, 'node_modules/tldts/dist/index.esm.min.js')
 if (!existsSync(tldtsMinifiedEsm)) {
@@ -36,7 +38,7 @@ export default defineConfig({
     ]
   },
   build: {
-    target: 'esnext',
+    target: CHROME_BUILD_TARGET,
     outDir: 'extension/dist',
     emptyOutDir: buildEntry !== 'background',
     sourcemap: false,

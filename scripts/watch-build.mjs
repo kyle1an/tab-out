@@ -2,7 +2,14 @@ import { spawn } from 'node:child_process'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
-const WATCH_TARGETS = ['src', 'extension/base.css', 'package.json', 'scripts/write-manifest.ts', 'vite.config.ts']
+const WATCH_TARGETS = [
+  'src',
+  'extension/base.css',
+  'chrome-support.json',
+  'package.json',
+  'scripts/write-manifest.ts',
+  'vite.config.ts'
+]
 const DEBOUNCE_MS = 120
 const POLL_MS = 700
 

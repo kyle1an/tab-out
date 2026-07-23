@@ -29,10 +29,20 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
   - `src/extension/background.ts` to `extension/dist/background.js`
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
 - `pnpm build` intentionally runs entry-specific Vite builds so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
-- `src/`, `extension/base.css`, `package.json`, `scripts/write-manifest.ts`, and `vite.config.ts` are watched by `pnpm dev`.
+- `src/`, `extension/base.css`, `chrome-support.json`, `package.json`, `scripts/write-manifest.ts`, and `vite.config.ts` are watched by `pnpm dev`.
 - `extension/index.html` and `extension/manifest.json` are runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
 - Do not hand-edit `extension/dist/*` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
 - When source or style changes legitimately alter `extension/dist/*`, include the generated bundle changes in the final ready-to-commit diff.
+
+## Chrome Support Policy
+
+- `chrome-support.json` is the single tracked policy for supporting the latest two Chrome Stable majors across Chrome's Windows, macOS, and Linux architecture feeds. The common floor is one less than the slowest feed's current Stable major.
+- Vite's exact build target and the manifest's `minimum_chrome_version` derive from that policy. Do not add a Browserslist configuration unless a concrete compatibility tool will consume it; Browserslist is not the Vite or extension-install authority.
+- `pnpm chrome-support:check` is deterministic and offline. It validates the policy and generated manifest, and runs first in `pnpm verify` and therefore in the pre-commit hook.
+- `pnpm chrome-support:status` consults Chrome's official per-platform VersionHistory API only when its untracked seven-day `checkedAt` cache is stale. Network failure warns but does not block local work.
+- `pnpm chrome-support:bump` forces a fresh complete platform check, updates the policy only when the common floor advances, rebuilds generated output, and checks consistency. Review the diff; the command never stages, commits, pushes, or lowers the floor.
+- `pnpm chrome-support:release-check` bypasses the cache and fails closed. The weekly read-only workflow uses it to surface a stale floor without changing the repository.
+- `lastBumpedAt` is audit metadata, not a release-check cache. See `docs/adr/0003-rolling-chrome-support-floor.md` for the decision and `docs/research/chrome-support-maintenance-practices.md` for supporting research.
 
 ## Development Loop
 
