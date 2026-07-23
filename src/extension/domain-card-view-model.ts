@@ -1092,8 +1092,18 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   }
 
   function pagePinOrderForChip(chip: DashboardChipData): number | null {
-    if (!chip.pagePinId) return null
-    return pagePinOrderById.get(chip.pagePinId) ?? null
+    const directOrder = chip.pagePinId ? pagePinOrderById.get(chip.pagePinId) : undefined
+    if (directOrder !== undefined) return directOrder
+
+    let earliestVariantOrder: number | null = null
+    for (const variant of chip.titleVariantChips || []) {
+      const variantOrder = variant.pagePinId ? pagePinOrderById.get(variant.pagePinId) : undefined
+      if (variantOrder === undefined) continue
+      if (earliestVariantOrder === null || variantOrder < earliestVariantOrder) {
+        earliestVariantOrder = variantOrder
+      }
+    }
+    return earliestVariantOrder
   }
 
   function comparePageChipPins(a: DashboardChipData, b: DashboardChipData): number {
@@ -1393,8 +1403,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     ))
   }
 
-  function titleVariantGroupChip(variants: DashboardChipData[]): DashboardChipData {
-    const representative = variants[0]
+  function titleVariantGroupChip(variants: DashboardChipData[], representative = variants[0]): DashboardChipData {
     const activeInCurrentWindow = variants.some((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
     const activeInOtherWindow = !activeInCurrentWindow && variants.some((variant) => !!variant.activeInOtherWindow)
     const allVariantsSaved = variants.length > 0 && variants.every((variant) => !!variant.saved)
@@ -1455,11 +1464,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
           titleVariantChips: undefined
         }, pinScopeId, pageChipPinKeyForUrl(variantEntry.tab.url))
       })
-      const pinnedVariants = variants.filter((variant) => variant.pagePinned)
-      const unpinnedVariants = variants.filter((variant) => !variant.pagePinned)
-      result.push(...pinnedVariants)
-      if (unpinnedVariants.length > 1) result.push(titleVariantGroupChip(unpinnedVariants))
-      else result.push(...unpinnedVariants)
+      result.push(titleVariantGroupChip(sortPageChipsInScope(variants), variants[0]))
     }
     return sortPageChipsInScope(result)
   }

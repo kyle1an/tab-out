@@ -122,7 +122,7 @@ test('computeDomainCardViewModel sorts pinned folded chips as aggregate rows', (
   )
 })
 
-test('computeDomainCardViewModel promotes pinned same-title URL variants into their parent chip scope', () => {
+test('computeDomainCardViewModel keeps pinned same-title URL variants inside one promoted group', () => {
   const tabs = [
     makeTab({ id: 1, title: 'Example content item', url: 'https://example.com/alpha' }),
     makeTab({ id: 2, title: 'Example content item', url: 'https://example.com/bravo' }),
@@ -142,30 +142,72 @@ test('computeDomainCardViewModel promotes pinned same-title URL variants into th
   assert.deepEqual(
     section.flatVisibleChips.map((chip) => chip.tabUrl),
     [
-      'https://example.com/bravo',
       'https://example.com/alpha',
       'https://example.com/settings'
     ]
   )
 
-  const [pinnedVariant, remainingGroup] = section.flatVisibleChips
-  assert.equal(pinnedVariant.pagePinId, bravoPinId)
-  assert.equal(pinnedVariant.pagePinned, true)
-  assert.equal(remainingGroup.pagePinId, undefined)
-  assert.equal(remainingGroup.pagePinned, undefined)
+  const [variantGroup] = section.flatVisibleChips
+  assert.equal(variantGroup.pagePinId, undefined)
+  assert.equal(variantGroup.pagePinned, undefined)
   assert.deepEqual(
-    remainingGroup.titleVariantChips?.map((variant) => variant.tabUrl),
+    variantGroup.titleVariantChips?.map((variant) => variant.tabUrl),
     [
+      'https://example.com/bravo',
       'https://example.com/alpha',
       'https://example.com/charlie'
     ]
   )
   assert.deepEqual(
-    remainingGroup.titleVariantChips?.map((variant) => variant.pagePinId),
-    [alphaPinId, charliePinId]
+    variantGroup.titleVariantChips?.map((variant) => variant.pagePinId),
+    [bravoPinId, alphaPinId, charliePinId]
   )
   assert.deepEqual(
-    remainingGroup.titleVariantChips?.map((variant) => variant.pagePinned),
-    [false, false]
+    variantGroup.titleVariantChips?.map((variant) => variant.pagePinned),
+    [true, false, false]
+  )
+})
+
+test('computeDomainCardViewModel orders a unified same-title group by its earliest pinned variant', () => {
+  const tabs = [
+    makeTab({ id: 1, title: 'Example content item', url: 'https://example.com/alpha' }),
+    makeTab({ id: 2, title: 'Example content item', url: 'https://example.com/bravo' }),
+    makeTab({ id: 3, title: 'Example content item', url: 'https://example.com/charlie' }),
+    makeTab({ id: 4, title: 'Settings', url: 'https://example.com/settings' })
+  ]
+  const group = groupFor('example.com', tabs)
+  const rootScope = pageChipPinScopeId('example.com', '', '', '')
+  const settingsPinId = pageChipPinId('tabs', rootScope, pageChipPinKeyForUrl('https://example.com/settings'))
+  const charliePinId = pageChipPinId('tabs', rootScope, pageChipPinKeyForUrl('https://example.com/charlie'))
+  const bravoPinId = pageChipPinId('tabs', rootScope, pageChipPinKeyForUrl('https://example.com/bravo'))
+  const pinnedPageChips = createPinnedPageChipIndex([
+    settingsPinId,
+    charliePinId,
+    bravoPinId
+  ])
+
+  const vm = computeDomainCardViewModel(group, { source: 'tabs', pinnedPageChips })
+  const section = vm.sections?.find((candidate) => candidate.key === '')
+  assert.ok(section)
+  assert.deepEqual(
+    section.flatVisibleChips.map((chip) => chip.tabUrl),
+    [
+      'https://example.com/settings',
+      'https://example.com/alpha'
+    ]
+  )
+
+  const variantGroup = section.flatVisibleChips[1]
+  assert.deepEqual(
+    variantGroup.titleVariantChips?.map((variant) => variant.tabUrl),
+    [
+      'https://example.com/charlie',
+      'https://example.com/bravo',
+      'https://example.com/alpha'
+    ]
+  )
+  assert.deepEqual(
+    variantGroup.titleVariantChips?.map((variant) => variant.pagePinned),
+    [true, true, false]
   )
 })

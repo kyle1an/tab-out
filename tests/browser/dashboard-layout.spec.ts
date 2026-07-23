@@ -265,6 +265,95 @@ test('cardless domain headers align with their mission content', async ({ page }
   }
 })
 
+test('pinned same-title URL variants stay unified with a close-slot pin marker', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?filter=Platform%20Ops')
+  await page.evaluate(async () => {
+    await (window as typeof window & {
+      __tabOutSmokeAddMarkerWrapPathGroupTabs?: () => Promise<void>
+    }).__tabOutSmokeAddMarkerWrapPathGroupTabs?.()
+  })
+
+  const card = page.locator('[data-tabout="domain-card"][data-tabout-domain="atlassian.net"]')
+  const matchingChips = card.locator('[data-tabout="page-chip"]').filter({ hasText: 'Platform Ops Dev 2026' })
+  await expect(matchingChips).toHaveCount(1)
+
+  const chip = matchingChips.first()
+  const variantShells = chip.locator('.chip-title-variant-shell')
+  const variantRows = chip.locator('.chip-title-variant')
+  await expect(chip.locator('.chip-title-row')).toHaveCount(1)
+  await expect(variantShells).toHaveCount(2)
+  await expect(variantRows).toHaveCount(2)
+  await expect(variantShells.locator('[data-tabout-part="variant-page-pin"]')).toHaveCount(0)
+
+  const restingLabelStyles = await variantRows.locator('.chip-title-variant-label').evaluateAll((labels) => (
+    labels.map((label) => {
+      const style = getComputedStyle(label)
+      return { flexGrow: style.flexGrow, textAlign: style.textAlign }
+    })
+  ))
+  expect(restingLabelStyles).toEqual([
+    { flexGrow: '0', textAlign: 'left' },
+    { flexGrow: '0', textAlign: 'left' }
+  ])
+
+  const firstVariantPinId = await variantRows.first().getAttribute('data-tabout-layout-key')
+  expect(firstVariantPinId).toBeTruthy()
+  expect(firstVariantPinId).toMatch(/^page-chip\|/)
+  await page.evaluate(async (pinId) => {
+    await window.chrome.storage.local.set({ tabOutPinnedPageChipsV1: [pinId] })
+    ;(window.chrome.storage.onChanged as typeof window.chrome.storage.onChanged & {
+      dispatch: (
+        changes: Record<string, chrome.storage.StorageChange>,
+        areaName: string
+      ) => void
+    }).dispatch({
+      tabOutPinnedPageChipsV1: { newValue: [pinId] }
+    }, 'local')
+  }, firstVariantPinId)
+
+  const pinnedMarker = variantShells.locator('[data-tabout-part="variant-page-pin"][data-pinned="true"]')
+  await expect(pinnedMarker).toHaveCount(1)
+  await expect(variantShells.locator('[data-tabout-part="variant-page-pin"]')).toHaveCount(1)
+  await expect(chip.locator('.chip-page-pin-badge')).toHaveCount(0)
+
+  const rowHeights = await variantRows.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height))
+  expect(Math.abs(rowHeights[0] - rowHeights[1])).toBeLessThanOrEqual(0.5)
+
+  const markerGeometry = await pinnedMarker.evaluate((marker) => {
+    const row = marker.closest<HTMLElement>('.chip-title-variant-shell')
+      ?.querySelector<HTMLElement>('.chip-title-variant')
+    const markerRect = marker.getBoundingClientRect()
+    const rowRect = row?.getBoundingClientRect()
+    return {
+      markerHeight: markerRect.height,
+      markerRight: markerRect.right,
+      markerWidth: markerRect.width,
+      rowLeft: rowRect?.left ?? 0
+    }
+  })
+
+  expect(Math.abs(markerGeometry.markerWidth - 10)).toBeLessThanOrEqual(0.5)
+  expect(Math.abs(markerGeometry.markerHeight - 10)).toBeLessThanOrEqual(0.5)
+  expect(markerGeometry.markerRight).toBeLessThanOrEqual(markerGeometry.rowLeft - 0.5)
+
+  const pinnedMarkerSlot = pinnedMarker.locator('..')
+  const pinnedActions = pinnedMarkerSlot.locator('..')
+  await pinnedActions.hover()
+  await expect(pinnedMarkerSlot).toHaveCSS('opacity', '0')
+  await expect(pinnedActions.locator('.chip-title-variant-action')).toHaveCSS('opacity', '1')
+
+  await chip.locator('.chip-title-row').hover()
+  await expect(chip).toHaveAttribute('data-expanded', 'true')
+  const expandedLabelStyles = await chip.locator('.chip-title-variant-label').evaluateAll((labels) => (
+    labels.map((label) => {
+      const style = getComputedStyle(label)
+      return { flexGrow: style.flexGrow, textAlign: style.textAlign }
+    })
+  ))
+  expect(expandedLabelStyles.length).toBeGreaterThanOrEqual(2)
+  expect(expandedLabelStyles.every(({ flexGrow, textAlign }) => flexGrow === '0' && textAlign === 'left')).toBe(true)
+})
+
 test('ordinary dashboard renders keep masonry observers attached', async ({ page }) => {
   await page.addInitScript(() => {
     const counters = { mutationDisconnects: 0, resizeDisconnects: 0 }

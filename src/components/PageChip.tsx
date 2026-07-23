@@ -2363,6 +2363,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
       showSavedHint: variantShowSavedHint
     } = pageChipTargetActionPolicy(variant)
     const variantActionCount = (variantShowSavedHint ? 1 : 0) + (variantCanClose ? 1 : 0)
+    const variantPagePinOwnSlot = !!variant.pagePinned && !variantCanClose
+    const variantActionSlotCount = variantActionCount + (variantPagePinOwnSlot ? 1 : 0)
     const variantSavedActionLabel = variant.saved ? 'Remove saved page' : 'Save page'
     const variantPagePinActionLabel = variant.pagePinned ? 'Unpin' : 'Pin'
     const variantCanTogglePagePin = !!variant.pagePinId && typeof onTogglePinnedPageChip === 'function'
@@ -2376,7 +2378,7 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     const variantDimmed = !!variant.suspended || variantClosedSaved
     const labelContent = (
       <>
-        <span className={cn('chip-title-variant-label min-w-0 overflow-hidden text-ellipsis whitespace-nowrap', variantDimmed && VARIANT_LABEL_DIM_CLASS_NAME)}>
+        <span className={cn('chip-title-variant-label min-w-0 overflow-hidden text-left text-ellipsis whitespace-nowrap', variantDimmed && VARIANT_LABEL_DIM_CLASS_NAME)}>
           {highlightedTextNodes(label, highlightTerms, `${mode}-title-variant-${index}`)}
         </span>
         {variantDupeCount > 1 && (
@@ -2455,11 +2457,11 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
         className="chip-title-variant-shell relative flex w-full max-w-full min-w-0 items-center"
       >
         {variantFocusTarget}
-        {variantActionCount > 0 && (
+        {variantActionSlotCount > 0 && (
           <span className={cn(
             'chip-title-variant-actions group/title-variant-actions absolute top-0 bottom-0 z-2 my-auto flex h-[19px] items-center gap-0.5',
-            variantActionCount === 1 && '-left-[25.5px]',
-            variantActionCount > 1 && '-left-[46.5px]'
+            variantActionSlotCount === 1 && '-left-[25.5px]',
+            variantActionSlotCount > 1 && '-left-[46.5px]'
           )}>
             {variantShowSavedHint && (
               <TooltipAnchor content="Saved page">
@@ -2486,6 +2488,19 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
                 </svg>
               </button>
+            )}
+            {variant.pagePinned && (
+              <span className={cn(
+                'chip-title-variant-page-pin-slot pointer-events-none inline-flex size-[19px] shrink-0 items-center justify-center',
+                variantCanClose && 'absolute top-0 right-0 group-hover/title-variant-actions:opacity-0 group-focus-within/title-variant-actions:opacity-0'
+              )}>
+                <span
+                  data-tabout-part="variant-page-pin"
+                  data-pinned="true"
+                  className="chip-title-variant-page-pin icon-[lucide--pin] size-2.5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </span>
             )}
           </span>
         )}

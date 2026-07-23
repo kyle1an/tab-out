@@ -459,6 +459,55 @@ test('PageChip renders duplicate pages as a favicon stack and page pins as a fav
   assert.doesNotMatch(html, /\bchip-dupe-badge\b/)
 })
 
+test('PageChip renders exact pin markers inside a unified same-title variant group', () => {
+  const html = renderWithDomainCardContext(
+    React.createElement(PageChip, {
+      chip: makeChip({
+        sourceType: 'tab',
+        tabUrl: 'https://example.com/content/item?search_id=alpha',
+        rawUrl: 'https://example.com/content/item?search_id=alpha',
+        displaySegments: ['Example content item'],
+        tooltip: 'Example content item',
+        titleVariantChips: [
+          makeChip({
+            sourceType: 'tab',
+            tabUrl: 'https://example.com/content/item?search_id=alpha',
+            rawUrl: 'https://example.com/content/item?search_id=alpha',
+            pathSuffix: '…?search_id=alpha',
+            tooltip: '…?search_id=alpha',
+            pagePinId: 'pin-alpha',
+            pagePinned: true
+          }),
+          makeChip({
+            sourceType: 'tab',
+            tabUrl: 'https://example.com/content/item?search_id=bravo',
+            rawUrl: 'https://example.com/content/item?search_id=bravo',
+            pathSuffix: '…?search_id=bravo',
+            tooltip: '…?search_id=bravo',
+            pagePinId: 'pin-bravo',
+            pagePinned: false
+          })
+        ]
+      })
+    })
+  )
+  const markerTags = Array.from(
+    html.matchAll(/<span[^>]*class="[^"]*\bchip-title-variant-page-pin(?=\s|")[^"]*"[^>]*>/g),
+    (match) => match[0]
+  )
+
+  assert.equal(markerTags.length, 1)
+  assert.match(markerTags[0], /data-tabout-part="variant-page-pin"/)
+  assert.match(markerTags[0], /data-pinned="true"/)
+  assert.doesNotMatch(markerTags[0], /\binvisible\b/)
+  assert.match(markerTags[0], /\bsize-2\.5\b/)
+  assert.match(html, /\bchip-title-variant-page-pin-slot\b/)
+  assert.match(html, /group-hover\/title-variant-actions:opacity-0/)
+  assert.doesNotMatch(html, /\bchip-title-variant-label[^"\n]*\bflex-1\b/)
+  assert.match(html, /\bchip-title-variant-label[^"\n]*\btext-left\b/)
+  assert.doesNotMatch(html, /\bchip-page-pin-badge\b/)
+})
+
 test('PageChip keeps the other-window active chip style separate from the current active style', () => {
   const html = renderToStaticMarkup(
     React.createElement(PageChip, {
