@@ -23,6 +23,65 @@ type BookmarkFetchGate = {
   started: boolean
 }
 
+type HistoryReorderEvent = {
+  active?: boolean
+  at: number
+  key?: string
+  tabId?: number
+  transform?: string
+  transition?: string
+  type: 'focus' | 'move'
+}
+
+type HistoryReorderFixtureWindow = typeof window & {
+  __tabOutSmokeDispatchPassiveHistoryRefresh?: () => void
+  __tabOutSmokeHistoryReorderEvents?: HistoryReorderEvent[]
+  __tabOutSmokePrepareHistoryReorder?: () => void
+  __tabOutSmokeSetHistoryVisibility?: (visibilityState: 'hidden' | 'visible') => void
+}
+
+const HISTORY_REORDER_INITIAL_KEYS = ['stack:1:9103', 'stack:1:9102', 'stack:1:9101']
+const HISTORY_REORDER_NEXT_KEYS = ['stack:1:9101', 'stack:1:9103', 'stack:1:9102']
+
+async function historyReorderKeys(page: Page) {
+  return page.locator('[data-tabout-layout-key^="stack:1:91"]').evaluateAll((rows) => (
+    rows.map((row) => (row as HTMLElement).dataset.taboutLayoutKey || '')
+  ))
+}
+
+async function historyReorderEvents(page: Page) {
+  return page.evaluate(() => (
+    (window as HistoryReorderFixtureWindow).__tabOutSmokeHistoryReorderEvents ?? []
+  ))
+}
+
+async function openHistoryReorderFixture(page: Page) {
+  await page.goto('/tests/fixtures/dashboard-resize.html?historyReorderMotion=1')
+  await expect.poll(() => historyReorderKeys(page)).toEqual(HISTORY_REORDER_INITIAL_KEYS)
+  expect((await historyReorderEvents(page)).filter((event) => event.type === 'move')).toHaveLength(0)
+}
+
+async function prepareHistoryReorder(page: Page) {
+  await page.evaluate(() => {
+    (window as HistoryReorderFixtureWindow).__tabOutSmokePrepareHistoryReorder?.()
+  })
+}
+
+async function expectHistoryReordered(page: Page) {
+  await expect.poll(() => historyReorderKeys(page)).toEqual(HISTORY_REORDER_NEXT_KEYS)
+}
+
+async function expectNoHistoryReorderMoves(page: Page) {
+  await page.waitForTimeout(300)
+  expect((await historyReorderEvents(page)).filter((event) => event.type === 'move')).toHaveLength(0)
+}
+
+async function expectHistoryReorderMove(page: Page) {
+  await expect.poll(async () => (
+    (await historyReorderEvents(page)).some((event) => event.type === 'move' && event.active)
+  )).toBe(true)
+}
+
 async function installBookmarkFetchGate(
   page: Page,
   replacementTree: BookmarkTreeFixture[] | null = null,
@@ -2243,4 +2302,125 @@ test('closing an Activation History entry leaves an exit ghost while survivor ro
     intervals: [50, 100]
   }).toBe(0)
   await expect.poll(() => page.locator('.history-entry-layout-moving').count()).toBe(0)
+})
+
+test('primary-pointer Activation History focus FLIPs stable rows without delaying tab focus', async ({ page }) => {
+  await openHistoryReorderFixture(page)
+  await prepareHistoryReorder(page)
+
+  await page.locator('[data-tabout-layout-key="stack:1:9101"] [data-tabout-part="focus-button"]').click()
+  await expectHistoryReordered(page)
+  await expectHistoryReorderMove(page)
+
+  const events = await historyReorderEvents(page)
+  const focusIndex = events.findIndex((event) => event.type === 'focus' && event.tabId === 9101)
+  const firstMoveIndex = events.findIndex((event) => event.type === 'move')
+  const activeMove = events.find((event) => event.type === 'move' && event.active)
+  expect(focusIndex).toBeGreaterThanOrEqual(0)
+  expect(firstMoveIndex).toBeGreaterThan(focusIndex)
+  expect(activeMove).toEqual(expect.objectContaining({
+    transform: 'translate(0px, 0px)',
+    transition: 'transform 180ms var(--ease-swift)'
+  }))
+
+  await expect.poll(() => page.locator('.history-entry-layout-moving').count()).toBe(0)
+  const residue = await page.locator('[data-tabout-layout-key^="stack:1:91"]').evaluateAll((rows) => (
+    rows.map((row) => {
+      const element = row as HTMLElement
+      return {
+        transform: element.style.transform,
+        transition: element.style.transition,
+        willChange: element.style.willChange,
+        zIndex: element.style.zIndex
+      }
+    })
+  ))
+  expect(residue).toEqual(HISTORY_REORDER_NEXT_KEYS.map(() => ({
+    transform: '',
+    transition: '',
+    willChange: '',
+    zIndex: ''
+  })))
+})
+
+for (const activationKey of ['Enter', 'Space'] as const) {
+  test(`visible Activation History ${activationKey} reorder FLIPs stable rows`, async ({ page }) => {
+    await openHistoryReorderFixture(page)
+    await prepareHistoryReorder(page)
+
+    const target = page.locator('[data-tabout-layout-key="stack:1:9101"] [data-tabout-part="focus-button"]')
+    await target.focus()
+    await target.press(activationKey)
+    await expectHistoryReordered(page)
+    await expectHistoryReorderMove(page)
+  })
+}
+
+test('visible modifier and passive Activation History refreshes FLIP stable rows', async ({ page }) => {
+  await openHistoryReorderFixture(page)
+  await prepareHistoryReorder(page)
+
+  await page.locator('[data-tabout-layout-key="stack:1:9101"] [data-tabout-part="focus-button"]').click({
+    modifiers: ['Shift']
+  })
+  await expectHistoryReordered(page)
+  await expectHistoryReorderMove(page)
+
+  await openHistoryReorderFixture(page)
+  await prepareHistoryReorder(page)
+  await page.evaluate(() => {
+    Object.defineProperty(Document.prototype, 'hasFocus', {
+      configurable: true,
+      value: () => false
+    })
+    ;(window as HistoryReorderFixtureWindow).__tabOutSmokeDispatchPassiveHistoryRefresh?.()
+  })
+  await expectHistoryReordered(page)
+  await expectHistoryReorderMove(page)
+
+  await openHistoryReorderFixture(page)
+  await prepareHistoryReorder(page)
+  await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))
+  await expectHistoryReordered(page)
+  await expectHistoryReorderMove(page)
+})
+
+test('a hidden Activation History reorder FLIPs once when the same panel becomes visible', async ({ page }) => {
+  await openHistoryReorderFixture(page)
+  await page.evaluate(() => {
+    (window as HistoryReorderFixtureWindow).__tabOutSmokeSetHistoryVisibility?.('hidden')
+  })
+  await prepareHistoryReorder(page)
+
+  await page.locator('[data-tabout-layout-key="stack:1:9101"] [data-tabout-part="focus-button"]').click()
+  await expectHistoryReordered(page)
+  await expectNoHistoryReorderMoves(page)
+
+  await page.evaluate(() => {
+    (window as HistoryReorderFixtureWindow).__tabOutSmokeSetHistoryVisibility?.('visible')
+  })
+  await expectHistoryReorderMove(page)
+})
+
+test('a panel-width change invalidates stale Activation History geometry', async ({ page }) => {
+  await openHistoryReorderFixture(page)
+  await page.setViewportSize({ width: 760, height: 900 })
+  await prepareHistoryReorder(page)
+  await page.evaluate(() => {
+    (window as HistoryReorderFixtureWindow).__tabOutSmokeDispatchPassiveHistoryRefresh?.()
+  })
+
+  await expectHistoryReordered(page)
+  await expectNoHistoryReorderMoves(page)
+})
+
+test('reduced motion keeps a visible Activation History reorder still', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await openHistoryReorderFixture(page)
+  await prepareHistoryReorder(page)
+
+  await page.locator('[data-tabout-layout-key="stack:1:9101"] [data-tabout-part="focus-button"]').click()
+  await expectHistoryReordered(page)
+  await expect(page.locator('[data-tabout-layout-key="stack:1:9101"] .history-entry').first()).toHaveAttribute('data-current', 'true')
+  await expectNoHistoryReorderMoves(page)
 })

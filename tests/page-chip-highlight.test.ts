@@ -1903,6 +1903,45 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
   assert.match(muted[0][1], /\btext-muted-foreground\b/)
 })
 
+test('TabHistoryPanel keeps FLIP keys stable when stack indexes change', () => {
+  const baseEntry = makeHistorySnapshot().entries[0]
+  function renderAtIndex(index: number) {
+    return renderTabHistoryPanel({
+      snapshot: makeHistorySnapshot({
+        cursorIndex: index,
+        currentIndex: index,
+        entries: [{ ...baseEntry, index }]
+      })
+    })
+  }
+  function layoutKeys(html: string) {
+    return Array.from(html.matchAll(/data-tabout-layout-key="([^"]+)"/g), (match) => match[1])
+  }
+
+  assert.deepEqual(layoutKeys(renderAtIndex(0)), ['stack:1:101'])
+  assert.deepEqual(layoutKeys(renderAtIndex(4)), ['stack:1:101'])
+
+  const secondEntry = {
+    ...baseEntry,
+    index: 1,
+    tabId: 202,
+    active: false,
+    cursor: false,
+    current: false,
+    title: 'Example Settings',
+    url: 'https://example.com/settings',
+    rawUrl: 'https://example.com/settings',
+    displayUrl: 'example.com/settings'
+  }
+  const twoRows = renderTabHistoryPanel({
+    snapshot: makeHistorySnapshot({
+      stackSize: 2,
+      entries: [baseEntry, secondEntry]
+    })
+  })
+  assert.deepEqual(layoutKeys(twoRows), ['stack:1:101', 'stack:1:202'])
+})
+
 test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority attribute', () => {
   const baseEntry = makeHistorySnapshot().entries[0]
   const ghostUrl = 'https://example.com/open-tab-not-in-stack'

@@ -141,6 +141,13 @@ type HistoryEntryKind = 'stack' | 'open-ghost' | 'closed-ghost'
 
 type StopPropagationEvent = { stopPropagation: () => void }
 
+type VisibleHistoryLayoutSnapshot = {
+  filter: string
+  positions: ReturnType<typeof snapshotHistoryEntryPositions>
+  root: HTMLElement
+  width: number
+}
+
 interface HistoryEntryProps {
   entry: TabHistoryEntry
   kind: HistoryEntryKind
@@ -151,6 +158,7 @@ interface HistoryEntryProps {
   savedKeys?: ReadonlySet<string>
   highlightTerms?: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
+  onHistoryLayoutSettled?: () => void
   onHoverUrlChange?: HoverUrlChangeHandler
   onTabsChange?: TabsChangeHandler
   onForgetClosedGhost?: (closed: ClosedTabEntry) => void
@@ -182,6 +190,37 @@ function startHistoryEntryRemoval(row: Element | null | undefined): boolean {
     ghostClassName: 'history-entry-closing-ghost',
     onAfterRemove: () => animateHistoryEntryMoves(root, positions)
   })
+}
+
+function syncVisibleHistoryLayout(
+  root: HTMLElement | null,
+  previous: VisibleHistoryLayoutSnapshot | null,
+  filter: string,
+  animate: boolean
+): VisibleHistoryLayoutSnapshot | null {
+  if (!root || document.visibilityState !== 'visible') return previous
+
+  const width = Math.round(root.getBoundingClientRect().width * 100) / 100
+  const moveInProgress = root.querySelector('.history-entry-layout-moving') !== null
+  // The first snapshot preserves the current transformed rectangles and cancels
+  // stale ownership; a second read records the settled DOM as the next baseline.
+  const visualPositions = snapshotHistoryEntryPositions(root)
+  const positions = moveInProgress
+    ? snapshotHistoryEntryPositions(root)
+    : visualPositions
+  const current = { filter, positions, root, width }
+
+  if (
+    animate &&
+    previous &&
+    previous.root === root &&
+    previous.filter === filter &&
+    Math.abs(previous.width - width) < 1
+  ) {
+    animateHistoryEntryMoves(root, moveInProgress ? visualPositions : previous.positions)
+  }
+
+  return current
 }
 
 function getHistoryTitleWidth(titleEl: HTMLElement | null) {
@@ -877,11 +916,12 @@ type HistoryEntryActionsOptions = {
   entrySlotRef: RefObject<HTMLDivElement | null>
   contextMenuOpenRef: RefObject<boolean>
   onSnapshotChange?: SnapshotChangeHandler
+  onHistoryLayoutSettled?: () => void
   onHoverUrlChange?: HoverUrlChangeHandler
   onTabsChange?: TabsChangeHandler
 }
 
-function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canActivateEntry, entrySlotRef, contextMenuOpenRef, onSnapshotChange, onHoverUrlChange, onTabsChange }: HistoryEntryActionsOptions) {
+function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canActivateEntry, entrySlotRef, contextMenuOpenRef, onSnapshotChange, onHistoryLayoutSettled, onHoverUrlChange, onTabsChange }: HistoryEntryActionsOptions) {
   function focusChangedActiveTab(result: ExistingTabFocusResult): boolean {
     const message = tabFocusResultToastMessage(result.status)
     if (message) showToast(message)
@@ -989,7 +1029,10 @@ function useHistoryEntryActions({ entry, kind, workingSetItem, closedTab, canAct
       showToast('Tab closed')
     }
 
-    if (startHistoryEntryRemoval(row)) await waitForHistoryEntryMoves()
+    if (startHistoryEntryRemoval(row)) {
+      await waitForHistoryEntryMoves()
+      onHistoryLayoutSettled?.()
+    }
     onHoverUrlChange?.('')
     await refreshAfterMutation()
   }
@@ -1238,7 +1281,7 @@ function HistoryEntryContextMenu({ entry, savedKeys, onOpenChange, children }: H
   )
 }
 
-function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHoverUrlChange, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
+function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = null, closedTab = null, savedKeys, highlightTerms = EMPTY_HIGHLIGHT_TERMS, onSnapshotChange, onHistoryLayoutSettled, onHoverUrlChange, onTabsChange, onForgetClosedGhost }: HistoryEntryProps) {
   const contextMenuOpenRef = useRef(false)
   const titleClampKey = JSON.stringify([entry.title, highlightTerms])
   const {
@@ -1276,6 +1319,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     entrySlotRef,
     contextMenuOpenRef,
     onSnapshotChange,
+    onHistoryLayoutSettled,
     onHoverUrlChange,
     onTabsChange
   })
@@ -1284,7 +1328,10 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     e.stopPropagation()
     if (!closedTab) return
     const row = e.currentTarget.closest('.history-entry-row') || entrySlotRef.current?.closest('.history-entry-row')
-    if (startHistoryEntryRemoval(row)) await waitForHistoryEntryMoves()
+    if (startHistoryEntryRemoval(row)) {
+      await waitForHistoryEntryMoves()
+      onHistoryLayoutSettled?.()
+    }
     onHoverUrlChange?.('')
     onForgetClosedGhost?.(closedTab)
   }
@@ -1641,13 +1688,51 @@ export function TabHistoryPanel({
   const savedKeySet = useMemo(() => new Set(savedKeys ?? []), [savedKeys])
   const highlightTerms = useMemo(() => highlightTermsForFilter(filter), [filter])
   const historyListRef = useRef<HTMLDivElement | null>(null)
+  const historyContentRef = useRef<HTMLDivElement | null>(null)
+  const lastVisibleHistoryLayoutRef = useRef<VisibleHistoryLayoutSnapshot | null>(null)
+  const currentHistoryFilterRef = useRef(filter)
   const scrollbar = useHistoryScrollbar(historyListRef)
+
+  function settleVisibleHistoryLayout() {
+    lastVisibleHistoryLayoutRef.current = syncVisibleHistoryLayout(
+      historyContentRef.current,
+      lastVisibleHistoryLayoutRef.current,
+      currentHistoryFilterRef.current,
+      false
+    )
+  }
+
   // Row layout effects queue natural title reads. As their parent, this layout
   // effect runs after every row has queued but before ancestor masonry effects,
   // keeping the read phase together and the resulting clamp writes pre-paint.
   useLayoutEffect(() => {
     flushHistoryTitleMeasurementJobs()
   })
+
+  useLayoutEffect(() => {
+    currentHistoryFilterRef.current = filter
+    lastVisibleHistoryLayoutRef.current = syncVisibleHistoryLayout(
+      historyContentRef.current,
+      lastVisibleHistoryLayoutRef.current,
+      filter,
+      true
+    )
+  }, [filter, rows])
+
+  useEffect(() => {
+    function animateHistoryLayoutOnReturn() {
+      if (document.visibilityState !== 'visible') return
+      lastVisibleHistoryLayoutRef.current = syncVisibleHistoryLayout(
+        historyContentRef.current,
+        lastVisibleHistoryLayoutRef.current,
+        currentHistoryFilterRef.current,
+        true
+      )
+    }
+
+    document.addEventListener('visibilitychange', animateHistoryLayoutOnReturn)
+    return () => document.removeEventListener('visibilitychange', animateHistoryLayoutOnReturn)
+  }, [])
 
   return (
     <section
@@ -1665,18 +1750,19 @@ export function TabHistoryPanel({
             className="history-entry-scroll-hit-area h-screen w-full pointer-events-auto"
           />
         </div>
-        <div className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
+        <div ref={historyContentRef} className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
           {rows.map((row) => {
             const layoutKey = historyPanelRowLayoutKey(row)
             return (
               <HistoryPanelRow
-                key={layoutKey}
+                key={historyPanelRowRenderKey(row)}
                 row={row}
                 layoutKey={layoutKey}
                 snapshot={snapshot}
                 savedKeys={savedKeySet}
                 highlightTerms={highlightTerms}
                 onSnapshotChange={onSnapshotChange}
+                onHistoryLayoutSettled={settleVisibleHistoryLayout}
                 onHoverUrlChange={onHoverUrlChange}
                 onTabsChange={onTabsChange}
                 onForgetClosedGhost={handleForgetClosedGhost}
@@ -1690,8 +1776,14 @@ export function TabHistoryPanel({
   )
 }
 
-function historyPanelRowLayoutKey(row: HistoryPanelRow): string {
+function historyPanelRowRenderKey(row: HistoryPanelRow): string {
   if (row.kind === 'stack') return `stack:${row.entry.windowId}:${row.entry.tabId}:${row.entry.index}`
+  if (row.kind === 'open-ghost') return `open-ghost:${row.item.key}`
+  return `closed-ghost:${row.closed.sessionId}`
+}
+
+function historyPanelRowLayoutKey(row: HistoryPanelRow): string {
+  if (row.kind === 'stack') return `stack:${row.entry.windowId}:${row.entry.tabId}`
   if (row.kind === 'open-ghost') return `open-ghost:${row.item.key}`
   return `closed-ghost:${row.closed.sessionId}`
 }
@@ -1703,6 +1795,7 @@ function HistoryPanelRow({
   savedKeys,
   highlightTerms,
   onSnapshotChange,
+  onHistoryLayoutSettled,
   onHoverUrlChange,
   onTabsChange,
   onForgetClosedGhost
@@ -1713,6 +1806,7 @@ function HistoryPanelRow({
   savedKeys: ReadonlySet<string>
   highlightTerms: readonly string[]
   onSnapshotChange?: SnapshotChangeHandler
+  onHistoryLayoutSettled?: () => void
   onHoverUrlChange?: HoverUrlChangeHandler
   onTabsChange?: TabsChangeHandler
   onForgetClosedGhost?: (closed: ClosedTabEntry) => void
@@ -1727,6 +1821,7 @@ function HistoryPanelRow({
         savedKeys={savedKeys}
         highlightTerms={highlightTerms}
         onSnapshotChange={onSnapshotChange}
+        onHistoryLayoutSettled={onHistoryLayoutSettled}
         onHoverUrlChange={onHoverUrlChange}
         onTabsChange={onTabsChange}
       />
@@ -1743,6 +1838,7 @@ function HistoryPanelRow({
         savedKeys={savedKeys}
         highlightTerms={highlightTerms}
         onSnapshotChange={onSnapshotChange}
+        onHistoryLayoutSettled={onHistoryLayoutSettled}
         onHoverUrlChange={onHoverUrlChange}
         onTabsChange={onTabsChange}
       />
@@ -1758,6 +1854,7 @@ function HistoryPanelRow({
       savedKeys={savedKeys}
       highlightTerms={highlightTerms}
       onSnapshotChange={onSnapshotChange}
+      onHistoryLayoutSettled={onHistoryLayoutSettled}
       onHoverUrlChange={onHoverUrlChange}
       onTabsChange={onTabsChange}
       onForgetClosedGhost={onForgetClosedGhost}

@@ -24,10 +24,78 @@
       const fixtureParams = new URLSearchParams(window.location.search)
       const shortHistoryTitleCase = fixtureParams.has('shortHistoryTitle')
       const tallGlyphTitleCase = fixtureParams.has('tallGlyphTitle')
+      const historyReorderMotionCase = fixtureParams.has('historyReorderMotion')
       const historyTitle = shortHistoryTitleCase
         ? 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
         : 'Low score history item with enough tooltip text to prove dimmed rows keep the same background while the pointer moves onto the popup'
-      const tabHistorySnapshot = {
+
+      function historyReorderEntry({ index, tabId, slug, title, lastActivatedAt, current = false, previousTarget = false }) {
+        const url = `https://history-reorder.test/${slug}`
+        return {
+          index,
+          tabId,
+          windowId: 1,
+          exists: true,
+          active: current,
+          activeInOtherWindow: false,
+          isApp: false,
+          pinned: false,
+          discarded: false,
+          suspended: false,
+          cursor: current,
+          current,
+          previousTarget,
+          nextTarget: false,
+          title,
+          url,
+          rawUrl: url,
+          displayUrl: `history-reorder.test/${slug}`,
+          favIconUrl: '',
+          lastActivatedAt
+        }
+      }
+
+      function initialHistoryReorderSnapshot() {
+        return {
+          stackSize: 3,
+          pendingSize: 0,
+          maxSize: 48,
+          cursorIndex: 2,
+          currentIndex: 2,
+          previousIndex: 1,
+          nextIndex: -1,
+          activeTabId: 9103,
+          activeWindowId: 1,
+          activeWasInserted: false,
+          entries: [
+            historyReorderEntry({ index: 0, tabId: 9101, slug: 'alpha', title: 'History Alpha', lastActivatedAt: 1800000021000 }),
+            historyReorderEntry({ index: 1, tabId: 9102, slug: 'bravo', title: 'History Bravo', lastActivatedAt: 1800000022000, previousTarget: true }),
+            historyReorderEntry({ index: 2, tabId: 9103, slug: 'charlie', title: 'History Charlie', lastActivatedAt: 1800000023000, current: true })
+          ]
+        }
+      }
+
+      function nextHistoryReorderSnapshot() {
+        return {
+          stackSize: 3,
+          pendingSize: 0,
+          maxSize: 48,
+          cursorIndex: 2,
+          currentIndex: 2,
+          previousIndex: 1,
+          nextIndex: -1,
+          activeTabId: 9101,
+          activeWindowId: 1,
+          activeWasInserted: false,
+          entries: [
+            historyReorderEntry({ index: 0, tabId: 9102, slug: 'bravo', title: 'History Bravo', lastActivatedAt: 1800000022000 }),
+            historyReorderEntry({ index: 1, tabId: 9103, slug: 'charlie', title: 'History Charlie', lastActivatedAt: 1800000023000, previousTarget: true }),
+            historyReorderEntry({ index: 2, tabId: 9101, slug: 'alpha', title: 'History Alpha', lastActivatedAt: 1800000024000, current: true })
+          ]
+        }
+      }
+
+      let tabHistorySnapshot = historyReorderMotionCase ? initialHistoryReorderSnapshot() : {
         stackSize: 1,
         maxSize: 48,
         cursorIndex: -1,
@@ -75,6 +143,43 @@
       }
       const windows = [{ id: 1, type: 'normal', focused: true }]
       const tabs = [
+        ...(historyReorderMotionCase
+          ? [
+              {
+                id: 9101,
+                url: 'https://history-reorder.test/alpha',
+                title: 'History Alpha',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 9101
+              },
+              {
+                id: 9102,
+                url: 'https://history-reorder.test/bravo',
+                title: 'History Bravo',
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 9102
+              },
+              {
+                id: 9103,
+                url: 'https://history-reorder.test/charlie',
+                title: 'History Charlie',
+                favIconUrl: '',
+                windowId: 1,
+                active: true,
+                pinned: false,
+                groupId: -1,
+                index: 9103
+              }
+            ]
+          : []),
         ...(new URLSearchParams(window.location.search).has('motion')
           ? [
               ...Array.from({ length: 7 }, (_, index) => ({
@@ -475,6 +580,63 @@
       const listeners = { dispatch: (...args) => window.chrome.tabs.onCreated.dispatch(...args) }
       const tabActivatedListeners = { dispatch: (...args) => window.chrome.tabs.onActivated.dispatch(...args) }
       const originalWindowIds = new Map(tabs.map((tab) => [tab.id, tab.windowId]))
+      if (historyReorderMotionCase) {
+        const historyReorderEvents = []
+        let historyVisibilityState = 'visible'
+        Object.defineProperty(Document.prototype, 'visibilityState', {
+          configurable: true,
+          get: () => historyVisibilityState
+        })
+        Object.defineProperty(Document.prototype, 'hidden', {
+          configurable: true,
+          get: () => historyVisibilityState !== 'visible'
+        })
+        window.__tabOutSmokeHistoryReorderEvents = historyReorderEvents
+        window.__tabOutSmokePrepareHistoryReorder = () => {
+          historyReorderEvents.length = 0
+          tabHistorySnapshot = nextHistoryReorderSnapshot()
+        }
+        window.__tabOutSmokeDispatchPassiveHistoryRefresh = () => {
+          tabActivatedListeners.dispatch({ tabId: 9101, windowId: 1 })
+        }
+        window.__tabOutSmokeSetHistoryVisibility = (visibilityState) => {
+          historyVisibilityState = visibilityState
+          document.dispatchEvent(new Event('visibilitychange'))
+        }
+
+        const updateTab = chromeApi.tabs.update.bind(chromeApi.tabs)
+        chromeApi.tabs.update = async (tabId, updateProperties) => {
+          const result = await updateTab(tabId, updateProperties)
+          if (updateProperties?.active) {
+            historyReorderEvents.push({
+              at: performance.now(),
+              tabId,
+              type: 'focus'
+            })
+          }
+          return result
+        }
+
+        const historyMoveObserver = new MutationObserver((records) => {
+          for (const record of records) {
+            const element = record.target
+            if (!(element instanceof HTMLElement) || !element.classList.contains('history-entry-layout-moving')) continue
+            historyReorderEvents.push({
+              active: element.classList.contains('history-entry-layout-moving-active'),
+              at: performance.now(),
+              key: element.dataset.taboutLayoutKey || '',
+              transform: element.style.transform,
+              transition: element.style.transition,
+              type: 'move'
+            })
+          }
+        })
+        historyMoveObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class', 'style'],
+          subtree: true
+        })
+      }
       window.__tabOutSmokeSetBookmarks = (count = 0) => {
         bookmarkTree = [{
           id: 'root',
