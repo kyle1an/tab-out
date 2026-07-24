@@ -1975,6 +1975,94 @@ test('filter result cards finish one move while companion results hydrate', asyn
   expect(move.activeDuration).toBeGreaterThanOrEqual(240)
 })
 
+test('global no-match state waits for a History-only result without shifting its section', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const state = window as unknown as {
+      __historyOnlySearch: {
+        release?: () => void
+        started: boolean
+      }
+    }
+    state.__historyOnlySearch = { started: false }
+    window.chrome.history.search = async () => {
+      state.__historyOnlySearch.started = true
+      return new Promise<chrome.history.HistoryItem[]>((resolve) => {
+        state.__historyOnlySearch.release = () => resolve([{
+          id: 'history-only-result',
+          title: 'History Only Needle 7391',
+          url: 'https://history-only.example.test/needle-7391'
+        }])
+      })
+    }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('History Only Needle 7391')
+  const emptyState = page.locator('#openTabsMissions output')
+  const primaryCards = page.locator('#openTabsMissions [data-tabout="domain-card"]')
+  const historySection = page.locator('#historyMatchesSection')
+  const historyStatus = page.locator('[data-tabout="history-search-status"]')
+  const historyCards = page.locator('#historyMatchesMissions [data-tabout="domain-card"]')
+
+  await expect.poll(() => page.evaluate(() => (
+    (window as unknown as { __historyOnlySearch: { started: boolean } }).__historyOnlySearch.started
+  ))).toBe(true)
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'searching')
+  await expect(primaryCards).toHaveCount(0)
+  await expect(emptyState).toHaveCount(0)
+  const searchingTop = await historySection.evaluate((element) => element.getBoundingClientRect().top)
+
+  await page.evaluate(() => {
+    (window as unknown as { __historyOnlySearch: { release?: () => void } }).__historyOnlySearch.release?.()
+  })
+  await expect(historyCards).toHaveCount(1)
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
+  await expect(emptyState).toHaveCount(0)
+  const readyTop = await historySection.evaluate((element) => element.getBoundingClientRect().top)
+
+  expect(Math.abs(readyTop - searchingTop)).toBeLessThanOrEqual(1)
+})
+
+test('global no-match state appears only after every companion search settles empty', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  await page.evaluate(() => {
+    const state = window as unknown as {
+      __emptyCompanionSearch: {
+        release?: () => void
+        started: boolean
+      }
+    }
+    state.__emptyCompanionSearch = { started: false }
+    window.chrome.history.search = async () => {
+      state.__emptyCompanionSearch.started = true
+      return new Promise<chrome.history.HistoryItem[]>((resolve) => {
+        state.__emptyCompanionSearch.release = () => resolve([])
+      })
+    }
+  })
+
+  const query = 'Missing Needle 7391'
+  await page.locator('[data-tabout="filter-query"] input').fill(query)
+  const emptyState = page.locator('#openTabsMissions output')
+  const historyStatus = page.locator('[data-tabout="history-search-status"]')
+
+  await expect.poll(() => page.evaluate(() => (
+    (window as unknown as { __emptyCompanionSearch: { started: boolean } }).__emptyCompanionSearch.started
+  ))).toBe(true)
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'searching')
+  await expect(emptyState).toHaveCount(0)
+
+  await page.evaluate(() => {
+    (window as unknown as { __emptyCompanionSearch: { release?: () => void } }).__emptyCompanionSearch.release?.()
+  })
+  await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'ready')
+  await expect(emptyState).toContainText(`No matches for “${query}”.`)
+})
+
 test('history results do not show a previous query while the next query loads', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
@@ -2144,10 +2232,12 @@ test('failed history searches show a retryable status without becoming no matche
   })
 
   await page.locator('[data-tabout="filter-query"] input').fill('Retryable History result')
+  const globalEmptyState = page.locator('#openTabsMissions output')
   const historyStatus = page.locator('[data-tabout="history-search-status"]')
   await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'error')
   await expect(historyStatus).toContainText('History update failed')
   await expect(historyStatus).not.toContainText('No History matches')
+  await expect(globalEmptyState).toHaveCount(0)
   await expect.poll(() => historyStatus.locator('[data-tabout-part="retry-button"]').evaluate((element) => (
     getComputedStyle(element).fontSize
   ))).toBe('13px')

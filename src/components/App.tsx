@@ -901,6 +901,9 @@ export function App({
     historyRange,
     historyFilterEnabled
   })
+  const showSettledEmptyState = showPrimaryEmptyState &&
+    filterResultSearchSettled &&
+    historySearchSummary?.phase !== 'error'
 
   useLayoutEffect(() => {
     const prepared = intraCardMoveRef.current
@@ -1016,11 +1019,11 @@ export function App({
     showHistoryMatches,
     showHistoryRange,
     showOtherTabs,
-    showPrimaryEmptyState,
+    showPrimaryEmptyState: showSettledEmptyState,
     source,
     unmatchedCards,
     unmatchedMissionsRef
-  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showPrimaryEmptyState, source, unmatchedCards])
+  }), [bookmarkMatchedCards, bookmarkMatchesFlush, filter, historyMatchedCards, historyMatchesFlush, historyResultsFilter, historySearchSummary, isReady, matchedCards, otherTabsFlush, primaryMissionsEmpty, showBookmarkMatches, showHistoryMatches, showHistoryRange, showOtherTabs, showSettledEmptyState, source, unmatchedCards])
 
   useMissionOrderMemory({
     previousOrderRef,
