@@ -83,11 +83,19 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const tabsOnCreated = createEventSlot()
   const tabsOnActivated = createEventSlot()
   const tabsOnRemoved = createEventSlot()
+  const tabsOnMoved = createEventSlot()
+  const tabsOnAttached = createEventSlot()
+  const tabsOnDetached = createEventSlot()
   const tabsOnReplaced = createEventSlot()
   const tabsOnUpdated = createEventSlot()
   const windowsOnFocusChanged = createEventSlot()
+  const tabGroupsOnCreated = createEventSlot()
+  const tabGroupsOnUpdated = createEventSlot()
+  const tabGroupsOnRemoved = createEventSlot()
+  const tabGroupsOnMoved = createEventSlot()
   const commandsOnCommand = createEventSlot()
   const sessionsOnChanged = createEventSlot()
+  const storageOnChanged = createEventSlot()
 
   const initialWindowIds = [...new Set(initialTabs.map((tab) => tab.windowId))]
   const initialLastFocusedWindowId = initialTabs[0]?.windowId || 1
@@ -142,7 +150,8 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     },
     storage: {
       local: createStorageArea(storageValues.local),
-      session: createStorageArea(storageValues.session)
+      session: createStorageArea(storageValues.session),
+      onChanged: storageOnChanged.api
     },
     sessions: {
       getRecentlyClosed: async () => clone(recentlyClosed),
@@ -274,6 +283,9 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       onCreated: tabsOnCreated.api,
       onActivated: tabsOnActivated.api,
       onRemoved: tabsOnRemoved.api,
+      onMoved: tabsOnMoved.api,
+      onAttached: tabsOnAttached.api,
+      onDetached: tabsOnDetached.api,
       onReplaced: tabsOnReplaced.api,
       onUpdated: tabsOnUpdated.api
     },
@@ -313,6 +325,12 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         calls.windowCreate.push(clone(createData))
         return clone(state.windowsById[windowId])
       }
+    },
+    tabGroups: {
+      onCreated: tabGroupsOnCreated.api,
+      onUpdated: tabGroupsOnUpdated.api,
+      onRemoved: tabGroupsOnRemoved.api,
+      onMoved: tabGroupsOnMoved.api
     },
     commands: {
       onCommand: commandsOnCommand.api

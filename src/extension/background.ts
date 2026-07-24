@@ -118,11 +118,11 @@ chromeApi.windows.onFocusChanged.addListener((windowId) => {
   }
 })
 
-chromeApi.tabs.onMoved?.addListener(scheduleStartupSnapshotRefresh)
-chromeApi.tabs.onAttached?.addListener(scheduleStartupSnapshotRefresh)
-chromeApi.tabs.onDetached?.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabs.onMoved.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabs.onAttached.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabs.onDetached.addListener(scheduleStartupSnapshotRefresh)
 
-chromeApi.tabs.onReplaced?.addListener((addedTabId, removedTabId) => {
+chromeApi.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
   refreshBadge()
   return settleBackgroundTask(async () => {
     await Promise.all([
@@ -161,24 +161,24 @@ chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     scheduleStartupSnapshotRefresh()
 })
 
-chromeApi.tabGroups?.onCreated.addListener(scheduleStartupSnapshotRefresh)
-chromeApi.tabGroups?.onUpdated.addListener((group) => {
+chromeApi.tabGroups.onCreated.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabGroups.onUpdated.addListener((group) => {
   if (groupColorChanged(group)) scheduleStartupSnapshotRefresh()
 })
-chromeApi.tabGroups?.onRemoved.addListener(scheduleStartupSnapshotRefresh)
-chromeApi.tabGroups?.onMoved.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabGroups.onRemoved.addListener(scheduleStartupSnapshotRefresh)
+chromeApi.tabGroups.onMoved.addListener(scheduleStartupSnapshotRefresh)
 
-chromeApi.sessions?.onChanged?.addListener(() => {
+chromeApi.sessions.onChanged.addListener(() => {
   startupSnapshotService.sessionsChanged()
 })
 
-chrome.storage.onChanged?.addListener((changes, areaName) => {
+chrome.storage.onChanged.addListener((changes, areaName) => {
   if (startupSnapshotStorageChangesRequireRefresh(changes, areaName)) {
     void startupSnapshotService.refreshNow()
   }
 })
 
-chromeApi.commands?.onCommand.addListener((command) => {
+chromeApi.commands.onCommand.addListener((command) => {
   if (command === 'switch-to-last-tab') {
     return settleBackgroundTask(() => tabHistoryService.switchTabHistory(-1))
   } else if (command === 'switch-to-next-tab') {
@@ -190,7 +190,7 @@ chromeApi.commands?.onCommand.addListener((command) => {
   }
 })
 
-chromeApi.runtime.onMessage?.addListener((message, _sender, sendResponse) => {
+chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (
     message?.type === CLOSED_TAB_RESTORE_STATE_MESSAGE &&
     typeof message.restoreId === 'string' &&

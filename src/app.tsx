@@ -49,64 +49,54 @@ function schedulePassiveDashboardRefresh() {
   scheduleDashboardRefresh()
 }
 
-if (chrome.tabs) {
-  chrome.tabs.onCreated.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onActivated.addListener(schedulePassiveDashboardRefresh)
-  chrome.tabs.onRemoved.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onMoved.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onAttached.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onDetached.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onReplaced?.addListener(scheduleAnimatedDashboardRefresh)
-  chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
-    if (
-      changeInfo.title !== undefined ||
-      changeInfo.url !== undefined ||
-      changeInfo.favIconUrl !== undefined ||
-      changeInfo.groupId !== undefined ||
-      changeInfo.pinned !== undefined ||
-      changeInfo.discarded !== undefined ||
-      changeInfo.audible !== undefined ||
-      changeInfo.mutedInfo !== undefined ||
-      changeInfo.status !== undefined
-    )
-      scheduleDashboardRefresh({
-        animateCards:
-          (changeInfo.url !== undefined && !isTabOutDashboardUrl(changeInfo.url)) ||
-          changeInfo.groupId !== undefined ||
-          changeInfo.pinned !== undefined ||
-          changeInfo.discarded !== undefined
-      })
-  })
-}
+chrome.tabs.onCreated.addListener(scheduleAnimatedDashboardRefresh)
+chrome.tabs.onActivated.addListener(schedulePassiveDashboardRefresh)
+chrome.tabs.onRemoved.addListener(scheduleAnimatedDashboardRefresh)
+chrome.tabs.onMoved.addListener(scheduleAnimatedDashboardRefresh)
+chrome.tabs.onAttached.addListener(scheduleAnimatedDashboardRefresh)
+chrome.tabs.onDetached.addListener(scheduleAnimatedDashboardRefresh)
+chrome.tabs.onReplaced.addListener(scheduleAnimatedDashboardRefresh)
+chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
+  if (
+    changeInfo.title !== undefined ||
+    changeInfo.url !== undefined ||
+    changeInfo.favIconUrl !== undefined ||
+    changeInfo.groupId !== undefined ||
+    changeInfo.pinned !== undefined ||
+    changeInfo.discarded !== undefined ||
+    changeInfo.audible !== undefined ||
+    changeInfo.mutedInfo !== undefined ||
+    changeInfo.status !== undefined
+  )
+    scheduleDashboardRefresh({
+      animateCards:
+        (changeInfo.url !== undefined && !isTabOutDashboardUrl(changeInfo.url)) ||
+        changeInfo.groupId !== undefined ||
+        changeInfo.pinned !== undefined ||
+        changeInfo.discarded !== undefined
+    })
+})
 
-if (chrome.windows) {
-  chrome.windows.onFocusChanged.addListener(schedulePassiveDashboardRefresh)
-}
+chrome.windows.onFocusChanged.addListener(schedulePassiveDashboardRefresh)
 
-if (chrome.tabGroups) {
-  chrome.tabGroups.onCreated.addListener(schedulePassiveDashboardRefresh)
-  chrome.tabGroups.onUpdated.addListener((group) => {
-    if (groupColorChanged(group)) scheduleDashboardRefresh()
-  })
-  chrome.tabGroups.onRemoved.addListener(schedulePassiveDashboardRefresh)
-  chrome.tabGroups.onMoved.addListener(schedulePassiveDashboardRefresh)
-}
+chrome.tabGroups.onCreated.addListener(schedulePassiveDashboardRefresh)
+chrome.tabGroups.onUpdated.addListener((group) => {
+  if (groupColorChanged(group)) scheduleDashboardRefresh()
+})
+chrome.tabGroups.onRemoved.addListener(schedulePassiveDashboardRefresh)
+chrome.tabGroups.onMoved.addListener(schedulePassiveDashboardRefresh)
 
-if (chrome.bookmarks) {
-  chrome.bookmarks.onCreated.addListener(schedulePassiveDashboardRefresh)
-  chrome.bookmarks.onRemoved.addListener(schedulePassiveDashboardRefresh)
-  chrome.bookmarks.onChanged.addListener(schedulePassiveDashboardRefresh)
-  chrome.bookmarks.onMoved.addListener(schedulePassiveDashboardRefresh)
-  chrome.bookmarks.onChildrenReordered.addListener(schedulePassiveDashboardRefresh)
-  chrome.bookmarks.onImportEnded?.addListener(schedulePassiveDashboardRefresh)
-}
+chrome.bookmarks.onCreated.addListener(schedulePassiveDashboardRefresh)
+chrome.bookmarks.onRemoved.addListener(schedulePassiveDashboardRefresh)
+chrome.bookmarks.onChanged.addListener(schedulePassiveDashboardRefresh)
+chrome.bookmarks.onMoved.addListener(schedulePassiveDashboardRefresh)
+chrome.bookmarks.onChildrenReordered.addListener(schedulePassiveDashboardRefresh)
+chrome.bookmarks.onImportEnded.addListener(schedulePassiveDashboardRefresh)
 
-if (chrome.history) {
-  chrome.history.onVisited.addListener(schedulePassiveDashboardRefresh)
-  chrome.history.onVisitRemoved.addListener(schedulePassiveDashboardRefresh)
-}
+chrome.history.onVisited.addListener(schedulePassiveDashboardRefresh)
+chrome.history.onVisitRemoved.addListener(schedulePassiveDashboardRefresh)
 
-chrome.storage?.onChanged?.addListener((changes, areaName) => {
+chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && Object.prototype.hasOwnProperty.call(changes, SAVED_PAGES_STORAGE_KEY)) {
     scheduleAnimatedDashboardRefresh()
   }
