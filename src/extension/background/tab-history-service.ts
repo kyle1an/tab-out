@@ -697,8 +697,10 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
 
   async function getTabHistorySnapshotCapture(activity?: WorkingSetActivityStore | null): Promise<TabHistorySnapshotCapture> {
     const { value: capture } = await enqueueTabHistoryMutation(async (storedHistory) => {
-      const tabs = await chromeApi.tabs.query({})
-      const windows = await chromeApi.windows.getAll()
+      const [tabs, windows] = await Promise.all([
+        chromeApi.tabs.query({}),
+        chromeApi.windows.getAll()
+      ])
       const windowTypeById = mapWindowTypesById(windows)
       const existingTabs = mapTabsById(tabs)
       const identityPrunedHistory = canonicalizeGlobalHistory(

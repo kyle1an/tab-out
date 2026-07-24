@@ -173,6 +173,46 @@ test('history capture reads all tabs and windows once and returns the exact brow
   assert.equal(capture.tabHistory.activeTabId, 11)
 })
 
+test('history capture starts required browser reads together before either settles', async () => {
+  const tabs = [{ id: 11, windowId: 1, url: 'https://example.test/current', title: 'Current', active: true } as chrome.tabs.Tab]
+  const windows = [{ id: 1, focused: true, type: 'normal' } as chrome.windows.Window]
+  const chromeApi = makeChromeApi({
+    history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
+    tabs
+  })
+  const started: string[] = []
+  let resolveTabs!: (tabs: chrome.tabs.Tab[]) => void
+  let resolveWindows!: (windows: chrome.windows.Window[]) => void
+  const tabsRead = new Promise<chrome.tabs.Tab[]>((resolve) => {
+    resolveTabs = resolve
+  })
+  const windowsRead = new Promise<chrome.windows.Window[]>((resolve) => {
+    resolveWindows = resolve
+  })
+  chromeApi.tabs.query = async () => {
+    started.push('tabs')
+    return tabsRead
+  }
+  chromeApi.windows.getAll = async () => {
+    started.push('windows')
+    return windowsRead
+  }
+
+  const capturePromise = createTabHistoryService(chromeApi).getTabHistorySnapshotCapture(emptyWorkingSetActivity())
+  await new Promise<void>((resolve) => setImmediate(resolve))
+
+  try {
+    assert.deepEqual(started, ['tabs', 'windows'])
+  } finally {
+    resolveTabs(tabs)
+    resolveWindows(windows)
+  }
+
+  const capture = await capturePromise
+  assert.equal(capture.openTabsSnapshot.tabs, tabs)
+  assert.equal(capture.openTabsSnapshot.windows, windows)
+})
+
 test('history snapshot rejects unknown window state instead of returning a partial generation', async () => {
   const chromeApi = makeChromeApi({
     history: { stack: [{ windowId: 1, tabId: 11 }], index: 0 },
