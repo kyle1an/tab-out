@@ -353,6 +353,90 @@ test('dashboard repacks across viewport sizes', async ({ page }) => {
   expect(pageErrors).toEqual([])
 })
 
+for (const scenario of [
+  { label: 'wide', width: 1420, height: 900, reducedMotion: 'no-preference' as const },
+  { label: 'narrow', width: 760, height: 700, reducedMotion: 'no-preference' as const },
+  { label: 'reduced motion', width: 760, height: 700, reducedMotion: 'reduce' as const }
+]) {
+  test(`native header shadow follows the dashboard scroll position at ${scenario.label} layout`, async ({ page }) => {
+    await page.addInitScript(() => {
+      const fixtureWindow = window as typeof window & { __tabOutScrollRegionListenerCount?: number }
+      fixtureWindow.__tabOutScrollRegionListenerCount = 0
+      const nativeAddEventListener = EventTarget.prototype.addEventListener
+      EventTarget.prototype.addEventListener = function addEventListener(type, listener, options) {
+        if (
+          type === 'scroll' &&
+          this instanceof Element &&
+          this.matches('[data-tabout-part="scroll-region"]')
+        ) {
+          fixtureWindow.__tabOutScrollRegionListenerCount =
+            (fixtureWindow.__tabOutScrollRegionListenerCount ?? 0) + 1
+        }
+        return nativeAddEventListener.call(this, type, listener, options)
+      }
+    })
+    await page.setViewportSize({ width: scenario.width, height: scenario.height })
+    await page.emulateMedia({ reducedMotion: scenario.reducedMotion })
+    await page.goto('/tests/fixtures/dashboard-resize.html')
+    await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+    const header = page.locator('.pinned-top')
+    const scrollRegion = page.locator('[data-tabout-part="scroll-region"]')
+    const readShadow = () => header.evaluate((element) => {
+      const style = getComputedStyle(element, '::after')
+      return {
+        animationDuration: style.animationDuration,
+        animationTimeline: style.getPropertyValue('animation-timeline'),
+        animationTrigger: style.getPropertyValue('animation-trigger'),
+        opacity: Number(style.opacity)
+      }
+    })
+
+    expect(await scrollRegion.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+    expect(await readShadow()).toEqual({
+      animationDuration: '0.2s',
+      animationTimeline: 'auto',
+      animationTrigger: '--dashboard-scrolled play-forwards play-backwards',
+      opacity: 0
+    })
+
+    if (scenario.label === 'wide') {
+      const slowAnimationStyle = await page.addStyleTag({
+        content: '.dashboard-main > .pinned-top::after { animation-duration: 1s !important; }'
+      })
+      await expect.poll(async () => (await readShadow()).animationDuration).toBe('1s')
+      await scrollRegion.evaluate((element) => { element.scrollTop = 1 })
+      await expect.poll(async () => (await readShadow()).opacity).toBeGreaterThan(0.2)
+      const beforeReverse = (await readShadow()).opacity
+      expect(beforeReverse).toBeLessThan(1)
+
+      await scrollRegion.evaluate((element) => { element.scrollTop = 0 })
+      await expect.poll(() => page.evaluate(() => (
+        document.getAnimations().find((animation) => (
+          animation instanceof CSSAnimation && animation.animationName === 'dashboard-header-shadow'
+        ))
+          ?.playbackRate ?? null
+      ))).toBe(-1)
+      const afterReverse = (await readShadow()).opacity
+      expect(afterReverse).toBeGreaterThan(0)
+      await expect.poll(async () => (await readShadow()).opacity).toBeLessThan(afterReverse)
+      await expect.poll(async () => (await readShadow()).opacity).toBe(0)
+      await slowAnimationStyle.evaluate((element) => { element.parentNode?.removeChild(element) })
+      await expect.poll(async () => (await readShadow()).animationDuration).toBe('0.2s')
+    }
+
+    await scrollRegion.evaluate((element) => { element.scrollTop = 1 })
+    await expect.poll(async () => (await readShadow()).opacity).toBe(1)
+    await scrollRegion.evaluate((element) => { element.scrollTop = 0 })
+    await expect.poll(async () => (await readShadow()).opacity).toBe(0)
+
+    expect(await page.evaluate(() => (
+      window as typeof window & { __tabOutScrollRegionListenerCount?: number }
+    ).__tabOutScrollRegionListenerCount)).toBe(0)
+    await expect(header).not.toHaveClass(/\bis-scrolled\b/)
+  })
+}
+
 test('cardless domain headers align with their mission content', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)

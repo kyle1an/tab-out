@@ -22,7 +22,6 @@ import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderM
 import { useFilterRouting } from '../hooks/useFilterRouting'
 import { useHoverMatch } from '../hooks/useHoverMatch'
 import type { UrlPreviewStore } from '../hooks/useUrlPreview'
-import { useScrollShadow } from '../hooks/useScrollShadow'
 import { HeaderBar } from './HeaderBar'
 import { HistorySearchStatus } from './HistorySearchStatus'
 import { MissionBlock } from './MissionBlock'
@@ -459,10 +458,8 @@ type DashboardShellProps = {
   filterInput: string
   filterResultCandidates: readonly FilterResultCandidate[]
   filterResultSearchSettled: boolean
-  handleScrollRegionRef: (node: HTMLDivElement | null) => void
   historyRange: string
   isReady: boolean
-  isScrolled: boolean
   missionSections: DashboardMissionSection[]
   onCloseFiltered: () => void
   onDedupAll: () => void
@@ -490,10 +487,8 @@ function DashboardShell({
   filterInput,
   filterResultCandidates,
   filterResultSearchSettled,
-  handleScrollRegionRef,
   historyRange,
   isReady,
-  isScrolled,
   missionSections,
   onCloseFiltered,
   onDedupAll,
@@ -551,7 +546,6 @@ function DashboardShell({
           <div
             className={cn(
               'pinned-top relative z-10 flex-none mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[12px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-scrollbar-size))] pb-[12px] [--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scroll-gutter)_+_var(--dashboard-scrollbar-size))] [--header-shadow-left-reserve:56px] [--header-shadow-left-fade:18px]',
-              isScrolled && 'is-scrolled shadow-none',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
                 : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
@@ -588,7 +582,6 @@ function DashboardShell({
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'
             )}
-            ref={handleScrollRegionRef}
           >
             <DashboardMissionsList
               filter={filter}
@@ -628,7 +621,6 @@ export function App({
   const { closedTabs, dashboard, historyRange, source, sourceSelection, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
-  const { isScrolled, handleScrollRegionRef } = useScrollShadow()
   function setClosedTabs(next: readonly ClosedTabEntry[]) {
     dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
   }
@@ -1074,10 +1066,8 @@ export function App({
           filterInput={filterInput}
           filterResultCandidates={filterResultCandidates}
           filterResultSearchSettled={filterResultSearchSettled}
-          handleScrollRegionRef={handleScrollRegionRef}
           historyRange={historyRange}
           isReady={isReady}
-          isScrolled={isScrolled}
           missionSections={missionSections}
           onCloseFiltered={onCloseFiltered}
           onDedupAll={onDedupAll}

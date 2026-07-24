@@ -128,13 +128,19 @@ body {
    has-history context rules) and for arbitrary-variant selectors in
    sibling components (e.g. TabHistoryPanel's `.dashboard-shell.has-history`). */
 
+/* The trigger is scoped to each dashboard main so a future second dashboard
+   instance cannot bind its header animation to another instance's scroller. */
+.dashboard-main {
+  trigger-scope: --dashboard-scrolled;
+}
+
 /* .pinned-top own-box layout (the --header-shadow-* custom props, flex,
    position, z-index, the dashboard-main > .pinned-top margins/padding, the
-   is-bookmarks / is-scrolled / has-history overrides, and the focus-within
-   clip-path) lives as inline Tailwind utilities in App.tsx. The custom props
-   are still set there, so the ::after shadow below reads them via inheritance.
-   Only the ::after contextual-shadow painting stays in CSS — it has no utility
-   equivalent. The .pinned-top / is-scrolled classes are kept as anchors.
+   is-bookmarks / has-history overrides, and the focus-within clip-path) lives
+   as inline Tailwind utilities in App.tsx. The custom props are still set
+   there, so the ::after shadow below reads them via inheritance. Only the
+   ::after contextual-shadow painting stays in CSS — it has no utility
+   equivalent. The .pinned-top class is retained as its selector anchor.
 
    No background at rest — pinned-top blends seamlessly with the page; the
    ::after gradient is the only separation cue, shown once scrolled. */
@@ -157,7 +163,20 @@ body {
   );
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  animation: dashboard-header-shadow 0.2s ease both;
+}
+
+/* Keep the trigger out of the rule containing the animation shorthand:
+   animation resets animation-trigger, and minification may reorder declarations.
+   The more specific selector keeps the trigger authoritative after bundling. */
+.dashboard-main > .pinned-top::after {
+  animation-trigger: --dashboard-scrolled play-forwards play-backwards;
+}
+
+@keyframes dashboard-header-shadow {
+  to {
+    opacity: 1;
+  }
 }
 
 .dashboard-shell.is-bookmarks .dashboard-main > .pinned-top::after {
@@ -180,10 +199,6 @@ body {
   }
 }
 
-.pinned-top.is-scrolled::after {
-  opacity: 1;
-}
-
 /* .scroll-region own-box layout (overflow, overscroll, margins/padding,
    scrollbar-gutter) lives as inline Tailwind utilities on the element in
    App.tsx. The scrollbar itself is painted entirely by the ::-webkit-scrollbar
@@ -199,7 +214,15 @@ body {
    shared scrollbar size so this regression can't return silently.
 
    The JS-toggled card-motion-bleed animation rule (above) also has no utility
-   equivalent. The .scroll-region class anchors both. */
+   equivalent. The .scroll-region class anchors both it and the native scroll
+   trigger below. */
+
+/* The rolling Chrome support floor includes timeline triggers, which preserve
+   the 200ms time-based fade without a main-thread scroll listener. The 1px
+   boundary separates top from scrolled. */
+.scroll-region {
+  timeline-trigger: --dashboard-scrolled scroll(self block) 1px 100%;
+}
 
 .scroll-region::-webkit-scrollbar {
   width: var(--dashboard-scrollbar-size);
