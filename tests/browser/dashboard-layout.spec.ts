@@ -1422,29 +1422,18 @@ test('filter Arrow Down waits for companion hydration before moving from the fir
 
 test('filter navigation only selects progressive bookmark results after they mount', async ({ page }) => {
   await page.addInitScript(() => {
-    Object.defineProperty(window, 'IntersectionObserver', {
-      configurable: true,
-      value: undefined
-    })
-    const idleCallbacks = new Map<number, IdleRequestCallback>()
-    let nextIdleId = 1
-    window.requestIdleCallback = (callback) => {
-      const idleId = nextIdleId
-      nextIdleId += 1
-      idleCallbacks.set(idleId, callback)
-      return idleId
-    }
-    window.cancelIdleCallback = (idleId) => {
-      idleCallbacks.delete(idleId)
-    }
-    ;(window as typeof window & { __tabOutRunNextIdle?: () => boolean }).__tabOutRunNextIdle = () => {
-      const next = idleCallbacks.entries().next().value
-      if (!next) return false
-      const [idleId, callback] = next
-      idleCallbacks.delete(idleId)
-      callback({ didTimeout: false, timeRemaining: () => 50 })
-      return true
-    }
+    let intersect: (() => boolean) | undefined
+    window.IntersectionObserver = class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = () => {
+          callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+          return true
+        }
+      }
+      observe() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver
+    ;(window as typeof window & { __tabOutIntersect?: () => boolean }).__tabOutIntersect = () => intersect?.() ?? false
   })
 
   await page.goto('/tests/fixtures/dashboard-resize.html')
@@ -1474,7 +1463,7 @@ test('filter navigation only selects progressive bookmark results after they mou
   })).toBe(true)
 
   expect(await page.evaluate(() => (
-    (window as typeof window & { __tabOutRunNextIdle?: () => boolean }).__tabOutRunNextIdle?.()
+    (window as typeof window & { __tabOutIntersect?: () => boolean }).__tabOutIntersect?.()
   ))).toBe(true)
   await expect(candidates).toHaveCount(48)
   const firstNewlyMountedId = await candidates.nth(24).getAttribute('id')

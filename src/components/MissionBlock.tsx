@@ -39,24 +39,17 @@ function ProgressiveCardSentinel({ observationKey, onIntersect }: { observationK
     const sentinel = sentinelRef.current
     if (!sentinel) return
 
-    if (typeof IntersectionObserver !== 'undefined') {
-      const root = sentinel.closest<HTMLElement>('[data-tabout-part="scroll-region"]')
-      const observer = new IntersectionObserver((entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return
-        observer.disconnect()
-        onIntersect()
-      }, {
-        root,
-        rootMargin: '0px 0px 480px 0px'
-      })
-      observer.observe(sentinel)
-      return () => observer.disconnect()
-    }
-
-    // Chrome supports IntersectionObserver; retain a bounded compatibility
-    // fallback for non-browser render harnesses instead of blocking hydration.
-    const idleId = window.requestIdleCallback(onIntersect, { timeout: 160 })
-    return () => window.cancelIdleCallback(idleId)
+    const root = sentinel.closest<HTMLElement>('[data-tabout-part="scroll-region"]')
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return
+      observer.disconnect()
+      onIntersect()
+    }, {
+      root,
+      rootMargin: '0px 0px 480px 0px'
+    })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
   }, [observationKey, onIntersect])
 
   return (
