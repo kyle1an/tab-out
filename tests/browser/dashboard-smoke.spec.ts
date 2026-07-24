@@ -4247,7 +4247,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
     expression: `new Promise((resolve) => {
       const start = Date.now()
       const wait = () => {
-        const button = document.querySelector('.domain-pin-btn')
+        const button = document.querySelector('[data-tabout-part="section-pin-button"]')
         const rect = button?.getBoundingClientRect()
         if (rect && rect.width > 0 && rect.height > 0) {
           resolve({
@@ -4303,7 +4303,7 @@ async function measureActionTooltipClickClose(session: CdpSession) {
 
   const focusedAfterLeave = await evaluateWithNavigationRetry(session, {
     returnByValue: true,
-    expression: `document.activeElement?.classList.contains('domain-pin-btn') || false`
+    expression: `document.activeElement?.matches('[data-tabout-part="section-pin-button"]') || false`
   }).then((result: any) => result.result.value)
 
   return { target, first, afterLeaveTooltips, focusedAfterLeave }
@@ -6108,13 +6108,25 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
     }
   })
 
-  await page.getByRole('button', { name: 'Pin contentful.com', exact: true }).click()
+  const contentfulCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="contentful.com"]')
+  await contentfulCard.hover()
+  const contentfulMenu = contentfulCard.locator('[data-tabout-part="card-menu"]')
+  await contentfulMenu.hover()
+  await expect(contentfulMenu).toHaveAttribute('data-tabout-menu-loaded', 'true')
+  await contentfulMenu.click()
+  await page.locator('[data-slot="menu-content"]:visible [data-tabout-part="pin-button"]').click()
   await expect.poll(() => page.evaluate(() => (
     window as typeof window & { __tabOutPinWriteAudit: { writes: string[][] } }
   ).__tabOutPinWriteAudit.writes.length)).toBe(1)
-  await page.getByRole('button', { name: 'Pin suppression-smoke.example', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Unpin contentful.com', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Unpin suppression-smoke.example', exact: true })).toBeVisible()
+  const suppressionCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="suppression-smoke.example"]')
+  await suppressionCard.hover()
+  const suppressionMenu = suppressionCard.locator('[data-tabout-part="card-menu"]')
+  await suppressionMenu.hover()
+  await expect(suppressionMenu).toHaveAttribute('data-tabout-menu-loaded', 'true')
+  await suppressionMenu.click()
+  await page.locator('[data-slot="menu-content"]:visible [data-tabout-part="pin-button"]').click()
+  await expect(contentfulCard).toHaveAttribute('data-tabout-domain-pinned', 'true')
+  await expect(suppressionCard).toHaveAttribute('data-tabout-domain-pinned', 'true')
 
   await page.evaluate(() => (
     window as typeof window & { __tabOutPinWriteAudit: { releaseFirstWrite(): void } }

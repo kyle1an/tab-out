@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process'
 import test from 'node:test'
 
 import {
+  assertBrowserTestFloorMatchesPolicy,
   assertGeneratedManifestMatchesPolicy,
   chromeVersionHistoryUrl
 } from '../scripts/chrome-support.js'
@@ -15,6 +16,7 @@ import {
   type ChromeStableVersions,
   type ChromeSupportPolicy
 } from '../src/extension/chrome-support.js'
+import playwrightConfig from './playwright.config.js'
 
 const validPolicy: ChromeSupportPolicy = {
   minimumMajor: 149,
@@ -63,6 +65,28 @@ test('offline verification rejects generated manifest drift', () => {
     ),
     /pnpm build/
   )
+})
+
+test('offline verification pins browser tests to the minimum supported Chrome major', () => {
+  assert.doesNotThrow(() => assertBrowserTestFloorMatchesPolicy('149.0.7827.55', validPolicy))
+  assert.throws(
+    () => assertBrowserTestFloorMatchesPolicy('150.0.7871.0', validPolicy),
+    /bundle Chromium 149\.x/
+  )
+  assert.throws(
+    () => assertBrowserTestFloorMatchesPolicy(null, validPolicy),
+    /Update @playwright\/test/
+  )
+})
+
+test('browser harness owns its server and uses the bundled full Chromium', () => {
+  assert.equal(playwrightConfig.use?.browserName, 'chromium')
+  assert.equal(playwrightConfig.use?.channel, 'chromium')
+  const webServer = playwrightConfig.webServer
+  assert.ok(webServer && !Array.isArray(webServer))
+  assert.equal(webServer.reuseExistingServer, false)
+  assert.equal(webServer.url, `${String(playwrightConfig.use?.baseURL)}/tests/fixtures/dashboard-resize.html`)
+  assert.equal(webServer.env?.PORT, new URL(String(playwrightConfig.use?.baseURL)).port)
 })
 
 test('creates an auditable bump only when the common floor advances', () => {

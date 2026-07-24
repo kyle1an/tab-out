@@ -1,21 +1,25 @@
 import { defineConfig } from '@playwright/test'
 
+const browserTestPort = Number(process.env.TAB_OUT_PLAYWRIGHT_PORT || 8766)
+const browserTestBaseUrl = `http://127.0.0.1:${browserTestPort}`
+
 export default defineConfig({
   testDir: './browser',
   testMatch: '**/*.spec.ts',
   fullyParallel: true,
   reporter: 'line',
   use: {
-    baseURL: 'http://127.0.0.1:8765',
+    baseURL: browserTestBaseUrl,
     browserName: 'chromium',
-    channel: 'chrome',
+    channel: 'chromium',
     headless: true,
     viewport: { width: 1420, height: 900 }
   },
   webServer: {
     command: 'pnpm serve',
-    url: 'http://127.0.0.1:8765/tests/fixtures/dashboard-resize.html',
-    reuseExistingServer: !process.env.CI,
+    env: { PORT: String(browserTestPort) },
+    url: `${browserTestBaseUrl}/tests/fixtures/dashboard-resize.html`,
+    reuseExistingServer: false,
     timeout: 30_000
   }
 })

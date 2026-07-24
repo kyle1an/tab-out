@@ -125,6 +125,8 @@ pnpm verify
 
 For a faster iteration-only pass, `pnpm verify:quick` runs typechecking, lint, React Doctor, and the React Compiler baseline check in parallel. It does not build bundles or run tests, so it does not replace `pnpm verify` before committing. Nub users can run the pinned-Node form with `nub run --node verify:quick`.
 
+Before the first browser-harness run, install the pinned minimum-version browser with `pnpm exec playwright install chromium`. `pnpm test:browser` uses that bundled Chromium; real Chrome is still required to verify extension APIs, service workers, and other `chrome.*` behavior.
+
 `pnpm setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `pnpm verify` before each commit, so stale bundled output is caught before it lands.
 
 Use `pnpm build:debug` when you need a local sourcemap.

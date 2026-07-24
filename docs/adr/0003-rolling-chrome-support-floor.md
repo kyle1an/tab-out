@@ -14,7 +14,7 @@ Raising `minimum_chrome_version` is also a distribution decision: older Chrome v
 - Support the latest two Chrome Stable majors that are available on every supported Windows, macOS, and Linux architecture feed (`win`, `win64`, `win_arm64`, `mac`, `mac_arm64`, and `linux`).
 - Compute the safe common floor as `min(platform Stable majors) - 1` using Chrome's official per-platform VersionHistory API.
 - Keep `chrome-support.json` as the one tracked policy. Its `lastBumpedAt` records the last policy change; it does not determine when the network should be checked.
-- Derive Vite's `build.target` and the manifest's `minimum_chrome_version` from the policy. Do not add Browserslist until a compatibility linter or another concrete consumer needs it.
+- Derive Vite's `build.target` and the manifest's `minimum_chrome_version` from the policy. Run the Playwright harness with its bundled Chromium and require that browser's major to equal the policy floor, so browser tests exercise the oldest supported version rather than whichever Chrome is installed locally. Do not add Browserslist until a compatibility linter or another concrete consumer needs it.
 - Keep commit-time verification offline.
 - Run a fresh, fail-closed, read-only observer weekly. While the extension is unreleased, a stale result fails the workflow and directs a developer to run the reviewed bump command; it does not create commits or pull requests automatically.
 - Require the bump command to observe every platform successfully, refuse automatic downgrades, update only a changed floor, rebuild generated output, and leave staging and publishing to the developer. Git history records the observation that caused each reviewed bump.
@@ -22,6 +22,8 @@ Raising `minimum_chrome_version` is also a distribution decision: older Chrome v
 ## Consequences
 
 The declared install boundary and generated syntax/CSS target stay aligned, while ordinary commits remain independent of Chrome's network services. A platform-staggered rollout cannot prematurely raise the floor. Support updates appear as normal reviewable diffs with an audit date; Git history preserves the reviewed change.
+
+A floor bump may also require updating `@playwright/test` to a release that bundles the new minimum Chromium major before the offline consistency check passes. Real-Chrome inspection remains necessary for extension APIs and service-worker behavior; the bundled-browser lane is the deterministic floor check for the localhost harness.
 
 The weekly workflow can report a stale floor for up to seven days. Increase the observer cadence if release readiness later requires a shorter window.
 

@@ -38,8 +38,8 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 
 - `chrome-support.json` records the approved minimum Chrome major and when it last changed. The updater computes the latest-two floor as one less than the slowest Windows, macOS, or Linux Stable feed.
 - Vite's exact build target and the manifest's `minimum_chrome_version` derive from that policy. Do not add a Browserslist configuration unless a concrete compatibility tool will consume it; Browserslist is not the Vite or extension-install authority.
-- `pnpm chrome-support:check` is deterministic and offline. It validates the policy and generated manifest, and runs first in `pnpm verify` and therefore in the pre-commit hook.
-- `pnpm chrome-support:bump` forces a fresh complete platform check, updates the policy only when the common floor advances, rebuilds generated output, and checks consistency. Review the diff; the command never stages, commits, pushes, or lowers the floor.
+- `pnpm chrome-support:check` is deterministic and offline. It validates the policy, generated manifest, and the Chromium major bundled by Playwright for minimum-version browser tests; it runs first in `pnpm verify` and therefore in the pre-commit hook.
+- `pnpm chrome-support:bump` forces a fresh complete platform check, updates the policy only when the common floor advances, rebuilds generated output, and checks consistency. A floor advance also requires an `@playwright/test` release whose bundled Chromium has that major. Review the diff; the command never stages, commits, pushes, or lowers the floor.
 - `pnpm chrome-support:release-check` performs the same fresh observation without writing. The weekly read-only workflow uses it to surface a stale floor.
 - `lastBumpedAt` is audit metadata, not a reason to skip scheduled checks. See `docs/adr/0003-rolling-chrome-support-floor.md`.
 
@@ -47,6 +47,7 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 
 ```bash
 pnpm install
+pnpm exec playwright install chromium
 pnpm setup:hooks
 pnpm dev
 ```
@@ -62,7 +63,7 @@ pnpm dev
 ## Verification
 
 - Code changes: run `pnpm verify` before handoff unless there is a clear blocker.
-- UI/layout changes: run `pnpm verify`; also run `pnpm test:browser`, `pnpm verify:browser`, or perform real Chrome visual inspection when practical. If skipped, say why.
+- UI/layout changes: run `pnpm verify`; also run `pnpm test:browser`, `pnpm verify:browser`, or perform real Chrome visual inspection when practical. The Playwright harness runs its bundled Chromium at the declared minimum Chrome major, owns its local server instead of reusing another worktree's process, and accepts `TAB_OUT_PLAYWRIGHT_PORT` for concurrent worktree runs; install Chromium once with `pnpm exec playwright install chromium`. If browser verification is skipped, say why.
 - Extension API, shortcut, service-worker, tab/window, new-tab override, or focus behavior: prefer real Chrome inspection because harness tests cannot prove `chrome.*` runtime behavior.
 - Docs-only changes: focused checks are enough, such as `git diff --check -- AGENTS.md README.md`.
 - Commits: the pre-commit hook runs `pnpm verify`; enable it once per clone with `pnpm setup:hooks`.

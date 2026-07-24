@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import {
@@ -18,6 +20,7 @@ const POLICY_FILE = join(REPO_ROOT, 'chrome-support.json')
 const MANIFEST_FILE = join(REPO_ROOT, 'extension/manifest.json')
 const VERSION_HISTORY_BASE_URL = 'https://versionhistory.googleapis.com/v1/chrome/platforms'
 const VERSION_HISTORY_TIMEOUT_MS = 5_000
+const require = createRequire(import.meta.url)
 
 type ChromeSupportCommand = 'check' | 'bump' | 'release-check'
 
@@ -39,6 +42,37 @@ export function assertGeneratedManifestMatchesPolicy(
       `extension/manifest.json must set minimum_chrome_version to ${expected}; run pnpm build`
     )
   }
+}
+
+export function assertBrowserTestFloorMatchesPolicy(
+  browserVersion: unknown,
+  policy: ChromeSupportPolicy
+): void {
+  const match = typeof browserVersion === 'string'
+    ? /^(\d+)\./.exec(browserVersion)
+    : null
+  const browserMajor = match?.[1] ? Number.parseInt(match[1], 10) : null
+  if (browserMajor !== policy.minimumMajor) {
+    throw new Error(
+      `Playwright must bundle Chromium ${policy.minimumMajor}.x for minimum-version tests; ` +
+      `found ${String(browserVersion)}. Update @playwright/test to a matching release.`
+    )
+  }
+}
+
+function playwrightChromiumVersion(): unknown {
+  const playwrightTestPackage = require.resolve('@playwright/test/package.json')
+  const playwrightRequire = createRequire(playwrightTestPackage)
+  const playwrightPackage = playwrightRequire.resolve('playwright/package.json')
+  const playwrightCoreRequire = createRequire(playwrightPackage)
+  const playwrightCorePackage = playwrightCoreRequire.resolve('playwright-core/package.json')
+  const browsersFile = join(dirname(playwrightCorePackage), 'browsers.json')
+  const metadata = JSON.parse(readFileSync(browsersFile, 'utf8')) as unknown
+  if (!isRecord(metadata) || !Array.isArray(metadata.browsers)) return null
+  const chromium = metadata.browsers.find((browser) => (
+    isRecord(browser) && browser.name === 'chromium' && browser.installByDefault === true
+  ))
+  return isRecord(chromium) ? chromium.browserVersion : null
 }
 
 export function chromeVersionHistoryUrl(platform: ChromePlatform): string {
@@ -90,6 +124,7 @@ async function observeAndReport() {
 
 async function runCheck(): Promise<void> {
   await assertManifestIsCurrent()
+  assertBrowserTestFloorMatchesPolicy(playwrightChromiumVersion(), chromeSupportPolicy)
   console.log(`Chrome support is internally consistent at Chrome ${chromeSupportPolicy.minimumMajor}.`)
 }
 
