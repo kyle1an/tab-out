@@ -1472,6 +1472,70 @@ test('filter navigation only selects progressive bookmark results after they mou
   await expect(candidates.nth(24)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
 })
 
+test('filter navigation only selects progressive Tabs results after they mount', async ({ page }) => {
+  await page.addInitScript(() => {
+    let intersect: (() => boolean) | undefined
+    window.IntersectionObserver = class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = () => {
+          callback([{ isIntersecting: true } as IntersectionObserverEntry], this as unknown as IntersectionObserver)
+          return true
+        }
+      }
+      observe() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver
+    ;(window as typeof window & { __tabOutIntersect?: () => boolean }).__tabOutIntersect = () => intersect?.() ?? false
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?largeTabs=100')
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Bulk Tab')
+
+  const cards = page.locator('#openTabsMissions [data-tabout-domain^="bulk-tab-"]')
+  const candidates = page.locator('#openTabsMissions [data-tabout-filter-result]')
+  await expect(cards).toHaveCount(24)
+  await expect(candidates).toHaveCount(24)
+  const lastInitiallyMountedId = await candidates.nth(23).getAttribute('id')
+
+  for (let step = 0; step < 24; step += 1) {
+    await input.press('ArrowDown')
+  }
+  await expect(input).toHaveAttribute('aria-activedescendant', lastInitiallyMountedId ?? '')
+  await expect(candidates.nth(23)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+
+  expect(await page.evaluate(() => (
+    (window as typeof window & { __tabOutIntersect?: () => boolean }).__tabOutIntersect?.()
+  ))).toBe(true)
+  await expect(cards).toHaveCount(48)
+  await expect(candidates).toHaveCount(48)
+  const firstNewlyMountedId = await candidates.nth(24).getAttribute('id')
+  await input.press('ArrowDown')
+  await expect(input).toHaveAttribute('aria-activedescendant', firstNewlyMountedId ?? '')
+  await expect(candidates.nth(24)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+
+  await input.fill('Bulk Tab 1')
+  await expect.poll(() => cards.count()).not.toBe(48)
+  expect(await cards.count()).toBeLessThan(80)
+  expect(await cards.count()).toBeGreaterThan(0)
+  await input.fill('Bulk Tab')
+  await expect(cards).toHaveCount(24)
+
+  await page.evaluate(() => (
+    window as typeof window & { __tabOutSmokeSetBulkTabs: (count: number) => Promise<void> }
+  ).__tabOutSmokeSetBulkTabs(60))
+  await expect(cards).toHaveCount(60)
+  await page.evaluate(() => (
+    window as typeof window & { __tabOutSmokeSetBulkTabs: (count: number) => Promise<void> }
+  ).__tabOutSmokeSetBulkTabs(81))
+  await expect(cards).toHaveCount(60)
+
+  expect(await page.evaluate(() => (
+    (window as typeof window & { __tabOutIntersect?: () => boolean }).__tabOutIntersect?.()
+  ))).toBe(true)
+  await expect(cards).toHaveCount(81)
+})
+
 test('large bookmark rendering stays bounded at the top and hydrates on scroll demand', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await page.evaluate(() => {
@@ -1494,6 +1558,80 @@ test('large bookmark rendering stays bounded at the top and hydrates on scroll d
     await page.waitForTimeout(100)
   }
   await expect(cards).toHaveCount(200)
+})
+
+test('large Tabs rendering stays bounded and retains mounted depth across card reordering', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?largeTabs=200')
+
+  const cards = page.locator('#openTabsMissions [data-tabout-domain^="bulk-tab-"]')
+  await expect.poll(() => cards.count()).toBeGreaterThan(0)
+  await page.waitForTimeout(1_200)
+  expect(await cards.count()).toBeLessThanOrEqual(96)
+  expect(await page.locator('#openTabsMissions *').count()).toBeLessThanOrEqual(3_500)
+
+  const scrollRegion = page.locator('[data-tabout-part="scroll-region"]')
+  expect(await scrollRegion.evaluate((element) => element.scrollTop)).toBe(0)
+  for (let pass = 0; pass < 20 && await cards.count() < 200; pass += 1) {
+    await scrollRegion.evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    await page.waitForTimeout(100)
+  }
+  await expect(cards).toHaveCount(200)
+  const scrollTopBeforePin = await scrollRegion.evaluate((element) => element.scrollTop)
+  expect(scrollTopBeforePin).toBeGreaterThan(0)
+
+  const targetDomain = 'bulk-tab-0200.test'
+  await page.evaluate((domain) => {
+    const moveEvents: Array<{ active: boolean; moving: boolean }> = []
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        const target = record.target
+        if (!(target instanceof HTMLElement) || target.dataset.taboutDomain !== domain) continue
+        moveEvents.push({
+          active: target.classList.contains('layout-moving-active'),
+          moving: target.classList.contains('layout-moving')
+        })
+      }
+    })
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+      subtree: true
+    })
+    ;(window as typeof window & {
+      __progressiveTabsPinMove?: {
+        events: typeof moveEvents
+        observer: MutationObserver
+      }
+    }).__progressiveTabsPinMove = { events: moveEvents, observer }
+  }, targetDomain)
+
+  const target = page.locator(`[data-tabout="domain-card"][data-tabout-domain="${targetDomain}"]`)
+  await target.hover()
+  const menu = target.locator('[data-tabout-part="card-menu"]')
+  await menu.hover()
+  await expect(menu).toHaveAttribute('data-tabout-menu-loaded', 'true')
+  await menu.click()
+  await page.locator('[data-slot="menu-content"]:visible [data-tabout-part="pin-button"]').click()
+
+  await expect(target).toHaveAttribute('data-tabout-domain-pinned', 'true')
+  await expect(cards).toHaveCount(200)
+  await expect.poll(() => page.evaluate(() => (
+    window as typeof window & {
+      __progressiveTabsPinMove?: { events: Array<{ active: boolean }> }
+    }
+  ).__progressiveTabsPinMove?.events.some((event) => event.active) ?? false)).toBe(true)
+  await expect(page.locator('.layout-moving')).toHaveCount(0)
+  const scrollTopAfterPin = await scrollRegion.evaluate((element) => element.scrollTop)
+  expect(scrollTopAfterPin).toBeGreaterThanOrEqual(scrollTopBeforePin - 1)
+
+  await page.evaluate(() => {
+    const probe = (window as typeof window & {
+      __progressiveTabsPinMove?: { observer: MutationObserver }
+    }).__progressiveTabsPinMove
+    probe?.observer.disconnect()
+  })
 })
 
 test('filter keyboard selection keeps its identity when a higher-priority companion result arrives', async ({ page }) => {

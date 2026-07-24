@@ -26,6 +26,21 @@
       const tallGlyphTitleCase = fixtureParams.has('tallGlyphTitle')
       const historyReorderMotionCase = fixtureParams.has('historyReorderMotion')
       const appLoadingFaviconCase = fixtureParams.has('appLoadingFavicon')
+      const largeTabsCount = Math.max(0, Number.parseInt(fixtureParams.get('largeTabs') || '0', 10) || 0)
+      const createBulkTab = (index) => {
+        const domain = `bulk-tab-${String(index + 1).padStart(4, '0')}.test`
+        return {
+          id: 20000 + index,
+          url: `https://${domain}/docs/${index + 1}`,
+          title: `Bulk Tab ${index + 1} with enough tooltip text to exercise progressive rendering`,
+          favIconUrl: '',
+          windowId: 1,
+          active: false,
+          pinned: false,
+          groupId: -1,
+          index: 20000 + index
+        }
+      }
       const appLoadingTitle = 'Inbox (417) - example.user@example.test'
       const historyTitle = shortHistoryTitleCase
         ? 'Shop Glasses Accessories | Fast Shipping | Zenon Optical'
@@ -499,6 +514,7 @@
           groupId: -1,
           index: 1252
         },
+        ...Array.from({ length: largeTabsCount }, (_, index) => createBulkTab(index)),
         ...Array.from({ length: 24 }, (_, index) => {
           const domain = `tab-out-smoke-${String(index + 1).padStart(2, '0')}.com`
           return {
@@ -660,6 +676,15 @@
             })
           }]
         }]
+      }
+      window.__tabOutSmokeSetBulkTabs = async (count = 0) => {
+        const normalizedCount = Math.max(0, Number.parseInt(String(count), 10) || 0)
+        for (let index = tabs.length - 1; index >= 0; index -= 1) {
+          if (tabs[index].id >= 20000 && tabs[index].id < 30000) tabs.splice(index, 1)
+        }
+        tabs.push(...Array.from({ length: normalizedCount }, (_, index) => createBulkTab(index)))
+        listeners.dispatch()
+        await new Promise((resolve) => setTimeout(resolve, 350))
       }
       window.__tabOutSmokeAddPathGroupPlaceholderTabs = async () => {
         if (tabs.some((tab) => tab.id === 1223 || tab.id === 1224)) return

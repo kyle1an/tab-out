@@ -62,19 +62,25 @@ function ProgressiveCardSentinel({ observationKey, onIntersect }: { observationK
   )
 }
 
-function useProgressiveCards(
-  cards: DashboardCardEntry[],
-  enabled: boolean,
-  resetKey: string
-) {
-  const progressive = enabled && cards.length > PROGRESSIVE_CARD_THRESHOLD
+function useProgressiveCards(cards: DashboardCardEntry[], resetKey: string) {
+  const progressive = cards.length > PROGRESSIVE_CARD_THRESHOLD
   const initialVisibleCount = progressive ? Math.min(PROGRESSIVE_CARD_INITIAL_COUNT, cards.length) : cards.length
   const [state, setState] = useState({ resetKey, count: initialVisibleCount })
-  const visibleCount = state.resetKey === resetKey ? Math.min(state.count, cards.length) : initialVisibleCount
+  const visibleCount = state.resetKey === resetKey
+    ? Math.min(Math.max(state.count, initialVisibleCount), cards.length)
+    : initialVisibleCount
+
+  if (state.resetKey !== resetKey) {
+    setState({ resetKey, count: initialVisibleCount })
+  } else if (!progressive && state.count < cards.length) {
+    setState({ resetKey, count: cards.length })
+  }
 
   const appendNextChunk = useCallback(() => {
     setState((current) => {
-      const currentCount = current.resetKey === resetKey ? current.count : initialVisibleCount
+      const currentCount = current.resetKey === resetKey
+        ? Math.max(current.count, initialVisibleCount)
+        : initialVisibleCount
       const nextCount = Math.min(cards.length, currentCount + PROGRESSIVE_CARD_CHUNK_SIZE)
       if (current.resetKey === resetKey && current.count === nextCount) return current
       return {
@@ -107,11 +113,14 @@ export function MissionBlock({
   showEmptyState,
   source
 }: MissionBlockProps) {
-  const progressiveEnabled = source !== 'tabs'
+  // Tabs reorder whenever live browser state or pins change. Resetting from
+  // their first/last identities would collapse chunks the user already saw.
+  const progressiveResetKey = source === 'tabs'
+    ? `${source}:${filter}`
+    : `${source}:${filter}:${progressiveCardListKey(cards)}`
   const progressiveCards = useProgressiveCards(
     cards,
-    progressiveEnabled,
-    `${source}:${filter}:${progressiveCardListKey(cards)}`
+    progressiveResetKey
   )
 
   return (
