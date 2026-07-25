@@ -109,9 +109,9 @@ pnpm setup:hooks
 pnpm dev
 ```
 
-Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/`, `extension/base.css`, package metadata, or the manifest writer; the repo watcher runs manifest generation plus Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/filter-focus-boot.js` early-filter bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
+Load the `extension/` folder in Chrome. Keep `pnpm dev` running while editing source files under `src/`, `extension/base.css`, package metadata, or the manifest and page writers; the repo watcher runs manifest and `index.html` generation plus Vite rebuilds for the packaged `extension/dist/app.js` dashboard bundle, `extension/dist/filter-focus-boot.js` early-filter bundle, `extension/dist/assets/app.css` stylesheet bundle, and `extension/dist/background.js` service-worker bundle after each source change.
 
-Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `src/extension/manifest.ts`, permissions, or service-worker behavior. `pnpm build` regenerates `extension/manifest.json`. Changes to `src/styles/app.css` or `extension/base.css` flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Changes to `extension/index.html` still need a page or extension reload to be picked up.
+Refresh the Tab Out page to see rebuilt dashboard changes. Reload the extension in `chrome://extensions` when changing `src/extension/manifest.ts`, permissions, or service-worker behavior. `pnpm build` regenerates `extension/manifest.json` and `extension/index.html`. Changes to `src/styles/app.css` or `extension/base.css` flow through the Vite stylesheet bundle, so keep `pnpm dev` running for those too. Edit the dashboard page through `src/index-html.tsx` rather than `extension/index.html`, and reload the page or extension to pick the rebuilt HTML up.
 
 The `extension/` folder is the unpacked Chrome package surface. Runtime source lives under `src/`; generated bundles live under `extension/dist/`.
 

@@ -2312,6 +2312,23 @@ test('history range starts from the remembered preference', async ({ page }) => 
   ).toContainText('Last 3 months')
 })
 
+test('History off updates the build-time placeholder without a hydration mismatch', async ({ page }) => {
+  const hydrationErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /hydration|didn't match/i.test(message.text())) {
+      hydrationErrors.push(message.text())
+    }
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?rememberedHistoryRange=off')
+
+  await expect(page.locator('[data-tabout="filter-query"] input')).toHaveAttribute(
+    'placeholder',
+    'Filter tabs and bookmarks…'
+  )
+  expect(hydrationErrors).toEqual([])
+})
+
 test('history range remembers a new selection', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?filter=Example')
 

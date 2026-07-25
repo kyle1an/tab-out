@@ -7,7 +7,7 @@ module.exports = {
       severity: 'warn',
       from: {
         orphan: true,
-        pathNot: ['[.]d[.]ts$', '^src/extension/(?:filter-focus-boot|manifest)[.]ts$']
+        pathNot: ['[.]d[.]ts$', '^src/extension/(?:filter-focus-boot|manifest)[.]ts$', '^src/index-html[.]tsx$']
       },
       to: {}
     },

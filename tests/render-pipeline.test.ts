@@ -2083,14 +2083,25 @@ test('filter focus shortcut matches Cmd+K on macOS and Ctrl+K elsewhere', () => 
   assert.equal(isFilterFocusShortcut({ key: 'j', metaKey: true }, 'MacIntel'), false)
 })
 
-test('filter focus pending input adopts and releases the pre-app boot value', () => {
+test('filter focus pending input adopts the pre-app value and releases its listener', () => {
   const originalWindow = globalThis.window
-  globalThis.window = { __tabOutFilterFocusBootValue: 'git' } as unknown as Window & typeof globalThis
-  assert.equal(readFilterFocusPendingInput(''), 'git')
-  assert.equal(readFilterFocusPendingInput('docs'), 'git')
-  releaseFilterFocusBootValue()
-  assert.equal(readFilterFocusPendingInput('docs'), 'docs')
-  globalThis.window = originalWindow
+  let releaseCount = 0
+  const bootWindow = {
+    __tabOutFilterFocusBootValue: 'git',
+    __tabOutReleaseFilterFocusBoot: () => { releaseCount += 1 }
+  }
+  globalThis.window = bootWindow as unknown as Window & typeof globalThis
+  try {
+    assert.equal(readFilterFocusPendingInput(''), 'git')
+    assert.equal(readFilterFocusPendingInput('docs'), 'git')
+    releaseFilterFocusBootValue()
+    assert.equal(releaseCount, 1)
+    assert.equal('__tabOutFilterFocusBootValue' in bootWindow, false)
+    assert.equal('__tabOutReleaseFilterFocusBoot' in bootWindow, false)
+    assert.equal(readFilterFocusPendingInput('docs'), 'docs')
+  } finally {
+    globalThis.window = originalWindow
+  }
   assert.equal(readFilterFocusPendingInput('docs'), 'docs')
 })
 

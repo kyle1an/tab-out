@@ -1,11 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 import { isHistoryFilterEnabled } from '../extension/history-range.js'
 import { isFilterFocusShortcut } from '../extension/app-url.js'
-import { releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
 import {
   EMPTY_FILTER_RESULT_SELECTION,
   filterResultKeyboardIntent,
@@ -17,6 +16,11 @@ import {
   type FilterResultMoveDirection,
   type FilterResultSelection
 } from '../extension/filter-result-navigation.js'
+import {
+  FILTER_INPUT_CLASS,
+  FILTER_INPUT_WRAP_CLASS,
+  FILTER_PLACEHOLDER_WITH_HISTORY
+} from '@/lib/filter-input-classes'
 import { cn } from '@/lib/utils'
 import type { DashboardSource, DashboardStats } from './types'
 
@@ -40,7 +44,6 @@ interface HeaderBarProps {
   committedFilter?: string
   filterResultCandidates?: readonly FilterResultCandidate[]
   filterResultSearchSettled?: boolean
-  filterFocusRequest?: number
   historyRange: string
   onFilterChange: (filter: string) => void
   onFilterCommit?: () => void
@@ -199,7 +202,6 @@ export function HeaderBar({
   committedFilter = filter,
   filterResultCandidates = EMPTY_FILTER_RESULT_CANDIDATES,
   filterResultSearchSettled = true,
-  filterFocusRequest = 0,
   historyRange,
   onFilterChange,
   onFilterCommit,
@@ -212,7 +214,6 @@ export function HeaderBar({
   stats
 }: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const [filterFocusHandoffPending, setFilterFocusHandoffPending] = useState(filterFocusRequest > 0)
   const pendingFilterResultActionRef = useRef<PendingFilterResultAction | null>(null)
   const selectedFilterResultElementRef = useRef<HTMLElement | null>(null)
   const filterResultSelectionRef = useRef(EMPTY_FILTER_RESULT_SELECTION)
@@ -328,20 +329,6 @@ export function HeaderBar({
     source,
   ])
 
-  useLayoutEffect(() => {
-    if (filterFocusRequest <= 0) return
-    inputRef.current?.focus()
-    // The boot input has already painted this focus shadow. Keep the replacement
-    // input's first frame from fading in again during the handoff.
-    let enableTransitionFrame = requestAnimationFrame(() => {
-      enableTransitionFrame = requestAnimationFrame(() => {
-        setFilterFocusHandoffPending(false)
-      })
-    })
-    queueMicrotask(releaseFilterFocusBootValue)
-    return () => cancelAnimationFrame(enableTransitionFrame)
-  }, [filterFocusRequest])
-
   useEffect(() => {
     function onWindowKeyDown(e: KeyboardEvent) {
       if (!isFilterFocusShortcut(e, navigator.platform)) return
@@ -354,7 +341,7 @@ export function HeaderBar({
     return () => window.removeEventListener('keydown', onWindowKeyDown)
   }, [])
 
-  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
+  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? FILTER_PLACEHOLDER_WITH_HISTORY : 'Filter tabs and bookmarks…'
 
   function onFilterKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
     const intent = filterResultKeyboardIntent({
@@ -457,8 +444,7 @@ export function HeaderBar({
           <div
             data-tabout="filter-query"
             className={cn(
-              "tab-filter-wrap relative isolate inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100",
-              filterFocusHandoffPending && 'after:transition-none',
+              `tab-filter-wrap ${FILTER_INPUT_WRAP_CLASS}`,
               filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex'
             )}
           >
@@ -469,10 +455,9 @@ export function HeaderBar({
               data-tabout-part="input"
               className={cn(
                 'h-8 w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
-                'tab-filter relative z-1 box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground caret-blue-500 shadow-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
+                `tab-filter ${FILTER_INPUT_CLASS}`,
               )}
               autoComplete="off"
-              autoFocus={filterFocusRequest > 0}
               spellCheck="false"
               aria-label={filterPlaceholder}
               placeholder={filterPlaceholder}

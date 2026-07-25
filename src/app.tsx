@@ -1,5 +1,6 @@
 import './styles/app.css'
-import { mountApp } from './components/App'
+import { attachApp } from './components/App'
+import { applyAppStartup } from './app-startup.js'
 import { requestDashboardRefresh, settleDashboardRefresh } from './extension/dashboard-controller.js'
 import type { DashboardRefreshOptions } from './extension/dashboard-controller.js'
 import { groupColorChanged } from './extension/groups.js'
@@ -108,6 +109,9 @@ document.addEventListener('visibilitychange', () => {
   }
 })
 
+recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
+attachApp()
+
 async function initializeApp() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
   const historyRangePreferencePromise = loadHistoryRangePreference()
@@ -121,28 +125,28 @@ async function initializeApp() {
       snapshotHit: !!cachedStartup?.snapshot
     }
   })
-  const startupSnapshot = cachedStartup?.snapshot ?? null
-  const currentTabOutPagePromise = startupSnapshot ? getCurrentTabOutPageForStartup() : Promise.resolve(null)
+  const cachedStartupSnapshot = cachedStartup?.snapshot ?? null
+  const currentTabOutPagePromise = cachedStartupSnapshot ? getCurrentTabOutPageForStartup() : Promise.resolve(null)
   const localStateStartedAt = startupDebugNow()
   const localState = cachedStartup?.localState ?? await loadDashboardLocalState()
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
     ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
     detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
   })
-  const initialHistoryRange = await historyRangePreferencePromise
+  const historyRange = await historyRangePreferencePromise
   // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- both promises started before cached/local startup work; these awaits only join the already-running reads.
   const currentTabOutPage = await currentTabOutPagePromise
-  const fallbackStartupSnapshot = startupSnapshot && currentTabOutPage
-    ? addCurrentTabOutPageToStartupSnapshot(startupSnapshot, currentTabOutPage, localState)
-    : startupSnapshot
-  const initialStartupSnapshot = fallbackStartupSnapshot
-  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'mount-app', {
+  const fallbackStartupSnapshot = cachedStartupSnapshot && currentTabOutPage
+    ? addCurrentTabOutPageToStartupSnapshot(cachedStartupSnapshot, currentTabOutPage, localState)
+    : cachedStartupSnapshot
+  const startupSnapshot = fallbackStartupSnapshot
+  recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-update-ready', {
     detail: {
       localStateReady: !!localState,
-      startupSnapshot: !!initialStartupSnapshot
+      startupSnapshot: !!startupSnapshot
     }
   })
-  mountApp(initialStartupSnapshot, localState, initialHistoryRange)
+  applyAppStartup({ historyRange, localState, snapshot: startupSnapshot })
 }
 
 initializeApp()

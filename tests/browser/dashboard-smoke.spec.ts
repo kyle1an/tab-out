@@ -2,9 +2,15 @@ import assert from 'node:assert/strict'
 import { expect, test } from '@playwright/test'
 import type { CDPSession } from '@playwright/test'
 
-test('filter shortcut startup paints one focus-visible shadow across the boot handoff', async ({
+test('filter shortcut startup preserves the prerendered input and its focus-visible shadow', async ({
   page
 }) => {
+  const hydrationErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error' && /hydration|didn't match/i.test(message.text())) {
+      hydrationErrors.push(message.text())
+    }
+  })
   await page.addInitScript(() => {
     const focusShadowPaint = {
       owner: 'none',
@@ -12,15 +18,26 @@ test('filter shortcut startup paints one focus-visible shadow across the boot ha
       visible: false,
       blur: 0
     }
+    const startupInput = {
+      element: null as HTMLInputElement | null,
+      seeded: false
+    }
 
     function sampleFocusShadow() {
       const inputs = document.querySelectorAll<HTMLInputElement>(
-        '#filterFocusBootInput, [data-tabout="filter-query"] input'
+        '[data-tabout="filter-query"] input'
       )
       let owner = 'none'
       let blur = 0
       for (const input of inputs) {
         if (!input.matches(':focus-visible')) continue
+        if (!startupInput.seeded) {
+          startupInput.element = input
+          startupInput.seeded = true
+          input.value = 'exam'
+          input.setSelectionRange(2, 2)
+          input.dispatchEvent(new Event('input', { bubbles: true }))
+        }
         const borderLayer = input.parentElement
         if (!borderLayer) continue
         const focusLayer = getComputedStyle(borderLayer, '::after')
@@ -32,7 +49,7 @@ test('filter shortcut startup paints one focus-visible shadow across the boot ha
           ...shadowLengths.filter((_, index) => index % 3 === 2)
         ) * Number.parseFloat(focusLayer.opacity)
         if (inputBlur > blur) {
-          owner = input.id === 'filterFocusBootInput' ? 'boot' : 'app'
+          owner = 'app'
           blur = inputBlur
         }
       }
@@ -45,8 +62,13 @@ test('filter shortcut startup paints one focus-visible shadow across the boot ha
       requestAnimationFrame(sampleFocusShadow)
     }
 
-    ;(window as typeof window & { __tabOutFocusShadowPaint: typeof focusShadowPaint })
-      .__tabOutFocusShadowPaint = focusShadowPaint
+    ;(window as typeof window & {
+      __tabOutFocusShadowPaint: typeof focusShadowPaint
+      __tabOutStartupInput: typeof startupInput
+    }).__tabOutFocusShadowPaint = focusShadowPaint
+    ;(window as typeof window & {
+      __tabOutStartupInput: typeof startupInput
+    }).__tabOutStartupInput = startupInput
     requestAnimationFrame(sampleFocusShadow)
   })
   await page.route('**/extension/dist/app.js', async (route) => {
@@ -56,7 +78,24 @@ test('filter shortcut startup paints one focus-visible shadow across the boot ha
 
   await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1')
   const filterInput = page.locator('[data-tabout="filter-query"] input')
+  await expect(filterInput).toHaveValue('exam')
   await expect(filterInput).toBeFocused()
+  expect(await filterInput.evaluate((input) => {
+    const filterInputElement = input as HTMLInputElement
+    const startupInput = (window as typeof window & {
+      __tabOutStartupInput: { element: HTMLInputElement | null }
+    }).__tabOutStartupInput
+    return {
+      sameElement: startupInput.element === filterInputElement,
+      selectionEnd: filterInputElement.selectionEnd,
+      selectionStart: filterInputElement.selectionStart
+    }
+  })).toEqual({
+    sameElement: true,
+    selectionEnd: 2,
+    selectionStart: 2
+  })
+  expect(hydrationErrors).toEqual([])
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutFocusShadowPaint: { blur: number } })
       .__tabOutFocusShadowPaint.blur
@@ -137,6 +176,328 @@ test('filter shortcut startup paints one focus-visible shadow across the boot ha
   for (let index = 1; index < refocusPaint.length; index += 1) {
     expect(refocusPaint[index]!.opacity).toBeGreaterThanOrEqual(refocusPaint[index - 1]!.opacity)
   }
+})
+
+test('dashboard attaches before storage resolves and fills startup surfaces atomically', async ({ page }) => {
+  await page.addInitScript(() => {
+    const startupCommit = {
+      firstContent: null as null | {
+        domainCards: number
+        headerStats: string
+        historyEntries: number
+      }
+    }
+    ;(window as typeof window & { __tabOutStartupCommit: typeof startupCommit })
+      .__tabOutStartupCommit = startupCommit
+
+    new MutationObserver(() => {
+      if (startupCommit.firstContent) return
+      const domainCards = document.querySelectorAll('[data-tabout="domain-card"]').length
+      if (domainCards === 0) return
+      startupCommit.firstContent = {
+        domainCards,
+        headerStats: document.querySelector('[data-tabout="header-stats"]')?.textContent ?? '',
+        historyEntries: document.querySelectorAll('[data-tabout="activation-history-entry"]').length
+      }
+    }).observe(document, { childList: true, subtree: true })
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1&slowInitialStorage=1')
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
+  await expect(filterInput).toBeFocused()
+  await filterInput.fill('early')
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  })
+
+  const shellGeometry = await page.evaluate(() => {
+    function rect(selector: string) {
+      const bounds = document.querySelector(selector)?.getBoundingClientRect()
+      if (!bounds) throw new Error(`Missing startup shell landmark: ${selector}`)
+      return {
+        height: bounds.height,
+        width: bounds.width,
+        x: bounds.x,
+        y: bounds.y
+      }
+    }
+    return {
+      filter: rect('[data-tabout="filter-query"]'),
+      header: rect('.pinned-top'),
+      sourceSwitch: rect('[data-tabout="source-switch"]')
+    }
+  })
+
+  const pendingState = await page.evaluate(() => ({
+    cards: document.querySelectorAll('[data-tabout="domain-card"]').length,
+    clearVisible: getComputedStyle(document.querySelector<HTMLElement>('[data-tabout-part="clear-button"]')!).display !== 'none',
+    headerShadowOpacity: Number(getComputedStyle(document.querySelector<HTMLElement>('.pinned-top')!, '::after').opacity),
+    storagePending: (window as typeof window & { __tabOutInitialStoragePending?: boolean })
+      .__tabOutInitialStoragePending === true
+  }))
+  expect(pendingState).toEqual({
+    cards: 0,
+    clearVisible: true,
+    headerShadowOpacity: 0,
+    storagePending: true
+  })
+  await page.getByRole('button', { name: 'Clear filter' }).click()
+  await expect(filterInput).toHaveValue('')
+
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & {
+      __tabOutStartupCommit: { firstContent: unknown }
+    }).__tabOutStartupCommit.firstContent
+  )).not.toBeNull()
+  const firstContent = await page.evaluate(() =>
+    (window as typeof window & {
+      __tabOutStartupCommit: {
+        firstContent: {
+          domainCards: number
+          headerStats: string
+          historyEntries: number
+        }
+      }
+    }).__tabOutStartupCommit.firstContent
+  )
+  expect(firstContent.domainCards).toBeGreaterThan(0)
+  expect(firstContent.headerStats).toMatch(/\d+(?:\/\d+)? tabs/)
+  expect(firstContent.historyEntries).toBeGreaterThan(0)
+  expect(await page.evaluate(() => {
+    function rect(selector: string) {
+      const bounds = document.querySelector(selector)?.getBoundingClientRect()
+      if (!bounds) throw new Error(`Missing filled shell landmark: ${selector}`)
+      return {
+        height: bounds.height,
+        width: bounds.width,
+        x: bounds.x,
+        y: bounds.y
+      }
+    }
+    return {
+      filter: rect('[data-tabout="filter-query"]'),
+      header: rect('.pinned-top'),
+      sourceSwitch: rect('[data-tabout="source-switch"]')
+    }
+  })).toEqual(shellGeometry)
+})
+
+test('late startup state does not overwrite an early completed Bookmarks switch', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html?slowInitialStorage=1')
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __tabOutInitialStoragePending?: boolean })
+      .__tabOutInitialStoragePending === true
+  )).toBe(true)
+  await page.evaluate(() => {
+    ;(window as typeof window & { __tabOutSmokeSetBookmarks?: (count: number) => void })
+      .__tabOutSmokeSetBookmarks?.(3)
+  })
+
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  await bookmarksSource.click()
+  await expect(bookmarksSource).toHaveAttribute('data-active', '')
+  const bookmarkCard = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
+  )
+  await expect(bookmarkCard).toHaveCount(1)
+  await page.evaluate(() => {
+    const observed = { disappeared: false }
+    ;(window as typeof window & { __tabOutEarlyBookmarkState: typeof observed })
+      .__tabOutEarlyBookmarkState = observed
+    new MutationObserver(() => {
+      const bookmarkSelected = document.querySelector(
+        '[data-tabout="source-switch"] [data-active]'
+      )?.textContent?.trim() === 'Bookmarks'
+      const bookmarkVisible = document.querySelector(
+        '[data-tabout="domain-card"][data-tabout-domain="bookmark-smoke-0001.test"]'
+      ) !== null
+      if (bookmarkSelected && !bookmarkVisible) observed.disappeared = true
+    }).observe(document.getElementById('appRoot')!, { childList: true, subtree: true })
+  })
+
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __tabOutInitialStoragePending?: boolean })
+      .__tabOutInitialStoragePending === false
+  )).toBe(true)
+  await page.waitForTimeout(1_500)
+
+  expect(await page.evaluate(() =>
+    (window as typeof window & {
+      __tabOutEarlyBookmarkState: { disappeared: boolean }
+    }).__tabOutEarlyBookmarkState.disappeared
+  )).toBe(false)
+  await expect(bookmarkCard).toHaveCount(1)
+})
+
+test('a failed early source switch still admits the warm Tabs startup snapshot', async ({ page }) => {
+  await page.goto(
+    '/tests/fixtures/dashboard-resize.html?slowInitialStorage=1&slowStartupRefresh=1&warmStartupSnapshot=1'
+  )
+  await page.evaluate(() => {
+    const failure = {
+      reject: null as (() => void) | null,
+      started: false
+    }
+    ;(window as typeof window & { __tabOutEarlyBookmarkFailure: typeof failure })
+      .__tabOutEarlyBookmarkFailure = failure
+    window.chrome.bookmarks.getTree = () => new Promise<chrome.bookmarks.BookmarkTreeNode[]>((_, reject) => {
+      failure.started = true
+      failure.reject = () => reject(new Error('Synthetic early Bookmarks failure'))
+    })
+  })
+
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  await bookmarksSource.click()
+  await page.waitForFunction(() => (
+    (window as typeof window & {
+      __tabOutEarlyBookmarkFailure: { started: boolean }
+    }).__tabOutEarlyBookmarkFailure.started
+  ))
+  await expect(bookmarksSource).toHaveAttribute('data-active', '')
+  await page.evaluate(() => {
+    ;(window as typeof window & {
+      __tabOutEarlyBookmarkFailure: { reject: (() => void) | null }
+    }).__tabOutEarlyBookmarkFailure.reject?.()
+  })
+
+  await expect(page.getByRole('tab', { name: 'Tabs' })).toHaveAttribute('data-active', '')
+  await page.waitForFunction(() => {
+    const failure = (window as typeof window & {
+      __tabOutEarlyBookmarkFailure: { reject: (() => void) | null }
+    }).__tabOutEarlyBookmarkFailure
+    return failure.reject !== null && document.querySelector(
+      '[data-tabout="source-switch"] [data-active]'
+    )?.textContent?.trim() === 'Tabs'
+  })
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutSmokeStartupRefreshStarted?: boolean })
+      .__tabOutSmokeStartupRefreshStarted === true
+  ))
+
+  expect(await page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]'
+  ).count()).toBe(1)
+})
+
+test('cancelling an early source switch still admits the warm Tabs startup snapshot', async ({ page }) => {
+  await page.goto(
+    '/tests/fixtures/dashboard-resize.html?slowInitialStorage=1&slowStartupRefresh=1&warmStartupSnapshot=1'
+  )
+  await page.evaluate(() => {
+    const gate = { started: false }
+    ;(window as typeof window & { __tabOutEarlyBookmarkGate: typeof gate })
+      .__tabOutEarlyBookmarkGate = gate
+    window.chrome.bookmarks.getTree = () => {
+      gate.started = true
+      return new Promise<chrome.bookmarks.BookmarkTreeNode[]>(() => {})
+    }
+  })
+
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+  await bookmarksSource.click()
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutEarlyBookmarkGate: { started: boolean } })
+      .__tabOutEarlyBookmarkGate.started
+  ))
+  await tabsSource.click()
+  await expect(tabsSource).toHaveAttribute('data-active', '')
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutSmokeStartupRefreshStarted?: boolean })
+      .__tabOutSmokeStartupRefreshStarted === true
+  ))
+
+  expect(await page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]'
+  ).count()).toBe(1)
+})
+
+test('a pending source switch defers warm startup dashboard and history atomically', async ({ page }) => {
+  await page.goto(
+    '/tests/fixtures/dashboard-resize.html?slowInitialStorage=1&stalledStartupRefresh=1&warmStartupSnapshot=1&warmStartupClosedTab=1'
+  )
+  await page.evaluate(() => {
+    const gate = { started: false }
+    ;(window as typeof window & { __tabOutAtomicStartupGate: typeof gate })
+      .__tabOutAtomicStartupGate = gate
+    window.chrome.bookmarks.getTree = () => {
+      gate.started = true
+      return new Promise<chrome.bookmarks.BookmarkTreeNode[]>(() => {})
+    }
+  })
+
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+  const warmDashboardCard = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-03.com"]'
+  )
+  const warmClosedRow = page.locator('[data-tabout="activation-history-entry"]').filter({
+    hasText: 'Closed startup example'
+  })
+
+  await bookmarksSource.click()
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutAtomicStartupGate: { started: boolean } })
+      .__tabOutAtomicStartupGate.started
+  ))
+  await expect(bookmarksSource).toHaveAttribute('data-active', '')
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutSmokeStartupRefreshStarted?: boolean })
+      .__tabOutSmokeStartupRefreshStarted === true
+  ))
+  await expect.poll(() => page.evaluate(() => (
+    (window as typeof window & { __tabOutInitialStoragePending?: boolean })
+      .__tabOutInitialStoragePending === false
+  ))).toBe(true)
+
+  await expect(warmDashboardCard).toHaveCount(0)
+  await expect(warmClosedRow).toHaveCount(0)
+
+  await tabsSource.click()
+  await expect(tabsSource).toHaveAttribute('data-active', '')
+  await expect(warmDashboardCard).toHaveCount(1)
+  await expect(warmClosedRow).toHaveCount(1)
+})
+
+test('a completed live Tabs refresh stays deferred while the initial source switch is pending', async ({ page }) => {
+  await page.goto(
+    '/tests/fixtures/dashboard-resize.html?slowInitialStorage=1&slowStartupRefresh=1&warmStartupSnapshot=1'
+  )
+  await page.evaluate(() => {
+    const gate = { started: false }
+    ;(window as typeof window & { __tabOutLiveStartupGate: typeof gate })
+      .__tabOutLiveStartupGate = gate
+    window.chrome.bookmarks.getTree = () => {
+      gate.started = true
+      return new Promise<chrome.bookmarks.BookmarkTreeNode[]>(() => {})
+    }
+  })
+
+  const bookmarksSource = page.getByRole('tab', { name: 'Bookmarks' })
+  const tabsSource = page.getByRole('tab', { name: 'Tabs' })
+  const liveTabsCard = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-01.com"]'
+  )
+
+  await bookmarksSource.click()
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutLiveStartupGate: { started: boolean } })
+      .__tabOutLiveStartupGate.started
+  ))
+  await expect(bookmarksSource).toHaveAttribute('data-active', '')
+  await page.waitForFunction(() => (
+    (window as typeof window & { __tabOutSmokeStartupRefreshCompleted?: boolean })
+      .__tabOutSmokeStartupRefreshCompleted === true
+  ))
+  await page.waitForTimeout(2_000)
+
+  await expect(liveTabsCard).toHaveCount(0)
+  await expect(page.locator('[data-tabout="activation-history-entry"]')).toHaveCount(0)
+
+  await tabsSource.click()
+  await expect(tabsSource).toHaveAttribute('data-active', '')
+  await expect(liveTabsCard).toHaveCount(1)
+  expect(await page.locator('[data-tabout="activation-history-entry"]').count()).toBeGreaterThan(0)
 })
 
 const RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY = process.env.HISTORY_SCROLLBAR_OVERLAP_ONLY === '1'

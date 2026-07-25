@@ -29,6 +29,7 @@ type DashboardLocalStateStorageReconciliation = {
 }
 type UseDashboardLocalStateOptions = {
   initialState?: DashboardLocalState | null
+  waitForInitialState?: boolean
   onBeforeApplyPinnedDomains?: (options: { animate: boolean }) => void
   onBeforeApplyPinnedSections?: (sectionId: string) => void
   onBeforeApplyPinnedPageChips?: (pageChipPinId: string) => void
@@ -91,6 +92,7 @@ function changedPinnedValue(before: readonly string[], after: readonly string[])
 
 export function useDashboardLocalState({
   initialState = null,
+  waitForInitialState = false,
   onBeforeApplyPinnedDomains,
   onBeforeApplyPinnedSections,
   onBeforeApplyPinnedPageChips,
@@ -116,6 +118,20 @@ export function useDashboardLocalState({
   const onSectionPinSaveErrorRef = useRef(onSectionPinSaveError)
   const onPageChipPinSaveErrorRef = useRef(onPageChipPinSaveError)
 
+  function applyStartupState(nextState: DashboardLocalState) {
+    localMutationVersionRef.current += 1
+    domainPinWriter.replacePersisted(nextState.pinnedDomains)
+    sectionPinWriter.replacePersisted(nextState.pinnedSectionIds)
+    pageChipPinWriter.replacePersisted(nextState.pinnedPageChipIds)
+    const currentState = stateRef.current
+    if (sameDashboardLocalState(currentState, nextState)) return
+    if (!sameStringOrder(currentState.pinnedDomains, nextState.pinnedDomains)) {
+      onBeforeApplyPinnedDomainsRef.current?.({ animate: false })
+    }
+    stateRef.current = nextState
+    setState(nextState)
+  }
+
   useEffect(() => {
     onBeforeApplyPinnedDomainsRef.current = onBeforeApplyPinnedDomains
     onBeforeApplyPinnedSectionsRef.current = onBeforeApplyPinnedSections
@@ -126,6 +142,7 @@ export function useDashboardLocalState({
   }, [onBeforeApplyPinnedDomains, onBeforeApplyPinnedSections, onBeforeApplyPinnedPageChips, onDomainPinSaveError, onSectionPinSaveError, onPageChipPinSaveError])
 
   useEffect(() => {
+    if (waitForInitialState) return
     let cancelled = false
     const mutationVersion = localMutationVersionRef.current
     // A cached state keeps the first paint fast, then this post-paint read makes sure a
@@ -152,9 +169,10 @@ export function useDashboardLocalState({
     return () => {
       cancelled = true
     }
-  }, [domainPinWriter, pageChipPinWriter, sectionPinWriter])
+  }, [domainPinWriter, pageChipPinWriter, sectionPinWriter, waitForInitialState])
 
   useEffect(() => {
+    if (waitForInitialState) return
     const storageChanges = globalThis.chrome?.storage?.onChanged
     if (!storageChanges?.addListener) return
 
@@ -206,7 +224,7 @@ export function useDashboardLocalState({
 
     storageChanges.addListener(onStorageChanged)
     return () => storageChanges.removeListener(onStorageChanged)
-  }, [domainPinWriter, pageChipPinWriter, sectionPinWriter])
+  }, [domainPinWriter, pageChipPinWriter, sectionPinWriter, waitForInitialState])
 
   const pinnedSections = useMemo<ReadonlySet<string>>(
     () => state.pinnedSectionIds.length === 0 ? EMPTY_PINNED_SECTIONS : new Set(state.pinnedSectionIds),
@@ -323,6 +341,7 @@ export function useDashboardLocalState({
     pinnedDomains: state.pinnedDomains,
     pinnedSections,
     pinnedPageChips,
+    applyStartupState,
     togglePinnedDomain,
     reorderPinnedDomain,
     togglePinnedSection,

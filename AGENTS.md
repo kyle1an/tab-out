@@ -23,6 +23,7 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Runtime source lives under `src/`.
 - The unpacked Chrome extension surface is `extension/`.
 - Manifest source lives in `src/extension/manifest.ts`; `pnpm build` regenerates `extension/manifest.json`.
+- Dashboard page source lives in `src/index-html.tsx`, beside `src/app.tsx`, because it renders UI rather than extension-layer logic; `pnpm build` regenerates `extension/index.html`. It prerenders the same `AppRoot` that `src/app.tsx` attaches, so the generated shell and the client's first render share one component declaration.
 - Vite builds:
   - `src/app.tsx` to `extension/dist/app.js`
   - `src/extension/filter-focus-boot.ts` to `extension/dist/filter-focus-boot.js`
@@ -30,8 +31,8 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
 - `pnpm build` intentionally runs entry-specific Vite builds so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
 - `src/`, `extension/base.css`, `chrome-support.json`, `package.json`, `scripts/write-manifest.ts`, and `vite.config.ts` are watched by `pnpm dev`.
-- `extension/index.html` and `extension/manifest.json` are runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
-- Do not hand-edit `extension/dist/*` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
+- `extension/index.html` and `extension/manifest.json` are generated runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
+- Do not hand-edit `extension/dist/*`, `extension/index.html`, or `extension/manifest.json` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
 - When source or style changes legitimately alter `extension/dist/*`, include the generated bundle changes in the final ready-to-commit diff.
 
 ## Chrome Support Policy

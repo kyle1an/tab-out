@@ -7,18 +7,21 @@ import {
   MINIMUM_CHROME_VERSION,
   chromeSupportPolicy
 } from '../src/extension/chrome-support.js'
+import { createIndexHtml } from '../src/index-html.js'
 import { createExtensionManifest } from '../src/extension/manifest.js'
 
-test('extension HTML loads the Vite-built React entry', () => {
+test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('scripts/build-extension.mjs'), 'scripts/build-extension.mjs should build extension entries without shared runtime chunks')
   assert.ok(existsSync('scripts/check-dependency-architecture.ts'), 'dependency architecture checks should enforce baseline drift')
   assert.ok(existsSync('scripts/chrome-support.ts'), 'scripts/chrome-support.ts should maintain the rolling Chrome floor')
   assert.ok(existsSync('scripts/write-manifest.ts'), 'scripts/write-manifest.ts should generate the committed manifest package file')
+  assert.ok(existsSync('scripts/write-index-html.ts'), 'scripts/write-index-html.ts should generate the committed dashboard page')
   assert.ok(existsSync('scripts/watch-build.mjs'), 'scripts/watch-build.mjs should drive local rebuilds without watching dist output')
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
   assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
   assert.ok(existsSync('src/extension/manifest.ts'), 'src/extension/manifest.ts should be the manifest source')
+  assert.ok(existsSync('src/index-html.tsx'), 'src/index-html.tsx should be the dashboard page source')
   assert.ok(existsSync('components.json'), 'components.json should define the shadcn project setup')
   assert.ok(existsSync('.dependency-cruiser.cjs'), 'dependency-cruiser should define repository architecture rules')
   assert.ok(
@@ -93,6 +96,15 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.equal(shadcnConfig.aliases?.lib, '@/lib')
 
   const indexHtml = readFileSync('extension/index.html', 'utf8')
+  assert.equal(indexHtml, await createIndexHtml())
+  const appRootStart = indexHtml.indexOf('<div id="appRoot">') + '<div id="appRoot">'.length
+  const appRootEnd = indexHtml.indexOf('</div>\n    <!-- TAB_OUT_APP_ROOT_END -->', appRootStart)
+  assert.ok(appRootStart >= '<div id="appRoot">'.length)
+  assert.ok(appRootEnd > appRootStart)
+  const appRootContent = indexHtml.slice(appRootStart, appRootEnd)
+  assert.equal(appRootContent.trim(), appRootContent)
+  assert.match(appRootContent, /^<div data-tabout="dashboard-shell"/)
+  assert.doesNotMatch(appRootContent, /filterFocusBootShell/)
   assert.match(indexHtml, /rel="modulepreload" href="dist\/app\.js"/)
   assert.match(indexHtml, /href="dist\/assets\/app\.css"/)
   assert.match(indexHtml, /src="dist\/filter-focus-boot\.js"/)
@@ -110,10 +122,17 @@ test('extension HTML loads the Vite-built React entry', () => {
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
   const buildScript = readFileSync('scripts/build-extension.mjs', 'utf8')
   const writeManifestScript = readFileSync('scripts/write-manifest.ts', 'utf8')
+  const writeIndexHtmlScript = readFileSync('scripts/write-index-html.ts', 'utf8')
   const manifestSource = readFileSync('src/extension/manifest.ts', 'utf8')
+  const indexHtmlSource = readFileSync('src/index-html.tsx', 'utf8')
   const watchScript = readFileSync('scripts/watch-build.mjs', 'utf8')
   assert.match(writeManifestScript, /createExtensionManifest/)
   assert.match(writeManifestScript, /extension\/manifest\.json/)
+  assert.match(writeIndexHtmlScript, /createIndexHtml/)
+  assert.match(writeIndexHtmlScript, /extension\/index\.html/)
+  assert.match(indexHtmlSource, /import \{ prerender \} from 'react-dom\/static'/)
+  assert.match(indexHtmlSource, /import \{ AppRoot \} from '\.\/components\/App\.js'/)
+  assert.match(indexHtmlSource, /await prerender\(<AppRoot \/>\)/)
   assert.match(manifestSource, /chrome\.runtime\.ManifestV3/)
   assert.match(manifestSource, /minimum_chrome_version: MINIMUM_CHROME_VERSION/)
   assert.match(manifestSource, /permissions: \['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'favicon'\]/)
@@ -130,12 +149,14 @@ test('extension HTML loads the Vite-built React entry', () => {
   assert.match(viteConfig, /\{ find: '@', replacement: resolve\(__dirname, 'src'\) \}/)
   assert.match(viteConfig, /src\/extension\/background\.ts/)
   assert.match(buildScript, /write-manifest\.ts/)
+  assert.match(buildScript, /write-index-html\.ts/)
   assert.match(buildScript, /runBuild\('app'\)/)
   assert.match(buildScript, /runBuild\('background'\)/)
   assert.match(watchScript, /WATCH_TARGETS/)
   assert.match(watchScript, /package\.json/)
   assert.match(watchScript, /chrome-support\.json/)
   assert.match(watchScript, /scripts\/write-manifest\.ts/)
+  assert.match(watchScript, /scripts\/write-index-html\.ts/)
   assert.match(watchScript, /\['build'\]/)
   assert.match(watchScript, /POLL_MS/)
   assert.doesNotMatch(watchScript, /extension\/dist/)

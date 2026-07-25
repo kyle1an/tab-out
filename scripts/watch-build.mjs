@@ -7,6 +7,7 @@ const WATCH_TARGETS = [
   'extension/base.css',
   'chrome-support.json',
   'package.json',
+  'scripts/write-index-html.ts',
   'scripts/write-manifest.ts',
   'vite.config.ts'
 ]

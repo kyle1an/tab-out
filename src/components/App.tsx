@@ -1,5 +1,6 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useTransition, type ReactNode, type Ref } from 'react'
-import { createRoot } from 'react-dom/client'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, useTransition, type ReactNode, type Ref } from 'react'
+import { hydrateRoot } from 'react-dom/client'
+import { readAppStartup, readBuildTimeAppStartup, subscribeAppStartup, type AppStartupState } from '../app-startup.js'
 import { closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
@@ -117,25 +118,37 @@ type SourceSwitchSnapshotResult =
       snapshot: Awaited<ReturnType<typeof fetchDashboardSnapshot>>
     }
 type MutableValue<T> = { current: T }
-type AppDashboardState = {
+export type AppDashboardState = {
   closedTabs: readonly ClosedTabEntry[]
   dashboard: DashboardData | null
+  deferredStartupSourceFields: AppDashboardSnapshotFields | null
   historyRange: string
   source: DashboardSource
+  sourceAppliedRequestId: number
+  sourceFieldsUpdatedBeforeStartup: AppDashboardSnapshotFieldUpdates
   sourceRequestId: number
   sourceSelection: DashboardSource
+  startupStateApplied: boolean
   tabHistory: TabHistorySnapshot | null
   workingSet: WorkingSetSnapshot | null
 }
-type AppDashboardAction =
+type AppDashboardSnapshotFields = Pick<AppDashboardState, 'closedTabs' | 'dashboard' | 'tabHistory' | 'workingSet'>
+type AppDashboardSnapshotFieldUpdates = Partial<Record<keyof AppDashboardSnapshotFields, true>>
+export type AppDashboardAction =
   | { type: 'closedTabs'; closedTabs: readonly ClosedTabEntry[] }
   | { type: 'dashboard'; dashboard: DashboardData | null }
   | { type: 'historyRange'; historyRange: string }
   | { type: 'source'; source: DashboardSource }
+  | { type: 'sourceRequestCancelled' }
   | { type: 'sourceRequest'; requestId: number; source: DashboardSource }
   | { type: 'sourceRequestFailed'; requestId: number }
   | { type: 'tabHistory'; tabHistory: TabHistorySnapshot | null }
   | { type: 'workingSet'; workingSet: WorkingSetSnapshot | null }
+  | {
+      type: 'startup'
+      historyRange: string
+      snapshot: DashboardStartupSnapshot | null
+    }
   | {
       type: 'startupSnapshot'
       snapshot: DashboardStartupSnapshot
@@ -149,7 +162,7 @@ type AppDashboardAction =
       workingSet?: WorkingSetSnapshot
     }
 
-function initialAppDashboardState({
+export function initialAppDashboardState({
   historyRange,
   snapshot
 }: {
@@ -157,14 +170,50 @@ function initialAppDashboardState({
   snapshot: DashboardStartupSnapshot | null
 }): AppDashboardState {
   return {
-    closedTabs: snapshot?.closedTabs ?? [],
-    dashboard: snapshot?.dashboard ?? null,
+    ...appDashboardSnapshotFields(snapshot),
+    deferredStartupSourceFields: null,
     historyRange,
     source: 'tabs',
+    sourceAppliedRequestId: 0,
+    sourceFieldsUpdatedBeforeStartup: {},
     sourceRequestId: 0,
     sourceSelection: 'tabs',
+    startupStateApplied: snapshot !== null
+  }
+}
+
+function appDashboardSnapshotFields(
+  snapshot: DashboardStartupSnapshot | null
+): AppDashboardSnapshotFields {
+  return {
+    closedTabs: snapshot?.closedTabs ?? [],
+    dashboard: snapshot?.dashboard ?? null,
     tabHistory: snapshot?.tabHistory ?? null,
     workingSet: snapshot?.workingSet ?? null
+  }
+}
+
+function currentAppDashboardSnapshotFields(state: AppDashboardState): AppDashboardSnapshotFields {
+  return state.deferredStartupSourceFields ?? {
+    closedTabs: state.closedTabs,
+    dashboard: state.dashboard,
+    tabHistory: state.tabHistory,
+    workingSet: state.workingSet
+  }
+}
+
+function startupSnapshotFieldsAfterLiveUpdates(
+  state: AppDashboardState,
+  snapshot: DashboardStartupSnapshot | null
+): AppDashboardSnapshotFields {
+  const cachedFields = appDashboardSnapshotFields(snapshot)
+  const currentFields = currentAppDashboardSnapshotFields(state)
+  const updatedFields = state.sourceFieldsUpdatedBeforeStartup
+  return {
+    closedTabs: updatedFields.closedTabs ? currentFields.closedTabs : cachedFields.closedTabs,
+    dashboard: updatedFields.dashboard ? currentFields.dashboard : cachedFields.dashboard,
+    tabHistory: updatedFields.tabHistory ? currentFields.tabHistory : cachedFields.tabHistory,
+    workingSet: updatedFields.workingSet ? currentFields.workingSet : cachedFields.workingSet
   }
 }
 
@@ -180,12 +229,58 @@ function clearDashboardHistorySearch(dashboard: DashboardData | null, historyRan
   }
 }
 
-function appDashboardReducer(state: AppDashboardState, action: AppDashboardAction): AppDashboardState {
+function settleSourceRequestWithoutSnapshot(state: AppDashboardState): AppDashboardState {
+  const restoreDeferredStartup = state.startupStateApplied &&
+    state.source === 'tabs' &&
+    state.sourceAppliedRequestId === 0 &&
+    state.deferredStartupSourceFields
+  return {
+    ...state,
+    ...(restoreDeferredStartup ?? {}),
+    deferredStartupSourceFields: state.startupStateApplied
+      ? null
+      : state.deferredStartupSourceFields,
+    sourceRequestId: state.sourceAppliedRequestId,
+    sourceSelection: state.source
+  }
+}
+
+function updateAppDashboardSnapshotField<K extends keyof AppDashboardSnapshotFields>(
+  state: AppDashboardState,
+  field: K,
+  value: AppDashboardSnapshotFields[K]
+): AppDashboardState {
+  const sourceFieldsUpdatedBeforeStartup = state.startupStateApplied || state.sourceFieldsUpdatedBeforeStartup[field]
+    ? state.sourceFieldsUpdatedBeforeStartup
+    : { ...state.sourceFieldsUpdatedBeforeStartup, [field]: true as const }
+  const deferredStartupSourceFields = state.deferredStartupSourceFields ?? (
+    !state.startupStateApplied ? currentAppDashboardSnapshotFields(state) : null
+  )
+  if (deferredStartupSourceFields) {
+    if (
+      deferredStartupSourceFields[field] === value &&
+      deferredStartupSourceFields === state.deferredStartupSourceFields &&
+      sourceFieldsUpdatedBeforeStartup === state.sourceFieldsUpdatedBeforeStartup
+    ) return state
+    return {
+      ...state,
+      deferredStartupSourceFields: {
+        ...deferredStartupSourceFields,
+        [field]: value
+      },
+      sourceFieldsUpdatedBeforeStartup
+    }
+  }
+  if (state[field] === value && sourceFieldsUpdatedBeforeStartup === state.sourceFieldsUpdatedBeforeStartup) return state
+  return { ...state, [field]: value, sourceFieldsUpdatedBeforeStartup }
+}
+
+export function appDashboardReducer(state: AppDashboardState, action: AppDashboardAction): AppDashboardState {
   switch (action.type) {
     case 'closedTabs':
-      return state.closedTabs === action.closedTabs ? state : { ...state, closedTabs: action.closedTabs }
+      return updateAppDashboardSnapshotField(state, 'closedTabs', action.closedTabs)
     case 'dashboard':
-      return state.dashboard === action.dashboard ? state : { ...state, dashboard: action.dashboard }
+      return updateAppDashboardSnapshotField(state, 'dashboard', action.dashboard)
     case 'historyRange': {
       if (state.historyRange === action.historyRange) return state
       return {
@@ -206,32 +301,93 @@ function appDashboardReducer(state: AppDashboardState, action: AppDashboardActio
         sourceRequestId: action.requestId,
         sourceSelection: action.source
       }
-    case 'sourceRequestFailed':
-      return action.requestId === state.sourceRequestId
-        ? { ...state, sourceSelection: state.source }
-        : state
-    case 'tabHistory':
-      return state.tabHistory === action.tabHistory ? state : { ...state, tabHistory: action.tabHistory }
-    case 'workingSet':
-      return state.workingSet === action.workingSet ? state : { ...state, workingSet: action.workingSet }
-    case 'startupSnapshot':
-      return {
-        ...state,
-        closedTabs: action.snapshot.closedTabs,
-        dashboard: action.snapshot.dashboard,
-        tabHistory: action.snapshot.tabHistory,
-        workingSet: action.snapshot.workingSet
-      }
-    case 'sourceSnapshot':
+    case 'sourceRequestCancelled':
+      return settleSourceRequestWithoutSnapshot(state)
+    case 'sourceRequestFailed': {
       if (action.requestId !== state.sourceRequestId) return state
+      return settleSourceRequestWithoutSnapshot(state)
+    }
+    case 'tabHistory':
+      return updateAppDashboardSnapshotField(state, 'tabHistory', action.tabHistory)
+    case 'workingSet':
+      return updateAppDashboardSnapshotField(state, 'workingSet', action.workingSet)
+    case 'startup': {
+      const sourceSnapshotFields = startupSnapshotFieldsAfterLiveUpdates(state, action.snapshot)
+      const applySourceSnapshot = state.sourceRequestId === 0 &&
+        state.sourceAppliedRequestId === 0 &&
+        state.source === 'tabs' &&
+        state.sourceSelection === 'tabs'
+      const applySupplementalFields = state.sourceAppliedRequestId !== 0
       return {
         ...state,
+        deferredStartupSourceFields: !applySourceSnapshot && state.sourceAppliedRequestId === 0
+          ? sourceSnapshotFields
+          : null,
+        historyRange: action.historyRange,
+        sourceFieldsUpdatedBeforeStartup: {},
+        startupStateApplied: true,
+        // A source request is causally newer than the startup cache. Its
+        // completed or pending dashboard generation must survive a late cache
+        // read instead of flashing back to the Tabs startup snapshot.
+        ...(applySourceSnapshot
+          ? sourceSnapshotFields
+          : applySupplementalFields
+            ? {
+                closedTabs: sourceSnapshotFields.closedTabs,
+                tabHistory: sourceSnapshotFields.tabHistory,
+                workingSet: sourceSnapshotFields.workingSet
+              }
+            : {})
+      }
+    }
+    case 'startupSnapshot': {
+      const sourceSnapshotFields = appDashboardSnapshotFields(action.snapshot)
+      if (state.deferredStartupSourceFields && state.sourceRequestId !== state.sourceAppliedRequestId) {
+        return {
+          ...state,
+          deferredStartupSourceFields: sourceSnapshotFields
+        }
+      }
+      return {
+        ...state,
+        deferredStartupSourceFields: null,
+        ...sourceSnapshotFields
+      }
+    }
+    case 'sourceSnapshot': {
+      if (action.requestId !== state.sourceRequestId) return state
+      const sourceFieldsUpdatedBeforeStartup = state.startupStateApplied
+        ? state.sourceFieldsUpdatedBeforeStartup
+        : {
+            ...state.sourceFieldsUpdatedBeforeStartup,
+            dashboard: true as const,
+            ...(action.tabHistory !== undefined ? { tabHistory: true as const } : {}),
+            ...(action.workingSet !== undefined ? { workingSet: true as const } : {})
+          }
+      const deferredSupplementalFields = state.deferredStartupSourceFields
+        ? {
+            closedTabs: state.deferredStartupSourceFields.closedTabs,
+            ...(action.tabHistory === undefined
+              ? { tabHistory: state.deferredStartupSourceFields.tabHistory }
+              : {}),
+            ...(action.workingSet === undefined
+              ? { workingSet: state.deferredStartupSourceFields.workingSet }
+              : {})
+          }
+        : {}
+      return {
+        ...state,
+        ...deferredSupplementalFields,
         dashboard: action.dashboard,
+        deferredStartupSourceFields: null,
         source: action.source,
+        sourceAppliedRequestId: action.requestId,
+        sourceFieldsUpdatedBeforeStartup,
         sourceSelection: action.source,
         ...(action.tabHistory !== undefined ? { tabHistory: action.tabHistory } : {}),
         ...(action.workingSet !== undefined ? { workingSet: action.workingSet } : {})
       }
+    }
   }
 }
 
@@ -454,7 +610,6 @@ type DashboardShellProps = {
   commitFilterInput: () => void
   savedKeys?: readonly string[]
   filter: string
-  filterFocusRequest: number
   filterInput: string
   filterResultCandidates: readonly FilterResultCandidate[]
   filterResultSearchSettled: boolean
@@ -483,7 +638,6 @@ function DashboardShell({
   commitFilterInput,
   savedKeys,
   filter,
-  filterFocusRequest,
   filterInput,
   filterResultCandidates,
   filterResultSearchSettled,
@@ -561,7 +715,6 @@ function DashboardShell({
               committedFilter={filter}
               filterResultCandidates={filterResultCandidates}
               filterResultSearchSettled={filterResultSearchSettled}
-              filterFocusRequest={filterFocusRequest}
               historyRange={historyRange}
               onFilterChange={setFilterInput}
               onFilterCommit={commitFilterInput}
@@ -605,20 +758,18 @@ function DashboardShell({
   )
 }
 
-export function App({
-  initialHistoryRange = DEFAULT_HISTORY_RANGE,
-  initialStartupSnapshot = null,
-  initialLocalState = null
-}: {
-  initialHistoryRange?: string
-  initialStartupSnapshot?: DashboardStartupSnapshot | null
-  initialLocalState?: DashboardLocalState | null
-}) {
+export function App() {
+  const startupState = useSyncExternalStore(
+    subscribeAppStartup,
+    readAppStartup,
+    readBuildTimeAppStartup
+  )
+  const startupSnapshot = startupState?.snapshot ?? null
   const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, {
-    historyRange: initialHistoryRange,
-    snapshot: initialStartupSnapshot
+    historyRange: DEFAULT_HISTORY_RANGE,
+    snapshot: null
   }, initialAppDashboardState)
-  const { closedTabs, dashboard, historyRange, source, sourceSelection, tabHistory, workingSet } = appDashboard
+  const { closedTabs, dashboard, historyRange, source, sourceAppliedRequestId, sourceRequestId, sourceSelection, tabHistory, workingSet } = appDashboard
   const [, startSourceTransition] = useTransition()
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   function setClosedTabs(next: readonly ClosedTabEntry[]) {
@@ -735,13 +886,13 @@ export function App({
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
   }, [currentMissionContainers])
 
-  const [startupPriorityWorkingSet, setStartupPriorityWorkingSet] = useState<WorkingSetSnapshot | null>(() => initialStartupSnapshot?.workingSet ?? null)
+  const [startupPriorityWorkingSet, setStartupPriorityWorkingSet] = useState<WorkingSetSnapshot | null>(null)
   const handleBeforeFilterCommit = useCallback(function handleBeforeFilterCommit() {
     setStartupPriorityWorkingSet(null)
     filterCardMoveRef.current = true
     primeCardMoveAnimation()
   }, [primeCardMoveAnimation])
-  const { filterInput, filter, filterFocusRequest, commitFilterInput, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
+  const { filterInput, filter, commitFilterInput, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
   const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
     setFilterInput(nextFilterInput)
@@ -759,12 +910,13 @@ export function App({
     pinnedDomains,
     pinnedSections,
     pinnedPageChips,
+    applyStartupState,
     togglePinnedDomain,
     reorderPinnedDomain,
     togglePinnedSection,
     togglePinnedPageChip
   } = useDashboardLocalState({
-    initialState: initialLocalState,
+    waitForInitialState: startupState === null,
     onBeforeApplyPinnedDomains: ({ animate }) => {
       resetMissionOrder()
       if (animate) primeCardMoveAnimation()
@@ -779,6 +931,28 @@ export function App({
     onSectionPinSaveError: () => showToast('Could not save pinned section'),
     onPageChipPinSaveError: () => showToast('Could not save pinned page')
   })
+  const appliedStartupStateRef = useRef<AppStartupState | null>(null)
+  useLayoutEffect(() => {
+    if (!startupState || appliedStartupStateRef.current === startupState) return
+    appliedStartupStateRef.current = startupState
+    applyStartupState(startupState.localState)
+    dispatchAppDashboard({
+      type: 'startup',
+      historyRange: startupState.historyRange,
+      snapshot: startupState.snapshot
+    })
+  }, [applyStartupState, startupState])
+  const appliedStartupPriorityRef = useRef<AppStartupState | null>(null)
+  useLayoutEffect(() => {
+    if (!startupState ||
+      appliedStartupPriorityRef.current === startupState ||
+      sourceRequestId !== 0 ||
+      sourceAppliedRequestId !== 0 ||
+      source !== 'tabs' ||
+      sourceSelection !== 'tabs') return
+    appliedStartupPriorityRef.current = startupState
+    setStartupPriorityWorkingSet(startupState.snapshot?.workingSet ?? null)
+  }, [source, sourceAppliedRequestId, sourceRequestId, sourceSelection, startupState])
   const sourceSwitchContextRef = useRef<SourceSwitchRequestContext>({
     filter,
     historyFilterEnabled,
@@ -793,9 +967,9 @@ export function App({
       pinnedDomains: [...pinnedDomains]
     }
   }, [filter, historyFilterEnabled, historyRange, pinnedDomains])
-  const initialStartupViewModel = initialStartupSnapshot?.startupViewModel
+  const initialStartupViewModel = startupSnapshot?.startupViewModel
   const startupDashboardViewModel =
-    visibleDashboard === initialStartupSnapshot?.dashboard &&
+    visibleDashboard === startupSnapshot?.dashboard &&
     source === 'tabs' &&
     filter.trim() === '' &&
     !!effectiveStartupPriorityWorkingSet &&
@@ -916,7 +1090,7 @@ export function App({
     firstDashboardLayoutRecordedRef.current = true
     recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'first-dashboard-layout', {
       detail: {
-        cachedStartupSnapshot: !!initialStartupSnapshot,
+        cachedStartupSnapshot: !!startupSnapshot,
         domainGroups: visibleDashboard.domainGroups.length,
         filterActive: filter.trim() !== '',
         matchedCards: matchedCards.length,
@@ -926,7 +1100,7 @@ export function App({
         workingSet: visibleWorkingSet?.items.length ?? 0
       }
     })
-  }, [visibleDashboard, filter, initialStartupSnapshot, matchedCards.length, source, startupDashboardViewModel, visibleWorkingSet])
+  }, [visibleDashboard, filter, startupSnapshot, matchedCards.length, source, startupDashboardViewModel, visibleWorkingSet])
 
   useLayoutEffect(() => {
     recordStartupOrderDebugVmSample(STARTUP_ORDER_DEBUG_CAPTURE, {
@@ -958,8 +1132,11 @@ export function App({
   const onSourceChange = useCallback(function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === sourceSelection) return
     const requestId = ++sourceSwitchSeqRef.current
+    if (nextSource === source) {
+      dispatchAppDashboard({ type: 'sourceRequestCancelled' })
+      return
+    }
     dispatchAppDashboard({ type: 'sourceRequest', requestId, source: nextSource })
-    if (nextSource === source) return
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     setStartupPriorityWorkingSet(null)
     clearHoverUrlNow()
@@ -1065,7 +1242,6 @@ export function App({
           commitFilterInput={commitFilterInput}
           savedKeys={visibleDashboard?.savedKeys}
           filter={filter}
-          filterFocusRequest={filterFocusRequest}
           filterInput={filterInput}
           filterResultCandidates={filterResultCandidates}
           filterResultSearchSettled={filterResultSearchSettled}
@@ -1093,26 +1269,25 @@ export function App({
   )
 }
 
-export function mountApp(
-  initialStartupSnapshot: DashboardStartupSnapshot | null = null,
-  initialLocalState: DashboardLocalState | null = null,
-  initialHistoryRange = DEFAULT_HISTORY_RANGE
-) {
+export function AppRoot() {
+  return (
+    <AppErrorBoundary>
+      <App />
+    </AppErrorBoundary>
+  )
+}
+
+export function attachApp() {
   const el = document.getElementById('appRoot')
   if (!el) return
-  createRoot(el, {
+  hydrateRoot(el, <AppRoot />, {
     // Safety net for throws the boundary cannot catch (errors inside the
     // boundary/fallback itself) — keep the evidence in the console.
     onUncaughtError: (error, errorInfo) => {
       console.error('[tab-out] uncaught render error', error, errorInfo.componentStack)
+    },
+    onRecoverableError: (error, errorInfo) => {
+      console.error('[tab-out] recoverable hydration error', error, errorInfo.componentStack)
     }
-  }).render(
-    <AppErrorBoundary>
-      <App
-        initialHistoryRange={initialHistoryRange}
-        initialStartupSnapshot={initialStartupSnapshot}
-        initialLocalState={initialLocalState}
-      />
-    </AppErrorBoundary>
-  )
+  })
 }

@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 import { chooseMasonryLayout, shouldAnimateMasonryResize } from '../src/extension/layout.js'
+import { FILTER_INPUT_CLASS, FILTER_INPUT_WRAP_CLASS } from '../src/lib/filter-input-classes.js'
+
+// extension/index.html is React-rendered, so attribute values arrive escaped.
+function decodeHtmlAttributeEntities(html: string) {
+  return html.replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+}
 
 test('chooseMasonryLayout delays a new column until the width is near the comfort target', () => {
   const beforeThreshold = chooseMasonryLayout(1340)
@@ -172,10 +178,12 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
   const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
 
   assert.match(appSource, /type: 'startupSnapshot'/)
-  assert.match(appSource, /closedTabs: action\.snapshot\.closedTabs/)
-  assert.match(appSource, /dashboard: action\.snapshot\.dashboard/)
-  assert.match(appSource, /tabHistory: action\.snapshot\.tabHistory/)
-  assert.match(appSource, /workingSet: action\.snapshot\.workingSet/)
+  assert.match(appSource, /function appDashboardSnapshotFields/)
+  assert.match(appSource, /closedTabs: snapshot\?\.closedTabs \?\? \[\]/)
+  assert.match(appSource, /dashboard: snapshot\?\.dashboard \?\? null/)
+  assert.match(appSource, /tabHistory: snapshot\?\.tabHistory \?\? null/)
+  assert.match(appSource, /workingSet: snapshot\?\.workingSet \?\? null/)
+  assert.match(appSource, /case 'startupSnapshot': \{[\s\S]*const sourceSnapshotFields = appDashboardSnapshotFields\(action\.snapshot\)[\s\S]*state\.sourceRequestId !== state\.sourceAppliedRequestId[\s\S]*deferredStartupSourceFields: sourceSnapshotFields/)
   assert.match(refreshSource, /export async function fetchDashboardStartupSnapshot/)
   assert.match(refreshSource, /fetchClosedTabs/)
   assert.match(refreshSource, /buildWorkingSetSnapshot/)
@@ -185,6 +193,7 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
 
 test('app bootstrap paints filter shell before cached startup content and live refresh', () => {
   const appEntrySource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
+  const appStartupSource = readFileSync(new URL('../src/app-startup.ts', import.meta.url), 'utf8')
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const localStateSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
   const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
@@ -198,18 +207,37 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(appEntrySource, /loadHistoryRangePreference/)
   assert.match(appEntrySource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded'/)
   assert.match(appEntrySource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready'/)
+  assert.match(appEntrySource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app'\)\nattachApp\(\)/)
+  assert.ok(appEntrySource.indexOf('attachApp()') < appEntrySource.indexOf('async function initializeApp()'))
   assert.doesNotMatch(appEntrySource, /Promise\.all\(/)
   assert.match(appEntrySource, /const localState = cachedStartup\?\.localState \?\? await loadDashboardLocalState\(\)/)
   assert.match(appEntrySource, /addCurrentTabOutPageToStartupSnapshot/)
-  assert.match(appEntrySource, /const currentTabOutPagePromise = startupSnapshot \? getCurrentTabOutPageForStartup\(\) : Promise\.resolve\(null\)/)
-  assert.match(appEntrySource, /const initialStartupSnapshot = fallbackStartupSnapshot/)
-  assert.match(appEntrySource, /mountApp\(initialStartupSnapshot, localState, initialHistoryRange\)/)
+  assert.match(appEntrySource, /const currentTabOutPagePromise = cachedStartupSnapshot \? getCurrentTabOutPageForStartup\(\) : Promise\.resolve\(null\)/)
+  assert.match(appEntrySource, /const startupSnapshot = fallbackStartupSnapshot/)
+  assert.match(appEntrySource, /applyAppStartup\(\{ historyRange, localState, snapshot: startupSnapshot \}\)/)
+  assert.doesNotMatch(appEntrySource, /mountApp\(/)
   assert.doesNotMatch(appEntrySource, /getLiveStartupSnapshotFromBackground/)
   assert.doesNotMatch(appEntrySource, /requestDashboardRefresh\(\{ startupSnapshot: true/)
   assert.doesNotMatch(appEntrySource, /startupSnapshot: true, animateCards/)
-  assert.match(appSource, /initialStartupSnapshot/)
-  assert.match(appSource, /initialLocalState/)
-  assert.match(appSource, /initialHistoryRange/)
+  assert.match(appStartupSource, /export function applyAppStartup\(nextState: AppStartupState\)/)
+  assert.match(appStartupSource, /for \(const listener of startupListeners\) listener\(\)/)
+  assert.match(appSource, /useSyncExternalStore\([\s\S]*subscribeAppStartup,[\s\S]*readAppStartup,[\s\S]*readBuildTimeAppStartup/)
+  assert.match(appSource, /waitForInitialState: startupState === null/)
+  assert.match(appSource, /applyStartupState\(startupState\.localState\)/)
+  assert.match(appSource, /const appliedStartupPriorityRef = useRef<AppStartupState \| null>\(null\)/)
+  assert.match(appSource, /sourceRequestId !== 0 \|\|[\s\S]*sourceAppliedRequestId !== 0[\s\S]*setStartupPriorityWorkingSet\(startupState\.snapshot\?\.workingSet \?\? null\)/)
+  assert.match(appSource, /dispatchAppDashboard\(\{[\s\S]*type: 'startup',[\s\S]*historyRange: startupState\.historyRange,[\s\S]*snapshot: startupState\.snapshot/)
+  assert.match(appSource, /case 'startup': \{[\s\S]*const sourceSnapshotFields = startupSnapshotFieldsAfterLiveUpdates\(state, action\.snapshot\)[\s\S]*const applySourceSnapshot = state\.sourceRequestId === 0[\s\S]*deferredStartupSourceFields:[\s\S]*applySourceSnapshot[\s\S]*applySupplementalFields/)
+  assert.doesNotMatch(appSource, /const \{ closedTabs, \.\.\.sourceSnapshotFields \} = appDashboardSnapshotFields/)
+  assert.match(appSource, /function settleSourceRequestWithoutSnapshot[\s\S]*sourceRequestId: state\.sourceAppliedRequestId/)
+  assert.match(appSource, /function updateAppDashboardSnapshotField[\s\S]*deferredStartupSourceFields:[\s\S]*\[field\]: value/)
+  assert.match(appSource, /deferredStartupSourceFields: state\.startupStateApplied[\s\S]*state\.deferredStartupSourceFields/)
+  assert.match(appSource, /state\.deferredStartupSourceFields \?\? \([\s\S]*!state\.startupStateApplied \? currentAppDashboardSnapshotFields\(state\) : null/)
+  assert.match(appSource, /function startupSnapshotFieldsAfterLiveUpdates[\s\S]*sourceFieldsUpdatedBeforeStartup[\s\S]*updatedFields\.tabHistory \? currentFields\.tabHistory : cachedFields\.tabHistory/)
+  assert.match(appSource, /case 'sourceRequestFailed': \{[\s\S]*return settleSourceRequestWithoutSnapshot\(state\)/)
+  assert.match(appSource, /case 'sourceRequestCancelled':[\s\S]*return settleSourceRequestWithoutSnapshot\(state\)/)
+  assert.match(appSource, /case 'sourceSnapshot': \{[\s\S]*deferredSupplementalFields[\s\S]*closedTabs: state\.deferredStartupSourceFields\.closedTabs[\s\S]*action\.tabHistory === undefined[\s\S]*action\.workingSet === undefined[\s\S]*\.\.\.deferredSupplementalFields/)
+  assert.doesNotMatch(appSource, /initialStartupSnapshot|initialLocalState|initialHistoryRange/)
   assert.match(appSource, /startupRefreshRequestedRef/)
   assert.match(appSource, /firstDashboardLayoutRecordedRef/)
   assert.match(appSource, /const \[dashboardContentVisible, setDashboardContentVisible\] = useState\(false\)/)
@@ -229,6 +257,11 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(appSource, /localState,\s*pinnedDomains/)
   assert.match(appSource, /localStateLoaded,\s*localState,/)
   assert.match(localStateSource, /initialState/)
+  assert.match(localStateSource, /if \(waitForInitialState\) return/)
+  assert.match(localStateSource, /function applyStartupState\(nextState: DashboardLocalState\)/)
+  assert.doesNotMatch(localStateSource, /const applyStartupState = useCallback/)
+  assert.match(localStateSource, /localMutationVersionRef\.current \+= 1/)
+  assert.match(localStateSource, /domainPinWriter\.replacePersisted\(nextState\.pinnedDomains\)/)
   assert.doesNotMatch(localStateSource, /if \(state\.loaded\) return/)
   assert.match(localStateSource, /const localMutationVersionRef = useRef\(0\)/)
   assert.match(localStateSource, /const mutationVersion = localMutationVersionRef\.current/)
@@ -306,11 +339,13 @@ test('header controls share one size and corner radius contract', () => {
   const historyRangeSelectSource = readFileSync(new URL('../src/components/HistoryRangeSelect.tsx', import.meta.url), 'utf8')
   const headerStatsSource = readFileSync(new URL('../src/components/HeaderStats.tsx', import.meta.url), 'utf8')
   const selectSource = readFileSync(new URL('../src/components/ui/select.tsx', import.meta.url), 'utf8')
-  const tabFilterWrapClass = headerBarSource.match(/"tab-filter-wrap [^"]+"/)?.[0]
-  const tabFilterClass = headerBarSource.match(/'tab-filter [^']+'/)?.[0]
+  // The generated page prerenders this same header input, so one component owns
+  // both the pre-script shell and the attached app.
+  const tabFilterWrapClass = FILTER_INPUT_WRAP_CLASS
+  const tabFilterClass = FILTER_INPUT_CLASS
 
-  assert.ok(tabFilterWrapClass)
-  assert.ok(tabFilterClass)
+  assert.match(headerBarSource, /`tab-filter-wrap \$\{FILTER_INPUT_WRAP_CLASS\}`/)
+  assert.match(headerBarSource, /`tab-filter \$\{FILTER_INPUT_CLASS\}`/)
   assert.match(baseCss, /--header-control-height: 34px/)
   assert.match(baseCss, /--header-control-radius: 16px/)
   assert.match(baseCss, /--header-control-font-size: 13px/)
@@ -329,7 +364,7 @@ test('header controls share one size and corner radius contract', () => {
     assert.ok(tabFilterWrapClass.includes(token), token)
   }
   assert.doesNotMatch(tabFilterWrapClass, /transition-\[filter|focus-visible\)::before/)
-  assert.match(headerBarSource, /filterFocusHandoffPending && 'after:transition-none'/)
+  assert.doesNotMatch(headerBarSource, /filterFocusHandoffPending|after:transition-none|autoFocus=/)
   assert.doesNotMatch(tabFilterWrapClass, /ring-/)
   assert.ok(!tabFilterWrapClass.includes(']:shadow-['))
   for (const token of ['relative', 'z-1', 'h-(--header-control-height)', 'rounded-(--header-control-radius)', 'text-(length:--header-control-font-size)', 'leading-(--header-control-line-height)', 'caret-blue-500', 'shadow-none', '[corner-shape:squircle]']) {
@@ -339,58 +374,36 @@ test('header controls share one size and corner radius contract', () => {
   assert.doesNotMatch(tabFilterClass, /focus-visible:(?:border|ring)/)
   assert.match(headerBarSource, /border border-transparent bg-transparent/)
   assert.match(headerBarSource, /data-tabout-part="clear-button"[\s\S]*?onPointerDown=\{\(event\) => event\.preventDefault\(\)\}[\s\S]*?onClick=\{onClear\}/)
-  assert.doesNotMatch(headerBarSource, /tab-filter[^"]*md:!text|tab-filter[^"]*md:!leading/)
+  assert.doesNotMatch(tabFilterClass, /md:!text|md:!leading/)
+  assert.doesNotMatch(tabFilterClass, /rounded-\[12px\]/)
   assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
   assert.doesNotMatch(selectSource, /data-\[size=header\]|in-data-\[size=header\]|SelectPrimitive\.Popup[\s\S]*data-size=\{size\}|SelectPrimitive\.List[\s\S]*data-size=\{size\}/)
-  assert.doesNotMatch(headerBarSource, /source-switch-root[^"]*rounded-\[16px\]|tab-filter[^"]*rounded-\[12px\]|source-switch-(?:option|indicator)[^"]*_-_[457]px/)
+  assert.doesNotMatch(headerBarSource, /source-switch-root[^"]*rounded-\[16px\]|source-switch-(?:option|indicator)[^"]*_-_[457]px/)
   assert.doesNotMatch(headerStatsSource, /action-btn[^"]*rounded-\[10px\]/)
 })
 
-test('pre-app filter focus shell uses the same stable header input sizing', () => {
+test('generated dashboard page prerenders the app header contract directly', () => {
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
-  const appCssSource = readFileSync(new URL('../src/styles/app.css', import.meta.url), 'utf8')
-  const indexHtml = readFileSync(new URL('../extension/index.html', import.meta.url), 'utf8')
-  const bootRootClass = indexHtml.match(/id="filterFocusBootShell"[\s\S]*?class="([^"]+)"/)?.[1]
-  const bootShellClass = indexHtml.match(/<div class="([^"]*grid-cols-\[minmax\(calc\(220px_[^"]*)"/)?.[1]
-  const bootInputWrapClass = indexHtml.match(/class="([^"]*filter-focus-boot-input-wrap[^"]*)"/)?.[1]
-  const bootInputClass = indexHtml.match(/id="filterFocusBootInput"[\s\S]*?class="([^"]+)"/)?.[1]
+  const indexHtml = decodeHtmlAttributeEntities(
+    readFileSync(new URL('../extension/index.html', import.meta.url), 'utf8')
+  )
+  const appRootMarkup = indexHtml.match(/<!-- TAB_OUT_APP_ROOT_START -->\s*([\s\S]*?)\s*<!-- TAB_OUT_APP_ROOT_END -->/)?.[1]
+  const shellClass = appRootMarkup?.match(/data-tabout="dashboard-shell"[^>]*class="([^"]+)"/)?.[1]
+  const filterInputWrapClass = appRootMarkup?.match(/data-tabout="filter-query" class="([^"]+)"/)?.[1]
+  const filterInputClassName = appRootMarkup?.match(/data-tabout-part="input" class="([^"]+)"/)?.[1]
 
-  assert.ok(bootRootClass)
-  assert.ok(bootShellClass)
-  assert.ok(bootInputWrapClass)
-  assert.ok(bootInputClass)
-  assert.match(appCssSource, /@source "\.\.\/\.\.\/extension\/index\.html";/)
+  assert.ok(appRootMarkup)
+  assert.ok(shellClass)
+  assert.equal(filterInputWrapClass, `tab-filter-wrap ${FILTER_INPUT_WRAP_CLASS}`)
+  assert.ok(filterInputClassName?.includes(`tab-filter ${FILTER_INPUT_CLASS}`))
   assert.match(indexHtml, /placeholder="Filter tabs, bookmarks, history…"/)
-  assert.ok(bootRootClass.includes('[&[hidden]]:hidden'))
-  assert.ok(bootShellClass.includes('grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)]'))
-  for (const token of ['isolate', 'before:z-0', 'before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', 'after:z-0', 'after:border-blue-500', 'after:opacity-0', 'after:drop-shadow-md', 'after:drop-shadow-blue-500/50', 'after:transition-opacity', 'after:duration-150', 'after:[corner-shape:squircle]', '[&:has(input:focus-visible)::after]:opacity-100']) {
-    assert.ok(bootInputWrapClass.includes(token), token)
-  }
-  assert.doesNotMatch(bootInputWrapClass, /transition-\[filter|focus-visible\)::before/)
-  assert.doesNotMatch(bootInputWrapClass, /ring-/)
-  assert.ok(!bootInputWrapClass.includes(']:shadow-['))
-  for (const token of [
-    'w-[280px]',
-    'relative',
-    'z-1',
-    'h-(--header-control-height)',
-    'rounded-(--header-control-radius)',
-    'text-(length:--header-control-font-size)',
-    'leading-(--header-control-line-height)',
-    'caret-blue-500',
-    '[corner-shape:squircle]',
-    'border-transparent',
-    'shadow-none',
-    'placeholder:text-muted-foreground',
-    'min-[900px]:max-[960px]:w-[220px]',
-    'md:text-sm'
-  ]) {
-    assert.ok(bootInputClass.includes(token), token)
-  }
-  assert.doesNotMatch(bootInputClass, /drop-shadow/)
-  assert.doesNotMatch(bootInputClass, /focus-visible:(?:border|ring)/)
-  assert.doesNotMatch(bootInputClass, /md:!text|md:!leading/)
+  assert.match(appRootMarkup, /data-tabout="source-switch"/)
+  assert.match(appRootMarkup, /data-tabout="header-stats"/)
+  assert.match(appRootMarkup, /data-tabout="activation-history"/)
+  assert.doesNotMatch(appRootMarkup, /filterFocusBootShell|filterFocusBootInput|\[&\[hidden\]\]:hidden/)
+  assert.ok(shellClass.includes('grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)]'))
+  assert.ok(FILTER_INPUT_CLASS.includes('min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px]'))
   assert.doesNotMatch(baseCss, /filter-focus-boot/)
 })
 

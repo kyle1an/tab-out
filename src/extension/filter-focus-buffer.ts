@@ -1,4 +1,7 @@
-type FilterFocusBootWindow = Window & { __tabOutFilterFocusBootValue?: string }
+export type FilterFocusBootWindow = Window & {
+  __tabOutFilterFocusBootValue?: string
+  __tabOutReleaseFilterFocusBoot?: () => void
+}
 
 function bootValue(): string | null {
   if (typeof window === 'undefined') return null
@@ -11,5 +14,9 @@ export function readFilterFocusPendingInput(fallback = ''): string {
 }
 
 export function releaseFilterFocusBootValue(): void {
-  if (typeof window !== 'undefined') delete (window as FilterFocusBootWindow).__tabOutFilterFocusBootValue
+  if (typeof window === 'undefined') return
+  const bootWindow = window as FilterFocusBootWindow
+  bootWindow.__tabOutReleaseFilterFocusBoot?.()
+  delete bootWindow.__tabOutFilterFocusBootValue
+  delete bootWindow.__tabOutReleaseFilterFocusBoot
 }

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FOCUS_FILTER_PARAM, filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/app-url.js'
-import { readFilterFocusPendingInput } from '../extension/filter-focus-buffer.js'
+import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
 
 const FILTER_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
@@ -23,10 +23,6 @@ function syncFilterInputToUrl(filterInput: string) {
   if (nextUrl !== currentUrl) window.history.replaceState(null, '', nextUrl)
 }
 
-function shouldFocusFilterFromUrl() {
-  return new URLSearchParams(window.location.search).get(FOCUS_FILTER_PARAM) === '1'
-}
-
 function clearFocusFilterParam() {
   const params = new URLSearchParams(window.location.search)
   if (!params.has(FOCUS_FILTER_PARAM)) return
@@ -38,25 +34,21 @@ function clearFocusFilterParam() {
 }
 
 export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptions = {}) {
-  const [filterInput, setFilterInput] = useState(initialFilterInput)
-  const [filter, setFilter] = useState(initialFilterInput)
-  const [filterFocusRequest] = useState(() => (shouldFocusFilterFromUrl() ? 1 : 0))
+  const [filterInput, setFilterInput] = useState('')
+  const [filter, setFilter] = useState('')
   const onBeforeFilterCommitRef = useRef(onBeforeFilterCommit)
 
   useEffect(() => {
     onBeforeFilterCommitRef.current = onBeforeFilterCommit
   }, [onBeforeFilterCommit])
 
-  useEffect(() => {
-    clearFocusFilterParam()
-  }, [])
-
   useLayoutEffect(() => {
-    if (filterFocusRequest <= 0) return
     const next = initialFilterInput()
     setFilterInput(next)
     setFilter(next)
-  }, [filterFocusRequest])
+    clearFocusFilterParam()
+    queueMicrotask(releaseFilterFocusBootValue)
+  }, [])
 
   useEffect(() => {
     if (filterInput === filter) return
@@ -93,5 +85,5 @@ export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptio
     setFilter(filterInput)
   }
 
-  return { filterInput, filter, filterFocusRequest, commitFilterInput, setFilterInput }
+  return { filterInput, filter, commitFilterInput, setFilterInput }
 }

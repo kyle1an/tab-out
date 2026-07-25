@@ -30,7 +30,7 @@ export function HeaderStats({
   onCloseFiltered
 }: HeaderStatsProps) {
   if (!ready) {
-    return <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground" aria-hidden="true" />
+    return <div data-tabout="header-stats" className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground" aria-hidden="true" />
   }
 
   const canUseTabActions = dashboardSourceAllowsTabActions(source)
@@ -45,7 +45,7 @@ export function HeaderStats({
   const closeFilteredTitle = `Close ${filteredCloseCount} filtered tab${filteredCloseCount !== 1 ? 's' : ''}`
 
   return (
-    <div className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground">
+    <div data-tabout="header-stats" className="inline-flex min-h-(--header-control-height) min-w-0 items-center gap-2 text-[13px] font-normal tabular-nums text-muted-foreground">
       <span className="font-medium text-foreground">
         {tabsLabel}
         {activeTabs < totalTabs && <span className="font-normal text-muted-foreground"> ({activeTabs} active)</span>}

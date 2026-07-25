@@ -7,20 +7,9 @@
     <link rel="stylesheet" href="/extension/dist/assets/app.css" />
   </head>
   <body>
-    <div id="appRoot">
-      <div id="filterFocusBootShell" hidden>
-        <div class="filter-focus-boot-input-wrap relative isolate inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100">
-          <input
-            id="filterFocusBootInput"
-            class="relative z-1 box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-transparent bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground caret-blue-500 shadow-none transition-colors outline-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground md:text-sm"
-            type="search"
-            autocomplete="off"
-            spellcheck="false"
-            aria-label="Filter tabs"
-          />
-        </div>
-      </div>
-    </div>
+    <!-- TAB_OUT_APP_ROOT_START -->
+    <div id="appRoot"></div>
+    <!-- TAB_OUT_APP_ROOT_END -->
     <div id="toastRoot"></div>
 
     <script src="/extension/dist/filter-focus-boot.js"></script>
@@ -546,6 +535,60 @@
           }
         })]
 
+      if (fixtureParams.has('warmStartupSnapshot')) {
+        const warmChromeTab = tabs.find((tab) => tab.url === 'https://tab-out-smoke-03.com/docs/3')
+        const warmDashboardTab = {
+          id: warmChromeTab.id,
+          url: warmChromeTab.url,
+          rawUrl: warmChromeTab.url,
+          suspended: false,
+          title: warmChromeTab.title,
+          favIconUrl: '',
+          windowId: warmChromeTab.windowId,
+          active: warmChromeTab.active,
+          pinned: warmChromeTab.pinned,
+          groupId: warmChromeTab.groupId,
+          isTabOut: false,
+          isApp: false,
+          index: warmChromeTab.index
+        }
+        const savedAt = Date.now()
+        localStorageStore['tab-out:startup-snapshot:v1'] = {
+          savedAt,
+          captureStartedAt: savedAt,
+          workingSetSavedAt: savedAt,
+          snapshot: {
+            dashboard: {
+              realTabs: [warmDashboardTab],
+              domainGroups: [{
+                domain: 'tab-out-smoke-03.com',
+                tabs: [warmDashboardTab]
+              }]
+            },
+            tabHistory: null,
+            workingSet: null,
+            closedTabs: fixtureParams.has('warmStartupClosedTab')
+              ? [{
+                  sessionId: 'closed-startup-alpha',
+                  tabId: -1,
+                  url: 'https://closed-startup.example.test/docs',
+                  rawUrl: 'https://closed-startup.example.test/docs',
+                  displayUrl: 'closed-startup.example.test/docs',
+                  title: 'Closed startup example',
+                  favIconUrl: '',
+                  lastClosedAt: savedAt - 1
+                }]
+              : []
+          },
+          localState: {
+            loaded: true,
+            pinnedDomains: [],
+            pinnedSectionIds: [],
+            pinnedPageChipIds: []
+          }
+        }
+      }
+
       function workingSetActivityFromTabs() {
         const now = 1800000000000
         const records = {}
@@ -568,8 +611,10 @@
       }
 
       const slowCloseRefresh = fixtureParams.has('slowCloseRefresh')
+      const slowInitialStorage = fixtureParams.has('slowInitialStorage')
       const stalledCloseRefresh = fixtureParams.has('stalledCloseRefresh')
       const slowStartupRefresh = fixtureParams.has('slowStartupRefresh')
+      const stalledStartupRefresh = fixtureParams.has('stalledStartupRefresh')
       let delayNextDashboardServiceState = false
       let dashboardServiceStateRequestCount = 0
       const chromeApi = createFakeChromeApi({
@@ -581,9 +626,12 @@
         sendMessage: async (message) => {
           if (message?.type === 'tab-out:get-dashboard-service-state') {
             dashboardServiceStateRequestCount += 1
-            if (slowStartupRefresh && dashboardServiceStateRequestCount === 1) {
+            if ((slowStartupRefresh || stalledStartupRefresh) && dashboardServiceStateRequestCount === 1) {
               window.__tabOutSmokeStartupRefreshStarted = true
-              await new Promise((resolve) => setTimeout(resolve, 500))
+              await new Promise((resolve) => {
+                if (!stalledStartupRefresh) setTimeout(resolve, 500)
+              })
+              window.__tabOutSmokeStartupRefreshCompleted = true
             }
             if (delayNextDashboardServiceState) {
               delayNextDashboardServiceState = false
@@ -605,6 +653,22 @@
           return { ok: false }
         }
       })
+      if (slowInitialStorage) {
+        const readLocalStorage = chromeApi.storage.local.get.bind(chromeApi.storage.local)
+        let pendingInitialReads = 0
+        window.__tabOutInitialStoragePending = false
+        chromeApi.storage.local.get = async (keys) => {
+          pendingInitialReads += 1
+          window.__tabOutInitialStoragePending = true
+          await new Promise((resolve) => setTimeout(resolve, 600))
+          try {
+            return await readLocalStorage(keys)
+          } finally {
+            pendingInitialReads -= 1
+            window.__tabOutInitialStoragePending = pendingInitialReads > 0
+          }
+        }
+      }
       const removeTabs = chromeApi.tabs.remove.bind(chromeApi.tabs)
       chromeApi.tabs.remove = async (tabIds) => {
         await removeTabs(tabIds)
