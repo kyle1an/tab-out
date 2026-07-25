@@ -25,8 +25,9 @@
     "test:browser": "playwright test --config tests/playwright.config.ts tests/browser/dashboard-smoke.spec.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",
     "verify:compiler": "node scripts/react-compiler-check.mjs",
-    "verify:quick": "pnpm run \"/^(typecheck|lint|deps:architecture|react-doctor|verify:compiler)$/\"",
-    "verify": "pnpm chrome-support:check && pnpm typecheck && pnpm lint && pnpm deps:architecture && pnpm react-doctor && pnpm verify:compiler && pnpm build && pnpm verify:bundle && pnpm test",
+    "lint:tailwind": "node scripts/check-tailwind-diagnostics.mjs",
+    "verify:quick": "pnpm run \"/^(typecheck|lint|lint:tailwind|deps:architecture|react-doctor|verify:compiler)$/\"",
+    "verify": "pnpm chrome-support:check && pnpm typecheck && pnpm lint && pnpm lint:tailwind && pnpm deps:architecture && pnpm react-doctor && pnpm verify:compiler && pnpm build && pnpm verify:bundle && pnpm test",
     "verify:browser": "pnpm verify && pnpm test:browser"
   },
   "dependencies": {
@@ -49,6 +50,7 @@
     "@playwright/test": "^1.61.1",
     "@rolldown/plugin-babel": "^0.2.3",
     "@sinonjs/fake-timers": "^15.4.0",
+    "@tailwindcss/language-server": "0.16.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/chrome": "^0.1.43",
     "@types/node": "^26.1.1",

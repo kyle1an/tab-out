@@ -57,6 +57,7 @@ pnpm dev
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
 - Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
+- Use `pnpm lint:tailwind` to run the official Tailwind language server across repository source documents; it checks all enabled diagnostics, including canonical-class suggestions and CSS conflicts, and runs inside both verification pipelines.
 - Refresh the Tab Out page for dashboard/UI changes.
 - Reload the extension in `chrome://extensions` for manifest, permission, service-worker, or extension package changes.
 - Use `pnpm build:debug` only when a local sourcemap is needed.

@@ -38,7 +38,7 @@ function CardActionsMenuTriggerFallback({
       onPointerDown={onRequestOpen}
       onPointerEnter={onArm}
     >
-      <span className="icon-[lucide--ellipsis-vertical] size-[14px]" aria-hidden="true" />
+      <span className="icon-[lucide--ellipsis-vertical] size-3.5" aria-hidden="true" />
     </button>
   )
 }

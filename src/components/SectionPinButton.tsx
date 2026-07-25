@@ -32,7 +32,7 @@ export function SectionPinButton({ pinned, label, onClick, className }: SectionP
         type="button"
         data-tabout-part="section-pin-button"
         className={cn(
-          'section-pin-btn grid size-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] transition-[opacity,background,color] duration-150 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
+          'section-pin-btn grid size-4.5 flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-0 transition-[opacity,background,color] duration-150 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
           pinned
             ? 'is-pinned opacity-100 text-foreground'
             : 'opacity-0 text-muted-foreground',

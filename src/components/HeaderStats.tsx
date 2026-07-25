@@ -55,7 +55,7 @@ export function HeaderStats({
           type="button"
           data-tabout="tab-action"
           data-tabout-part="dedupe-button"
-          className="action-btn inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-[5px] rounded-(--header-control-radius) border border-(--warm-gray) bg-tab-card px-3 py-[5px] font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground"
+          className="action-btn inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-1.25 rounded-(--header-control-radius) border border-(--warm-gray) bg-tab-card px-3 py-1.25 font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground"
           onClick={onDedupAll}
         >
           Dedupe {dedupCount}
@@ -78,7 +78,7 @@ export function HeaderStats({
           type="button"
           data-tabout="tab-action"
           data-tabout-part="close-filtered-button"
-          className="action-btn close-tabs inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-[5px] rounded-(--header-control-radius) border border-[rgba(82,82,82,0.3)] bg-[rgba(82,82,82,0.04)] px-3 py-[5px] font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-(--accent-amber) transition-[color,border-color,background-color] duration-200 [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.1)]"
+          className="action-btn close-tabs inline-flex h-(--header-control-height) box-border cursor-pointer items-center gap-1.25 rounded-(--header-control-radius) border border-[rgba(82,82,82,0.3)] bg-[rgba(82,82,82,0.04)] px-3 py-1.25 font-[inherit] [font-size:var(--header-control-font-size)] leading-(--header-control-line-height) font-medium text-(--accent-amber) transition-[color,border-color,background-color] duration-200 [corner-shape:squircle] hover:border-(--accent-amber) hover:bg-[rgba(82,82,82,0.1)]"
           aria-label={closeFilteredTitle}
           onClick={onCloseFiltered}
         >

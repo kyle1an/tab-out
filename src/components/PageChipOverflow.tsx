@@ -115,7 +115,7 @@ export function usePageChipOverflow({
           className={cn(
             OVERFLOW_BUTTON_CLASS_NAME,
             expansionPhase === 'fading' && 'pointer-events-none opacity-0',
-            hiddenHoverMatched && 'page-chip-overflow-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)',
+            hiddenHoverMatched && 'page-chip-overflow-hover-match outline-1 outline-offset-1 outline-(--accent-amber)',
             hiddenSuppressionCoversAll && cn('page-chip-overflow-suppression-highlighted', titleSuppressionOverflowHighlightClass(activeSuppressionTone)),
             overflowButtonClassName
           )}

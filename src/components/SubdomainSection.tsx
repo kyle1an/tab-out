@@ -63,7 +63,7 @@ function SubdomainCloseButton({ count, onClick }: SubdomainCloseButtonProps) {
     <TooltipAnchor content={title}>
       <button
         type="button"
-        className="subdomain-close-btn grid size-[18px] flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-[0] text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
+        className="subdomain-close-btn grid size-4.5 flex-[0_0_18px] cursor-pointer place-items-center rounded-full border-0 bg-transparent p-0 leading-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/subdomain-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)"
         aria-label={title}
         onClick={onClick}
       >

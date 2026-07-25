@@ -463,9 +463,9 @@ function MissionsDivider({ action, label, status }: { action?: ReactNode; label:
     <div className={cn('missions-divider mb-4 flex items-center gap-3 text-xs font-medium tracking-[0.6px] text-muted-foreground uppercase', (action || status) && 'min-h-(--header-control-height)')}>
       <span className="missions-divider-label pointer-events-none shrink-0 whitespace-nowrap">{label}</span>
       {action && <div className="missions-divider-action shrink-0 text-foreground normal-case tracking-normal font-normal">{action}</div>}
-      <div className={cn('missions-divider-rail relative min-w-0 flex-1', status ? 'h-[38px]' : 'h-px')}>
+      <div className={cn('missions-divider-rail relative min-w-0 flex-1', status ? 'h-9.5' : 'h-px')}>
         <hr className="missions-divider-rule absolute inset-x-0 top-1/2 h-px -translate-y-1/2 border-0 bg-(--warm-gray)" />
-        {status && <div className="missions-divider-status absolute inset-y-0 right-0 z-1 w-[280px] max-w-full normal-case tracking-normal">{status}</div>}
+        {status && <div className="missions-divider-status absolute inset-y-0 right-0 z-1 w-70 max-w-full normal-case tracking-normal">{status}</div>}
       </div>
     </div>
   )
@@ -672,7 +672,7 @@ function DashboardShell({
         className={cn(
           'dashboard-shell relative z-1 mx-auto grid min-h-0 w-full max-w-(--dashboard-shell-max-width) flex-auto',
           showTabHistory
-            ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
+            ? 'has-history items-stretch gap-4 grid-cols-[minmax(calc(220px+var(--dashboard-history-edge-gutter)),calc(260px+var(--dashboard-history-edge-gutter)))_minmax(0,1fr)] max-[900px]:[--dashboard-page-gutter:20px] max-[900px]:[--dashboard-history-edge-gutter:12px] max-[900px]:[--dashboard-scrollbar-inset:var(--dashboard-scrollbar-size)] max-[900px]:[&.has-history]:grid-cols-[minmax(0,1fr)] max-[900px]:[&.has-history]:gap-0'
             : 'grid-cols-[minmax(0,1fr)]',
           source === 'bookmarks' && 'is-bookmarks'
         )}
@@ -699,11 +699,11 @@ function DashboardShell({
         >
           <div
             className={cn(
-              'pinned-top relative z-10 flex-none mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[12px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-scrollbar-size))] pb-[12px] [--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scroll-gutter)_+_var(--dashboard-scrollbar-size))] [--header-shadow-left-reserve:56px] [--header-shadow-left-fade:18px]',
+              'pinned-top relative z-10 flex-none mr-[calc(0px-var(--dashboard-edge-bleed))] pt-3 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-scrollbar-size))] pb-3 [--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-scrollbar-size))] [--header-shadow-left-reserve:56px] [--header-shadow-left-fade:18px]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))]'
                 : 'ml-[calc(0px-var(--header-shadow-left-reserve))] pl-(--header-shadow-left-reserve)',
-              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px_-_var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px_-_var(--header-shadow-left-reserve)_-_4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scrollbar-size))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pl-(--dashboard-edge-bleed) max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))]'
+              showTabHistory && '[clip-path:inset(0_0_-16px_calc(0px-var(--header-shadow-left-reserve)))] focus-within:[clip-path:inset(-4px_-4px_-16px_calc(0px-var(--header-shadow-left-reserve)-4px))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-padding-fade:calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:[--header-shadow-left-reserve:var(--dashboard-edge-bleed)] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:ml-[calc(0px-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pl-(--dashboard-edge-bleed) max-[900px]:[.dashboard-shell.has-history_.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scrollbar-size))]'
             )}
           >
             <HeaderBar
@@ -730,7 +730,7 @@ function DashboardShell({
             data-tabout-part="scroll-region"
             aria-label="Filter results"
             className={cn(
-              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-[6px] pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-[50px] [scrollbar-gutter:stable] max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
+              'scroll-region relative z-1 flex-auto min-h-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain mr-[calc(0px-var(--dashboard-edge-bleed))] pt-1.5 pr-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter))] pb-12.5 scrollbar-gutter-stable max-[900px]:[.dashboard-main_>&]:mr-[calc(var(--dashboard-scrollbar-size)-var(--dashboard-scrollbar-thumb-size)-var(--dashboard-edge-bleed))] max-[900px]:[.dashboard-main_>&]:pr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-size)+var(--dashboard-scrollbar-thumb-size))]',
               source === 'bookmarks'
                 ? 'ml-[calc(0px-var(--dashboard-edge-bleed)-var(--dashboard-card-shadow-bleed))] pl-[calc(var(--dashboard-edge-bleed)+var(--dashboard-scroll-gutter)+var(--dashboard-card-shadow-bleed))]'
                 : 'ml-[calc(0px-var(--dashboard-card-shadow-bleed))] pl-(--dashboard-card-shadow-bleed)'

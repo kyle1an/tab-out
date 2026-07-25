@@ -99,7 +99,7 @@ function PathgroupCloseButton({ count, isFirstContent = false, onClick }: Pathgr
         type="button"
         className={cn(
           'pathgroup-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/pathgroup-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-          isFirstContent && 'top-[calc(50%_-_1px)]'
+          isFirstContent && 'top-[calc(50%-1px)]'
         )}
         aria-label={title}
         onClick={onClick}
@@ -184,7 +184,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
       <div
         className={cn(
           'pathgroup-header relative flex items-center gap-1.5 pr-6 pb-0.5 pl-0',
-          isFirstContent ? 'pt-0' : 'pt-[3px]'
+          isFirstContent ? 'pt-0' : 'pt-0.75'
         )}
       >
         <TooltipAnchor content={pathgroupLabelTooltipContent}>
@@ -193,7 +193,7 @@ export function PathgroupSection({ domain = '', subdomainKey = '', websitePathKe
           </span>
         </TooltipAnchor>
         {isPR && (
-          <span className="chip-pathgroup chip-pathgroup-pr -ml-0.5 inline-block rounded-lg bg-[rgba(115,115,115,0.18)] px-[5px] text-xs font-semibold text-foreground align-baseline [corner-shape:squircle]">
+          <span className="chip-pathgroup chip-pathgroup-pr -ml-0.5 inline-block rounded-lg bg-[rgba(115,115,115,0.18)] px-1.25 text-xs font-semibold text-foreground align-baseline [corner-shape:squircle]">
             PRs
           </span>
         )}

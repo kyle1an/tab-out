@@ -126,7 +126,7 @@ test('no-op pinned domain drag targets use a muted placement state', () => {
   assert.match(domainCardSource, /data-tabout-reorder-noop/)
   assert.match(domainCardSource, /previousPinnedDomainBlock\(targetBlock\) === sourceBlock/)
   assert.match(domainCardSource, /nextPinnedDomainBlock\(targetBlock\) === sourceBlock/)
-  assert.match(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-\[2px\]/)
+  assert.match(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-0\.5/)
   assert.doesNotMatch(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-px/)
   assert.doesNotMatch(domainCardSource, /data-\[tabout-reorder-target=true\]:before:h-\[3px\]/)
   // The muted placement indicator rides on the domain block; the cardless
@@ -297,7 +297,7 @@ test('recently closed rows do not fetch independently before initial dashboard r
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
-  assert.match(source, /\[transform:translateX\(var\(--active-tab-left\)\)_translateY\(-50%\)\]/)
+  assert.match(source, /transform-\[translateX\(var\(--active-tab-left\)\)_translateY\(-50%\)\]/)
   assert.match(source, /transition-\[width,transform\] duration-200 ease-swift/)
   assert.doesNotMatch(source, /source-switch-indicator[^"]*-translate-y-1\/2/)
 })
@@ -319,13 +319,13 @@ test('header controls share one size and corner radius contract', () => {
   assert.match(baseCss, /--header-control-line-height: 16px/)
   assert.match(headerBarSource, /source-switch-root[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
   assert.match(headerBarSource, /source-switch-option[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
-  assert.match(headerBarSource, /source-switch-option[^"]*before:rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
-  assert.match(headerBarSource, /source-switch-indicator[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\]/)
+  assert.match(headerBarSource, /source-switch-option[^"]*before:rounded-\[calc\(var\(--header-control-radius\)-6px\)\]/)
+  assert.match(headerBarSource, /source-switch-indicator[^"]*rounded-\[calc\(var\(--header-control-radius\)-6px\)\]/)
   assert.match(historyRangeSelectSource, /<SelectTrigger[\s\S]*?className="[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*bg-tab-card[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.doesNotMatch(historyRangeSelectSource, /<SelectTrigger\s+className="[^"]*bg-\[rgba\(115,115,115,0\.06\)\]/)
   assert.match(historyRangeSelectSource, /<SelectContent[\s\S]*align="start"[\s\S]*className="[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(historyRangeSelectSource, /alignItemWithTrigger=\{false\}/)
-  assert.match(historyRangeSelectSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
+  assert.match(historyRangeSelectSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)-6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.doesNotMatch(historyRangeSelectSource, /aria-selected:bg-accent|aria-selected:text-accent-foreground/)
   for (const token of ['isolate', 'before:z-0', 'before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', 'after:z-0', 'after:border-blue-500', 'after:opacity-0', 'after:drop-shadow-md', 'after:drop-shadow-blue-500/50', 'after:transition-opacity', 'after:duration-150', 'after:[corner-shape:squircle]', '[&:has(input:focus-visible)::after]:opacity-100']) {
     assert.ok(tabFilterWrapClass.includes(token), token)
@@ -404,7 +404,7 @@ test('dashboard edge gutters are owned by panes instead of the shell', () => {
   // has-history shell is a two-column grid sized off the history edge gutter.
   assert.match(
     shellHistoryBranch[1],
-    /grid-cols-\[minmax\(calc\(220px_\+_var\(--dashboard-history-edge-gutter\)\),calc\(260px_\+_var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/
+    /grid-cols-\[minmax\(calc\(220px\+var\(--dashboard-history-edge-gutter\)\),calc\(260px\+var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/
   )
 
   // The history panel keeps its own edge gutter, never the page gutter.

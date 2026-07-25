@@ -1070,7 +1070,7 @@ function HistoryEntryMarkerCell({ indexLabel, isIndexHighlighted }: HistoryEntry
     <span
       data-tabout-part="history-entry-marker"
       className={cn(
-        'mt-[5px] inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-muted-foreground group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
+        'mt-1.25 inline-flex h-4 w-5.5 flex-none items-center justify-end gap-px bg-transparent text-xs font-medium tabular-nums text-muted-foreground group-hover/history-row:text-[rgba(64,64,64,0.76)] group-focus-within/history-row:text-[rgba(64,64,64,0.76)]',
         isIndexHighlighted && 'font-semibold text-tab-live group-hover/history-row:text-tab-live group-focus-within/history-row:text-tab-live'
       )}
     >
@@ -1114,13 +1114,13 @@ function HistoryEntryTitle({ expanded, title, highlightTerms, mutedTitle, geomet
     ? 'captured'
     : 'natural'
   return (
-    <span className="history-entry-title-expansion-hit-area -my-[5px] flex min-w-0 flex-auto py-[5px]">
+    <span className="history-entry-title-expansion-hit-area -my-1.25 flex min-w-0 flex-auto py-1.25">
       <span className="flex min-w-0 flex-auto items-start gap-1.5">
         <span
           className={cn(
-            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:[mask-image:var(--title-fade-mask)]",
+            "history-entry-title block min-w-0 flex-auto overflow-hidden hyphens-auto break-normal max-h-[calc(2lh)] [font-size:inherit] [font-weight:inherit] [hyphenate-character:''] wrap-break-word [&.history-entry-title-truncated]:mask-(--title-fade-mask)",
             mutedTitle ? 'text-tab-closed' : 'text-tab-live',
-            expanded && '!max-h-none !max-w-none !flex-none !overflow-visible ![mask-image:none] w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
+            expanded && 'max-h-none! max-w-none! flex-none! overflow-visible! mask-none! w-(--history-entry-expanded-title-width) whitespace-normal wrap-break-word'
           )}
           ref={expanded ? undefined : titleRef}
         >
@@ -1170,7 +1170,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
           // keeps full strength — only the icon dims with liveness.
           'history-entry-favicon-content grid place-items-center',
           isApp
-            ? 'history-entry-app-favicon -mx-0.5 -my-0.5 size-5 place-content-center overflow-hidden rounded-[8px] border border-[rgba(115,115,115,0.32)] p-[2px] [corner-shape:squircle]'
+            ? 'history-entry-app-favicon -mx-0.5 -my-0.5 size-5 place-content-center overflow-hidden rounded-lg border border-[rgba(115,115,115,0.32)] p-0.5 [corner-shape:squircle]'
             : 'h-full w-full',
           canRemoveEntry && 'group-hover/history-favicon-frame:opacity-0'
         )}
@@ -1195,9 +1195,9 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
           onClick={canForgetClosedGhost ? onForget : onClose}
         >
           {canForgetClosedGhost ? (
-            <EyeOff className="size-[15px]" aria-hidden="true" />
+            <EyeOff className="size-3.75" aria-hidden="true" />
           ) : (
-            <X className="size-[15px]" strokeWidth={2.5} aria-hidden="true" />
+            <X className="size-3.75" strokeWidth={2.5} aria-hidden="true" />
           )}
         </button>
       )}
@@ -1444,11 +1444,11 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
           "history-entry group/history-entry relative min-w-0 flex-auto rounded-[10px] border-0 bg-transparent text-tab-live [--history-entry-fade-bg:var(--card-bg)] [corner-shape:squircle] after:pointer-events-none after:absolute after:top-0 after:right-0 after:bottom-0 after:z-1 after:w-0 after:rounded-r-[inherit] after:bg-[linear-gradient(to_right,transparent,var(--history-entry-fade-bg)_50%)] after:opacity-0 after:[corner-shape:squircle] after:content-[''] focus-within:shadow-[inset_0_0_0_1px_rgba(234,179,8,0.42)] focus-within:after:opacity-100",
           entryClosed && 'history-entry-closed text-tab-closed',
           titleExpanded && 'history-entry-expanded-open',
-          expanded && 'history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-(--history-entry-expanded-max-width) cursor-default select-none !overflow-visible !transition-none w-(--history-entry-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
+          expanded && 'history-entry-expanded pointer-events-none absolute left-0 z-30 min-w-0 max-w-(--history-entry-expanded-max-width) cursor-default select-none overflow-visible! transition-none! w-(--history-entry-expanded-width) shadow-[0_3px_10px_rgba(10,10,10,0.055)]',
           expanded && (entryExpansionGeometry.y === 'up' ? 'bottom-0' : 'top-0'),
           entry.current && 'bg-neutral-100 text-tab-live shadow-[0_1px_2px_rgba(10,10,10,0.07)] ring-1 ring-inset ring-neutral-400 [--history-entry-fade-bg:var(--color-neutral-100)]',
           !entry.current && historyEntryInteractionClasses,
-          hoverMatched && 'history-entry-hover-match outline outline-1 outline-offset-1 outline-(--accent-amber)'
+          hoverMatched && 'history-entry-hover-match outline-1 outline-offset-1 outline-(--accent-amber)'
         )}
         style={expanded ? entryOverlayStyle : entryBaseStyle}
         ref={expanded ? undefined : entryRef}
@@ -1513,7 +1513,7 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
             <TabAudioButton
               state={audioState}
               onToggle={onToggleEntryAudio}
-              className="mt-[1px] self-start"
+              className="mt-px self-start"
             />
           )}
           <HistoryEntryTitle
@@ -1592,9 +1592,9 @@ function HistoryEntryScrollbar({ scrollbar }: { scrollbar: HistoryScrollbar }) {
         <div
           data-dragging={dragging || undefined}
           className={cn(
-            'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-[length:var(--dashboard-scrollbar-padding)] border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content [transition:opacity_300ms_ease-out,border-width_var(--dashboard-scrollbar-grow-duration)_ease-out] [height:var(--history-entry-scrollbar-thumb-height)] [transform:translateY(var(--history-entry-scrollbar-thumb-top))] hover:border-[length:var(--dashboard-scrollbar-padding-hover)]',
+            'history-entry-scrollbar-thumb absolute top-0 right-0 w-(--dashboard-scrollbar-size) rounded-(--dashboard-scrollbar-radius) border-(length:--dashboard-scrollbar-padding) border-transparent bg-(--dashboard-scrollbar-thumb-bg) bg-clip-content [transition:opacity_300ms_ease-out,border-width_var(--dashboard-scrollbar-grow-duration)_ease-out] h-(--history-entry-scrollbar-thumb-height) transform-[translateY(var(--history-entry-scrollbar-thumb-top))] hover:border-(length:--dashboard-scrollbar-padding-hover)',
             active ? 'opacity-100' : 'opacity-0',
-            dragging && 'border-[length:var(--dashboard-scrollbar-padding-hover)]'
+            dragging && 'border-(length:--dashboard-scrollbar-padding-hover)'
           )}
           onPointerDown={onThumbPointerDown}
         />
@@ -1749,12 +1749,12 @@ export function TabHistoryPanel({
   return (
     <section
       data-tabout="activation-history"
-      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-(--dashboard-history-edge-gutter) max-[900px]:relative max-[900px]:ml-0 max-[900px]:mr-(--dashboard-scrollbar-inset) max-[900px]:h-auto max-[900px]:max-h-[260px] max-[900px]:border-b max-[900px]:border-(--warm-gray) max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1"
+      className="tab-history-panel sticky top-0 z-30 col-start-1 flex h-screen max-h-screen min-w-0 flex-col overflow-visible pl-(--dashboard-history-edge-gutter) max-[900px]:relative max-[900px]:ml-0 max-[900px]:mr-(--dashboard-scrollbar-inset) max-[900px]:h-auto max-[900px]:max-h-65 max-[900px]:border-b max-[900px]:border-(--warm-gray) max-[900px]:pr-0 max-[900px]:pb-0 max-[900px]:[.dashboard-shell.has-history_&]:col-1"
       aria-label="Activation history"
     >
       <div
         ref={historyListRef}
-        className="history-entry-list pointer-events-none relative flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:none] min-[901px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[901px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
+        className="history-entry-list pointer-events-none relative flex min-h-0 w-[calc(100vw-var(--dashboard-history-edge-gutter))] min-w-0 flex-auto overflow-x-hidden overflow-y-auto scrollbar-gutter-stable scrollbar-none min-[901px]:ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] min-[901px]:pl-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] max-[900px]:w-auto max-[900px]:mr-[calc(var(--dashboard-edge-bleed)-var(--dashboard-scrollbar-inset))]"
       >
         <div className="history-entry-scroll-hit-area-frame pointer-events-none sticky top-0 z-0 ml-[calc(var(--dashboard-page-gutter)-var(--dashboard-edge-bleed)-var(--dashboard-history-edge-gutter))] h-0 w-[calc(var(--dashboard-edge-bleed)-var(--dashboard-page-gutter)+var(--dashboard-history-edge-gutter))] flex-none max-[900px]:hidden" aria-hidden="true">
           <div
@@ -1762,7 +1762,7 @@ export function TabHistoryPanel({
             className="history-entry-scroll-hit-area h-screen w-full pointer-events-auto"
           />
         </div>
-        <div ref={historyContentRef} className="history-entry-list-content pointer-events-auto flex self-start w-[260px] min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
+        <div ref={historyContentRef} className="history-entry-list-content pointer-events-auto flex self-start w-65 min-w-0 flex-col gap-[2.5px] pt-3 pr-3.5 pb-10 max-[900px]:w-full max-[900px]:pr-0 max-[900px]:pb-3">
           {rows.map((row) => {
             const layoutKey = historyPanelRowLayoutKey(row)
             return (

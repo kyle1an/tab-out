@@ -57,7 +57,7 @@ function WebsitePathSectionCloseButton({ count, isFirstContent = false, onClick 
         type="button"
         className={cn(
           'website-path-section-close-btn absolute top-1/2 right-0 grid size-5 -translate-y-1/2 cursor-pointer place-items-center rounded-full border-0 bg-tab-card p-0 text-muted-foreground opacity-0 transition-[opacity,background] duration-150 group-hover/website-path-section:opacity-100 hover:bg-[#ededed] focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(--accent-amber)',
-          isFirstContent && 'top-[calc(50%_-_1px)]'
+          isFirstContent && 'top-[calc(50%-1px)]'
         )}
         aria-label={title}
         onClick={onClick}
@@ -122,7 +122,7 @@ export function WebsitePathSection({
       <div
         className={cn(
           'website-path-section-header relative flex items-center gap-1.5 pr-6 pb-0.5 pl-0',
-          isFirstContent ? 'pt-0' : 'pt-[3px]'
+          isFirstContent ? 'pt-0' : 'pt-0.75'
         )}
       >
         <span className="website-path-section-label inline-block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-xs font-semibold tracking-wide text-muted-foreground align-baseline">

@@ -46,7 +46,7 @@ export function PageChipContextMenuContent({
           label="Reload"
           onClick={onReloadSelect}
         >
-          <span className="icon-[weui--refresh-filled] size-3.5 rotate-[45deg]" aria-hidden="true" />
+          <span className="icon-[weui--refresh-filled] size-3.5 rotate-45" aria-hidden="true" />
           <span className="min-w-0 flex-1">Reload</span>
         </ContextMenuItem>
       )}

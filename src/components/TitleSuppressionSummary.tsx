@@ -49,7 +49,7 @@ export function TitleSuppressionSummary({
             ref={(el) => { const map = tokenButtonsRef.current; if (el) map.set(part.text, el); else map.delete(part.text) }}
             type="button"
             className={cn(
-              'title-suppression-token inline-flex h-5 items-center gap-1 rounded-[6px] border border-transparent bg-neutral-100 px-1.5 py-0 text-xs leading-none font-medium text-muted-foreground transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-yellow-200 hover:bg-yellow-50 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-yellow-400',
+              'title-suppression-token inline-flex h-5 items-center gap-1 rounded-md border border-transparent bg-neutral-100 px-1.5 py-0 text-xs leading-none font-medium text-muted-foreground transition-[background,border-color,color,box-shadow] duration-150 [corner-shape:squircle] hover:border-yellow-200 hover:bg-yellow-50 hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-yellow-400',
               titleSuppressionTokenToneClass(toneIndex, useSuppressionTokenTones, active)
             )}
             aria-label={label}
@@ -61,7 +61,7 @@ export function TitleSuppressionSummary({
             onFocus={(event) => { if (event.currentTarget.matches(':focus-visible')) setActiveSuppressedTitle(part.text) }}
             onBlur={() => { if (openMenuTextRef.current !== part.text) setActiveSuppressedTitle('') }}
           >
-            <span className="title-suppression-token-text max-w-[180px] overflow-hidden text-ellipsis whitespace-nowrap">{part.text}</span>
+            <span className="title-suppression-token-text max-w-45 overflow-hidden text-ellipsis whitespace-nowrap">{part.text}</span>
             {part.count > 1 && <span className="title-suppression-token-count tabular-nums">{part.count}</span>}
           </button>
         )

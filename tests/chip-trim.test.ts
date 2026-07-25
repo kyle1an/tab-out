@@ -269,6 +269,6 @@ test('chip-trim: icon-only slots never join vertical seam runs', () => {
    z-3 lift, which the interacting-slot z-4 outranks by specificity. */
 test('chip-trim: PageChip owns the hover-match pair with the shared outline utilities', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
-  assert.match(pageChipSource, /hoverMatched && `\$\{CHIP_TRIM_TOKENS\.hoverMatch\} outline outline-1 outline-offset-1 outline-\(--accent-amber\)`/)
+  assert.match(pageChipSource, /hoverMatched && `\$\{CHIP_TRIM_TOKENS\.hoverMatch\} outline-1 outline-offset-1 outline-\(--accent-amber\)`/)
   assert.match(pageChipSource, /hoverMatched && 'z-3'/)
 })

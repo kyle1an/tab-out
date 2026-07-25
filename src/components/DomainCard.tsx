@@ -99,7 +99,7 @@ function TabBadge({ label }: { label?: string | number }) {
   return (
     <span
       className={cn(
-        'open-tabs-badge tab-count-badge inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]',
+        'open-tabs-badge tab-count-badge inline-flex h-5.5 box-border items-center rounded-md bg-[rgba(82,82,82,0.08)] px-2 py-0 text-[12px] font-medium tabular-nums text-(--accent-amber) [corner-shape:squircle]',
         isFiltered && 'tab-count-badge-filtered'
       )}
     >
@@ -125,7 +125,7 @@ function DedupButton({ count, closing = false, onClick }: { count: number; closi
       type="button"
       data-tabout-part="dedupe-button"
       className={cn(
-        'action-btn inline-flex h-[22px] box-border cursor-pointer items-center gap-[5px] rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
+        'action-btn inline-flex h-5.5 box-border cursor-pointer items-center gap-1.25 rounded-[10px] border border-(--warm-gray) bg-tab-card px-3 py-0 font-sans text-[12px] font-medium tabular-nums text-muted-foreground transition-[color,border-color] duration-200 [corner-shape:squircle] hover:border-foreground hover:text-foreground [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-opacity [&.closing]:duration-200 [&.closing]:ease-swift',
         closing && 'closing'
       )}
       onClick={onClick}
@@ -140,9 +140,9 @@ function PinnedDomainIndicator({ displayName }: { displayName: string }) {
   return (
     <span
       data-tabout-part="pin-indicator"
-      className="domain-pin-indicator inline-flex size-[22px] min-w-[22px] items-center justify-center text-foreground opacity-70"
+      className="domain-pin-indicator inline-flex size-5.5 min-w-5.5 items-center justify-center text-foreground opacity-70"
     >
-      <span className="icon-[lucide--pin] size-[13px]" aria-hidden="true" />
+      <span className="icon-[lucide--pin] size-3.25" aria-hidden="true" />
       <span className="sr-only">{title}</span>
     </span>
   )
@@ -162,12 +162,12 @@ function ReorderPinnedDomainButton({
       <button
         type="button"
         data-tabout-part="reorder-handle"
-        className="domain-reorder-handle inline-flex size-[22px] min-w-[22px] cursor-grab touch-none items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-muted-foreground opacity-[0.45] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground hover:opacity-100 active:cursor-grabbing focus-visible:border-(--warm-gray) focus-visible:bg-[rgba(82,82,82,0.06)] focus-visible:text-foreground focus-visible:opacity-100"
+        className="domain-reorder-handle inline-flex size-5.5 min-w-5.5 cursor-grab touch-none items-center justify-center rounded-lg border border-transparent bg-transparent p-0 text-muted-foreground opacity-[0.45] transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground hover:opacity-100 active:cursor-grabbing focus-visible:border-(--warm-gray) focus-visible:bg-[rgba(82,82,82,0.06)] focus-visible:text-foreground focus-visible:opacity-100"
         aria-label={`Reorder pinned card ${displayName}`}
         onKeyDown={onKeyDown}
         onPointerDown={onPointerDown}
       >
-        <span className="icon-[lucide--grip-vertical] size-[14px]" aria-hidden="true" />
+        <span className="icon-[lucide--grip-vertical] size-3.5" aria-hidden="true" />
       </button>
     </TooltipAnchor>
   )
@@ -374,12 +374,12 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
         data-tabout-domain={group.domain}
         data-tabout-domain-pinned={group.pinned ? 'true' : undefined}
         className={cn(
-          'domain-block group/domain-block relative flex flex-col gap-1 data-[tabout-reorder-source=true]:opacity-65 [.missions.is-packed_&.layout-moving]:z-3 [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:[transform:scale(0.96)] motion-reduce:[&.closing]:transform-none',
+          'domain-block group/domain-block relative flex flex-col gap-1 data-[tabout-reorder-source=true]:opacity-65 [.missions.is-packed_&.layout-moving]:z-3 [&.closing]:pointer-events-none [&.closing]:opacity-0 [&.closing]:transition-[opacity,transform] [&.closing]:duration-200 [&.closing]:ease-swift [&.closing]:transform-[scale(0.96)] motion-reduce:[&.closing]:transform-none',
           // The pinned-domain drag controller drives reorder feedback through
           // data attributes on this block (imperative dataset writes, not
           // React state); the indicator bar and its noop/placement variants
           // react to them below.
-          "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-[2px] data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_2px_rgba(10,10,10,0.1)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_1px_rgba(10,10,10,0.05)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
+          "data-[tabout-reorder-target=true]:before:pointer-events-none data-[tabout-reorder-target=true]:before:absolute data-[tabout-reorder-target=true]:before:inset-x-0 data-[tabout-reorder-target=true]:before:z-5 data-[tabout-reorder-target=true]:before:h-0.5 data-[tabout-reorder-target=true]:before:rounded-full data-[tabout-reorder-target=true]:before:content-[''] [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:bg-(--accent-amber) [&[data-tabout-reorder-target=true]:not([data-tabout-reorder-noop=true])]:before:shadow-[0_1px_2px_rgba(10,10,10,0.1)] data-[tabout-reorder-noop=true]:before:bg-[color-mix(in_srgb,var(--accent-amber)_36%,var(--warm-gray))] data-[tabout-reorder-noop=true]:before:shadow-[0_1px_1px_rgba(10,10,10,0.05)] data-[tabout-reorder-placement=before]:before:-top-1.5 data-[tabout-reorder-placement=after]:before:-bottom-1.5",
           vm.displayMode === 'unmatched' && 'card-unmatched opacity-[0.45] transition-opacity duration-200 ease-[ease] hover:opacity-100 focus-within:opacity-100',
           isAppsCard && 'domain-block-apps',
           group.pinned && 'domain-block-pinned'
@@ -389,12 +389,12 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
         <header
           className={cn(
             'domain-header min-w-0',
-            isAppsCard ? 'px-[7px]' : 'px-2',
+            isAppsCard ? 'px-1.75' : 'px-2',
             showCardMenu && 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1'
           )}
         >
           <div className="domain-header-flow flex min-w-0 flex-row flex-wrap items-center justify-start gap-x-2.5 gap-y-1">
-            <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-[22px] font-black tracking-[0.1px] text-foreground">
+            <span className="mission-name min-w-0 flex-[0_1_auto] overflow-hidden text-ellipsis whitespace-nowrap text-[15px] leading-5.5 font-black tracking-[0.1px] text-foreground">
               <DomainTitle displayName={displayName} subdomainKey={inlineSubdomainKey} />
             </span>
             {group.pinned && (
@@ -408,7 +408,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
             {vm.singleSubdomainKey && !inlineSubdomainKey && (
               <span
                 className={cn(
-                  'mission-subdomain inline-flex h-[22px] box-border items-center rounded-[6px] bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-muted-foreground [corner-shape:squircle]',
+                  'mission-subdomain inline-flex h-5.5 box-border items-center rounded-md bg-[rgba(82,82,82,0.04)] px-2 py-0 text-[12px] font-medium text-muted-foreground [corner-shape:squircle]',
                   vm.singleSubdomainIsPort
                     ? "before:font-normal before:opacity-45 before:content-[':']"
                     : "after:ml-px after:font-normal after:opacity-45 after:content-['.']"
@@ -435,7 +435,7 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
         <div
           className={cn(
             'mission-card relative flex flex-col gap-2 overflow-visible',
-            isAppsCard ? 'p-[7px]' : 'p-2'
+            isAppsCard ? 'p-1.75' : 'p-2'
           )}
         >
           <TitleSuppressionSummary

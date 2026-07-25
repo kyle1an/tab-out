@@ -15,10 +15,10 @@ export function HistorySearchStatus({ onRetry, summary }: HistorySearchStatusPro
     <div
       data-tabout="history-search-status"
       data-tabout-history-phase={summary.phase}
-      className="history-search-status relative h-[38px] w-[280px] max-w-full min-w-0 text-[13px] leading-4 font-normal normal-case tracking-normal"
+      className="history-search-status relative h-9.5 w-70 max-w-full min-w-0 text-[13px] leading-4 font-normal normal-case tracking-normal"
     >
       <output
-        className="absolute inset-y-0 right-[42px] left-0 grid min-w-0 grid-rows-2 text-right"
+        className="absolute inset-y-0 right-10.5 left-0 grid min-w-0 grid-rows-2 text-right"
         aria-atomic="true"
         aria-busy={busy}
         aria-live="polite"
@@ -40,11 +40,11 @@ export function HistorySearchStatus({ onRetry, summary }: HistorySearchStatusPro
           </span>
         </div>
       </output>
-      <div className="absolute inset-y-0 right-0 z-1 flex w-[42px] items-center justify-end" aria-hidden={!busy && summary.phase !== 'error'}>
+      <div className="absolute inset-y-0 right-0 z-1 flex w-10.5 items-center justify-end" aria-hidden={!busy && summary.phase !== 'error'}>
         {busy && (
           <LoaderCircle
             data-tabout-part="loading-indicator"
-            className="size-[14px] animate-spin rounded-full bg-background ring-4 ring-background motion-reduce:animate-none"
+            className="size-3.5 animate-spin rounded-full bg-background ring-4 ring-background motion-reduce:animate-none"
             strokeWidth={1.8}
             aria-hidden="true"
           />
