@@ -20,7 +20,7 @@
     "react-doctor": "react-doctor .",
     "react-doctor:diff": "react-doctor . --diff",
     "knip": "knip",
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "node --experimental-import-text --import tsx --test tests/*.test.ts",
     "test:browser:layout": "playwright test --config tests/playwright.config.ts tests/browser/dashboard-layout.spec.ts",
     "test:browser": "playwright test --config tests/playwright.config.ts tests/browser/dashboard-smoke.spec.ts",
     "verify:bundle": "git diff --exit-code -- extension/dist",

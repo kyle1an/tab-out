@@ -22,6 +22,8 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
   assert.ok(existsSync('src/extension/manifest.ts'), 'src/extension/manifest.ts should be the manifest source')
   assert.ok(existsSync('src/index-html.tsx'), 'src/index-html.tsx should be the dashboard page source')
+  assert.ok(existsSync('src/index-html.template.html'), 'src/index-html.template.html should define the static dashboard page wrapper')
+  assert.ok(existsSync('src/index-html.template.d.html.ts'), 'the HTML template should expose its string type through an arbitrary-extension declaration')
   assert.ok(existsSync('components.json'), 'components.json should define the shadcn project setup')
   assert.ok(existsSync('.dependency-cruiser.cjs'), 'dependency-cruiser should define repository architecture rules')
   assert.ok(
@@ -39,6 +41,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.mjs')
   assert.equal(pkg.scripts?.build, 'node scripts/build-extension.mjs')
   assert.equal(pkg.scripts?.['build:debug'], 'node scripts/build-extension.mjs --sourcemap')
+  assert.match(pkg.scripts?.test, /--experimental-import-text/)
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
   assert.equal(
     pkg.scripts?.['deps:architecture'],
@@ -79,6 +82,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(pkg.devDependencies?.['type-fest'], undefined)
   assert.ok(tsconfig.compilerOptions?.types?.includes('chrome'))
   assert.equal(tsconfig.compilerOptions?.allowJs, false)
+  assert.equal(tsconfig.compilerOptions?.allowArbitraryExtensions, true)
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
   assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
   assert.deepEqual(tsconfig.compilerOptions?.paths?.['@/*'], ['./src/*'])
@@ -96,7 +100,10 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(shadcnConfig.aliases?.lib, '@/lib')
 
   const indexHtml = readFileSync('extension/index.html', 'utf8')
+  const indexHtmlTemplate = readFileSync('src/index-html.template.html', 'utf8')
+  assert.equal(indexHtmlTemplate.split('<!-- TAB_OUT_PRERENDERED_APP -->').length, 2)
   assert.equal(indexHtml, await createIndexHtml())
+  assert.doesNotMatch(indexHtml, /TAB_OUT_PRERENDERED_APP/)
   const appRootStart = indexHtml.indexOf('<div id="appRoot">') + '<div id="appRoot">'.length
   const appRootEnd = indexHtml.indexOf('</div>\n    <!-- TAB_OUT_APP_ROOT_END -->', appRootStart)
   assert.ok(appRootStart >= '<div id="appRoot">'.length)
@@ -132,6 +139,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(writeIndexHtmlScript, /extension\/index\.html/)
   assert.match(indexHtmlSource, /import \{ prerender \} from 'react-dom\/static'/)
   assert.match(indexHtmlSource, /import \{ AppRoot \} from '\.\/components\/App\.js'/)
+  assert.match(indexHtmlSource, /import indexHtmlTemplate from '\.\/index-html\.template\.html' with \{ type: 'text' \}/)
   assert.match(indexHtmlSource, /await prerender\(<AppRoot \/>\)/)
   assert.match(manifestSource, /chrome\.runtime\.ManifestV3/)
   assert.match(manifestSource, /minimum_chrome_version: MINIMUM_CHROME_VERSION/)
@@ -150,6 +158,8 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(viteConfig, /src\/extension\/background\.ts/)
   assert.match(buildScript, /write-manifest\.ts/)
   assert.match(buildScript, /write-index-html\.ts/)
+  assert.match(buildScript, /process\.execPath/)
+  assert.match(buildScript, /--experimental-import-text/)
   assert.match(buildScript, /runBuild\('app'\)/)
   assert.match(buildScript, /runBuild\('background'\)/)
   assert.match(watchScript, /WATCH_TARGETS/)

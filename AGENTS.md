@@ -23,7 +23,7 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Runtime source lives under `src/`.
 - The unpacked Chrome extension surface is `extension/`.
 - Manifest source lives in `src/extension/manifest.ts`; `pnpm build` regenerates `extension/manifest.json`.
-- Dashboard page source lives in `src/index-html.tsx`, beside `src/app.tsx`, because it renders UI rather than extension-layer logic; `pnpm build` regenerates `extension/index.html`. It prerenders the same `AppRoot` that `src/app.tsx` attaches, so the generated shell and the client's first render share one component declaration.
+- Dashboard page generation lives in `src/index-html.tsx`, beside `src/app.tsx`, because it renders UI rather than extension-layer logic; its static wrapper lives in `src/index-html.template.html`. `pnpm build` imports that wrapper as text and regenerates `extension/index.html`. The generator prerenders the same `AppRoot` that `src/app.tsx` attaches, so the generated shell and the client's first render share one component declaration.
 - Vite builds:
   - `src/app.tsx` to `extension/dist/app.js`
   - `src/extension/filter-focus-boot.ts` to `extension/dist/filter-focus-boot.js`
