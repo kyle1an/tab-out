@@ -877,6 +877,22 @@ test('Page Chip keeps hydrated title details and interaction chrome in one expan
   })
 })
 
+test('Page Chip applies grapheme-aware fixation to accented Latin titles', async ({ page }) => {
+  const title = "naïve nai\u0308ve café don't can’t München e-mail"
+  await page.goto('/tests/fixtures/dashboard-resize.html?unicodeBionicTitle=1')
+  const chip = page.locator('[data-tabout="page-chip"]').filter({ hasText: title }).first()
+
+  await expect(chip).toBeVisible()
+  await expect(chip).toContainText(title)
+  await expect(chip.locator('.chip-title-fixation')).toHaveText(['naï', 'naï', 'ca', 'don', 'can', 'Münc', 'e', 'ma'])
+
+  await page.locator('[data-tabout="filter-query"] input').fill('nch')
+  const partialMatch = chip.locator('mark.chip-filter-match').filter({ hasText: 'nch' })
+  await expect(partialMatch).toHaveText('nch')
+  await expect(partialMatch.locator('.chip-title-fixation')).toHaveText('nc')
+  await expect(chip.locator('.chip-title-fixation')).toHaveText(['naï', 'naï', 'ca', 'don', 'can', 'Mü', 'nc', 'e', 'ma'])
+})
+
 test('Page Chip preserves tall first-line glyph ink without changing its layout box', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html?tallGlyphTitle=1')
   const chip = page.locator('[data-tabout="page-chip"]').filter({ hasText: '⬆️ Tall glyph title' }).first()

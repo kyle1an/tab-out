@@ -3,6 +3,7 @@ import test from 'node:test'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
+import { createBionicTitleTextRenderer } from '../src/components/bionic-title-text.js'
 import { highlightTermsForFilter, highlightedTextNodes } from '../src/components/filter-highlight-text.js'
 
 function renderNodes(node: React.ReactNode): string {
@@ -26,6 +27,36 @@ test('highlightedTextNodes merges overlapping ranges into a single mark', () => 
   const html = renderNodes(highlightedTextNodes('example', ['exa', 'example'], 'k'))
   assert.equal((html.match(/<mark/g) || []).length, 1)
   assert.match(html, /<mark[^>]*>example<\/mark>/)
+})
+
+test('highlightedTextNodes preserves complete-word fixation across partial matches', () => {
+  const text = 'Example reading'
+  const html = renderNodes(highlightedTextNodes(text, ['amp', 'adi'], 'k', createBionicTitleTextRenderer(text)))
+
+  assert.match(
+    html,
+    /<span class="chip-title-fixation\b[^"]*">Ex<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">am<\/span>p<\/mark>le <span class="chip-title-fixation\b[^"]*">re<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">ad<\/span>i<\/mark>ng/
+  )
+  assert.equal((html.match(/chip-title-fixation/g) || []).length, 4)
+})
+
+test('highlightedTextNodes keeps decomposed graphemes intact across fixation and highlight boundaries', () => {
+  const text = 'nai\u0308ve'
+  const html = renderNodes(highlightedTextNodes(text, ['i'], 'k', createBionicTitleTextRenderer(text)))
+
+  assert.match(
+    html,
+    /<span class="chip-title-fixation\b[^"]*">na<\/span><mark[^>]*><span class="chip-title-fixation\b[^"]*">ï<\/span><\/mark>ve/
+  )
+  assert.equal((html.match(/chip-title-fixation/g) || []).length, 2)
+})
+
+test('highlightedTextNodes merges separate normalized matches that map to one grapheme', () => {
+  const grapheme = 'a\u0301\u0302'
+  const html = renderNodes(highlightedTextNodes(grapheme, ['a', '\u0302'], 'k'))
+
+  assert.equal((html.match(/<mark/g) || []).length, 1)
+  assert.match(html, new RegExp(`<mark[^>]*>${grapheme}</mark>`))
 })
 
 test('highlightedTextNodes tolerates zero-width spaces when matching', () => {

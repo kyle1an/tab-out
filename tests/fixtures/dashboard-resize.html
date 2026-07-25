@@ -29,6 +29,7 @@
       const tallGlyphTitleCase = fixtureParams.has('tallGlyphTitle')
       const historyReorderMotionCase = fixtureParams.has('historyReorderMotion')
       const appLoadingFaviconCase = fixtureParams.has('appLoadingFavicon')
+      const unicodeBionicTitleCase = fixtureParams.has('unicodeBionicTitle')
       const largeTabsCount = Math.max(0, Number.parseInt(fixtureParams.get('largeTabs') || '0', 10) || 0)
       const createBulkTab = (index) => {
         const domain = `bulk-tab-${String(index + 1).padStart(4, '0')}.test`
@@ -304,6 +305,21 @@
                 pinned: false,
                 groupId: -1,
                 index: 8204
+              }
+            ]
+          : []),
+        ...(unicodeBionicTitleCase
+          ? [
+              {
+                id: 9300,
+                url: 'https://unicode-title.test/example',
+                title: "naïve nai\u0308ve café don't can’t München e-mail",
+                favIconUrl: '',
+                windowId: 1,
+                active: false,
+                pinned: false,
+                groupId: -1,
+                index: 9300
               }
             ]
           : []),

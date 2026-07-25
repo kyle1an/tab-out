@@ -2,6 +2,8 @@ import type { ReactNode } from 'react'
 import { matchValuesForFilterTerm, parseFilterQuery } from '../extension/filter-query.js'
 import type { InlineTextRenderer } from './bionic-title-text'
 
+const FILTER_HIGHLIGHT_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+
 export function highlightTermsForFilter(filter: string): string[] {
   const query = filter.trim()
   if (!query) return []
@@ -19,17 +21,18 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
   if (highlightTerms.length === 0) return renderText(text, keyPrefix, 0)
 
   const normalizedChars: string[] = []
-  const originalIndexes: number[] = []
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
-    if (char === '\u200B') continue
-    // Lowercase per character: toLowerCase can expand a character into several
-    // units ('\u0130' \u2192 'i' + combining dot), so each unit must map back to its own
-    // original index or every later highlight range drifts.
-    const lower = char.toLowerCase()
+  const originalStartIndexes: number[] = []
+  const originalEndIndexes: number[] = []
+  for (const { segment, index } of FILTER_HIGHLIGHT_GRAPHEME_SEGMENTER.segment(text)) {
+    if (segment === '\u200B') continue
+    // Lowercasing can expand a grapheme into several units ('\u0130' \u2192 'i' +
+    // combining dot), so every normalized unit maps back to the complete
+    // original grapheme or later highlights drift and decomposed accents split.
+    const lower = segment.toLowerCase()
     for (let unit = 0; unit < lower.length; unit += 1) {
       normalizedChars.push(lower[unit])
-      originalIndexes.push(index)
+      originalStartIndexes.push(index)
+      originalEndIndexes.push(index + segment.length)
     }
   }
 
@@ -49,9 +52,13 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
 
   if (ranges.length === 0) return renderText(text, keyPrefix, 0)
 
-  ranges.sort((a, b) => a.start - b.start || b.end - a.end)
+  const originalRanges = ranges.map((range) => ({
+    start: originalStartIndexes[range.start],
+    end: originalEndIndexes[range.end - 1] ?? text.length
+  }))
+  originalRanges.sort((a, b) => a.start - b.start || b.end - a.end)
   const mergedRanges: Array<{ start: number; end: number }> = []
-  for (const range of ranges) {
+  for (const range of originalRanges) {
     const previous = mergedRanges[mergedRanges.length - 1]
     if (previous && range.start <= previous.end) {
       previous.end = Math.max(previous.end, range.end)
@@ -64,15 +71,17 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
   let cursor = 0
 
   for (const range of mergedRanges) {
-    const originalStart = originalIndexes[range.start]
-    const originalEnd = (originalIndexes[range.end - 1] ?? text.length - 1) + 1
+    const originalStart = range.start
+    const originalEnd = range.end
     if (originalStart > cursor) appendTextNodes(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
+    const matchedText = text.slice(originalStart, originalEnd)
+    const renderedMatch = renderText(matchedText, `${keyPrefix}:${originalStart}:${originalEnd}:match`, originalStart)
     nodes.push(
       <mark
         key={`${keyPrefix}-${originalStart}-${originalEnd}`}
         className="chip-filter-match rounded-xs bg-[rgba(234,179,8,0.42)] text-foreground [font:inherit] [corner-shape:squircle] [box-decoration-break:clone]"
       >
-        {text.slice(originalStart, originalEnd)}
+        {renderedMatch}
       </mark>
     )
     cursor = originalEnd
