@@ -7,9 +7,21 @@
     <link rel="stylesheet" href="/extension/dist/assets/app.css" />
   </head>
   <body>
-    <div id="appRoot"></div>
+    <div id="appRoot">
+      <div id="filterFocusBootShell" hidden>
+        <input
+          id="filterFocusBootInput"
+          class="box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-input bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none drop-shadow-xs transition-[color,box-shadow,border-color] outline-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground focus-visible:border-neutral-400 focus-visible:ring-[3px] focus-visible:ring-neutral-400/50 md:text-sm"
+          type="search"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Filter tabs"
+        />
+      </div>
+    </div>
     <div id="toastRoot"></div>
 
+    <script src="/extension/dist/filter-focus-boot.js"></script>
     <script type="module">
       import { createFakeChromeApi } from '/tests/helpers/fake-chrome.mjs'
 

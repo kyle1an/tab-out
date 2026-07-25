@@ -2,6 +2,76 @@ import assert from 'node:assert/strict'
 import { expect, test } from '@playwright/test'
 import type { CDPSession } from '@playwright/test'
 
+test('filter shortcut startup paints one focus-visible ring across the boot handoff', async ({
+  page
+}) => {
+  await page.addInitScript(() => {
+    const focusRingPaint = {
+      owner: 'none',
+      presentations: 0,
+      visible: false,
+      width: 0
+    }
+    const focusRingWidthPattern = /0px 0px 0px ([\d.]+)px/g
+
+    function sampleFocusRing() {
+      const inputs = document.querySelectorAll<HTMLInputElement>(
+        '#filterFocusBootInput, [data-tabout="filter-query"] input'
+      )
+      let owner = 'none'
+      let width = 0
+      for (const input of inputs) {
+        if (!input.matches(':focus-visible')) continue
+        const ringWidths = [...getComputedStyle(input).boxShadow.matchAll(focusRingWidthPattern)]
+          .map((match) => Number.parseFloat(match[1] || '0'))
+        const inputWidth = Math.max(0, ...ringWidths)
+        if (inputWidth > width) {
+          owner = input.id === 'filterFocusBootInput' ? 'boot' : 'app'
+          width = inputWidth
+        }
+      }
+
+      const visible = width > 2
+      if (visible && !focusRingPaint.visible) focusRingPaint.presentations += 1
+      focusRingPaint.owner = owner
+      focusRingPaint.visible = visible
+      focusRingPaint.width = width
+      requestAnimationFrame(sampleFocusRing)
+    }
+
+    ;(window as typeof window & { __tabOutFocusRingPaint: typeof focusRingPaint })
+      .__tabOutFocusRingPaint = focusRingPaint
+    requestAnimationFrame(sampleFocusRing)
+  })
+  await page.route('**/extension/dist/app.js', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    await route.continue()
+  })
+
+  await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1')
+  await expect(page.locator('[data-tabout="filter-query"] input')).toBeFocused()
+  await expect.poll(() => page.evaluate(() =>
+    (window as typeof window & { __tabOutFocusRingPaint: { width: number } })
+      .__tabOutFocusRingPaint.width
+  )).toBeGreaterThan(2.8)
+
+  const focusRingPaint = await page.evaluate(() =>
+    (window as typeof window & {
+      __tabOutFocusRingPaint: {
+        owner: string
+        presentations: number
+        visible: boolean
+        width: number
+      }
+    }).__tabOutFocusRingPaint
+  )
+  expect(focusRingPaint).toMatchObject({
+    owner: 'app',
+    presentations: 1,
+    visible: true
+  })
+})
+
 const RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY = process.env.HISTORY_SCROLLBAR_OVERLAP_ONLY === '1'
 const PAGE_CHIP_EXPANSION_SMOKE_LABEL = 'Hover Handoff Title'
 

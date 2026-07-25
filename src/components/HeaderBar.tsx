@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 import { HeaderStats } from './HeaderStats'
@@ -212,6 +212,7 @@ export function HeaderBar({
   stats
 }: HeaderBarProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const [filterFocusHandoffPending, setFilterFocusHandoffPending] = useState(filterFocusRequest > 0)
   const pendingFilterResultActionRef = useRef<PendingFilterResultAction | null>(null)
   const selectedFilterResultElementRef = useRef<HTMLElement | null>(null)
   const filterResultSelectionRef = useRef(EMPTY_FILTER_RESULT_SELECTION)
@@ -322,7 +323,15 @@ export function HeaderBar({
   useLayoutEffect(() => {
     if (filterFocusRequest <= 0) return
     inputRef.current?.focus()
+    // The boot input has already painted this ring. Keep the replacement
+    // input's first frame out of CSS transitions so the ring does not restart.
+    let enableTransitionFrame = requestAnimationFrame(() => {
+      enableTransitionFrame = requestAnimationFrame(() => {
+        setFilterFocusHandoffPending(false)
+      })
+    })
     queueMicrotask(releaseFilterFocusBootValue)
+    return () => cancelAnimationFrame(enableTransitionFrame)
   }, [filterFocusRequest])
 
   useEffect(() => {
@@ -444,7 +453,8 @@ export function HeaderBar({
               data-tabout-part="input"
               className={cn(
                 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-[color,box-shadow,border-color] outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-neutral-400 focus-visible:ring-[3px] focus-visible:ring-neutral-400/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
-                'tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none drop-shadow-xs [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]'
+                'tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none drop-shadow-xs [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
+                filterFocusHandoffPending && 'transition-none'
               )}
               autoComplete="off"
               autoFocus={filterFocusRequest > 0}
