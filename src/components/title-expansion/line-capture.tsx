@@ -334,14 +334,18 @@ export function captureVisibleLineHtml(
       let high = textNodes.length - 1
       while (low < high) {
         const middle = Math.floor((low + high) / 2)
-        const bounds = getTextLineBounds(textNodes[middle])
+        const middleNode = textNodes[middle]
+        if (!middleNode) return null
+        const bounds = getTextLineBounds(middleNode)
         if (bounds && bounds.last >= targetLineIndex) {
           high = middle
         } else {
           low = middle + 1
         }
       }
-      const bounds = getTextLineBounds(textNodes[low])
+      const lowNode = textNodes[low]
+      if (!lowNode) return null
+      const bounds = getTextLineBounds(lowNode)
       if (bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex) {
         candidateIndex = low
       }
@@ -352,7 +356,9 @@ export function captureVisibleLineHtml(
     // start; ordinary wrapped-line searches stop after one predecessor.
     if (candidateIndex >= 0 && targetLineIndex > 0) {
       for (let index = candidateIndex - 1; index >= 0; index -= 1) {
-        const bounds = getTextLineBounds(textNodes[index])
+        const candidateNode = textNodes[index]
+        if (!candidateNode) continue
+        const bounds = getTextLineBounds(candidateNode)
         if (!bounds) continue
         if (bounds.last < targetLineIndex) break
         if (bounds.first <= targetLineIndex) candidateIndex = index
@@ -370,6 +376,7 @@ export function captureVisibleLineHtml(
     if (candidateIndex < 0) return null
 
     const node = textNodes[candidateIndex]
+    if (!node) return null
     const offset = firstCapturedTextOffsetOnLine(node, targetLineIndex, range, elRect, lineHeight)
     return offset === null ? null : { node, offset }
   }
@@ -386,6 +393,7 @@ export function captureVisibleLineHtml(
   for (let index = 0; index < lineStarts.length; index += 1) {
     const lineRange = ownerDocument.createRange()
     const start = lineStarts[index]
+    if (!start) continue
     lineRange.setStart(start.node, start.offset)
     const next = lineStarts[index + 1]
     if (next) {

@@ -46,7 +46,10 @@ test('chrome storage helpers keep best-effort writes non-throwing', async () => 
   }
 
   assert.equal(warnings.length, 1)
-  assert.equal(warnings[0][0], 'Tab Out background best-effort storage write failed')
-  assert.equal(warnings[0][1], 'globalTabHistory')
-  assert.equal(warnings[0][2].message, 'quota')
+  const [warning] = warnings
+  assert.ok(warning)
+  assert.equal(warning[0], 'Tab Out background best-effort storage write failed')
+  assert.equal(warning[1], 'globalTabHistory')
+  assert.ok(warning[2] instanceof Error)
+  assert.equal(warning[2].message, 'quota')
 })

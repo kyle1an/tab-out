@@ -55,8 +55,6 @@ function cloneStore(store: WorkingSetActivityStore): WorkingSetActivityStore {
         key,
         {
           ...record,
-          dismissedAt: record.dismissedAt,
-          dismissedUntil: record.dismissedUntil,
           events: record.events.map((event) => ({ ...event }))
         }
       ])
@@ -100,14 +98,16 @@ export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivitySto
       dismissedUntil > now &&
       latestEvent <= dismissedAt
     )
+    const lastActivatedAt = latestEventAt(events, 'activation')
+    const lastNavigatedAt = latestEventAt(events, 'navigation')
     records[key] = {
       key,
       url: normalizedKey,
       title: String(record.title || ''),
       domain: record.domain || domainForPageIdentity(normalizedKey),
       lastSeenAt: latestEvent,
-      lastActivatedAt: latestEventAt(events, 'activation'),
-      lastNavigatedAt: latestEventAt(events, 'navigation'),
+      ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
+      ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
       ...(dismissalIsActive ? { dismissedAt, dismissedUntil } : {}),
       events
     }
@@ -164,8 +164,16 @@ export function recordWorkingSetActivity(
     title: tab.title || existing?.title || displayUrlForPageIdentity(key),
     domain: domainForPageIdentity(key),
     lastSeenAt: at,
-    lastActivatedAt: kind === 'activation' ? at : existing?.lastActivatedAt,
-    lastNavigatedAt: kind === 'navigation' ? at : existing?.lastNavigatedAt,
+    ...(kind === 'activation'
+      ? { lastActivatedAt: at }
+      : existing?.lastActivatedAt === undefined
+        ? {}
+        : { lastActivatedAt: existing.lastActivatedAt }),
+    ...(kind === 'navigation'
+      ? { lastNavigatedAt: at }
+      : existing?.lastNavigatedAt === undefined
+        ? {}
+        : { lastNavigatedAt: existing.lastNavigatedAt }),
     events
   }
   return next

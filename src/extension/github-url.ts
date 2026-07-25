@@ -26,5 +26,5 @@ export function isGitHubRepositoryOwnerPathSegment(segment: string): boolean {
 
 export function isGitHubRepositoryRootPath(pathname: string): boolean {
   const match = pathname.match(/^\/([^/]+)\/([^/]+)\/?$/)
-  return !!match && isGitHubRepositoryOwnerPathSegment(match[1])
+  return !!match?.[1] && isGitHubRepositoryOwnerPathSegment(match[1])
 }

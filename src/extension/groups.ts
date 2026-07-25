@@ -14,16 +14,16 @@ import { queryTabGroupsResult } from './browser-tabs-gateway.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 
 type GroupedTabLike = {
-  groupId?: number
+  groupId?: number | undefined
 }
 type ScoredTabLike = GroupedTabLike & {
-  id?: number | string
-  url?: string
-  active?: boolean
-  pinned?: boolean
+  id?: number | string | undefined
+  url?: string | undefined
+  active?: boolean | undefined
+  pinned?: boolean | undefined
   windowId: number
-  index?: number
-  lastAccessed?: number
+  index?: number | undefined
+  lastAccessed?: number | undefined
 }
 
 /**
@@ -98,7 +98,7 @@ export function groupColorChanged(group?: chrome.tabGroups.TabGroup | null): boo
 export function groupDotColor(groupId?: number): string {
   if (groupId == null || groupId === -1) return 'transparent'
   if (groupColorCache[groupId]) return groupColorCache[groupId]
-  return GROUP_DOT_COLORS[Math.abs(groupId) % GROUP_DOT_COLORS.length]
+  return GROUP_DOT_COLORS[Math.abs(groupId) % GROUP_DOT_COLORS.length] ?? '#5a9cff'
 }
 
 /**
@@ -141,7 +141,10 @@ export function compareForKeep(a: ScoredTabLike, b: ScoredTabLike, currentWindow
   const aKeys = keepKeys(a, currentWindowId)
   const bKeys = keepKeys(b, currentWindowId)
   for (let i = 0; i < aKeys.length; i++) {
-    if (aKeys[i] !== bKeys[i]) return bKeys[i] - aKeys[i]
+    const aKey = aKeys[i]
+    const bKey = bKeys[i]
+    if (aKey === undefined || bKey === undefined) continue
+    if (aKey !== bKey) return bKey - aKey
   }
   return 0
 }

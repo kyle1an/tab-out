@@ -70,7 +70,9 @@ export function pathgroupPinId(
 function isPinnableSectionId(id: unknown): id is string {
   if (typeof id !== 'string' || id === '') return false
   const parts = id.split('|')
-  const expected = PIN_KIND_FIELD_COUNTS[parts[0]]
+  const kind = parts[0]
+  if (!kind) return false
+  const expected = PIN_KIND_FIELD_COUNTS[kind]
   return typeof expected === 'number' && parts.length === expected + 1
 }
 

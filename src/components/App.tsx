@@ -608,7 +608,7 @@ function DashboardMissionsList({ filter, historyRangeAction, onRetryHistorySearc
 type DashboardShellProps = {
   closedTabs: readonly ClosedTabEntry[]
   commitFilterInput: () => void
-  savedKeys?: readonly string[]
+  savedKeys?: readonly string[] | undefined
   filter: string
   filterInput: string
   filterResultCandidates: readonly FilterResultCandidate[]
@@ -1164,8 +1164,8 @@ export function App() {
           dashboard: result.snapshot.dashboard,
           requestId,
           source: nextSource,
-          tabHistory: result.snapshot.tabHistory,
-          workingSet: result.snapshot.workingSet
+          ...(result.snapshot.tabHistory === undefined ? {} : { tabHistory: result.snapshot.tabHistory }),
+          ...(result.snapshot.workingSet === undefined ? {} : { workingSet: result.snapshot.workingSet })
         })
       })
     })

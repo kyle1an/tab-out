@@ -1,15 +1,15 @@
 import { isGroupedTab, compareForKeep } from './groups.js'
 
 export type DedupeTabCandidate = {
-  id?: number | string
-  url?: string
-  pendingUrl?: string
-  groupId?: number
-  active?: boolean
-  pinned?: boolean
+  id?: number | string | undefined
+  url?: string | undefined
+  pendingUrl?: string | undefined
+  groupId?: number | undefined
+  active?: boolean | undefined
+  pinned?: boolean | undefined
   windowId: number
-  index?: number
-  lastAccessed?: number
+  index?: number | undefined
+  lastAccessed?: number | undefined
 }
 
 export type DuplicateCloseOptions = {

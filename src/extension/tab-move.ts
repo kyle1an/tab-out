@@ -39,8 +39,8 @@ async function focusLatestResolvedTarget(tabId: number, target: MoveTabTarget) {
   if (!liveTab) return { status: 'not-found' as const }
   return focusResolvedTabTargetResult(liveTab, {
     tabId,
-    url: target.tabUrl,
-    rawUrl: target.rawUrl
+    ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
+    ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
   })
 }
 
@@ -55,7 +55,7 @@ function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, curren
   if (!targetEffective) return null
   const matches = tabs.filter((tab) => unwrapSuspenderUrl(liveTabUrlForIdentity(tab)) === targetEffective)
   if (matches.length === 0) return null
-  return matches.find((tab) => tab.windowId !== currentWindowId) || matches[0]
+  return matches.find((tab) => tab.windowId !== currentWindowId) ?? matches[0] ?? null
 }
 
 /**
@@ -103,7 +103,10 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
       return 'failed'
     }
   } else {
-    await unsuspendExistingTab(match, { url: target.tabUrl, rawUrl: target.rawUrl })
+    await unsuspendExistingTab(match, {
+      ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
+      ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
+    })
   }
 
   return 'handled'

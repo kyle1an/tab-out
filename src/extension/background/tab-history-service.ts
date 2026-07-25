@@ -433,7 +433,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
     const previousEntries = []
     for (let i = current.index; i >= 0; i--) {
       const entry = current.stack[i]
-      if (entry.windowId === windowId && entry.tabId !== tabId) previousEntries.push(entry)
+      if (entry && entry.windowId === windowId && entry.tabId !== tabId) previousEntries.push(entry)
     }
     if (previousEntries.length === 0) return null
 
@@ -551,6 +551,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
       let targetOldIndex = -1
       for (let i = history.index - 1; i >= 0; i--) {
         const entry = history.stack[i]
+        if (!entry) continue
         if (entry.windowId !== removeInfo.windowId) continue
         if (!historyEntryMatchesTab(entry, tabsById.get(entry.tabId))) continue
         targetOldIndex = i
@@ -559,10 +560,13 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
 
       if (targetOldIndex === -1) return { history: nextHistory }
 
-      const targetId = history.stack[targetOldIndex].tabId
+      const targetEntry = history.stack[targetOldIndex]
+      if (!targetEntry) return { history: nextHistory }
+      const targetId = targetEntry.tabId
       let targetNewIndex = -1
       for (let i = Math.min(targetOldIndex, nextHistory.stack.length - 1); i >= 0; i--) {
-        if (nextHistory.stack[i].tabId === targetId && nextHistory.stack[i].windowId === removeInfo.windowId) {
+        const entry = nextHistory.stack[i]
+        if (entry?.tabId === targetId && entry.windowId === removeInfo.windowId) {
           targetNewIndex = i
           break
         }

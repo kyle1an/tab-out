@@ -11,6 +11,7 @@ type DashboardGeometry = {
 
 type BookmarkTreeFixture = {
   id: string
+  syncing: boolean
   title: string
   url?: string
   children?: BookmarkTreeFixture[]
@@ -275,7 +276,8 @@ const RESTORED_TITLE_FADE_STATE = {
 }
 
 async function expectCollapsedTitleFade(title: Locator, truncatedClass: string, message?: string) {
-  await expect.poll(() => collapsedTitleFadeState(title, truncatedClass), { message }).toEqual(RESTORED_TITLE_FADE_STATE)
+  const options = message === undefined ? undefined : { message }
+  await expect.poll(() => collapsedTitleFadeState(title, truncatedClass), options).toEqual(RESTORED_TITLE_FADE_STATE)
 }
 
 async function measureDashboard(page: Page, width: number): Promise<DashboardGeometry> {
@@ -320,7 +322,7 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
   })
 
   let previous = ''
-  let latest: DashboardGeometry | null = null
+  let latest = await readGeometry()
   await expect.poll(async () => {
     latest = await readGeometry()
     const serialized = JSON.stringify(latest)
@@ -333,7 +335,7 @@ async function measureDashboard(page: Page, width: number): Promise<DashboardGeo
     intervals: [50, 100, 150]
   }).toBe(true)
 
-  return latest as DashboardGeometry
+  return latest
 }
 
 test('dashboard repacks across viewport sizes', async ({ page }) => {
@@ -521,7 +523,13 @@ test('pinned same-title URL variants stay unified with a close-slot pin marker',
   await expect(chip.locator('.chip-page-pin-badge')).toHaveCount(0)
 
   const rowHeights = await variantRows.evaluateAll((rows) => rows.map((row) => row.getBoundingClientRect().height))
-  expect(Math.abs(rowHeights[0] - rowHeights[1])).toBeLessThanOrEqual(0.5)
+  const [firstRowHeight, secondRowHeight] = rowHeights
+  expect(firstRowHeight).toBeDefined()
+  expect(secondRowHeight).toBeDefined()
+  if (firstRowHeight === undefined || secondRowHeight === undefined) {
+    throw new Error('Expected two same-title variant rows')
+  }
+  expect(Math.abs(firstRowHeight - secondRowHeight)).toBeLessThanOrEqual(0.5)
 
   const markerGeometry = await pinnedMarker.evaluate((marker) => {
     const row = marker.closest<HTMLElement>('.chip-title-variant-shell')
@@ -595,15 +603,20 @@ test('hover-revealed close actions keep a stable pointer on direct entry', async
     }
   ]
 
-  await expectKeyboardOnlyReveal(page, cases[0].action, 'Page Chip close action')
-  await expectKeyboardOnlyReveal(page, cases[1].action, 'Activation History close action')
+  const [pageChipCase, activationHistoryCase, variantCase] = cases
+  if (!pageChipCase || !activationHistoryCase || !variantCase) {
+    throw new Error('Expected all close-action pointer cases')
+  }
+
+  await expectKeyboardOnlyReveal(page, pageChipCase.action, 'Page Chip close action')
+  await expectKeyboardOnlyReveal(page, activationHistoryCase.action, 'Activation History close action')
 
   for (const pointerCase of cases) {
     await expectStablePointerEntry({ page, enterAtEdge: true, ...pointerCase })
   }
 
-  const variantAction = cases[2].action
-  const variantOwner = cases[2].owner
+  const variantAction = variantCase.action
+  const variantOwner = variantCase.owner
   const variantRail = titleGroup.locator('.chip-title-variant-actions').first()
   await page.mouse.move(2, 2)
   await expect(variantAction).toHaveCSS('opacity', '0')
@@ -821,12 +834,13 @@ test('Page Chip keeps hydrated title details and interaction chrome in one expan
     const rect = surface.getBoundingClientRect()
     const offsets = [0, 0.05, 0.1, 0.25, 0.5, 0.75, 1]
     for (const offset of offsets) {
-      for (const [x, y] of [
+      const points: Array<[number, number]> = [
         [rect.left + offset, rect.top + offset],
         [rect.right - offset, rect.top + offset],
         [rect.left + offset, rect.bottom - offset],
         [rect.right - offset, rect.bottom - offset]
-      ]) {
+      ]
+      for (const [x, y] of points) {
         const hit = document.elementFromPoint(x, y)
         if (!hit || !surface.contains(hit)) return { x, y }
       }
@@ -952,13 +966,18 @@ test('Page Chip preserves tall first-line glyph ink without changing its layout 
     }
 
     const [clipped, visible] = await Promise.all([decode(clippedPng), decode(visiblePng)])
+    const pixelAt = (data: Uint8ClampedArray, index: number) => {
+      const value = data[index]
+      if (value === undefined) throw new Error(`Screenshot pixel ${index} is unavailable`)
+      return value
+    }
     let changedPixels = 0
     for (let index = 0; index < clipped.data.length; index += 4) {
       const delta =
-        Math.abs(clipped.data[index] - visible.data[index]) +
-        Math.abs(clipped.data[index + 1] - visible.data[index + 1]) +
-        Math.abs(clipped.data[index + 2] - visible.data[index + 2]) +
-        Math.abs(clipped.data[index + 3] - visible.data[index + 3])
+        Math.abs(pixelAt(clipped.data, index) - pixelAt(visible.data, index)) +
+        Math.abs(pixelAt(clipped.data, index + 1) - pixelAt(visible.data, index + 1)) +
+        Math.abs(pixelAt(clipped.data, index + 2) - pixelAt(visible.data, index + 2)) +
+        Math.abs(pixelAt(clipped.data, index + 3) - pixelAt(visible.data, index + 3))
       if (delta > 8 && Math.floor(index / 4 / clipped.width) < boundaryY) changedPixels += 1
     }
     return changedPixels
@@ -1882,12 +1901,15 @@ test('a pending source switch rebuilds with the latest domain pins', async ({ pa
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
   await installBookmarkFetchGate(page, [{
     id: 'root',
+    syncing: false,
     title: '',
     children: [{
       id: 'bar',
+      syncing: false,
       title: 'Bookmarks Bar',
       children: [{
         id: 'same-domain-bookmark',
+        syncing: false,
         title: 'Same domain bookmark',
         url: 'https://tab-out-smoke-02.com/bookmark'
       }]

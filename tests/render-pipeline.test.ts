@@ -30,29 +30,57 @@ import type { DashboardCardVM, DashboardChipData, DashboardTab } from '../src/ex
 
 (globalThis as any).chrome = {
   runtime: {
-    getURL(path) {
+    getURL(path: string) {
       return `chrome-extension://tab-out${path}`
     }
   }
 };
 
+function expectDefined<T>(value: T | null | undefined, message = 'Expected a defined value'): T {
+  assert.ok(value !== null && value !== undefined, message)
+  return value
+}
+
+function atOrThrow<T>(items: readonly T[], index: number, message = `Expected item at index ${index}`): T {
+  return expectDefined(items[index], message)
+}
+
+function sectionsOf(vm: DashboardCardVM) {
+  assert.equal(vm.isHidden, false, 'Expected a visible dashboard card')
+  return expectDefined(vm.sections, 'Expected visible dashboard card sections')
+}
+
+function firstSection(vm: DashboardCardVM) {
+  return atOrThrow(sectionsOf(vm), 0, 'Expected a first dashboard card section')
+}
+
 function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardTab {
-  return {
-    id: 1,
+  const tab: DashboardTab = {
+    id: overrides.id ?? 1,
     url: overrides.url,
-    rawUrl: overrides.rawUrl || overrides.url,
-    suspended: false,
-    title: overrides.title || '',
-    favIconUrl: overrides.favIconUrl || '',
-    windowId: overrides.windowId || 1,
-    active: overrides.active || false,
-    pinned: overrides.pinned || false,
+    rawUrl: overrides.rawUrl ?? overrides.url,
+    suspended: overrides.suspended ?? false,
+    title: overrides.title ?? '',
+    favIconUrl: overrides.favIconUrl ?? '',
+    windowId: overrides.windowId ?? 1,
+    active: overrides.active ?? false,
+    pinned: overrides.pinned ?? false,
     groupId: overrides.groupId ?? -1,
-    isTabOut: false,
-    isApp: overrides.isApp || false,
-    index: overrides.index,
-    ...overrides
+    isTabOut: overrides.isTabOut ?? false,
+    isApp: overrides.isApp ?? false
   }
+
+  if (overrides.status !== undefined) tab.status = overrides.status
+  if (overrides.retainedSuspendedTitle !== undefined) tab.retainedSuspendedTitle = overrides.retainedSuspendedTitle
+  if (overrides.audible !== undefined) tab.audible = overrides.audible
+  if (overrides.muted !== undefined) tab.muted = overrides.muted
+  if (overrides.sourceType !== undefined) tab.sourceType = overrides.sourceType
+  if (overrides.saved !== undefined) tab.saved = overrides.saved
+  if (overrides.closedSaved !== undefined) tab.closedSaved = overrides.closedSaved
+  if (overrides.savedPageKey !== undefined) tab.savedPageKey = overrides.savedPageKey
+  if (overrides.index !== undefined) tab.index = overrides.index
+
+  return tab
 }
 
 test('buildDomainGroups keeps homepage routes inside their native domain cards', () => {
@@ -76,9 +104,10 @@ test('computeDomainCardViewModel preserves title suffixes for hostless file URLs
       title: 'Example Document - Local Files'
     })]
   })
+  const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
 
-  assert.deepEqual(vm.sections[0].flatVisibleChips[0].displaySegments, ['Example Document - Local Files'])
-  assert.deepEqual(vm.sections[0].flatVisibleChips[0].suppressedTitleParts, [])
+  assert.deepEqual(chip.displaySegments, ['Example Document - Local Files'])
+  assert.deepEqual(chip.suppressedTitleParts, [])
 })
 
 test('buildDomainGroups orders normal domain cards by tab count', () => {
@@ -125,8 +154,7 @@ test('buildDomainGroups puts pinned domain cards above higher-count normal cards
     groups.map((group) => group.domain),
     ['openai.com', 'github.com']
   )
-  assert.equal(groups[0].pinned, true)
-  assert.equal(groups[1].pinned, false)
+  assert.deepEqual(groups.map((group) => group.pinned), [true, false])
 })
 
 test('buildDomainGroups keeps saved pin order ahead of previous card order', () => {
@@ -189,9 +217,7 @@ test('buildDomainGroups lets utility cards be explicitly pinned', () => {
     groups.map((group) => group.domain),
     ['__standalone-apps__', '__tab-out__', 'openai.com']
   )
-  assert.equal(groups[0].pinned, true)
-  assert.equal(groups[1].pinned, true)
-  assert.equal(groups[2].pinned, false)
+  assert.deepEqual(groups.map((group) => group.pinned), [true, true, false])
 })
 
 test('buildDomainGroups collects standalone app tabs into a dedicated apps card', () => {
@@ -213,9 +239,9 @@ test('buildDomainGroups collects standalone app tabs into a dedicated apps card'
   assert.equal(appsVm.displayName, 'Apps')
   assert.equal(appsVm.tabCountLabel, '2')
   assert.equal(appsVm.tabCountTitle, '2 open tabs')
-  assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => !chip.iconOnly), true)
-  assert.deepEqual(appsVm.sections[0].flatVisibleChips.map((chip) => chip.title), ['Calendar', 'Inbox'])
-  assert.equal(appsVm.sections[0].flatVisibleChips.every((chip) => !chip.activeInOtherWindow), true)
+  assert.equal(firstSection(appsVm).flatVisibleChips.every((chip) => !chip.iconOnly), true)
+  assert.deepEqual(firstSection(appsVm).flatVisibleChips.map((chip) => chip.title), ['Calendar', 'Inbox'])
+  assert.equal(firstSection(appsVm).flatVisibleChips.every((chip) => !chip.activeInOtherWindow), true)
 
   const filteredAppsVm = computeDomainCardViewModel(appsGroup, { filter: 'inbox' })
   assert.equal(filteredAppsVm.isHidden, true)
@@ -467,7 +493,7 @@ test('computeDomainCardViewModel splits duplicate Tab Out pages by preserved Chr
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
 
   assert.equal(vm.closableExtras, 2)
   assert.deepEqual(chips.map((chip) => chip.tabId), [1, 2, 3, 5, 6])
@@ -490,10 +516,11 @@ test('computeDomainCardViewModel groups same-title URL variants in one rendered 
   const vm = computeDomainCardViewModel(group)
   assert.equal(vm.isHidden, false)
 
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
   assert.equal(chips.length, 1)
-  assert.equal(chips[0].pathSuffix, '')
-  assert.deepEqual(new Set(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix)), new Set(['/me', '/team']))
+  const chip = atOrThrow(chips, 0)
+  assert.equal(chip.pathSuffix, '')
+  assert.deepEqual(new Set(chip.titleVariantChips?.map((variant) => variant.pathSuffix)), new Set(['/me', '/team']))
 })
 
 test('computeDomainCardViewModel uses query crumbs for same-title URL variants on the same path', () => {
@@ -506,10 +533,10 @@ test('computeDomainCardViewModel uses query crumbs for same-title URL variants o
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
 
   assert.equal(chips.length, 1)
-  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…?search_id=alpha', '…?search_id=bravo'])
+  assert.deepEqual(atOrThrow(chips, 0).titleVariantChips?.map((chip) => chip.pathSuffix), ['…?search_id=alpha', '…?search_id=bravo'])
 })
 
 test('computeDomainCardViewModel keeps same-title URL variant labels unique when paths only differ by trailing slash', () => {
@@ -522,10 +549,10 @@ test('computeDomainCardViewModel keeps same-title URL variant labels unique when
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
 
   assert.equal(chips.length, 1)
-  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['/jira/your-work', '/jira/your-work/'])
+  assert.deepEqual(atOrThrow(chips, 0).titleVariantChips?.map((chip) => chip.pathSuffix), ['/jira/your-work', '/jira/your-work/'])
 })
 
 test('computeDomainCardViewModel keeps saved state scoped to same-title URL variants', () => {
@@ -543,7 +570,7 @@ test('computeDomainCardViewModel keeps saved state scoped to same-title URL vari
   }
 
   const vm = computeDomainCardViewModel(group)
-  const [chip] = vm.sections[0].flatVisibleChips
+  const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
   const variants = chip.titleVariantChips || []
 
   assert.equal(chip.saved, false)
@@ -562,15 +589,16 @@ test('computeDomainCardViewModel inlines title suppression when same-title URL v
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
 
   assert.deepEqual(vm.allSuppressedTitleParts, [])
-  assert.deepEqual(vm.sections[0].suppressedTitleParts, [])
+  assert.deepEqual(firstSection(vm).suppressedTitleParts, [])
   assert.equal(chips.length, 1)
-  assert.deepEqual(chips[0].displaySegments, ['Example content item - Example Workspace'])
-  assert.deepEqual(chips[0].suppressedTitleParts, [])
-  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.suppressedTitleParts), [[], []])
-  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.displaySegments), [
+  const chip = atOrThrow(chips, 0)
+  assert.deepEqual(chip.displaySegments, ['Example content item - Example Workspace'])
+  assert.deepEqual(chip.suppressedTitleParts, [])
+  assert.deepEqual(chip.titleVariantChips?.map((variant) => variant.suppressedTitleParts), [[], []])
+  assert.deepEqual(chip.titleVariantChips?.map((variant) => variant.displaySegments), [
     ['Example content item - Example Workspace'],
     ['Example content item - Example Workspace']
   ])
@@ -587,7 +615,7 @@ test('computeDomainCardViewModel counts same-title URL variants as one title sup
   }
 
   const vm = computeDomainCardViewModel(group)
-  const section = vm.sections[0]
+  const section = firstSection(vm)
   const mergedChip = section.websitePathSections?.[0]?.flatVisibleChips.find((chip) => chip.titleVariantChips)
   const settingsChip = section.flatVisibleChips.find((chip) => chip.tabUrl === 'https://example.com/settings')
 
@@ -613,7 +641,7 @@ test('computeDomainCardViewModel maps a suppression token to exact closeable and
   const vm = computeDomainCardViewModel(group)
 
   // The token's display count is 2 titles, but it maps to 3 closable tabs.
-  assert.equal(vm.sections?.[0]?.suppressedTitleParts?.[0]?.count, 2)
+  assert.equal(sectionsOf(vm)?.[0]?.suppressedTitleParts?.[0]?.count, 2)
   assert.deepEqual(vm.suppressionCloseTargetsByText, {
     '- example workspace': [
       { tabId: 1, tabUrl: 'https://example.com/content/item?search_id=alpha' },
@@ -689,7 +717,7 @@ test('computeDomainCardViewModel skips path suffixes for duplicate titles in dif
   }
 
   const vm = computeDomainCardViewModel(group)
-  const clusters = vm.sections[0].clusters
+  const clusters = firstSection(vm).clusters
 
   assert.deepEqual(clusters.map((cluster) => cluster.label), ['APP', 'DOC'])
   assert.deepEqual(clusters.flatMap((cluster) => cluster.visibleChips.map((chip) => chip.pathSuffix)), ['', ''])
@@ -705,11 +733,12 @@ test('computeDomainCardViewModel groups duplicate titles inside the same rendere
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections[0].clusters[0].visibleChips
+  const chips = atOrThrow(firstSection(vm).clusters, 0).visibleChips
 
   assert.equal(chips.length, 1)
-  assert.equal(chips[0].pathSuffix, '')
-  assert.deepEqual(chips[0].titleVariantChips?.map((chip) => chip.pathSuffix), ['…/APP-1001', '…/APP-1002'])
+  const chip = atOrThrow(chips, 0)
+  assert.equal(chip.pathSuffix, '')
+  assert.deepEqual(chip.titleVariantChips?.map((variant) => variant.pathSuffix), ['…/APP-1001', '…/APP-1002'])
 })
 
 test('computeDomainCardViewModel hides repeated trailing title suffixes in normal mode', () => {
@@ -722,14 +751,14 @@ test('computeDomainCardViewModel hides repeated trailing title suffixes in norma
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
   assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- Example Workspace - Slack'], ['- Example Workspace - Slack']])
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example Workspace - Slack', count: 2 }])
-  assert.deepEqual(vm.sections[0].suppressedTitleParts, [{ text: '- Example Workspace - Slack', count: 2 }])
+  assert.deepEqual(firstSection(vm).suppressedTitleParts, [{ text: '- Example Workspace - Slack', count: 2 }])
 })
 
 test('computeDomainCardViewModel keeps repeated title suffixes visible while filtering', () => {
@@ -742,14 +771,14 @@ test('computeDomainCardViewModel keeps repeated title suffixes visible while fil
   }
 
   const vm = computeDomainCardViewModel(group, { filter: 'workspace' })
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
   assert.deepEqual(titles, ['Alpha channel - Example Workspace', 'Beta channel - Example Workspace'])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- Slack'], ['- Slack']])
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Slack', count: 2 }])
-  assert.deepEqual(vm.sections[0].suppressedTitleParts, [{ text: '- Slack', count: 2 }])
+  assert.deepEqual(firstSection(vm).suppressedTitleParts, [{ text: '- Slack', count: 2 }])
 })
 
 test('computeDomainCardViewModel tracks multiple hidden title parts per chip', () => {
@@ -762,14 +791,14 @@ test('computeDomainCardViewModel tracks multiple hidden title parts per chip', (
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
   assert.deepEqual(titles, ['Alpha channel', 'Beta channel'])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['- JIRA - Example Workspace - Slack'], ['- JIRA - Example Workspace - Slack']])
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- JIRA - Example Workspace - Slack', count: 2 }])
-  assert.deepEqual(vm.sections[0].suppressedTitleParts, [{ text: '- JIRA - Example Workspace - Slack', count: 2 }])
+  assert.deepEqual(firstSection(vm).suppressedTitleParts, [{ text: '- JIRA - Example Workspace - Slack', count: 2 }])
 })
 
 test('computeDomainCardViewModel scopes title suppression tokens to the narrowest section', () => {
@@ -783,8 +812,8 @@ test('computeDomainCardViewModel scopes title suppression tokens to the narrowes
   }
 
   const vm = computeDomainCardViewModel(group)
-  const appSection = vm.sections.find((section) => section.key === 'app')
-  const helpSection = vm.sections.find((section) => section.key === 'help')
+  const appSection = sectionsOf(vm).find((section) => section.key === 'app')
+  const helpSection = sectionsOf(vm).find((section) => section.key === 'help')
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Example Workspace - Slack', count: 2 }])
@@ -814,7 +843,7 @@ test('computeDomainCardViewModel keeps a single Contentful tab in its environmen
   }
 
   const vm = computeDomainCardViewModel(group)
-  const appSection = vm.sections.find((section) => section.key === 'app')
+  const appSection = sectionsOf(vm).find((section) => section.key === 'app')
 
   assert.ok(appSection)
   assert.deepEqual(
@@ -849,7 +878,7 @@ test('computeDomainCardViewModel scopes title suppression tokens to a pathgroup 
   }
 
   const vm = computeDomainCardViewModel(group)
-  const appSection = vm.sections.find((section) => section.key === 'app')
+  const appSection = sectionsOf(vm).find((section) => section.key === 'app')
   const envAlphaCluster = appSection?.clusters.find((cluster) => cluster.label === 'env-alpha')
 
   assert.deepEqual(vm.suppressedTitleParts, [])
@@ -879,7 +908,7 @@ test('computeDomainCardViewModel orders title suppression summary by source titl
   }
 
   const vm = computeDomainCardViewModel(group)
-  const appSection = vm.sections.find((section) => section.key === 'app')
+  const appSection = sectionsOf(vm).find((section) => section.key === 'app')
   const envAlphaCluster = appSection?.clusters.find((cluster) => cluster.label === 'env-alpha')
   const expectedSummary = [
     { text: '— Content — Example Website —', count: 2 },
@@ -909,7 +938,7 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
     if ('titleSuppression' in segment) return '˷'
     return '/'
   }).join('')
-  const chipsFrom = (vm: DashboardCardVM) => vm.sections.flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
+  const chipsFrom = (vm: DashboardCardVM) => sectionsOf(vm).flatMap((section) => section.clusters.flatMap((cluster) => cluster.visibleChips))
 
   const vm = computeDomainCardViewModel(group)
   const chips = chipsFrom(vm)
@@ -921,7 +950,7 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
-  assert.deepEqual(vm.sections[0].clusters[0].suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
+  assert.deepEqual(atOrThrow(firstSection(vm).clusters, 0).suppressedTitleParts, [{ text: '— Content — Example Website —', count: 2 }, { text: '— Contentful', count: 2 }])
   assert.deepEqual(chips.map((chip) => chip.suppressedTitleParts), [['— Content — Example Website —', '— Contentful'], ['— Content — Example Website —', '— Contentful']])
   assert.deepEqual(structuralPlaceholderLabels, ['env-alpha', 'env-alpha'])
   assert.deepEqual(visibleTitles, [
@@ -935,7 +964,7 @@ test('computeDomainCardViewModel suppresses shared title text before structural 
 
   assert.deepEqual(filteredVm.suppressedTitleParts, [])
   assert.deepEqual(filteredVm.allSuppressedTitleParts, [{ text: '— Contentful', count: 2 }])
-  assert.deepEqual(filteredVm.sections[0].clusters[0].suppressedTitleParts, [{ text: '— Contentful', count: 2 }])
+  assert.deepEqual(atOrThrow(firstSection(filteredVm).clusters, 0).suppressedTitleParts, [{ text: '— Contentful', count: 2 }])
   assert.ok(filteredTitles.every((title) => title.includes('Content') && title.includes('Example Website')))
 })
 
@@ -949,7 +978,7 @@ test('computeDomainCardViewModel treats Google Search as shared hidden title tex
   }
 
   const vm = computeDomainCardViewModel(group)
-  const section = vm.sections[0]
+  const section = firstSection(vm)
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '- Google Search', count: 2 }])
@@ -991,7 +1020,7 @@ test('computeDomainCardViewModel splits docs.google.com products into website pa
   }
 
   const vm = computeDomainCardViewModel(group)
-  const docsSection = vm.sections.find((section) => section.key === 'docs')
+  const docsSection = sectionsOf(vm).find((section) => section.key === 'docs')
 
   assert.ok(docsSection)
   assert.equal(docsSection.hasFlat, false)
@@ -1045,8 +1074,8 @@ test('computeDomainCardViewModel keeps Atlassian tenants separate while nesting 
   }
 
   const vm = computeDomainCardViewModel(group)
-  const alphaSection = vm.sections.find((section) => section.key === 'alpha')
-  const betaSection = vm.sections.find((section) => section.key === 'beta')
+  const alphaSection = sectionsOf(vm).find((section) => section.key === 'alpha')
+  const betaSection = sectionsOf(vm).find((section) => section.key === 'beta')
 
   assert.ok(alphaSection)
   assert.ok(betaSection)
@@ -1099,8 +1128,8 @@ test('computeDomainCardViewModel creates generic first-segment path sections wit
   }
 
   const vm = computeDomainCardViewModel(group)
-  const envASection = vm.sections.find((section) => section.key === 'env-a')
-  const envBSection = vm.sections.find((section) => section.key === 'env-b')
+  const envASection = sectionsOf(vm).find((section) => section.key === 'env-a')
+  const envBSection = sectionsOf(vm).find((section) => section.key === 'env-b')
 
   assert.ok(envASection)
   assert.ok(envBSection)
@@ -1109,7 +1138,7 @@ test('computeDomainCardViewModel creates generic first-segment path sections wit
     ['/resource']
   )
   assert.deepEqual(
-    envASection.websitePathSections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    atOrThrow(envASection.websitePathSections, 0).flatVisibleChips.map((chip) => chip.tabUrl),
     [
       'https://env-a.example.test/resource/contentKeys/account/en-US.json',
       'https://env-a.example.test/resource/contentKeys/cart/en-US.json'
@@ -1152,7 +1181,7 @@ test('computeDomainCardViewModel applies generic path sections to root-domain se
   }
 
   const vm = computeDomainCardViewModel(group)
-  const rootSection = vm.sections.find((section) => section.key === '')
+  const rootSection = sectionsOf(vm).find((section) => section.key === '')
 
   assert.ok(rootSection)
   assert.deepEqual(
@@ -1174,12 +1203,12 @@ test('computeDomainCardViewModel leaves a single docs.google.com product tab fla
   }
 
   const vm = computeDomainCardViewModel(group)
-  const docsSection = vm.sections[0]
+  const docsSection = firstSection(vm)
 
   assert.equal(docsSection.key, 'docs')
   assert.equal(docsSection.websitePathSections.length, 0)
   assert.equal(docsSection.flatVisibleChips.length, 1)
-  assert.equal(docsSection.flatVisibleChips[0].tabUrl, 'https://docs.google.com/document/d/doc-alpha/edit')
+  assert.equal(atOrThrow(docsSection.flatVisibleChips, 0).tabUrl, 'https://docs.google.com/document/d/doc-alpha/edit')
 })
 
 test('resolveWebsitePathSection groups Atlassian Jira app paths under /jira', () => {
@@ -1233,7 +1262,7 @@ test('computeDomainCardViewModel scopes title suppression to a website path befo
   }
 
   const vm = computeDomainCardViewModel(group)
-  const section = vm.sections[0]
+  const section = firstSection(vm)
   const wikiSection = section.websitePathSections.find((websitePathSection) => websitePathSection.label === '/wiki')
   const kbCluster = wikiSection?.clusters.find((cluster) => cluster.label === 'KB')
 
@@ -1275,7 +1304,7 @@ test('computeDomainCardViewModel marks single title suppression that spans rende
   }
 
   const vm = computeDomainCardViewModel(group)
-  const section = vm.sections[0]
+  const section = firstSection(vm)
 
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(section.suppressedTitleParts, [{ text: '- JIRA', count: 3, spansRenderedChildGroups: true }])
@@ -1314,9 +1343,9 @@ test('computeDomainCardViewModel keeps single title suppression neutral when it 
   const vm = computeDomainCardViewModel(group)
 
   assert.deepEqual(vm.suppressedTitleParts, [{ text: '| Example Retail', count: 4 }])
-  assert.equal(vm.suppressedTitleParts[0].spansRenderedChildGroups, undefined)
+  assert.equal(atOrThrow(expectDefined(vm.suppressedTitleParts), 0).spansRenderedChildGroups, undefined)
   assert.deepEqual(vm.allSuppressedTitleParts, [{ text: '| Example Retail', count: 4 }])
-  assert.ok(vm.sections.length > 1)
+  assert.ok(sectionsOf(vm).length > 1)
 })
 
 test('computeDomainCardViewModel exposes Confluence product and site suffixes as title noise', () => {
@@ -1351,12 +1380,12 @@ test('computeDomainCardViewModel exposes Confluence product and site suffixes as
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections
+  const chips = sectionsOf(vm)
     .flatMap((section) => section.websitePathSections.flatMap((websitePathSection) => websitePathSection.clusters.flatMap((cluster) => cluster.visibleChips)))
     .filter((chip) => chip.tabUrl.includes('/wiki/'))
   const titles = chips.map((chip) => chip.displaySegments.filter((seg) => typeof seg === 'string').join(''))
 
-  const wikiSection = vm.sections.flatMap((section) => section.websitePathSections).find((websitePathSection) => websitePathSection.label === '/wiki')
+  const wikiSection = sectionsOf(vm).flatMap((section) => section.websitePathSections).find((websitePathSection) => websitePathSection.label === '/wiki')
   const docsCluster = wikiSection?.clusters.find((cluster) => cluster.label === 'DOCS')
 
   assert.deepEqual(vm.suppressedTitleParts, [])
@@ -1391,7 +1420,7 @@ test('computeDomainCardViewModel keeps one-off cleaned title suffixes out of the
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chips = vm.sections.flatMap((section) => [
+  const chips = sectionsOf(vm).flatMap((section) => [
     ...section.flatVisibleChips,
     ...section.clusters.flatMap((cluster) => cluster.visibleChips),
     ...section.websitePathSections.flatMap((websitePathSection) => [
@@ -1417,7 +1446,7 @@ test('computeDomainCardViewModel marks active tabs from other windows', () => {
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
-  const chips = vm.sections[0].flatVisibleChips
+  const chips = firstSection(vm).flatVisibleChips
   const currentWindowChip = chips.find((chip) => chip.tabUrl === 'https://example.com/current-window')
   const otherWindowChip = chips.find((chip) => chip.tabUrl === 'https://example.com/other-window')
 
@@ -1434,7 +1463,7 @@ test('computeDomainCardViewModel keeps live tab favicons aligned with Chrome tab
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chip = vm.sections[0].flatVisibleChips[0]
+  const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
 
   assert.equal(chip.faviconUrl, '')
 })
@@ -1454,7 +1483,7 @@ test('computeDomainCardViewModel resolves suspended tab favicons from the origin
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chip = vm.sections[0].flatVisibleChips[0]
+  const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
 
   assert.equal(chip.faviconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fexample.test%2Fdocs&size=32')
 })
@@ -1468,7 +1497,7 @@ test('computeDomainCardViewModel can use Chrome favicon cache for read-only sour
   }
 
   const vm = computeDomainCardViewModel(group)
-  const chip = vm.sections[0].flatVisibleChips[0]
+  const chip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
 
   assert.equal(chip.faviconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fexample.com%2Fdocs&size=32')
 })
@@ -1483,7 +1512,7 @@ test('computeDomainCardViewModel frames a duplicate URL when the active copy is 
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
-  const chip = vm.sections[0].flatVisibleChips.find((candidate) => candidate.tabUrl === 'https://example.com/current-page')
+  const chip = firstSection(vm).flatVisibleChips.find((candidate) => candidate.tabUrl === 'https://example.com/current-page')
 
   assert.equal(chip?.dupeCount, 2)
   assert.equal(chip?.activeInOtherWindow, false)
@@ -1500,7 +1529,7 @@ test('computeDomainCardViewModel marks a duplicate URL active in another window 
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
-  const chip = vm.sections[0].flatVisibleChips.find((candidate) => candidate.tabUrl === 'https://example.com/other-window-page')
+  const chip = firstSection(vm).flatVisibleChips.find((candidate) => candidate.tabUrl === 'https://example.com/other-window-page')
 
   assert.equal(chip?.dupeCount, 2)
   assert.equal(chip?.activeInOtherWindow, true)
@@ -1532,7 +1561,7 @@ test('computeDomainCardViewModel frames the current Tab Out page without marking
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
-  const currentTabOutChip = vm.sections[0].flatVisibleChips.find((chip) => chip.rawUrl === 'chrome-extension://tab-out/index.html')
+  const currentTabOutChip = firstSection(vm).flatVisibleChips.find((chip) => chip.rawUrl === 'chrome-extension://tab-out/index.html')
 
   assert.equal(currentTabOutChip?.activeInOtherWindow, false)
   assert.equal(currentTabOutChip?.activeChipFrame, true)
@@ -1549,17 +1578,20 @@ test('computeDomainCardViewModel keeps the shared folded section headerless', ()
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+  const section = firstSection(vm)
+  const chip = atOrThrow(section.flatVisibleChips, 0)
+  const envs = expectDefined(chip.envs, 'Expected the shared chip to retain its environments')
   assert.equal(vm.isHidden, false)
-  assert.equal(vm.sections[0].isShared, true)
-  assert.equal(vm.sections[0].showHeader, false)
-  assert.equal(vm.sections[0].flatVisibleChips.length, 1)
-  assert.equal(vm.sections[0].flatVisibleChips[0].activeInOtherWindow, true)
+  assert.equal(section.isShared, true)
+  assert.equal(section.showHeader, false)
+  assert.equal(section.flatVisibleChips.length, 1)
+  assert.equal(chip.activeInOtherWindow, true)
   assert.deepEqual(
-    vm.sections[0].flatVisibleChips[0].envs.map((env) => env.prefix),
+    envs.map((env) => env.prefix),
     ['dev', 'qa']
   )
   assert.deepEqual(
-    vm.sections[0].flatVisibleChips[0].envs.map((env) => env.activeInOtherWindow || false),
+    envs.map((env) => env.activeInOtherWindow ?? false),
     [false, true]
   )
 })
@@ -1576,17 +1608,17 @@ test('computeDomainCardViewModel keeps same-path tabs in separate subdomain sect
 
   const vm = computeDomainCardViewModel(group)
 
-  assert.equal(vm.sections.some((section) => section.isShared), false)
-  assert.deepEqual(vm.sections.map((section) => section.key), ['dev1', 'dev2', 'qa'])
+  assert.equal(sectionsOf(vm).some((section) => section.isShared), false)
+  assert.deepEqual(sectionsOf(vm).map((section) => section.key), ['dev1', 'dev2', 'qa'])
   assert.deepEqual(
-    vm.sections.flatMap((section) => section.flatVisibleChips.map((chip) => chip.tabUrl)),
+    sectionsOf(vm).flatMap((section) => section.flatVisibleChips.map((chip) => chip.tabUrl)),
     [
       'https://dev1.example.test/deployments',
       'https://dev2.example.test/deployments',
       'https://qa.example.test/deployments'
     ]
   )
-  assert.ok(vm.sections.every((section) => section.flatVisibleChips.every((chip) => !chip.envs?.length)))
+  assert.ok(sectionsOf(vm).every((section) => section.flatVisibleChips.every((chip) => !chip.envs?.length)))
 })
 
 test('computeDomainCardViewModel carries every env suppression token on folded chips', () => {
@@ -1599,14 +1631,14 @@ test('computeDomainCardViewModel carries every env suppression token on folded c
   }
 
   const vm = computeDomainCardViewModel(group)
-  const foldedChip = vm.sections[0].flatVisibleChips[0]
+  const foldedChip = atOrThrow(firstSection(vm).flatVisibleChips, 0)
 
-  assert.equal(vm.sections[0].isShared, true)
+  assert.equal(firstSection(vm).isShared, true)
   assert.deepEqual(vm.suppressedTitleParts, [])
   assert.deepEqual(vm.allSuppressedTitleParts, [
     { text: '| Example Retail', count: 2 }
   ])
-  assert.deepEqual(vm.sections[0].suppressedTitleParts, [
+  assert.deepEqual(firstSection(vm).suppressedTitleParts, [
     { text: '| Example Retail', count: 2 }
   ])
   assert.deepEqual(foldedChip.suppressedTitleParts, ['| Example Retail'])
@@ -1636,12 +1668,13 @@ test('buildDashboardViewModel derives matched and unmatched cards in one pass', 
   assert.equal(vm.unmatchedCards.length, 2)
   assert.equal(vm.showOtherTabs, true)
   assert.deepEqual(vm.filteredCloseUrls, ['https://alpha.example.com/beta'])
-  assert.equal(vm.matchedCards[0].vm.tabCount, 1)
-  assert.equal(vm.matchedCards[0].vm.totalTabCount, 2)
-  assert.equal(vm.matchedCards[0].vm.tabCountLabel, '1/2')
-  assert.equal(vm.matchedCards[0].vm.tabCountTitle, '1 of 2 open tabs shown while filtering')
+  const matchedCard = atOrThrow(vm.matchedCards, 0)
+  assert.equal(matchedCard.vm.tabCount, 1)
+  assert.equal(matchedCard.vm.totalTabCount, 2)
+  assert.equal(matchedCard.vm.tabCountLabel, '1/2')
+  assert.equal(matchedCard.vm.tabCountTitle, '1 of 2 open tabs shown while filtering')
 
-  const unmatchedAlphaCard = vm.unmatchedCards.find(({ group }) => group.domain === 'example.com')
+  const unmatchedAlphaCard = expectDefined(vm.unmatchedCards.find(({ group }) => group.domain === 'example.com'))
   assert.equal(unmatchedAlphaCard.vm.tabCount, 1)
   assert.equal(unmatchedAlphaCard.vm.totalTabCount, 2)
   assert.equal(unmatchedAlphaCard.vm.tabCountLabel, '1/2')
@@ -1688,8 +1721,8 @@ test('buildDashboardViewModel keeps known chip URLs in their previous card order
     [
       domainCardId('example.test'),
       new Map([
-        [dashboardChipOrderKeyForTab(tabs[1]), 0],
-        [dashboardChipOrderKeyForTab(tabs[0]), 1]
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 0],
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1]
       ])
     ]
   ])
@@ -1701,7 +1734,7 @@ test('buildDashboardViewModel keeps known chip URLs in their previous card order
   })
 
   assert.deepEqual(
-    vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    firstSection(atOrThrow(vm.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/?page=bravo', 'https://example.test/?page=alpha']
   )
 })
@@ -1717,9 +1750,9 @@ test('buildDashboardViewModel ranks working-set-priority chips before remembered
     [
       domainCardId('example.test'),
       new Map([
-        [dashboardChipOrderKeyForTab(tabs[0]), 0],
-        [dashboardChipOrderKeyForTab(tabs[1]), 1],
-        [dashboardChipOrderKeyForTab(tabs[2]), 2]
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 0],
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 1],
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 2)), 2]
       ])
     ]
   ])
@@ -1734,7 +1767,7 @@ test('buildDashboardViewModel ranks working-set-priority chips before remembered
   })
 
   assert.deepEqual(
-    vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    firstSection(atOrThrow(vm.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/?page=charlie', 'https://example.test/?page=alpha', 'https://example.test/?page=bravo']
   )
 })
@@ -1750,8 +1783,8 @@ test('buildDashboardViewModel keeps remembered order across saved-page and raw-u
     [
       domainCardId('example.test'),
       new Map([
-        [dashboardChipOrderKeyForTab({ ...tabs[1], sourceType: 'saved-page', url: rawUrl }), 0],
-        [dashboardChipOrderKeyForTab(tabs[0]), 1]
+        [dashboardChipOrderKeyForTab({ ...atOrThrow(tabs, 1), sourceType: 'saved-page', url: rawUrl }), 0],
+        [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1]
       ])
     ]
   ])
@@ -1763,7 +1796,7 @@ test('buildDashboardViewModel keeps remembered order across saved-page and raw-u
   })
 
   assert.deepEqual(
-    vm.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    firstSection(atOrThrow(vm.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/bravo', 'https://example.test/alpha']
   )
 })
@@ -1776,7 +1809,7 @@ function renderHookValue<T>(run: () => T): T {
     value = run()
     return null
   }))
-  return value as T
+  return expectDefined(value, 'Expected the hook render to produce a value')
 }
 
 test('useDashboardViewModels holds tabs chip order during the startup freeze and resumes after it', () => {
@@ -1793,8 +1826,8 @@ test('useDashboardViewModels holds tabs chip order during the startup freeze and
   // Remembered chip order that disagrees with the deterministic label fallback (bravo first).
   const rememberedChipOrder = {
     tabs: new Map([[domainCardId('example.test'), new Map([
-      [dashboardChipOrderKeyForTab(tabs[1]), 0],
-      [dashboardChipOrderKeyForTab(tabs[0]), 1]
+      [dashboardChipOrderKeyForTab(atOrThrow(tabs, 1)), 0],
+      [dashboardChipOrderKeyForTab(atOrThrow(tabs, 0)), 1]
     ])]]),
     bookmarks: new Map(),
     history: new Map()
@@ -1818,14 +1851,14 @@ test('useDashboardViewModels holds tabs chip order during the startup freeze and
   // hydration both render the stable fallback order instead of re-sorting the chip window.
   const frozen = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: true }))
   assert.deepEqual(
-    frozen.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    firstSection(atOrThrow(frozen.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/alpha', 'https://example.test/bravo']
   )
 
   // Once the freeze lifts (filter/source change) the remembered order is honored again.
   const live = renderHookValue(() => useDashboardViewModels({ ...base, freezeTabsChipOrder: false }))
   assert.deepEqual(
-    live.matchedCards[0].vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    firstSection(atOrThrow(live.matchedCards, 0).vm).flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/bravo', 'https://example.test/alpha']
   )
 })
@@ -1850,7 +1883,7 @@ test('computeDomainCardViewModel applies working-set priority before remembered 
     }
   )
 
-  const rootSection = vm.sections[0]
+  const rootSection = firstSection(vm)
   const browseSection = rootSection.websitePathSections.find((section) => section.label === '/browse')
 
   assert.deepEqual(rootSection.websitePathSections.map((section) => section.label), ['/wiki', '/browse', '/jira'])
@@ -1876,10 +1909,10 @@ test('computeDomainCardViewModel applies chip priority before the overflow split
       ])
     }
   )
-  const section = vm.sections[0]
+  const section = firstSection(vm)
 
   assert.equal(section.flatHiddenCount, 2)
-  assert.equal(section.flatVisibleChips[0].tabUrl, 'https://example.test/pages/golf')
+  assert.equal(atOrThrow(section.flatVisibleChips, 0).tabUrl, 'https://example.test/pages/golf')
   assert.equal(section.flatHiddenChips.some((chip) => chip.tabUrl === 'https://example.test/pages/golf'), false)
 })
 
@@ -1898,7 +1931,7 @@ test('computeDomainCardViewModel ranks subdomain sections by their strongest chi
     }
   )
 
-  assert.deepEqual(vm.sections.map((section) => section.key), ['beta', 'alpha'])
+  assert.deepEqual(sectionsOf(vm).map((section) => section.key), ['beta', 'alpha'])
 })
 
 test('computeDomainCardViewModel ranks website path sections by their strongest chip priority', () => {
@@ -1918,7 +1951,7 @@ test('computeDomainCardViewModel ranks website path sections by their strongest 
     }
   )
 
-  assert.deepEqual(vm.sections[0].websitePathSections.map((section) => section.label), ['/shop', '/docs'])
+  assert.deepEqual(firstSection(vm).websitePathSections.map((section) => section.label), ['/shop', '/docs'])
 })
 
 test('computeDomainCardViewModel ranks path groups by their strongest chip priority', () => {
@@ -1938,7 +1971,7 @@ test('computeDomainCardViewModel ranks path groups by their strongest chip prior
     }
   )
 
-  assert.deepEqual(vm.sections[0].clusters.map((cluster) => cluster.label), ['example/bravo', 'example/alpha'])
+  assert.deepEqual(firstSection(vm).clusters.map((cluster) => cluster.label), ['example/bravo', 'example/alpha'])
 })
 
 test('parseFilterQuery separates tokens, quoted phrases, and open-ended phrases', () => {
@@ -2013,9 +2046,9 @@ test('history source uses parsed filter semantics for returned candidates', () =
   const historyGroups = buildDomainGroups(historyTabs)
   const bookmarkGroups = buildDomainGroups(bookmarkTabs)
 
-  assert.equal(tabMatchesFilter(historyTabs[0], 'docs openai'), true)
-  assert.equal(tabMatchesFilter(historyTabs[1], 'tab out'), true)
-  assert.equal(tabMatchesFilter(bookmarkTabs[0], 'docs openai'), true)
+  assert.equal(tabMatchesFilter(atOrThrow(historyTabs, 0), 'docs openai'), true)
+  assert.equal(tabMatchesFilter(atOrThrow(historyTabs, 1), 'tab out'), true)
+  assert.equal(tabMatchesFilter(atOrThrow(bookmarkTabs, 0), 'docs openai'), true)
 
   const historyVm = buildDashboardViewModel({
     realTabs: historyTabs,
@@ -2149,12 +2182,12 @@ test('normalizeTabHistorySnapshot keeps command target markers stable', () => {
   assert.equal(snapshot.previousIndex, 0)
   assert.equal(snapshot.nextIndex, 2)
   assert.equal(snapshot.activeTabId, 12)
-  assert.equal(snapshot.entries[0].previousTarget, true)
-  assert.equal(snapshot.entries[1].current, true)
-  assert.equal(snapshot.entries[1].active, true)
-  assert.equal(snapshot.entries[2].cursor, true)
-  assert.equal(snapshot.entries[2].activeInOtherWindow, true)
-  assert.equal(snapshot.entries[2].nextTarget, true)
+  assert.equal(atOrThrow(snapshot.entries, 0).previousTarget, true)
+  assert.equal(atOrThrow(snapshot.entries, 1).current, true)
+  assert.equal(atOrThrow(snapshot.entries, 1).active, true)
+  assert.equal(atOrThrow(snapshot.entries, 2).cursor, true)
+  assert.equal(atOrThrow(snapshot.entries, 2).activeInOtherWindow, true)
+  assert.equal(atOrThrow(snapshot.entries, 2).nextTarget, true)
 })
 
 test('normalizeTabHistorySnapshot resolves live history favicons from Chrome tab state or cache', () => {
@@ -2181,8 +2214,8 @@ test('normalizeTabHistorySnapshot resolves live history favicons from Chrome tab
     ] as any
   })
 
-  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Falpha.example%2Fdocs&size=32')
-  assert.equal(snapshot.entries[1].favIconUrl, 'data:image/png;base64,abc')
+  assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Falpha.example%2Fdocs&size=32')
+  assert.equal(atOrThrow(snapshot.entries, 1).favIconUrl, 'data:image/png;base64,abc')
 })
 
 test('normalizeTabHistorySnapshot resolves suspended-row favicons from the original url, not the suspender-faded copy', () => {
@@ -2201,7 +2234,7 @@ test('normalizeTabHistorySnapshot resolves suspended-row favicons from the origi
     ] as any
   })
 
-  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
+  assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
 })
 
 test('normalizeTabHistorySnapshot falls back to Chrome favicon cache for suspended rows without a tab favicon', () => {
@@ -2220,7 +2253,7 @@ test('normalizeTabHistorySnapshot falls back to Chrome favicon cache for suspend
     ] as any
   })
 
-  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
+  assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fcharlie.example%2Fdocs&size=32')
 })
 
 test('normalizeTabHistorySnapshot honors the explicit suspended flag over url comparison', () => {
@@ -2239,8 +2272,8 @@ test('normalizeTabHistorySnapshot honors the explicit suspended flag over url co
     ] as any
   })
 
-  assert.equal(snapshot.entries[0].suspended, true)
-  assert.equal(snapshot.entries[0].favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fdelta.example%2Fdocs&size=32')
+  assert.equal(atOrThrow(snapshot.entries, 0).suspended, true)
+  assert.equal(atOrThrow(snapshot.entries, 0).favIconUrl, 'chrome-extension://tab-out/_favicon/?pageUrl=https%3A%2F%2Fdelta.example%2Fdocs&size=32')
 })
 
 test('flattenBookmarkNodes turns bookmark tree nodes into read-only dashboard items', () => {
@@ -2286,7 +2319,7 @@ test('history range options default to the last day search window', () => {
     HISTORY_RANGE_OPTIONS.map((option) => option.value),
     [HISTORY_FILTER_OFF, '1d', '7d', '30d', '90d', '180d', '365d', 'all']
   )
-  assert.equal(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE).days, 1)
+  assert.equal(expectDefined(HISTORY_RANGE_OPTIONS.find((option) => option.value === DEFAULT_HISTORY_RANGE)).days, 1)
 })
 
 test('history source sends the raw trimmed filter text to Chrome history search', async () => {
@@ -2807,9 +2840,10 @@ test('buildDashboardViewModel disables destructive actions for bookmarks source'
   assert.equal(vm.source, 'bookmarks')
   assert.equal(vm.stats.dedupCount, 0)
   assert.deepEqual(vm.filteredCloseUrls, [])
-  assert.equal(vm.matchedCards[0].vm.closableCount, 0)
-  assert.equal(vm.matchedCards[0].vm.tabCountTitle, '2 bookmarks')
-  assert.equal(vm.matchedCards[0].vm.sections[0].flatVisibleChips.every((chip) => chip.sourceType === 'bookmark'), true)
+  const matchedCard = atOrThrow(vm.matchedCards, 0)
+  assert.equal(matchedCard.vm.closableCount, 0)
+  assert.equal(matchedCard.vm.tabCountTitle, '2 bookmarks')
+  assert.equal(firstSection(matchedCard.vm).flatVisibleChips.every((chip) => chip.sourceType === 'bookmark'), true)
 })
 
 test('combined tab and bookmark search keeps bookmark matches read-only', () => {
@@ -2841,9 +2875,10 @@ test('combined tab and bookmark search keeps bookmark matches read-only', () => 
   assert.deepEqual(bookmarksVm.filteredCloseUrls, [])
   assert.equal(bookmarksVm.matchedCards.length, 1)
   assert.equal(bookmarksVm.unmatchedCards.length, 1)
-  assert.equal(bookmarksVm.matchedCards[0].vm.closableCount, 0)
-  assert.equal(bookmarksVm.matchedCards[0].vm.tabCountTitle, '1 of 1 bookmark shown while filtering')
-  assert.equal(bookmarksVm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'bookmark')
+  const matchedBookmarkCard = atOrThrow(bookmarksVm.matchedCards, 0)
+  assert.equal(matchedBookmarkCard.vm.closableCount, 0)
+  assert.equal(matchedBookmarkCard.vm.tabCountTitle, '1 of 1 bookmark shown while filtering')
+  assert.equal(atOrThrow(firstSection(matchedBookmarkCard.vm).flatVisibleChips, 0).sourceType, 'bookmark')
 })
 
 test('history search matches are not tab-closable dashboard results', () => {
@@ -2863,9 +2898,10 @@ test('history search matches are not tab-closable dashboard results', () => {
   assert.deepEqual(vm.filteredCloseUrls, [])
   assert.equal(vm.matchedCards.length, 1)
   assert.equal(vm.unmatchedCards.length, 1)
-  assert.equal(vm.matchedCards[0].vm.closableCount, 0)
-  assert.equal(vm.matchedCards[0].vm.tabCountTitle, '1 of 1 history result shown while filtering')
-  assert.equal(vm.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'history')
+  const matchedCard = atOrThrow(vm.matchedCards, 0)
+  assert.equal(matchedCard.vm.closableCount, 0)
+  assert.equal(matchedCard.vm.tabCountTitle, '1 of 1 history result shown while filtering')
+  assert.equal(atOrThrow(firstSection(matchedCard.vm).flatVisibleChips, 0).sourceType, 'history')
 })
 
 test('closed saved pages stay searchable without counting as open tabs or close targets', () => {
@@ -2875,10 +2911,10 @@ test('closed saved pages stay searchable without counting as open tabs or close 
       id: 'saved-1',
       url: 'https://example.test/saved',
       title: 'Saved reference',
-      sourceType: 'saved-page' as DashboardTab['sourceType'],
+      sourceType: 'saved-page',
       saved: true,
       closedSaved: true
-    } as Partial<DashboardTab> & { url: string })
+    })
   ])
   const realTabs = groups.flatMap((group) => group.tabs)
 
@@ -2887,10 +2923,11 @@ test('closed saved pages stay searchable without counting as open tabs or close 
     domainGroups: groups,
     source: 'tabs'
   })
+  const unfilteredCard = atOrThrow(unfiltered.matchedCards, 0)
   assert.equal(unfiltered.stats.totalTabs, 1)
   assert.equal(unfiltered.stats.visibleTabs, 1)
-  assert.equal(unfiltered.matchedCards[0].vm.tabCountLabel, '1 +1 saved')
-  assert.equal(unfiltered.matchedCards[0].vm.closableCount, 1)
+  assert.equal(unfilteredCard.vm.tabCountLabel, '1 +1 saved')
+  assert.equal(unfilteredCard.vm.closableCount, 1)
   assert.deepEqual(unfiltered.globalDedupeUrls, [])
 
   const filtered = buildDashboardViewModel({
@@ -2899,11 +2936,12 @@ test('closed saved pages stay searchable without counting as open tabs or close 
     filter: 'reference',
     source: 'tabs'
   })
+  const filteredCard = atOrThrow(filtered.matchedCards, 0)
   assert.equal(filtered.stats.visibleTabs, 0)
   assert.equal(filtered.matchedCards.length, 1)
-  assert.equal(filtered.matchedCards[0].vm.tabCountLabel, '0 +1 saved')
+  assert.equal(filteredCard.vm.tabCountLabel, '0 +1 saved')
   assert.deepEqual(filtered.filteredCloseUrls, [])
-  assert.equal(filtered.matchedCards[0].vm.sections[0].flatVisibleChips[0].sourceType, 'saved-page')
+  assert.equal(atOrThrow(firstSection(filteredCard.vm).flatVisibleChips, 0).sourceType, 'saved-page')
 })
 
 test('filtered saved-only cards show the matched saved-page fraction in their badge', () => {
@@ -2924,8 +2962,9 @@ test('filtered saved-only cards show the matched saved-page fraction in their ba
   })
 
   assert.equal(filtered.matchedCards.length, 1)
-  assert.equal(filtered.matchedCards[0].vm.tabCountLabel, '2/4 saved')
-  assert.equal(filtered.matchedCards[0].vm.tabCountTitle, '0 of 1 open tab shown while filtering, 2 of 4 saved pages shown while filtering')
+  const matchedCard = atOrThrow(filtered.matchedCards, 0)
+  assert.equal(matchedCard.vm.tabCountLabel, '2/4 saved')
+  assert.equal(matchedCard.vm.tabCountTitle, '0 of 1 open tab shown while filtering, 2 of 4 saved pages shown while filtering')
 })
 
 test('filtered cards show the saved-page fraction alongside their open-tab count', () => {
@@ -2947,32 +2986,33 @@ test('filtered cards show the saved-page fraction alongside their open-tab count
   })
 
   assert.equal(filtered.matchedCards.length, 1)
-  assert.equal(filtered.matchedCards[0].vm.tabCountLabel, '1/2 +2/4 saved')
-  assert.equal(filtered.matchedCards[0].vm.tabCountTitle, '1 of 2 open tabs shown while filtering, 2 of 4 saved pages shown while filtering')
+  const matchedCard = atOrThrow(filtered.matchedCards, 0)
+  assert.equal(matchedCard.vm.tabCountLabel, '1/2 +2/4 saved')
+  assert.equal(matchedCard.vm.tabCountTitle, '1 of 2 open tabs shown while filtering, 2 of 4 saved pages shown while filtering')
 })
 
 test('New tabs bulk-close scopes exclude pinned physical copies in card and section counts', () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
-  const group = buildDomainGroups([
+  const group = atOrThrow(buildDomainGroups([
     makeTab({ id: 1, url: tabOutUrl, title: 'Pinned Tab Out', isTabOut: true, pinned: true }),
     makeTab({ id: 2, url: tabOutUrl, title: 'Ordinary Tab Out', isTabOut: true })
-  ])[0]
+  ]), 0)
 
   const vm = computeDomainCardViewModel(group)
 
   assert.equal(vm.closableCount, 1)
-  assert.deepEqual(vm.sections.flatMap((section) => section.sectionClosableUrls), [tabOutUrl])
+  assert.deepEqual(sectionsOf(vm).flatMap((section) => section.sectionClosableUrls), [tabOutUrl])
 })
 
 test('closed saved pages render after open tabs within their domain card scope', () => {
   const groups = buildDomainGroups([
-    makeTab({ id: 'saved-1', url: 'https://example.test/a-saved', title: 'Alpha Saved', sourceType: 'saved-page' as DashboardTab['sourceType'], saved: true, closedSaved: true } as Partial<DashboardTab> & { url: string }),
+    makeTab({ id: 'saved-1', url: 'https://example.test/a-saved', title: 'Alpha Saved', sourceType: 'saved-page', saved: true, closedSaved: true }),
     makeTab({ id: 2, url: 'https://example.test/z-open', title: 'Zulu Open' })
   ])
 
-  const vm = computeDomainCardViewModel(groups[0])
+  const vm = computeDomainCardViewModel(atOrThrow(groups, 0))
   assert.deepEqual(
-    vm.sections[0].flatVisibleChips.map((chip) => chip.tabUrl),
+    firstSection(vm).flatVisibleChips.map((chip) => chip.tabUrl),
     ['https://example.test/z-open', 'https://example.test/a-saved']
   )
 })
@@ -2980,7 +3020,7 @@ test('closed saved pages render after open tabs within their domain card scope',
 test('buildDomainGroups keeps saved-only cards after cards with open tabs despite previous order', () => {
   const groups = buildDomainGroups(
     [
-      makeTab({ id: 'saved-1', url: 'https://saved-only.test/a', title: 'Saved only', sourceType: 'saved-page' as DashboardTab['sourceType'], saved: true, closedSaved: true } as Partial<DashboardTab> & { url: string }),
+      makeTab({ id: 'saved-1', url: 'https://saved-only.test/a', title: 'Saved only', sourceType: 'saved-page', saved: true, closedSaved: true }),
       makeTab({ id: 2, url: 'https://open-tabs.test/z', title: 'Open tab' })
     ],
     {

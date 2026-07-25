@@ -21,11 +21,11 @@ interface WebsitePathSectionProps {
   // Pin context defaults to empty / false so call sites and test mocks
   // that predate the pin feature still compile. The pin button only
   // renders when onTogglePinnedSection is supplied.
-  domain?: string
-  subdomainKey?: string
-  websitePathKey?: string
-  isPinned?: boolean
-  onTogglePinnedSection?: TogglePinnedSectionHandler | null
+  domain?: string | undefined
+  subdomainKey?: string | undefined
+  websitePathKey?: string | undefined
+  isPinned?: boolean | undefined
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null | undefined
   label: string
   sectionCount: number
   sectionClosableUrls: string[]
@@ -33,17 +33,17 @@ interface WebsitePathSectionProps {
   flatVisibleChips: DashboardChipData[]
   flatHiddenChips: DashboardChipData[]
   flatHiddenCount: number
-  suppressedTitleParts?: DashboardTitleSuppression[]
+  suppressedTitleParts?: DashboardTitleSuppression[] | undefined
   clusters: Array<DashboardClusterVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
     suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   }>
-  className?: string
-  isFirstContent?: boolean
-  filter?: string
-  useSuppressionTokenTones?: boolean
-  suppressedTitleToneIndexByText?: Readonly<Record<string, number>>
-  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+  className?: string | undefined
+  isFirstContent?: boolean | undefined
+  filter?: string | undefined
+  useSuppressionTokenTones?: boolean | undefined
+  suppressedTitleToneIndexByText?: Readonly<Record<string, number>> | undefined
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>> | undefined
 }
 
 const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []

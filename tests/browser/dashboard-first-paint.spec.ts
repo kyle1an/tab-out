@@ -87,6 +87,7 @@ test('dashboard coalesces collapsed-title layout reads during startup', async ({
 
     const createElement = Document.prototype.createElement
     Document.prototype.createElement = function createInstrumentedElement(
+      this: Document,
       qualifiedName: string,
       options?: ElementCreationOptions
     ) {
@@ -444,6 +445,8 @@ test('long Page Chip paints its final truncation treatment on the first refresh 
     }
     return paintWindow.__tabOutTitlePaintFrames[0]
   })
+  expect(firstTitleFrame).toBeDefined()
+  if (!firstTitleFrame) throw new Error('The first title paint frame was not captured')
 
   expect(firstTitleFrame.hasFade).toBe(true)
   expect(firstTitleFrame.maskImage).not.toBe('none')

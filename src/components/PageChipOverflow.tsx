@@ -16,10 +16,10 @@ interface PageChipOverflowOptions {
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
-  filter?: string
-  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
-  overflowContainerClassName?: OverflowContainerClassName
-  overflowButtonClassName?: string
+  filter?: string | undefined
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>> | undefined
+  overflowContainerClassName?: OverflowContainerClassName | undefined
+  overflowButtonClassName?: string | undefined
 }
 
 const OVERFLOW_BUTTON_CLASS_NAME =

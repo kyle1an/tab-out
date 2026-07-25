@@ -6,7 +6,6 @@ import type { DashboardTab, DomainGroup } from '../src/extension/types'
 
 function makeAppTab(o: Partial<DashboardTab> & { url: string; title: string }): DashboardTab {
   return {
-    url: o.url,
     rawUrl: o.url,
     suspended: false,
     favIconUrl: '',
@@ -31,7 +30,9 @@ test('apps card chips carry their titles instead of rendering icon-only', () => 
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1, allowMutations: false })
-  const chips = vm.sections[0]?.flatVisibleChips ?? []
+  const [section] = vm.sections ?? []
+  assert.ok(section)
+  const chips = section.flatVisibleChips
 
   assert.equal(chips.length, 2)
   for (const chip of chips) {
@@ -50,7 +51,9 @@ test('apps card chips keep raw titles like history rows — no noise cleanup, no
   }
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1, allowMutations: false })
-  const chip = (vm.sections[0]?.flatVisibleChips ?? [])[0]
+  const [section] = vm.sections ?? []
+  assert.ok(section)
+  const [chip] = section.flatVisibleChips
 
   assert.ok(chip)
   assert.equal(chip.title, rawTitle)

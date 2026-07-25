@@ -19,7 +19,6 @@ import type { DashboardTab } from '../src/extension/types'
 function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardTab {
   return {
     id: 1,
-    url: overrides.url,
     rawUrl: overrides.rawUrl || overrides.url,
     suspended: false,
     title: overrides.title || '',
@@ -30,9 +29,14 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardT
     groupId: overrides.groupId ?? -1,
     isTabOut: false,
     isApp: false,
-    index: overrides.index,
     ...overrides
   }
+}
+
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
 }
 
 test('savedPageKeyForUrl preserves meaningful query and hash in the saved page identity', () => {
@@ -74,7 +78,9 @@ test('normalizeSavedPagesStore keeps valid records and drops invalid ones', () =
   })
 
   assert.deepEqual(Object.keys(normalized.pages), ['https://example.test/docs'])
-  assert.equal(normalized.pages['https://example.test/docs'].url, 'https://example.test/docs')
+  const normalizedPage = normalized.pages['https://example.test/docs']
+  assert.ok(normalizedPage)
+  assert.equal(normalizedPage.url, 'https://example.test/docs')
 })
 
 test('mergeSavedPagesWithTabs annotates matching open tabs and emits closed saved page items', () => {
@@ -103,9 +109,11 @@ test('mergeSavedPagesWithTabs annotates matching open tabs and emits closed save
   assert.equal(closed?.saved, true)
   assert.equal(closed?.closedSaved, true)
   assert.equal(closed?.title, 'Closed reference')
-  assert.equal(store.pages['https://example.test/open'].title, 'Fresh open title')
-  assert.equal(store.pages['https://example.test/open'].favIconUrl, 'fresh-open.ico')
-  assert.equal(store.pages['https://example.test/open'].lastSeenOpenAt, 300)
+  const storedOpenPage = store.pages['https://example.test/open']
+  assert.ok(storedOpenPage)
+  assert.equal(storedOpenPage.title, 'Fresh open title')
+  assert.equal(storedOpenPage.favIconUrl, 'fresh-open.ico')
+  assert.equal(storedOpenPage.lastSeenOpenAt, 300)
 })
 
 test('mergeSavedPagesWithTabs does not rewrite unchanged open saved page metadata', () => {
@@ -121,9 +129,11 @@ test('mergeSavedPagesWithTabs does not rewrite unchanged open saved page metadat
     300
   )
 
-  assert.equal(tabs[0].saved, true)
+  assert.equal(valueAt(tabs, 0).saved, true)
   assert.equal(savedPagesStoresEqual(savedStore, store), true)
-  assert.equal(store.pages['https://example.test/open'].lastSeenOpenAt, 100)
+  const storedOpenPage = store.pages['https://example.test/open']
+  assert.ok(storedOpenPage)
+  assert.equal(storedOpenPage.lastSeenOpenAt, 100)
 })
 
 test('mergeSavedPagesWithTabs retains the saved title while its matching open tab is loading', () => {
@@ -144,9 +154,11 @@ test('mergeSavedPagesWithTabs retains the saved title while its matching open ta
     300
   )
 
-  assert.equal(tabs[0].title, 'Full saved title')
-  assert.equal(store.pages['https://example.test/open'].title, 'Full saved title')
-  assert.equal(store.pages['https://example.test/open'].favIconUrl, 'fresh.ico')
+  assert.equal(valueAt(tabs, 0).title, 'Full saved title')
+  const storedOpenPage = store.pages['https://example.test/open']
+  assert.ok(storedOpenPage)
+  assert.equal(storedOpenPage.title, 'Full saved title')
+  assert.equal(storedOpenPage.favIconUrl, 'fresh.ico')
 })
 
 test('annotateSavedPageHints marks matching bookmark items without adding closed saved rows', () => {
@@ -161,11 +173,12 @@ test('annotateSavedPageHints marks matching bookmark items without adding closed
   const annotated = annotateSavedPageHints([matchingBookmark, otherBookmark], savedStore)
 
   assert.equal(annotated.length, 2)
-  assert.equal(annotated[0].sourceType, 'bookmark')
-  assert.equal(annotated[0].saved, true)
-  assert.equal(annotated[0].closedSaved, false)
-  assert.equal(annotated[0].savedPageKey, 'https://example.test/saved')
-  assert.equal(annotated[1], otherBookmark)
+  const annotatedMatch = valueAt(annotated, 0)
+  assert.equal(annotatedMatch.sourceType, 'bookmark')
+  assert.equal(annotatedMatch.saved, true)
+  assert.equal(annotatedMatch.closedSaved, false)
+  assert.equal(annotatedMatch.savedPageKey, 'https://example.test/saved')
+  assert.equal(valueAt(annotated, 1), otherBookmark)
 })
 
 test('savedPageKeysFromStore returns the normalized keys of every saved page', () => {

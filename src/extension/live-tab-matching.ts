@@ -12,17 +12,20 @@ import { unwrapSuspenderUrl } from './suspension.js'
 
 export type LiveTabMatchTarget = {
   tabUrl: string
-  envs?: readonly { tabUrl: string }[] | null
+  envs?: readonly { tabUrl: string }[] | null | undefined
 }
 
 export type LiveTabIdentityTarget = {
-  tabId?: number | string
-  tabUrl?: string
-  url?: string
-  rawUrl?: string
+  tabId?: number | string | undefined
+  tabUrl?: string | undefined
+  url?: string | undefined
+  rawUrl?: string | undefined
 }
 
-type MatchableTab = { url?: string; pendingUrl?: string }
+type MatchableTab = {
+  url?: string | undefined
+  pendingUrl?: string | undefined
+}
 
 /**
  * Chrome keeps the committed page in `url` while an uncommitted navigation is
@@ -43,7 +46,7 @@ export function liveTabMatchesIdentity(tab: MatchableTab, target: LiveTabIdentit
   return targetUrls.some((targetUrl) => openUrl === targetUrl || openEffectiveUrl === unwrapSuspenderUrl(targetUrl))
 }
 
-export function liveTabByValidatedId<T extends MatchableTab & { id?: number }>(
+export function liveTabByValidatedId<T extends MatchableTab & { id?: number | undefined }>(
   tabs: readonly T[],
   target: LiveTabIdentityTarget
 ): T | null {

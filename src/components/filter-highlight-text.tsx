@@ -30,7 +30,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
     // original grapheme or later highlights drift and decomposed accents split.
     const lower = segment.toLowerCase()
     for (let unit = 0; unit < lower.length; unit += 1) {
-      normalizedChars.push(lower[unit])
+      normalizedChars.push(lower.charAt(unit))
       originalStartIndexes.push(index)
       originalEndIndexes.push(index + segment.length)
     }
@@ -52,10 +52,15 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
 
   if (ranges.length === 0) return renderText(text, keyPrefix, 0)
 
-  const originalRanges = ranges.map((range) => ({
-    start: originalStartIndexes[range.start],
-    end: originalEndIndexes[range.end - 1] ?? text.length
-  }))
+  const originalRanges: Array<{ start: number; end: number }> = []
+  for (const range of ranges) {
+    const start = originalStartIndexes[range.start]
+    if (start === undefined) continue
+    originalRanges.push({
+      start,
+      end: originalEndIndexes[range.end - 1] ?? text.length
+    })
+  }
   originalRanges.sort((a, b) => a.start - b.start || b.end - a.end)
   const mergedRanges: Array<{ start: number; end: number }> = []
   for (const range of originalRanges) {

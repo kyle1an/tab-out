@@ -9,10 +9,10 @@ type TitleSuppressionTokenContextMenuTriggerElement = ReactElement<{ className?:
 
 export interface TitleSuppressionTokenContextMenuProps {
   closableCount: number
-  suspendableCount?: number
-  onSuspend?: (event: StopPropagationEvent) => void | Promise<void>
+  suspendableCount?: number | undefined
+  onSuspend?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
   onClose: (event: StopPropagationEvent) => void | Promise<void>
-  onOpenChange?: (open: boolean) => void
+  onOpenChange?: ((open: boolean) => void) | undefined
   children: TitleSuppressionTokenContextMenuTriggerElement
 }
 

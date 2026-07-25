@@ -140,7 +140,9 @@ test('live-tab identity validation rejects a reused id with an unrelated URL', (
 
   assert.equal(liveTabByValidatedId(tabs, { tabId: 7, tabUrl: DOCS }), null)
   assert.equal(liveTabByValidatedId(tabs, { tabId: 8, tabUrl: DOCS })?.id, 8)
-  assert.equal(liveTabMatchesIdentity(tabs[1], { rawUrl: DOCS_SUSPENDED }), true)
+  const suspendedTab = tabs[1]
+  assert.ok(suspendedTab)
+  assert.equal(liveTabMatchesIdentity(suspendedTab, { rawUrl: DOCS_SUSPENDED }), true)
 })
 
 test('live-tab identity validation prefers pending navigation without changing suspended matching', () => {

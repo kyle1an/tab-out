@@ -7,8 +7,8 @@ type StopPropagationEvent = {
 
 export interface TitleSuppressionTokenContextMenuContentProps {
   closableCount: number
-  suspendableCount?: number
-  onSuspend?: (event: StopPropagationEvent) => void | Promise<void>
+  suspendableCount?: number | undefined
+  onSuspend?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
   onClose: (event: StopPropagationEvent) => void | Promise<void>
 }
 

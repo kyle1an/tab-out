@@ -16,7 +16,7 @@ import { TabHistoryPanel } from '../src/components/TabHistoryPanel.js'
 import { WebsitePathSection } from '../src/components/WebsitePathSection.js'
 import type { TitleSuppressionTone } from '../src/components/title-suppression.js'
 import { allocateCardSuppressionTones } from '../src/extension/title-suppression-tones.js'
-import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistorySnapshot, WorkingSetSnapshot } from '../src/extension/types'
+import type { DashboardCardVM, DashboardChipData, DomainGroup, TabHistoryEntry, TabHistorySnapshot, WorkingSetItem, WorkingSetSnapshot } from '../src/extension/types'
 
 // Hand-built card VMs skip computeDomainCardViewModel, so run them through
 // the same tone allocation the compute walk applies before rendering.
@@ -129,11 +129,43 @@ function assertInstantActionClass(className: string) {
   assert.doesNotMatch(className, /(?:^|\s)(?:transition(?:-\S+)?|duration-\S+|delay-\S+|ease-\S+)(?:\s|$)/)
 }
 
+function requiredAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  if (value === undefined) assert.fail(`expected item at index ${index}`)
+  return value
+}
+
 function historyEntryElements(html: string) {
   return Array.from(
     html.matchAll(/<div\b(?=[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)")[^>]*>/g),
-    (match) => ({ className: match[1], tag: match[0] })
+    (match) => ({ className: requiredAt(match, 1), tag: match[0] })
   )
+}
+
+function makeHistoryEntry(overrides: Partial<TabHistoryEntry> = {}): TabHistoryEntry {
+  return {
+    index: 0,
+    tabId: 101,
+    windowId: 1,
+    exists: true,
+    active: true,
+    activeInOtherWindow: false,
+    isApp: false,
+    pinned: false,
+    discarded: false,
+    suspended: false,
+    cursor: true,
+    current: true,
+    previousTarget: false,
+    nextTarget: false,
+    title: 'Example Docs',
+    url: 'https://example.com/docs',
+    rawUrl: 'https://example.com/docs',
+    displayUrl: 'example.com/docs',
+    favIconUrl: '',
+    lastActivatedAt: null,
+    ...overrides
+  }
 }
 
 function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHistorySnapshot {
@@ -147,30 +179,26 @@ function makeHistorySnapshot(overrides: Partial<TabHistorySnapshot> = {}): TabHi
     activeTabId: 101,
     activeWindowId: 1,
     activeWasInserted: false,
-    entries: [
-      {
-        index: 0,
-        tabId: 101,
-        windowId: 1,
-        exists: true,
-        active: true,
-        activeInOtherWindow: false,
-        isApp: false,
-        pinned: false,
-        discarded: false,
-        suspended: false,
-        cursor: true,
-        current: true,
-        previousTarget: false,
-        nextTarget: false,
-        title: 'Example Docs',
-        url: 'https://example.com/docs',
-        rawUrl: 'https://example.com/docs',
-        displayUrl: 'example.com/docs',
-        favIconUrl: '',
-        lastActivatedAt: null
-      }
-    ],
+    entries: [makeHistoryEntry()],
+    ...overrides
+  }
+}
+
+function makeWorkingSetItem(overrides: Partial<WorkingSetItem> = {}): WorkingSetItem {
+  return {
+    key: 'https://example.com/docs',
+    tabId: 101,
+    windowId: 1,
+    tabUrl: 'https://example.com/docs',
+    rawUrl: 'https://example.com/docs',
+    title: 'Example Docs',
+    displayUrl: 'example.com/docs',
+    faviconUrl: '',
+    dupeCount: 1,
+    active: true,
+    activeInOtherWindow: false,
+    score: 100,
+    lastActivatedAt: 0,
     ...overrides
   }
 }
@@ -179,23 +207,7 @@ function makeWorkingSetSnapshot(overrides: Partial<WorkingSetSnapshot> = {}): Wo
   return {
     defaultLimit: 8,
     expandedLimit: 16,
-    items: [
-      {
-        key: 'https://example.com/docs',
-        tabId: 101,
-        windowId: 1,
-        tabUrl: 'https://example.com/docs',
-        rawUrl: 'https://example.com/docs',
-        title: 'Example Docs',
-        displayUrl: 'example.com/docs',
-        faviconUrl: '',
-        dupeCount: 1,
-        active: true,
-        activeInOtherWindow: false,
-        score: 100,
-        lastActivatedAt: 0
-      }
-    ],
+    items: [makeWorkingSetItem()],
     ...overrides
   }
 }
@@ -428,9 +440,9 @@ test('PageChip highlights matched filter keywords inside visible chip text', () 
   assert.doesNotMatch(html, /chip-filter-match\b[^"]*font-semibold/)
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
-  assert.match(chipMatch[1], /\bclickable\b/)
-  assert.match(chipMatch[1], /\bcursor-default\b/)
-  assert.doesNotMatch(chipMatch[1], /\bcursor-pointer\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bclickable\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bcursor-default\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bcursor-pointer\b/)
 })
 
 test('PageChip preserves complete-word fixation across partial filter matches', () => {
@@ -472,14 +484,14 @@ test('PageChip renders the current active chip frame without the other-window la
 
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(frameMatch, 'active chip frame should render')
-  assert.match(chipMatch[1], /current-active-chip\b/)
-  assert.match(chipMatch[1], /\bbg-neutral-50\b/)
-  assert.match(chipMatch[1], /\bring-neutral-400\b/)
-  assert.doesNotMatch(chipMatch[1], /\bhover:bg/)
-  assert.doesNotMatch(chipMatch[1], /hover::after/)
-  assert.doesNotMatch(chipMatch[1], /\bbefore:bg-neutral-700\b/)
-  assert.doesNotMatch(chipMatch[1], /\bbefore:w-1\b/)
-  assert.match(frameMatch[1], /current-active-chip-frame\b/)
+  assert.match(requiredAt(chipMatch, 1), /current-active-chip\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bbg-neutral-50\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bring-neutral-400\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bhover:bg/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover::after/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bbefore:bg-neutral-700\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bbefore:w-1\b/)
+  assert.match(requiredAt(frameMatch, 1), /current-active-chip-frame\b/)
   assert.match(html, /active-chip-frame\b/)
   assert.doesNotMatch(html, /Active in another window/)
 })
@@ -495,12 +507,12 @@ test('PageChip renders current Tab Out chips with the history-entry frame treatm
 
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(frameMatch, 'active chip frame should render')
-  assert.match(chipMatch[1], /current-tab-out-chip\b/)
-  assert.match(chipMatch[1], /\bbg-neutral-100\b/)
-  assert.match(chipMatch[1], /\bring-neutral-400\b/)
-  assert.doesNotMatch(chipMatch[1], /current-active-chip\b/)
-  assert.match(frameMatch[1], /active-history-entry-frame\b/)
-  assert.match(frameMatch[1], /current-tab-out-chip-frame\b/)
+  assert.match(requiredAt(chipMatch, 1), /current-tab-out-chip\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bbg-neutral-100\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bring-neutral-400\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /current-active-chip\b/)
+  assert.match(requiredAt(frameMatch, 1), /active-history-entry-frame\b/)
+  assert.match(requiredAt(frameMatch, 1), /current-tab-out-chip-frame\b/)
 })
 
 test('PageChip renders Chrome pinned Tab Out state as an icon hint', () => {
@@ -578,10 +590,10 @@ test('PageChip renders exact pin markers inside a unified same-title variant gro
   )
 
   assert.equal(markerTags.length, 1)
-  assert.match(markerTags[0], /data-tabout-part="variant-page-pin"/)
-  assert.match(markerTags[0], /data-pinned="true"/)
-  assert.doesNotMatch(markerTags[0], /\binvisible\b/)
-  assert.match(markerTags[0], /\bsize-2\.5\b/)
+  assert.match(requiredAt(markerTags, 0), /data-tabout-part="variant-page-pin"/)
+  assert.match(requiredAt(markerTags, 0), /data-pinned="true"/)
+  assert.doesNotMatch(requiredAt(markerTags, 0), /\binvisible\b/)
+  assert.match(requiredAt(markerTags, 0), /\bsize-2\.5\b/)
   assert.match(html, /\bchip-title-variant-page-pin-slot\b/)
   assert.match(html, /group-hover\/title-variant-actions:opacity-0/)
   assert.doesNotMatch(html, /\bchip-title-variant-label[^"\n]*\bflex-1\b/)
@@ -601,13 +613,13 @@ test('PageChip keeps the other-window active chip style separate from the curren
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(frameMatch, 'active chip frame should render')
   assert.match(html, /Active in another window/)
-  assert.match(chipMatch[1], /\bhover:bg/)
-  assert.match(chipMatch[1], /hover::after/)
+  assert.match(requiredAt(chipMatch, 1), /\bhover:bg/)
+  assert.match(requiredAt(chipMatch, 1), /hover::after/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 88%, var\(--color-neutral-600\) 12%\)/)
   assert.match(html, /--chip-rest-bg:color-mix\(in srgb, var\(--card-bg\) 92\.5%, var\(--color-neutral-600\) 7\.5%\)/)
-  assert.doesNotMatch(chipMatch[1], /current-active-chip\b/)
-  assert.doesNotMatch(chipMatch[1], /\bring-neutral-400\b/)
-  assert.doesNotMatch(frameMatch[1], /current-active-chip-frame\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /current-active-chip\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bring-neutral-400\b/)
+  assert.doesNotMatch(requiredAt(frameMatch, 1), /current-active-chip-frame\b/)
 })
 
 test('PageChip hover fade appears and clears without its own transition lag', () => {
@@ -619,23 +631,23 @@ test('PageChip hover fade appears and clears without its own transition lag', ()
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
-  assert.match(chipMatch[1], /\bhover:bg-\(--chip-interaction-bg\)/)
-  assert.doesNotMatch(chipMatch[1], /\bhover:bg-\[rgba\(82,82,82,0\.08\)\]/)
-  assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
-  assert.match(chipMatch[1], /page-chip-expanded:has\(\.chip-actions\)::after\]:opacity-100/)
+  assert.match(requiredAt(chipMatch, 1), /\bhover:bg-\(--chip-interaction-bg\)/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bhover:bg-\[rgba\(82,82,82,0\.08\)\]/)
+  assert.match(requiredAt(chipMatch, 1), /:has\(\.chip-actions\):hover::after\]:opacity-100/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-expanded:has\(\.chip-actions\)::after\]:opacity-100/)
   assert.match(html, /chip-saved-hint[^\"]*group-\[\.page-chip-expanded\]\/page-chip:opacity-100/)
-  assert.match(chipMatch[1], /after:w-\(--chip-hover-fade-width\)/)
-  assert.match(chipMatch[1], /var\(--chip-hover-fade-bg\)_34%/)
+  assert.match(requiredAt(chipMatch, 1), /after:w-\(--chip-hover-fade-width\)/)
+  assert.match(requiredAt(chipMatch, 1), /var\(--chip-hover-fade-bg\)_34%/)
   // Plain chips fill with the TRANSLUCENT overlay (a bordered neighbour's
   // line on the overlapped seam row must show through), while the fade stays
   // the OPAQUE mix so it can hide chip text under the action rail.
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
   assert.match(html, /--chip-hover-fade-bg:color-mix\(in srgb, var\(--card-bg\) 90%, var\(--color-neutral-600\) 10%\)/)
-  assert.doesNotMatch(chipMatch[1], /\bafter:transition-/)
-  assert.doesNotMatch(chipMatch[1], /\bafter:duration-/)
-  assert.doesNotMatch(chipMatch[1], /\bafter:ease-/)
-  assert.match(chipMatch[1], /transition-\[color\] duration-100/)
-  assert.doesNotMatch(chipMatch[1], /transition-\[color,box-shadow\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bafter:transition-/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bafter:duration-/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bafter:ease-/)
+  assert.match(requiredAt(chipMatch, 1), /transition-\[color\] duration-100/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /transition-\[color,box-shadow\]/)
   assert.match(html, /--chip-hover-fade-width:56px/)
 })
 
@@ -652,16 +664,16 @@ test('PageChip keeps clickable hover background on expandable chips before expan
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
   assert.ok(chipMatch, 'expandable page chip should render')
-  assert.match(chipMatch[1], /\bhover:bg-\(--chip-interaction-bg\)/)
-  assert.match(chipMatch[1], /page-chip-expanded\]:bg-\(--chip-interaction-bg\)/)
-  assert.match(chipMatch[1], /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
+  assert.match(requiredAt(chipMatch, 1), /\bhover:bg-\(--chip-interaction-bg\)/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-expanded\]:bg-\(--chip-interaction-bg\)/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
-  assert.match(chipMatch[1], /:has\(\.chip-actions\):hover::after\]:opacity-100/)
+  assert.match(requiredAt(chipMatch, 1), /:has\(\.chip-actions\):hover::after\]:opacity-100/)
 
   // Hover can paint the interaction before React opens the title. Once open,
   // expansion itself owns that same paint so title details and chrome cannot
   // split when rounded-corner hit testing drops :hover.
-  assert.match(chipMatch[1], /page-chip-expanded:not\(:focus-visible\):not\(\[data-tabout-filter-result-selected=true\]\)\]:outline/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-expanded:not\(:focus-visible\):not\(\[data-tabout-filter-result-selected=true\]\)\]:outline/)
 })
 
 test('PageChip renders a default favicon for live tabs without favIconUrl', () => {
@@ -695,12 +707,12 @@ test('PageChip keeps app icon-only favicons centered in the app tile', () => {
   assert.ok(chipMatch, 'icon-only chip should render')
   assert.ok(faviconFrameMatch, 'favicon frame should render')
   assert.ok(faviconContentMatch, 'favicon content should render')
-  assert.match(chipMatch[1], /\bpage-chip-icon-only\b/)
-  assert.match(chipMatch[1], /\bborder\b/)
-  assert.match(faviconFrameMatch[1], /\bsize-4\b/)
-  assert.match(faviconFrameMatch[1], /\bself-center\b/)
-  assert.doesNotMatch(faviconFrameMatch[1], /\bh-6\b|\bw-6\b|\bp-1\b|\bborder\b/)
-  assert.match(faviconContentMatch[1], /\bsize-4\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-icon-only\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bborder\b/)
+  assert.match(requiredAt(faviconFrameMatch, 1), /\bsize-4\b/)
+  assert.match(requiredAt(faviconFrameMatch, 1), /\bself-center\b/)
+  assert.doesNotMatch(requiredAt(faviconFrameMatch, 1), /\bh-6\b|\bw-6\b|\bp-1\b|\bborder\b/)
+  assert.match(requiredAt(faviconContentMatch, 1), /\bsize-4\b/)
 })
 
 test('PageChip does not invent live-tab favicons for read-only chips', () => {
@@ -741,15 +753,15 @@ test('PageChip renders the close action in the favicon slot', () => {
   assert.ok(faviconFrameMatch, 'favicon frame should render')
   assert.ok(closeActionMatch, 'close action should render')
   assert.match(html, /chip-favicon-frame[\s\S]*chip-close-favicon/)
-  assert.match(faviconFrameMatch[1], /group\/favicon-frame/)
-  assert.match(closeActionMatch[1], /\bchip-close-favicon\b/)
-  assert.match(closeActionMatch[1], /\babsolute\b/)
-  assert.match(closeActionMatch[1], /\bleft-1\/2\b/)
-  assert.match(closeActionMatch[1], /group-hover\/favicon-frame:pointer-events-auto/)
-  assert.match(closeActionMatch[1], /group-hover\/favicon-frame:opacity-100/)
-  assert.doesNotMatch(closeActionMatch[1], /group-hover\/page-chip:opacity-100/)
-  assert.doesNotMatch(closeActionMatch[1], /page-chip-context-menu-open/)
-  assert.doesNotMatch(closeActionMatch[1], /page-chip-tooltip-open/)
+  assert.match(requiredAt(faviconFrameMatch, 1), /group\/favicon-frame/)
+  assert.match(requiredAt(closeActionMatch, 1), /\bchip-close-favicon\b/)
+  assert.match(requiredAt(closeActionMatch, 1), /\babsolute\b/)
+  assert.match(requiredAt(closeActionMatch, 1), /\bleft-1\/2\b/)
+  assert.match(requiredAt(closeActionMatch, 1), /group-hover\/favicon-frame:pointer-events-auto/)
+  assert.match(requiredAt(closeActionMatch, 1), /group-hover\/favicon-frame:opacity-100/)
+  assert.doesNotMatch(requiredAt(closeActionMatch, 1), /group-hover\/page-chip:opacity-100/)
+  assert.doesNotMatch(requiredAt(closeActionMatch, 1), /page-chip-context-menu-open/)
+  assert.doesNotMatch(requiredAt(closeActionMatch, 1), /page-chip-tooltip-open/)
   assert.match(html, /chip-favicon-content\b[^"]*group-hover\/favicon-frame:opacity-0/)
   assert.doesNotMatch(html, /chip-favicon-content\b[^"]*group-hover\/page-chip:opacity-0/)
   assert.doesNotMatch(html, /<div[^>]*class="chip-actions\b/)
@@ -783,7 +795,7 @@ test('PageChip renders saved open tabs with remove-saved in the context menu and
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(closeActionMatch, 'close action should render')
   assert.match(html, /\bpage-chip-saved\b/)
-  assertInstantActionClass(closeActionMatch[1])
+  assertInstantActionClass(requiredAt(closeActionMatch, 1))
   assert.doesNotMatch(html, /\bchip-save\b/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /aria-pressed="true"/)
@@ -801,12 +813,12 @@ test('PageChip renders saved bookmark chips as a read-only saved hint', () => {
 
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(savedHintMatch, 'read-only saved hint should render')
-  assert.match(chipMatch[1], /\bpage-chip-saved\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-saved\b/)
   assert.match(html, /icon-\[mingcute--star-fill\]/)
-  assert.match(savedHintMatch[1], /group-hover\/page-chip:opacity-100/)
-  assertInstantActionClass(savedHintMatch[1])
-  assert.doesNotMatch(savedHintMatch[1], /(?:^|\s)pointer-events-auto(?:\s|$)/)
-  assert.doesNotMatch(savedHintMatch[1], /(?:^|\s)opacity-100(?:\s|$)/)
+  assert.match(requiredAt(savedHintMatch, 1), /group-hover\/page-chip:opacity-100/)
+  assertInstantActionClass(requiredAt(savedHintMatch, 1))
+  assert.doesNotMatch(requiredAt(savedHintMatch, 1), /(?:^|\s)pointer-events-auto(?:\s|$)/)
+  assert.doesNotMatch(requiredAt(savedHintMatch, 1), /(?:^|\s)opacity-100(?:\s|$)/)
   assert.doesNotMatch(html, /\bchip-save\b/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /aria-label="Close this tab"/)
@@ -821,23 +833,35 @@ test('PageChip renders closed saved pages muted with grouped hover treatment and
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
-  assert.match(chipMatch[1], /\bpage-chip-saved\b/)
-  assert.match(chipMatch[1], /\bpage-chip-saved-closed\b/)
-  assert.match(chipMatch[1], /\btext-tab-closed\b/)
-  assert.doesNotMatch(chipMatch[1], /\btext-tab-live\b/)
-  assert.doesNotMatch(chipMatch[1], /\bbg-\(--chip-rest-bg\)/)
-  assert.match(chipMatch[1], /\bhover:outline\b/)
-  assert.match(chipMatch[1], /hover:outline-\(--chip-hover-border\)/)
-  assert.doesNotMatch(chipMatch[1], /\bopacity-75\b/)
-  assert.doesNotMatch(chipMatch[1], /shadow-\[inset_0_0_0_1px/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-saved\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-saved-closed\b/)
+  assert.match(requiredAt(chipMatch, 1), /\btext-tab-closed\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\btext-tab-live\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bbg-\(--chip-rest-bg\)/)
+  assert.match(requiredAt(chipMatch, 1), /\bhover:outline\b/)
+  assert.match(requiredAt(chipMatch, 1), /hover:outline-\(--chip-hover-border\)/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bopacity-75\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /shadow-\[inset_0_0_0_1px/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /aria-label="Close this tab"/)
   assert.match(html, /default-favicon-image/)
 })
 
+interface CloseAnimationGhostFixture {
+  classList: {
+    classes: string[]
+    add(...names: string[]): void
+  }
+  style: Record<string, string>
+  ariaHidden?: string
+  getBoundingClientRect(): void
+  setAttribute(name: string, value: string): void
+  remove(): void
+}
+
 test('PageChip close animation removes the real row from flow and leaves a transform-only ghost', () => {
   const classNames = new Set<string>()
-  const appendedNodes: Array<{ classList: { classes: string[] }; style: Record<string, string>; ariaHidden?: string }> = []
+  const appendedNodes: CloseAnimationGhostFixture[] = []
   const removedNodes: Array<unknown> = []
   const style = {
     display: '',
@@ -857,12 +881,12 @@ test('PageChip close animation removes the real row from flow and leaves a trans
     style,
     ownerDocument: {
       body: {
-        appendChild: (node: { classList: { classes: string[] }; style: Record<string, string>; ariaHidden?: string }) => {
+        appendChild: (node: CloseAnimationGhostFixture) => {
           appendedNodes.push(node)
         }
       }
     },
-    cloneNode: () => ({
+    cloneNode: (): CloseAnimationGhostFixture => ({
       classList: {
         classes: [] as string[],
         add(...names: string[]) {
@@ -951,9 +975,9 @@ test('PageChip outlines matching live chips when an external row owns the match'
   assert.ok(historyMatch, 'history-hover page chip should render')
   assert.ok(workingSetMatch, 'working-set-hover page chip should render')
   assert.ok(selfHoverMatch, 'self-hover page chip should render')
-  assert.match(historyMatch[1], /\bpage-chip-hover-match\b/)
-  assert.match(workingSetMatch[1], /\bpage-chip-hover-match\b/)
-  assert.doesNotMatch(selfHoverMatch[1], /\bpage-chip-hover-match\b/)
+  assert.match(requiredAt(historyMatch, 1), /\bpage-chip-hover-match\b/)
+  assert.match(requiredAt(workingSetMatch, 1), /\bpage-chip-hover-match\b/)
+  assert.doesNotMatch(requiredAt(selfHoverMatch, 1), /\bpage-chip-hover-match\b/)
 })
 
 test('PageChip renders same-title URL variants below one visible title', () => {
@@ -1000,73 +1024,73 @@ test('PageChip renders same-title URL variants below one visible title', () => {
   assert.ok(titleVariantActionsMatch, 'title variant actions should render')
   assert.ok(titleVariantActionOwnerMatch, 'title variant action owner should render')
   assert.ok(titleVariantActionMatch, 'title variant action should render')
-  assert.doesNotMatch(chipMatch[2], /tabIndex|tabindex/)
-  assert.match(chipMatch[1], /hover:bg-\(--chip-interaction-bg\)/)
-  assert.match(chipMatch[1], /hover:outline-1/)
-  assert.match(chipMatch[1], /hover:-outline-offset-1/)
-  assert.match(chipMatch[1], /hover:outline-\(--chip-hover-border\)/)
-  assert.match(chipMatch[1], /page-chip-context-menu-open\]:outline-\(--chip-hover-border\)/)
-  assert.match(chipMatch[1], /page-chip-tooltip-open\]:outline-\(--chip-hover-border\)/)
+  assert.doesNotMatch(requiredAt(chipMatch, 2), /tabIndex|tabindex/)
+  assert.match(requiredAt(chipMatch, 1), /hover:bg-\(--chip-interaction-bg\)/)
+  assert.match(requiredAt(chipMatch, 1), /hover:outline-1/)
+  assert.match(requiredAt(chipMatch, 1), /hover:-outline-offset-1/)
+  assert.match(requiredAt(chipMatch, 1), /hover:outline-\(--chip-hover-border\)/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-context-menu-open\]:outline-\(--chip-hover-border\)/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-tooltip-open\]:outline-\(--chip-hover-border\)/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
   assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)/)
-  assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.02\)\]/)
-  assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
-  assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.08\)\]/)
-  assert.doesNotMatch(chipMatch[1], /hover:border/)
-  assert.doesNotMatch(chipMatch[1], /hover:ring/)
-  assert.match(chipTextMatch[1], /\bmax-h-none\b/)
-  assert.match(chipTextMatch[1], /overflow-visible!/)
-  assert.doesNotMatch(chipTextMatch[1], /max-h-\[calc\(4lh\)\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:bg-\[rgba\(82,82,82,0\.02\)\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:bg-\[rgba\(82,82,82,0\.08\)\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:border/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:ring/)
+  assert.match(requiredAt(chipTextMatch, 1), /\bmax-h-none\b/)
+  assert.match(requiredAt(chipTextMatch, 1), /overflow-visible!/)
+  assert.doesNotMatch(requiredAt(chipTextMatch, 1), /max-h-\[calc\(4lh\)\]/)
   assert.match(html, /\bchip-title-variant-list\b/)
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bw-full\b/)
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bflex-col\b/)
   assert.match(html, /\bchip-title-variant-list\b[^"]*\bitems-stretch\b/)
-  assert.match(titleVariantContentMatch[1], /\bgap-0\.5\b/)
-  assert.doesNotMatch(titleVariantContentMatch[1], /\bcursor-default\b/)
-  assert.match(chipMatch[1], /\bcursor-default\b/)
+  assert.match(requiredAt(titleVariantContentMatch, 1), /\bgap-0\.5\b/)
+  assert.doesNotMatch(requiredAt(titleVariantContentMatch, 1), /\bcursor-default\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bcursor-default\b/)
   assert.doesNotMatch(html, /data-tabout-part="default-variant-trigger"/)
-  assert.doesNotMatch(titleVariantListMatch[1], /\bgap-0\.5\b/)
-  assert.match(titleVariantListMatch[1], /\bdivide-y\b/)
-  assert.match(titleVariantListMatch[1], /\bdivide-neutral-500\/15\b/)
-  assert.match(titleVariantListMatch[1], /(?:^|\s)pr-1\.25(?:\s|$)/)
-  assert.match(titleVariantListMatch[1], /(?:^|\s)pb-1(?:\s|$)/)
+  assert.doesNotMatch(requiredAt(titleVariantListMatch, 1), /\bgap-0\.5\b/)
+  assert.match(requiredAt(titleVariantListMatch, 1), /\bdivide-y\b/)
+  assert.match(requiredAt(titleVariantListMatch, 1), /\bdivide-neutral-500\/15\b/)
+  assert.match(requiredAt(titleVariantListMatch, 1), /(?:^|\s)pr-1\.25(?:\s|$)/)
+  assert.match(requiredAt(titleVariantListMatch, 1), /(?:^|\s)pb-1(?:\s|$)/)
   assert.doesNotMatch(html, /\bchip-title-variant-list\b[^"]*\bflex-wrap\b/)
-  assert.match(titleVariantShellMatch[1], /\bw-full\b/)
-  assert.doesNotMatch(titleVariantShellMatch[1], /pl-\[22px\]/)
-  assert.doesNotMatch(titleVariantShellMatch[1], /pr-\[22px\]/)
-  assert.doesNotMatch(titleVariantShellMatch[1], /pl-\[42px\]/)
-  assert.doesNotMatch(titleVariantShellMatch[1], /pr-\[42px\]/)
-  assert.match(titleVariantButtonMatch[1], /\bw-full\b/)
-  assert.match(titleVariantActionsMatch[1], /\btop-0\b/)
-  assert.match(titleVariantActionsMatch[1], /\bbottom-0\b/)
-  assert.match(titleVariantActionsMatch[1], /left-\[-25\.5px\]/)
-  assert.doesNotMatch(titleVariantActionsMatch[1], /-left-\[26px\]/)
-  assert.doesNotMatch(titleVariantActionsMatch[1], /\bleft-0\b/)
-  assert.doesNotMatch(titleVariantActionsMatch[1], /\bright-0\b/)
-  assert.match(titleVariantActionsMatch[1], /group\/title-variant-actions/)
-  assert.match(titleVariantActionsMatch[1], /\bmy-auto\b/)
-  assert.match(titleVariantActionOwnerMatch[1], /group\/title-variant-close-owner/)
-  assert.match(titleVariantActionOwnerMatch[1], /size-4\.75/)
-  assert.match(titleVariantActionOwnerMatch[1], /\bcursor-pointer\b/)
-  assert.match(titleVariantActionMatch[1], /size-4\.75/)
-  assert.match(titleVariantActionMatch[1], /pointer-events-none/)
-  assert.match(titleVariantActionMatch[1], /group-hover\/title-variant-close-owner:pointer-events-auto/)
-  assert.match(titleVariantActionMatch[1], /group-hover\/title-variant-close-owner:opacity-100/)
-  assert.doesNotMatch(titleVariantActionMatch[1], /group-hover\/title-variant-actions:/)
-  assert.doesNotMatch(titleVariantActionMatch[1], /group-hover\/title-variant:opacity-100/)
-  assert.doesNotMatch(titleVariantActionMatch[1], /\bh-5\b/)
-  assert.doesNotMatch(titleVariantActionMatch[1], /\bw-5\b/)
-  assert.doesNotMatch(titleVariantActionMatch[1], /-translate-y-1\/2/)
-  assert.match(titleVariantButtonMatch[1], /\bcursor-default\b/)
-  assert.doesNotMatch(titleVariantButtonMatch[1], /\bbg-neutral-500\/4\.5/)
-  assert.match(titleVariantButtonMatch[1], /\bbg-transparent\b/)
-  assert.match(titleVariantButtonMatch[1], /\brounded-none\b/)
-  assert.doesNotMatch(titleVariantButtonMatch[1], /bg-\[rgba\(115,115,115,0\.07\)\]/)
-  assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-/)
-  assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.05\)\]/)
-  assert.doesNotMatch(titleVariantButtonMatch[1], /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.1\)\]/)
-  assert.match(titleVariantButtonMatch[1], /hover:bg-\(--chip-target-interaction-bg\)/)
-  assert.doesNotMatch(titleVariantButtonMatch[1], /\bcursor-pointer\b/)
+  assert.match(requiredAt(titleVariantShellMatch, 1), /\bw-full\b/)
+  assert.doesNotMatch(requiredAt(titleVariantShellMatch, 1), /pl-\[22px\]/)
+  assert.doesNotMatch(requiredAt(titleVariantShellMatch, 1), /pr-\[22px\]/)
+  assert.doesNotMatch(requiredAt(titleVariantShellMatch, 1), /pl-\[42px\]/)
+  assert.doesNotMatch(requiredAt(titleVariantShellMatch, 1), /pr-\[42px\]/)
+  assert.match(requiredAt(titleVariantButtonMatch, 1), /\bw-full\b/)
+  assert.match(requiredAt(titleVariantActionsMatch, 1), /\btop-0\b/)
+  assert.match(requiredAt(titleVariantActionsMatch, 1), /\bbottom-0\b/)
+  assert.match(requiredAt(titleVariantActionsMatch, 1), /left-\[-25\.5px\]/)
+  assert.doesNotMatch(requiredAt(titleVariantActionsMatch, 1), /-left-\[26px\]/)
+  assert.doesNotMatch(requiredAt(titleVariantActionsMatch, 1), /\bleft-0\b/)
+  assert.doesNotMatch(requiredAt(titleVariantActionsMatch, 1), /\bright-0\b/)
+  assert.match(requiredAt(titleVariantActionsMatch, 1), /group\/title-variant-actions/)
+  assert.match(requiredAt(titleVariantActionsMatch, 1), /\bmy-auto\b/)
+  assert.match(requiredAt(titleVariantActionOwnerMatch, 1), /group\/title-variant-close-owner/)
+  assert.match(requiredAt(titleVariantActionOwnerMatch, 1), /size-4\.75/)
+  assert.match(requiredAt(titleVariantActionOwnerMatch, 1), /\bcursor-pointer\b/)
+  assert.match(requiredAt(titleVariantActionMatch, 1), /size-4\.75/)
+  assert.match(requiredAt(titleVariantActionMatch, 1), /pointer-events-none/)
+  assert.match(requiredAt(titleVariantActionMatch, 1), /group-hover\/title-variant-close-owner:pointer-events-auto/)
+  assert.match(requiredAt(titleVariantActionMatch, 1), /group-hover\/title-variant-close-owner:opacity-100/)
+  assert.doesNotMatch(requiredAt(titleVariantActionMatch, 1), /group-hover\/title-variant-actions:/)
+  assert.doesNotMatch(requiredAt(titleVariantActionMatch, 1), /group-hover\/title-variant:opacity-100/)
+  assert.doesNotMatch(requiredAt(titleVariantActionMatch, 1), /\bh-5\b/)
+  assert.doesNotMatch(requiredAt(titleVariantActionMatch, 1), /\bw-5\b/)
+  assert.doesNotMatch(requiredAt(titleVariantActionMatch, 1), /-translate-y-1\/2/)
+  assert.match(requiredAt(titleVariantButtonMatch, 1), /\bcursor-default\b/)
+  assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /\bbg-neutral-500\/4\.5/)
+  assert.match(requiredAt(titleVariantButtonMatch, 1), /\bbg-transparent\b/)
+  assert.match(requiredAt(titleVariantButtonMatch, 1), /\brounded-none\b/)
+  assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /bg-\[rgba\(115,115,115,0\.07\)\]/)
+  assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /group-hover\/page-chip:bg-/)
+  assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.05\)\]/)
+  assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /group-hover\/page-chip:bg-\[rgba\(115,115,115,0\.1\)\]/)
+  assert.match(requiredAt(titleVariantButtonMatch, 1), /hover:bg-\(--chip-target-interaction-bg\)/)
+  assert.doesNotMatch(requiredAt(titleVariantButtonMatch, 1), /\bcursor-pointer\b/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /function defaultTitleVariantChip\(\) \{[\s\S]*activeChipFrame[\s\S]*!variant\.activeInOtherWindow[\s\S]*activeInOtherWindow[\s\S]*titleVariantChips\[0\]/)
   assert.match(pageChipSource, /function onVariantGroupChipClick\(e: MouseEvent<HTMLDivElement>\)[\s\S]*?titleVariantEventTargetsExactVariant\(e\.target\)[\s\S]*?activateChipTarget\(e, variant\.tabUrl, variant\.sourceType, variant\)/)
@@ -1113,7 +1137,7 @@ function makeVariantGroupChip(overrides: Partial<DashboardChipData> = {}): Dashb
 function pageChipClass(html: string): string {
   const match = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   assert.ok(match, 'page chip should render')
-  return match[1]
+  return requiredAt(match, 1)
 }
 
 // An inactive group chip draws its seam border as a hover/menu/tooltip
@@ -1189,9 +1213,9 @@ test('PageChip resolves the closed filter fill per target inside an active mixed
     .filter((tag) => /class="[^"]*\bchip-env\b/.test(tag))
 
   assert.equal(envButtons.length, 2)
-  assert.doesNotMatch(envButtons[0], /style="[^"]*--chip-target-interaction-bg/)
-  assert.match(envButtons[1], /--chip-target-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
-  assert.doesNotMatch(envButtons[1], /--chip-target-interaction-bg:var\(--color-neutral-50\)/)
+  assert.doesNotMatch(requiredAt(envButtons, 0), /style="[^"]*--chip-target-interaction-bg/)
+  assert.match(requiredAt(envButtons, 1), /--chip-target-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
+  assert.doesNotMatch(requiredAt(envButtons, 1), /--chip-target-interaction-bg:var\(--color-neutral-50\)/)
 })
 
 function titleVariantPillTags(html: string): string[] {
@@ -1208,8 +1232,8 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
   const restHtml = renderWithDomainCardContext(React.createElement(PageChip, { chip: makeVariantGroupChip() }))
   const restPills = titleVariantPillTags(restHtml)
   assert.equal(restPills.length, 2)
-  assert.match(restPills[0], /data-tabout-default-variant="true"/)
-  assert.doesNotMatch(restPills[1], /data-tabout-default-variant/)
+  assert.match(requiredAt(restPills, 0), /data-tabout-default-variant="true"/)
+  assert.doesNotMatch(requiredAt(restPills, 1), /data-tabout-default-variant/)
 
   const currentActiveHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
@@ -1220,8 +1244,8 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
     })
   }))
   const currentActivePills = titleVariantPillTags(currentActiveHtml)
-  assert.doesNotMatch(currentActivePills[0], /data-tabout-default-variant/)
-  assert.match(currentActivePills[1], /data-tabout-default-variant="true"/)
+  assert.doesNotMatch(requiredAt(currentActivePills, 0), /data-tabout-default-variant/)
+  assert.match(requiredAt(currentActivePills, 1), /data-tabout-default-variant="true"/)
 
   const crossWindowHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
@@ -1232,8 +1256,8 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
     })
   }))
   const crossWindowPills = titleVariantPillTags(crossWindowHtml)
-  assert.doesNotMatch(crossWindowPills[0], /data-tabout-default-variant/)
-  assert.match(crossWindowPills[1], /data-tabout-default-variant="true"/)
+  assert.doesNotMatch(requiredAt(crossWindowPills, 0), /data-tabout-default-variant/)
+  assert.match(requiredAt(crossWindowPills, 1), /data-tabout-default-variant="true"/)
 
   const otherWindowOnlyHtml = renderWithDomainCardContext(React.createElement(PageChip, {
     chip: makeVariantGroupChip({
@@ -1244,8 +1268,8 @@ test('PageChip highlights the default variant pill via static CSS marker, not Re
     })
   }))
   const otherWindowOnlyPills = titleVariantPillTags(otherWindowOnlyHtml)
-  assert.doesNotMatch(otherWindowOnlyPills[0], /data-tabout-default-variant/)
-  assert.match(otherWindowOnlyPills[1], /data-tabout-default-variant="true"/)
+  assert.doesNotMatch(requiredAt(otherWindowOnlyPills, 0), /data-tabout-default-variant/)
+  assert.match(requiredAt(otherWindowOnlyPills, 1), /data-tabout-default-variant="true"/)
 
   const baseCss = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   // Keyed off the rectangular `.chip-slot` (scoped to a group via its
@@ -1364,7 +1388,7 @@ test('PageChip gives same-title URL variant groups a folded-style expansion trig
   assert.ok(titleExpansionHitAreaMatch, 'title variant title expansion trigger should render')
   assert.ok(titleVariantButtonMatch, 'title variant button should render')
   assert.doesNotMatch(chipTextMatch[0], /data-slot="tooltip-trigger"/)
-  assert.match(titleVariantContentMatch[1], /\bgap-0\.5\b/)
+  assert.match(requiredAt(titleVariantContentMatch, 1), /\bgap-0\.5\b/)
   assert.doesNotMatch(titleExpansionHitAreaMatch[0], /data-slot="tooltip-trigger"/)
   assert.match(titleExpansionHitAreaMatch[0], /-my-1\.25/)
   assert.match(titleExpansionHitAreaMatch[0], /py-1\.25/)
@@ -1398,7 +1422,7 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
 
   // The extracted wrapper owns arming and lazy-loads the Base UI context menu path.
   assert.match(contextMenuComponentSource, /export function PageChipContextMenu\(/)
-  assert.match(contextMenuComponentSource, /onOpenChange\?: \(open: boolean\) => void/)
+  assert.match(contextMenuComponentSource, /onOpenChange\?: \(\(open: boolean\) => void\) \| undefined/)
   assert.doesNotMatch(contextMenuComponentSource, /from '\.\/ui\/context-menu'/)
   assert.match(contextMenuComponentSource, /import\('\.\/PageChipContextMenuLoaded'\)/)
   assert.doesNotMatch(contextMenuComponentSource, /\blazy\b|\bSuspense\b/)
@@ -1514,7 +1538,7 @@ test('PageChip outlines same-title variant groups when external hover matches a 
   )
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
   assert.ok(chipMatch, 'page chip should render')
-  assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-hover-match\b/)
 })
 
 test('PageChip keeps same-title URL variant saved-page actions in the context menu', () => {
@@ -1550,9 +1574,9 @@ test('PageChip keeps same-title URL variant saved-page actions in the context me
 
   assert.ok(chipMatch, 'page chip should render')
   assert.ok(closeVariantActionMatch, 'close title variant action should render')
-  assert.doesNotMatch(chipMatch[1], /\bpage-chip-saved\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bpage-chip-saved\b/)
   assert.equal((html.match(/\bchip-title-variant-save\b/g) || []).length, 0)
-  assertInstantActionClass(closeVariantActionMatch[1])
+  assertInstantActionClass(requiredAt(closeVariantActionMatch, 1))
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
   assert.doesNotMatch(html, /aria-label="Save page"/)
   assert.equal((html.match(/\bchip-title-variant-action\b/g) || []).length, 2)
@@ -1589,7 +1613,7 @@ test('PageChip renders saved bookmark URL variants as read-only hints', () => {
   const savedVariantHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-title-variant-saved-hint\b[^"]*)"/)
 
   assert.ok(savedVariantHintMatch, 'read-only saved title variant hint should render')
-  assertInstantActionClass(savedVariantHintMatch[1])
+  assertInstantActionClass(requiredAt(savedVariantHintMatch, 1))
   assert.equal((html.match(/\bchip-title-variant-saved-hint\b/g) || []).length, 1)
   assert.doesNotMatch(html, /\bchip-title-variant-save\b/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
@@ -1667,7 +1691,7 @@ test('PageChip renders saved bookmark folded env pills as read-only hints', () =
   const savedEnvHintMatch = html.match(/<span[^>]*class="([^"]*\bchip-env-saved-hint\b[^"]*)"/)
 
   assert.ok(savedEnvHintMatch, 'read-only saved env hint should render')
-  assertInstantActionClass(savedEnvHintMatch[1])
+  assertInstantActionClass(requiredAt(savedEnvHintMatch, 1))
   assert.equal((html.match(/\bchip-env-saved-hint\b/g) || []).length, 1)
   assert.doesNotMatch(html, /\bchip-env-save\b/)
   assert.doesNotMatch(html, /aria-label="Remove saved page"/)
@@ -1691,7 +1715,7 @@ test('PageChip matches working set hover against raw tab URLs', () => {
   const chipMatch = html.match(/<div[^>]*data-tabout="page-chip"[^>]*class="([^"]*)"/)
 
   assert.ok(chipMatch, 'page chip should render')
-  assert.match(chipMatch[1], /\bpage-chip-hover-match\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-hover-match\b/)
 })
 
 test('Overflow expander outlines when external hover matches a hidden chip', () => {
@@ -1715,7 +1739,7 @@ test('Overflow expander outlines when external hover matches a hidden chip', () 
   const overflowClass = (html: string) => {
     const match = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
     assert.ok(match, 'overflow expander button should render')
-    return match[1]
+    return requiredAt(match, 1)
   }
   const historyMatch = overflowClass(renderOverflow({
     activeHoverUrl: 'https://example.com/hidden',
@@ -1757,9 +1781,9 @@ test('TabHistoryPanel outlines matching history rows when another source owns th
   assert.ok(chipHoverMatch, 'chip-hover history entry should render')
   assert.ok(workingSetHoverMatch, 'working-set-hover history entry should render')
   assert.ok(selfHoverMatch, 'self-hover history entry should render')
-  assert.match(chipHoverMatch[1], /\bhistory-entry-hover-match\b/)
-  assert.match(workingSetHoverMatch[1], /\bhistory-entry-hover-match\b/)
-  assert.doesNotMatch(selfHoverMatch[1], /\bhistory-entry-hover-match\b/)
+  assert.match(requiredAt(chipHoverMatch, 1), /\bhistory-entry-hover-match\b/)
+  assert.match(requiredAt(workingSetHoverMatch, 1), /\bhistory-entry-hover-match\b/)
+  assert.doesNotMatch(requiredAt(selfHoverMatch, 1), /\bhistory-entry-hover-match\b/)
 })
 
 test('TabHistoryPanel matches chip hover against raw tab URLs without changing the preview URL', () => {
@@ -1767,7 +1791,7 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
   const snapshot = makeHistorySnapshot({
     entries: [
       {
-        ...makeHistorySnapshot().entries[0],
+        ...makeHistoryEntry(),
         url: 'https://example.com/docs',
         rawUrl,
         displayUrl: 'example.com/docs'
@@ -1781,7 +1805,7 @@ test('TabHistoryPanel matches chip hover against raw tab URLs without changing t
   const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
   assert.ok(entryMatch, 'history entry should render')
-  assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
+  assert.match(requiredAt(entryMatch, 1), /\bhistory-entry-hover-match\b/)
 })
 
 test('TabHistoryPanel reuses shared page-target matching for suspended history rows', () => {
@@ -1789,7 +1813,7 @@ test('TabHistoryPanel reuses shared page-target matching for suspended history r
   const snapshot = makeHistorySnapshot({
     entries: [
       {
-        ...makeHistorySnapshot().entries[0],
+        ...makeHistoryEntry(),
         url: 'https://example.com/docs',
         rawUrl,
         displayUrl: 'example.com/docs'
@@ -1803,7 +1827,7 @@ test('TabHistoryPanel reuses shared page-target matching for suspended history r
   const entryMatch = html.match(/<div[^>]*class="([^"]*\bhistory-entry group\/history-entry\b[^"]*)"/)
 
   assert.ok(entryMatch, 'history entry should render')
-  assert.match(entryMatch[1], /\bhistory-entry-hover-match\b/)
+  assert.match(requiredAt(entryMatch, 1), /\bhistory-entry-hover-match\b/)
 })
 
 test('TabHistoryPanel keeps the history entry surface on the default cursor', () => {
@@ -1815,12 +1839,12 @@ test('TabHistoryPanel keeps the history entry surface on the default cursor', ()
   const entryButtonMatch = html.match(/<div role="button" tabindex="0"[^>]*aria-disabled="false"[^>]*class="([^"]*\bhistory-entry-main\b[^"]*)"/)
 
   assert.ok(entryButtonMatch, 'history entry focus target should render')
-  assert.match(entryButtonMatch[1], /\bcursor-default\b/)
-  assert.doesNotMatch(entryButtonMatch[1], /\bcursor-pointer\b/)
+  assert.match(requiredAt(entryButtonMatch, 1), /\bcursor-default\b/)
+  assert.doesNotMatch(requiredAt(entryButtonMatch, 1), /\bcursor-pointer\b/)
 })
 
 test('TabHistoryPanel renders the close action in the favicon slot', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -1839,13 +1863,13 @@ test('TabHistoryPanel renders the close action in the favicon slot', () => {
   assert.ok(faviconFrameMatch, 'history entry favicon frame should render')
   assert.ok(closeActionMatch, 'history entry close action should render')
   assert.match(html, /history-entry-favicon-frame[\s\S]*history-entry-close-favicon/)
-  assert.match(faviconFrameMatch[1], /group\/history-favicon-frame/)
-  assert.match(closeActionMatch[1], /\bhistory-entry-close-favicon\b/)
-  assert.match(closeActionMatch[1], /\babsolute\b/)
-  assert.match(closeActionMatch[1], /\bleft-1\/2\b/)
-  assert.match(closeActionMatch[1], /group-hover\/history-favicon-frame:pointer-events-auto/)
-  assert.match(closeActionMatch[1], /group-hover\/history-favicon-frame:opacity-100/)
-  assert.doesNotMatch(closeActionMatch[1], /group-hover\/history-row:opacity-100/)
+  assert.match(requiredAt(faviconFrameMatch, 1), /group\/history-favicon-frame/)
+  assert.match(requiredAt(closeActionMatch, 1), /\bhistory-entry-close-favicon\b/)
+  assert.match(requiredAt(closeActionMatch, 1), /\babsolute\b/)
+  assert.match(requiredAt(closeActionMatch, 1), /\bleft-1\/2\b/)
+  assert.match(requiredAt(closeActionMatch, 1), /group-hover\/history-favicon-frame:pointer-events-auto/)
+  assert.match(requiredAt(closeActionMatch, 1), /group-hover\/history-favicon-frame:opacity-100/)
+  assert.doesNotMatch(requiredAt(closeActionMatch, 1), /group-hover\/history-row:opacity-100/)
   assert.match(html, /history-entry-favicon-content\b[^"]*group-hover\/history-favicon-frame:opacity-0/)
 
   const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
@@ -1951,7 +1975,7 @@ test('TabHistoryPanel uses PageChip-style fade truncation and in-place title exp
 })
 
 test('TabHistoryPanel applies bionic title emphasis to short words and acronyms', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -1974,7 +1998,7 @@ test('TabHistoryPanel applies bionic title emphasis to short words and acronyms'
 })
 
 test('TabHistoryPanel omits the extras section when working-set items overlap the stack', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2005,7 +2029,7 @@ test('TabHistoryPanel omits the extras section when working-set items overlap th
 })
 
 test('TabHistoryPanel gives highlighted history indexes stronger contrast', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2029,18 +2053,18 @@ test('TabHistoryPanel gives highlighted history indexes stronger contrast', () =
     })
   )
   const indexMatches = Array.from(html.matchAll(/<span data-tabout-part="history-entry-marker" class="([^"]*)"/g))
-  const highlighted = indexMatches.filter((match) => /\bfont-semibold\b/.test(match[1]))
-  const muted = indexMatches.filter((match) => !/\bfont-semibold\b/.test(match[1]))
+  const highlighted = indexMatches.filter((match) => /\bfont-semibold\b/.test(requiredAt(match, 1)))
+  const muted = indexMatches.filter((match) => !/\bfont-semibold\b/.test(requiredAt(match, 1)))
 
   assert.equal(indexMatches.length, 2)
   assert.equal(highlighted.length, 1)
   assert.equal(muted.length, 1)
-  assert.match(highlighted[0][1], /\btext-tab-live\b/)
-  assert.match(muted[0][1], /\btext-muted-foreground\b/)
+  assert.match(requiredAt(requiredAt(highlighted, 0), 1), /\btext-tab-live\b/)
+  assert.match(requiredAt(requiredAt(muted, 0), 1), /\btext-muted-foreground\b/)
 })
 
 test('TabHistoryPanel keeps FLIP keys stable when stack indexes change', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   function renderAtIndex(index: number) {
     return renderTabHistoryPanel({
       snapshot: makeHistorySnapshot({
@@ -2051,7 +2075,7 @@ test('TabHistoryPanel keeps FLIP keys stable when stack indexes change', () => {
     })
   }
   function layoutKeys(html: string) {
-    return Array.from(html.matchAll(/data-tabout-layout-key="([^"]+)"/g), (match) => match[1])
+    return Array.from(html.matchAll(/data-tabout-layout-key="([^"]+)"/g), (match) => requiredAt(match, 1))
   }
 
   assert.deepEqual(layoutKeys(renderAtIndex(0)), ['stack:1:101'])
@@ -2079,7 +2103,7 @@ test('TabHistoryPanel keeps FLIP keys stable when stack indexes change', () => {
 })
 
 test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority attribute', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const ghostUrl = 'https://example.com/open-tab-not-in-stack'
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
@@ -2114,7 +2138,7 @@ test('TabHistoryPanel open-ghost rows do not receive data-working-set-priority a
 })
 
 test('TabHistoryPanel renders browser utility history rows at full strength like any other row', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2170,7 +2194,7 @@ test('TabHistoryPanel renders browser utility history rows at full strength like
 })
 
 test('TabHistoryPanel renders standalone app history rows at full strength like page chips', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2198,7 +2222,7 @@ test('TabHistoryPanel renders non-overlapping working-set items inline without a
       snapshot: makeHistorySnapshot(),
       workingSet: makeWorkingSetSnapshot({
         items: [
-          makeWorkingSetSnapshot().items[0],
+          makeWorkingSetItem(),
           {
             key: 'https://example.com/extra',
             tabId: 202,
@@ -2229,7 +2253,7 @@ test('TabHistoryPanel renders non-overlapping working-set items inline without a
 })
 
 test('TabHistoryPanel filters history rows and working-set extras by the active filter', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const snapshot = makeHistorySnapshot({
     entries: [
       baseEntry,
@@ -2248,7 +2272,7 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
   })
   const workingSet = makeWorkingSetSnapshot({
     items: [
-      makeWorkingSetSnapshot().items[0],
+      makeWorkingSetItem(),
       {
         key: 'https://github.com/example/repo',
         tabId: 202,
@@ -2316,7 +2340,7 @@ test('TabHistoryPanel filters history rows and working-set extras by the active 
 })
 
 test('TabHistoryPanel borrows current PageChip surface styling for the current entry', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2379,7 +2403,7 @@ test('TabHistoryPanel borrows current PageChip surface styling for the current e
 })
 
 test('TabHistoryPanel borrows other-window PageChip surface styling for active non-current entries', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2440,7 +2464,7 @@ test('TabHistoryPanel borrows other-window PageChip surface styling for active n
 })
 
 test('TabHistoryPanel keeps previous and next history targets visually neutral', () => {
-  const baseEntry = makeHistorySnapshot().entries[0]
+  const baseEntry = makeHistoryEntry()
   const html = renderToStaticMarkup(
     React.createElement(TabHistoryPanel as React.ComponentType<any>, {
       snapshot: makeHistorySnapshot({
@@ -2509,7 +2533,7 @@ test('cross-surface hover match styling is outline-only', () => {
     const match = source.match(conditional)
     assert.ok(match, `${path} hover-match conditional should exist`)
     assert.match(match[0], OUTLINE_UTILITIES)
-    assert.doesNotMatch(match[1], /bg-|border-|shadow/)
+    assert.doesNotMatch(requiredAt(match, 1), /bg-|border-|shadow/)
   }
 })
 
@@ -2518,7 +2542,7 @@ test('cross-surface hover does not restore chrome around a domain card', () => {
   const contentWrapper = domainCardSource.match(/'(mission-card[^']*)'/)
 
   assert.ok(contentWrapper, 'domain card content wrapper should render')
-  assert.doesNotMatch(contentWrapper[1], /\b(?:rounded|border|bg-|shadow)/)
+  assert.doesNotMatch(requiredAt(contentWrapper, 1), /\b(?:rounded|border|bg-|shadow)/)
   assert.match(domainCardSource, /isAppsCard \? 'p-1\.75' : 'p-2'/)
   assert.doesNotMatch(domainCardSource, /group-has-\[\.page-chip(?:-overflow)?[^\]]*hover-match\]\/domain-block:border-/)
 })
@@ -2587,15 +2611,15 @@ test('PageChip renders a title suppression marker when common title text is supp
   assert.match(chipTextExpansionHitAreaMatch[0], /py-1\.25/)
   const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
   assert.ok(markerMatch, 'title suppression marker should render')
-  assert.match(markerMatch[1], /(?:^|\s)h-3\.5(?:\s|$)/)
-  assert.match(markerMatch[1], /(?:^|\s)min-w-3\.5(?:\s|$)/)
-  assert.match(markerMatch[1], /\bshrink-0\b/)
-  assert.match(markerMatch[1], /(?:^|\s)text-\[12px\](?:\s|$)/)
-  assert.match(markerMatch[1], /(?:^|\s)leading-3(?:\s|$)/)
-  assert.match(markerMatch[1], /\balign-middle\b/)
-  assert.doesNotMatch(markerMatch[1], /(?:^|\s)text-\[10px\](?:\s|$)/)
-  assert.doesNotMatch(markerMatch[1], /(?:^|\s)font-medium(?:\s|$)/)
-  assert.doesNotMatch(markerMatch[1], /\bfont-semibold\b/)
+  assert.match(requiredAt(markerMatch, 1), /(?:^|\s)h-3\.5(?:\s|$)/)
+  assert.match(requiredAt(markerMatch, 1), /(?:^|\s)min-w-3\.5(?:\s|$)/)
+  assert.match(requiredAt(markerMatch, 1), /\bshrink-0\b/)
+  assert.match(requiredAt(markerMatch, 1), /(?:^|\s)text-\[12px\](?:\s|$)/)
+  assert.match(requiredAt(markerMatch, 1), /(?:^|\s)leading-3(?:\s|$)/)
+  assert.match(requiredAt(markerMatch, 1), /\balign-middle\b/)
+  assert.doesNotMatch(requiredAt(markerMatch, 1), /(?:^|\s)text-\[10px\](?:\s|$)/)
+  assert.doesNotMatch(requiredAt(markerMatch, 1), /(?:^|\s)font-medium(?:\s|$)/)
+  assert.doesNotMatch(requiredAt(markerMatch, 1), /\bfont-semibold\b/)
   assert.match(html, /chip-title-suppression-label hidden group-\[\.page-chip-expanded\]\/page-chip:inline/)
   const markerElementMatch = html.match(/<span class="[^"]*\bchip-title-suppression-marker\b[^"]*"[^>]*>/)
   assert.ok(markerElementMatch, 'title suppression marker element should render')
@@ -2635,21 +2659,21 @@ test('PageChip colors title suppression markers from token tones before hover', 
       ])
     })
   )
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.equal(markerClasses.length, 2)
-  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(markerClasses[0], /\bbg-yellow-50\b/)
-  assert.doesNotMatch(markerClasses[0], /bg-\[#fff7ed\]/)
-  assert.doesNotMatch(markerClasses[0], /bg-\[rgba/)
-  assert.doesNotMatch(markerClasses[0], /\bhover:/)
-  assert.doesNotMatch(markerClasses[0], /\bfocus-visible:/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
-  assert.match(markerClasses[1], /\bbg-teal-50\b/)
-  assert.doesNotMatch(markerClasses[1], /bg-\[#f0fdfa\]/)
-  assert.doesNotMatch(markerClasses[1], /bg-\[rgba/)
-  assert.doesNotMatch(markerClasses[1], /\bhover:/)
-  assert.doesNotMatch(markerClasses[1], /\bfocus-visible:/)
+  assert.match(requiredAt(markerClasses, 0), /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 0), /\bbg-yellow-50\b/)
+  assert.doesNotMatch(requiredAt(markerClasses, 0), /bg-\[#fff7ed\]/)
+  assert.doesNotMatch(requiredAt(markerClasses, 0), /bg-\[rgba/)
+  assert.doesNotMatch(requiredAt(markerClasses, 0), /\bhover:/)
+  assert.doesNotMatch(requiredAt(markerClasses, 0), /\bfocus-visible:/)
+  assert.match(requiredAt(markerClasses, 1), /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(markerClasses, 1), /\bbg-teal-50\b/)
+  assert.doesNotMatch(requiredAt(markerClasses, 1), /bg-\[#f0fdfa\]/)
+  assert.doesNotMatch(requiredAt(markerClasses, 1), /bg-\[rgba/)
+  assert.doesNotMatch(requiredAt(markerClasses, 1), /\bhover:/)
+  assert.doesNotMatch(requiredAt(markerClasses, 1), /\bfocus-visible:/)
 })
 
 test('PageChip can render a title suppression marker inline before structural placeholders', () => {
@@ -2661,7 +2685,7 @@ test('PageChip can render a title suppression marker inline before structural pl
       })
     })
   )
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.equal(markerClasses.length, 1)
   assert.match(html, /<span class="chip-title-fixation\b[^"]*">Alp<\/span>ha <span class="chip-title-fixation\b[^"]*">chan<\/span>nel — [\s\S]*chip-title-suppression-marker[\s\S]*chip-title-suppression-glyph[\s\S]* — [\s\S]*chip-strip-indicator[\s\S]*>\/<\/span>/)
@@ -2679,10 +2703,10 @@ test('PageChip uses a path-style placeholder for stripped structural labels', ()
   const stripMatch = html.match(/<span class="([^"]*\bchip-strip-indicator\b[^"]*)" aria-hidden="true"><span>([^<]+)<\/span><\/span>/)
   assert.ok(stripMatch, 'structural strip indicator should render')
   assert.equal(stripMatch[2], '/')
-  assert.match(stripMatch[1], /\binline-flex\b/)
-  assert.match(stripMatch[1], /\bsize-4\b/)
-  assert.match(stripMatch[1], /\brounded-full\b/)
-  assert.doesNotMatch(stripMatch[1], /(?:^|\s)\[corner-shape:squircle\](?:\s|$)/)
+  assert.match(requiredAt(stripMatch, 1), /\binline-flex\b/)
+  assert.match(requiredAt(stripMatch, 1), /\bsize-4\b/)
+  assert.match(requiredAt(stripMatch, 1), /\brounded-full\b/)
+  assert.doesNotMatch(requiredAt(stripMatch, 1), /(?:^|\s)\[corner-shape:squircle\](?:\s|$)/)
   assert.doesNotMatch(html, /chip-title-suppression-marker\b/)
 })
 
@@ -2771,7 +2795,7 @@ test('PageChip renders path suffixes without a left margin utility', () => {
 
   const pathMatch = html.match(/<span class="([^"]*\bchip-path\b[^"]*)">/)
   assert.ok(pathMatch, 'chip path suffix should render')
-  assert.doesNotMatch(pathMatch[1], /\bml-/)
+  assert.doesNotMatch(requiredAt(pathMatch, 1), /\bml-/)
   assert.match(html, /<span class="chip-title-fixation\b[^"]*">Ope<\/span>nAI <span class="chip-title-fixation\b[^"]*">Do<\/span>cs\s+<span class="[^"]*\bchip-path\b[^"]*">\/docs\/reference<\/span>/)
 })
 
@@ -2797,37 +2821,37 @@ test('PageChip renders folded titles before env controls', () => {
   const foldedContentMatch = html.match(/<span class="([^"]*\bchip-folded-content\b[^"]*)"/)
   assert.ok(chipMatch, 'folded page chip should render')
   assert.ok(foldedContentMatch, 'folded page chip content should render')
-  assert.match(foldedContentMatch[1], /\bgap-0\.5\b/)
-  assert.match(chipMatch[1], /\bpage-chip-folded\b/)
-  assert.match(chipMatch[1], /\bcursor-default\b/)
-  assert.doesNotMatch(chipMatch[1], /\bclickable\b/)
-  assert.doesNotMatch(chipMatch[1], /\bcursor-pointer\b/)
-  assert.match(chipMatch[1], /hover:bg-\(--chip-interaction-bg\)/)
-  assert.match(chipMatch[1], /hover:outline-1/)
-  assert.match(chipMatch[1], /hover:-outline-offset-1/)
-  assert.match(chipMatch[1], /hover:outline-\(--chip-hover-border\)/)
-  assert.match(chipMatch[1], /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
+  assert.match(requiredAt(foldedContentMatch, 1), /\bgap-0\.5\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bpage-chip-folded\b/)
+  assert.match(requiredAt(chipMatch, 1), /\bcursor-default\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bclickable\b/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bcursor-pointer\b/)
+  assert.match(requiredAt(chipMatch, 1), /hover:bg-\(--chip-interaction-bg\)/)
+  assert.match(requiredAt(chipMatch, 1), /hover:outline-1/)
+  assert.match(requiredAt(chipMatch, 1), /hover:-outline-offset-1/)
+  assert.match(requiredAt(chipMatch, 1), /hover:outline-\(--chip-hover-border\)/)
+  assert.match(requiredAt(chipMatch, 1), /page-chip-tooltip-open\]:bg-\(--chip-interaction-bg\)/)
   assert.match(html, /--chip-interaction-bg:color-mix\(in srgb, var\(--card-bg\) 96\.5%, var\(--color-neutral-600\) 3\.5%\)/)
   assert.match(html, /--chip-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 22%, transparent\)/)
-  assert.doesNotMatch(chipMatch[1], /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
-  assert.doesNotMatch(chipMatch[1], /page-chip-tooltip-open\]:bg-\[rgba\(82,82,82,0\.05\)\]/)
-  assert.doesNotMatch(chipMatch[1], /hover:border/)
-  assert.doesNotMatch(chipMatch[1], /hover:ring/)
-  assert.doesNotMatch(chipMatch[1], /\bfocus-visible:outline/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:bg-\[rgba\(82,82,82,0\.05\)\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /page-chip-tooltip-open\]:bg-\[rgba\(82,82,82,0\.05\)\]/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:border/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /hover:ring/)
+  assert.doesNotMatch(requiredAt(chipMatch, 1), /\bfocus-visible:outline/)
   assert.doesNotMatch(html, /\btabindex="0"/)
   const envRowMatch = html.match(/<span class="([^"]*\bchip-env-row\b[^"]*)">/)
   assert.ok(envRowMatch, 'folded env row should render')
-  assert.doesNotMatch(envRowMatch[1], /\bmr-/)
+  assert.doesNotMatch(requiredAt(envRowMatch, 1), /\bmr-/)
   const envButtonMatch = html.match(/<button[^>]*class="([^"]*\bchip-env\b[^"]*)"/)
   assert.ok(envButtonMatch, 'folded env button should render')
-  assert.match(envButtonMatch[1], /\bh-6\b/)
-  assert.match(envButtonMatch[1], /\bpx-2\b/)
-  assert.match(envButtonMatch[1], /rounded-\[7px\]/)
-  assert.match(envButtonMatch[1], /\bclickable\b/)
-  assert.match(envButtonMatch[1], /\bcursor-default\b/)
-  assert.doesNotMatch(envButtonMatch[1], /\bcursor-pointer\b/)
-  assert.match(envButtonMatch[1], /\bhover:bg/)
-  assert.match(envButtonMatch[1], /\bfocus-visible:outline/)
+  assert.match(requiredAt(envButtonMatch, 1), /\bh-6\b/)
+  assert.match(requiredAt(envButtonMatch, 1), /\bpx-2\b/)
+  assert.match(requiredAt(envButtonMatch, 1), /rounded-\[7px\]/)
+  assert.match(requiredAt(envButtonMatch, 1), /\bclickable\b/)
+  assert.match(requiredAt(envButtonMatch, 1), /\bcursor-default\b/)
+  assert.doesNotMatch(requiredAt(envButtonMatch, 1), /\bcursor-pointer\b/)
+  assert.match(requiredAt(envButtonMatch, 1), /\bhover:bg/)
+  assert.match(requiredAt(envButtonMatch, 1), /\bfocus-visible:outline/)
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   assert.match(pageChipSource, /const foldedTitleExpansionTriggerElement = \(/)
   assert.match(pageChipSource, /shouldExpandChip \? \(\s*foldedTitleExpansionTriggerElement/)
@@ -2905,17 +2929,17 @@ test('WebsitePathSection renders raw path labels and keeps suppression summary o
   assert.match(html, /website-path-section\b/)
   const websitePathLabelMatch = html.match(/<span class="([^"]*\bwebsite-path-section-label\b[^"]*)"[^>]*>\/wiki<\/span>/)
   assert.ok(websitePathLabelMatch, 'website path section label should render')
-  assert.doesNotMatch(websitePathLabelMatch[1], /\bchip-pathgroup\b/)
-  assert.doesNotMatch(websitePathLabelMatch[1], /\bbg-\[/)
-  assert.doesNotMatch(websitePathLabelMatch[1], /\brounded/)
-  assert.doesNotMatch(websitePathLabelMatch[1], /\bpx-/)
-  assert.match(websitePathLabelMatch[1], /\bfont-semibold\b/)
-  assert.match(websitePathLabelMatch[1], /\btracking-wide\b/)
+  assert.doesNotMatch(requiredAt(websitePathLabelMatch, 1), /\bchip-pathgroup\b/)
+  assert.doesNotMatch(requiredAt(websitePathLabelMatch, 1), /\bbg-\[/)
+  assert.doesNotMatch(requiredAt(websitePathLabelMatch, 1), /\brounded/)
+  assert.doesNotMatch(requiredAt(websitePathLabelMatch, 1), /\bpx-/)
+  assert.match(requiredAt(websitePathLabelMatch, 1), /\bfont-semibold\b/)
+  assert.match(requiredAt(websitePathLabelMatch, 1), /\btracking-wide\b/)
   assert.match(html, /chip-pathgroup\b[^>]*>\/KB<\/span>/)
   assert.doesNotMatch(html, /Confluence space|Jira|Google Docs/)
   const summaryMatch = html.match(/<div[^>]*class="([^"]*\btitle-suppression-summary\b[^"]*)">/)
   assert.ok(summaryMatch, 'website-path suppression summary should render')
-  assert.doesNotMatch(summaryMatch[1], /\b(?:pl|ml|px)-/)
+  assert.doesNotMatch(requiredAt(summaryMatch, 1), /\b(?:pl|ml|px)-/)
   assert.match(html, /Suppressed in 3 titles: - Example-Site - Confluence/)
 })
 
@@ -3021,18 +3045,18 @@ test('Overflow expanders use one-line chip text and height metrics', () => {
   for (const html of [flatHtml, pathgroupHtml]) {
     const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
     assert.ok(overflowButtonMatch, 'overflow expander button should render')
-    assert.match(overflowButtonMatch[1], /py-\[5px\]/)
-    assert.match(overflowButtonMatch[1], /text-\[13px\]/)
-    assert.match(overflowButtonMatch[1], /\bleading-tight\b/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bafter:transition-/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bafter:duration-/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bafter:ease-/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bpy-1\.5\b/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\btext-xs\b/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /py-\[5px\]/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /text-\[13px\]/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /\bleading-tight\b/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bafter:transition-/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bafter:duration-/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bafter:ease-/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bpy-1\.5\b/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\btext-xs\b/)
 
     const moreTextMatch = html.match(/<span class="([^"]*\bchip-text\b[^"]*)">\+1 more<\/span>/)
     assert.ok(moreTextMatch, 'overflow more-count text should render')
-    assert.match(moreTextMatch[1], /text-\[13px\]/)
+    assert.match(requiredAt(moreTextMatch, 1), /text-\[13px\]/)
   }
 })
 
@@ -3102,11 +3126,11 @@ test('Overflow expanders keep the row neutral when only some hidden chips match 
   for (const html of [flatHtml, pathgroupHtml]) {
     const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
     assert.ok(overflowButtonMatch, 'overflow expander button should render')
-    assert.doesNotMatch(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bbg-teal-50\b/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bring-teal-50\b/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bpage-chip-overflow-suppression-highlighted\b/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bbg-teal-50\b/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bring-teal-50\b/)
     assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-teal-50[^"]*bg-teal-50[\s\S]*>˷1<\/span>/)
-    assert.doesNotMatch(overflowButtonMatch[1], /\bbg-yellow-50\b/)
+    assert.doesNotMatch(requiredAt(overflowButtonMatch, 1), /\bbg-yellow-50\b/)
     assert.doesNotMatch(html, /hidden title suppresses/)
     assert.doesNotMatch(html, /Click to show/)
   }
@@ -3154,11 +3178,11 @@ test('Overflow expanders use full chip color when all hidden chips match active 
   for (const html of [flatHtml, pathgroupHtml]) {
     const overflowButtonMatch = html.match(/<button[^>]*class="([^"]*\bpage-chip-overflow\b[^"]*)"/)
     assert.ok(overflowButtonMatch, 'overflow expander button should render')
-    assert.match(overflowButtonMatch[1], /\bpage-chip-overflow-suppression-highlighted\b/)
-    assert.match(overflowButtonMatch[1], /\bbg-teal-50\b/)
-    assert.match(overflowButtonMatch[1], /\bring-1\b/)
-    assert.match(overflowButtonMatch[1], /\bring-inset\b/)
-    assert.match(overflowButtonMatch[1], /\bring-teal-50\b/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /\bpage-chip-overflow-suppression-highlighted\b/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /\bbg-teal-50\b/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /\bring-1\b/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /\bring-inset\b/)
+    assert.match(requiredAt(overflowButtonMatch, 1), /\bring-teal-50\b/)
     assert.match(html, /page-chip-overflow-suppression-badge[^"]*border[^"]*border-teal-50[^"]*bg-teal-50[\s\S]*>˷2<\/span>/)
   }
 })
@@ -3187,13 +3211,13 @@ test('DomainCard shows common suppressed title text above the chips without a su
 
   const summaryMatch = html.match(/<div[^>]*class="([^"]*title-suppression-summary[^"]*)">/)
   assert.ok(summaryMatch, 'suppression summary row should render')
-  assert.doesNotMatch(summaryMatch[1], /\bpx-1\b/)
-  assert.doesNotMatch(summaryMatch[1], /\bpy-0\.5\b/)
+  assert.doesNotMatch(requiredAt(summaryMatch, 1), /\bpx-1\b/)
+  assert.doesNotMatch(requiredAt(summaryMatch, 1), /\bpy-0\.5\b/)
   const tokenMatch = html.match(/<button[^>]*class="([^"]*title-suppression-token[^"]*)"/)
   assert.ok(tokenMatch, 'suppression token button should render')
-  assert.match(tokenMatch[1], /rounded-md/)
-  assert.doesNotMatch(tokenMatch[1], /\bcursor-(default|pointer)\b/)
-  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
+  assert.match(requiredAt(tokenMatch, 1), /rounded-md/)
+  assert.doesNotMatch(requiredAt(tokenMatch, 1), /\bcursor-(default|pointer)\b/)
+  assert.doesNotMatch(requiredAt(tokenMatch, 1), /title-suppression-token-tone-/)
   assert.match(html, /Example Workspace/)
   assert.match(html, /Suppressed in 2 titles: Example Workspace/)
   const summarySource = readFileSync(new URL('../src/components/TitleSuppressionSummary.tsx', import.meta.url), 'utf8')
@@ -3368,8 +3392,8 @@ test('DomainCard renders section-scoped single suppressed title text as neutral'
   const markerMatch = html.match(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/)
   assert.ok(tokenMatch, 'section-scoped suppression token should render')
   assert.ok(markerMatch, 'matching suppression marker should render')
-  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
-  assert.doesNotMatch(markerMatch[1], /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(tokenMatch, 1), /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(markerMatch, 1), /title-suppression-token-tone-/)
 })
 
 test('DomainCard colors section-scoped single suppressed title text when it spans rendered child groups', () => {
@@ -3434,13 +3458,13 @@ test('DomainCard colors section-scoped single suppressed title text when it span
     })
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.ok(tokenMatch, 'section-scoped suppression token should render')
-  assert.match(tokenMatch[1], /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(tokenMatch, 1), /title-suppression-token-tone-amber/)
   assert.equal(markerClasses.length, 2)
-  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 0), /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 1), /title-suppression-token-tone-amber/)
 })
 
 test('DomainCard keeps cross-child single suppressed title text neutral when it is the only card meaning', () => {
@@ -3507,13 +3531,13 @@ test('DomainCard keeps cross-child single suppressed title text neutral when it 
     })
   )
   const tokenMatch = html.match(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/)
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.ok(tokenMatch, 'card-scoped suppression token should render')
-  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(tokenMatch, 1), /title-suppression-token-tone-/)
   assert.equal(markerClasses.length, 2)
-  assert.doesNotMatch(markerClasses[0], /title-suppression-token-tone-/)
-  assert.doesNotMatch(markerClasses[1], /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(markerClasses, 0), /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(markerClasses, 1), /title-suppression-token-tone-/)
 })
 
 test('DomainCard renders pathgroup-scoped single suppressed title text as neutral', () => {
@@ -3578,8 +3602,8 @@ test('DomainCard renders pathgroup-scoped single suppressed title text as neutra
 
   assert.ok(tokenMatch, 'pathgroup-scoped suppression token should render')
   assert.ok(markerMatch, 'matching suppression marker should render')
-  assert.doesNotMatch(tokenMatch[1], /title-suppression-token-tone-/)
-  assert.doesNotMatch(markerMatch[1], /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(tokenMatch, 1), /title-suppression-token-tone-/)
+  assert.doesNotMatch(requiredAt(markerMatch, 1), /title-suppression-token-tone-/)
 })
 
 test('DomainCard renders pathgroup-scoped multiple suppressed titles with local tones', () => {
@@ -3643,15 +3667,15 @@ test('DomainCard renders pathgroup-scoped multiple suppressed titles with local 
       vm: withSuppressionTones(vm)
     })
   )
-  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.equal(tokenClasses.length, 2)
-  assert.match(tokenClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(tokenClasses, 0), /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(tokenClasses, 1), /title-suppression-token-tone-teal/)
   assert.equal(markerClasses.length, 2)
-  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(markerClasses, 0), /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 1), /title-suppression-token-tone-teal/)
 })
 
 test('DomainCard displays suppression tokens in title order while coloring higher coverage tokens first', () => {
@@ -3717,20 +3741,20 @@ test('DomainCard displays suppression tokens in title order while coloring highe
     })
   )
   const tokenMatches = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"[^>]*aria-label="Suppressed in \d+ titles: ([^"]+)"/g)]
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
-  assert.deepEqual(tokenMatches.map((match) => match[2]), [
+  assert.deepEqual(tokenMatches.map((match) => requiredAt(match, 2)), [
     '— Content — Example Website —',
     '— Example Website —',
     '— Contentful'
   ])
-  assert.match(tokenMatches[0][1], /title-suppression-token-tone-teal/)
-  assert.match(tokenMatches[1][1], /title-suppression-token-tone-sky/)
-  assert.match(tokenMatches[2][1], /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(requiredAt(tokenMatches, 0), 1), /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(requiredAt(tokenMatches, 1), 1), /title-suppression-token-tone-sky/)
+  assert.match(requiredAt(requiredAt(tokenMatches, 2), 1), /title-suppression-token-tone-amber/)
   assert.equal(markerClasses.length, 3)
-  assert.match(markerClasses[0], /title-suppression-token-tone-teal/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-sky/)
-  assert.match(markerClasses[2], /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 0), /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(markerClasses, 1), /title-suppression-token-tone-sky/)
+  assert.match(requiredAt(markerClasses, 2), /title-suppression-token-tone-amber/)
 })
 
 test('DomainCard coordinates child title suppression tones with a colored ancestor scope', () => {
@@ -3801,17 +3825,17 @@ test('DomainCard coordinates child title suppression tones with a colored ancest
       vm: withSuppressionTones(vm)
     })
   )
-  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.equal(tokenClasses.length, 3)
-  assert.match(tokenClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(tokenClasses[1], /title-suppression-token-tone-teal/)
-  assert.match(tokenClasses[2], /title-suppression-token-tone-sky/)
+  assert.match(requiredAt(tokenClasses, 0), /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(tokenClasses, 1), /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(tokenClasses, 2), /title-suppression-token-tone-sky/)
   assert.equal(markerClasses.length, 3)
-  assert.match(markerClasses[0], /title-suppression-token-tone-amber/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-teal/)
-  assert.match(markerClasses[2], /title-suppression-token-tone-sky/)
+  assert.match(requiredAt(markerClasses, 0), /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 1), /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(markerClasses, 2), /title-suppression-token-tone-sky/)
 })
 
 test('DomainCard assigns subtle tones when multiple suppressed title tokens render', () => {
@@ -3858,17 +3882,17 @@ test('DomainCard assigns subtle tones when multiple suppressed title tokens rend
       vm: withSuppressionTones(vm)
     })
   )
-  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => match[1])
+  const tokenClasses = [...html.matchAll(/<button[^>]*class="([^"]*\btitle-suppression-token\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
 
   assert.equal(tokenClasses.length, 3)
-  assert.match(tokenClasses[0], /title-suppression-token-tone-teal/)
-  assert.match(tokenClasses[1], /title-suppression-token-tone-sky/)
-  assert.match(tokenClasses[2], /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(tokenClasses, 0), /title-suppression-token-tone-teal/)
+  assert.match(requiredAt(tokenClasses, 1), /title-suppression-token-tone-sky/)
+  assert.match(requiredAt(tokenClasses, 2), /title-suppression-token-tone-amber/)
   assert.notEqual(tokenClasses[0], tokenClasses[1])
-  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => match[1])
+  const markerClasses = [...html.matchAll(/<span class="([^"]*\bchip-title-suppression-marker\b[^"]*)"/g)].map((match) => requiredAt(match, 1))
   assert.equal(markerClasses.length, 2)
-  assert.match(markerClasses[0], /title-suppression-token-tone-sky/)
-  assert.match(markerClasses[1], /title-suppression-token-tone-amber/)
+  assert.match(requiredAt(markerClasses, 0), /title-suppression-token-tone-sky/)
+  assert.match(requiredAt(markerClasses, 1), /title-suppression-token-tone-amber/)
 })
 
 test('HistoryEntry renders open-ghost marker with data-tabout-part attribute', () => {
@@ -3877,7 +3901,7 @@ test('HistoryEntry renders open-ghost marker with data-tabout-part attribute', (
       snapshot: makeHistorySnapshot(),
       workingSet: makeWorkingSetSnapshot({
         items: [
-          makeWorkingSetSnapshot().items[0],
+          makeWorkingSetItem(),
           {
             key: 'https://example.com/extra',
             tabId: 202,

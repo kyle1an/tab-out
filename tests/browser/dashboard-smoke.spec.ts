@@ -6423,10 +6423,14 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
         await originalSet(items)
         return
       }
-      const value = Array.isArray(items.tabOutPinnedDomainsV1)
-        ? items.tabOutPinnedDomainsV1.slice() as string[]
-        : []
-      audit.writes.push(value)
+      const pinnedDomains = Object.entries(items).find(([key]) => key === 'tabOutPinnedDomainsV1')?.[1]
+      if (
+        !Array.isArray(pinnedDomains) ||
+        !pinnedDomains.every((domain): domain is string => typeof domain === 'string')
+      ) {
+        throw new TypeError('Expected every pinned-domain write to contain only strings')
+      }
+      audit.writes.push([...pinnedDomains])
       audit.active += 1
       audit.maxActive = Math.max(audit.maxActive, audit.active)
       if (audit.writes.length === 1) await firstWriteGate

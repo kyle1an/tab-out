@@ -9,9 +9,19 @@ import { closeTabsByTargets, closeTabsByTargetsResult, closeTabsExact, closeTabs
 import { markClosure, switchToRestoredTab, undoLastClose } from '../src/extension/undo.js'
 import { focusWorkingSetItem, focusWorkingSetItemResult } from '../src/extension/working-set-client.js'
 
+type ChromeMockCalls = {
+  create: chrome.tabs.CreateProperties[]
+  remove: number[]
+  runtimeMessages: Array<{ extensionId: string; message: Record<string, unknown> }>
+  tabsQuery: number
+  tabsUpdate: Array<{ tabId: number; updateProperties: chrome.tabs.UpdateProperties }>
+  windowsCreate: chrome.windows.CreateData[]
+  windowsUpdate: Array<{ windowId: number; updateProperties: chrome.windows.UpdateInfo }>
+}
+
 function createChromeMock(initialTabs: any[], currentWindowId = 1) {
   const tabs = initialTabs.map((tab) => ({ ...tab }))
-  const calls: any = {
+  const calls: ChromeMockCalls = {
     create: [],
     remove: [],
     runtimeMessages: [],
@@ -24,7 +34,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
   ;(globalThis as any).chrome = {
     runtime: {
       id: 'tab-out',
-      async sendMessage(extensionId, message) {
+      async sendMessage(extensionId: string, message: Record<string, unknown>) {
         calls.runtimeMessages.push({ extensionId, message: { ...message } })
         if (extensionId === 'blocked') throw new Error('Cannot message extension')
         if (extensionId === 'rejects') return 'Error: tab is not suspended'
@@ -32,7 +42,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       }
     },
     tabs: {
-      async get(tabId) {
+      async get(tabId: number) {
         const tab = tabs.find((candidate) => candidate.id === tabId)
         if (!tab) throw new Error(`No tab with id: ${tabId}`)
         return { ...tab }
@@ -41,7 +51,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         calls.tabsQuery += 1
         return tabs.map((tab) => ({ ...tab }))
       },
-      async update(tabId, updateProperties) {
+      async update(tabId: number, updateProperties: chrome.tabs.UpdateProperties) {
         calls.tabsUpdate.push({ tabId, updateProperties: { ...updateProperties } })
         const tab = tabs.find((candidate) => candidate.id === tabId)
         if (!tab) return undefined
@@ -54,7 +64,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         Object.assign(tab, updateProperties)
         return { ...tab }
       },
-      async create(createProperties) {
+      async create(createProperties: chrome.tabs.CreateProperties) {
         calls.create.push({ ...createProperties })
         if (createProperties.url === 'chrome-extension://blocked/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs') {
           throw new Error('Cannot create blocked extension URL')
@@ -62,7 +72,9 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         const nextId = Math.max(0, ...tabs.map((tab) => Number(tab.id) || 0)) + 1
         const windowId = createProperties.windowId ?? currentWindowId
         const windowTabs = tabs.filter((tab) => tab.windowId === windowId)
-        const requestedIndex = Number.isInteger(createProperties.index) ? createProperties.index : windowTabs.length
+        const requestedIndex = typeof createProperties.index === 'number' && Number.isInteger(createProperties.index)
+          ? createProperties.index
+          : windowTabs.length
         const insertionIndex = Math.max(0, Math.min(requestedIndex, windowTabs.length))
         for (const candidate of windowTabs) {
           const candidateIndex = Number.isInteger(candidate.index) ? candidate.index : windowTabs.indexOf(candidate)
@@ -81,7 +93,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         tabs.push(tab)
         return { ...tab }
       },
-      async remove(tabIds) {
+      async remove(tabIds: number | number[]) {
         const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
         calls.remove.push(...ids)
         for (const id of ids) {
@@ -97,7 +109,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
       async getAll() {
         return Array.from(new Set(tabs.map((tab) => tab.windowId))).map((id) => ({ id, type: 'normal' }))
       },
-      async create(createProperties) {
+      async create(createProperties: chrome.windows.CreateData) {
         calls.windowsCreate.push({ ...createProperties })
         const windowId = Math.max(0, ...tabs.map((tab) => Number(tab.windowId) || 0)) + 1
         const nextId = Math.max(0, ...tabs.map((tab) => Number(tab.id) || 0)) + 1
@@ -114,7 +126,7 @@ function createChromeMock(initialTabs: any[], currentWindowId = 1) {
         tabs.push(tab)
         return { id: windowId, type: createProperties.type || 'normal', focused: !!createProperties.focused, tabs: [{ ...tab }] }
       },
-      async update(windowId, updateProperties) {
+      async update(windowId: number, updateProperties: chrome.windows.UpdateInfo) {
         calls.windowsUpdate.push({ windowId, updateProperties: { ...updateProperties } })
         return { id: windowId, type: 'normal', focused: !!updateProperties.focused }
       }
@@ -1334,7 +1346,9 @@ test('undoLastClose restores raw suspended URL before falling back to effective 
   ])
   await undoLastClose()
 
-  assert.equal(calls.create[0].url, 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs')
+  const [firstCreate] = calls.create
+  assert.ok(firstCreate)
+  assert.equal(firstCreate.url, 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs')
   assert.equal(tabs.some((tab) => tab.url === 'chrome-extension://marvellous/suspended.html#ttl=Docs&uri=https%3A%2F%2Fexample.com%2Fdocs'), true)
 
   markClosure([

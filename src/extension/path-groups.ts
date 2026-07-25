@@ -38,8 +38,10 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
       // /pull/1234 (action item) vs /pulls?q=… (browse all PRs).
       const m = u.pathname.match(/^\/([^/]+)\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?/)
       if (!m) return null
-      if (!isGitHubRepositoryOwnerPathSegment(m[1])) return null
-      const label = `${m[1]}/${m[2]}`
+      const owner = m[1]
+      const repository = m[2]
+      if (!owner || !repository || !isGitHubRepositoryOwnerPathSegment(owner)) return null
+      const label = `${owner}/${repository}`
       const sub = m[3] || ''
       const item = m[4] || ''
       // Category: used by render.js to order chips within a cluster so
@@ -79,8 +81,9 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
     hostnameEndsWith: '.atlassian.net',
     extract: (u: URL) => {
       const m = u.pathname.match(/^\/browse\/([A-Z][A-Z0-9]+)-\d+/)
-      if (!m) return null
-      return { key: `jira:${m[1]}`, label: m[1], alwaysCluster: true }
+      const project = m?.[1]
+      if (!project) return null
+      return { key: `jira:${project}`, label: project, alwaysCluster: true }
     }
   },
 
@@ -89,8 +92,9 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
     hostnameEndsWith: '.atlassian.net',
     extract: (u: URL) => {
       const m = u.pathname.match(/^\/wiki\/spaces\/([^/]+)/)
-      if (!m) return null
-      return { key: `wiki:${m[1]}`, label: m[1] }
+      const space = m?.[1]
+      if (!space) return null
+      return { key: `wiki:${space}`, label: space }
     }
   },
 
@@ -104,8 +108,10 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
     hostname: 'app.contentful.com',
     extract: (u: URL) => {
       const m = u.pathname.match(/^\/spaces\/([^/]+)\/environments\/([^/]+)/)
-      if (!m) return null
-      return { key: `${m[1]}/${m[2]}`, label: m[2], alwaysCluster: true }
+      const space = m?.[1]
+      const environment = m?.[2]
+      if (!space || !environment) return null
+      return { key: `${space}/${environment}`, label: environment, alwaysCluster: true }
     }
   },
 
@@ -116,14 +122,16 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
     hostname: 'www.figma.com',
     extract: (u: URL) => {
       const m = u.pathname.match(/^\/(?:design|file)\/([^/]+)\/([^/?]+)/)
-      if (!m) return null
+      const fileId = m?.[1]
+      const encodedName = m?.[2]
+      if (!fileId || !encodedName) return null
       let label
       try {
-        label = decodeURIComponent(m[2]).replace(/[_-]+/g, ' ').trim()
+        label = decodeURIComponent(encodedName).replace(/[_-]+/g, ' ').trim()
       } catch {
-        label = m[2]
+        label = encodedName
       }
-      return { key: m[1], label: label || m[1] }
+      return { key: fileId, label: label || fileId }
     }
   },
 
@@ -132,8 +140,9 @@ const BUILT_IN_PATH_GROUPERS: PathGroupRule[] = [
     hostname: 'www.reddit.com',
     extract: (u: URL) => {
       const m = u.pathname.match(/^\/r\/([^/]+)/)
-      if (!m) return null
-      return { key: `r/${m[1]}`, label: `r/${m[1]}` }
+      const subreddit = m?.[1]
+      if (!subreddit) return null
+      return { key: `r/${subreddit}`, label: `r/${subreddit}` }
     }
   },
 

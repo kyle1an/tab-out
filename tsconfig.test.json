@@ -1,11 +1,5 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "strict": false,
-    "noImplicitAny": false,
-    "noImplicitReturns": false,
-    "strictNullChecks": false
-  },
   "include": ["tests/**/*.ts"],
   "exclude": ["extension/dist/**", "extension/vendor/**"]
 }

@@ -94,7 +94,18 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
   let dedupCount = 0
   for (const group of groups) {
     const groupChipOrder = chipOrder?.get(domainGroupCardId(group))
-    const matchedVm = computeDomainCardViewModel(group, { filter, filterQuery, mode: 'matched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
+    const sharedCardOptions = {
+      filter,
+      filterQuery,
+      source,
+      allowMutations,
+      currentWindowId,
+      ...(groupChipOrder === undefined ? {} : { chipOrder: groupChipOrder }),
+      ...(chipPriority === undefined ? {} : { chipPriority }),
+      ...(pinnedSections === undefined ? {} : { pinnedSections }),
+      ...(pinnedPageChips === undefined ? {} : { pinnedPageChips })
+    }
+    const matchedVm = computeDomainCardViewModel(group, { ...sharedCardOptions, mode: 'matched' })
     if (!matchedVm.isHidden) {
       matchedCards.push({ group, vm: matchedVm })
       if (allowMutations) {
@@ -105,7 +116,7 @@ export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups
 
     if (!filtering) continue
 
-    const unmatchedVm = computeDomainCardViewModel(group, { filter, filterQuery, mode: 'unmatched', source, allowMutations, currentWindowId, chipOrder: groupChipOrder, chipPriority, pinnedSections, pinnedPageChips })
+    const unmatchedVm = computeDomainCardViewModel(group, { ...sharedCardOptions, mode: 'unmatched' })
     if (!unmatchedVm.isHidden) unmatchedCards.push({ group, vm: unmatchedVm })
   }
 
@@ -326,6 +337,6 @@ export async function fetchDashboardData(
     historySearchStatus,
     bookmarkTabs,
     historyTabs,
-    savedPagesStore
+    ...(savedPagesStore === undefined ? {} : { savedPagesStore })
   })
 }

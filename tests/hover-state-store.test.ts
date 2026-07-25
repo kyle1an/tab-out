@@ -11,20 +11,29 @@ test('hover store notifies only old and new matches across hundreds of leaf sele
   const notifications = Array.from({ length: urls.length }, () => 0)
   const unsubscribe = urls.map((url, index) => store.subscribeSelector(
     (state) => state.source !== 'chip' && state.urls.includes(url),
-    () => { notifications[index] += 1 }
+    () => {
+      const count = notifications[index]
+      assert.ok(count !== undefined)
+      notifications[index] = count + 1
+    }
   ))
+  const urlAt = (index: number): string => {
+    const url = urls[index]
+    assert.ok(url)
+    return url
+  }
 
   store.setSnapshot({
-    url: urls[173],
-    urls: [urls[173]],
+    url: urlAt(173),
+    urls: [urlAt(173)],
     source: 'history'
   })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 1)
   assert.equal(notifications[173], 1)
 
   store.setSnapshot({
-    url: urls[318],
-    urls: [urls[318]],
+    url: urlAt(318),
+    urls: [urlAt(318)],
     source: 'history'
   })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 3)
@@ -34,18 +43,18 @@ test('hover store notifies only old and new matches across hundreds of leaf sele
 
   // A source-only update with the same selected result does not schedule any
   // leaf update, and a semantically identical snapshot is ignored entirely.
-  store.setSnapshot({ url: urls[318], urls: [urls[318]], source: 'working-set' })
-  store.setSnapshot({ url: urls[318], urls: [urls[318]], source: 'working-set' })
+  store.setSnapshot({ url: urlAt(318), urls: [urlAt(318)], source: 'working-set' })
+  store.setSnapshot({ url: urlAt(318), urls: [urlAt(318)], source: 'working-set' })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 3)
 
   // Page Chips do not cross-highlight other Page Chips, so only the previous
   // matching leaf is notified when the source changes to chip.
-  store.setSnapshot({ url: urls[318], urls: [urls[318]], source: 'chip' })
+  store.setSnapshot({ url: urlAt(318), urls: [urlAt(318)], source: 'chip' })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 4)
   assert.equal(notifications[318], 2)
 
   for (const stop of unsubscribe) stop()
-  store.setSnapshot({ url: urls[99], urls: [urls[99]], source: 'history' })
+  store.setSnapshot({ url: urlAt(99), urls: [urlAt(99)], source: 'history' })
   assert.equal(notifications.reduce((total, count) => total + count, 0), 4)
 })
 

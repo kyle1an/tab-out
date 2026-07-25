@@ -50,6 +50,7 @@ test('GitHub repository root slash variants collapse into one closable duplicate
 
   const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
   const [chip] = collectDashboardChips(vm)
+  assert.ok(chip)
 
   assert.deepEqual(vm.closableDupeUrls, [repository])
   assert.equal(vm.closableExtras, 1)

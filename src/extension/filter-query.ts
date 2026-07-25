@@ -46,7 +46,7 @@ export function parseFilterQuery(input = ''): FilterQuery {
   let index = 0
 
   while (index < input.length) {
-    while (index < input.length && /\s/.test(input[index])) index += 1
+    while (index < input.length && /\s/.test(input.charAt(index))) index += 1
     if (index >= input.length) break
 
     if (input[index] === '"') {
@@ -59,7 +59,7 @@ export function parseFilterQuery(input = ''): FilterQuery {
     }
 
     const start = index
-    while (index < input.length && !/\s/.test(input[index])) index += 1
+    while (index < input.length && !/\s/.test(input.charAt(index))) index += 1
     pushTerm(terms, 'token', input.slice(start, index))
   }
 

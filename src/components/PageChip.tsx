@@ -71,9 +71,9 @@ const DEFAULT_CHIP_EXPANSION_GEOMETRY: ChipExpansionGeometry = {
 
 interface PageChipProps {
   chip: DashboardChipData
-  filter?: string
-  layoutScope?: string
-  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+  filter?: string | undefined
+  layoutScope?: string | undefined
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>> | undefined
 }
 
 function chipMatchesHoverState(target: DashboardChipData, state: HoverState): boolean {
@@ -616,14 +616,18 @@ function getExpandedPageChipLineHtml(
       let high = textNodes.length - 1
       while (low < high) {
         const middle = Math.floor((low + high) / 2)
-        const bounds = getTextLineBounds(textNodes[middle])
+        const middleNode = textNodes[middle]
+        if (!middleNode) return null
+        const bounds = getTextLineBounds(middleNode)
         if (bounds && bounds.last >= targetLineIndex) {
           high = middle
         } else {
           low = middle + 1
         }
       }
-      const bounds = getTextLineBounds(textNodes[low])
+      const lowNode = textNodes[low]
+      if (!lowNode) return null
+      const bounds = getTextLineBounds(lowNode)
       if (bounds && bounds.first <= targetLineIndex && bounds.last >= targetLineIndex) {
         candidateIndex = low
       }
@@ -634,7 +638,9 @@ function getExpandedPageChipLineHtml(
     // start; ordinary wrapped-line searches stop after one predecessor.
     if (candidateIndex >= 0 && targetLineIndex > 0) {
       for (let index = candidateIndex - 1; index >= 0; index -= 1) {
-        const bounds = getTextLineBounds(textNodes[index])
+        const candidateNode = textNodes[index]
+        if (!candidateNode) continue
+        const bounds = getTextLineBounds(candidateNode)
         if (!bounds) continue
         if (bounds.last < targetLineIndex) break
         if (bounds.first <= targetLineIndex) candidateIndex = index
@@ -652,6 +658,7 @@ function getExpandedPageChipLineHtml(
     if (candidateIndex < 0) return null
 
     const node = textNodes[candidateIndex]
+    if (!node) return null
     const offset = firstChipExpansionTextOffsetOnLine(node, targetLineIndex, range, textRect, lineHeight)
     return offset === null ? null : { kind: 'text', node, offset }
   }
@@ -677,6 +684,7 @@ function getExpandedPageChipLineHtml(
   for (let index = 0; index < lineStarts.length; index += 1) {
     const lineRange = ownerDocument.createRange()
     const start = lineStarts[index]
+    if (!start) continue
     setRangeStartAtChipExpansionPosition(lineRange, start)
     const next = lineStarts[index + 1]
     if (next) {
@@ -1469,9 +1477,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
     await setPreview('')
     const mode = chipActivationMode(e, navigator.platform)
     const activationResult = await performDashboardItemActivation(mode, {
-      tabId: target?.tabId,
       tabUrl: targetUrl,
-      rawUrl: target?.rawUrl
+      ...(target?.tabId === undefined ? {} : { tabId: target.tabId }),
+      ...(target?.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
     })
     if (activationResult === 'unhandled') await focusChipUrl(targetUrl, target)
   }
@@ -1792,9 +1800,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
     await closeChipTarget({
       tabUrl: chip.tabUrl,
-      tabId: chip.tabId,
-      expectedPinned: chip.chromePinned,
-      expectedGroupId: chip.chromeGroupId,
+      ...(chip.tabId === undefined ? {} : { tabId: chip.tabId }),
+      ...(chip.chromePinned === undefined ? {} : { expectedPinned: chip.chromePinned }),
+      ...(chip.chromeGroupId === undefined ? {} : { expectedGroupId: chip.chromeGroupId }),
       envs,
       onAfterClose: ({ shouldAnimateRemoval }) => {
         if (shouldAnimateRemoval && !chipCloseLeavesSavedPage && chipEl) {
@@ -1941,9 +1949,9 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
 
     await closeChipTarget({
       tabUrl: variant.tabUrl,
-      tabId: variant.tabId,
-      expectedPinned: variant.chromePinned,
-      expectedGroupId: variant.chromeGroupId,
+      ...(variant.tabId === undefined ? {} : { tabId: variant.tabId }),
+      ...(variant.chromePinned === undefined ? {} : { expectedPinned: variant.chromePinned }),
+      ...(variant.chromeGroupId === undefined ? {} : { expectedGroupId: variant.chromeGroupId }),
       onAfterClose: async () => setPreview('')
     })
   }
@@ -2106,8 +2114,8 @@ function usePageChipElement({ chip, filter = '', layoutScope = '', suppressedTit
   ): CSSVariableProperties | undefined {
     const sourceType = target.sourceType ?? chip.sourceType
     const isClosedTarget = isReadOnlyDashboardSourceType(sourceType) || isClosedSavedDashboardTab({
-      sourceType,
-      closedSaved: target.closedSaved
+      ...(sourceType === undefined ? {} : { sourceType }),
+      ...(target.closedSaved === undefined ? {} : { closedSaved: target.closedSaved })
     })
     if (!hasFilter || !isClosedTarget) return undefined
     return { '--chip-target-interaction-bg': trim.styleVars.closedInteractionBg }

@@ -26,7 +26,7 @@ function makeTab(overrides: Partial<DashboardTab> = {}): DashboardTab {
 
 function firstChip(tabs: DashboardTab[]) {
   const group: DomainGroup = { domain: 'example.test', tabs }
-  return computeDomainCardViewModel(group, { currentWindowId: 1 }).sections[0]?.flatVisibleChips[0]
+  return computeDomainCardViewModel(group, { currentWindowId: 1 }).sections?.[0]?.flatVisibleChips[0]
 }
 
 test('a loading live tab produces a loading Page Chip', () => {

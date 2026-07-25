@@ -29,7 +29,6 @@ const candidates: FilterResultCandidate[] = [
 
 function chip(overrides: Partial<DashboardChipData> & { tabUrl: string }): DashboardChipData {
   return {
-    tabUrl: overrides.tabUrl,
     rawUrl: overrides.rawUrl ?? overrides.tabUrl,
     sourceType: overrides.sourceType ?? 'tab',
     leadPrefix: '',
@@ -46,6 +45,12 @@ function chip(overrides: Partial<DashboardChipData> & { tabUrl: string }): Dashb
     envs: null,
     ...overrides
   }
+}
+
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
 }
 
 function cardWithChips(
@@ -154,8 +159,8 @@ test('visible selection reconciliation probes only the still-selected candidate'
     current,
     'example',
     [
-      candidates[0],
-      candidates[1],
+      valueAt(candidates, 0),
+      valueAt(candidates, 1),
       {
         key: 'tab:charlie',
         identity: 'https://charlie.example.test/',
@@ -169,21 +174,21 @@ test('visible selection reconciliation probes only the still-selected candidate'
   )
 
   assert.deepEqual(result.selection, current)
-  assert.equal(result.candidate, candidates[0])
+  assert.equal(result.candidate, valueAt(candidates, 0))
   assert.deepEqual(probedKeys, ['tab:alpha'])
 })
 
 test('visible selection reconciliation follows identity without probing unrelated candidates', () => {
   const replacementCandidates: FilterResultCandidate[] = [
-    candidates[1],
+    valueAt(candidates, 1),
     {
       key: 'history:alpha-hidden',
-      identity: candidates[0].identity,
+      identity: valueAt(candidates, 0).identity,
       domId: 'filter-result-alpha-hidden'
     },
     {
       key: 'tab:alpha-replacement',
-      identity: candidates[0].identity,
+      identity: valueAt(candidates, 0).identity,
       domId: 'filter-result-alpha-replacement'
     },
     {
@@ -198,7 +203,7 @@ test('visible selection reconciliation follows identity without probing unrelate
     {
       query: 'example',
       candidateKey: 'history:alpha-removed',
-      identity: candidates[0].identity
+      identity: valueAt(candidates, 0).identity
     },
     'example',
     replacementCandidates,
@@ -211,9 +216,9 @@ test('visible selection reconciliation follows identity without probing unrelate
   assert.deepEqual(result.selection, {
     query: 'example',
     candidateKey: 'tab:alpha-replacement',
-    identity: candidates[0].identity
+    identity: valueAt(candidates, 0).identity
   })
-  assert.equal(result.candidate, replacementCandidates[2])
+  assert.equal(result.candidate, valueAt(replacementCandidates, 2))
   assert.deepEqual(probedKeys, ['history:alpha-hidden', 'tab:alpha-replacement'])
 })
 
@@ -224,8 +229,8 @@ test('visible selection reconciliation leaves a new query owned by the input', (
       identity: 'https://collapsed.example.test/',
       domId: 'filter-result-collapsed'
     },
-    candidates[0],
-    candidates[1]
+    valueAt(candidates, 0),
+    valueAt(candidates, 1)
   ]
   const probedKeys: string[] = []
 
@@ -255,8 +260,8 @@ test('visible selection reconciliation stops at the first mounted fallback', () 
       identity: 'https://collapsed.example.test/',
       domId: 'filter-result-collapsed'
     },
-    candidates[0],
-    candidates[1]
+    valueAt(candidates, 0),
+    valueAt(candidates, 1)
   ]
   const probedKeys: string[] = []
 
@@ -274,11 +279,11 @@ test('visible selection reconciliation stops at the first mounted fallback', () 
     }
   )
 
-  assert.equal(result.candidate, candidates[0])
+  assert.equal(result.candidate, valueAt(candidates, 0))
   assert.deepEqual(result.selection, {
     query: 'example',
-    candidateKey: candidates[0].key,
-    identity: candidates[0].identity
+    candidateKey: valueAt(candidates, 0).key,
+    identity: valueAt(candidates, 0).identity
   })
   assert.deepEqual(probedKeys, ['tab:collapsed', 'tab:alpha'])
 })
@@ -310,8 +315,8 @@ test('Arrow navigation moves through results and clamps at either end', () => {
 
 test('horizontal Arrow navigation follows rendered positions instead of result order', () => {
   const spatialCandidates: FilterResultCandidate[] = [
-    candidates[0],
-    candidates[1],
+    valueAt(candidates, 0),
+    valueAt(candidates, 1),
     {
       key: 'tab:charlie',
       identity: 'https://charlie.example.test/',
@@ -320,15 +325,15 @@ test('horizontal Arrow navigation follows rendered positions instead of result o
   ]
   const positionedCandidates: PositionedFilterResultCandidate[] = [
     {
-      candidate: spatialCandidates[0],
+      candidate: valueAt(spatialCandidates, 0),
       rect: { left: 0, right: 100, top: 0, bottom: 40 }
     },
     {
-      candidate: spatialCandidates[1],
+      candidate: valueAt(spatialCandidates, 1),
       rect: { left: 0, right: 100, top: 60, bottom: 100 }
     },
     {
-      candidate: spatialCandidates[2],
+      candidate: valueAt(spatialCandidates, 2),
       rect: { left: 140, right: 240, top: 0, bottom: 40 }
     }
   ]
@@ -355,11 +360,11 @@ test('horizontal Arrow navigation keeps the current result at a spatial boundary
   const first = selectAdjacentFilterResult(EMPTY_FILTER_RESULT_SELECTION, 'example', candidates, 'next')
   const positionedCandidates: PositionedFilterResultCandidate[] = [
     {
-      candidate: candidates[0],
+      candidate: valueAt(candidates, 0),
       rect: { left: 0, right: 100, top: 0, bottom: 40 }
     },
     {
-      candidate: candidates[1],
+      candidate: valueAt(candidates, 1),
       rect: { left: 0, right: 100, top: 60, bottom: 100 }
     }
   ]

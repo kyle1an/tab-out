@@ -13,7 +13,6 @@ import type { DashboardTab } from '../src/extension/types.js'
 function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardTab {
   return {
     id: 1,
-    url: overrides.url,
     rawUrl: overrides.rawUrl || overrides.url,
     suspended: false,
     title: '',

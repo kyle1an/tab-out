@@ -82,7 +82,7 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
         pinned: !!t.pinned,
         groupId: typeof t.groupId === 'number' ? t.groupId : -1,
         windowId: t.windowId,
-        index: typeof t.index === 'number' ? t.index : undefined
+        ...(typeof t.index === 'number' ? { index: t.index } : {})
       }
     })
     .filter((s) => {
@@ -113,11 +113,15 @@ export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapsho
       .map((tab) => [tab.id, tab] as const)
   )
   const runtimeId = globalThis.chrome?.runtime?.id ?? null
-  return tabs.map((tab) => normalizeChromeTabToDashboardItem(tab, {
-    previousTab: typeof tab.id === 'number' ? previousTabById.get(tab.id) : undefined,
-    runtimeId,
-    windowType: windowTypeById.get(tab.windowId)
-  }))
+  return tabs.map((tab) => {
+    const previousTab = typeof tab.id === 'number' ? previousTabById.get(tab.id) : undefined
+    const windowType = windowTypeById.get(tab.windowId)
+    return normalizeChromeTabToDashboardItem(tab, {
+      ...(previousTab ? { previousTab } : {}),
+      runtimeId,
+      ...(windowType === undefined ? {} : { windowType })
+    })
+  })
 }
 
 function replaceOpenTabs(nextOpenTabs: DashboardTab[]): void {

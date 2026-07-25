@@ -56,7 +56,7 @@ export function titleSuppressionKey(text: string): string {
 }
 
 export function titleSuppressionToneForIndex(index: number): TitleSuppressionTone {
-  return TITLE_SUPPRESSION_TONE_NAMES[index % TITLE_SUPPRESSION_TONE_NAMES.length]
+  return TITLE_SUPPRESSION_TONE_NAMES[index % TITLE_SUPPRESSION_TONE_NAMES.length] ?? 'amber'
 }
 
 export function titleSuppressionToneForText(

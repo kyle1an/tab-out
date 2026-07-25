@@ -132,7 +132,9 @@ test('buildHistoryPanelRows hides open-ghost when same URL exists as stack', () 
   })
 
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].kind, 'stack')
+  const [row] = rows
+  assert.ok(row)
+  assert.equal(row.kind, 'stack')
 })
 
 test('buildHistoryPanelRows keeps every pending tab indexed even when URLs match', () => {
@@ -193,7 +195,9 @@ test('buildHistoryPanelRows hides closed-ghost when same URL exists as open-ghos
   })
 
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].kind, 'open-ghost')
+  const [row] = rows
+  assert.ok(row)
+  assert.equal(row.kind, 'open-ghost')
 })
 
 test('buildHistoryPanelRows hides closed-ghost when same URL exists as stack', () => {
@@ -209,7 +213,9 @@ test('buildHistoryPanelRows hides closed-ghost when same URL exists as stack', (
   })
 
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].kind, 'stack')
+  const [row] = rows
+  assert.ok(row)
+  assert.equal(row.kind, 'stack')
 })
 
 test('buildHistoryPanelRows caps merged rows to the history max size', () => {
@@ -287,7 +293,9 @@ test('buildHistoryPanelRows keeps a closed-ghost re-closed after its dismissal t
   })
 
   assert.equal(rows.length, 1)
-  assert.equal(rows[0].kind, 'closed-ghost')
+  const [row] = rows
+  assert.ok(row)
+  assert.equal(row.kind, 'closed-ghost')
 })
 
 test('buildHistoryPanelRows sorts rows by recency descending', () => {

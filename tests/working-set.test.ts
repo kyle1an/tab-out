@@ -52,6 +52,12 @@ function makeWorkingSetItem(index: number, overrides: Partial<WorkingSetItem> = 
   }
 }
 
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
+}
+
 test('pageIdentityForWorkingSet distinguishes meaningful paths and ignores noisy fragments', () => {
   assert.equal(
     pageIdentityForWorkingSet('https://example.com/issues/123?utm_source=mail#comments'),
@@ -80,12 +86,12 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
   ]
 
   let store = emptyWorkingSetActivity()
-  store = record(store, tabs[0], 'activation', now - 60_000)
-  store = record(store, tabs[1], 'activation', now - 10 * 60_000)
-  store = record(store, tabs[1], 'navigation', now - 9 * 60_000)
-  store = record(store, tabs[1], 'activation', now - 8 * 60_000)
-  store = record(store, tabs[2], 'activation', now - 4 * 24 * 60 * 60_000)
-  store = record(store, tabs[2], 'navigation', now - 3 * 24 * 60 * 60_000)
+  store = record(store, valueAt(tabs, 0), 'activation', now - 60_000)
+  store = record(store, valueAt(tabs, 1), 'activation', now - 10 * 60_000)
+  store = record(store, valueAt(tabs, 1), 'navigation', now - 9 * 60_000)
+  store = record(store, valueAt(tabs, 1), 'activation', now - 8 * 60_000)
+  store = record(store, valueAt(tabs, 2), 'activation', now - 4 * 24 * 60 * 60_000)
+  store = record(store, valueAt(tabs, 2), 'navigation', now - 3 * 24 * 60 * 60_000)
 
   const snapshot = buildWorkingSetSnapshot({
     tabs,
@@ -100,7 +106,7 @@ test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and f
     snapshot.items.map((item) => item.tabId),
     [1, 2, 3]
   )
-  assert.equal(snapshot.items[1].dupeCount, 2)
+  assert.equal(valueAt(snapshot.items, 1).dupeCount, 2)
   assert.equal(snapshot.items.some((item) => item.title === 'Tab Out'), false)
   assert.equal(snapshot.items.some((item) => item.title === 'Chrome New Tab Frame'), false)
   assert.equal(snapshot.items.some((item) => item.title === 'Mail app'), false)
@@ -129,9 +135,9 @@ test('buildWorkingSetSnapshot carries each tab audible and muted state independe
   ]
 
   let store = emptyWorkingSetActivity()
-  store = record(store, tabs[0], 'activation', now - 60_000)
-  store = record(store, tabs[1], 'activation', now - 2 * 60_000)
-  store = record(store, tabs[2], 'activation', now - 3 * 60_000)
+  store = record(store, valueAt(tabs, 0), 'activation', now - 60_000)
+  store = record(store, valueAt(tabs, 1), 'activation', now - 2 * 60_000)
+  store = record(store, valueAt(tabs, 2), 'activation', now - 3 * 60_000)
 
   const snapshot = buildWorkingSetSnapshot({ tabs, activity: store, now, minItems: 1 })
   const byTab = new Map(snapshot.items.map((item) => [item.tabId, item]))
@@ -165,9 +171,9 @@ test('buildWorkingSetSnapshot keeps tab favicons aligned with Chrome tab state',
   ]
 
   let store = emptyWorkingSetActivity()
-  store = record(store, tabs[0], 'activation', now - 60_000)
-  store = record(store, tabs[1], 'activation', now - 120_000)
-  store = record(store, tabs[2], 'activation', now - 180_000)
+  store = record(store, valueAt(tabs, 0), 'activation', now - 60_000)
+  store = record(store, valueAt(tabs, 1), 'activation', now - 120_000)
+  store = record(store, valueAt(tabs, 2), 'activation', now - 180_000)
 
   const snapshot = buildWorkingSetSnapshot({
     tabs,
@@ -226,8 +232,8 @@ test('buildWorkingSetSnapshot excludes Google Search result pages from working s
   ]
 
   let store = emptyWorkingSetActivity()
-  store = record(store, tabs[0], 'activation', now - 60_000)
-  store = record(store, tabs[1], 'activation', now - 30_000)
+  store = record(store, valueAt(tabs, 0), 'activation', now - 60_000)
+  store = record(store, valueAt(tabs, 1), 'activation', now - 30_000)
 
   const snapshot = buildWorkingSetSnapshot({
     tabs,
@@ -249,8 +255,8 @@ test('buildWorkingSetSnapshot hides below the minimum meaningful candidate count
     makeTab({ id: 2, url: 'https://example.com/issues/bravo', title: 'Bravo issue' })
   ]
   let store = emptyWorkingSetActivity()
-  store = record(store, tabs[0], 'activation', now - 60_000)
-  store = record(store, tabs[1], 'activation', now - 120_000)
+  store = record(store, valueAt(tabs, 0), 'activation', now - 60_000)
+  store = record(store, valueAt(tabs, 1), 'activation', now - 120_000)
 
   const snapshot = buildWorkingSetSnapshot({
     tabs,
@@ -266,22 +272,22 @@ test('buildWorkingSetSnapshot populates lastActivatedAt as the max of activation
   const now = Date.UTC(2026, 5, 1, 12)
   const tabs = [makeTab({ id: 1, url: 'https://example.com/page', title: 'Page' })]
   let activity = emptyWorkingSetActivity()
-  activity = record(activity, tabs[0], 'activation', now - 5000)
-  activity = record(activity, tabs[0], 'navigation', now - 1000)
+  activity = record(activity, valueAt(tabs, 0), 'activation', now - 5000)
+  activity = record(activity, valueAt(tabs, 0), 'navigation', now - 1000)
 
   const snapshot = buildWorkingSetSnapshot({ tabs, activity, now, minItems: 1 })
 
   assert.equal(snapshot.items.length, 1)
-  assert.equal(snapshot.items[0].lastActivatedAt, now - 1000)
+  assert.equal(valueAt(snapshot.items, 0).lastActivatedAt, now - 1000)
 })
 
 test('buildWorkingSetSnapshot uses activation timestamp when no navigation event exists', () => {
   const now = Date.UTC(2026, 5, 1, 12)
   const tabs = [makeTab({ id: 1, url: 'https://example.com/page', title: 'Page' })]
   let activity = emptyWorkingSetActivity()
-  activity = record(activity, tabs[0], 'activation', now - 2000)
+  activity = record(activity, valueAt(tabs, 0), 'activation', now - 2000)
 
   const snapshot = buildWorkingSetSnapshot({ tabs, activity, now, minItems: 1 })
 
-  assert.equal(snapshot.items[0].lastActivatedAt, now - 2000)
+  assert.equal(valueAt(snapshot.items, 0).lastActivatedAt, now - 2000)
 })

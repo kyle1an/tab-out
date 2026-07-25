@@ -273,7 +273,10 @@ function isActiveInCurrentWindow(tab: DashboardTab, currentWindowId: number | nu
   return tab.windowId === currentWindowId
 }
 
-function activeFrameStateForDuplicateSet(tabs: readonly DashboardTab[], currentWindowId: number | null): Pick<DashboardChipData, 'activeInOtherWindow' | 'activeChipFrame'> {
+function activeFrameStateForDuplicateSet(
+  tabs: readonly DashboardTab[],
+  currentWindowId: number | null
+): { activeInOtherWindow: boolean; activeChipFrame: boolean } {
   const activeInOtherWindow = tabs.some((tab) => isActiveInOtherWindow(tab, currentWindowId))
   const activeCurrentWindowDuplicate = tabs.length > 1 && tabs.some((tab) => isActiveInCurrentWindow(tab, currentWindowId))
   const activeCurrentTabOutPage = tabs.some((tab) => isCurrentTabOutPage(tab, currentWindowId))
@@ -318,7 +321,7 @@ function stripPgLabel(label: string, pgLabel: string): DashboardSegment[] {
   const hits: Array<{ index: number; length: number; prefixSep: string }> = []
   let m: RegExpExecArray | null
   while ((m = re.exec(label)) !== null) {
-    hits.push({ index: m.index, length: m[0].length, prefixSep: m[1] })
+    hits.push({ index: m.index, length: m[0].length, prefixSep: m[1] ?? '' })
     if (m.index === re.lastIndex) re.lastIndex++
   }
   if (hits.length === 0) return [label]
@@ -406,14 +409,16 @@ function continuousSuppressionSpan(title: string, parts: string[]): string | nul
   if (parts.length < 2) return null
 
   const lowerTitle = title.toLowerCase()
-  const firstPart = parts[0].toLowerCase()
+  const firstPartText = parts[0]
+  if (firstPartText === undefined) return null
+  const firstPart = firstPartText.toLowerCase()
   let searchStart = 0
 
   while (searchStart < lowerTitle.length) {
     const startIndex = lowerTitle.indexOf(firstPart, searchStart)
     if (startIndex === -1) return null
 
-    let cursor = startIndex + parts[0].length
+    let cursor = startIndex + firstPartText.length
     let matched = true
     for (const part of parts.slice(1)) {
       const partIndex = lowerTitle.indexOf(part.toLowerCase(), cursor)
@@ -451,16 +456,19 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
     const sequenceKey = sequence.join('\u0001')
     if (mergeTextBySequence.has(sequenceKey)) return mergeTextBySequence.get(sequenceKey) ?? null
 
-    const occurrenceKey = occurrenceKeyByPart.get(sequence[0])
+    const firstPart = sequence[0]
+    if (firstPart === undefined) return null
+    const occurrenceKey = occurrenceKeyByPart.get(firstPart)
     if (!occurrenceKey || !sequence.every((part) => occurrenceKeyByPart.get(part) === occurrenceKey)) {
       mergeTextBySequence.set(sequenceKey, null)
       return null
     }
 
-    const rowIndexes = rowIndexesByPart.get(sequence[0]) || []
+    const rowIndexes = rowIndexesByPart.get(firstPart) || []
     let mergedText = ''
     for (const rowIndex of rowIndexes) {
       const row = rows[rowIndex]
+      if (!row) return null
       if (!rowHasSuppressionSequence(row.suppressedTitleParts, sequence)) {
         mergeTextBySequence.set(sequenceKey, null)
         return null
@@ -507,6 +515,7 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
       }
 
       const part = row.suppressedTitleParts[index]
+      if (part === undefined) break
       nextParts.push(part)
       nextPartPositions.push(row.suppressedTitlePartPositions[index] ?? titleSuppressionPartPosition(row.rawTitle, part))
       if (partsBeforeStructuralTail.has(part)) nextPartsBeforeStructuralTail.push(part)
@@ -548,11 +557,13 @@ function disambiguatingPaths(urls: string[]): string[] {
     if (parsed.hash) t.push(parsed.hash) // "#section"
     return t
   })
+  const firstTokens = tokens[0]
+  if (!firstTokens) return []
   const minLen = Math.min(...tokens.map((t) => t.length))
 
   let commonLead = 0
   for (let i = 0; i < minLen; i++) {
-    const seg = tokens[0][i]
+    const seg = firstTokens[i]
     if (tokens.every((t) => t[i] === seg)) commonLead = i + 1
     else break
   }
@@ -560,7 +571,7 @@ function disambiguatingPaths(urls: string[]): string[] {
   let commonTrail = 0
   const maxTrail = minLen - commonLead
   for (let i = 1; i <= maxTrail; i++) {
-    const seg = tokens[0][tokens[0].length - i]
+    const seg = firstTokens[firstTokens.length - i]
     if (tokens.every((t) => t[t.length - i] === seg)) commonTrail = i
     else break
   }
@@ -750,15 +761,16 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
     return [...buckets.values()]
       .sort((a, b) => a.rank - b.rank || a.groupId - b.groupId || a.firstSeen - b.firstSeen)
-      .map((bucket) => {
+      .flatMap((bucket) => {
         const representative = bucket.tabs[0]
+        if (!representative) return []
         tabOutDisplayMeta.set(representative, {
           tabs: bucket.tabs,
           isCurrentTabOut: bucket.kind === 'current',
           chromePinned: bucket.tabs.some((tab) => tab.pinned),
           pagePinDisabled: true
         })
-        return representative
+        return [representative]
       })
   }
 
@@ -1200,7 +1212,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   // Single-subdomain card: hoist the subdomain up to a pill next to
   // the card title so chips don't repeat the prefix on every row.
   // Only for non-empty keys — all-root cards don't need a pill.
-  const singleSubdomainKey = sections.length === 1 && sections[0][0] !== '' ? sections[0][0] : ''
+  const onlySection = sections.length === 1 ? sections[0] : undefined
+  const singleSubdomainKey = onlySection?.[0] || ''
 
   // Localhost cards use the port as the "subdomain" key (see the
   // bySubdomain loop above), so the pill / header for those should
@@ -1268,7 +1281,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     const duplicateTabs = tabOutMeta?.tabs || tabsByUrl.get(keyOf(tab)) || [tab]
     const { activeInOtherWindow, activeChipFrame } = activeFrameStateForDuplicateSet(duplicateTabs, currentWindowId)
     return {
-      tabId: tab.id,
+      ...(tab.id === undefined ? {} : { tabId: tab.id }),
       tabUrl: tab.url,
       rawUrl: tab.rawUrl || tab.url,
       sourceType: tab.sourceType || 'tab',
@@ -1276,7 +1289,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       closedSaved: isClosedSavedDashboardTab(tab),
       suspended: allOpenTargetsSuspended(duplicateTabs),
       loading: duplicateTabs.some(isOpenTabLoading),
-      savedPageKey: tab.savedPageKey,
+      ...(tab.savedPageKey === undefined ? {} : { savedPageKey: tab.savedPageKey }),
       pagePinDisabled: !!tabOutMeta?.pagePinDisabled,
       leadPrefix,
       pathGroupLabel: pgLabel,
@@ -1387,20 +1400,17 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     ))
   }
 
-  function titleVariantGroupChip(variants: DashboardChipData[], representative = variants[0]): DashboardChipData {
+  function titleVariantGroupChip(variants: DashboardChipData[], representative: DashboardChipData): DashboardChipData {
     const activeInCurrentWindow = variants.some((variant) => !!variant.activeChipFrame && !variant.activeInOtherWindow)
     const activeInOtherWindow = !activeInCurrentWindow && variants.some((variant) => !!variant.activeInOtherWindow)
     const allVariantsSaved = variants.length > 0 && variants.every((variant) => !!variant.saved)
     const allVariantsClosedSaved = variants.length > 0 && variants.every((variant) => isClosedSavedDashboardTab(variant))
-    return {
+    const groupedChip: DashboardChipData = {
       ...representative,
       saved: allVariantsSaved,
       closedSaved: allVariantsClosedSaved,
       suspended: allOpenTargetsSuspended(variants),
       loading: variants.some((variant) => !!variant.loading),
-      savedPageKey: undefined,
-      pagePinId: undefined,
-      pagePinned: undefined,
       pathSuffix: '',
       tooltip: `${representative.tooltip} · ${variants.length} URL variants`,
       dupeCount: 1,
@@ -1409,6 +1419,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       audioState: mergeAudioStates(variants.map((variant) => variant.audioState ?? null)),
       titleVariantChips: variants
     }
+    delete groupedChip.savedPageKey
+    delete groupedChip.pagePinId
+    delete groupedChip.pagePinned
+    return groupedChip
   }
 
   function buildChipDataList(contentTabs: DashboardTab[], showChipPrefix: boolean, pathByUrl: Map<string, string>, pathGroupLabel: string, pinScopeId: string, stripLabel = ''): DashboardChipData[] {
@@ -1442,13 +1456,15 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       emittedTitleKeys.add(entry.titleKey)
       const variants = (entriesByTitle.get(entry.titleKey) || []).map((variantEntry) => {
         const variant = variantEntry.chip
+        const ungroupedVariant = { ...variant }
+        delete ungroupedVariant.titleVariantChips
         return annotatePageChipPin({
-          ...variant,
+          ...ungroupedVariant,
           pathSuffix: variant.pathSuffix || titleVariantLabelForUrl(variant.tabUrl),
-          titleVariantChips: undefined
         }, pinScopeId, pageChipPinKeyForUrl(variantEntry.tab.url))
       })
-      result.push(titleVariantGroupChip(sortPageChipsInScope(variants), variants[0]))
+      const representative = variants[0]
+      if (representative) result.push(titleVariantGroupChip(sortPageChipsInScope(variants), representative))
     }
     return sortPageChipsInScope(result)
   }
@@ -1635,14 +1651,14 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         const parsed = URL.parse(t.url)
         const sub = parsed ? subdomainPrefix(parsed.hostname, group.domain) : ''
         return {
-          tabId: t.id,
+          ...(t.id === undefined ? {} : { tabId: t.id }),
           prefix: sub || '?',
           tabUrl: t.url,
           rawUrl: t.rawUrl || t.url,
           sourceType: t.sourceType || 'tab',
           saved: !!t.saved,
           closedSaved: isClosedSavedDashboardTab(t),
-          savedPageKey: t.savedPageKey,
+          ...(t.savedPageKey === undefined ? {} : { savedPageKey: t.savedPageKey }),
           title: displayTitle(t),
           faviconUrl: pickDashboardChipFavicon(t),
           isApp: !!t.isApp,
@@ -1689,7 +1705,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       dashboardFoldChipOrderKey(b[0]?.sourceType, b.map((tab) => tab.url)),
       chipPriorityScoreForTabs(a),
       chipPriorityScoreForTabs(b),
-      () => compareNumericText(sortLabel(a[0]), sortLabel(b[0]))
+      () => {
+        const aFirst = a[0]
+        const bFirst = b[0]
+        if (!aFirst || !bFirst) return a.length - b.length
+        return compareNumericText(sortLabel(aFirst), sortLabel(bFirst))
+      }
     ))
     const sharedPinScopeId = pageChipPinScopeId(group.domain, '__shared__', '', '')
     const foldedChipData = sortPageChipsInScope(sortedFolds.map((tabs) => annotatePageChipPin(
@@ -1765,7 +1786,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     ))
     const showWebsitePathSections =
       websitePathBucketList.length > 1 ||
-      (websitePathBucketList.length === 1 && websitePathBucketList[0].tabs.length >= 2 && tabsWithoutWebsitePathSection.length > 0)
+      ((websitePathBucketList[0]?.tabs.length ?? 0) >= 2 && tabsWithoutWebsitePathSection.length > 0)
     const parentTabs = showWebsitePathSections ? tabsWithoutWebsitePathSection : sectionTabs
     const parentContent = buildSectionContent(parentTabs, showChipPrefix, parentRedundantLabels, { subdomainKey: key, websitePathKey: '' })
     const unsortedWebsitePathSections: DashboardWebsitePathSectionVM[] = showWebsitePathSections
@@ -1918,12 +1939,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
     const displaySegments = inlineSingletonSuppressionsInSegments(chip.displaySegments, partsToInline)
     const suppressedTitleParts = chip.suppressedTitleParts.filter((part) => !singletonKeys.has(titleSuppressionKey(part)))
+    const chipWithVariants = titleVariantChips ? { ...chip, titleVariantChips } : chip
     return {
-      ...chip,
+      ...chipWithVariants,
       displaySegments,
       suppressedTitleParts,
-      tooltip: tooltipForChipTitle({ ...chip, titleVariantChips }, titleTextFromSegments(displaySegments)),
-      titleVariantChips
+      tooltip: tooltipForChipTitle(chipWithVariants, titleTextFromSegments(displaySegments))
     }
   }
 
@@ -2132,6 +2153,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         tracker.websitePathSectionRefs.size === 0
       ) {
         const clusterRefKey = [...tracker.clusterRefs][0]
+        if (clusterRefKey === undefined) continue
         if (!clusterPartsByRef.has(clusterRefKey)) clusterPartsByRef.set(clusterRefKey, [])
         clusterPartsByRef.get(clusterRefKey)?.push(part)
         continue
@@ -2144,6 +2166,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         tracker.flatSectionIndexes.size === 0
       ) {
         const clusterRefKey = [...tracker.websitePathClusterRefs][0]
+        if (clusterRefKey === undefined) continue
         if (!websitePathClusterPartsByRef.has(clusterRefKey)) websitePathClusterPartsByRef.set(clusterRefKey, [])
         websitePathClusterPartsByRef.get(clusterRefKey)?.push(part)
         continue
@@ -2155,7 +2178,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         tracker.flatSectionIndexes.size === 0
       ) {
         const websiteRef = [...tracker.websitePathSectionRefs][0]
+        if (websiteRef === undefined) continue
         const [, sectionIndexText, websitePathSectionIndexText] = websiteRef.split('\u0000')
+        if (sectionIndexText === undefined || websitePathSectionIndexText === undefined) continue
         const sectionIndex = Number(sectionIndexText)
         const websitePathSectionIndex = Number(websitePathSectionIndexText)
         if (!websitePathSectionPartsByRef.has(websiteRef)) websitePathSectionPartsByRef.set(websiteRef, [])
@@ -2167,6 +2192,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
       if (tracker.sectionIndexes.size === 1) {
         const sectionIndex = [...tracker.sectionIndexes][0]
+        if (sectionIndex === undefined) continue
         if (!sectionPartsByIndex.has(sectionIndex)) sectionPartsByIndex.set(sectionIndex, [])
         sectionPartsByIndex.get(sectionIndex)?.push(childGroupScopedPart(part, sectionChildGroupCount(tracker, sectionIndex) > 1))
         continue

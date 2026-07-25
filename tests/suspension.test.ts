@@ -319,6 +319,7 @@ test('suspend actions report unknown without mutating or refreshing when live ta
   const api = createFakeChromeApi({ tabs })
   const updateCalls: number[] = []
   const updateTab = api.tabs.update
+  assert.ok(updateTab)
   api.tabs.update = async (tabId, properties) => {
     updateCalls.push(tabId)
     return updateTab(tabId, properties)
@@ -450,6 +451,7 @@ test('suspendExactTabTargets preserves and refreshes confirmed partial updates',
   ] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateTab = api.tabs.update
+  assert.ok(updateTab)
   api.tabs.update = async (tabId, properties) => {
     if (tabId === 8) throw new Error('Tab update unavailable')
     return updateTab(tabId, properties)
@@ -495,12 +497,15 @@ test('suspendExactTabTargets skips a later target that navigates while earlier u
   ] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateTab = api.tabs.update
+  assert.ok(updateTab)
   let updateAttempts = 0
   api.tabs.update = async (tabId, properties) => {
     updateAttempts += 1
     const updated = await updateTab(tabId, properties)
     if (tabId === 7) {
-      tabs[1] = { ...tabs[1], url: navigatedUrl, title: 'Navigated' }
+      const secondTab = tabs[1]
+      assert.ok(secondTab)
+      tabs[1] = { ...secondTab, url: navigatedUrl, title: 'Navigated' }
     }
     return updated
   }
@@ -545,11 +550,16 @@ test('suspendExactTabTargets skips a later target with an uncommitted navigation
   ] as chrome.tabs.Tab[]
   const api = createFakeChromeApi({ tabs })
   const updateTab = api.tabs.update
+  assert.ok(updateTab)
   let updateAttempts = 0
   api.tabs.update = async (tabId, properties) => {
     updateAttempts += 1
     const updated = await updateTab(tabId, properties)
-    if (tabId === 7) tabs[1] = { ...tabs[1], pendingUrl }
+    if (tabId === 7) {
+      const secondTab = tabs[1]
+      assert.ok(secondTab)
+      tabs[1] = { ...secondTab, pendingUrl }
+    }
     return updated
   }
   const previousChrome = globalThis.chrome

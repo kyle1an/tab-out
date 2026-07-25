@@ -10,7 +10,6 @@ export function makeDashboardTab(
   overrides: Partial<DashboardTab> & { url: string }
 ): DashboardTab {
   return {
-    url: overrides.url,
     rawUrl: overrides.url,
     suspended: false,
     title: overrides.title ?? overrides.url,

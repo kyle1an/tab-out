@@ -96,6 +96,7 @@ test('ordinary reloads and newly created tabs use their current loading title', 
   const [awakeTab] = normalize([
     chromeTab({ url: pageUrl, title: 'Example Docs', status: 'complete' })
   ])
+  assert.ok(awakeTab)
 
   const [reloadingTab] = normalize([
     chromeTab({ url: pageUrl, title: 'Example', status: 'loading' })
@@ -103,6 +104,8 @@ test('ordinary reloads and newly created tabs use their current loading title', 
   const [newTab] = normalize([
     chromeTab({ id: 8, url: pageUrl, title: 'Example', status: 'loading' })
   ])
+  assert.ok(reloadingTab)
+  assert.ok(newTab)
 
   assert.equal(reloadingTab.title, 'Example')
   assert.equal(reloadingTab.retainedSuspendedTitle, undefined)
@@ -116,9 +119,11 @@ test('a redirect or non-loading state releases the retained suspended title', ()
   const [suspendedTab] = normalize([
     chromeTab({ url: suspendedUrl, title: 'Suspender placeholder', status: 'complete' })
   ])
+  assert.ok(suspendedTab)
   const [loadingTab] = normalize([
     chromeTab({ url: pageUrl, title: 'Example', status: 'loading' })
   ], [suspendedTab])
+  assert.ok(loadingTab)
 
   const [redirectedTab] = normalize([
     chromeTab({ url: 'https://login.example.test/', title: 'Sign in', status: 'loading' })
@@ -126,6 +131,8 @@ test('a redirect or non-loading state releases the retained suspended title', ()
   const [unloadedTab] = normalize([
     chromeTab({ url: pageUrl, title: 'Example', status: 'unloaded' })
   ], [loadingTab])
+  assert.ok(redirectedTab)
+  assert.ok(unloadedTab)
 
   assert.equal(redirectedTab.title, 'Sign in')
   assert.equal(redirectedTab.retainedSuspendedTitle, undefined)

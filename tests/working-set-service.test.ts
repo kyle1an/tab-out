@@ -138,9 +138,13 @@ test('Working Set window-focus activity preserves event order when captured tab 
     2,
     windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
   )
-  resolveWindowTwo([tabs[1]])
+  const secondTab = tabs[1]
+  const firstTab = tabs[0]
+  assert.ok(secondTab)
+  assert.ok(firstTab)
+  resolveWindowTwo([secondTab])
   await new Promise<void>((resolve) => setImmediate(resolve))
-  resolveWindowOne([tabs[0]])
+  resolveWindowOne([firstTab])
   await Promise.all([firstFocus, secondFocus])
 
   const activity = await service.getWorkingSetActivity()
@@ -204,6 +208,7 @@ test('Working Set does not treat same-page reloads as navigation activity', asyn
   const service = createWorkingSetService(chromeApi)
 
   await service.recordTabActivation(1, 1)
+  assert.ok(tab.url)
   await service.recordTabNavigation(1, { url: tab.url }, tab)
 
   const record = (await service.getWorkingSetActivity()).records['https://example.test/workflows']
@@ -337,7 +342,10 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
   releaseActivationLookup([removedTab])
   await Promise.all([activation, replacement])
   await service.recordFocusedWindowActiveTab(1)
-  await service.recordTabNavigation(4, { url: tabs[0].url }, tabs[0])
+  const [replacementTab] = tabs
+  assert.ok(replacementTab)
+  assert.ok(replacementTab.url)
+  await service.recordTabNavigation(4, { url: replacementTab.url }, replacementTab)
 
   const record = (await service.getWorkingSetActivity()).records['https://example.test/replacement']
   assert.equal(record?.events.filter((event) => event.kind === 'activation').length, 1)

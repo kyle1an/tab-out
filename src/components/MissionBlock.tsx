@@ -11,14 +11,14 @@ const PROGRESSIVE_CARD_CHUNK_SIZE = 24
 type MissionBlockProps = {
   cards: DashboardCardEntry[]
   filter: string
-  gridEmpty?: boolean
+  gridEmpty?: boolean | undefined
   gridId: string
-  gridRef?: Ref<HTMLDivElement>
+  gridRef?: Ref<HTMLDivElement> | undefined
   showEmptyState: boolean
   source: DashboardSource
 }
 
-function MissionsGrid({ className, empty = false, ref, ...props }: ComponentPropsWithoutRef<'div'> & { empty?: boolean; ref?: Ref<HTMLDivElement> }) {
+function MissionsGrid({ className, empty = false, ref, ...props }: ComponentPropsWithoutRef<'div'> & { empty?: boolean | undefined; ref?: Ref<HTMLDivElement> | undefined }) {
   return (
     <div
       ref={ref}

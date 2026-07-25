@@ -17,7 +17,7 @@ export function flattenBookmarkNodes(nodes: BookmarkTreeNode[]): DashboardTab[] 
     if (!node) return
     if (node.url) {
       flattened.push(makeDashboardItem({
-        id: node.id,
+        ...(node.id === undefined ? {} : { id: node.id }),
         url: node.url,
         title: node.title || '',
         sourceType: 'bookmark'

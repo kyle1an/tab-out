@@ -1065,6 +1065,7 @@ test('startup snapshot refreshes stale state for an already-cached current Tab O
 
   const patched = addCurrentTabOutPageToStartupSnapshot(snapshot, currentTab, localState)
   const restoredTab = patched.dashboard.realTabs[0]
+  assert.ok(restoredTab)
 
   assert.equal(restoredTab.rawUrl, currentUrl)
   assert.equal(restoredTab.active, true)
@@ -1167,8 +1168,12 @@ test('startup snapshot removes a prior-session web tab when its id is reused by 
 
   assert.deepEqual(patched.dashboard.realTabs.map((candidate) => candidate.url), [tabOutUrl])
   assert.deepEqual(patched.dashboard.domainGroups.map((group) => group.domain), ['__tab-out__'])
-  assert.equal(patched.dashboard.domainGroups[0].tabs.length, 1)
-  assert.equal(patched.dashboard.domainGroups[0].tabs[0].id, 7)
+  const [tabOutGroup] = patched.dashboard.domainGroups
+  assert.ok(tabOutGroup)
+  assert.equal(tabOutGroup.tabs.length, 1)
+  const [tabOutPage] = tabOutGroup.tabs
+  assert.ok(tabOutPage)
+  assert.equal(tabOutPage.id, 7)
 })
 
 test('startup snapshot commits dashboard, history, working set, and closed tabs from one startup path', async () => {
@@ -1965,6 +1970,8 @@ test('tabs refresh snapshot derives dashboard and working set from the same open
   })
 
   assert.deepEqual(snapshot.dashboard.realTabs.map((tab) => tab.url), ['https://example.com/docs', 'https://example.test/report'])
+  assert.ok(snapshot.workingSet)
+  assert.ok(snapshot.tabHistory)
   assert.equal(snapshot.workingSet.items.length, 0)
   assert.equal(snapshot.tabHistory.stackSize, 1)
   assert.equal(tabsQueryCount, 1)

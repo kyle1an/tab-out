@@ -9,7 +9,7 @@ const PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80
 
 type PageChipContextMenuLoadedProps = PageChipContextMenuContentProps & {
   children: PageChipContextMenuTriggerElement
-  onOpenChange?: (open: boolean) => void
+  onOpenChange?: ((open: boolean) => void) | undefined
 }
 
 export function PageChipContextMenuLoaded({
