@@ -188,6 +188,7 @@ chromeApi.commands.onCommand.addListener((command) => {
   } else if (command === OPEN_NEW_TAB_COMMAND) {
     return settleBackgroundTask(() => openNewTab(chromeApi))
   }
+  return undefined
 })
 
 chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
