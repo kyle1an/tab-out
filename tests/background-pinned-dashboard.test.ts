@@ -2,8 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
-import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
+import type { CapturedDashboardServiceState } from '../src/extension/dashboard-service-messages.js'
+import {
+  DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY,
+  type DashboardStartupSnapshot
+} from '../src/extension/startup-snapshot.js'
 import { normalizeChromeOpenTabs } from '../src/extension/tabs.js'
+import type { TabHistorySnapshot } from '../src/extension/types'
 import { buildWorkingSetSnapshot } from '../src/extension/working-set.js'
 
 const backgroundUrl = new URL('../src/extension/background.ts', import.meta.url)
@@ -11,7 +16,83 @@ const extensionUrl = 'chrome-extension://tab-out/index.html'
 let backgroundImportId = 0
 const backgroundClock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
 
+type BackgroundMockCalls = {
+  badgeColor: chrome.action.BadgeColorDetails[]
+  badgeText: chrome.action.BadgeTextDetails[]
+  create: chrome.tabs.CreateProperties[]
+  remove: number[]
+  runtimeMessages: Array<{ extensionId: string; message: unknown }>
+  tabGet: number[]
+  tabQuery: chrome.tabs.QueryInfo[]
+  update: Array<{
+    tabId: number
+    updateProperties: chrome.tabs.UpdateProperties
+  }>
+  windowCreate: chrome.windows.CreateData[]
+  windowsGetAll: chrome.windows.QueryOptions[]
+  windowUpdate: Array<{
+    windowId: number
+    updateInfo: chrome.windows.UpdateInfo
+  }>
+}
+
+type DashboardServiceMessageResponse =
+  | ({ ok: true } & CapturedDashboardServiceState)
+  | {
+      ok: false
+      openTabsSnapshot: null
+      tabHistory: null
+      workingSetActivity: null
+    }
+
+type TabHistoryMessageResponse =
+  | { ok: true; snapshot: TabHistorySnapshot }
+  | { ok: false; snapshot: null }
+
+type RuntimeMessageListener = (
+  message: Record<string, unknown>,
+  sender: Record<string, unknown>,
+  sendResponse: (response: unknown) => void
+) => boolean
+
+type BackgroundRuntimeMessageMock = {
+  listeners: {
+    runtimeOnMessage: RuntimeMessageListener[]
+  }
+}
+
+type StartupCacheEnvelope = {
+  snapshot: DashboardStartupSnapshot
+}
+
 test.after(() => backgroundClock.uninstall())
+
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
+}
+
+function requireHistorySnapshot(response: TabHistoryMessageResponse): TabHistorySnapshot {
+  assert.equal(response.ok, true, 'expected a successful tab-history response')
+  return response.snapshot
+}
+
+function assertStartupCacheEnvelope(value: unknown): asserts value is StartupCacheEnvelope {
+  assert.ok(value !== null && typeof value === 'object', 'expected a startup cache envelope')
+  assert.ok('snapshot' in value, 'expected the startup cache to contain a snapshot')
+  const { snapshot } = value
+  assert.ok(snapshot !== null && typeof snapshot === 'object', 'expected a startup snapshot object')
+  assert.ok('dashboard' in snapshot, 'expected cached dashboard state')
+  assert.ok('tabHistory' in snapshot, 'expected cached tab-history state')
+  assert.ok('workingSet' in snapshot, 'expected cached Working Set state')
+  assert.ok('closedTabs' in snapshot, 'expected cached closed-tab state')
+}
+
+function requireStartupSnapshot(value: unknown): DashboardStartupSnapshot {
+  assertStartupCacheEnvelope(value)
+  return value.snapshot
+}
 
 function clone<T>(value: T): T {
   return value == null ? value : JSON.parse(JSON.stringify(value))
@@ -116,7 +197,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   }
   normalizeAllTabs(state)
 
-  const calls: any = {
+  const calls: BackgroundMockCalls = {
     create: [],
     windowCreate: [],
     remove: [],
@@ -158,10 +239,10 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       onChanged: sessionsOnChanged.api
     },
     action: {
-      async setBadgeText(payload) {
+      async setBadgeText(payload: chrome.action.BadgeTextDetails) {
         calls.badgeText.push(clone(payload))
       },
-      async setBadgeBackgroundColor(payload) {
+      async setBadgeBackgroundColor(payload: chrome.action.BadgeColorDetails) {
         calls.badgeColor.push(clone(payload))
       }
     },
@@ -180,7 +261,10 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         if (queryInfo.lastFocusedWindow) tabs = tabs.filter((tab) => tab.windowId === state.lastFocusedWindowId)
         return tabs.sort((a, b) => a.index - b.index || a.id - b.id).map((tab) => clone(tab))
       },
-      async update(tabId, updateProperties) {
+      async update(
+        tabId: number,
+        updateProperties: chrome.tabs.UpdateProperties
+      ) {
         const tab = state.tabsById[tabId]
         if (!tab) throw new Error(`Missing tab ${tabId}`)
 
@@ -208,7 +292,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         normalizeAllTabs(state)
         return clone(tab)
       },
-      async create(createProperties) {
+      async create(createProperties: chrome.tabs.CreateProperties) {
         const windowId = createProperties.windowId ?? state.lastFocusedWindowId
         if (!state.windowsById[windowId]) {
           state.windowsById[windowId] = { id: windowId, type: 'normal', focused: false }
@@ -249,7 +333,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         }
         return clone(tab)
       },
-      async remove(tabIds) {
+      async remove(tabIds: number | number[]) {
         const ids = Array.isArray(tabIds) ? tabIds : [tabIds]
         calls.remove.push(...ids)
         const removedTabs = []
@@ -311,7 +395,10 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         if (queryOptions.windowTypes) windows = windows.filter((win) => queryOptions.windowTypes.includes(win.type))
         return windows.map((win) => clone(win))
       },
-      async update(windowId, updateInfo) {
+      async update(
+        windowId: number,
+        updateInfo: chrome.windows.UpdateInfo
+      ) {
         const win = state.windowsById[windowId]
         if (!win) throw new Error(`Missing window ${windowId}`)
         calls.windowUpdate.push({ windowId, updateInfo: clone(updateInfo) })
@@ -356,7 +443,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       sessionsOnChanged: sessionsOnChanged.listeners,
       commandsOnCommand: commandsOnCommand.listeners
     },
-    getWindowTabs(windowId) {
+    getWindowTabs(windowId: number) {
       return Object.values(state.tabsById as Record<string, any>)
         .filter((tab) => tab.windowId === windowId)
         .sort((a, b) => a.index - b.index || a.id - b.id)
@@ -368,7 +455,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         win.focused = false
       })
     },
-    activateTab(tabId) {
+    activateTab(tabId: number) {
       const tab = state.tabsById[tabId]
       if (!tab) throw new Error(`Missing tab ${tabId}`)
       Object.values(state.tabsById as Record<string, any>)
@@ -378,7 +465,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         })
       focusWindow(state, tab.windowId)
     },
-    closeTabForWindow(tabId) {
+    closeTabForWindow(tabId: number) {
       const tab = state.tabsById[tabId]
       if (!tab) throw new Error(`Missing tab ${tabId}`)
       delete state.tabsById[tabId]
@@ -399,16 +486,38 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   }
 }
 
-function sendRuntimeMessage(mock: any, message: any): Promise<any> {
+function sendRuntimeMessage(
+  mock: BackgroundRuntimeMessageMock,
+  message: { type: 'tab-out:get-dashboard-service-state' }
+): Promise<DashboardServiceMessageResponse>
+function sendRuntimeMessage(
+  mock: BackgroundRuntimeMessageMock,
+  message: {
+    type: 'tab-out:get-tab-history' | 'tab-out:switch-tab-history'
+    direction?: -1 | 1
+  }
+): Promise<TabHistoryMessageResponse>
+function sendRuntimeMessage(
+  mock: BackgroundRuntimeMessageMock,
+  message: {
+    type: typeof CLOSED_TAB_RESTORE_STATE_MESSAGE
+    phase: 'settled' | 'started'
+    restoreId: string
+  }
+): Promise<{ ok: boolean }>
+function sendRuntimeMessage(
+  mock: BackgroundRuntimeMessageMock,
+  message: Record<string, unknown>
+): Promise<unknown> {
   const onMessage = mock.listeners.runtimeOnMessage[0]
-  assert.equal(typeof onMessage, 'function')
+  assert.ok(onMessage, 'expected a registered runtime message listener')
   return new Promise((resolve) => {
     const keepAlive = onMessage(message, {}, resolve)
     assert.equal(keepAlive, true)
   })
 }
 
-function buildWorkingSetFromServiceState(response: any) {
+function buildWorkingSetFromServiceState(response: CapturedDashboardServiceState) {
   const focusedWindow = response.openTabsSnapshot.windows.find((win: chrome.windows.Window) => win.focused)
   return buildWorkingSetSnapshot({
     tabs: normalizeChromeOpenTabs(response.openTabsSnapshot),
@@ -1056,8 +1165,9 @@ test('tab replacement rebases history, Working Set, and the warm startup snapsho
   onInstalled({ reason: 'install' })
   await flushBackgroundWork()
 
-  const warmBefore = mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]?.snapshot
-  assert.ok(warmBefore)
+  const warmBefore = requireStartupSnapshot(
+    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+  )
   assert.ok(warmBefore.dashboard.realTabs.some((tab) => tab.id === 201))
   assert.ok(warmBefore.tabHistory.entries.some((entry) => entry.tabId === 201))
   assert.ok(warmBefore.workingSet.items.some((item) => item.tabId === 201))
@@ -1065,8 +1175,9 @@ test('tab replacement rebases history, Working Set, and the warm startup snapsho
   await mock.replaceTab(201, 211)
   await flushBackgroundWork()
 
-  const warmAfter = mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]?.snapshot
-  assert.ok(warmAfter)
+  const warmAfter = requireStartupSnapshot(
+    mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+  )
   assert.equal(warmAfter.dashboard.realTabs.some((tab) => tab.id === 201), false)
   assert.equal(warmAfter.tabHistory.entries.some((entry) => entry.tabId === 201), false)
   assert.equal(warmAfter.workingSet.items.some((item) => item.tabId === 201), false)
@@ -1185,14 +1296,14 @@ test('tab history snapshot exposes previous and next command targets', async () 
   await flushBackgroundWork()
 
   const initialResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
-  assert.equal(initialResponse.ok, true)
-  assert.equal(initialResponse.snapshot.maxSize, 48)
-  assert.equal(initialResponse.snapshot.currentIndex, 2)
-  assert.equal(initialResponse.snapshot.previousIndex, 1)
-  assert.equal(initialResponse.snapshot.nextIndex, -1)
-  assert.equal(initialResponse.snapshot.entries[1].previousTarget, true)
-  assert.equal(initialResponse.snapshot.entries[2].current, true)
-  assert.equal(initialResponse.snapshot.entries[2].active, true)
+  const initialSnapshot = requireHistorySnapshot(initialResponse)
+  assert.equal(initialSnapshot.maxSize, 48)
+  assert.equal(initialSnapshot.currentIndex, 2)
+  assert.equal(initialSnapshot.previousIndex, 1)
+  assert.equal(initialSnapshot.nextIndex, -1)
+  assert.equal(valueAt(initialSnapshot.entries, 1).previousTarget, true)
+  assert.equal(valueAt(initialSnapshot.entries, 2).current, true)
+  assert.equal(valueAt(initialSnapshot.entries, 2).active, true)
 
   const updateTab = mock.chrome.tabs.update.bind(mock.chrome.tabs)
   mock.chrome.tabs.update = async (tabId: number, updateProperties: chrome.tabs.UpdateProperties) => {
@@ -1203,14 +1314,14 @@ test('tab history snapshot exposes previous and next command targets', async () 
   const switchedResponse = await sendRuntimeMessage(mock, { type: 'tab-out:switch-tab-history', direction: -1 })
   await flushBackgroundWork()
 
-  assert.equal(switchedResponse.ok, true)
+  const switchedSnapshot = requireHistorySnapshot(switchedResponse)
   assert.equal(mock.state.tabsById[82].active, true)
-  assert.equal(switchedResponse.snapshot.currentIndex, 1)
-  assert.equal(switchedResponse.snapshot.previousIndex, 0)
-  assert.equal(switchedResponse.snapshot.nextIndex, 2)
-  assert.equal(switchedResponse.snapshot.entries[0].previousTarget, true)
-  assert.equal(switchedResponse.snapshot.entries[1].current, true)
-  assert.equal(switchedResponse.snapshot.entries[2].nextTarget, true)
+  assert.equal(switchedSnapshot.currentIndex, 1)
+  assert.equal(switchedSnapshot.previousIndex, 0)
+  assert.equal(switchedSnapshot.nextIndex, 2)
+  assert.equal(valueAt(switchedSnapshot.entries, 0).previousTarget, true)
+  assert.equal(valueAt(switchedSnapshot.entries, 1).current, true)
+  assert.equal(valueAt(switchedSnapshot.entries, 2).nextTarget, true)
 })
 
 test('tab history keeps a valid target when activation succeeds but window focus fails', async () => {
@@ -1466,12 +1577,15 @@ test('activated forward history stays ahead of pending background tabs', async (
   await flushBackgroundWork()
 
   const beforeSwitch = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
-  assert.equal(beforeSwitch.snapshot.currentIndex, 1)
-  assert.equal(beforeSwitch.snapshot.nextIndex, 2)
-  assert.equal(beforeSwitch.snapshot.entries[2].tabId, 83)
-  assert.equal(beforeSwitch.snapshot.entries[2].nextTarget, true)
-  assert.equal(beforeSwitch.snapshot.entries[3].tabId, 84)
-  assert.equal(beforeSwitch.snapshot.entries[3].pending, true)
+  const beforeSwitchSnapshot = requireHistorySnapshot(beforeSwitch)
+  const beforeSwitchTarget = valueAt(beforeSwitchSnapshot.entries, 2)
+  const pendingEntry = valueAt(beforeSwitchSnapshot.entries, 3)
+  assert.equal(beforeSwitchSnapshot.currentIndex, 1)
+  assert.equal(beforeSwitchSnapshot.nextIndex, 2)
+  assert.equal(beforeSwitchTarget.tabId, 83)
+  assert.equal(beforeSwitchTarget.nextTarget, true)
+  assert.equal(pendingEntry.tabId, 84)
+  assert.equal(pendingEntry.pending, true)
 
   const response = await sendRuntimeMessage(mock, {
     type: 'tab-out:switch-tab-history',
@@ -1479,12 +1593,14 @@ test('activated forward history stays ahead of pending background tabs', async (
   })
   await flushBackgroundWork()
 
+  const switchedSnapshot = requireHistorySnapshot(response)
+  const switchedPendingEntry = valueAt(switchedSnapshot.entries, 3)
   assert.equal(mock.state.tabsById[83].active, true)
-  assert.equal(response.snapshot.currentIndex, 2)
-  assert.equal(response.snapshot.nextIndex, 3)
-  assert.equal(response.snapshot.entries[3].tabId, 84)
-  assert.equal(response.snapshot.entries[3].pending, true)
-  assert.equal(response.snapshot.entries[3].nextTarget, true)
+  assert.equal(switchedSnapshot.currentIndex, 2)
+  assert.equal(switchedSnapshot.nextIndex, 3)
+  assert.equal(switchedPendingEntry.tabId, 84)
+  assert.equal(switchedPendingEntry.pending, true)
+  assert.equal(switchedPendingEntry.nextTarget, true)
 })
 
 test('manual activation promotes only the selected pending background tab', async () => {
@@ -1496,13 +1612,14 @@ test('manual activation promotes only the selected pending background tab', asyn
   await flushBackgroundWork()
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  const snapshot = requireHistorySnapshot(response)
 
-  assert.equal(response.snapshot.stackSize, 2)
-  assert.equal(response.snapshot.pendingSize, 1)
-  assert.equal(response.snapshot.currentIndex, 1)
-  assert.equal(response.snapshot.nextIndex, 2)
+  assert.equal(snapshot.stackSize, 2)
+  assert.equal(snapshot.pendingSize, 1)
+  assert.equal(snapshot.currentIndex, 1)
+  assert.equal(snapshot.nextIndex, 2)
   assert.deepEqual(
-    clone(response.snapshot.entries.map((entry) => ({
+    clone(snapshot.entries.map((entry) => ({
       tabId: entry.tabId,
       pending: entry.pending,
       current: entry.current
@@ -1522,16 +1639,18 @@ test('closing a pending background tab removes it from indexed history', async (
   await flushBackgroundWork()
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  const snapshot = requireHistorySnapshot(response)
+  const pendingEntry = valueAt(snapshot.entries, 1)
 
-  assert.equal(response.snapshot.stackSize, 1)
-  assert.equal(response.snapshot.pendingSize, 1)
-  assert.equal(response.snapshot.nextIndex, 1)
+  assert.equal(snapshot.stackSize, 1)
+  assert.equal(snapshot.pendingSize, 1)
+  assert.equal(snapshot.nextIndex, 1)
   assert.deepEqual(
-    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    clone(snapshot.entries.map((entry) => entry.tabId)),
     [81, 83]
   )
-  assert.equal(response.snapshot.entries[1].pending, true)
-  assert.equal(response.snapshot.entries[1].nextTarget, true)
+  assert.equal(pendingEntry.pending, true)
+  assert.equal(pendingEntry.nextTarget, true)
 })
 
 test('inactive tabs without an opener do not enter pending history', async () => {
@@ -1559,10 +1678,11 @@ test('inactive tabs without an opener do not enter pending history', async () =>
   await flushBackgroundWork()
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  const snapshot = requireHistorySnapshot(response)
 
-  assert.equal(response.snapshot.pendingSize, 0)
+  assert.equal(snapshot.pendingSize, 0)
   assert.deepEqual(
-    clone(response.snapshot.entries.map((entry) => entry.tabId)),
+    clone(snapshot.entries.map((entry) => entry.tabId)),
     [81]
   )
 })
@@ -1695,12 +1815,12 @@ test('tab history snapshot exposes effective and raw URLs for suspended tabs', a
   await flushBackgroundWork()
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  const entry = valueAt(requireHistorySnapshot(response).entries, 0)
 
-  assert.equal(response.ok, true)
-  assert.equal(response.snapshot.entries[0].title, 'Docs')
-  assert.equal(response.snapshot.entries[0].url, 'https://example.com/docs')
-  assert.equal(response.snapshot.entries[0].rawUrl, suspendedUrl)
-  assert.equal(response.snapshot.entries[0].displayUrl, 'example.com/docs')
+  assert.equal(entry.title, 'Docs')
+  assert.equal(entry.url, 'https://example.com/docs')
+  assert.equal(entry.rawUrl, suspendedUrl)
+  assert.equal(entry.displayUrl, 'example.com/docs')
 })
 
 test('combined service state ranks activated and actively navigated open tabs', async () => {
@@ -1783,7 +1903,7 @@ test('combined service state ranks activated and actively navigated open tabs', 
       snapshot.items.map((item) => item.tabId),
       [403, 402, 401]
     )
-    assert.equal(snapshot.items[1].displayUrl, 'bravo.example/issues/123')
+    assert.equal(valueAt(snapshot.items, 1).displayUrl, 'bravo.example/issues/123')
     assert.equal(snapshot.items.some((item) => item.title === 'Tab Out'), false)
   } finally {
     Date.now = originalDateNow
@@ -1822,13 +1942,15 @@ test('combined service state ignores a same-page refresh signal', async () => {
 
   assert.equal(before.ok, true)
   assert.equal(after.ok, true)
+  const workflowRecord = after.workingSetActivity.records['https://example.test/workflows']
+  assert.ok(workflowRecord)
   assert.deepEqual(
-    after.workingSetActivity.records['https://example.test/workflows'].events.map((event: any) => event.kind),
+    workflowRecord.events.map((event) => event.kind),
     ['activation']
   )
   assert.deepEqual(
-    after.tabHistory.entries.map((entry: any) => entry.tabId),
-    before.tabHistory.entries.map((entry: any) => entry.tabId)
+    after.tabHistory.entries.map((entry) => entry.tabId),
+    before.tabHistory.entries.map((entry) => entry.tabId)
   )
   assert.equal(after.tabHistory.currentIndex, before.tabHistory.currentIndex)
 })
@@ -1935,9 +2057,11 @@ test('recently closed session changes refresh the warm startup snapshot without 
 
   onInstalled({ reason: 'install' })
   await flushBackgroundWork()
-  assert.equal(
+  const beforeSnapshot = requireStartupSnapshot(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-      .snapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/report'),
+  )
+  assert.equal(
+    beforeSnapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/report'),
     false
   )
 
@@ -1956,9 +2080,11 @@ test('recently closed session changes refresh the warm startup snapshot without 
   await backgroundClock.tickAsync(150)
   await flushBackgroundWork()
 
-  assert.equal(
+  const afterSnapshot = requireStartupSnapshot(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-      .snapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/report'),
+  )
+  assert.equal(
+    afterSnapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/report'),
     true
   )
 })
@@ -2021,9 +2147,11 @@ test('background restore messages hold an early sessions change until the restor
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY],
     `expected trailing cache write after ${mock.calls.tabQuery.length} tab queries and ${mock.calls.windowsGetAll.length} window reads`
   )
-  assert.equal(
+  const trailingSnapshot = requireStartupSnapshot(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-      .snapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/slow'),
+  )
+  assert.equal(
+    trailingSnapshot.closedTabs.some((entry) => entry.url === 'https://closed.example.test/slow'),
     true
   )
 })
@@ -2077,7 +2205,7 @@ test('tab history survives extension reload through persistent storage', async (
   await flushBackgroundWork()
 
   assert.deepEqual(
-    clone(mock.storageValues.local.globalTabHistory.stack.map((entry) => entry.tabId)),
+    clone(mock.storageValues.local.globalTabHistory.stack.map((entry: { tabId: number }) => entry.tabId)),
     [301, 302, 303]
   )
 
@@ -2092,7 +2220,7 @@ test('tab history survives extension reload through persistent storage', async (
   )
   assert.equal(response.snapshot.currentIndex, 2)
   assert.equal(response.snapshot.previousIndex, 1)
-  assert.equal(response.snapshot.entries[2].active, true)
+  assert.equal(valueAt(response.snapshot.entries, 2).active, true)
 })
 
 test('tab history keeps only the latest entry for a repeated tab id', async () => {
@@ -2157,8 +2285,9 @@ test('tab history keeps only the latest entry for a repeated tab id', async () =
   assert.equal(response.snapshot.previousIndex, 1)
 
   const secondResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  const secondSnapshot = requireHistorySnapshot(secondResponse)
   assert.deepEqual(
-    clone(secondResponse.snapshot.entries.map((entry) => entry.tabId)),
+    clone(secondSnapshot.entries.map((entry) => entry.tabId)),
     [102, 103, 101]
   )
 })
@@ -2289,8 +2418,9 @@ test('history shortcut focuses the current Chrome tab first when Chrome is not f
   ])
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
-  assert.equal(response.snapshot.currentIndex, 2)
-  assert.equal(response.snapshot.previousIndex, 1)
+  const snapshot = requireHistorySnapshot(response)
+  assert.equal(snapshot.currentIndex, 2)
+  assert.equal(snapshot.previousIndex, 1)
 })
 
 test('history shortcut does not move or rewrite the cursor when focused-window state is unknown', async () => {
@@ -2518,8 +2648,9 @@ test('tab history snapshot prunes missing tabs before returning entries', async 
   assert.equal(response.snapshot.entries.every((entry) => entry.exists), true)
 
   const secondResponse = await sendRuntimeMessage(mock, { type: 'tab-out:get-tab-history' })
+  const secondSnapshot = requireHistorySnapshot(secondResponse)
   assert.deepEqual(
-    clone(secondResponse.snapshot.entries.map((entry) => entry.tabId)),
+    clone(secondSnapshot.entries.map((entry) => entry.tabId)),
     [91, 93]
   )
 })

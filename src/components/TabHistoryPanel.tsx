@@ -153,25 +153,25 @@ interface HistoryEntryProps {
   kind: HistoryEntryKind
   layoutKey: string
   indexLabel: ReactNode
-  workingSetItem?: WorkingSetItem | null
-  closedTab?: ClosedTabEntry | null
-  savedKeys?: ReadonlySet<string>
-  highlightTerms?: readonly string[]
-  onSnapshotChange?: SnapshotChangeHandler
-  onHistoryLayoutSettled?: () => void
-  onHoverUrlChange?: HoverUrlChangeHandler
-  onTabsChange?: TabsChangeHandler
-  onForgetClosedGhost?: (closed: ClosedTabEntry) => void
+  workingSetItem?: WorkingSetItem | null | undefined
+  closedTab?: ClosedTabEntry | null | undefined
+  savedKeys?: ReadonlySet<string> | undefined
+  highlightTerms?: readonly string[] | undefined
+  onSnapshotChange?: SnapshotChangeHandler | undefined
+  onHistoryLayoutSettled?: (() => void) | undefined
+  onHoverUrlChange?: HoverUrlChangeHandler | undefined
+  onTabsChange?: TabsChangeHandler | undefined
+  onForgetClosedGhost?: ((closed: ClosedTabEntry) => void) | undefined
 }
 
 interface TabHistoryPanelProps {
   snapshot: TabHistorySnapshot | null
-  workingSet?: WorkingSetSnapshot | null
-  closedTabs?: readonly ClosedTabEntry[]
-  filter?: string
-  savedKeys?: readonly string[]
-  onSnapshotChange?: SnapshotChangeHandler
-  onTabsChange?: TabsChangeHandler
+  workingSet?: WorkingSetSnapshot | null | undefined
+  closedTabs?: readonly ClosedTabEntry[] | undefined
+  filter?: string | undefined
+  savedKeys?: readonly string[] | undefined
+  onSnapshotChange?: SnapshotChangeHandler | undefined
+  onTabsChange?: TabsChangeHandler | undefined
 }
 
 function isHistoryTitleTruncated(titleEl: HTMLElement | null) {
@@ -1207,7 +1207,7 @@ function HistoryEntryFaviconFrame({ expanded, faviconUrl, faviconDimmed, loading
 
 type HistoryEntryContextMenuProps = {
   entry: TabHistoryEntry
-  savedKeys?: ReadonlySet<string>
+  savedKeys?: ReadonlySet<string> | undefined
   onOpenChange: (open: boolean) => void
   children: PageChipContextMenuTriggerElement
 }
@@ -1330,10 +1330,10 @@ function HistoryEntry({ entry, kind, layoutKey, indexLabel, workingSetItem = nul
     canActivateEntry,
     entrySlotRef,
     contextMenuOpenRef,
-    onSnapshotChange,
-    onHistoryLayoutSettled,
-    onHoverUrlChange,
-    onTabsChange
+    ...(onSnapshotChange ? { onSnapshotChange } : {}),
+    ...(onHistoryLayoutSettled ? { onHistoryLayoutSettled } : {}),
+    ...(onHoverUrlChange ? { onHoverUrlChange } : {}),
+    ...(onTabsChange ? { onTabsChange } : {})
   })
 
   async function onForgetEntry(e: MouseEvent<HTMLButtonElement>) {
@@ -1817,11 +1817,11 @@ function HistoryPanelRow({
   snapshot: TabHistorySnapshot | null
   savedKeys: ReadonlySet<string>
   highlightTerms: readonly string[]
-  onSnapshotChange?: SnapshotChangeHandler
-  onHistoryLayoutSettled?: () => void
-  onHoverUrlChange?: HoverUrlChangeHandler
-  onTabsChange?: TabsChangeHandler
-  onForgetClosedGhost?: (closed: ClosedTabEntry) => void
+  onSnapshotChange?: SnapshotChangeHandler | undefined
+  onHistoryLayoutSettled?: (() => void) | undefined
+  onHoverUrlChange?: HoverUrlChangeHandler | undefined
+  onTabsChange?: TabsChangeHandler | undefined
+  onForgetClosedGhost?: ((closed: ClosedTabEntry) => void) | undefined
 }): ReactNode {
   if (row.kind === 'stack') {
     return (

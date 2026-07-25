@@ -28,15 +28,15 @@ export type GlobalTabHistoryInput = {
 } | null | undefined
 
 type ActiveTabLike = {
-  id?: number
+  id?: number | undefined
   windowId: number
-  url?: string
-  pendingUrl?: string
+  url?: string | undefined
+  pendingUrl?: string | undefined
 } | null | undefined
 
 type TabIdentityLike = {
-  url?: string
-  pendingUrl?: string
+  url?: string | undefined
+  pendingUrl?: string | undefined
 }
 
 type HistoryChangeResult = {
@@ -99,19 +99,25 @@ export function historyChanged(a: GlobalTabHistoryInput, b: GlobalTabHistoryInpu
   ) {
     return true
   }
-  if (first.stack.some((entry, index) => (
-    entry.tabId !== second.stack[index].tabId ||
-    entry.windowId !== second.stack[index].windowId ||
-    entry.url !== second.stack[index].url
-  ))) {
+  if (first.stack.some((entry, index) => {
+    const otherEntry = second.stack[index]
+    return !otherEntry || (
+      entry.tabId !== otherEntry.tabId ||
+      entry.windowId !== otherEntry.windowId ||
+      entry.url !== otherEntry.url
+    )
+  })) {
     return true
   }
-  return first.pending.some((entry, index) => (
-    entry.tabId !== second.pending[index].tabId ||
-    entry.windowId !== second.pending[index].windowId ||
-    entry.url !== second.pending[index].url ||
-    entry.createdAt !== second.pending[index].createdAt
-  ))
+  return first.pending.some((entry, index) => {
+    const otherEntry = second.pending[index]
+    return !otherEntry || (
+      entry.tabId !== otherEntry.tabId ||
+      entry.windowId !== otherEntry.windowId ||
+      entry.url !== otherEntry.url ||
+      entry.createdAt !== otherEntry.createdAt
+    )
+  })
 }
 
 function dedupeHistoryByLatestTab(history: GlobalTabHistoryInput): GlobalTabHistory {
@@ -377,11 +383,9 @@ export function findHistoryTargetIndex(history: GlobalTabHistory, direction: num
   if (!activeTab?.id) return -1
 
   let nextIndex = history.index + direction
-  while (
-    nextIndex >= 0 &&
-    nextIndex < history.stack.length &&
-    (!existingTabs.has(history.stack[nextIndex].tabId) || history.stack[nextIndex].tabId === activeTab.id)
-  ) {
+  while (nextIndex >= 0 && nextIndex < history.stack.length) {
+    const entry = history.stack[nextIndex]
+    if (entry && existingTabs.has(entry.tabId) && entry.tabId !== activeTab.id) break
     nextIndex += direction
   }
   return nextIndex < 0 || nextIndex >= history.stack.length ? -1 : nextIndex

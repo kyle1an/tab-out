@@ -21,12 +21,12 @@ interface SubdomainSectionProps {
   // Pin context defaults to empty / false so existing call sites and test
   // mocks that predate the pin feature still compile. The pin button only
   // renders when onTogglePinnedSection is supplied.
-  domain?: string
+  domain?: string | undefined
   subdomainKey: string
-  isPinned?: boolean
-  isShared?: boolean
-  onTogglePinnedSection?: TogglePinnedSectionHandler | null
-  position?: 'first' | 'later'
+  isPinned?: boolean | undefined
+  isShared?: boolean | undefined
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null | undefined
+  position?: 'first' | 'later' | undefined
   headerType: 'hidden' | 'subdomain' | 'port'
   sectionCount: number
   sectionClosableUrls: string[]
@@ -35,7 +35,7 @@ interface SubdomainSectionProps {
     hiddenChips: DashboardChipData[]
     hiddenCount: number
   } | null
-  suppressedTitleParts?: DashboardTitleSuppression[]
+  suppressedTitleParts?: DashboardTitleSuppression[] | undefined
   websitePathSections: Array<DashboardWebsitePathSectionVM & {
     titleSuppressionToneScope?: TitleSuppressionToneScope
     suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
@@ -48,10 +48,10 @@ interface SubdomainSectionProps {
     titleSuppressionToneScope?: TitleSuppressionToneScope
     suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
   }>
-  filter?: string
-  useSuppressionTokenTones?: boolean
-  suppressedTitleToneIndexByText?: Readonly<Record<string, number>>
-  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+  filter?: string | undefined
+  useSuppressionTokenTones?: boolean | undefined
+  suppressedTitleToneIndexByText?: Readonly<Record<string, number>> | undefined
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>> | undefined
 }
 
 const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []

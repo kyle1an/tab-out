@@ -85,7 +85,7 @@ function TabBadgeCount({ count }: { count: string }) {
   ) : count
 }
 
-function TabBadge({ label }: { label?: string | number }) {
+function TabBadge({ label }: { label?: string | number | undefined }) {
   const labelText = String(label ?? '')
   const savedMatch = labelText.match(/^(.*?) \+(\d+(?:\/\d+)?) saved$/)
   const savedOnlyMatch = labelText.match(/^(\d+(?:\/\d+)?) saved$/)

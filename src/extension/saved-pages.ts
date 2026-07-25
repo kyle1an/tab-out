@@ -120,11 +120,12 @@ export function addSavedPageToStore(store: Partial<SavedPagesStore> | null | und
   const key = savedPageKeyForUrl(tab.url || tab.rawUrl || '')
   if (!key) return next
   const existing = next.pages[key]
+  const favIconUrl = tab.favIconUrl || existing?.favIconUrl
   next.pages[key] = {
     key,
     url: tab.url || key,
     title: tab.title || existing?.title || displayUrlForSavedPage(key),
-    ...(tab.favIconUrl || existing?.favIconUrl ? { favIconUrl: tab.favIconUrl || existing?.favIconUrl } : {}),
+    ...(favIconUrl ? { favIconUrl } : {}),
     savedAt: existing?.savedAt || at,
     updatedAt: at,
     lastSeenOpenAt: at
@@ -177,7 +178,11 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
       title: nextTitle,
       ...(nextFavIconUrl ? { favIconUrl: nextFavIconUrl } : {}),
       updatedAt: metadataChanged ? now : record.updatedAt,
-      lastSeenOpenAt: metadataChanged || needsLastSeenOpenAt ? now : record.lastSeenOpenAt
+      ...(metadataChanged || needsLastSeenOpenAt
+        ? { lastSeenOpenAt: now }
+        : record.lastSeenOpenAt === undefined
+          ? {}
+          : { lastSeenOpenAt: record.lastSeenOpenAt })
     }
     if (!savedPageRecordsEqual(record, nextRecord)) {
       normalized.pages[key] = nextRecord
@@ -224,8 +229,10 @@ export function savedPagesStoresEqual(a: Partial<SavedPagesStore> | null | undef
   if (leftKeys.length !== rightKeys.length) return false
   for (let i = 0; i < leftKeys.length; i += 1) {
     const key = leftKeys[i]
-    if (key !== rightKeys[i]) return false
-    if (!savedPageRecordsEqual(left.pages[key], right.pages[key])) return false
+    if (key === undefined || key !== rightKeys[i]) return false
+    const leftRecord = left.pages[key]
+    const rightRecord = right.pages[key]
+    if (!leftRecord || !rightRecord || !savedPageRecordsEqual(leftRecord, rightRecord)) return false
   }
   return true
 }
@@ -287,7 +294,7 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
     const updates = Object.keys(base.pages).flatMap((key) => {
       const before = base.pages[key]
       const after = merged.pages[key]
-      return after && !savedPageRecordsEqual(before, after)
+      return before && after && !savedPageRecordsEqual(before, after)
         ? [{ key, before, after }]
         : []
     })

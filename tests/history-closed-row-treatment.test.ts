@@ -6,7 +6,9 @@ import { makeHistoryEntry, renderHistoryPanel } from './helpers/history-panel.js
 function titleSpanClass(html: string): string {
   const match = html.match(/class="(history-entry-title [^"]*)"/)
   assert.ok(match, 'history entry title should render')
-  return match[1]
+  const classes = match[1]
+  assert.ok(classes)
+  return classes
 }
 
 test('a closed history row mutes its title like a closed saved page chip', () => {
@@ -20,7 +22,9 @@ test('a closed history row hovers with the closed-saved chip treatment', () => {
   const html = renderHistoryPanel([makeHistoryEntry({ exists: false, tabId: -1 })])
   const rowMatch = html.match(/class="([^"]*\bhistory-entry-closed\b[^"]*)"/)
   assert.ok(rowMatch)
-  assert.match(rowMatch[1], /group-hover\/history-row:outline\b/)
+  const rowClasses = rowMatch[1]
+  assert.ok(rowClasses)
+  assert.match(rowClasses, /group-hover\/history-row:outline\b/)
 })
 
 test('a live history row keeps its live-tab title and no closed treatment', () => {
@@ -74,8 +78,10 @@ test('an open history row hovers with the closed line recipe at the quiet intera
   const html = renderHistoryPanel([makeHistoryEntry()])
   const rowMatch = html.match(/class="(history-entry group\/history-entry[^"]*)"/)
   assert.ok(rowMatch, 'history entry surface should render')
-  assert.match(rowMatch[1], /group-hover\/history-row:outline\b/)
-  assert.match(rowMatch[1], /group-hover\/history-row:outline-\(--history-entry-hover-border\)/)
+  const rowClasses = rowMatch[1]
+  assert.ok(rowClasses)
+  assert.match(rowClasses, /group-hover\/history-row:outline\b/)
+  assert.match(rowClasses, /group-hover\/history-row:outline-\(--history-entry-hover-border\)/)
   // The interaction-fill rim: same 10% mix as the open rows' clickable fill, laid
   // once more at the edge — the darkened fill carries the hover emphasis.
   assert.match(html, /--history-entry-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
@@ -85,7 +91,9 @@ test('a row active in another window hovers with the quiet open line too', () =>
   const html = renderHistoryPanel([makeHistoryEntry({ activeInOtherWindow: true })])
   const rowMatch = html.match(/class="(history-entry group\/history-entry[^"]*)"/)
   assert.ok(rowMatch, 'history entry surface should render')
-  assert.match(rowMatch[1], /group-hover\/history-row:outline-\(--history-entry-hover-border\)/)
+  const rowClasses = rowMatch[1]
+  assert.ok(rowClasses)
+  assert.match(rowClasses, /group-hover\/history-row:outline-\(--history-entry-hover-border\)/)
   assert.match(html, /--history-entry-hover-border:color-mix\(in srgb, var\(--color-neutral-600\) 10%, transparent\)/)
 })
 

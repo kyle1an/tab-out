@@ -81,7 +81,7 @@ test('serialized Saved Pages mutations preserve a concurrent save after remove a
   }
   const adapter = {
     read: async () => cloneStore(stored),
-    write: async (nextStore) => {
+    write: async (nextStore: SavedPagesStore) => {
       writes += 1
       if (writes === 1) {
         firstWriteStarted.resolve()

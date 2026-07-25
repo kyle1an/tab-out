@@ -18,8 +18,6 @@ import type { DashboardTab } from '../src/extension/types'
 
 function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number }): DashboardTab {
   return {
-    id: overrides.id,
-    url: overrides.url,
     rawUrl: overrides.rawUrl || overrides.url,
     suspended: false,
     title: overrides.title || '',
@@ -30,7 +28,6 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number })
     groupId: overrides.groupId ?? -1,
     isTabOut: false,
     isApp: overrides.isApp || false,
-    index: overrides.index,
     ...overrides
   }
 }

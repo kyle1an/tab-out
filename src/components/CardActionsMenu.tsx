@@ -4,12 +4,12 @@ const CardActionsMenuLoaded = lazy(() => import('./CardActionsMenuLoaded').then(
 
 export interface CardActionsMenuProps {
   displayName: string
-  label?: string
-  onClose?: () => void | Promise<void>
-  pinned?: boolean
-  onTogglePin?: () => void | Promise<void>
-  suspendLabel?: string
-  onSuspend?: () => void | Promise<void>
+  label?: string | undefined
+  onClose?: (() => void | Promise<void>) | undefined
+  pinned?: boolean | undefined
+  onTogglePin?: (() => void | Promise<void>) | undefined
+  suspendLabel?: string | undefined
+  onSuspend?: (() => void | Promise<void>) | undefined
 }
 
 const triggerClassName = 'card-actions-menu-trigger z-2 grid size-[22px] shrink-0 cursor-pointer place-items-center self-start justify-self-end rounded-lg border border-transparent bg-transparent p-0 text-muted-foreground opacity-0 pointer-events-none transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground focus-visible:opacity-100 data-[popup-open]:pointer-events-auto data-[popup-open]:opacity-100 data-[popup-open]:border-(--warm-gray) data-[popup-open]:bg-[rgba(82,82,82,0.08)] data-[popup-open]:text-foreground'

@@ -94,7 +94,7 @@ export function startPageChipCloseAnimation(
     ghostClassName: 'page-chip-closing-ghost',
     layoutElement: slot,
     deferLayoutRemoval: lastScopeItem,
-    scheduleCleanup,
+    ...(scheduleCleanup ? { scheduleCleanup } : {}),
     onBeforeRemove: () => {
       focusTarget?.focus({ preventScroll: true })
     },

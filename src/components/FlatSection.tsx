@@ -7,9 +7,9 @@ interface FlatSectionProps {
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
-  afterSeparator?: boolean
-  filter?: string
-  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+  afterSeparator?: boolean | undefined
+  filter?: string | undefined
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>> | undefined
 }
 
 export function FlatSection({ visibleChips, hiddenChips, hiddenCount, afterSeparator = false, filter = '', suppressedTitleToneByText }: FlatSectionProps) {

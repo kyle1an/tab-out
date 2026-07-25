@@ -40,12 +40,12 @@ export function normalizeChromeTabToDashboardItem(
   if (retainsSuspendedTitle) title = previousTab.title
 
   return {
-    id: tab.id,
+    ...(tab.id === undefined ? {} : { id: tab.id }),
     url: effectiveUrl,
     rawUrl,
     suspended,
     title,
-    status: tab.status,
+    ...(tab.status === undefined ? {} : { status: tab.status }),
     ...(retainsSuspendedTitle ? { retainedSuspendedTitle: true } : {}),
     favIconUrl: tab.favIconUrl || '',
     audible: !!tab.audible,

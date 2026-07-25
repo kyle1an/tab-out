@@ -72,7 +72,11 @@ function parsePageChipPinId(id: unknown): ParsedPageChipPinId | null {
   let scopeId = ''
   let chipKey = ''
   try {
-    ;[kind, source, scopeId, chipKey] = parts.map(decodePinField)
+    const decoded = parts.map(decodePinField)
+    kind = decoded[0] ?? ''
+    source = decoded[1] ?? ''
+    scopeId = decoded[2] ?? ''
+    chipKey = decoded[3] ?? ''
   } catch {
     return null
   }

@@ -122,7 +122,13 @@ export function buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter
 
 export function useHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts }: UseHistoryPanelRowsArgs): HistoryPanelRow[] {
   return useMemo(
-    () => buildHistoryPanelRows({ snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts }),
+    () => buildHistoryPanelRows({
+      snapshot,
+      workingSet,
+      closedTabs,
+      filter,
+      ...(dismissedClosedGhosts === undefined ? {} : { dismissedClosedGhosts })
+    }),
     [snapshot, workingSet, closedTabs, filter, dismissedClosedGhosts]
   )
 }

@@ -55,6 +55,7 @@ test('togglePinnedDomainInList changes only the selected generated domain', () =
       const domain = selectExisting && domains.length > 0
         ? domains[seed % domains.length]
         : `extra-${seed}.test`
+      assert.ok(domain)
       const expected = domains.includes(domain)
         ? domains.filter((candidate) => candidate !== domain)
         : [...domains, domain]
@@ -109,6 +110,8 @@ test('reorderPinnedDomainInList preserves generated membership and requested adj
           : targetCandidateIndex
         const domain = domains[domainIndex]
         const targetDomain = domains[targetIndex]
+        assert.ok(domain)
+        assert.ok(targetDomain)
         const reordered = reorderPinnedDomainInList(domains, domain, targetDomain, position)
 
         assert.deepEqual([...reordered].sort(), [...domains].sort())

@@ -21,14 +21,14 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
   const normalizedChars: string[] = []
   const originalIndexes: number[] = []
   for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
+    const char = text.charAt(index)
     if (char === '\u200B') continue
     // Lowercase per character: toLowerCase can expand a character into several
     // units ('\u0130' \u2192 'i' + combining dot), so each unit must map back to its own
     // original index or every later highlight range drifts.
     const lower = char.toLowerCase()
     for (let unit = 0; unit < lower.length; unit += 1) {
-      normalizedChars.push(lower[unit])
+      normalizedChars.push(lower.charAt(unit))
       originalIndexes.push(index)
     }
   }
@@ -65,6 +65,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
 
   for (const range of mergedRanges) {
     const originalStart = originalIndexes[range.start]
+    if (originalStart === undefined) continue
     const originalEnd = (originalIndexes[range.end - 1] ?? text.length - 1) + 1
     if (originalStart > cursor) appendTextNodes(nodes, text.slice(cursor, originalStart), `${keyPrefix}:${cursor}:${originalStart}`, cursor, renderText)
     nodes.push(

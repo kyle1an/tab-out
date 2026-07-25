@@ -8,6 +8,12 @@ type Session = chrome.sessions.Session
 type SessionTab = chrome.tabs.Tab
 type SessionWindow = chrome.windows.Window
 
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
+}
+
 function setSessionsApi(sessions: Session[]) {
   globalThis.chrome = {
     sessions: {
@@ -45,12 +51,12 @@ test('fetchClosedTabs flattens single tab sessions and window sessions to one en
 
   const result = await fetchClosedTabs()
   assert.equal(result.length, 3)
-  assert.equal(result[0].sessionId, 'tab-a')
-  assert.equal(result[0].lastClosedAt, 1_700_000_010)
-  assert.equal(result[1].sessionId, 'tab-b')
-  assert.equal(result[1].lastClosedAt, 1_700_000_020)
-  assert.equal(result[2].sessionId, 'tab-c')
-  assert.equal(result[2].lastClosedAt, 1_700_000_020)
+  assert.equal(valueAt(result, 0).sessionId, 'tab-a')
+  assert.equal(valueAt(result, 0).lastClosedAt, 1_700_000_010)
+  assert.equal(valueAt(result, 1).sessionId, 'tab-b')
+  assert.equal(valueAt(result, 1).lastClosedAt, 1_700_000_020)
+  assert.equal(valueAt(result, 2).sessionId, 'tab-c')
+  assert.equal(valueAt(result, 2).lastClosedAt, 1_700_000_020)
 })
 
 test('fetchClosedTabs drops every browser-internal URL kind', async () => {
@@ -75,7 +81,7 @@ test('fetchClosedTabs drops every browser-internal URL kind', async () => {
 
   const result = await fetchClosedTabs()
   assert.equal(result.length, 1)
-  assert.equal(result[0].sessionId, 'd')
+  assert.equal(valueAt(result, 0).sessionId, 'd')
 })
 
 test('fetchClosedTabs drops tabs without urls and entries without sessionId', async () => {
@@ -185,7 +191,7 @@ test('subscribeClosedTabChanges registers and unregisters a listener', async () 
   const settleDelays: number[] = []
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
   assert.equal(listeners.length, 1)
-  listeners[0]()
+  valueAt(listeners, 0)()
   assert.deepEqual(settleDelays, [CLOSED_TAB_SESSION_SETTLE_MS])
   unsubscribe()
   assert.equal(listeners.length, 0)
@@ -238,7 +244,7 @@ test('a restore gated beyond 150ms stays suppressed and emits a settled trailing
     const restore = restoreClosedTab('session-slow')
     await restoreStarted
     clock.tick(CLOSED_TAB_SESSION_SETTLE_MS + 1)
-    sessionListeners[0]()
+    valueAt(sessionListeners, 0)()
 
     assert.equal(isClosedTabFetchSuppressed(), true)
     assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
@@ -276,7 +282,7 @@ test('a second page suppresses reads for a restore broadcast by another page', (
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
 
   try {
-    runtimeListeners[0]({
+    valueAt(runtimeListeners, 0)({
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'other-page-restore',
       phase: 'started'
@@ -284,7 +290,7 @@ test('a second page suppresses reads for a restore broadcast by another page', (
     assert.equal(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
     assert.deepEqual(settleDelays, [0])
 
-    runtimeListeners[0]({
+    valueAt(runtimeListeners, 0)({
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'other-page-restore',
       phase: 'settled',
@@ -318,7 +324,7 @@ test('a second page releases an orphaned restore broadcast through its watchdog'
   const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
 
   try {
-    runtimeListeners[0]({
+    valueAt(runtimeListeners, 0)({
       type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
       restoreId: 'orphaned-other-page-restore',
       phase: 'started'

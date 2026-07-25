@@ -119,15 +119,15 @@ export function historyEntryFromWorkingSetItem(item: WorkingSetItem): TabHistory
     exists: true,
     active: item.active,
     activeInOtherWindow: item.activeInOtherWindow,
-    loading: item.loading,
+    ...(item.loading === undefined ? {} : { loading: item.loading }),
     current: item.active && !item.activeInOtherWindow,
     title: item.title,
     url: item.tabUrl,
     rawUrl: item.rawUrl,
     displayUrl: item.displayUrl,
     favIconUrl: item.faviconUrl,
-    audible: item.audible,
-    muted: item.muted,
+    ...(item.audible === undefined ? {} : { audible: item.audible }),
+    ...(item.muted === undefined ? {} : { muted: item.muted }),
     lastActivatedAt: item.lastActivatedAt
   })
 }

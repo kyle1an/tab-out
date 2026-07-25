@@ -28,16 +28,16 @@ interface PathgroupSectionProps {
   // Pin context defaults to empty / false so call sites and test mocks
   // that predate the pin feature still compile. The pin button only
   // renders when onTogglePinnedSection is supplied.
-  domain?: string
-  subdomainKey?: string
+  domain?: string | undefined
+  subdomainKey?: string | undefined
   // Empty when the pathgroup is rendered directly under a subdomain. Set
   // when nested inside a website-path section.
-  websitePathKey?: string
+  websitePathKey?: string | undefined
   // Cluster identity used for the pin id — matches cluster.key from the
   // view-model (e.g. 'acme/repo' or 'acme/repo:pr').
-  pathgroupKey?: string
-  isPinned?: boolean
-  onTogglePinnedSection?: TogglePinnedSectionHandler | null
+  pathgroupKey?: string | undefined
+  isPinned?: boolean | undefined
+  onTogglePinnedSection?: TogglePinnedSectionHandler | null | undefined
   label: string
   isPR: boolean
   count: number
@@ -45,13 +45,13 @@ interface PathgroupSectionProps {
   visibleChips: DashboardChipData[]
   hiddenChips: DashboardChipData[]
   hiddenCount: number
-  className?: string
-  isFirstContent?: boolean
-  filter?: string
-  suppressedTitleParts?: DashboardTitleSuppression[]
-  useSuppressionTokenTones?: boolean
-  suppressedTitleToneIndexByText?: Readonly<Record<string, number>>
-  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>>
+  className?: string | undefined
+  isFirstContent?: boolean | undefined
+  filter?: string | undefined
+  suppressedTitleParts?: DashboardTitleSuppression[] | undefined
+  useSuppressionTokenTones?: boolean | undefined
+  suppressedTitleToneIndexByText?: Readonly<Record<string, number>> | undefined
+  suppressedTitleToneByText?: Readonly<Record<string, TitleSuppressionTone | ''>> | undefined
 }
 
 const EMPTY_SUPPRESSED_TITLE_PARTS: DashboardTitleSuppression[] = []

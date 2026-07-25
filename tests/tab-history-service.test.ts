@@ -11,6 +11,12 @@ import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extens
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
 
+function valueAt<T>(values: readonly T[], index: number): T {
+  const value = values[index]
+  assert.ok(value !== undefined, `expected value at index ${index}`)
+  return value
+}
+
 function makeChromeApi(state: {
   history?: {
     stack: { windowId: number; tabId: number; url?: string }[]
@@ -88,7 +94,7 @@ test('getTabHistorySnapshot populates lastActivatedAt from the activity log', as
 
   const snapshot = await service.getTabHistorySnapshot()
   assert.equal(snapshot.entries.length, 1)
-  assert.equal(snapshot.entries[0].lastActivatedAt, now - 1000)
+  assert.equal(valueAt(snapshot.entries, 0).lastActivatedAt, now - 1000)
 })
 
 test('getTabHistorySnapshot sets lastActivatedAt to null when the URL has no activity record', async () => {
@@ -98,7 +104,7 @@ test('getTabHistorySnapshot sets lastActivatedAt to null when the URL has no act
   }))
 
   const snapshot = await service.getTabHistorySnapshot()
-  assert.equal(snapshot.entries[0].lastActivatedAt, null)
+  assert.equal(valueAt(snapshot.entries, 0).lastActivatedAt, null)
 })
 
 test('getTabHistorySnapshot marks only live awake loading tabs as loading', async () => {
@@ -145,7 +151,7 @@ test('getTabHistorySnapshot can use an already-read activity snapshot', async ()
   }))
 
   const snapshot = await service.getTabHistorySnapshot(activity)
-  assert.equal(snapshot.entries[0].lastActivatedAt, now - 500)
+  assert.equal(valueAt(snapshot.entries, 0).lastActivatedAt, now - 500)
 })
 
 test('history capture reads all tabs and windows once and returns the exact browser generation it rendered', async () => {
@@ -433,8 +439,9 @@ test('history switch does not mutate an opener before fresh target validation', 
     ))
   }
   chromeApi.windows.getAll = async () => {
+    const firstLiveTab = valueAt(liveTabs, 0)
     liveTabs[0] = {
-      ...liveTabs[0],
+      ...firstLiveTab,
       url: 'https://example.test/unrelated',
       title: 'Unrelated'
     }
@@ -442,7 +449,9 @@ test('history switch does not mutate an opener before fresh target validation', 
   }
   const openerUpdates: Array<{ tabId: number; openerTabId?: number }> = []
   chromeApi.tabs.update = (async (tabId: number, updateProperties: chrome.tabs.UpdateProperties) => {
-    openerUpdates.push({ tabId, openerTabId: updateProperties.openerTabId })
+    openerUpdates.push(updateProperties.openerTabId === undefined
+      ? { tabId }
+      : { tabId, openerTabId: updateProperties.openerTabId })
     return liveTabs.find((tab) => tab.id === tabId)
   }) as typeof chromeApi.tabs.update
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
@@ -523,7 +532,7 @@ test('versioned activation and pending history survive an extension reload when 
   const initialService = createTabHistoryService(chromeApi)
   await initialService.recordTabActivation(1, 10)
   await initialService.recordTabActivation(1, 20)
-  await initialService.recordTabCreation(tabs[2])
+  await initialService.recordTabCreation(valueAt(tabs, 2))
 
   const reloadedSnapshot = await createTabHistoryService(chromeApi).getTabHistorySnapshot(emptyWorkingSetActivity())
 
@@ -565,9 +574,10 @@ test('a trusted pending tab keeps its FIFO entry when its effective URL redirect
     tabs
   }))
 
-  await service.recordTabCreation(tabs[1])
-  tabs[1].url = 'https://example.test/final'
-  await service.recordTabNavigation(30, { url: tabs[1].url }, tabs[1])
+  const pendingTab = valueAt(tabs, 1)
+  await service.recordTabCreation(pendingTab)
+  pendingTab.url = 'https://example.test/final'
+  await service.recordTabNavigation(30, { url: pendingTab.url }, pendingTab)
   const snapshot = await service.getTabHistorySnapshot(emptyWorkingSetActivity())
 
   assert.deepEqual(
@@ -585,13 +595,15 @@ test('a trusted inactive activation-history tab keeps its position when it navig
     { id: 20, windowId: 1, url: 'https://example.test/current', title: 'Current', active: false } as chrome.tabs.Tab
   ]
   const service = createTabHistoryService(makeChromeApi({ tabs }))
+  const firstTab = valueAt(tabs, 0)
+  const secondTab = valueAt(tabs, 1)
 
   await service.recordTabActivation(1, 10)
-  tabs[0].active = false
-  tabs[1].active = true
+  firstTab.active = false
+  secondTab.active = true
   await service.recordTabActivation(1, 20)
-  tabs[0].url = 'https://example.test/first-after-navigation'
-  await service.recordTabNavigation(10, { url: tabs[0].url }, tabs[0])
+  firstTab.url = 'https://example.test/first-after-navigation'
+  await service.recordTabNavigation(10, { url: firstTab.url }, firstTab)
   const snapshot = await service.getTabHistorySnapshot(emptyWorkingSetActivity())
 
   assert.deepEqual(
@@ -629,6 +641,7 @@ test('an untrusted navigation cannot rebase a reused id from a previous browser 
     ]
   }))
 
+  assert.ok(reusedTab.url)
   await service.recordTabNavigation(30, { url: reusedTab.url }, reusedTab)
   const snapshot = await service.getTabHistorySnapshot(emptyWorkingSetActivity())
 
@@ -749,14 +762,14 @@ test('normalizeTabHistorySnapshot preserves lastActivatedAt on entries', () => {
       }
     ]
   })
-  assert.equal(result.entries[0].lastActivatedAt, 1_700_000_000)
+  assert.equal(valueAt(result.entries, 0).lastActivatedAt, 1_700_000_000)
 })
 
 test('normalizeTabHistorySnapshot defaults missing lastActivatedAt to null', () => {
   const result = normalizeTabHistorySnapshot({
     entries: [{ tabId: 10, windowId: 1 } as unknown as never]
   })
-  assert.equal(result.entries[0].lastActivatedAt, null)
+  assert.equal(valueAt(result.entries, 0).lastActivatedAt, null)
 })
 
 test('focused-window history preserves event order when captured active-tab lookups resolve out of order', async () => {
@@ -793,9 +806,9 @@ test('focused-window history preserves event order when captured active-tab look
     2,
     windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
   )
-  resolveWindowTwo([tabs[1]])
+  resolveWindowTwo([valueAt(tabs, 1)])
   await new Promise<void>((resolve) => setImmediate(resolve))
-  resolveWindowOne([tabs[0]])
+  resolveWindowOne([valueAt(tabs, 0)])
   await Promise.all([firstFocus, secondFocus])
 
   const snapshot = await service.getTabHistorySnapshot()
@@ -916,7 +929,7 @@ test('tab replacement preserves activated history position under the new tab id'
   const snapshot = await service.getTabHistorySnapshot()
 
   assert.deepEqual(snapshot.entries.map((entry) => entry.tabId), [30, 20])
-  assert.equal(snapshot.entries[0].windowId, 2)
+  assert.equal(valueAt(snapshot.entries, 0).windowId, 2)
   assert.equal(snapshot.currentIndex, 0)
   assert.equal(snapshot.entries.some((entry) => entry.tabId === 10), false)
 })

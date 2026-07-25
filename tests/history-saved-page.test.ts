@@ -9,7 +9,7 @@ function makeEntry(overrides: Partial<TabHistoryEntry> & { url: string }): TabHi
     index: 0, tabId: 1, windowId: 1, exists: true, active: false, activeInOtherWindow: false,
     isApp: false, pinned: false, discarded: false, suspended: false, cursor: false, current: false,
     previousTarget: false, nextTarget: false,
-    title: 'Title', url: overrides.url, rawUrl: overrides.url, displayUrl: overrides.url,
+    title: 'Title', rawUrl: overrides.url, displayUrl: overrides.url,
     favIconUrl: '', lastActivatedAt: null, ...overrides
   }
 }

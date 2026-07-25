@@ -90,9 +90,13 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(tsconfig.compilerOptions?.noFallthroughCasesInSwitch, true)
   assert.equal(tsconfig.compilerOptions?.noImplicitAny, true)
   assert.equal(tsconfig.compilerOptions?.noImplicitReturns, true)
+  assert.equal(tsconfig.compilerOptions?.noUncheckedIndexedAccess, true)
   assert.equal(tsconfig.compilerOptions?.noUncheckedSideEffectImports, true)
+  assert.equal(tsconfig.compilerOptions?.exactOptionalPropertyTypes, true)
+  assert.equal(tsconfig.compilerOptions?.strict, true)
   assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
-  assert.equal(testTsconfig.compilerOptions?.noImplicitReturns, false)
+  assert.equal(testTsconfig.extends, './tsconfig.json')
+  assert.equal(testTsconfig.compilerOptions, undefined)
   assert.deepEqual(tsconfig.compilerOptions?.paths?.['@/*'], ['./src/*'])
   assert.equal(CHROME_BUILD_TARGET, `chrome${chromeSupportPolicy.minimumMajor}`)
   assert.equal(MINIMUM_CHROME_VERSION, String(chromeSupportPolicy.minimumMajor))
@@ -295,7 +299,10 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(tooltipSource, /retimeHoverOpen/)
   assert.match(tooltipSource, /retimeHoverClose/)
   assert.match(tooltipSource, /hoverCloseScheduledRef/)
-  assert.match(tooltipSource, /onOpenChange\?: \(open: boolean\) => void/)
+  assert.match(
+    tooltipSource,
+    /onOpenChange\?: \(\(open: boolean\) => void\) \| undefined/
+  )
   assert.match(tooltipSource, /onOpenChange\?\.\(true\)/)
   assert.match(tooltipSource, /onOpenChange\?\.\(false\)/)
   assert.match(tooltipSource, /pointerFocusedRef/)

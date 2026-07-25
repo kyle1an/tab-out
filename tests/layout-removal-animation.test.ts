@@ -7,17 +7,25 @@ import {
   startLayoutRemovalAnimation
 } from '../src/components/LayoutRemovalAnimation.js'
 
+type RemovalGhost = {
+  ariaHidden?: string
+  inert?: string
+  classList: {
+    classes: string[]
+    add: (...names: string[]) => void
+  }
+  removed?: boolean
+  style: Record<string, string>
+  getBoundingClientRect: () => void
+  setAttribute: (name: string, value: string) => void
+  remove: () => void
+}
+
 function fakeRemovalSurface() {
   const classes = new Set<string>()
   const layoutAttributes = new Map<string, string>()
   const visualAttributes = new Map<string, string>()
-  const appendedNodes: Array<{
-    ariaHidden?: string
-    inert?: string
-    classList: { classes: string[] }
-    removed?: boolean
-    style: Record<string, string>
-  }> = []
+  const appendedNodes: RemovalGhost[] = []
   const visualStyle: Record<string, string> = {}
   const layoutStyle: Record<string, string> = {}
   const layoutElement = {
@@ -45,23 +53,26 @@ function fakeRemovalSurface() {
         }
       }
     },
-    cloneNode: () => ({
-      classList: {
-        classes: [] as string[],
-        add(...names: string[]) {
-          this.classes.push(...names)
+    cloneNode: (): RemovalGhost => {
+      const ghost: RemovalGhost = {
+        classList: {
+          classes: [],
+          add(...names: string[]) {
+            ghost.classList.classes.push(...names)
+          }
+        },
+        style: {},
+        getBoundingClientRect() {},
+        setAttribute(name: string, value: string) {
+          if (name === 'aria-hidden') ghost.ariaHidden = value
+          if (name === 'inert') ghost.inert = value
+        },
+        remove() {
+          ghost.removed = true
         }
-      },
-      style: {} as Record<string, string>,
-      getBoundingClientRect() {},
-      setAttribute(name: string, value: string) {
-        if (name === 'aria-hidden') this.ariaHidden = value
-        if (name === 'inert') this.inert = value
-      },
-      remove() {
-        this.removed = true
       }
-    }),
+      return ghost
+    },
     getBoundingClientRect: () => ({ left: 12, top: 24, width: 240, height: 36 })
   }
 
@@ -123,7 +134,7 @@ test('layout removal leaves a transform-only exit ghost and removes the real row
 
 test('deferred layout removal reserves the real row until the next render', () => {
   const surface = fakeRemovalSurface()
-  let releaseDeferredLayout: (() => void) | null = null
+  const deferredLayout: { release?: () => void } = {}
   let deferredReleaseDelay = 0
   let deferredReleaseCount = 0
 
@@ -136,7 +147,7 @@ test('deferred layout removal reserves the real row until the next render', () =
     },
     scheduleCleanup: () => 1,
     scheduleDeferredRelease: (handler, delay) => {
-      releaseDeferredLayout = handler
+      deferredLayout.release = handler
       deferredReleaseDelay = delay
       return 2
     }
@@ -148,6 +159,7 @@ test('deferred layout removal reserves the real row until the next render', () =
   assert.equal(surface.appendedNodes.length, 1)
   assert.equal(deferredReleaseDelay, 1_000)
 
+  const releaseDeferredLayout = deferredLayout.release
   assert.ok(releaseDeferredLayout)
   releaseDeferredLayout()
   assert.equal(surface.layoutStyle.display, 'none')

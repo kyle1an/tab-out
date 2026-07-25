@@ -202,7 +202,7 @@ export async function closeDomainTabs({ group, filter, displayName, onAfterClose
     closeResult,
     nothingMessage: 'Nothing to close',
     labelSuffix: ` from ${displayName}`,
-    onAfterClose
+    ...(onAfterClose ? { onAfterClose } : {})
   })
 }
 
@@ -268,7 +268,7 @@ export async function dedupeTabs({ urls, preservePinnedTabOut = false, onAfterCl
     closeResult,
     kind: 'duplicates',
     nothingMessage: 'Nothing to dedupe',
-    onAfterClose
+    ...(onAfterClose ? { onAfterClose } : {})
   })
 }
 

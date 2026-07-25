@@ -73,9 +73,9 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
       source,
       currentWindowId,
       chipOrder: mainChipOrder,
-      chipPriority,
-      pinnedSections,
-      pinnedPageChips
+      ...(chipPriority ? { chipPriority } : {}),
+      ...(pinnedSections ? { pinnedSections } : {}),
+      ...(pinnedPageChips ? { pinnedPageChips } : {})
     }),
     [startupViewModel, realTabs, domainGroups, filter, source, currentWindowId, mainChipOrder, chipPriority, pinnedSections, pinnedPageChips]
   )
@@ -107,8 +107,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           filter,
           source: 'bookmarks',
           chipOrder: chipOrder.bookmarks || EMPTY_CHIP_ORDER_BY_CARD,
-          pinnedSections,
-          pinnedPageChips
+          ...(pinnedSections ? { pinnedSections } : {}),
+          ...(pinnedPageChips ? { pinnedPageChips } : {})
         })
       : null,
     [dashboard, source, filter, historyRange, historyFilterEnabled, companionSources, chipOrder.bookmarks, pinnedSections, pinnedPageChips]
@@ -152,8 +152,8 @@ export function useDashboardViewModels({ dashboard, source, filter, historyRange
           filter: resultsFilter,
           source: 'history',
           chipOrder: chipOrder.history || EMPTY_CHIP_ORDER_BY_CARD,
-          pinnedSections,
-          pinnedPageChips
+          ...(pinnedSections ? { pinnedSections } : {}),
+          ...(pinnedPageChips ? { pinnedPageChips } : {})
         }) : null
       }
     },

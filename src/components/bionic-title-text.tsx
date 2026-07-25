@@ -52,7 +52,7 @@ function findJiraTicketReferenceRanges(text: string): ProtectedTextRange[] {
   const normalizedChars: string[] = []
   const originalIndexes: number[] = []
   for (let index = 0; index < text.length; index += 1) {
-    const char = text[index]
+    const char = text.charAt(index)
     if (char === '\u200B') continue
     normalizedChars.push(char)
     originalIndexes.push(index)
@@ -65,7 +65,7 @@ function findJiraTicketReferenceRanges(text: string): ProtectedTextRange[] {
     const end = start + match[0].length
     ranges.push({
       start: originalIndexes[start] ?? 0,
-      end: end < originalIndexes.length ? originalIndexes[end] : text.length
+      end: originalIndexes[end] ?? text.length
     })
   }
   return ranges

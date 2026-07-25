@@ -447,8 +447,10 @@ test('fetchOpenTabs recognizes filter-focus dashboard URLs as Tab Out pages', as
   await fetchOpenTabs()
 
   assert.equal(openTabs.length, 1)
-  assert.equal(openTabs[0].rawUrl, tabOutUrl)
-  assert.equal(openTabs[0].isTabOut, true)
+  const [tab] = openTabs
+  assert.ok(tab)
+  assert.equal(tab.rawUrl, tabOutUrl)
+  assert.equal(tab.isTabOut, true)
 })
 
 test('global dedupe collapses dashboards with different filter params, keeping the active one', async () => {

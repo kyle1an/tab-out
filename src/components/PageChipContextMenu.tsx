@@ -57,7 +57,7 @@ export type PageChipContextMenuTriggerElement = ReactElement<{
 
 type PageChipContextMenuProps = PageChipContextMenuContentProps & {
   children: PageChipContextMenuTriggerElement
-  onOpenChange?: (open: boolean) => void
+  onOpenChange?: ((open: boolean) => void) | undefined
 }
 
 export function PageChipContextMenu({

@@ -390,20 +390,28 @@ test('dashboard edge gutters are owned by panes instead of the shell', () => {
   assert.ok(mainClass)
   assert.ok(mainHistoryBranch)
   assert.ok(mainPlainBranch)
+  const shellClasses = shellClass[1]
+  const shellHistoryClasses = shellHistoryBranch[1]
+  const mainHistoryClasses = mainHistoryBranch[1]
+  const mainPlainClasses = mainPlainBranch[1]
+  assert.ok(shellClasses)
+  assert.ok(shellHistoryClasses)
+  assert.ok(mainHistoryClasses)
+  assert.ok(mainPlainClasses)
 
   assert.match(baseCss, /--dashboard-history-edge-gutter:\s*12px;/)
 
   // Edge gutters are NOT on the shell.
-  assert.doesNotMatch(shellClass[1], /\bp[xlr]?-/)
+  assert.doesNotMatch(shellClasses, /\bp[xlr]?-/)
 
   // The page gutter padding is owned by the main pane (default and has-history).
-  assert.match(mainPlainBranch[1], /px-\(--dashboard-page-gutter\)/)
-  assert.match(mainHistoryBranch[1], /\bpl-0\b/)
-  assert.match(mainHistoryBranch[1], /pr-\(--dashboard-page-gutter\)/)
+  assert.match(mainPlainClasses, /px-\(--dashboard-page-gutter\)/)
+  assert.match(mainHistoryClasses, /\bpl-0\b/)
+  assert.match(mainHistoryClasses, /pr-\(--dashboard-page-gutter\)/)
 
   // has-history shell is a two-column grid sized off the history edge gutter.
   assert.match(
-    shellHistoryBranch[1],
+    shellHistoryClasses,
     /grid-cols-\[minmax\(calc\(220px\+var\(--dashboard-history-edge-gutter\)\),calc\(260px\+var\(--dashboard-history-edge-gutter\)\)\)_minmax\(0,1fr\)\]/
   )
 

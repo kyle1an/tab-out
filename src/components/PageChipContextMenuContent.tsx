@@ -6,20 +6,20 @@ type StopPropagationEvent = {
 }
 
 export type PageChipContextMenuContentProps = {
-  savedActionLabel?: string
-  saved?: boolean
+  savedActionLabel?: string | undefined
+  saved?: boolean | undefined
   titleText: string
-  onSavedSelect?: (event: StopPropagationEvent) => void | Promise<void>
-  pagePinActionLabel?: string
-  pagePinned?: boolean
-  onPagePinSelect?: (event: StopPropagationEvent) => void | Promise<void>
+  onSavedSelect?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
+  pagePinActionLabel?: string | undefined
+  pagePinned?: boolean | undefined
+  onPagePinSelect?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
   onCopyTitle: (event: StopPropagationEvent) => void | Promise<void>
   urlText: string
   onCopyUrl: (event: StopPropagationEvent) => void | Promise<void>
-  onReloadSelect?: (event: StopPropagationEvent) => void | Promise<void>
-  onDuplicateSelect?: (event: StopPropagationEvent) => void | Promise<void>
-  suspendEnabled?: boolean
-  onSuspendSelect?: (event: StopPropagationEvent) => void | Promise<void>
+  onReloadSelect?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
+  onDuplicateSelect?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
+  suspendEnabled?: boolean | undefined
+  onSuspendSelect?: ((event: StopPropagationEvent) => void | Promise<void>) | undefined
 }
 
 export function PageChipContextMenuContent({

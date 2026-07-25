@@ -21,11 +21,8 @@ import type { DashboardTab } from '../src/extension/types'
 
 function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number; title: string }): DashboardTab {
   return {
-    id: overrides.id,
-    url: overrides.url,
     rawUrl: overrides.rawUrl || overrides.url,
     suspended: false,
-    title: overrides.title,
     favIconUrl: overrides.favIconUrl || '',
     windowId: overrides.windowId || 1,
     active: overrides.active || false,
@@ -33,10 +30,6 @@ function makeTab(overrides: Partial<DashboardTab> & { url: string; id: number; t
     groupId: overrides.groupId ?? -1,
     isTabOut: false,
     isApp: overrides.isApp || false,
-    index: overrides.index,
-    sourceType: overrides.sourceType,
-    saved: overrides.saved,
-    savedPageKey: overrides.savedPageKey,
     ...overrides
   }
 }
@@ -148,6 +141,7 @@ test('computeDomainCardViewModel keeps pinned same-title URL variants inside one
   )
 
   const [variantGroup] = section.flatVisibleChips
+  assert.ok(variantGroup)
   assert.equal(variantGroup.pagePinId, undefined)
   assert.equal(variantGroup.pagePinned, undefined)
   assert.deepEqual(
@@ -198,6 +192,7 @@ test('computeDomainCardViewModel orders a unified same-title group by its earlie
   )
 
   const variantGroup = section.flatVisibleChips[1]
+  assert.ok(variantGroup)
   assert.deepEqual(
     variantGroup.titleVariantChips?.map((variant) => variant.tabUrl),
     [

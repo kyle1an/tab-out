@@ -402,19 +402,19 @@ type TooltipAnchorProps = Omit<
   ComponentProps<typeof TooltipContent>,
   'children' | 'content' | 'onWheel'
 > & {
-  anchorToCursor?: boolean
-  content?: ReactNode
+  anchorToCursor?: boolean | undefined
+  content?: ReactNode | undefined
   children: TooltipTriggerElement
-  onOpenChange?: (open: boolean) => void
-  onWheel?: (event: WheelEvent) => void
+  onOpenChange?: ((open: boolean) => void) | undefined
+  onWheel?: ((event: WheelEvent) => void) | undefined
 }
 
 type TooltipAnchorControllerOptions = {
   anchorId: string
   anchorToCursor: boolean
   children: TooltipTriggerElement
-  contentOnWheel?: (event: WheelEvent) => void
-  onOpenChange?: (open: boolean) => void
+  contentOnWheel?: ((event: WheelEvent) => void) | undefined
+  onOpenChange?: ((open: boolean) => void) | undefined
   openInstantly: boolean
 }
 

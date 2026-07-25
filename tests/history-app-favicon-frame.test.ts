@@ -20,5 +20,7 @@ test('a closed app row keeps the frame at full strength while the icon dims', ()
   assert.match(html, /chip-favicon-dimmed/)
   const frameClassMatch = html.match(/class="([^"]*\bhistory-entry-app-favicon\b[^"]*)"/)
   assert.ok(frameClassMatch)
-  assert.doesNotMatch(frameClassMatch[1], /chip-favicon-dimmed/)
+  const frameClasses = frameClassMatch[1]
+  assert.ok(frameClasses)
+  assert.doesNotMatch(frameClasses, /chip-favicon-dimmed/)
 })

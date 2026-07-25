@@ -29,7 +29,11 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
   let queryCount = 0
   const chromeApi = {
     tabs: {
-      query: async () => queries[queryCount++].promise
+      query: async () => {
+        const query = queries[queryCount++]
+        assert.ok(query, 'unexpected badge tab query')
+        return query.promise
+      }
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
