@@ -1272,7 +1272,7 @@ test('a favicon recovers after the same image node receives a valid source', asy
   }))).toEqual({ display: 'block', naturalWidth: 16 })
 })
 
-test('filter keyboard navigation selects the first true match and moves without leaving the input', async ({ page }) => {
+test('filter keyboard navigation starts in the input and selects the first true match on Arrow Down', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -1280,11 +1280,29 @@ test('filter keyboard navigation selects the first true match and moves without 
   await input.fill('Example')
 
   const matchedCandidates = page.locator('#openTabsMissions [data-tabout-filter-result]')
-  await expect(input).toHaveAttribute('aria-activedescendant', /.+/)
   await expect.poll(() => matchedCandidates.count()).toBeGreaterThan(1)
   const firstId = await matchedCandidates.nth(0).getAttribute('id')
   const secondId = await matchedCandidates.nth(1).getAttribute('id')
 
+  await expect(input).toBeFocused()
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+  await expect(page.locator('[data-tabout-filter-result-selected="true"]')).toHaveCount(0)
+  const caretAtEnd = await input.evaluate((element) => {
+    const inputElement = element as HTMLInputElement
+    inputElement.setSelectionRange(inputElement.value.length, inputElement.value.length)
+    return inputElement.selectionStart
+  })
+  await input.press('ArrowLeft')
+  await expect.poll(() => input.evaluate((element) => (
+    (element as HTMLInputElement).selectionStart
+  ))).toBe((caretAtEnd ?? 1) - 1)
+  await input.press('ArrowRight')
+  await expect.poll(() => input.evaluate((element) => (
+    (element as HTMLInputElement).selectionStart
+  ))).toBe(caretAtEnd)
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+
+  await input.press('ArrowDown')
   await expect(input).toBeFocused()
   await expect(input).toHaveAttribute('aria-activedescendant', firstId ?? '')
   await expect(page.locator('[data-tabout-filter-result-selected="true"]')).toHaveCount(1)
@@ -1312,7 +1330,6 @@ test('filter keyboard navigation selects the first true match and moves without 
   await expect(page.locator('#openTabsMissionsUnmatched [data-tabout-filter-result-selected="true"]')).toHaveCount(0)
 
   await input.press('ArrowDown')
-  await expect(input).toBeFocused()
   await expect(input).toHaveAttribute('aria-activedescendant', secondId ?? '')
 
   await input.press('ArrowUp')
@@ -1368,7 +1385,7 @@ test('filter Enter activates the current query and primary-modifier Shift Enter 
     }).__tabOutSmokeSetActiveTab(3, 2)
   })
   await input.fill('https://tab-out-smoke-03.com/docs/3')
-  await expect(input).toHaveAttribute('aria-activedescendant', /.+/)
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
   const primaryModifier = await page.evaluate(() => (
     /mac|iphone|ipad|ipod/i.test(navigator.platform) ? 'Meta' : 'Control'
   ))
@@ -1401,7 +1418,7 @@ test('filter Enter waits for the first matching companion result to mount', asyn
   await expect(input).toBeFocused()
 })
 
-test('filter Arrow Down waits for companion hydration before moving from the first result', async ({ page }) => {
+test('filter Arrow Down waits for companion hydration before selecting the first result', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
   await installBookmarkFetchGate(page, null, 3)
@@ -1415,9 +1432,28 @@ test('filter Arrow Down waits for companion hydration before moving from the fir
   await releaseBookmarkFetchGate(page)
   const candidates = page.locator('#bookmarkMatchesMissions [data-tabout-filter-result]')
   await expect(candidates).toHaveCount(3)
-  const secondId = await candidates.nth(1).getAttribute('id')
-  await expect(input).toHaveAttribute('aria-activedescendant', secondId ?? '')
-  await expect(candidates.nth(1)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+  const firstId = await candidates.nth(0).getAttribute('id')
+  await expect(input).toHaveAttribute('aria-activedescendant', firstId ?? '')
+  await expect(candidates.nth(0)).toHaveAttribute('data-tabout-filter-result-selected', 'true')
+})
+
+test('filter Arrow Down selects a mounted tab before companion hydration settles', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page)
+
+  const input = page.locator('[data-tabout="filter-query"] input')
+  await input.fill('Example')
+  await input.press('ArrowDown')
+  await waitForBookmarkFetch(page)
+
+  const candidates = page.locator('#openTabsMissions [data-tabout-filter-result]')
+  await expect.poll(() => candidates.count()).toBeGreaterThan(0)
+  const firstId = await candidates.nth(0).getAttribute('id')
+  await expect(input).toHaveAttribute('aria-activedescendant', firstId ?? '')
+  await expect(input).toBeFocused()
+
+  await releaseBookmarkFetchGate(page)
 })
 
 test('filter navigation only selects progressive bookmark results after they mount', async ({ page }) => {
@@ -1649,6 +1685,8 @@ test('filter keyboard selection keeps its identity when a higher-priority compan
   const bookmarkCandidate = page.locator('#bookmarkMatchesMissions [data-tabout-filter-result]').first()
   await expect(bookmarkCandidate).toHaveCount(1)
   const bookmarkId = await bookmarkCandidate.getAttribute('id')
+  await expect(input).not.toHaveAttribute('aria-activedescendant', /.+/)
+  await input.press('ArrowDown')
   await expect(input).toHaveAttribute('aria-activedescendant', bookmarkId ?? '')
   const expectClosedSelectionPalette = async (candidate: Locator) => {
     await expect(candidate).toHaveAttribute('data-tabout-filter-result-selected', 'true')
@@ -1783,6 +1821,7 @@ test('filter Enter cannot activate stale Tabs results during a Bookmarks switch'
 
   const input = page.locator('[data-tabout="filter-query"] input')
   await input.fill('https://tab-out-smoke-02.com/docs/2')
+  await input.press('ArrowDown')
   await expect(input).toHaveAttribute('aria-activedescendant', /.+/)
   await installBookmarkFetchGate(page)
 

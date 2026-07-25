@@ -274,12 +274,20 @@ export function HeaderBar({
       nextSelection = reconciledResult.selection
       nextCandidate = reconciledResult.candidate
     }
+
+    if (pendingActionMatches && pendingAction.kind === 'activate' && !nextCandidate) {
+      nextCandidate = committedCandidates.find(isMountedFilterResultCandidate)
+    }
     let pendingActivation: Extract<PendingFilterResultAction, { kind: 'activate' }> | null = null
     let scrollSelection = false
 
     if (
       pendingActionMatches &&
-      (nextCandidate || filterResultSearchSettled)
+      (
+        nextCandidate ||
+        (pendingAction.kind === 'move' && (mountedCandidates?.length ?? 0) > 0) ||
+        filterResultSearchSettled
+      )
     ) {
       pendingFilterResultActionRef.current = null
       if (pendingAction.kind === 'move') {
@@ -360,6 +368,10 @@ export function HeaderBar({
     if (!intent || !filter.trim()) return
     if (!filterResultNavigationEnabled) return
 
+    const selectionIsInputOwned = filterResultSelectionRef.current.query !== filter ||
+      filterResultSelectionRef.current.candidateKey === null
+    if ((intent === 'left' || intent === 'right') && selectionIsInputOwned) return
+
     e.preventDefault()
     const action: PendingFilterResultAction = intent === 'activate'
       ? {
@@ -427,7 +439,7 @@ export function HeaderBar({
     const selectedFilterResultCandidate = filterResultCandidateForSelection(
       currentSelection,
       mountedCandidates
-    )
+    ) ?? mountedCandidates[0]
     if (selectedFilterResultCandidate) {
       dispatchFilterResultActivation(selectedFilterResultCandidate, action.modifiers)
     }

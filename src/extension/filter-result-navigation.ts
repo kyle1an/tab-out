@@ -142,11 +142,12 @@ export function reconcileFilterResultSelection(
   candidates: readonly FilterResultCandidate[]
 ): FilterResultSelection {
   if (!query.trim() || candidates.length === 0) return selectionForCandidate(query, undefined)
-  if (current.query !== query) return selectionForCandidate(query, candidates[0])
+  if (current.query !== query) return selectionForCandidate(query, undefined)
 
   const exactCandidate = candidates.find((candidate) => candidate.key === current.candidateKey)
   if (exactCandidate) return selectionForCandidate(query, exactCandidate)
 
+  if (current.identity === null) return selectionForCandidate(query, undefined)
   const identityCandidate = candidates.find((candidate) => candidate.identity === current.identity)
   return selectionForCandidate(query, identityCandidate ?? candidates[0])
 }
@@ -167,6 +168,13 @@ export function reconcileVisibleFilterResultSelection(
     }
   }
 
+  if (current.query !== query || current.identity === null) {
+    return {
+      selection: selectionForCandidate(query, undefined),
+      candidate: undefined
+    }
+  }
+
   const visibilityByCandidate = new Map<FilterResultCandidate, boolean>()
   function candidateIsVisible(candidate: FilterResultCandidate): boolean {
     const cached = visibilityByCandidate.get(candidate)
@@ -177,15 +185,13 @@ export function reconcileVisibleFilterResultSelection(
   }
 
   let candidate: FilterResultCandidate | undefined
-  if (current.query === query) {
-    const exactCandidate = candidates.find((item) => item.key === current.candidateKey)
-    if (exactCandidate && candidateIsVisible(exactCandidate)) candidate = exactCandidate
+  const exactCandidate = candidates.find((item) => item.key === current.candidateKey)
+  if (exactCandidate && candidateIsVisible(exactCandidate)) candidate = exactCandidate
 
-    if (!candidate && current.identity !== null) {
-      candidate = candidates.find((item) => (
-        item.identity === current.identity && candidateIsVisible(item)
-      ))
-    }
+  if (!candidate) {
+    candidate = candidates.find((item) => (
+      item.identity === current.identity && candidateIsVisible(item)
+    ))
   }
 
   candidate ??= candidates.find(candidateIsVisible)
@@ -203,7 +209,10 @@ export function selectAdjacentFilterResult(
 ): FilterResultSelection {
   const reconciled = reconcileFilterResultSelection(current, query, candidates)
   const currentIndex = candidates.findIndex((candidate) => candidate.key === reconciled.candidateKey)
-  if (currentIndex < 0) return reconciled
+  if (currentIndex < 0) {
+    const entryIndex = direction === 'next' ? 0 : candidates.length - 1
+    return selectionForCandidate(query, candidates[entryIndex])
+  }
 
   const offset = direction === 'next' ? 1 : -1
   const nextIndex = Math.min(Math.max(currentIndex + offset, 0), candidates.length - 1)

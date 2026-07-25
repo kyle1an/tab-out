@@ -83,13 +83,31 @@ function cardWithVisibleChips(visibleChips: DashboardChipData[]): DashboardCardE
   return cardWithChips(visibleChips)
 }
 
-test('the first filter result is selected by default for a committed query', () => {
+test('a committed query leaves result selection owned by the input', () => {
   assert.deepEqual(
     reconcileFilterResultSelection(EMPTY_FILTER_RESULT_SELECTION, 'example', candidates),
     {
       query: 'example',
-      candidateKey: 'tab:alpha',
-      identity: 'https://alpha.example.test/'
+      candidateKey: null,
+      identity: null
+    }
+  )
+})
+
+test('editing a query returns an established result selection to the input', () => {
+  const selected = selectAdjacentFilterResult(
+    EMPTY_FILTER_RESULT_SELECTION,
+    'example',
+    candidates,
+    'next'
+  )
+
+  assert.deepEqual(
+    reconcileFilterResultSelection(selected, 'example updated', candidates),
+    {
+      query: 'example updated',
+      candidateKey: null,
+      identity: null
     }
   )
 })
@@ -124,10 +142,11 @@ test('selection follows the same Dashboard Item Identity when its rendered candi
 })
 
 test('visible selection reconciliation probes only the still-selected candidate', () => {
-  const current = reconcileFilterResultSelection(
+  const current = selectAdjacentFilterResult(
     EMPTY_FILTER_RESULT_SELECTION,
     'example',
-    candidates
+    candidates,
+    'next'
   )
   const probedKeys: string[] = []
 
@@ -198,7 +217,7 @@ test('visible selection reconciliation follows identity without probing unrelate
   assert.deepEqual(probedKeys, ['history:alpha-hidden', 'tab:alpha-replacement'])
 })
 
-test('visible selection reconciliation stops at the first mounted fallback', () => {
+test('visible selection reconciliation leaves a new query owned by the input', () => {
   const fallbackCandidates: FilterResultCandidate[] = [
     {
       key: 'tab:collapsed',
@@ -220,9 +239,44 @@ test('visible selection reconciliation stops at the first mounted fallback', () 
     }
   )
 
-  assert.equal(result.candidate, candidates[0])
+  assert.equal(result.candidate, undefined)
   assert.deepEqual(result.selection, {
     query: 'new query',
+    candidateKey: null,
+    identity: null
+  })
+  assert.deepEqual(probedKeys, [])
+})
+
+test('visible selection reconciliation stops at the first mounted fallback', () => {
+  const fallbackCandidates: FilterResultCandidate[] = [
+    {
+      key: 'tab:collapsed',
+      identity: 'https://collapsed.example.test/',
+      domId: 'filter-result-collapsed'
+    },
+    candidates[0],
+    candidates[1]
+  ]
+  const probedKeys: string[] = []
+
+  const result = reconcileVisibleFilterResultSelection(
+    {
+      query: 'example',
+      candidateKey: 'tab:removed',
+      identity: 'https://removed.example.test/'
+    },
+    'example',
+    fallbackCandidates,
+    (candidate) => {
+      probedKeys.push(candidate.key)
+      return candidate.key !== 'tab:collapsed'
+    }
+  )
+
+  assert.equal(result.candidate, candidates[0])
+  assert.deepEqual(result.selection, {
+    query: 'example',
     candidateKey: candidates[0].key,
     identity: candidates[0].identity
   })
@@ -230,14 +284,26 @@ test('visible selection reconciliation stops at the first mounted fallback', () 
 })
 
 test('Arrow navigation moves through results and clamps at either end', () => {
-  const first = reconcileFilterResultSelection(EMPTY_FILTER_RESULT_SELECTION, 'example', candidates)
+  const inputOwned = reconcileFilterResultSelection(
+    EMPTY_FILTER_RESULT_SELECTION,
+    'example',
+    candidates
+  )
+  const first = selectAdjacentFilterResult(inputOwned, 'example', candidates, 'next')
   const second = selectAdjacentFilterResult(first, 'example', candidates, 'next')
+  const lastFromInput = selectAdjacentFilterResult(inputOwned, 'example', candidates, 'previous')
 
+  assert.deepEqual(first, {
+    query: 'example',
+    candidateKey: 'tab:alpha',
+    identity: 'https://alpha.example.test/'
+  })
   assert.deepEqual(second, {
     query: 'example',
     candidateKey: 'tab:bravo',
     identity: 'https://bravo.example.test/'
   })
+  assert.deepEqual(lastFromInput, second)
   assert.deepEqual(selectAdjacentFilterResult(second, 'example', candidates, 'next'), second)
   assert.deepEqual(selectAdjacentFilterResult(first, 'example', candidates, 'previous'), first)
 })
@@ -266,10 +332,11 @@ test('horizontal Arrow navigation follows rendered positions instead of result o
       rect: { left: 140, right: 240, top: 0, bottom: 40 }
     }
   ]
-  const first = reconcileFilterResultSelection(
+  const first = selectAdjacentFilterResult(
     EMPTY_FILTER_RESULT_SELECTION,
     'example',
-    spatialCandidates
+    spatialCandidates,
+    'next'
   )
   const right = selectHorizontalFilterResult(first, 'example', positionedCandidates, 'right')
 
@@ -285,7 +352,7 @@ test('horizontal Arrow navigation follows rendered positions instead of result o
 })
 
 test('horizontal Arrow navigation keeps the current result at a spatial boundary', () => {
-  const first = reconcileFilterResultSelection(EMPTY_FILTER_RESULT_SELECTION, 'example', candidates)
+  const first = selectAdjacentFilterResult(EMPTY_FILTER_RESULT_SELECTION, 'example', candidates, 'next')
   const positionedCandidates: PositionedFilterResultCandidate[] = [
     {
       candidate: candidates[0],
