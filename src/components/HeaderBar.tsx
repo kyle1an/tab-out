@@ -331,8 +331,8 @@ export function HeaderBar({
   useLayoutEffect(() => {
     if (filterFocusRequest <= 0) return
     inputRef.current?.focus()
-    // The boot input has already painted this ring. Keep the replacement
-    // input's first frame out of CSS transitions so the ring does not restart.
+    // The boot input has already painted this focus shadow. Keep the replacement
+    // input's first frame from fading in again during the handoff.
     let enableTransitionFrame = requestAnimationFrame(() => {
       enableTransitionFrame = requestAnimationFrame(() => {
         setFilterFocusHandoffPending(false)
@@ -457,8 +457,8 @@ export function HeaderBar({
           <div
             data-tabout="filter-query"
             className={cn(
-              "tab-filter-wrap relative inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:transition-[box-shadow,border-color] before:[corner-shape:squircle] before:content-[''] [&:has(input:focus-visible)::before]:border-neutral-400 [&:has(input:focus-visible)::before]:ring-[3px] [&:has(input:focus-visible)::before]:ring-neutral-400/50",
-              filterFocusHandoffPending && 'before:transition-none',
+              "tab-filter-wrap relative isolate inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100",
+              filterFocusHandoffPending && 'after:transition-none',
               filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex'
             )}
           >
@@ -469,7 +469,7 @@ export function HeaderBar({
               data-tabout-part="input"
               className={cn(
                 'h-8 w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
-                'tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
+                'tab-filter relative z-1 box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground caret-blue-500 shadow-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
               )}
               autoComplete="off"
               autoFocus={filterFocusRequest > 0}
@@ -484,8 +484,9 @@ export function HeaderBar({
             <button
               type="button"
               data-tabout-part="clear-button"
-              className="tab-filter-clear absolute top-1/2 right-1.5 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-foreground [&_svg]:h-3 [&_svg]:w-3"
+              className="tab-filter-clear absolute top-1/2 right-1.5 z-1 hidden size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-muted-foreground transition-[background,color] duration-150 ease-[ease] hover:bg-[rgba(10,10,10,0.08)] hover:text-foreground [&_svg]:h-3 [&_svg]:w-3"
               aria-label="Clear filter"
+              onPointerDown={(event) => event.preventDefault()}
               onClick={onClear}
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">

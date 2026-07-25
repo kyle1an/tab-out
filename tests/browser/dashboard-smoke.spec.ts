@@ -2,48 +2,52 @@ import assert from 'node:assert/strict'
 import { expect, test } from '@playwright/test'
 import type { CDPSession } from '@playwright/test'
 
-test('filter shortcut startup paints one focus-visible ring across the boot handoff', async ({
+test('filter shortcut startup paints one focus-visible shadow across the boot handoff', async ({
   page
 }) => {
   await page.addInitScript(() => {
-    const focusRingPaint = {
+    const focusShadowPaint = {
       owner: 'none',
       presentations: 0,
       visible: false,
-      width: 0
+      blur: 0
     }
-    const focusRingWidthPattern = /0px 0px 0px ([\d.]+)px/g
 
-    function sampleFocusRing() {
+    function sampleFocusShadow() {
       const inputs = document.querySelectorAll<HTMLInputElement>(
         '#filterFocusBootInput, [data-tabout="filter-query"] input'
       )
       let owner = 'none'
-      let width = 0
+      let blur = 0
       for (const input of inputs) {
         if (!input.matches(':focus-visible')) continue
         const borderLayer = input.parentElement
         if (!borderLayer) continue
-        const ringWidths = [...getComputedStyle(borderLayer, '::before').boxShadow.matchAll(focusRingWidthPattern)]
-          .map((match) => Number.parseFloat(match[1] || '0'))
-        const inputWidth = Math.max(0, ...ringWidths)
-        if (inputWidth > width) {
+        const focusLayer = getComputedStyle(borderLayer, '::after')
+        const shadowLengths = focusLayer.filter
+          .match(/-?[\d.]+px/g)
+          ?.map((length) => Number.parseFloat(length)) ?? []
+        const inputBlur = Math.max(
+          0,
+          ...shadowLengths.filter((_, index) => index % 3 === 2)
+        ) * Number.parseFloat(focusLayer.opacity)
+        if (inputBlur > blur) {
           owner = input.id === 'filterFocusBootInput' ? 'boot' : 'app'
-          width = inputWidth
+          blur = inputBlur
         }
       }
 
-      const visible = width > 2
-      if (visible && !focusRingPaint.visible) focusRingPaint.presentations += 1
-      focusRingPaint.owner = owner
-      focusRingPaint.visible = visible
-      focusRingPaint.width = width
-      requestAnimationFrame(sampleFocusRing)
+      const visible = blur > 0
+      if (visible && !focusShadowPaint.visible) focusShadowPaint.presentations += 1
+      focusShadowPaint.owner = owner
+      focusShadowPaint.visible = visible
+      focusShadowPaint.blur = blur
+      requestAnimationFrame(sampleFocusShadow)
     }
 
-    ;(window as typeof window & { __tabOutFocusRingPaint: typeof focusRingPaint })
-      .__tabOutFocusRingPaint = focusRingPaint
-    requestAnimationFrame(sampleFocusRing)
+    ;(window as typeof window & { __tabOutFocusShadowPaint: typeof focusShadowPaint })
+      .__tabOutFocusShadowPaint = focusShadowPaint
+    requestAnimationFrame(sampleFocusShadow)
   })
   await page.route('**/extension/dist/app.js', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 200))
@@ -54,32 +58,85 @@ test('filter shortcut startup paints one focus-visible ring across the boot hand
   const filterInput = page.locator('[data-tabout="filter-query"] input')
   await expect(filterInput).toBeFocused()
   await expect.poll(() => page.evaluate(() =>
-    (window as typeof window & { __tabOutFocusRingPaint: { width: number } })
-      .__tabOutFocusRingPaint.width
+    (window as typeof window & { __tabOutFocusShadowPaint: { blur: number } })
+      .__tabOutFocusShadowPaint.blur
   )).toBeGreaterThan(2.8)
 
-  const shadowOwnership = await filterInput.evaluate((input) => ({
-    borderFilter: getComputedStyle(input.parentElement!, '::before').filter,
+  const focusStyle = await filterInput.evaluate((input) => ({
+    restingFilter: getComputedStyle(input.parentElement!, '::before').filter,
+    focusFilter: getComputedStyle(input.parentElement!, '::after').filter,
+    focusBoxShadow: getComputedStyle(input.parentElement!, '::after').boxShadow,
+    focusBorderColor: getComputedStyle(input.parentElement!, '::after').borderColor,
+    focusOpacity: getComputedStyle(input.parentElement!, '::after').opacity,
+    caretColor: getComputedStyle(input).caretColor,
     inputFilter: getComputedStyle(input).filter
   }))
-  expect(shadowOwnership.inputFilter).toBe('none')
-  expect(shadowOwnership.borderFilter).not.toBe('none')
+  expect(focusStyle.inputFilter).toBe('none')
+  expect(focusStyle.restingFilter).toContain('drop-shadow')
+  expect(focusStyle.focusFilter).toContain('drop-shadow')
+  expect(focusStyle.focusBoxShadow).toBe('none')
+  expect(focusStyle.focusBorderColor).toBe(focusStyle.caretColor)
+  expect(focusStyle.focusOpacity).toBe('1')
 
-  const focusRingPaint = await page.evaluate(() =>
+  await filterInput.fill('example')
+  const clearFilterButton = page.getByRole('button', { name: 'Clear filter' })
+  await expect(clearFilterButton).toBeVisible()
+  await filterInput.evaluate((input) => {
+    const trackedWindow = window as typeof window & { __tabOutFilterBlurCount?: number }
+    trackedWindow.__tabOutFilterBlurCount = 0
+    input.addEventListener('blur', () => {
+      trackedWindow.__tabOutFilterBlurCount = (trackedWindow.__tabOutFilterBlurCount ?? 0) + 1
+    })
+  })
+  await clearFilterButton.click()
+  await expect(filterInput).toHaveValue('')
+  await expect(filterInput).toBeFocused()
+  expect(await page.evaluate(() =>
+    (window as typeof window & { __tabOutFilterBlurCount?: number }).__tabOutFilterBlurCount
+  )).toBe(0)
+
+  const focusShadowPaint = await page.evaluate(() =>
     (window as typeof window & {
-      __tabOutFocusRingPaint: {
+      __tabOutFocusShadowPaint: {
         owner: string
         presentations: number
         visible: boolean
-        width: number
+        blur: number
       }
-    }).__tabOutFocusRingPaint
+    }).__tabOutFocusShadowPaint
   )
-  expect(focusRingPaint).toMatchObject({
+  expect(focusShadowPaint).toMatchObject({
     owner: 'app',
     presentations: 1,
     visible: true
   })
+
+  const refocusPaint = await filterInput.evaluate(async (input) => {
+    const borderLayer = input.parentElement!
+    input.blur()
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    input.focus()
+    const samples: Array<{ borderColor: string; filter: string; opacity: number }> = []
+    const start = performance.now()
+    do {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+      const focusLayer = getComputedStyle(borderLayer, '::after')
+      samples.push({
+        borderColor: focusLayer.borderColor,
+        filter: focusLayer.filter,
+        opacity: Number.parseFloat(focusLayer.opacity)
+      })
+    } while (performance.now() - start < 200)
+    return samples
+  })
+  expect(refocusPaint.length).toBeGreaterThan(2)
+  expect(refocusPaint[0]?.opacity).toBeLessThan(1)
+  expect(refocusPaint.at(-1)?.opacity).toBe(1)
+  expect(new Set(refocusPaint.map(({ borderColor }) => borderColor)).size).toBe(1)
+  expect(new Set(refocusPaint.map(({ filter }) => filter)).size).toBe(1)
+  for (let index = 1; index < refocusPaint.length; index += 1) {
+    expect(refocusPaint[index]!.opacity).toBeGreaterThanOrEqual(refocusPaint[index - 1]!.opacity)
+  }
 })
 
 const RUN_HISTORY_SCROLLBAR_OVERLAP_ONLY = process.env.HISTORY_SCROLLBAR_OVERLAP_ONLY === '1'

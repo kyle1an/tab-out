@@ -325,15 +325,20 @@ test('header controls share one size and corner radius contract', () => {
   assert.doesNotMatch(historyRangeSelectSource, /alignItemWithTrigger=\{false\}/)
   assert.match(historyRangeSelectSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.doesNotMatch(historyRangeSelectSource, /aria-selected:bg-accent|aria-selected:text-accent-foreground/)
-  for (const token of ['before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', '[&:has(input:focus-visible)::before]:border-neutral-400', '[&:has(input:focus-visible)::before]:ring-[3px]', '[&:has(input:focus-visible)::before]:ring-neutral-400/50']) {
+  for (const token of ['isolate', 'before:z-0', 'before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', 'after:z-0', 'after:border-blue-500', 'after:opacity-0', 'after:drop-shadow-md', 'after:drop-shadow-blue-500/50', 'after:transition-opacity', 'after:duration-150', 'after:[corner-shape:squircle]', '[&:has(input:focus-visible)::after]:opacity-100']) {
     assert.ok(tabFilterWrapClass.includes(token), token)
   }
-  for (const token of ['h-(--header-control-height)', 'rounded-(--header-control-radius)', 'text-(length:--header-control-font-size)', 'leading-(--header-control-line-height)', 'shadow-none', '[corner-shape:squircle]']) {
+  assert.doesNotMatch(tabFilterWrapClass, /transition-\[filter|focus-visible\)::before/)
+  assert.match(headerBarSource, /filterFocusHandoffPending && 'after:transition-none'/)
+  assert.doesNotMatch(tabFilterWrapClass, /ring-/)
+  assert.ok(!tabFilterWrapClass.includes(']:shadow-['))
+  for (const token of ['relative', 'z-1', 'h-(--header-control-height)', 'rounded-(--header-control-radius)', 'text-(length:--header-control-font-size)', 'leading-(--header-control-line-height)', 'caret-blue-500', 'shadow-none', '[corner-shape:squircle]']) {
     assert.ok(tabFilterClass.includes(token), token)
   }
   assert.doesNotMatch(tabFilterClass, /drop-shadow/)
   assert.doesNotMatch(tabFilterClass, /focus-visible:(?:border|ring)/)
   assert.match(headerBarSource, /border border-transparent bg-transparent/)
+  assert.match(headerBarSource, /data-tabout-part="clear-button"[\s\S]*?onPointerDown=\{\(event\) => event\.preventDefault\(\)\}[\s\S]*?onClick=\{onClear\}/)
   assert.doesNotMatch(headerBarSource, /tab-filter[^"]*md:!text|tab-filter[^"]*md:!leading/)
   assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
@@ -359,15 +364,21 @@ test('pre-app filter focus shell uses the same stable header input sizing', () =
   assert.match(indexHtml, /placeholder="Filter tabs, bookmarks, history…"/)
   assert.ok(bootRootClass.includes('[&[hidden]]:hidden'))
   assert.ok(bootShellClass.includes('grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)]'))
-  for (const token of ['before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', '[&:has(input:focus-visible)::before]:border-neutral-400', '[&:has(input:focus-visible)::before]:ring-[3px]', '[&:has(input:focus-visible)::before]:ring-neutral-400/50']) {
+  for (const token of ['isolate', 'before:z-0', 'before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', 'after:z-0', 'after:border-blue-500', 'after:opacity-0', 'after:drop-shadow-md', 'after:drop-shadow-blue-500/50', 'after:transition-opacity', 'after:duration-150', 'after:[corner-shape:squircle]', '[&:has(input:focus-visible)::after]:opacity-100']) {
     assert.ok(bootInputWrapClass.includes(token), token)
   }
+  assert.doesNotMatch(bootInputWrapClass, /transition-\[filter|focus-visible\)::before/)
+  assert.doesNotMatch(bootInputWrapClass, /ring-/)
+  assert.ok(!bootInputWrapClass.includes(']:shadow-['))
   for (const token of [
     'w-[280px]',
+    'relative',
+    'z-1',
     'h-(--header-control-height)',
     'rounded-(--header-control-radius)',
     'text-(length:--header-control-font-size)',
     'leading-(--header-control-line-height)',
+    'caret-blue-500',
     '[corner-shape:squircle]',
     'border-transparent',
     'shadow-none',
