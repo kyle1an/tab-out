@@ -30,15 +30,17 @@
           <div class="max-[900px]:hidden" aria-hidden="true"></div>
           <div class="col-start-2 flex min-h-0 min-w-0 flex-col pr-(--dashboard-page-gutter) max-[900px]:col-start-1 max-[900px]:px-(--dashboard-page-gutter)">
             <div class="relative z-10 -ml-14 mr-[calc(0px_-_var(--dashboard-edge-bleed))] flex-none py-3 pr-[calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scroll-gutter)_+_var(--dashboard-scrollbar-size))] pl-14 max-[900px]:ml-[calc(0px_-_var(--dashboard-edge-bleed))] max-[900px]:pr-[calc(var(--dashboard-edge-bleed)_+_var(--dashboard-scrollbar-size))] max-[900px]:pl-(--dashboard-edge-bleed)">
-              <input
-                id="filterFocusBootInput"
-                class="box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-input bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none drop-shadow-xs transition-[color,box-shadow,border-color] outline-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground focus-visible:border-neutral-400 focus-visible:ring-[3px] focus-visible:ring-neutral-400/50 min-[900px]:max-[960px]:w-[220px] md:text-sm [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
-                type="search"
-                autocomplete="off"
-                spellcheck="false"
-                aria-label="Filter tabs"
-                placeholder="Filter tabs, bookmarks, history…"
-              />
+              <div class="filter-focus-boot-input-wrap relative inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:transition-[box-shadow,border-color] before:[corner-shape:squircle] before:content-[''] [&:has(input:focus-visible)::before]:border-neutral-400 [&:has(input:focus-visible)::before]:ring-[3px] [&:has(input:focus-visible)::before]:ring-neutral-400/50">
+                <input
+                  id="filterFocusBootInput"
+                  class="box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-transparent bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none transition-colors outline-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:w-[220px] md:text-sm [&::-webkit-search-cancel-button]:[-webkit-appearance:none]"
+                  type="search"
+                  autocomplete="off"
+                  spellcheck="false"
+                  aria-label="Filter tabs"
+                  placeholder="Filter tabs, bookmarks, history…"
+                />
+              </div>
             </div>
           </div>
         </div>

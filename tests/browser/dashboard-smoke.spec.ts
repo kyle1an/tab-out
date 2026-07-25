@@ -22,7 +22,9 @@ test('filter shortcut startup paints one focus-visible ring across the boot hand
       let width = 0
       for (const input of inputs) {
         if (!input.matches(':focus-visible')) continue
-        const ringWidths = [...getComputedStyle(input).boxShadow.matchAll(focusRingWidthPattern)]
+        const borderLayer = input.parentElement
+        if (!borderLayer) continue
+        const ringWidths = [...getComputedStyle(borderLayer, '::before').boxShadow.matchAll(focusRingWidthPattern)]
           .map((match) => Number.parseFloat(match[1] || '0'))
         const inputWidth = Math.max(0, ...ringWidths)
         if (inputWidth > width) {
@@ -49,11 +51,19 @@ test('filter shortcut startup paints one focus-visible ring across the boot hand
   })
 
   await page.goto('/tests/fixtures/dashboard-resize.html?focusFilter=1')
-  await expect(page.locator('[data-tabout="filter-query"] input')).toBeFocused()
+  const filterInput = page.locator('[data-tabout="filter-query"] input')
+  await expect(filterInput).toBeFocused()
   await expect.poll(() => page.evaluate(() =>
     (window as typeof window & { __tabOutFocusRingPaint: { width: number } })
       .__tabOutFocusRingPaint.width
   )).toBeGreaterThan(2.8)
+
+  const shadowOwnership = await filterInput.evaluate((input) => ({
+    borderFilter: getComputedStyle(input.parentElement!, '::before').filter,
+    inputFilter: getComputedStyle(input).filter
+  }))
+  expect(shadowOwnership.inputFilter).toBe('none')
+  expect(shadowOwnership.borderFilter).not.toBe('none')
 
   const focusRingPaint = await page.evaluate(() =>
     (window as typeof window & {

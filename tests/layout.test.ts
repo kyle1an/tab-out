@@ -306,7 +306,11 @@ test('header controls share one size and corner radius contract', () => {
   const historyRangeSelectSource = readFileSync(new URL('../src/components/HistoryRangeSelect.tsx', import.meta.url), 'utf8')
   const headerStatsSource = readFileSync(new URL('../src/components/HeaderStats.tsx', import.meta.url), 'utf8')
   const selectSource = readFileSync(new URL('../src/components/ui/select.tsx', import.meta.url), 'utf8')
+  const tabFilterWrapClass = headerBarSource.match(/"tab-filter-wrap [^"]+"/)?.[0]
+  const tabFilterClass = headerBarSource.match(/'tab-filter [^']+'/)?.[0]
 
+  assert.ok(tabFilterWrapClass)
+  assert.ok(tabFilterClass)
   assert.match(baseCss, /--header-control-height: 34px/)
   assert.match(baseCss, /--header-control-radius: 16px/)
   assert.match(baseCss, /--header-control-font-size: 13px/)
@@ -321,7 +325,15 @@ test('header controls share one size and corner radius contract', () => {
   assert.doesNotMatch(historyRangeSelectSource, /alignItemWithTrigger=\{false\}/)
   assert.match(historyRangeSelectSource, /<SelectItem[\s\S]*className="[^"]*rounded-\[calc\(var\(--header-control-radius\)_-_6px\)\][^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)/)
   assert.doesNotMatch(historyRangeSelectSource, /aria-selected:bg-accent|aria-selected:text-accent-foreground/)
-  assert.match(headerBarSource, /tab-filter[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)[^"]*text-\(length:--header-control-font-size\)[^"]*leading-\(--header-control-line-height\)[^"]*shadow-none[^"]*drop-shadow-xs[^"]*\[corner-shape:squircle\]/)
+  for (const token of ['before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', '[&:has(input:focus-visible)::before]:border-neutral-400', '[&:has(input:focus-visible)::before]:ring-[3px]', '[&:has(input:focus-visible)::before]:ring-neutral-400/50']) {
+    assert.ok(tabFilterWrapClass.includes(token), token)
+  }
+  for (const token of ['h-(--header-control-height)', 'rounded-(--header-control-radius)', 'text-(length:--header-control-font-size)', 'leading-(--header-control-line-height)', 'shadow-none', '[corner-shape:squircle]']) {
+    assert.ok(tabFilterClass.includes(token), token)
+  }
+  assert.doesNotMatch(tabFilterClass, /drop-shadow/)
+  assert.doesNotMatch(tabFilterClass, /focus-visible:(?:border|ring)/)
+  assert.match(headerBarSource, /border border-transparent bg-transparent/)
   assert.doesNotMatch(headerBarSource, /tab-filter[^"]*md:!text|tab-filter[^"]*md:!leading/)
   assert.match(headerStatsSource, /action-btn[^"]*h-\(--header-control-height\)[^"]*rounded-\(--header-control-radius\)/)
   assert.doesNotMatch(headerBarSource, /<SelectTrigger\s+size="header"|<SelectContent\s+size="header"/)
@@ -336,15 +348,20 @@ test('pre-app filter focus shell uses the same stable header input sizing', () =
   const indexHtml = readFileSync(new URL('../extension/index.html', import.meta.url), 'utf8')
   const bootRootClass = indexHtml.match(/id="filterFocusBootShell"[\s\S]*?class="([^"]+)"/)?.[1]
   const bootShellClass = indexHtml.match(/<div class="([^"]*grid-cols-\[minmax\(calc\(220px_[^"]*)"/)?.[1]
+  const bootInputWrapClass = indexHtml.match(/class="([^"]*filter-focus-boot-input-wrap[^"]*)"/)?.[1]
   const bootInputClass = indexHtml.match(/id="filterFocusBootInput"[\s\S]*?class="([^"]+)"/)?.[1]
 
   assert.ok(bootRootClass)
   assert.ok(bootShellClass)
+  assert.ok(bootInputWrapClass)
   assert.ok(bootInputClass)
   assert.match(appCssSource, /@source "\.\.\/\.\.\/extension\/index\.html";/)
   assert.match(indexHtml, /placeholder="Filter tabs, bookmarks, history…"/)
   assert.ok(bootRootClass.includes('[&[hidden]]:hidden'))
   assert.ok(bootShellClass.includes('grid-cols-[minmax(calc(220px_+_var(--dashboard-history-edge-gutter)),calc(260px_+_var(--dashboard-history-edge-gutter)))_minmax(0,1fr)]'))
+  for (const token of ['before:border-input', 'before:drop-shadow-xs', 'before:[corner-shape:squircle]', '[&:has(input:focus-visible)::before]:border-neutral-400', '[&:has(input:focus-visible)::before]:ring-[3px]', '[&:has(input:focus-visible)::before]:ring-neutral-400/50']) {
+    assert.ok(bootInputWrapClass.includes(token), token)
+  }
   for (const token of [
     'w-[280px]',
     'h-(--header-control-height)',
@@ -352,17 +369,16 @@ test('pre-app filter focus shell uses the same stable header input sizing', () =
     'text-(length:--header-control-font-size)',
     'leading-(--header-control-line-height)',
     '[corner-shape:squircle]',
+    'border-transparent',
     'shadow-none',
-    'drop-shadow-xs',
     'placeholder:text-muted-foreground',
-    'focus-visible:border-neutral-400',
-    'focus-visible:ring-[3px]',
-    'focus-visible:ring-neutral-400/50',
     'min-[900px]:max-[960px]:w-[220px]',
     'md:text-sm'
   ]) {
     assert.ok(bootInputClass.includes(token), token)
   }
+  assert.doesNotMatch(bootInputClass, /drop-shadow/)
+  assert.doesNotMatch(bootInputClass, /focus-visible:(?:border|ring)/)
   assert.doesNotMatch(bootInputClass, /md:!text|md:!leading/)
   assert.doesNotMatch(baseCss, /filter-focus-boot/)
 })

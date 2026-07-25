@@ -456,7 +456,11 @@ export function HeaderBar({
         <div className="header-left inline-flex items-center gap-4">
           <div
             data-tabout="filter-query"
-            className={cn('tab-filter-wrap relative inline-flex items-center', filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex')}
+            className={cn(
+              "tab-filter-wrap relative inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:transition-[box-shadow,border-color] before:[corner-shape:squircle] before:content-[''] [&:has(input:focus-visible)::before]:border-neutral-400 [&:has(input:focus-visible)::before]:ring-[3px] [&:has(input:focus-visible)::before]:ring-neutral-400/50",
+              filterFocusHandoffPending && 'before:transition-none',
+              filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex'
+            )}
           >
             <input
               ref={inputRef}
@@ -464,9 +468,8 @@ export function HeaderBar({
               data-slot="input"
               data-tabout-part="input"
               className={cn(
-                'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-[color,box-shadow,border-color] outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-neutral-400 focus-visible:ring-[3px] focus-visible:ring-neutral-400/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
-                'tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none drop-shadow-xs [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
-                filterFocusHandoffPending && 'transition-none'
+                'h-8 w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
+                'tab-filter box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground shadow-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
               )}
               autoComplete="off"
               autoFocus={filterFocusRequest > 0}
