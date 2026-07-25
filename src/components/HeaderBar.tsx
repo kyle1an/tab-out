@@ -16,11 +16,6 @@ import {
   type FilterResultMoveDirection,
   type FilterResultSelection
 } from '../extension/filter-result-navigation.js'
-import {
-  FILTER_INPUT_CLASS,
-  FILTER_INPUT_WRAP_CLASS,
-  FILTER_PLACEHOLDER_WITH_HISTORY
-} from '@/lib/filter-input-classes'
 import { cn } from '@/lib/utils'
 import type { DashboardSource, DashboardStats } from './types'
 
@@ -341,7 +336,7 @@ export function HeaderBar({
     return () => window.removeEventListener('keydown', onWindowKeyDown)
   }, [])
 
-  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? FILTER_PLACEHOLDER_WITH_HISTORY : 'Filter tabs and bookmarks…'
+  const filterPlaceholder = source === 'bookmarks' ? 'Filter bookmarks…' : isHistoryFilterEnabled(historyRange) ? 'Filter tabs, bookmarks, history…' : 'Filter tabs and bookmarks…'
 
   function onFilterKeyDown(e: ReactKeyboardEvent<HTMLInputElement>) {
     const intent = filterResultKeyboardIntent({
@@ -444,7 +439,7 @@ export function HeaderBar({
           <div
             data-tabout="filter-query"
             className={cn(
-              `tab-filter-wrap ${FILTER_INPUT_WRAP_CLASS}`,
+              "tab-filter-wrap relative isolate inline-flex items-center before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-(--header-control-radius) before:border before:border-input before:drop-shadow-xs before:[corner-shape:squircle] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-(--header-control-radius) after:border after:border-blue-500 after:opacity-0 after:drop-shadow-md after:drop-shadow-blue-500/50 after:transition-opacity after:duration-150 after:ease-out after:[corner-shape:squircle] after:content-[''] motion-reduce:after:transition-none [&:has(input:focus-visible)::after]:opacity-100",
               filter && 'has-value [&_.tab-filter]:pr-[30px] [&_.tab-filter-clear]:inline-flex'
             )}
           >
@@ -455,7 +450,7 @@ export function HeaderBar({
               data-tabout-part="input"
               className={cn(
                 'h-8 w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40',
-                `tab-filter ${FILTER_INPUT_CLASS}`,
+                'tab-filter relative z-1 box-border h-(--header-control-height) w-[280px] rounded-(--header-control-radius) border border-transparent bg-transparent px-3 py-1 text-(length:--header-control-font-size) leading-(--header-control-line-height) text-foreground caret-blue-500 shadow-none transition-colors outline-none [font-family:inherit] [corner-shape:squircle] placeholder:select-none placeholder:text-muted-foreground min-[900px]:max-[960px]:[.dashboard-shell.has-history_&]:w-[220px] md:text-sm [&::-webkit-search-cancel-button]:[-webkit-appearance:none]',
               )}
               autoComplete="off"
               spellCheck="false"

@@ -1,8 +1,7 @@
-# ADR 0005: Prerender And Attach The Dashboard Shell
+# ADR 0004: Prerender And Attach The Dashboard Shell
 
 - Status: Accepted
 - Date: 2026-07-25
-- Supersedes: ADR 0004
 
 ## Context
 
@@ -61,4 +60,3 @@ is not an acceptable escape hatch.
 
 - Design, measurements, and implementation plan: `.scratch/ssr-shell-hydration/`
 - Startup contract: [`CONTEXT.md`](../../CONTEXT.md)
-- Superseded decision: [ADR 0004](0004-pre-app-shell-stays-a-static-stand-in.md)

@@ -535,60 +535,6 @@
           }
         })]
 
-      if (fixtureParams.has('warmStartupSnapshot')) {
-        const warmChromeTab = tabs.find((tab) => tab.url === 'https://tab-out-smoke-03.com/docs/3')
-        const warmDashboardTab = {
-          id: warmChromeTab.id,
-          url: warmChromeTab.url,
-          rawUrl: warmChromeTab.url,
-          suspended: false,
-          title: warmChromeTab.title,
-          favIconUrl: '',
-          windowId: warmChromeTab.windowId,
-          active: warmChromeTab.active,
-          pinned: warmChromeTab.pinned,
-          groupId: warmChromeTab.groupId,
-          isTabOut: false,
-          isApp: false,
-          index: warmChromeTab.index
-        }
-        const savedAt = Date.now()
-        localStorageStore['tab-out:startup-snapshot:v1'] = {
-          savedAt,
-          captureStartedAt: savedAt,
-          workingSetSavedAt: savedAt,
-          snapshot: {
-            dashboard: {
-              realTabs: [warmDashboardTab],
-              domainGroups: [{
-                domain: 'tab-out-smoke-03.com',
-                tabs: [warmDashboardTab]
-              }]
-            },
-            tabHistory: null,
-            workingSet: null,
-            closedTabs: fixtureParams.has('warmStartupClosedTab')
-              ? [{
-                  sessionId: 'closed-startup-alpha',
-                  tabId: -1,
-                  url: 'https://closed-startup.example.test/docs',
-                  rawUrl: 'https://closed-startup.example.test/docs',
-                  displayUrl: 'closed-startup.example.test/docs',
-                  title: 'Closed startup example',
-                  favIconUrl: '',
-                  lastClosedAt: savedAt - 1
-                }]
-              : []
-          },
-          localState: {
-            loaded: true,
-            pinnedDomains: [],
-            pinnedSectionIds: [],
-            pinnedPageChipIds: []
-          }
-        }
-      }
-
       function workingSetActivityFromTabs() {
         const now = 1800000000000
         const records = {}
@@ -614,7 +560,6 @@
       const slowInitialStorage = fixtureParams.has('slowInitialStorage')
       const stalledCloseRefresh = fixtureParams.has('stalledCloseRefresh')
       const slowStartupRefresh = fixtureParams.has('slowStartupRefresh')
-      const stalledStartupRefresh = fixtureParams.has('stalledStartupRefresh')
       let delayNextDashboardServiceState = false
       let dashboardServiceStateRequestCount = 0
       const chromeApi = createFakeChromeApi({
@@ -626,12 +571,9 @@
         sendMessage: async (message) => {
           if (message?.type === 'tab-out:get-dashboard-service-state') {
             dashboardServiceStateRequestCount += 1
-            if ((slowStartupRefresh || stalledStartupRefresh) && dashboardServiceStateRequestCount === 1) {
+            if (slowStartupRefresh && dashboardServiceStateRequestCount === 1) {
               window.__tabOutSmokeStartupRefreshStarted = true
-              await new Promise((resolve) => {
-                if (!stalledStartupRefresh) setTimeout(resolve, 500)
-              })
-              window.__tabOutSmokeStartupRefreshCompleted = true
+              await new Promise((resolve) => setTimeout(resolve, 500))
             }
             if (delayNextDashboardServiceState) {
               delayNextDashboardServiceState = false
