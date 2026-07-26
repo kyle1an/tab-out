@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
+import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../src/extension/background/startup-snapshot-service.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
 import type { CapturedDashboardServiceState } from '../src/extension/dashboard-service-messages.js'
 import {
@@ -66,6 +67,7 @@ type StartupCacheEnvelope = {
 }
 
 test.after(() => backgroundClock.uninstall())
+test.beforeEach(() => backgroundClock.reset())
 
 function valueAt<T>(values: readonly T[], index: number): T {
   const value = values[index]
@@ -1174,6 +1176,8 @@ test('tab replacement rebases history, Working Set, and the warm startup snapsho
 
   await mock.replaceTab(201, 211)
   await flushBackgroundWork()
+  await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
+  await flushBackgroundWork()
 
   const warmAfter = requireStartupSnapshot(
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
@@ -2077,7 +2081,7 @@ test('recently closed session changes refresh the warm startup snapshot without 
     }
   })
   onSessionsChanged()
-  await backgroundClock.tickAsync(150)
+  await backgroundClock.tickAsync(150 + STARTUP_SNAPSHOT_DEBOUNCE_MS)
   await flushBackgroundWork()
 
   const afterSnapshot = requireStartupSnapshot(
@@ -2136,6 +2140,9 @@ test('background restore messages hold an early sessions change until the restor
   assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY], undefined)
 
   await backgroundClock.tickAsync(1)
+  assert.equal(mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY], undefined)
+
+  await backgroundClock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
   for (
     let turn = 0;
     mock.storageValues.session[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] === undefined && turn < 20;

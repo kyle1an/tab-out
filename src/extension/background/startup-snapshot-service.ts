@@ -11,7 +11,8 @@ import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs, seedOpenTabs
 
 // Coalesce bursts of tab events into a single recompute. The maintained snapshot only needs to
 // be reasonably fresh whenever a Tab Out page next opens; live hydration corrects any drift.
-const STARTUP_SNAPSHOT_DEBOUNCE_MS = 4000
+export const STARTUP_SNAPSHOT_DEBOUNCE_MS = 4000
+export const STARTUP_SNAPSHOT_MAX_WAIT_MS = 30_000
 export const STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS = 250
 const STARTUP_SNAPSHOT_RENDER_STATE_KEYS = [
   DOMAIN_PIN_STORAGE_KEY,
@@ -41,7 +42,8 @@ export type StartupSnapshotService = {
 }
 
 export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): StartupSnapshotService {
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let quietTimer: ReturnType<typeof setTimeout> | null = null
+  let maxWaitTimer: ReturnType<typeof setTimeout> | null = null
   let cacheSeedRetryTimer: ReturnType<typeof setTimeout> | null = null
   let cacheSeedRetryAttempted = false
   let closedTabsRetryTimer: ReturnType<typeof setTimeout> | null = null
@@ -50,8 +52,14 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   const pendingSessionRestoreIds = new Set<string>()
   const sessionRestoreWatchdogs = new Map<string, ReturnType<typeof setTimeout>>()
   let inFlight: Promise<void> | null = null
-  let refreshPending = false
   let cachedOpenTabsSeeded = false
+
+  function clearScheduledRefresh(): void {
+    if (quietTimer !== null) clearTimeout(quietTimer)
+    if (maxWaitTimer !== null) clearTimeout(maxWaitTimer)
+    quietTimer = null
+    maxWaitTimer = null
+  }
 
   function clearCacheSeedRetry(): void {
     if (cacheSeedRetryTimer !== null) clearTimeout(cacheSeedRetryTimer)
@@ -152,21 +160,15 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   }
 
   function refreshNow(): Promise<void> {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer)
-      debounceTimer = null
-    }
+    clearScheduledRefresh()
     if (inFlight) {
-      refreshPending = true
+      scheduleRefresh()
       return inFlight
     }
     const run = (async () => {
-      do {
-        refreshPending = false
-        try {
-          await compute()
-        } catch {}
-      } while (refreshPending)
+      try {
+        await compute()
+      } catch {}
     })()
     inFlight = run
     void run.finally(() => {
@@ -176,11 +178,15 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   }
 
   function scheduleRefresh(): void {
-    if (debounceTimer) clearTimeout(debounceTimer)
-    debounceTimer = setTimeout(() => {
-      debounceTimer = null
+    if (quietTimer !== null) clearTimeout(quietTimer)
+    const runScheduledRefresh = () => {
+      clearScheduledRefresh()
       void refreshNow()
-    }, STARTUP_SNAPSHOT_DEBOUNCE_MS)
+    }
+    quietTimer = setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_DEBOUNCE_MS)
+    if (maxWaitTimer === null) {
+      maxWaitTimer = setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_MAX_WAIT_MS)
+    }
   }
 
   function sessionsChanged(): void {
@@ -196,7 +202,7 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   function scheduleSessionsSettleRefresh(): void {
     sessionsSettleTimer = setTimeout(() => {
       sessionsSettleTimer = null
-      void refreshNow()
+      scheduleRefresh()
     }, CLOSED_TAB_SESSION_SETTLE_MS)
   }
 

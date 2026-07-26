@@ -129,7 +129,7 @@ chromeApi.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
       tabHistoryService.replaceTabId(addedTabId, removedTabId),
       workingSetService.replaceTabId(addedTabId, removedTabId)
     ])
-    await startupSnapshotService.refreshNow()
+    startupSnapshotService.scheduleRefresh()
   })
 })
 

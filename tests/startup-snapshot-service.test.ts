@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 
-import { STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS, createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from '../src/extension/background/startup-snapshot-service.js'
+import {
+  STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS,
+  STARTUP_SNAPSHOT_DEBOUNCE_MS,
+  createStartupSnapshotService,
+  startupSnapshotStorageChangesRequireRefresh
+} from '../src/extension/background/startup-snapshot-service.js'
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS } from '../src/extension/closed-tabs.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
@@ -507,11 +512,40 @@ test('startup snapshot service coalesces pending debounced refreshes', async () 
 
     service.scheduleRefresh()
     service.scheduleRefresh()
-    assert.equal(clock.countTimers(), 1)
+    assert.equal(clock.countTimers(), 2)
 
-    await clock.tickAsync(4000)
+    await clock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
     assert.equal(clock.countTimers(), 0)
     assert.equal(snapshotBuilds, 1)
+  } finally {
+    clock.uninstall()
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
+})
+
+test('startup snapshot service bounds rebuilds during a sustained sessions event storm', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  let snapshotBuilds = 0
+  installEmptyWorkerChrome()
+
+  try {
+    const service = createStartupSnapshotService({
+      getDashboardServiceState: captureDashboardServiceState(async () => {
+        snapshotBuilds += 1
+        return emptyTabHistory as any
+      })
+    })
+
+    for (let elapsedMs = 0; elapsedMs < 120_000; elapsedMs += 1000) {
+      service.sessionsChanged()
+      await clock.tickAsync(1000)
+    }
+    await clock.tickAsync(5000)
+
+    assert.ok(snapshotBuilds >= 1, 'a sustained burst still refreshes the warm snapshot')
+    assert.ok(snapshotBuilds <= 4, `expected at most four bounded rebuilds, received ${snapshotBuilds}`)
   } finally {
     clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
@@ -534,12 +568,12 @@ test('an immediate startup snapshot refresh consumes a pending debounce', async 
     })
 
     service.scheduleRefresh()
-    assert.equal(clock.countTimers(), 1)
+    assert.equal(clock.countTimers(), 2)
     await service.refreshNow()
 
     assert.equal(clock.countTimers(), 0)
     assert.equal(snapshotBuilds, 1)
-    await clock.tickAsync(4000)
+    await clock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
     assert.equal(snapshotBuilds, 1)
   } finally {
     clock.uninstall()
@@ -572,6 +606,7 @@ test('startup snapshot service refreshes again after a completed refresh', async
 })
 
 test('startup snapshot service runs a trailing refresh requested during an active build', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   let snapshotBuilds = 0
   let releaseFirstBuild!: () => void
@@ -602,8 +637,11 @@ test('startup snapshot service runs a trailing refresh requested during an activ
     releaseFirstBuild()
     await Promise.all([firstRefresh, trailingRefresh])
 
+    assert.equal(snapshotBuilds, 1, 'an in-flight request does not start a tight rebuild loop')
+    await clock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
     assert.equal(snapshotBuilds, 2)
   } finally {
+    clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
     else (globalThis as { chrome?: unknown }).chrome = previousChrome
   }
@@ -662,7 +700,11 @@ test('sessions changes invalidate an in-flight recently-closed read and schedule
     await firstRefresh
     assert.equal(cacheWrites, 0)
 
-    await clock.tickAsync(150)
+    await clock.tickAsync(CLOSED_TAB_SESSION_SETTLE_MS)
+    assert.equal(sessionsReadCount, 1)
+    assert.equal(cacheWrites, 0)
+
+    await clock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
     assert.equal(sessionsReadCount, 2)
     assert.equal(cacheWrites, 2)
   } finally {
@@ -726,6 +768,10 @@ test('startup snapshot service holds a restore beyond 150ms and refreshes only a
     assert.equal(cacheWrites, 0)
 
     await clock.tickAsync(1)
+    assert.equal(sessionsReadCount, 0)
+    assert.equal(cacheWrites, 0)
+
+    await clock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
     assert.equal(sessionsReadCount, 1)
     assert.equal(cacheWrites, 2)
   } finally {
@@ -783,6 +829,10 @@ test('startup snapshot service releases an orphaned restore start through its wa
     assert.equal(cacheWrites, 0)
 
     await clock.tickAsync(1 + CLOSED_TAB_SESSION_SETTLE_MS)
+    assert.equal(sessionsReadCount, 0)
+    assert.equal(cacheWrites, 0)
+
+    await clock.tickAsync(STARTUP_SNAPSHOT_DEBOUNCE_MS)
     assert.equal(sessionsReadCount, 1)
     assert.equal(cacheWrites, 2)
   } finally {
