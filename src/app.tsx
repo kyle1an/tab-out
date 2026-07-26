@@ -3,6 +3,7 @@ import { attachApp } from './components/App'
 import { applyAppStartup } from './app-startup.js'
 import { requestDashboardRefresh, settleDashboardRefresh } from './extension/dashboard-controller.js'
 import type { DashboardRefreshOptions } from './extension/dashboard-controller.js'
+import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-refresh.js'
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
 import { loadCachedDashboardStartup } from './hooks/useDashboardRefresh'
@@ -14,9 +15,6 @@ import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.j
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
-
-let refreshTimer: number | null = null
-let refreshTimerOptions: DashboardRefreshOptions = {}
 
 async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null> {
   try {
@@ -30,16 +28,15 @@ async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null>
   }
 }
 
-function scheduleDashboardRefresh(options: DashboardRefreshOptions = {}) {
-  refreshTimerOptions = {
-    animateCards: !!(refreshTimerOptions.animateCards || options.animateCards)
-  }
-  if (refreshTimer !== null) clearTimeout(refreshTimer)
-  refreshTimer = window.setTimeout(() => {
-    const options = refreshTimerOptions
-    refreshTimerOptions = {}
+const dashboardPageRefreshScheduler = createDashboardPageRefreshScheduler({
+  isVisible: () => document.visibilityState === 'visible',
+  refresh: (options) => {
     void settleDashboardRefresh(requestDashboardRefresh(options))
-  }, 250)
+  }
+})
+
+function scheduleDashboardRefresh(options: DashboardRefreshOptions = {}) {
+  dashboardPageRefreshScheduler.schedule(options)
 }
 
 function scheduleAnimatedDashboardRefresh() {
@@ -104,9 +101,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 })
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') {
-    void settleDashboardRefresh(requestDashboardRefresh())
-  }
+  dashboardPageRefreshScheduler.visibilityChanged()
 })
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
