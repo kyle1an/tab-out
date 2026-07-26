@@ -1,7 +1,7 @@
 /**
  * background.ts — Service worker for badge, commands, and tab history
  *
- * Chrome's "always-on" background script for Tab Out.
+ * Chrome's event-driven background service worker for Tab Out.
  * It keeps the toolbar badge current, handles extension commands, and
  * maintains the activation history used by tab switching / close restore.
  *
@@ -28,7 +28,7 @@ import {
   createTabHistoryService
 } from './background/tab-history-service.js'
 import { createWorkingSetService } from './background/working-set-service.js'
-import { createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
+import { STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
 
 const chromeApi = chrome
 const badgeRefreshService = createBadgeRefreshService(chromeApi)
@@ -44,6 +44,7 @@ async function captureDashboardServiceState(): Promise<CapturedDashboardServiceS
 // Keep the cached dashboard startup snapshot warm so the next Tab Out open (even the first
 // after a browser restart, before any page has run) paints populated instead of empty.
 const startupSnapshotService = createStartupSnapshotService({
+  alarms: chromeApi.alarms,
   getDashboardServiceState: captureDashboardServiceState
 })
 
@@ -170,6 +171,11 @@ chromeApi.tabGroups.onMoved.addListener(scheduleStartupSnapshotRefresh)
 
 chromeApi.sessions.onChanged.addListener(() => {
   startupSnapshotService.sessionsChanged()
+})
+
+chromeApi.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM) return
+  void settleBackgroundTask(() => startupSnapshotService.promoteDurableCheckpoint())
 })
 
 chrome.storage.onChanged.addListener((changes, areaName) => {

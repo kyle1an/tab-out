@@ -48,8 +48,9 @@ type CachedDashboardStartupSnapshot = {
 type SaveCachedDashboardStartupOptions = {
   buildStartupViewModel?: (snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null) => DashboardStartupViewModel
   captureStartedAt?: number
-  durableWriteIntervalMs?: number
+  durableCheckpointIntervalMs?: number
   now?: number
+  scheduleDurableCheckpoint?: (when: number) => Promise<void> | void
 }
 
 // Everything cached under this key crosses chrome.storage, which is JSON-only:
@@ -64,9 +65,9 @@ export const DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY = 'tab-out:startup-snapshot:v1
 // reopens at the cost of staler prioritization; capped in practice by the browser session
 // because chrome.storage.session clears on restart.
 export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
-// Durable mirror cap. chrome.storage.session is cleared on browser restart, so the durable
-// chrome.storage.local copy lets the first open after a restart paint warm with the last
-// session's grouped snapshot; a long-abandoned snapshot past this cap is not shown.
+// Durable Checkpoint cap. chrome.storage.session is cleared on browser restart, so the
+// source-only chrome.storage.local copy lets the first open after a restart derive the last
+// checkpointed grouping before live hydration; a long-abandoned checkpoint is not shown.
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000
 const DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK = 'tab-out:startup-snapshot-cache-write'
 
@@ -639,27 +640,32 @@ function applyLiveDashboardLocalState(
 }
 
 export async function loadCachedDashboardStartupResult(now = Date.now()): Promise<CachedDashboardStartupLoadResult> {
-  // A mirror write can fail independently. Read and validate both so an older in-session copy
-  // cannot mask a newer durable generation. Equal generations keep preferring session because
-  // its richer startup view model may have exceeded the durable storage write budget.
+  // Read and validate both representations so an older render-ready Warm Snapshot cannot mask
+  // a newer source-only Durable Checkpoint. For an equal generation, prefer whichever copy has
+  // a valid derived view model, then prefer session because it is the normal render-ready tier.
   const [sessionRead, durableRead] = await Promise.all([
     readCachedDashboardStartup(startupSnapshotCacheStorage(), null, now),
     readCachedDashboardStartup(startupSnapshotDurableStorage(), DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, now, true)
   ])
   const sessionStartup = sessionRead.startup
   const durableStartup = durableRead.startup
+  const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionStartup?.cached ?? null) ?? Number.NEGATIVE_INFINITY
+  const durableCaptureStartedAt = cachedCaptureStartedAt(durableStartup?.cached ?? null) ?? Number.NEGATIVE_INFINITY
   const selected = !sessionStartup
     ? durableStartup
     : !durableStartup
       ? sessionStartup
-      : (cachedCaptureStartedAt(durableStartup.cached) ?? Number.NEGATIVE_INFINITY) >
-          (cachedCaptureStartedAt(sessionStartup.cached) ?? Number.NEGATIVE_INFINITY)
+      : durableCaptureStartedAt > sessionCaptureStartedAt
         ? durableStartup
-        : sessionStartup
+        : sessionCaptureStartedAt > durableCaptureStartedAt
+          ? sessionStartup
+          : durableStartup.startup.snapshot.startupViewModel && !sessionStartup.startup.snapshot.startupViewModel
+            ? durableStartup
+            : sessionStartup
   return {
-    // If either mirror failed, its generation is unknown. A selected value can
+    // If either representation failed, its generation is unknown. A selected value can
     // still warm the page, but the background must retry before treating cache
-    // seeding as complete or overwriting that unknown mirror.
+    // seeding as complete or overwriting that unknown representation.
     ok: sessionRead.ok && durableRead.ok,
     value: selected ? applyLiveDashboardLocalState(selected, durableRead.liveLocalState) : null
   }
@@ -686,8 +692,7 @@ async function writeStartupSnapshotCache(storage: chrome.storage.StorageArea | n
     }
   }
   // The compact retry handles both quota pressure from the render-ready view model and a
-  // one-shot storage transport failure. Callers decide whether an older mirror can be cleared
-  // safely when this retry also fails.
+  // one-shot storage transport failure. If it also fails, the prior valid value stays intact.
   try {
     await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: fallbackPayload })
     return true
@@ -696,33 +701,19 @@ async function writeStartupSnapshotCache(storage: chrome.storage.StorageArea | n
   }
 }
 
-async function removeStartupSnapshotCache(storage: chrome.storage.StorageArea | null): Promise<boolean> {
-  if (!storage) return true
-  if (typeof storage.remove !== 'function') return false
-  try {
-    await storage.remove(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    return true
-  } catch {
-    return false
-  }
+function compactStartupSnapshotPayload(payload: CachedDashboardStartupSnapshot): CachedDashboardStartupSnapshot {
+  const { startupViewModel: _startupViewModel, ...snapshot } = payload.snapshot
+  return { ...payload, snapshot }
 }
 
-type FailedStartupSnapshotWriteRepair = 'safe' | 'newer' | 'unsafe'
-
-async function repairFailedStartupSnapshotWrite(
-  storage: chrome.storage.StorageArea | null,
-  captureStartedAt: number
-): Promise<FailedStartupSnapshotWriteRepair> {
-  if (!storage) return 'safe'
-  // Re-read before deleting: the rejected write may have become observable, or a context not
-  // yet using the shared lock may have published a newer generation in the meantime.
-  const cacheRead = await readStartupSnapshotCacheForMutation(storage)
-  if (!cacheRead.ok) return 'unsafe'
-  const storedCaptureStartedAt = cachedCaptureStartedAt(cacheRead.cached)
-  if (storedCaptureStartedAt == null) return 'safe'
-  if (storedCaptureStartedAt > captureStartedAt) return 'newer'
-  if (storedCaptureStartedAt === captureStartedAt) return 'safe'
-  return await removeStartupSnapshotCache(storage) ? 'safe' : 'unsafe'
+function durableCheckpointDueAt(
+  durable: CachedDashboardStartupSnapshot | null,
+  now: number,
+  intervalMs: number
+): number {
+  const savedAt = durable?.savedAt
+  if (savedAt === undefined || !Number.isFinite(savedAt) || now < savedAt) return now
+  return Math.max(now, savedAt + intervalMs)
 }
 
 function rebaseCachedWorkingSetPriority(cached: WorkingSetSnapshot, live: WorkingSetSnapshot): WorkingSetSnapshot {
@@ -796,9 +787,9 @@ export async function saveCachedDashboardStartupSnapshot(
   const captureStartedAt = Number.isFinite(requestedCaptureStartedAt)
     ? requestedCaptureStartedAt
     : now
-  const requestedDurableWriteIntervalMs = options.durableWriteIntervalMs ?? 0
-  const durableWriteIntervalMs = Number.isFinite(requestedDurableWriteIntervalMs)
-    ? Math.max(0, requestedDurableWriteIntervalMs)
+  const requestedDurableCheckpointIntervalMs = options.durableCheckpointIntervalMs ?? 0
+  const durableCheckpointIntervalMs = Number.isFinite(requestedDurableCheckpointIntervalMs)
+    ? Math.max(0, requestedDurableCheckpointIntervalMs)
     : 0
 
   await withStartupSnapshotCacheMutationLock(async () => {
@@ -826,20 +817,23 @@ export async function saveCachedDashboardStartupSnapshot(
     const contentFingerprint = dashboardStartupContentFingerprint(cacheSnapshotBase, localState)
     const sessionContentCurrent = sessionStorage === null ||
       sessionCacheRead.cached?.contentFingerprint === contentFingerprint
-    const durableContentCurrent = durableStorage === null ||
-      durableCacheRead.cached?.contentFingerprint === contentFingerprint
-    const durableSavedAt = durableCacheRead.cached?.savedAt
-    const durableWriteDue = !durableContentCurrent && (
-      durableSavedAt === undefined ||
-      !Number.isFinite(durableSavedAt) ||
-      now < durableSavedAt ||
-      now - durableSavedAt >= durableWriteIntervalMs
+    const sessionRenderReady = sessionStorage === null || (
+      sessionContentCurrent &&
+      (options.buildStartupViewModel === undefined ||
+        cachedStartupViewModel(sessionCacheRead.cached?.snapshot.startupViewModel) !== undefined)
     )
-    if (sessionContentCurrent && !durableWriteDue) return
+    const sessionWriteRequired = !sessionContentCurrent || !sessionRenderReady
+    const durableContentCurrent = durableStorage === null || (
+      durableCacheRead.cached?.contentFingerprint === contentFingerprint &&
+      durableCacheRead.cached.snapshot.startupViewModel === undefined
+    )
+    if (!sessionWriteRequired && durableContentCurrent) return
     let startupViewModel: DashboardStartupViewModel | undefined
-    try {
-      startupViewModel = options.buildStartupViewModel?.(cacheSnapshotBase, localState)
-    } catch {}
+    if (sessionWriteRequired) {
+      try {
+        startupViewModel = options.buildStartupViewModel?.(cacheSnapshotBase, localState)
+      } catch {}
+    }
     const cacheSnapshot = {
       ...cacheSnapshotBase,
       ...(startupViewModel ? { startupViewModel } : {})
@@ -852,26 +846,70 @@ export async function saveCachedDashboardStartupSnapshot(
       snapshot: cacheSnapshot,
       ...(localState?.loaded ? { localState } : {})
     }
-    if (durableWriteDue) {
-      // Advance a due durable generation first. If that write fails, an advanced session copy
-      // would work until restart and then let the old durable copy revive. Only advance session
-      // after durable either accepted this payload or its known-stale entry was removed.
-      const durableWritten = await writeStartupSnapshotCache(durableStorage, payload)
-      if (!durableWritten) {
-        const durableRepair = await repairFailedStartupSnapshotWrite(durableStorage, captureStartedAt)
-        if (durableRepair !== 'safe') return
-      }
+    const compactPayload = compactStartupSnapshotPayload(payload)
+    let sessionSourceForCheckpoint = sessionStorage === null
+      ? compactPayload
+      : sessionCacheRead.cached
+
+    if (sessionWriteRequired) {
+      const sessionWritten = await writeStartupSnapshotCache(sessionStorage, payload)
+      if (sessionWritten) sessionSourceForCheckpoint = compactPayload
     }
 
-    if (!sessionContentCurrent) {
-      const sessionWritten = await writeStartupSnapshotCache(sessionStorage, payload)
-      if (!sessionWritten) {
-        // The durable mirror already owns this generation, remains at its bounded older
-        // generation, or is unavailable. Clearing the older session entry is best-effort;
-        // generation-aware reads remain safe if Chrome also rejects this removal.
-        await repairFailedStartupSnapshotWrite(sessionStorage, captureStartedAt)
-      }
+    const durableMissing = durableStorage !== null && durableCacheRead.cached === null
+    const durableWriteDue = !durableContentCurrent &&
+      durableCheckpointDueAt(durableCacheRead.cached, now, durableCheckpointIntervalMs) <= now
+    if (durableMissing || (durableWriteDue && !options.scheduleDurableCheckpoint)) {
+      // Durable Checkpoints are deliberately source-only. A missing checkpoint is initialized
+      // immediately; callers without an alarm scheduler retain the old synchronous behavior.
+      const checkpointSource = !sessionWriteRequired && sessionSourceForCheckpoint
+        ? compactStartupSnapshotPayload(sessionSourceForCheckpoint)
+        : compactPayload
+      await writeStartupSnapshotCache(durableStorage, { ...checkpointSource, savedAt: now })
+      return
     }
+
+    if (!options.scheduleDurableCheckpoint || !sessionSourceForCheckpoint) return
+    const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionSourceForCheckpoint) ?? Number.NEGATIVE_INFINITY
+    const durableCaptureStartedAt = cachedCaptureStartedAt(durableCacheRead.cached) ?? Number.NEGATIVE_INFINITY
+    const checkpointNeeded = sessionCaptureStartedAt >= durableCaptureStartedAt && (
+      sessionSourceForCheckpoint.contentFingerprint !== durableCacheRead.cached?.contentFingerprint ||
+      durableCacheRead.cached?.snapshot.startupViewModel !== undefined
+    )
+    if (checkpointNeeded) {
+      // Scheduling while holding the cache lock prevents an alarm promotion racing with this
+      // save from leaving behind a clean-state alarm. The scheduler preserves an existing alarm.
+      await options.scheduleDurableCheckpoint(
+        durableCheckpointDueAt(durableCacheRead.cached, now, durableCheckpointIntervalMs)
+      )
+    }
+  })
+}
+
+export async function promoteCachedDashboardStartupSnapshot(now = Date.now()): Promise<boolean> {
+  return withStartupSnapshotCacheMutationLock(async () => {
+    const sessionStorage = startupSnapshotCacheStorage()
+    const durableStorage = startupSnapshotDurableStorage()
+    const [sessionCacheRead, durableCacheRead] = await Promise.all([
+      readStartupSnapshotCacheForMutation(sessionStorage),
+      readStartupSnapshotCacheForMutation(durableStorage)
+    ])
+    if (!sessionCacheRead.ok || !durableCacheRead.ok || !sessionCacheRead.cached) return false
+
+    const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionCacheRead.cached) ?? Number.NEGATIVE_INFINITY
+    const durableCaptureStartedAt = cachedCaptureStartedAt(durableCacheRead.cached) ?? Number.NEGATIVE_INFINITY
+    if (durableCaptureStartedAt > sessionCaptureStartedAt) return true
+
+    const compactSessionPayload = compactStartupSnapshotPayload(sessionCacheRead.cached)
+    const durableCurrent = !!durableCacheRead.cached &&
+      durableCacheRead.cached.contentFingerprint === compactSessionPayload.contentFingerprint &&
+      durableCacheRead.cached.snapshot.startupViewModel === undefined
+    if (durableCurrent) return true
+
+    return writeStartupSnapshotCache(durableStorage, {
+      ...compactSessionPayload,
+      savedAt: now
+    })
   })
 }
 

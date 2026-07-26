@@ -18,6 +18,7 @@ let backgroundImportId = 0
 const backgroundClock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
 
 type BackgroundMockCalls = {
+  alarmsCreate: Array<{ name: string; alarmInfo: chrome.alarms.AlarmCreateInfo }>
   badgeColor: chrome.action.BadgeColorDetails[]
   badgeText: chrome.action.BadgeTextDetails[]
   create: chrome.tabs.CreateProperties[]
@@ -177,6 +178,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const tabGroupsOnRemoved = createEventSlot()
   const tabGroupsOnMoved = createEventSlot()
   const commandsOnCommand = createEventSlot()
+  const alarmsOnAlarm = createEventSlot()
   const sessionsOnChanged = createEventSlot()
   const storageOnChanged = createEventSlot()
 
@@ -200,6 +202,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   normalizeAllTabs(state)
 
   const calls: BackgroundMockCalls = {
+    alarmsCreate: [],
     create: [],
     windowCreate: [],
     remove: [],
@@ -217,6 +220,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     session: clone(options.storageValues?.session || {})
   }
   const recentlyClosed = clone(options.recentlyClosed || [])
+  const alarmsByName = new Map<string, chrome.alarms.Alarm>()
 
   const chrome: any = {
     runtime: {
@@ -235,6 +239,19 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       local: createStorageArea(storageValues.local),
       session: createStorageArea(storageValues.session),
       onChanged: storageOnChanged.api
+    },
+    alarms: {
+      async create(name: string, alarmInfo: chrome.alarms.AlarmCreateInfo) {
+        calls.alarmsCreate.push({ name, alarmInfo: clone(alarmInfo) })
+        alarmsByName.set(name, {
+          name,
+          scheduledTime: alarmInfo.when ?? Date.now()
+        })
+      },
+      async get(name: string) {
+        return clone(alarmsByName.get(name))
+      },
+      onAlarm: alarmsOnAlarm.api
     },
     sessions: {
       getRecentlyClosed: async () => clone(recentlyClosed),
@@ -433,6 +450,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     storageValues,
     recentlyClosed,
     listeners: {
+      alarmsOnAlarm: alarmsOnAlarm.listeners,
       runtimeOnInstalled: runtimeOnInstalled.listeners,
       runtimeOnMessage: runtimeOnMessage.listeners,
       runtimeOnStartup: runtimeOnStartup.listeners,

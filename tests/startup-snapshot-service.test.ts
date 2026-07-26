@@ -5,7 +5,7 @@ import FakeTimers from '@sinonjs/fake-timers'
 import {
   STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS,
   STARTUP_SNAPSHOT_DEBOUNCE_MS,
-  STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS,
+  STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
   createStartupSnapshotService,
   startupSnapshotStorageChangesRequireRefresh
 } from '../src/extension/background/startup-snapshot-service.js'
@@ -79,7 +79,7 @@ test('startup snapshot refreshes only for local state that changes its rendered 
   assert.equal(startupSnapshotStorageChangesRequireRefresh({ [DOMAIN_PIN_STORAGE_KEY]: change }, 'session'), false)
 })
 
-test('startup snapshot service writes render-ready session + durable caches from worker-side inputs', async () => {
+test('startup snapshot service writes a render-ready Warm Snapshot and source-only Durable Checkpoint', async () => {
   const writes: Record<string, any> = {}
   const localReadKeys: Array<string | string[]> = []
   let tabsQueryStartedAt = Number.NaN
@@ -155,6 +155,7 @@ test('startup snapshot service writes render-ready session + durable caches from
   assert.deepEqual(writes.session.snapshot.startupViewModel.pinnedPageChipIds, [pinnedPageChipId])
   assert.equal(writes.session.snapshot.startupViewModel.viewModel.source, 'tabs')
   assert.equal(writes.session.snapshot.startupViewModel.viewModel.matchedCards.length, 2)
+  assert.equal(writes.local.snapshot.startupViewModel, undefined)
   assert.equal(localReadKeys.some((keys) => typeof keys === 'string' && [
     DOMAIN_PIN_STORAGE_KEY,
     SECTION_PIN_STORAGE_KEY,
@@ -167,13 +168,21 @@ test('startup snapshot service writes render-ready session + durable caches from
   ].every((key) => keys.includes(key))), true)
 })
 
-test('startup snapshot service keeps session current while promoting durable state on its cadence', async () => {
+test('startup snapshot service schedules one non-sliding checkpoint and promotes the latest Warm Snapshot without rebuilding', async () => {
   const clock = FakeTimers.install({ now: 100, toFake: ['Date'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   const sessionStore: Record<string, unknown> = {}
   const localStore: Record<string, unknown> = {}
   let sessionWrites = 0
   let durableWrites = 0
+  let snapshotBuilds = 0
+  let scheduledAlarm: chrome.alarms.Alarm | undefined
+  const alarmCreates: chrome.alarms.AlarmCreateInfo[] = []
+  let blockNextSessionWrite = false
+  let markBlockedSessionWriteStarted!: () => void
+  let releaseBlockedSessionWrite!: () => void
+  const blockedSessionWriteStarted = new Promise<void>((resolve) => { markBlockedSessionWriteStarted = resolve })
+  const blockedSessionWriteReleased = new Promise<void>((resolve) => { releaseBlockedSessionWrite = resolve })
   let openTabs = [makeChromeTab(1, 'https://first.example/docs', 'First Docs')]
 
   ;(globalThis as any).chrome = {
@@ -190,6 +199,11 @@ test('startup snapshot service keeps session current while promoting durable sta
         get: async () => sessionStore,
         set: async (value: Record<string, unknown>) => {
           sessionWrites += 1
+          if (blockNextSessionWrite) {
+            blockNextSessionWrite = false
+            markBlockedSessionWriteStarted()
+            await blockedSessionWriteReleased
+          }
           Object.assign(sessionStore, value)
         }
       },
@@ -205,26 +219,55 @@ test('startup snapshot service keeps session current while promoting durable sta
 
   try {
     const service = createStartupSnapshotService({
-      getDashboardServiceState: captureDashboardServiceState()
+      getDashboardServiceState: captureDashboardServiceState(async () => {
+        snapshotBuilds += 1
+        return emptyTabHistory
+      }),
+      alarms: {
+        get: async () => scheduledAlarm,
+        create: async (name, alarmInfo) => {
+          alarmCreates.push(alarmInfo)
+          scheduledAlarm = {
+            name,
+            scheduledTime: alarmInfo.when ?? Date.now()
+          }
+        }
+      }
     })
     await service.refreshNow()
     assert.equal(sessionWrites, 1)
     assert.equal(durableWrites, 1)
+    assert.equal(alarmCreates.length, 0)
 
     clock.setSystemTime(1000)
     openTabs = [makeChromeTab(1, 'https://latest.example/docs', 'Latest Docs')]
     await service.refreshNow()
     assert.equal(sessionWrites, 2)
     assert.equal(durableWrites, 1)
+    assert.deepEqual(alarmCreates, [{ when: 100 + STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS }])
 
-    clock.setSystemTime(100 + STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS)
-    await service.refreshNow()
-    assert.equal(sessionWrites, 2)
+    clock.setSystemTime(2000)
+    openTabs = [makeChromeTab(1, 'https://newest.example/docs', 'Newest Docs')]
+    blockNextSessionWrite = true
+    const newestRefresh = service.refreshNow()
+    await blockedSessionWriteStarted
+    scheduledAlarm = undefined
+    clock.setSystemTime(100 + STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS)
+    const buildsBeforePromotion = snapshotBuilds
+    const promotion = service.promoteDurableCheckpoint()
+    releaseBlockedSessionWrite()
+    await Promise.all([newestRefresh, promotion])
+
+    assert.equal(sessionWrites, 3)
+    assert.equal(alarmCreates.length, 1, 'later changes and concurrent delivery do not replace the pending alarm')
+
     assert.equal(durableWrites, 2)
+    assert.equal(snapshotBuilds, buildsBeforePromotion, 'checkpoint promotion does not capture or rebuild browser state')
     assert.deepEqual(
       (localStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups.map((group: any) => group.domain),
-      ['latest.example']
+      ['newest.example']
     )
+    assert.equal((localStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.startupViewModel, undefined)
   } finally {
     clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
@@ -683,7 +726,7 @@ test('startup snapshot service bounds rebuilds during a sustained sessions event
 
     assert.ok(snapshotBuilds >= 1, 'a sustained burst still refreshes the warm snapshot')
     assert.ok(snapshotBuilds <= 4, `expected at most four bounded rebuilds, received ${snapshotBuilds}`)
-    assert.equal(cacheWrites, 2, 'only the first materialization updates the two cache mirrors')
+    assert.equal(cacheWrites, 2, 'only the first materialization updates the two cache representations')
   } finally {
     clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome

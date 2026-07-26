@@ -6,7 +6,7 @@ import { DOMAIN_PIN_STORAGE_KEY } from '../domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
 import { loadSavedPagesStoreResult, SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
-import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, loadCachedDashboardStartupResult, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
+import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, loadCachedDashboardStartupResult, promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
 import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs, seedOpenTabsTitleHistory } from '../tabs.js'
 
@@ -14,7 +14,8 @@ import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs, seedOpenTabs
 // be reasonably fresh whenever a Tab Out page next opens; live hydration corrects any drift.
 export const STARTUP_SNAPSHOT_DEBOUNCE_MS = 4000
 export const STARTUP_SNAPSHOT_MAX_WAIT_MS = 30_000
-export const STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS = 5 * 60_000
+export const STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS = 5 * 60_000
+export const STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM = 'tab-out:startup-snapshot-durable-checkpoint'
 export const STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS = 250
 const STARTUP_SNAPSHOT_RENDER_STATE_KEYS = [
   DOMAIN_PIN_STORAGE_KEY,
@@ -31,7 +32,13 @@ export function startupSnapshotStorageChangesRequireRefresh(
     STARTUP_SNAPSHOT_RENDER_STATE_KEYS.some((key) => Object.prototype.hasOwnProperty.call(changes, key))
 }
 
+type StartupSnapshotAlarmApi = {
+  create: (name: string, alarmInfo: chrome.alarms.AlarmCreateInfo) => Promise<void>
+  get: (name: string) => Promise<chrome.alarms.Alarm | undefined>
+}
+
 export type StartupSnapshotServiceDeps = {
+  alarms?: StartupSnapshotAlarmApi
   getDashboardServiceState: () => Promise<CapturedDashboardServiceState>
 }
 
@@ -40,6 +47,7 @@ export type StartupSnapshotService = {
   sessionsChanged: () => void
   sessionRestoreStarted: (restoreId: string) => void
   sessionRestoreSettled: (restoreId: string) => void
+  promoteDurableCheckpoint: () => Promise<void>
   refreshNow: () => Promise<void>
 }
 
@@ -54,8 +62,19 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   const pendingSessionRestoreIds = new Set<string>()
   const sessionRestoreWatchdogs = new Map<string, ReturnType<typeof setTimeout>>()
   let inFlight: Promise<void> | null = null
+  // Same-worker concurrency guard only; the Chrome alarm remains the persisted schedule.
+  let durablePromotionInFlight = false
   let cachedOpenTabsSeeded = false
   let tabPreviousOrder = new Map<string, number>()
+
+  async function scheduleDurableCheckpoint(when: number): Promise<void> {
+    if (!deps.alarms || durablePromotionInFlight) return
+    try {
+      const pending = await deps.alarms.get(STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM)
+      if (pending) return
+      await deps.alarms.create(STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, { when })
+    } catch {}
+  }
 
   function rememberTabOrder(snapshot: Awaited<ReturnType<typeof buildTabsDashboardStartupSnapshot>>): void {
     tabPreviousOrder = new Map(
@@ -167,7 +186,8 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
     await saveCachedDashboardStartupSnapshot(snapshot, localState, {
       buildStartupViewModel: buildDashboardStartupViewModel,
       captureStartedAt,
-      durableWriteIntervalMs: STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS
+      durableCheckpointIntervalMs: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
+      ...(deps.alarms ? { scheduleDurableCheckpoint } : {})
     })
     rememberTabOrder(snapshot)
   }
@@ -188,6 +208,17 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       if (inFlight === run) inFlight = null
     })
     return run
+  }
+
+  async function promoteDurableCheckpoint(): Promise<void> {
+    if (durablePromotionInFlight) return
+    durablePromotionInFlight = true
+    try {
+      await promoteCachedDashboardStartupSnapshot()
+    } catch {
+    } finally {
+      durablePromotionInFlight = false
+    }
   }
 
   function scheduleRefresh(): void {
@@ -247,5 +278,12 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
     if (pendingSessionRestoreIds.size === 0) scheduleSessionsSettleRefresh()
   }
 
-  return { scheduleRefresh, sessionsChanged, sessionRestoreStarted, sessionRestoreSettled, refreshNow }
+  return {
+    scheduleRefresh,
+    sessionsChanged,
+    sessionRestoreStarted,
+    sessionRestoreSettled,
+    promoteDurableCheckpoint,
+    refreshNow
+  }
 }

@@ -3039,7 +3039,7 @@ test('buildDomainGroups keeps saved-only cards after cards with open tabs despit
 
 test('manifest keeps only the permissions used by the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
-  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'favicon'])
+  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon'])
   assert.equal(manifest.incognito, 'not_allowed')
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
   assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in global activation history')

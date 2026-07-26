@@ -12,6 +12,7 @@
     "history",
     "sessions",
     "storage",
+    "alarms",
     "favicon"
   ],
   "chrome_url_overrides": {
