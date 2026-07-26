@@ -5,6 +5,7 @@ import FakeTimers from '@sinonjs/fake-timers'
 import {
   STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS,
   STARTUP_SNAPSHOT_DEBOUNCE_MS,
+  STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS,
   createStartupSnapshotService,
   startupSnapshotStorageChangesRequireRefresh
 } from '../src/extension/background/startup-snapshot-service.js'
@@ -164,6 +165,71 @@ test('startup snapshot service writes render-ready session + durable caches from
     SECTION_PIN_STORAGE_KEY,
     PAGE_CHIP_PIN_STORAGE_KEY
   ].every((key) => keys.includes(key))), true)
+})
+
+test('startup snapshot service keeps session current while promoting durable state on its cadence', async () => {
+  const clock = FakeTimers.install({ now: 100, toFake: ['Date'] })
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  const sessionStore: Record<string, unknown> = {}
+  const localStore: Record<string, unknown> = {}
+  let sessionWrites = 0
+  let durableWrites = 0
+  let openTabs = [makeChromeTab(1, 'https://first.example/docs', 'First Docs')]
+
+  ;(globalThis as any).chrome = {
+    runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
+    tabs: { query: async () => openTabs },
+    windows: {
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+    },
+    tabGroups: { query: async () => [] },
+    sessions: { getRecentlyClosed: async () => [] },
+    storage: {
+      session: {
+        get: async () => sessionStore,
+        set: async (value: Record<string, unknown>) => {
+          sessionWrites += 1
+          Object.assign(sessionStore, value)
+        }
+      },
+      local: {
+        get: async () => localStore,
+        set: async (value: Record<string, unknown>) => {
+          durableWrites += 1
+          Object.assign(localStore, value)
+        }
+      }
+    }
+  }
+
+  try {
+    const service = createStartupSnapshotService({
+      getDashboardServiceState: captureDashboardServiceState()
+    })
+    await service.refreshNow()
+    assert.equal(sessionWrites, 1)
+    assert.equal(durableWrites, 1)
+
+    clock.setSystemTime(1000)
+    openTabs = [makeChromeTab(1, 'https://latest.example/docs', 'Latest Docs')]
+    await service.refreshNow()
+    assert.equal(sessionWrites, 2)
+    assert.equal(durableWrites, 1)
+
+    clock.setSystemTime(100 + STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS)
+    await service.refreshNow()
+    assert.equal(sessionWrites, 2)
+    assert.equal(durableWrites, 2)
+    assert.deepEqual(
+      (localStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups.map((group: any) => group.domain),
+      ['latest.example']
+    )
+  } finally {
+    clock.uninstall()
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
 })
 
 test('startup snapshot service uses captured focus when a worker current-window read would be unknown', async () => {

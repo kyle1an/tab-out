@@ -48,6 +48,7 @@ type CachedDashboardStartupSnapshot = {
 type SaveCachedDashboardStartupOptions = {
   buildStartupViewModel?: (snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null) => DashboardStartupViewModel
   captureStartedAt?: number
+  durableWriteIntervalMs?: number
   now?: number
 }
 
@@ -795,6 +796,10 @@ export async function saveCachedDashboardStartupSnapshot(
   const captureStartedAt = Number.isFinite(requestedCaptureStartedAt)
     ? requestedCaptureStartedAt
     : now
+  const requestedDurableWriteIntervalMs = options.durableWriteIntervalMs ?? 0
+  const durableWriteIntervalMs = Number.isFinite(requestedDurableWriteIntervalMs)
+    ? Math.max(0, requestedDurableWriteIntervalMs)
+    : 0
 
   await withStartupSnapshotCacheMutationLock(async () => {
     const sessionStorage = startupSnapshotCacheStorage()
@@ -823,7 +828,14 @@ export async function saveCachedDashboardStartupSnapshot(
       sessionCacheRead.cached?.contentFingerprint === contentFingerprint
     const durableContentCurrent = durableStorage === null ||
       durableCacheRead.cached?.contentFingerprint === contentFingerprint
-    if (sessionContentCurrent && durableContentCurrent) return
+    const durableSavedAt = durableCacheRead.cached?.savedAt
+    const durableWriteDue = !durableContentCurrent && (
+      durableSavedAt === undefined ||
+      !Number.isFinite(durableSavedAt) ||
+      now < durableSavedAt ||
+      now - durableSavedAt >= durableWriteIntervalMs
+    )
+    if (sessionContentCurrent && !durableWriteDue) return
     let startupViewModel: DashboardStartupViewModel | undefined
     try {
       startupViewModel = options.buildStartupViewModel?.(cacheSnapshotBase, localState)
@@ -840,21 +852,25 @@ export async function saveCachedDashboardStartupSnapshot(
       snapshot: cacheSnapshot,
       ...(localState?.loaded ? { localState } : {})
     }
-    // Advance the durable generation first. If that write fails, an advanced session copy
-    // would work until restart and then let the old durable copy revive. Only advance session
-    // after durable either accepted this payload or its known-stale entry was removed.
-    const durableWritten = await writeStartupSnapshotCache(durableStorage, payload)
-    if (!durableWritten) {
-      const durableRepair = await repairFailedStartupSnapshotWrite(durableStorage, captureStartedAt)
-      if (durableRepair !== 'safe') return
+    if (durableWriteDue) {
+      // Advance a due durable generation first. If that write fails, an advanced session copy
+      // would work until restart and then let the old durable copy revive. Only advance session
+      // after durable either accepted this payload or its known-stale entry was removed.
+      const durableWritten = await writeStartupSnapshotCache(durableStorage, payload)
+      if (!durableWritten) {
+        const durableRepair = await repairFailedStartupSnapshotWrite(durableStorage, captureStartedAt)
+        if (durableRepair !== 'safe') return
+      }
     }
 
-    const sessionWritten = await writeStartupSnapshotCache(sessionStorage, payload)
-    if (!sessionWritten) {
-      // The durable mirror already owns this generation (or the durable area is unavailable).
-      // Clearing the older session entry is best-effort; generation-aware reads remain safe if
-      // Chrome also rejects this removal.
-      await repairFailedStartupSnapshotWrite(sessionStorage, captureStartedAt)
+    if (!sessionContentCurrent) {
+      const sessionWritten = await writeStartupSnapshotCache(sessionStorage, payload)
+      if (!sessionWritten) {
+        // The durable mirror already owns this generation, remains at its bounded older
+        // generation, or is unavailable. Clearing the older session entry is best-effort;
+        // generation-aware reads remain safe if Chrome also rejects this removal.
+        await repairFailedStartupSnapshotWrite(sessionStorage, captureStartedAt)
+      }
     }
   })
 }

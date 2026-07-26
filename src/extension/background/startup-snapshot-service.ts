@@ -14,6 +14,7 @@ import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs, seedOpenTabs
 // be reasonably fresh whenever a Tab Out page next opens; live hydration corrects any drift.
 export const STARTUP_SNAPSHOT_DEBOUNCE_MS = 4000
 export const STARTUP_SNAPSHOT_MAX_WAIT_MS = 30_000
+export const STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS = 5 * 60_000
 export const STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS = 250
 const STARTUP_SNAPSHOT_RENDER_STATE_KEYS = [
   DOMAIN_PIN_STORAGE_KEY,
@@ -165,7 +166,8 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
     })
     await saveCachedDashboardStartupSnapshot(snapshot, localState, {
       buildStartupViewModel: buildDashboardStartupViewModel,
-      captureStartedAt
+      captureStartedAt,
+      durableWriteIntervalMs: STARTUP_SNAPSHOT_DURABLE_WRITE_INTERVAL_MS
     })
     rememberTabOrder(snapshot)
   }

@@ -762,6 +762,68 @@ test('startup snapshot cache skips timestamp and score-only generations', async 
   assert.equal(cacheWrites, 4, 'visible row changes still update both cache mirrors')
 })
 
+test('startup snapshot cache keeps session warm while rate-limiting durable generations', async () => {
+  const sessionStore: Record<string, unknown> = {}
+  const durableStore: Record<string, unknown> = {}
+  let sessionWrites = 0
+  let durableWrites = 0
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: {
+        get: async () => sessionStore,
+        set: async (value: Record<string, unknown>) => {
+          sessionWrites += 1
+          Object.assign(sessionStore, value)
+        }
+      },
+      local: {
+        get: async () => durableStore,
+        set: async (value: Record<string, unknown>) => {
+          durableWrites += 1
+          Object.assign(durableStore, value)
+        }
+      }
+    }
+  }
+  const durableWriteIntervalMs = 5 * 60_000
+
+  await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('first.example'), null, {
+    captureStartedAt: 100,
+    durableWriteIntervalMs,
+    now: 100
+  })
+  assert.equal(sessionWrites, 1)
+  assert.equal(durableWrites, 1, 'a missing durable mirror is initialized immediately')
+
+  await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('latest.example'), null, {
+    captureStartedAt: 1000,
+    durableWriteIntervalMs,
+    now: 1000
+  })
+  assert.equal(sessionWrites, 2)
+  assert.equal(durableWrites, 1)
+  assert.equal(
+    ((sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups[0] as any).domain,
+    'latest.example'
+  )
+  assert.equal(
+    ((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups[0] as any).domain,
+    'first.example'
+  )
+
+  await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('latest.example'), null, {
+    captureStartedAt: 300_100,
+    durableWriteIntervalMs,
+    now: 300_100
+  })
+  assert.equal(sessionWrites, 2, 'promotion does not rewrite an already-current session mirror')
+  assert.equal(durableWrites, 2)
+  assert.equal(
+    ((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups[0] as any).domain,
+    'latest.example'
+  )
+})
+
 test('startup snapshot cache uses a newer durable generation when the session write fails', async () => {
   const oldSnapshot = startupCacheSnapshot('old.example')
   const newSnapshot = startupCacheSnapshot('new.example')
