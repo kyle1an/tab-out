@@ -1,4 +1,4 @@
-import type { DashboardRefreshOptions } from './dashboard-controller.js'
+import { mergeDashboardRefreshOptions, type DashboardRefreshOptions } from './dashboard-controller.js'
 
 const DASHBOARD_PAGE_REFRESH_DELAY_MS = 250
 
@@ -10,16 +10,6 @@ type DashboardPageRefreshSchedulerDeps = {
 export type DashboardPageRefreshScheduler = {
   schedule: (options?: DashboardRefreshOptions) => void
   visibilityChanged: () => void
-}
-
-function mergeRefreshOptions(
-  current: DashboardRefreshOptions,
-  next: DashboardRefreshOptions
-): DashboardRefreshOptions {
-  return {
-    ...((current.animateCards || next.animateCards) ? { animateCards: true } : {}),
-    ...((current.startupSnapshot || next.startupSnapshot) ? { startupSnapshot: true } : {})
-  }
 }
 
 export function createDashboardPageRefreshScheduler(
@@ -37,7 +27,7 @@ export function createDashboardPageRefreshScheduler(
 
   function deferWhileHidden(options: DashboardRefreshOptions): void {
     hiddenRefreshPending = true
-    hiddenOptions = mergeRefreshOptions(hiddenOptions, options)
+    hiddenOptions = mergeDashboardRefreshOptions(hiddenOptions, options)
   }
 
   function moveScheduledRefreshToHidden(): void {
@@ -48,7 +38,7 @@ export function createDashboardPageRefreshScheduler(
   }
 
   function takePendingOptions(): DashboardRefreshOptions {
-    const options = mergeRefreshOptions(hiddenOptions, scheduledOptions)
+    const options = mergeDashboardRefreshOptions(hiddenOptions, scheduledOptions)
     hiddenRefreshPending = false
     hiddenOptions = {}
     scheduledOptions = {}
@@ -61,7 +51,7 @@ export function createDashboardPageRefreshScheduler(
       deferWhileHidden(options)
       return
     }
-    scheduledOptions = mergeRefreshOptions(scheduledOptions, options)
+    scheduledOptions = mergeDashboardRefreshOptions(scheduledOptions, options)
     clearTimer()
     timer = setTimeout(() => {
       timer = null

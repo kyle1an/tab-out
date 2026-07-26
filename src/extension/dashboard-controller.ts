@@ -9,7 +9,7 @@ let activeRefresh: RefreshHandler | null = null
 let pendingRefresh = false
 let pendingRefreshOptions: DashboardRefreshOptions | undefined
 
-function mergeRefreshOptions(
+export function mergeDashboardRefreshOptions(
   current: DashboardRefreshOptions | undefined,
   next: DashboardRefreshOptions
 ): DashboardRefreshOptions {
@@ -44,6 +44,6 @@ export function registerDashboardRefresh(fn: RefreshHandler): () => void {
 export function requestDashboardRefresh(options: DashboardRefreshOptions = {}): Promise<void> | void {
   if (activeRefresh) return activeRefresh(options)
   pendingRefresh = true
-  pendingRefreshOptions = mergeRefreshOptions(pendingRefreshOptions, options)
+  pendingRefreshOptions = mergeDashboardRefreshOptions(pendingRefreshOptions, options)
   return Promise.resolve()
 }
