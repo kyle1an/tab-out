@@ -586,7 +586,20 @@ test('startup snapshot service bounds rebuilds during a sustained sessions event
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   let snapshotBuilds = 0
+  let cacheWrites = 0
+  const sessionStore: Record<string, unknown> = {}
+  const localStore: Record<string, unknown> = {}
   installEmptyWorkerChrome()
+  ;(chrome.storage.session.get as any) = async () => sessionStore
+  ;(chrome.storage.session.set as any) = async (value: Record<string, unknown>) => {
+    cacheWrites += 1
+    Object.assign(sessionStore, value)
+  }
+  ;(chrome.storage.local.get as any) = async () => localStore
+  ;(chrome.storage.local.set as any) = async (value: Record<string, unknown>) => {
+    cacheWrites += 1
+    Object.assign(localStore, value)
+  }
 
   try {
     const service = createStartupSnapshotService({
@@ -604,6 +617,7 @@ test('startup snapshot service bounds rebuilds during a sustained sessions event
 
     assert.ok(snapshotBuilds >= 1, 'a sustained burst still refreshes the warm snapshot')
     assert.ok(snapshotBuilds <= 4, `expected at most four bounded rebuilds, received ${snapshotBuilds}`)
+    assert.equal(cacheWrites, 2, 'only the first materialization updates the two cache mirrors')
   } finally {
     clock.uninstall()
     if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome

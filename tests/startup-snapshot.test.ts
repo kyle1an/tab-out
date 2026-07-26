@@ -715,6 +715,53 @@ test('startup snapshot cache compares both copies and performs its dual write in
   }
 })
 
+test('startup snapshot cache skips timestamp and score-only generations', async () => {
+  const sessionStore: Record<string, unknown> = {}
+  const durableStore: Record<string, unknown> = {}
+  let cacheWrites = 0
+  const storageArea = (store: Record<string, unknown>) => ({
+    get: async () => store,
+    set: async (value: Record<string, unknown>) => {
+      cacheWrites += 1
+      Object.assign(store, value)
+    }
+  })
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: storageArea(sessionStore),
+      local: storageArea(durableStore)
+    }
+  }
+  const firstSnapshot = startupCacheSnapshot('example.com')
+  firstSnapshot.workingSet = {
+    defaultLimit: 3,
+    expandedLimit: 7,
+    items: [workingSetSnapshotItem('https://example.com/docs', 'Example Docs', 100)]
+  }
+
+  await saveCachedDashboardStartupSnapshot(firstSnapshot, null, {
+    captureStartedAt: 100,
+    now: 150
+  })
+  assert.equal(cacheWrites, 2)
+
+  const scoreOnlySnapshot = structuredClone(firstSnapshot)
+  scoreOnlySnapshot.workingSet.items[0].score = 50
+  await saveCachedDashboardStartupSnapshot(scoreOnlySnapshot, null, {
+    captureStartedAt: 200,
+    now: 250
+  })
+  assert.equal(cacheWrites, 2, 'volatile timestamps and score decay do not write a new generation')
+
+  const changedSnapshot = structuredClone(scoreOnlySnapshot)
+  changedSnapshot.workingSet.items[0].title = 'Renamed Docs'
+  await saveCachedDashboardStartupSnapshot(changedSnapshot, null, {
+    captureStartedAt: 300,
+    now: 350
+  })
+  assert.equal(cacheWrites, 4, 'visible row changes still update both cache mirrors')
+})
+
 test('startup snapshot cache uses a newer durable generation when the session write fails', async () => {
   const oldSnapshot = startupCacheSnapshot('old.example')
   const newSnapshot = startupCacheSnapshot('new.example')
@@ -875,12 +922,8 @@ test('startup snapshot cache keeps both old mirrors when a failed durable write 
 })
 
 test('startup snapshot cache serializes writes in-context before requesting the shared lock', async () => {
-  const snapshot = {
-    dashboard: { realTabs: [], domainGroups: [] },
-    tabHistory: { entries: [] },
-    workingSet: { items: [] },
-    closedTabs: []
-  } as any
+  const firstSnapshot = startupCacheSnapshot('first.example')
+  const latestSnapshot = startupCacheSnapshot('latest.example')
   const sessionStore: Record<string, unknown> = {}
   const durableStore: Record<string, unknown> = {}
   let releaseFirstRead!: () => void
@@ -909,12 +952,12 @@ test('startup snapshot cache serializes writes in-context before requesting the 
     }
   }
 
-  const firstSave = saveCachedDashboardStartupSnapshot(snapshot, null, {
+  const firstSave = saveCachedDashboardStartupSnapshot(firstSnapshot, null, {
     captureStartedAt: 100,
     now: 150
   })
   await firstReadStarted
-  const latestSave = saveCachedDashboardStartupSnapshot(snapshot, null, {
+  const latestSave = saveCachedDashboardStartupSnapshot(latestSnapshot, null, {
     captureStartedAt: 200,
     now: 250
   })

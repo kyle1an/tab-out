@@ -40,6 +40,7 @@ export type CachedDashboardStartupLoadResult = {
 type CachedDashboardStartupSnapshot = {
   savedAt: number
   captureStartedAt?: number
+  contentFingerprint?: string
   workingSetSavedAt?: number
   snapshot: DashboardStartupSnapshot
   localState?: DashboardLocalState
@@ -408,7 +409,10 @@ function isCachedDashboardStats(value: unknown): boolean {
 }
 
 function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashboardStartupSnapshot {
-  return isObject(value) && typeof value.savedAt === 'number' && isDashboardStartupSnapshot(value.snapshot)
+  return isObject(value) &&
+    typeof value.savedAt === 'number' &&
+    isOptionalString(value.contentFingerprint) &&
+    isDashboardStartupSnapshot(value.snapshot)
 }
 
 function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | undefined {
@@ -736,6 +740,51 @@ function rebaseCachedWorkingSetPriority(cached: WorkingSetSnapshot, live: Workin
   }
 }
 
+function hashDashboardStartupContent(content: string): string {
+  let hashA = 1_779_033_703
+  let hashB = 3_144_134_277
+  let hashC = 1_013_904_242
+  let hashD = 2_773_480_762
+  for (let index = 0; index < content.length; index += 1) {
+    const code = content.charCodeAt(index)
+    hashA = hashB ^ Math.imul(hashA ^ code, 597_399_067)
+    hashB = hashC ^ Math.imul(hashB ^ code, 2_869_860_233)
+    hashC = hashD ^ Math.imul(hashC ^ code, 951_274_213)
+    hashD = hashA ^ Math.imul(hashD ^ code, 2_716_044_179)
+  }
+  hashA = Math.imul(hashC ^ (hashA >>> 18), 597_399_067)
+  hashB = Math.imul(hashD ^ (hashB >>> 22), 2_869_860_233)
+  hashC = Math.imul(hashA ^ (hashC >>> 17), 951_274_213)
+  hashD = Math.imul(hashB ^ (hashD >>> 19), 2_716_044_179)
+  hashA ^= hashB ^ hashC ^ hashD
+  hashB ^= hashA
+  hashC ^= hashA
+  hashD ^= hashA
+  return [hashA, hashB, hashC, hashD]
+    .map((hash) => (hash >>> 0).toString(16).padStart(8, '0'))
+    .join('')
+}
+
+function dashboardStartupContentFingerprint(
+  snapshot: DashboardStartupSnapshot,
+  localState: DashboardLocalState | null
+): string {
+  const { startupViewModel: _startupViewModel, ...snapshotWithoutViewModel } = snapshot
+  const semanticContent = JSON.stringify({
+    snapshot: {
+      ...snapshotWithoutViewModel,
+      workingSet: {
+        ...snapshot.workingSet,
+        // Scores decay with wall time. Ordering and row content are visible semantics; a
+        // score-only change must not create a new storage generation.
+        items: snapshot.workingSet.items.map((item) => ({ ...item, score: 0 }))
+      }
+    },
+    localState: localState?.loaded ? localState : null
+  })
+  return `semantic-v1:${semanticContent.length}:${hashDashboardStartupContent(semanticContent)}`
+}
+
 export async function saveCachedDashboardStartupSnapshot(
   snapshot: DashboardStartupSnapshot,
   localState: DashboardLocalState | null,
@@ -769,6 +818,12 @@ export async function saveCachedDashboardStartupSnapshot(
     const cacheSnapshotBase = cachedWorkingSet
       ? { ...snapshot, workingSet: rebaseCachedWorkingSetPriority(cachedWorkingSet.workingSet, snapshot.workingSet) }
       : snapshot
+    const contentFingerprint = dashboardStartupContentFingerprint(cacheSnapshotBase, localState)
+    const sessionContentCurrent = sessionStorage === null ||
+      sessionCacheRead.cached?.contentFingerprint === contentFingerprint
+    const durableContentCurrent = durableStorage === null ||
+      durableCacheRead.cached?.contentFingerprint === contentFingerprint
+    if (sessionContentCurrent && durableContentCurrent) return
     let startupViewModel: DashboardStartupViewModel | undefined
     try {
       startupViewModel = options.buildStartupViewModel?.(cacheSnapshotBase, localState)
@@ -780,6 +835,7 @@ export async function saveCachedDashboardStartupSnapshot(
     const payload: CachedDashboardStartupSnapshot = {
       savedAt: now,
       captureStartedAt,
+      contentFingerprint,
       workingSetSavedAt: cachedWorkingSet?.savedAt ?? now,
       snapshot: cacheSnapshot,
       ...(localState?.loaded ? { localState } : {})
