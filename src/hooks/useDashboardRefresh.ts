@@ -9,9 +9,7 @@ import { buildDashboardDataFromTabs, fetchDashboardData, getCurrentWindowIdResul
 import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs } from '../extension/tabs.js'
 import { buildWorkingSetSnapshot } from '../extension/working-set.js'
 import { loadSavedPagesStoreResult, type SavedPagesStore } from '../extension/saved-pages.js'
-import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, saveCachedDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
-import { buildDashboardStartupViewModel } from '../extension/startup-view-model.js'
-import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
+import { buildTabsDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
 import type { HistorySourceSearchResult } from '../extension/history-source.js'
 
@@ -26,7 +24,6 @@ type DashboardSnapshotOptions = {
   historyRange: string
   historyFilterEnabled: boolean
   pinnedDomains: string[]
-  localState?: DashboardLocalState | null
   savedPagesStore?: SavedPagesStore
   previousOrder: MissionOrderMap
 }
@@ -39,7 +36,6 @@ type DashboardRefreshSnapshot = {
 type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
   dashboard: DashboardData | null
   localStateLoaded: boolean
-  localState: DashboardLocalState | null
   setDashboard: (dashboard: DashboardData | null) => void
   setStartupSnapshot: (snapshot: DashboardStartupSnapshot) => void
   setTabHistory: (tabHistory: TabHistorySnapshot | null) => void
@@ -147,27 +143,10 @@ export function retainHistorySearchResultsOnError(
 }
 
 let startupSnapshotFlight: {
+  id: object
   key: string
-  localStateRef: { current: DashboardLocalState | null }
   promise: Promise<DashboardStartupSnapshot>
 } | null = null
-let startupSnapshotRevision = 0
-let startupSnapshotCacheWrite = Promise.resolve()
-
-function queueStartupSnapshotCacheWrite(
-  snapshot: DashboardStartupSnapshot,
-  localState: DashboardLocalState | null,
-  captureStartedAt: number
-): void {
-  const write = startupSnapshotCacheWrite
-    .catch(() => {})
-    .then(() => saveCachedDashboardStartupSnapshot(snapshot, localState, {
-      buildStartupViewModel: buildDashboardStartupViewModel,
-      captureStartedAt
-    }))
-  startupSnapshotCacheWrite = write
-  void write.catch(() => {})
-}
 
 async function fetchBookmarksSourceItemsLazy(): Promise<BrowserReadResult<DashboardData['realTabs']>> {
   const { fetchBookmarksSourceItemsResult } = await import('../extension/bookmarks.js')
@@ -294,32 +273,18 @@ async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptio
 
 export async function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {
   const key = startupSnapshotFlightKey(options)
-  if (startupSnapshotFlight?.key === key) {
-    startupSnapshotFlight.localStateRef.current = options.localState ?? null
-    return startupSnapshotFlight.promise
-  }
+  if (startupSnapshotFlight?.key === key) return startupSnapshotFlight.promise
 
-  const localStateRef = { current: options.localState ?? null }
-  const revision = ++startupSnapshotRevision
-  const captureStartedAt = captureDashboardStartupSnapshotStartedAt()
+  const id = {}
   const promise = (async () => {
     try {
-      const snapshot = await fetchDashboardStartupSnapshotOnce(options)
-      if (revision === startupSnapshotRevision) {
-        queueStartupSnapshotCacheWrite(snapshot, localStateRef.current, captureStartedAt)
-      }
-      return snapshot
+      return await fetchDashboardStartupSnapshotOnce(options)
     } finally {
-      if (startupSnapshotFlight?.localStateRef === localStateRef) startupSnapshotFlight = null
+      if (startupSnapshotFlight?.id === id) startupSnapshotFlight = null
     }
   })()
-  const flight = {
-    key,
-    localStateRef,
-    promise
-  }
-  startupSnapshotFlight = flight
-  return flight.promise
+  startupSnapshotFlight = { id, key, promise }
+  return promise
 }
 
 export function useDashboardRefresh({
@@ -330,7 +295,6 @@ export function useDashboardRefresh({
   historyFilterEnabled,
   pinnedDomains,
   localStateLoaded,
-  localState,
   previousOrder,
   setDashboard,
   setStartupSnapshot,
@@ -417,7 +381,6 @@ export function useDashboardRefresh({
                 historyRange,
                 historyFilterEnabled,
                 pinnedDomains,
-                localState,
                 previousOrder
               })
             }

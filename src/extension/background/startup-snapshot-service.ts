@@ -1,6 +1,7 @@
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult } from '../closed-tabs.js'
 import type { CapturedDashboardServiceState } from '../dashboard-service-messages.js'
 import { loadDashboardLocalStateResult } from '../dashboard-local-state.js'
+import { domainGroupCardId } from '../domain-card-id.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
 import { loadSavedPagesStoreResult, SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
@@ -53,6 +54,13 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
   const sessionRestoreWatchdogs = new Map<string, ReturnType<typeof setTimeout>>()
   let inFlight: Promise<void> | null = null
   let cachedOpenTabsSeeded = false
+  let tabPreviousOrder = new Map<string, number>()
+
+  function rememberTabOrder(snapshot: Awaited<ReturnType<typeof buildTabsDashboardStartupSnapshot>>): void {
+    tabPreviousOrder = new Map(
+      snapshot.dashboard.domainGroups.map((group, index) => [domainGroupCardId(group), index])
+    )
+  }
 
   function clearScheduledRefresh(): void {
     if (quietTimer !== null) clearTimeout(quietTimer)
@@ -110,6 +118,7 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       }
       clearCacheSeedRetry()
       seedOpenTabsTitleHistory(cachedResult.value?.snapshot.dashboard.realTabs ?? [])
+      if (cachedResult.value) rememberTabOrder(cachedResult.value.snapshot)
       cachedOpenTabsSeeded = true
     }
     const [
@@ -151,12 +160,14 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       workingSetActivity: dashboardServiceState.workingSetActivity,
       savedPagesStore,
       closedTabs: closedTabsResult.value,
-      pinnedDomains
+      pinnedDomains,
+      tabPreviousOrder
     })
     await saveCachedDashboardStartupSnapshot(snapshot, localState, {
       buildStartupViewModel: buildDashboardStartupViewModel,
       captureStartedAt
     })
+    rememberTabOrder(snapshot)
   }
 
   function refreshNow(): Promise<void> {

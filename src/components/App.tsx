@@ -985,7 +985,6 @@ export function App() {
     historyFilterEnabled,
     pinnedDomains,
     localStateLoaded,
-    localState,
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
     setDashboard,

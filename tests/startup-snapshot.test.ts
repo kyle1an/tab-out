@@ -1176,15 +1176,13 @@ test('startup snapshot removes a prior-session web tab when its id is reused by 
   assert.equal(tabOutPage.id, 7)
 })
 
-test('startup snapshot commits dashboard, history, working set, and closed tabs from one startup path', async () => {
+test('page startup snapshot gathers one coherent view without writing the shared cache', async () => {
   let tabsQueryCount = 0
   let windowsGetAllCount = 0
   let windowsGetCurrentCount = 0
   let tabGroupsQueryCount = 0
   let sessionsGetRecentlyClosedCount = 0
-  let cachedStartupSnapshot: Record<string, unknown> | null = null
-  let durableStartupSnapshot: Record<string, unknown> | null = null
-  let tabsQueryStartedAt = Number.NaN
+  let startupCacheWrites = 0
   const runtimeMessages: string[] = []
   const openTabs = [
     makeChromeTab(1, 'https://example.com/docs', 'Example Docs'),
@@ -1201,7 +1199,6 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
       sendMessage: async (message: { type?: string }) => {
         runtimeMessages.push(String(message.type || ''))
         if (message.type === 'tab-out:get-dashboard-service-state') {
-          tabsQueryStartedAt = performance.timeOrigin + performance.now()
           tabsQueryCount += 1
           windowsGetAllCount += 1
           return {
@@ -1236,7 +1233,6 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
     },
     tabs: {
       query: async () => {
-        tabsQueryStartedAt = performance.timeOrigin + performance.now()
         tabsQueryCount += 1
         return openTabs
       }
@@ -1286,15 +1282,11 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
     storage: {
       session: {
         get: async () => ({}),
-        set: async (value: Record<string, unknown>) => {
-          cachedStartupSnapshot = value
-        }
+        set: async () => { startupCacheWrites += 1 }
       },
       local: {
         get: async () => ({}),
-        set: async (value: Record<string, unknown>) => {
-          durableStartupSnapshot = value
-        }
+        set: async () => { startupCacheWrites += 1 }
       }
     }
   }
@@ -1305,12 +1297,6 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
     historyRange: DEFAULT_HISTORY_RANGE,
     historyFilterEnabled: false,
     pinnedDomains: [],
-    localState: {
-      loaded: true,
-      pinnedDomains: ['example.test'],
-      pinnedSectionIds: ['section-alpha'],
-      pinnedPageChipIds: ['chip-alpha']
-    },
     previousOrder: {
       tabs: new Map(),
       bookmarks: new Map(),
@@ -1329,24 +1315,11 @@ test('startup snapshot commits dashboard, history, working set, and closed tabs 
   assert.equal(windowsGetCurrentCount, 1)
   assert.equal(tabGroupsQueryCount, 1)
   assert.equal(sessionsGetRecentlyClosedCount, 1)
-  await new Promise((resolve) => setTimeout(resolve, 0))
-  const cachedSnapshot = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-  assert.ok(cachedSnapshot?.captureStartedAt <= tabsQueryStartedAt)
-  assert.equal(cachedSnapshot?.snapshot.dashboard, snapshot.dashboard)
-  assert.equal(cachedSnapshot?.snapshot.startupViewModel?.viewModel.matchedCards.length, 2)
-  assert.deepEqual(cachedSnapshot?.snapshot.startupViewModel?.pinnedSectionIds, ['section-alpha'])
-  assert.deepEqual(cachedSnapshot?.snapshot.startupViewModel?.pinnedPageChipIds, ['chip-alpha'])
-  assert.deepEqual(cachedSnapshot?.localState?.pinnedDomains, ['example.test'])
-  assert.deepEqual(cachedSnapshot?.localState?.pinnedSectionIds, ['section-alpha'])
-  assert.deepEqual(cachedSnapshot?.localState?.pinnedPageChipIds, ['chip-alpha'])
-  const durableSnapshot = durableStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-  assert.equal(durableSnapshot?.snapshot.dashboard, snapshot.dashboard)
-  assert.equal(durableSnapshot?.snapshot.startupViewModel?.viewModel.matchedCards.length, 2)
-  assert.deepEqual(durableSnapshot?.localState?.pinnedDomains, ['example.test'])
+  assert.equal(startupCacheWrites, 0)
   assert.deepEqual(runtimeMessages, ['tab-out:get-dashboard-service-state'])
 })
 
-test('coalesced startup fetches cache the latest local render state', async () => {
+test('coalesced page startup fetches share browser reads without writing the shared cache', async () => {
   let releaseTabsQuery!: () => void
   let markTabsQueryStarted!: () => void
   const tabsQueryBlocked = new Promise<void>((resolve) => {
@@ -1356,7 +1329,7 @@ test('coalesced startup fetches cache the latest local render state', async () =
     markTabsQueryStarted = resolve
   })
   let tabsQueryCount = 0
-  let cachedStartupSnapshot: Record<string, unknown> | null = null
+  let startupCacheWrites = 0
 
   ;(globalThis as any).chrome = {
     runtime: {
@@ -1400,13 +1373,11 @@ test('coalesced startup fetches cache the latest local render state', async () =
     storage: {
       session: {
         get: async () => ({}),
-        set: async (value: Record<string, unknown>) => {
-          cachedStartupSnapshot = value
-        }
+        set: async () => { startupCacheWrites += 1 }
       },
       local: {
         get: async () => ({}),
-        set: async () => {}
+        set: async () => { startupCacheWrites += 1 }
       }
     }
   }
@@ -1423,88 +1394,17 @@ test('coalesced startup fetches cache the latest local render state', async () =
       history: new Map()
     }
   }
-  const firstFetch = fetchDashboardStartupSnapshot({
-    ...baseOptions,
-    localState: {
-      loaded: true,
-      pinnedDomains: [],
-      pinnedSectionIds: ['section-first'],
-      pinnedPageChipIds: ['chip-first']
-    }
-  })
+  const firstFetch = fetchDashboardStartupSnapshot(baseOptions)
   await tabsQueryStarted
-  const latestFetch = fetchDashboardStartupSnapshot({
-    ...baseOptions,
-    localState: {
-      loaded: true,
-      pinnedDomains: [],
-      pinnedSectionIds: ['section-latest'],
-      pinnedPageChipIds: ['chip-latest']
-    }
-  })
+  const latestFetch = fetchDashboardStartupSnapshot(baseOptions)
   releaseTabsQuery()
   await Promise.all([firstFetch, latestFetch])
-  await new Promise((resolve) => setTimeout(resolve, 0))
 
   assert.equal(tabsQueryCount, 1)
-  const cached = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-  assert.deepEqual(cached?.localState?.pinnedSectionIds, ['section-latest'])
-  assert.deepEqual(cached?.snapshot.startupViewModel?.pinnedPageChipIds, ['chip-latest'])
-
-  let releaseFirstCacheWrite!: () => void
-  let markFirstCacheWriteStarted!: () => void
-  let markBothCacheWritesCompleted!: () => void
-  const firstCacheWriteBlocked = new Promise<void>((resolve) => {
-    releaseFirstCacheWrite = resolve
-  })
-  const firstCacheWriteStarted = new Promise<void>((resolve) => {
-    markFirstCacheWriteStarted = resolve
-  })
-  const bothCacheWritesCompleted = new Promise<void>((resolve) => {
-    markBothCacheWritesCompleted = resolve
-  })
-  const completedCacheWrites: string[] = []
-  globalThis.chrome.storage.session.set = async (value: Record<string, unknown>) => {
-    const payload = value[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-    const pin = payload?.localState?.pinnedDomains?.[0] ?? ''
-    if (pin === 'first.example') {
-      markFirstCacheWriteStarted()
-      await firstCacheWriteBlocked
-    }
-    cachedStartupSnapshot = value
-    completedCacheWrites.push(pin)
-    if (completedCacheWrites.length === 2) markBothCacheWritesCompleted()
-  }
-
-  await fetchDashboardStartupSnapshot({
-    ...baseOptions,
-    pinnedDomains: ['first.example'],
-    localState: {
-      loaded: true,
-      pinnedDomains: ['first.example'],
-      pinnedSectionIds: [],
-      pinnedPageChipIds: []
-    }
-  })
-  await firstCacheWriteStarted
-  await fetchDashboardStartupSnapshot({
-    ...baseOptions,
-    pinnedDomains: ['latest.example'],
-    localState: {
-      loaded: true,
-      pinnedDomains: ['latest.example'],
-      pinnedSectionIds: [],
-      pinnedPageChipIds: []
-    }
-  })
-  releaseFirstCacheWrite()
-  await bothCacheWritesCompleted
-
-  const latestCached = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-  assert.deepEqual(latestCached?.localState?.pinnedDomains, ['latest.example'])
+  assert.equal(startupCacheWrites, 0)
 })
 
-test('overtaken startup fetches cannot replace the latest cached snapshot', async () => {
+test('concurrent page startup fetches remain read-only when an older read finishes last', async () => {
   let releaseFirstTabsQuery!: () => void
   let markFirstTabsQueryStarted!: () => void
   const firstTabsQueryBlocked = new Promise<void>((resolve) => {
@@ -1514,7 +1414,7 @@ test('overtaken startup fetches cannot replace the latest cached snapshot', asyn
     markFirstTabsQueryStarted = resolve
   })
   let tabsQueryCount = 0
-  const cachedPinnedDomains: string[][] = []
+  let startupCacheWrites = 0
 
   ;(globalThis as any).chrome = {
     runtime: {
@@ -1560,14 +1460,11 @@ test('overtaken startup fetches cannot replace the latest cached snapshot', asyn
     storage: {
       session: {
         get: async () => ({}),
-        set: async (value: Record<string, unknown>) => {
-          const payload = value[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
-          cachedPinnedDomains.push(payload?.localState?.pinnedDomains ?? [])
-        }
+        set: async () => { startupCacheWrites += 1 }
       },
       local: {
         get: async () => ({}),
-        set: async () => {}
+        set: async () => { startupCacheWrites += 1 }
       }
     }
   }
@@ -1585,33 +1482,20 @@ test('overtaken startup fetches cannot replace the latest cached snapshot', asyn
   }
   const firstFetch = fetchDashboardStartupSnapshot({
     ...baseOptions,
-    pinnedDomains: ['first.example'],
-    localState: {
-      loaded: true,
-      pinnedDomains: ['first.example'],
-      pinnedSectionIds: [],
-      pinnedPageChipIds: []
-    }
+    pinnedDomains: ['first.example']
   })
   await firstTabsQueryStarted
   const latestFetch = fetchDashboardStartupSnapshot({
     ...baseOptions,
-    pinnedDomains: ['latest.example'],
-    localState: {
-      loaded: true,
-      pinnedDomains: ['latest.example'],
-      pinnedSectionIds: [],
-      pinnedPageChipIds: []
-    }
+    pinnedDomains: ['latest.example']
   })
 
   await latestFetch
   releaseFirstTabsQuery()
   await firstFetch
-  await new Promise((resolve) => setTimeout(resolve, 0))
 
   assert.equal(tabsQueryCount, 2)
-  assert.deepEqual(cachedPinnedDomains, [['latest.example']])
+  assert.equal(startupCacheWrites, 0)
 })
 
 test('latest refresh runner discards an overtaken result and applies one trailing result', async () => {
@@ -1757,7 +1641,7 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
 
   assert.deepEqual(snapshot.dashboard.realTabs.map((tab) => tab.url), liveTabs.map((tab) => tab.url))
   assert.equal(snapshot.workingSet.items[0]?.tabUrl, 'https://example.com/app')
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await saveCachedDashboardStartupSnapshot(snapshot, null, { now, captureStartedAt: now })
   const cachedSnapshot = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
   assert.deepEqual(cachedSnapshot?.snapshot.dashboard.realTabs.map((tab: any) => tab.url), liveTabs.map((tab) => tab.url))
   assert.deepEqual(cachedSnapshot?.snapshot.workingSet.items.map((item: any) => item.tabUrl), ['https://example.com/docs'])
@@ -1768,7 +1652,7 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
 
   cachedStartupSnapshot = null
   existingCache.workingSetSavedAt = Date.now() - (DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS + 1)
-  await fetchDashboardStartupSnapshot({
+  const refreshedSnapshot = await fetchDashboardStartupSnapshot({
     source: 'tabs',
     filter: '',
     historyRange: DEFAULT_HISTORY_RANGE,
@@ -1781,7 +1665,7 @@ test('startup snapshot cache preserves fresh cached working set priority when sa
     }
   })
 
-  await new Promise((resolve) => setTimeout(resolve, 0))
+  await saveCachedDashboardStartupSnapshot(refreshedSnapshot, null)
   const refreshedCache = cachedStartupSnapshot?.[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
   assert.deepEqual(refreshedCache?.snapshot.workingSet.items.map((item: any) => item.tabUrl), [
     'https://example.com/app',

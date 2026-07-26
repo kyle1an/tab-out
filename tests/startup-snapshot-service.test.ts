@@ -257,6 +257,64 @@ test('startup snapshot service reuses one browser capture so dashboard and histo
   assert.deepEqual(cachedSnapshot.snapshot.tabHistory.entries.map((entry: any) => entry.tabId), [1])
 })
 
+test('a restarted startup snapshot service preserves cached card order', async () => {
+  let openTabs = [
+    makeChromeTab(1, 'https://example.test/one', 'Example Test One'),
+    makeChromeTab(2, 'https://example.test/two', 'Example Test Two'),
+    makeChromeTab(3, 'https://example.com/one', 'Example Com One')
+  ]
+  const sessionStore: Record<string, unknown> = {}
+  const localStore: Record<string, unknown> = {}
+
+  ;(globalThis as any).chrome = {
+    runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
+    tabs: { query: async () => openTabs },
+    windows: {
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+    },
+    tabGroups: { query: async () => [] },
+    sessions: { getRecentlyClosed: async () => [] },
+    storage: {
+      session: {
+        get: async () => sessionStore,
+        set: async (value: Record<string, unknown>) => { Object.assign(sessionStore, value) }
+      },
+      local: {
+        get: async () => localStore,
+        set: async (value: Record<string, unknown>) => { Object.assign(localStore, value) }
+      }
+    }
+  }
+
+  const firstService = createStartupSnapshotService({
+    getDashboardServiceState: captureDashboardServiceState()
+  })
+  await firstService.refreshNow()
+  const firstCached = sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
+  assert.deepEqual(
+    firstCached.snapshot.dashboard.domainGroups.map((group: any) => group.domain),
+    ['example.test', 'example.com']
+  )
+
+  openTabs = [
+    makeChromeTab(1, 'https://example.test/one', 'Example Test One'),
+    makeChromeTab(3, 'https://example.com/one', 'Example Com One'),
+    makeChromeTab(4, 'https://example.com/two', 'Example Com Two'),
+    makeChromeTab(5, 'https://example.com/three', 'Example Com Three')
+  ]
+  const restartedService = createStartupSnapshotService({
+    getDashboardServiceState: captureDashboardServiceState()
+  })
+  await restartedService.refreshNow()
+
+  const restartedCached = sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any
+  assert.deepEqual(
+    restartedCached.snapshot.dashboard.domainGroups.map((group: any) => group.domain),
+    ['example.test', 'example.com']
+  )
+})
+
 test('startup snapshot service does not overwrite a warm cache when browser tab reads fail', async () => {
   let cacheWrites = 0
   ;(globalThis as any).chrome = {
