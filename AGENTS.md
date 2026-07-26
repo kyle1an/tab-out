@@ -54,6 +54,7 @@ pnpm dev
 ```
 
 - Use the exact Node and pnpm versions pinned by `.node-version` and `package.json#packageManager`. With Mise configured to read those version files, `mise install` provisions both tools. Once Mise is active, use normal `pnpm` commands; `mise exec -- pnpm <script>` is the fallback when shell activation is unavailable. pnpm remains authoritative for installs and the lockfile.
+- `pnpm typecheck` intentionally resolves TypeScript 7's native `tsc` from the `@typescript/native` alias. The dependency named `typescript` intentionally aliases `@typescript/typescript6` for legacy compiler-API consumers; use `tsc6` only for targeted bridge diagnosis, and do not collapse the bridge or introduce TypeScript-7-only source syntax until those consumers move to the new API. See [ADR 0006](docs/adr/0006-run-typescript-7-with-a-typescript-6-api-bridge.md).
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
 - Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
