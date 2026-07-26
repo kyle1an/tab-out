@@ -117,15 +117,7 @@ function tooltipScrollableAncestors(element: HTMLElement | null) {
 function uniqueTooltipScrollableAncestors(
   scrollContainers: readonly HTMLElement[]
 ) {
-  const uniqueAncestors: HTMLElement[] = []
-  const seenAncestors = new Set<HTMLElement>()
-  for (const scrollContainer of scrollContainers) {
-    if (!seenAncestors.has(scrollContainer)) {
-      seenAncestors.add(scrollContainer)
-      uniqueAncestors.push(scrollContainer)
-    }
-  }
-  return uniqueAncestors
+  return [...new Set(scrollContainers)]
 }
 
 function tooltipScrollableAncestorsUnderPoint(

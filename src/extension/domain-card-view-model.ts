@@ -698,14 +698,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   // Count duplicates per URL and delegate the closeability rules to the
   // shared dedupe policy so dashboard counts mirror tab mutation behavior.
   const keyOf = (t: DashboardTab) => canonicalDedupeKey(t.url)
-  const urlCounts: Record<string, number> = {}
-  const tabsByUrl = new Map<string, DashboardTab[]>()
-  for (const tab of openTabs) {
-    const key = keyOf(tab)
-    urlCounts[key] = (urlCounts[key] || 0) + 1
-    if (!tabsByUrl.has(key)) tabsByUrl.set(key, [])
-    tabsByUrl.get(key)?.push(tab)
-  }
+  const tabsByUrl = Map.groupBy(openTabs, keyOf)
 
   function closableForUrl(u: string): number {
     return countClosableDuplicateExtras(tabsByUrl.get(u) || [], { isTabOutGroup, currentWindowId })
@@ -714,12 +707,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
   const tabOutDisplayMeta = new WeakMap<DashboardTab, TabOutDisplayMeta>()
-  const displayTabsByUrl = new Map<string, DashboardTab[]>()
-  for (const tab of tabs) {
-    const key = keyOf(tab)
-    if (!displayTabsByUrl.has(key)) displayTabsByUrl.set(key, [])
-    displayTabsByUrl.get(key)?.push(tab)
-  }
+  const displayTabsByUrl = Map.groupBy(tabs, keyOf)
 
   function tabOutBucketForTab(tab: DashboardTab): { key: string; kind: TabOutDisplayBucketKind; rank: number; groupId: number } {
     if (isCurrentTabOutPage(tab, currentWindowId)) return { key: 'current', kind: 'current', rank: 0, groupId: -1 }
@@ -1298,7 +1286,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       suppressedTitleParts: presentation.suppressedTitleParts,
       pathSuffix: pathSuffix || '',
       tooltip,
-      dupeCount: tabOutMeta?.tabs.length || urlCounts[keyOf(tab)] || 1,
+      dupeCount: tabOutMeta?.tabs.length || tabsByUrl.get(keyOf(tab))?.length || 1,
       faviconUrl: pickDashboardChipFavicon(tab),
       isGrouped: grouped,
       groupDotColor: grouped ? groupDotColor(tab.groupId) : null,
@@ -1345,12 +1333,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
   function titleCollisionPathByUrl(groupTabs: DashboardTab[]): Map<string, string> {
     const pathByUrl = new Map<string, string>()
-    const sameTitle = new Map<string, DashboardTab[]>()
-    for (const t of groupTabs) {
-      const titleKey = displayTitle(t).toLowerCase()
-      if (!sameTitle.has(titleKey)) sameTitle.set(titleKey, [])
-      sameTitle.get(titleKey)?.push(t)
-    }
+    const sameTitle = Map.groupBy(groupTabs, (tab) => displayTitle(tab).toLowerCase())
     for (const collided of sameTitle.values()) {
       if (collided.length < 2) continue
       const collidedUrls = collided.map((t) => t.url)
@@ -1434,12 +1417,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         titleKey: displayTitle(tab).trim().toLowerCase()
       }
     })
-    const entriesByTitle = new Map<string, ChipBuildEntry[]>()
-    for (const entry of entries) {
-      if (!entry.titleKey) continue
-      if (!entriesByTitle.has(entry.titleKey)) entriesByTitle.set(entry.titleKey, [])
-      entriesByTitle.get(entry.titleKey)?.push(entry)
-    }
+    const entriesByTitle = Map.groupBy(entries, (entry) => entry.titleKey)
+    entriesByTitle.delete('')
     const groupedTitleKeys = new Set(
       [...entriesByTitle.entries()]
         .filter(([, groupEntries]) => groupEntries.length > 1 && new Set(groupEntries.map((entry) => entry.tab.url)).size > 1)
