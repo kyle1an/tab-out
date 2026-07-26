@@ -777,6 +777,17 @@ function dashboardStartupContentFingerprint(
   return `semantic-v1:${semanticContent.length}:${hashDashboardStartupContent(semanticContent)}`
 }
 
+function cachedDashboardStartupContentFingerprint(cached: CachedDashboardStartupSnapshot): string {
+  return cached.contentFingerprint ?? dashboardStartupContentFingerprint(
+    {
+      ...cached.snapshot,
+      tabHistory: normalizeTabHistorySnapshot(cached.snapshot.tabHistory),
+      workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet)
+    },
+    cachedDashboardLocalState(cached.localState)
+  )
+}
+
 export async function saveCachedDashboardStartupSnapshot(
   snapshot: DashboardStartupSnapshot,
   localState: DashboardLocalState | null,
@@ -872,8 +883,12 @@ export async function saveCachedDashboardStartupSnapshot(
     if (!options.scheduleDurableCheckpoint || !sessionSourceForCheckpoint) return
     const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionSourceForCheckpoint) ?? Number.NEGATIVE_INFINITY
     const durableCaptureStartedAt = cachedCaptureStartedAt(durableCacheRead.cached) ?? Number.NEGATIVE_INFINITY
-    const checkpointNeeded = sessionCaptureStartedAt >= durableCaptureStartedAt && (
-      sessionSourceForCheckpoint.contentFingerprint !== durableCacheRead.cached?.contentFingerprint ||
+    const durableContentFingerprint = durableCacheRead.cached
+      ? cachedDashboardStartupContentFingerprint(durableCacheRead.cached)
+      : undefined
+    const checkpointNeeded = !sessionContentCurrent &&
+      sessionCaptureStartedAt >= durableCaptureStartedAt && (
+      cachedDashboardStartupContentFingerprint(sessionSourceForCheckpoint) !== durableContentFingerprint ||
       durableCacheRead.cached?.snapshot.startupViewModel !== undefined
     )
     if (checkpointNeeded) {
@@ -901,14 +916,16 @@ export async function promoteCachedDashboardStartupSnapshot(now = Date.now()): P
     if (durableCaptureStartedAt > sessionCaptureStartedAt) return true
 
     const compactSessionPayload = compactStartupSnapshotPayload(sessionCacheRead.cached)
+    const sessionContentFingerprint = cachedDashboardStartupContentFingerprint(compactSessionPayload)
     const durableCurrent = !!durableCacheRead.cached &&
-      durableCacheRead.cached.contentFingerprint === compactSessionPayload.contentFingerprint &&
+      durableCacheRead.cached.contentFingerprint === sessionContentFingerprint &&
       durableCacheRead.cached.snapshot.startupViewModel === undefined
     if (durableCurrent) return true
 
     return writeStartupSnapshotCache(durableStorage, {
       ...compactSessionPayload,
-      savedAt: now
+      savedAt: now,
+      contentFingerprint: sessionContentFingerprint
     })
   })
 }

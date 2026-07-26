@@ -992,7 +992,7 @@ test('startup snapshot cache promotes the newest Warm Snapshot source without it
   assert.equal((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.startupViewModel, undefined)
 })
 
-test('failed Durable Checkpoint promotion retries storage once without scheduling a failure loop', async () => {
+test('failed Durable Checkpoint promotion is not re-armed by an unchanged refresh', async () => {
   const sessionStore: Record<string, unknown> = {}
   const durableStore: Record<string, unknown> = {}
   let durableWriteAttempts = 0
@@ -1033,6 +1033,13 @@ test('failed Durable Checkpoint promotion retries storage once without schedulin
 
   assert.equal(durableWriteAttempts, 3, 'one initial write plus two promotion attempts')
   assert.equal(scheduledCheckpoints, 1, 'promotion failure does not schedule another checkpoint')
+  await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('latest.example'), null, {
+    captureStartedAt: 300_200,
+    durableCheckpointIntervalMs: 5 * 60_000,
+    now: 300_200,
+    scheduleDurableCheckpoint: async () => { scheduledCheckpoints += 1 }
+  })
+  assert.equal(scheduledCheckpoints, 1, 'an unchanged refresh does not re-arm the failed checkpoint')
   assert.equal(
     ((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups[0] as any).domain,
     'first.example'
@@ -1104,6 +1111,74 @@ test('startup snapshot cache compares legacy representations by saved time', asy
   }
 
   assert.equal((await loadCachedDashboardStartup(300))?.snapshot.dashboard.domainGroups[0]?.domain, 'new.example')
+})
+
+test('Durable Checkpoint promotion preserves a newer legacy Warm Snapshot', async () => {
+  const sessionStore: Record<string, unknown> = {
+    [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+      savedAt: 200,
+      snapshot: {
+        ...startupCacheSnapshot('new.example'),
+        workingSet: null
+      }
+    }
+  }
+  const durableStore: Record<string, unknown> = {
+    [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+      savedAt: 100,
+      snapshot: startupCacheSnapshot('old.example')
+    }
+  }
+
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => sessionStore },
+      local: {
+        get: async () => durableStore,
+        set: async (value: Record<string, unknown>) => { Object.assign(durableStore, value) }
+      }
+    }
+  }
+
+  await promoteCachedDashboardStartupSnapshot(300)
+
+  delete sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+  assert.equal((await loadCachedDashboardStartup(300))?.snapshot.dashboard.domainGroups[0]?.domain, 'new.example')
+})
+
+test('startup snapshot cache schedules a newer legacy Warm Snapshot when session migration fails', async () => {
+  const sessionStore: Record<string, unknown> = {
+    [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+      savedAt: 200,
+      snapshot: startupCacheSnapshot('new.example')
+    }
+  }
+  const durableStore: Record<string, unknown> = {
+    [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: {
+      savedAt: 100,
+      snapshot: startupCacheSnapshot('old.example')
+    }
+  }
+  let scheduledCheckpoints = 0
+
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: {
+        get: async () => sessionStore,
+        set: async () => { throw new Error('session storage unavailable') }
+      },
+      local: { get: async () => durableStore }
+    }
+  }
+
+  await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('new.example'), null, {
+    captureStartedAt: 300,
+    durableCheckpointIntervalMs: 5 * 60_000,
+    now: 300,
+    scheduleDurableCheckpoint: async () => { scheduledCheckpoints += 1 }
+  })
+
+  assert.equal(scheduledCheckpoints, 1)
 })
 
 test('startup snapshot cache retains the prior Durable Checkpoint when promotion fails', async () => {
