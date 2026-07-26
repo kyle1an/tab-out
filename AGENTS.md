@@ -41,8 +41,8 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
 - Vite's exact build target and the manifest's `minimum_chrome_version` derive from that policy. Do not add a Browserslist configuration unless a concrete compatibility tool will consume it; Browserslist is not the Vite or extension-install authority.
 - `pnpm chrome-support:check` is deterministic and offline. It validates the policy, generated manifest, and the Chromium major bundled by Playwright for minimum-version browser tests; it runs first in `pnpm verify` and therefore in the pre-commit hook.
 - `pnpm chrome-support:bump` forces a fresh complete platform check, updates the policy only when the common floor advances, rebuilds generated output, and checks consistency. A floor advance also requires an `@playwright/test` release whose bundled Chromium has that major. Review the diff; the command never stages, commits, pushes, or lowers the floor.
-- `pnpm chrome-support:release-check` performs the same fresh observation without writing. The weekly read-only workflow uses it to surface a stale floor.
-- `lastBumpedAt` is audit metadata, not a reason to skip scheduled checks. See `docs/adr/0003-rolling-chrome-support-floor.md`.
+- `pnpm chrome-support:release-check` performs the same fresh observation without writing. Run it before a release or when reviewing whether the floor should advance.
+- `lastBumpedAt` is audit metadata, not a reason to skip a fresh manual check. See `docs/adr/0003-rolling-chrome-support-floor.md`.
 
 ## Development Loop
 
@@ -53,7 +53,7 @@ pnpm setup:hooks
 pnpm dev
 ```
 
-- Use the exact Node version pinned in `.node-version`. Activate it with a version manager that reads the file. With Nub, `nub node install` provisions the pin and `nub run --node <script>` runs a package script through it; pnpm remains authoritative for installs and the lockfile.
+- Use the exact Node and pnpm versions pinned by `.node-version` and `package.json#packageManager`. With Mise configured to read those version files, `mise install` provisions both tools. Once Mise is active, use normal `pnpm` commands; `mise exec -- pnpm <script>` is the fallback when shell activation is unavailable. pnpm remains authoritative for installs and the lockfile.
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
 - Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.
@@ -87,6 +87,8 @@ pnpm dev
 - Prefer domain-specific scopes over broad buckets like `ui`; examples include `page-chip`, `domain-card`, `activation-history`, `working-set`, `suspend`, `build`, or another clear repo-local area.
 - For Codex-authored or Codex-assisted commits, include `Co-authored-by: Codex <noreply@openai.com>` as the final non-empty line.
 - Do not leave an extra blank line after the `Co-authored-by` trailer. GitHub may fail to render the co-author even when local `git interpret-trailers` still parses it.
+- Keep GitHub issue, pull-request, and mention syntax out of commit messages, including examples and source-language tokens. Use reference-free prose such as `image 11`, `issue 42`, `pull request 1234`, `JSDoc public tag`, `Tailwind theme directive`, or `CSS property at-rule`.
+- Put intentional issue linkage and user mentions in reviewed pull-request or issue conversations. See `docs/agents/commit-reference-hygiene.md`; the `commit-msg` and `pre-push` hooks enforce this boundary.
 - For metadata-only commit-message rewrites, preserve author and committer timestamps.
 - Before rewriting published history, create a backup branch.
 - Push rewritten published history only with `git push --force-with-lease`.
@@ -128,4 +130,5 @@ For installation or onboarding, use the canonical product copy and setup flow in
 - Issue tracker: local markdown issues live under `.scratch/<feature>/`; see `docs/agents/issue-tracker.md`.
 - Triage labels: use the default five-status vocabulary; see `docs/agents/triage-labels.md`.
 - Domain docs: this is a single-context repo with root `CONTEXT.md` and optional `docs/adr/`; see `docs/agents/domain.md`.
+- Commit-message hygiene: keep GitHub autolinks and mentions out of immutable commit prose; see `docs/agents/commit-reference-hygiene.md`.
 - UI debugging: `docs/debugging-the-dashboard.md` covers fixture-based inspection and real-extension geometry probes; completed engineering audits are summarized in `docs/engineering-change-ledger.md`.

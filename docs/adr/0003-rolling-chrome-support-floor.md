@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-23
+- Updated: 2026-07-26
 
 ## Context
 
@@ -16,7 +17,7 @@ Raising `minimum_chrome_version` is also a distribution decision: older Chrome v
 - Keep `chrome-support.json` as the one tracked policy. Its `lastBumpedAt` records the last policy change; it does not determine when the network should be checked.
 - Derive Vite's `build.target` and the manifest's `minimum_chrome_version` from the policy. Run the Playwright harness with its bundled Chromium and require that browser's major to equal the policy floor, so browser tests exercise the oldest supported version rather than whichever Chrome is installed locally. Do not add Browserslist until a compatibility linter or another concrete consumer needs it.
 - Keep commit-time verification offline.
-- Run a fresh, fail-closed, read-only observer weekly. While the extension is unreleased, a stale result fails the workflow and directs a developer to run the reviewed bump command; it does not create commits or pull requests automatically.
+- Run a fresh, fail-closed, read-only observation manually before a release or when reviewing the support floor. A stale result directs the developer to run the reviewed bump command; it does not change files automatically.
 - Require the bump command to observe every platform successfully, refuse automatic downgrades, update only a changed floor, rebuild generated output, and leave staging and publishing to the developer. Git history records the observation that caused each reviewed bump.
 
 ## Consequences
@@ -25,7 +26,7 @@ The declared install boundary and generated syntax/CSS target stay aligned, whil
 
 A floor bump may also require updating `@playwright/test` to a release that bundles the new minimum Chromium major before the offline consistency check passes. Real-Chrome inspection remains necessary for extension APIs and service-worker behavior; the bundled-browser lane is the deterministic floor check for the localhost harness.
 
-The weekly workflow can report a stale floor for up to seven days. Increase the observer cadence if release readiness later requires a shorter window.
+Without a scheduled observer, a stale floor is surfaced only when a developer runs `pnpm chrome-support:release-check` or `pnpm chrome-support:bump`. This is intentional for the current single-owner, unreleased workflow; reconsider server-side automation if the release cadence or contributor model changes.
 
 ## References
 

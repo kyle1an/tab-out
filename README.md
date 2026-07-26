@@ -101,7 +101,7 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 
 ## Development
 
-Use the Node version pinned in `.node-version` before running the toolchain. Activate it with a version manager that reads that file. With Nub, `nub node install` provisions the pinned version and `nub run --node <script>` runs a package script through it; pnpm remains the installer and lockfile authority.
+Use the Node and pnpm versions pinned by `.node-version` and `package.json#packageManager` before running the toolchain. With Mise configured to read those version files, `mise install` provisions both tools. Once Mise is active, use the normal `pnpm` commands below; `mise exec -- pnpm <script>` is the fallback when shell activation is unavailable. pnpm remains the installer and lockfile authority.
 
 ```bash
 pnpm install
@@ -123,11 +123,11 @@ pnpm verify
 
 `pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/filter-focus-boot.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
 
-For a faster iteration-only pass, `pnpm verify:quick` runs typechecking, lint, React Doctor, and the React Compiler baseline check in parallel. It does not build bundles or run tests, so it does not replace `pnpm verify` before committing. Nub users can run the pinned-Node form with `nub run --node verify:quick`.
+For a faster iteration-only pass, `pnpm verify:quick` runs typechecking, lint, React Doctor, and the React Compiler baseline check in parallel. It does not build bundles or run tests, so it does not replace `pnpm verify` before committing. When shell activation is unavailable, run the pinned-tool form with `mise exec -- pnpm verify:quick`.
 
 Before the first browser-harness run, install the pinned minimum-version browser with `pnpm exec playwright install chromium`. `pnpm test:browser` uses that bundled Chromium; real Chrome is still required to verify extension APIs, service workers, and other `chrome.*` behavior.
 
-`pnpm setup:hooks` enables the repo's pre-commit hook for this clone. The hook runs `pnpm verify` before each commit, so stale bundled output is caught before it lands.
+`pnpm setup:hooks` enables the repo's pre-commit, commit-message, and pre-push hooks for this clone. The pre-commit hook runs `pnpm verify`; the other hooks reject GitHub reference and mention syntax before an immutable commit message can create an unintended link or notification. See [`docs/agents/commit-reference-hygiene.md`](docs/agents/commit-reference-hygiene.md) for the wording policy and legacy-worktree boundary.
 
 Use `pnpm build:debug` when you need a local sourcemap.
 

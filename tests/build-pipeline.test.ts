@@ -14,6 +14,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
   assert.ok(existsSync('scripts/build-extension.mjs'), 'scripts/build-extension.mjs should build extension entries without shared runtime chunks')
   assert.ok(existsSync('scripts/check-dependency-architecture.ts'), 'dependency architecture checks should enforce baseline drift')
+  assert.ok(existsSync('scripts/check-commit-references.ts'), 'commit reference checks should guard immutable commit messages')
   assert.ok(existsSync('scripts/chrome-support.ts'), 'scripts/chrome-support.ts should maintain the rolling Chrome floor')
   assert.ok(existsSync('scripts/write-manifest.ts'), 'scripts/write-manifest.ts should generate the committed manifest package file')
   assert.ok(existsSync('scripts/write-index-html.ts'), 'scripts/write-index-html.ts should generate the committed dashboard page')
@@ -39,6 +40,10 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(readFileSync('.node-version', 'utf8').trim(), '26.5.0')
   assert.match(pkg.packageManager, /^pnpm@/)
   assert.equal(pkg.scripts?.['setup:hooks'], 'git config core.hooksPath .githooks')
+  assert.equal(
+    pkg.scripts?.['commit-references:check'],
+    'tsx scripts/check-commit-references.ts'
+  )
   assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.mjs')
   assert.equal(pkg.scripts?.build, 'node scripts/build-extension.mjs')
   assert.equal(pkg.scripts?.['build:debug'], 'node scripts/build-extension.mjs --sourcemap')
@@ -741,18 +746,29 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.doesNotMatch(sharedTypesSource, /const chrome:\s*any/)
 })
 
-test('repo pre-commit hook runs the verification pipeline', () => {
+test('repo hooks verify changes and reject unsafe commit references', () => {
   assert.ok(existsSync('.githooks/pre-commit'), 'pre-commit hook should be committed for local setup')
+  assert.ok(existsSync('.githooks/commit-msg'), 'commit-msg hook should check proposed messages')
+  assert.ok(existsSync('.githooks/pre-push'), 'pre-push hook should check outgoing commits')
 
-  const hook = readFileSync('.githooks/pre-commit', 'utf8')
-  assert.match(hook, /^#!\/bin\/sh/)
-  assert.match(hook, /pnpm verify/)
+  const preCommitHook = readFileSync('.githooks/pre-commit', 'utf8')
+  const commitMessageHook = readFileSync('.githooks/commit-msg', 'utf8')
+  const prePushHook = readFileSync('.githooks/pre-push', 'utf8')
+  assert.notEqual(statSync('.githooks/commit-msg').mode & 0o111, 0)
+  assert.notEqual(statSync('.githooks/pre-push').mode & 0o111, 0)
+  assert.match(preCommitHook, /^#!\/bin\/sh/)
+  assert.match(preCommitHook, /pnpm verify/)
+  assert.match(commitMessageHook, /check-commit-references\.ts --message-file/)
+  assert.match(prePushHook, /check-commit-references\.ts --pre-push/)
 })
 
-test('weekly Chrome observer performs a fresh read-only release check', () => {
-  const workflow = readFileSync('.github/workflows/chrome-support.yml', 'utf8')
-  assert.match(workflow, /pnpm chrome-support:release-check/)
-  assert.doesNotMatch(workflow, /contents: write/)
+test('commit reference policy records custom-autolink audit status', () => {
+  const policy = JSON.parse(
+    readFileSync('.github/commit-reference-policy.json', 'utf8')
+  ) as { customAutolinks: unknown[]; customAutolinksAudited: boolean }
+
+  assert.deepEqual(policy.customAutolinks, [])
+  assert.equal(policy.customAutolinksAudited, false)
 })
 
 test('built extension bundle is packaged locally', () => {

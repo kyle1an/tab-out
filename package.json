@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "setup:hooks": "git config core.hooksPath .githooks",
+    "commit-references:check": "tsx scripts/check-commit-references.ts",
     "dev": "node scripts/watch-build.mjs",
     "serve": "node scripts/serve.mjs",
     "build": "node scripts/build-extension.mjs",
