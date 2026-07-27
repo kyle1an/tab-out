@@ -29,7 +29,7 @@ export function startupSnapshotStorageChangesRequireRefresh(
   areaName: string
 ): boolean {
   return areaName === 'local' &&
-    STARTUP_SNAPSHOT_RENDER_STATE_KEYS.some((key) => Object.prototype.hasOwnProperty.call(changes, key))
+    STARTUP_SNAPSHOT_RENDER_STATE_KEYS.some((key) => Object.hasOwn(changes, key))
 }
 
 type StartupSnapshotAlarmApi = {

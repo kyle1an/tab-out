@@ -63,7 +63,7 @@ export function reconcileDashboardLocalStateStorageChanges(
     stateKey: DashboardLocalStatePinKey,
     normalize: (value: unknown) => string[]
   ): void {
-    if (!Object.prototype.hasOwnProperty.call(changes, storageKey)) return
+    if (!Object.hasOwn(changes, storageKey)) return
     const nextValue = changes[storageKey]?.newValue
     // Match the initial-load failure contract: malformed persisted pin state is
     // unknown, not an intentional empty list. A removed key is intentionally [].

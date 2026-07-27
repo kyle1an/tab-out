@@ -216,10 +216,7 @@ async function installBookmarkFetchGate(
     if (!nextTree) fixtureWindow.__tabOutSmokeSetBookmarks?.(nextBookmarkCount)
 
     const originalGetTree = window.chrome.bookmarks.getTree.bind(window.chrome.bookmarks)
-    let release = () => {}
-    const blocked = new Promise<void>((resolve) => {
-      release = resolve
-    })
+    const { promise: blocked, resolve: release } = Promise.withResolvers<void>()
     const gate: BookmarkFetchGate = {
       callCount: 0,
       completedCount: 0,

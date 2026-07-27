@@ -11,7 +11,7 @@
    ================================================================ */
 
 import { createRequire } from 'node:module'
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import process from 'node:process'
 
@@ -54,16 +54,12 @@ try {
 }
 
 function sourceFiles(): string[] {
-  const files: string[] = []
-  const walk = (dir: string): void => {
-    for (const name of readdirSync(dir)) {
-      const path = join(dir, name)
-      if (statSync(path).isDirectory()) walk(path)
-      else if (/\.(tsx|ts)$/.test(name) && !name.endsWith('.d.ts')) files.push(path)
-    }
-  }
-  walk(join(REPO, 'src'))
-  return files
+  return readdirSync(join(REPO, 'src'), { recursive: true, withFileTypes: true })
+    .filter((entry) => (
+      entry.isFile() && /\.(tsx|ts)$/.test(entry.name) && !entry.name.endsWith('.d.ts')
+    ))
+    .map((entry) => join(entry.parentPath, entry.name))
+    .sort()
 }
 
 function bailoutsForFile(file: string): string[] {

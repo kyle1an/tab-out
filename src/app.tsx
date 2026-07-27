@@ -95,7 +95,7 @@ chrome.history.onVisited.addListener(schedulePassiveDashboardRefresh)
 chrome.history.onVisitRemoved.addListener(schedulePassiveDashboardRefresh)
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local' && Object.prototype.hasOwnProperty.call(changes, SAVED_PAGES_STORAGE_KEY)) {
+  if (areaName === 'local' && Object.hasOwn(changes, SAVED_PAGES_STORAGE_KEY)) {
     scheduleAnimatedDashboardRefresh()
   }
 })

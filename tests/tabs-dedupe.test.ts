@@ -319,10 +319,7 @@ test('global dedupe reads tabs after current-window state settles', async () => 
     { id: 1, url, title: 'Current', windowId: 1, index: 0, active: true, pinned: false, groupId: -1, lastAccessed: 300 },
     { id: 2, url, title: 'Leaving', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 100 }
   ])
-  let releaseCurrentWindow!: () => void
-  const currentWindowGate = new Promise<void>((resolve) => {
-    releaseCurrentWindow = resolve
-  })
+  const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
   let tabQueryCount = 0
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
@@ -463,7 +460,7 @@ test('global dedupe collapses dashboards with different filter params, keeping t
 
   await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
 
-  assert.deepEqual(removedIds.slice().sort((a, b) => a - b), [2, 3])
+  assert.deepEqual(removedIds.toSorted((a, b) => a - b), [2, 3])
 })
 
 test('global dedupe preserves a pinned dashboard even when filters differ', async () => {

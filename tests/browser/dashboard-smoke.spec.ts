@@ -6407,10 +6407,7 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
   await page.evaluate(() => {
     const storage = window.chrome.storage.local
     const originalSet = storage.set.bind(storage)
-    let releaseFirstWrite!: () => void
-    const firstWriteGate = new Promise<void>((resolve) => {
-      releaseFirstWrite = resolve
-    })
+    const { promise: firstWriteGate, resolve: releaseFirstWrite } = Promise.withResolvers<void>()
     const audit = {
       active: 0,
       maxActive: 0,
@@ -6419,7 +6416,7 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
     }
     ;(window as typeof window & { __tabOutPinWriteAudit: typeof audit }).__tabOutPinWriteAudit = audit
     storage.set = async (items) => {
-      if (!Object.prototype.hasOwnProperty.call(items, 'tabOutPinnedDomainsV1')) {
+      if (!Object.hasOwn(items, 'tabOutPinnedDomainsV1')) {
         await originalSet(items)
         return
       }

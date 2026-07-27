@@ -76,14 +76,8 @@ test('getSuspendTarget: a slow stored read cannot overwrite a target learned fro
   const liveId = 'cccccccccccccccccccccccccccccccc'
   const storedTemplate = `chrome-extension://${storedId}/suspended.html#ttl=Stored&pos=0&uri=https://stored.example`
   const liveTemplate = `chrome-extension://${liveId}/suspended.html#ttl=Live&pos=0&uri=https://live.example`
-  let resolveStoredRead!: (value: unknown) => void
-  let markStoredReadStarted!: () => void
-  const storedRead = new Promise<unknown>((resolve) => {
-    resolveStoredRead = resolve
-  })
-  const storedReadStarted = new Promise<void>((resolve) => {
-    markStoredReadStarted = resolve
-  })
+  const { promise: storedRead, resolve: resolveStoredRead } = Promise.withResolvers<unknown>()
+  const { promise: storedReadStarted, resolve: markStoredReadStarted } = Promise.withResolvers<void>()
   const store = createSuspendTargetStore({
     now: () => 1_000,
     read: async () => {
@@ -110,18 +104,9 @@ test('rememberSuspendTargetFromTabs: persistence keeps the newest target when an
   const olderTemplate = `chrome-extension://${olderId}/suspended.html#ttl=Older&pos=0&uri=https://older.example`
   const newerTemplate = `chrome-extension://${newerId}/suspended.html#ttl=Newer&pos=0&uri=https://newer.example`
   const lockManager = createSharedLockManager()
-  let releaseOlderWrite!: () => void
-  let markOlderWriteStarted!: () => void
-  let markWritesCompleted!: () => void
-  const olderWriteGate = new Promise<void>((resolve) => {
-    releaseOlderWrite = resolve
-  })
-  const olderWriteStarted = new Promise<void>((resolve) => {
-    markOlderWriteStarted = resolve
-  })
-  const writesCompleted = new Promise<void>((resolve) => {
-    markWritesCompleted = resolve
-  })
+  const { promise: olderWriteGate, resolve: releaseOlderWrite } = Promise.withResolvers<void>()
+  const { promise: olderWriteStarted, resolve: markOlderWriteStarted } = Promise.withResolvers<void>()
+  const { promise: writesCompleted, resolve: markWritesCompleted } = Promise.withResolvers<void>()
   let writeCount = 0
   let completedWriteCount = 0
   let storedTarget: unknown = null
@@ -196,14 +181,8 @@ test('separate extension contexts cannot let an older trailing suspend target ov
   const lockManager = createSharedLockManager()
   let observationCount = 0
   let storedTarget: { id: string; template: string; observedAt: number } | undefined
-  let releaseFirstWrite!: () => void
-  let markFirstWriteStarted!: () => void
-  const firstWriteGate = new Promise<void>((resolve) => {
-    releaseFirstWrite = resolve
-  })
-  const firstWriteStarted = new Promise<void>((resolve) => {
-    markFirstWriteStarted = resolve
-  })
+  const { promise: firstWriteGate, resolve: releaseFirstWrite } = Promise.withResolvers<void>()
+  const { promise: firstWriteStarted, resolve: markFirstWriteStarted } = Promise.withResolvers<void>()
   let writeCount = 0
   const createStore = () => createSuspendTargetStore({
     now: () => {

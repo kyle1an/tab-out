@@ -179,10 +179,8 @@ test('startup snapshot service schedules one non-sliding checkpoint and promotes
   let scheduledAlarm: chrome.alarms.Alarm | undefined
   const alarmCreates: chrome.alarms.AlarmCreateInfo[] = []
   let blockNextSessionWrite = false
-  let markBlockedSessionWriteStarted!: () => void
-  let releaseBlockedSessionWrite!: () => void
-  const blockedSessionWriteStarted = new Promise<void>((resolve) => { markBlockedSessionWriteStarted = resolve })
-  const blockedSessionWriteReleased = new Promise<void>((resolve) => { releaseBlockedSessionWrite = resolve })
+  const { promise: blockedSessionWriteStarted, resolve: markBlockedSessionWriteStarted } = Promise.withResolvers<void>()
+  const { promise: blockedSessionWriteReleased, resolve: releaseBlockedSessionWrite } = Promise.withResolvers<void>()
   let openTabs = [makeChromeTab(1, 'https://first.example/docs', 'First Docs')]
 
   ;(globalThis as any).chrome = {
@@ -790,14 +788,8 @@ test('startup snapshot service runs a trailing refresh requested during an activ
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
   let snapshotBuilds = 0
-  let releaseFirstBuild!: () => void
-  let markFirstBuildStarted!: () => void
-  const firstBuildBlocked = new Promise<void>((resolve) => {
-    releaseFirstBuild = resolve
-  })
-  const firstBuildStarted = new Promise<void>((resolve) => {
-    markFirstBuildStarted = resolve
-  })
+  const { promise: firstBuildBlocked, resolve: releaseFirstBuild } = Promise.withResolvers<void>()
+  const { promise: firstBuildStarted, resolve: markFirstBuildStarted } = Promise.withResolvers<void>()
   installEmptyWorkerChrome()
 
   try {
@@ -831,10 +823,7 @@ test('startup snapshot service runs a trailing refresh requested during an activ
 test('sessions changes invalidate an in-flight recently-closed read and schedule one settled retry', async () => {
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome
-  let releaseFirstSessionsRead!: (sessions: chrome.sessions.Session[]) => void
-  const firstSessionsRead = new Promise<chrome.sessions.Session[]>((resolve) => {
-    releaseFirstSessionsRead = resolve
-  })
+  const { promise: firstSessionsRead, resolve: releaseFirstSessionsRead } = Promise.withResolvers<chrome.sessions.Session[]>()
   let sessionsReadCount = 0
   let cacheWrites = 0
 

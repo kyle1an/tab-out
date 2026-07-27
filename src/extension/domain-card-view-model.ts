@@ -35,11 +35,10 @@ type ComputeCardOptions = {
 
 const EMPTY_PINNED_SECTIONS: ReadonlySet<string> = new Set<string>()
 
-// Stable pinned-first sort. Array.prototype.sort has been stable since
-// ES2019, so unpinned items keep their incoming order. Treats absent
-// isPinned (test mocks built before this feature) as false.
+// Stable pinned-first sort: unpinned items keep their incoming order.
+// Treats absent isPinned (test mocks built before this feature) as false.
 function sortPinnedFirst<T extends { isPinned?: boolean }>(items: readonly T[]): T[] {
-  return items.slice().sort((a, b) => Number(b.isPinned === true) - Number(a.isPinned === true))
+  return items.toSorted((a, b) => Number(b.isPinned === true) - Number(a.isPinned === true))
 }
 type PathCategory = NonNullable<PathGroupResult['category']>
 type TitlePresentation = {
@@ -107,7 +106,7 @@ function dashboardChipOrderKey(sourceType: DashboardTab['sourceType'] | undefine
 }
 
 function dashboardFoldChipOrderKey(sourceType: DashboardTab['sourceType'] | undefined, urls: readonly string[]): string {
-  return dashboardChipOrderKey(sourceType, 'fold', urls.slice().sort().join('\u0000'))
+  return dashboardChipOrderKey(sourceType, 'fold', urls.toSorted().join('\u0000'))
 }
 
 export function dashboardChipOrderKeyForTab(tab: Pick<DashboardTab, 'sourceType' | 'url'>): string {
@@ -1114,8 +1113,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     return 0
   }
 
-  function sortPageChipsInScope<T extends DashboardChipData>(chips: T[]): T[] {
-    return chips.slice().sort(comparePageChipPins) as T[]
+  function sortPageChipsInScope<T extends DashboardChipData>(chips: readonly T[]): T[] {
+    return chips.toSorted(comparePageChipPins)
   }
   function tabOpenStateRank(tab: DashboardTab): number {
     return isClosedSavedDashboardTab(tab) ? 1 : 0
@@ -1518,7 +1517,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     }
 
     const unsortedClusters = rawClusters.map(({ label, tabs, key, isPR }) => {
-      const orderedTabs = tabs.slice().sort((a, b) => {
+      const orderedTabs = tabs.toSorted((a, b) => {
         const aCat = categoryRank(pgByUrl.get(a.url)?.category)
         const bCat = categoryRank(pgByUrl.get(b.url)?.category)
         return aCat - bCat
@@ -1679,7 +1678,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   // tab across every env in every fold group.
   let sharedSectionData: DashboardSectionVM | null = null
   if (foldGroups.length > 0) {
-    const sortedFolds = foldGroups.slice().sort((a, b) => compareWithPriorityThenRememberedChipOrder(
+    const sortedFolds = foldGroups.toSorted((a, b) => compareWithPriorityThenRememberedChipOrder(
       dashboardFoldChipOrderKey(a[0]?.sourceType, a.map((tab) => tab.url)),
       dashboardFoldChipOrderKey(b[0]?.sourceType, b.map((tab) => tab.url)),
       chipPriorityScoreForTabs(a),

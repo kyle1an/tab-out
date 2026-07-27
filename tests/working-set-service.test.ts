@@ -45,14 +45,8 @@ test('Working Set activity reads wait for mutations that started first', async (
       }]
     }))
   }
-  let releaseActivationQuery!: () => void
-  let markActivationQueryStarted!: () => void
-  const activationQueryBlocked = new Promise<void>((resolve) => {
-    releaseActivationQuery = resolve
-  })
-  const activationQueryStarted = new Promise<void>((resolve) => {
-    markActivationQueryStarted = resolve
-  })
+  const { promise: activationQueryBlocked, resolve: releaseActivationQuery } = Promise.withResolvers<void>()
+  const { promise: activationQueryStarted, resolve: markActivationQueryStarted } = Promise.withResolvers<void>()
   let activationQuerySeen = false
   const chromeApi = {
     tabs: {
@@ -99,14 +93,8 @@ test('Working Set activity reads wait for mutations that started first', async (
 
 test('Working Set window-focus activity preserves event order when captured tab lookups resolve out of order', async () => {
   const tabs = [chromeTab(1, 'one'), { ...chromeTab(2, 'two'), windowId: 2, active: true, selected: true }]
-  let resolveWindowOne!: (tabs: chrome.tabs.Tab[]) => void
-  let resolveWindowTwo!: (tabs: chrome.tabs.Tab[]) => void
-  const windowOneLookup = new Promise<chrome.tabs.Tab[]>((resolve) => {
-    resolveWindowOne = resolve
-  })
-  const windowTwoLookup = new Promise<chrome.tabs.Tab[]>((resolve) => {
-    resolveWindowTwo = resolve
-  })
+  const { promise: windowOneLookup, resolve: resolveWindowOne } = Promise.withResolvers<chrome.tabs.Tab[]>()
+  const { promise: windowTwoLookup, resolve: resolveWindowTwo } = Promise.withResolvers<chrome.tabs.Tab[]>()
   let storedActivity = emptyWorkingSetActivity()
   const chromeApi = {
     tabs: {
@@ -299,14 +287,8 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
   let tabs = [removedTab]
   let storedActivity = emptyWorkingSetActivity()
   let writeCount = 0
-  let markActivationLookupStarted!: () => void
-  let releaseActivationLookup!: (tabs: chrome.tabs.Tab[]) => void
-  const activationLookupStarted = new Promise<void>((resolve) => {
-    markActivationLookupStarted = resolve
-  })
-  const activationLookup = new Promise<chrome.tabs.Tab[]>((resolve) => {
-    releaseActivationLookup = resolve
-  })
+  const { promise: activationLookupStarted, resolve: markActivationLookupStarted } = Promise.withResolvers<void>()
+  const { promise: activationLookup, resolve: releaseActivationLookup } = Promise.withResolvers<chrome.tabs.Tab[]>()
   let firstLookup = true
   const chromeApi = {
     tabs: {

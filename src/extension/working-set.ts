@@ -263,7 +263,7 @@ function isWorkingSetRecordDismissed(record: WorkingSetActivityRecord, now: numb
 }
 
 function pickRepresentativeTab(tabs: DashboardTab[], currentWindowId: number | null): DashboardTab | null {
-  return tabs.slice().sort((a, b) => {
+  return tabs.toSorted((a, b) => {
     if (a.active !== b.active) return a.active ? -1 : 1
     const aCurrentWindow = currentWindowId != null && a.windowId === currentWindowId
     const bCurrentWindow = currentWindowId != null && b.windowId === currentWindowId

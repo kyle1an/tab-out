@@ -249,10 +249,7 @@ test('exact focus reads tabs after current-window state settles', async () => {
     { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
     { id: 2, windowId: 2, url: targetUrl, title: 'Leaving', active: false, pinned: false, groupId: -1 }
   ])
-  let releaseCurrentWindow!: () => void
-  const currentWindowGate = new Promise<void>((resolve) => {
-    releaseCurrentWindow = resolve
-  })
+  const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     await currentWindowGate
@@ -291,10 +288,7 @@ test('legacy focus reads tabs after current-window state settles', async () => {
   const { calls } = createChromeMock([
     { id: 2, windowId: 2, url: targetUrl, title: 'Leaving', active: false, pinned: false, groupId: -1 }
   ])
-  let releaseCurrentWindow!: () => void
-  const currentWindowGate = new Promise<void>((resolve) => {
-    releaseCurrentWindow = resolve
-  })
+  const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     await currentWindowGate
@@ -962,10 +956,8 @@ test('suspended-tab focus revalidates identity after external unsuspend messagin
       { id: 1, windowId: 1, url: 'chrome-extension://tab-out/index.html', title: 'Tab Out', active: true, pinned: false, groupId: -1 },
       { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
     ])
-    let releaseMessage!: () => void
-    let markMessageStarted!: () => void
-    const messageBlocked = new Promise<void>((resolve) => { releaseMessage = resolve })
-    const messageStarted = new Promise<void>((resolve) => { markMessageStarted = resolve })
+    const { promise: messageBlocked, resolve: releaseMessage } = Promise.withResolvers<void>()
+    const { promise: messageStarted, resolve: markMessageStarted } = Promise.withResolvers<void>()
     ;(globalThis as any).chrome.runtime.sendMessage = async () => {
       markMessageStarted()
       await messageBlocked

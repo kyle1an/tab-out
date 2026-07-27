@@ -170,10 +170,7 @@ test('moveTabToCurrentWindow reads tabs after current-window state settles', asy
     { id: 1, windowId: 1, url: TAB_OUT },
     { id: 2, windowId: 2, url: targetUrl }
   ])
-  let releaseCurrentWindow!: () => void
-  const currentWindowGate = new Promise<void>((resolve) => {
-    releaseCurrentWindow = resolve
-  })
+  const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     await currentWindowGate
@@ -413,10 +410,7 @@ test('moveTabToNewWindow reads tabs after current-window state settles', async (
     { id: 1, windowId: 1, url: TAB_OUT },
     { id: 2, windowId: 2, url: targetUrl }
   ])
-  let releaseCurrentWindow!: () => void
-  const currentWindowGate = new Promise<void>((resolve) => {
-    releaseCurrentWindow = resolve
-  })
+  const { promise: currentWindowGate, resolve: releaseCurrentWindow } = Promise.withResolvers<void>()
   let navigationStarted = false
   ;(globalThis as any).chrome.windows.getCurrent = async () => {
     await currentWindowGate

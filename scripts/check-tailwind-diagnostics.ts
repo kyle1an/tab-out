@@ -2,9 +2,10 @@
 
 import { spawn, execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
-import { createRequire } from 'node:module'
+import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 type JsonRpcMessage = {
@@ -237,10 +238,6 @@ function parseServerOutput(chunk: Buffer): void {
     outputBuffer = outputBuffer.subarray(bodyEnd)
     handleMessage(JSON.parse(body) as JsonRpcMessage)
   }
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 async function waitForDiagnostics(expectedUris: readonly string[]): Promise<void> {

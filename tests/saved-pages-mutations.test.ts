@@ -12,19 +12,6 @@ import {
 } from '../src/extension/saved-pages.js'
 import type { DashboardTab } from '../src/extension/types'
 
-type Deferred = {
-  promise: Promise<void>
-  resolve: () => void
-}
-
-function deferred(): Deferred {
-  let resolve!: () => void
-  const promise = new Promise<void>((done) => {
-    resolve = done
-  })
-  return { promise, resolve }
-}
-
 function cloneStore(store: SavedPagesStore): SavedPagesStore {
   return structuredClone(store)
 }
@@ -68,8 +55,8 @@ test('serialized Saved Pages mutations preserve a concurrent save after remove a
   ).store
   let stored = cloneStore(baseStore)
   let writes = 0
-  const firstWriteStarted = deferred()
-  const releaseFirstWrite = deferred()
+  const firstWriteStarted = Promise.withResolvers<void>()
+  const releaseFirstWrite = Promise.withResolvers<void>()
   let exclusiveQueue = Promise.resolve()
   function runExclusive<Value>(task: () => Promise<Value>): Promise<Value> {
     const result = exclusiveQueue.then(task)
@@ -128,8 +115,8 @@ test('stale render metadata cannot overwrite a newer save of the same page', asy
   ).store
   let stored = cloneStore(baseStore)
   let writes = 0
-  const firstWriteStarted = deferred()
-  const releaseFirstWrite = deferred()
+  const firstWriteStarted = Promise.withResolvers<void>()
+  const releaseFirstWrite = Promise.withResolvers<void>()
   const mutations = createSavedPagesMutationStore({
     read: async () => cloneStore(stored),
     write: async (nextStore) => {

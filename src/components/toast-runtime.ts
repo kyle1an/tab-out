@@ -2,10 +2,8 @@ import { Toast as BaseToast } from '@base-ui/react/toast'
 import type { ToastAction } from '../extension/toast.js'
 
 const baseToastManager = BaseToast.createToastManager()
-let markToastManagerReady: (() => void) | null = null
-const toastManagerReady = new Promise<void>((resolve) => {
-  markToastManagerReady = resolve
-})
+const { promise: toastManagerReady, resolve: resolveToastManagerReady } = Promise.withResolvers<void>()
+let markToastManagerReady: (() => void) | null = resolveToastManagerReady
 // The external manager does not retain events sent before its Provider subscribes.
 // Resolve the first lazy toast only after that subscription is installed.
 export const toastManager: typeof baseToastManager = {

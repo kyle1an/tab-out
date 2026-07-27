@@ -65,7 +65,7 @@ export function pickDuplicateTabsToClose<Tab extends DedupeTabCandidate>(
     protectedCurrentTabOutTabs.length > 0
       ? tabs.filter((tab) => !protectedCurrentTabOutTabs.includes(tab))
       : tabs
-  const sortByKeepPriority = (tabs: readonly Tab[]) => tabs.slice().sort((a, b) => compareForKeep(a, b, currentWindowId))
+  const sortByKeepPriority = (tabs: readonly Tab[]) => tabs.toSorted((a, b) => compareForKeep(a, b, currentWindowId))
   const pickGroupAwareCloseTargets = (candidates: readonly Tab[], protectedCopyAlreadyKept: boolean): Tab[] => {
     const grouped = candidates.filter((tab) => isGroupedTab(tab))
     const ungrouped = candidates.filter((tab) => !isGroupedTab(tab))

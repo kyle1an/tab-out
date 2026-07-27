@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 
 import {
   CHROME_PLATFORMS,
@@ -15,7 +15,7 @@ import {
   type ChromeSupportPolicy
 } from '../src/extension/chrome-support.js'
 
-const REPO_ROOT = fileURLToPath(new URL('../', import.meta.url))
+const REPO_ROOT = resolve(import.meta.dirname, '..')
 const POLICY_FILE = join(REPO_ROOT, 'chrome-support.json')
 const MANIFEST_FILE = join(REPO_ROOT, 'extension/manifest.json')
 const VERSION_HISTORY_BASE_URL = 'https://versionhistory.googleapis.com/v1/chrome/platforms'

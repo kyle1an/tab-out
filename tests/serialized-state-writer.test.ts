@@ -4,19 +4,6 @@ import test from 'node:test'
 import { createSerializedStateWriter } from '../src/extension/serialized-state-writer.js'
 import type { StorageListMutationAttempt } from '../src/extension/storage-list-mutations.js'
 
-type Deferred<Value> = {
-  promise: Promise<Value>
-  resolve(value: Value): void
-}
-
-function deferred<Value>(): Deferred<Value> {
-  let resolve!: (value: Value) => void
-  const promise = new Promise<Value>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
-
 test('operation writer returns the authoritative persisted value', async () => {
   const writer = createSerializedStateWriter<string>([], async (operation) => ({
     ok: true,
@@ -32,7 +19,7 @@ test('operation writer returns the authoritative persisted value', async () => {
 })
 
 test('a superseded mutation failure does not ask the caller to roll back newer intent', async () => {
-  const firstResult = deferred<StorageListMutationAttempt>()
+  const firstResult = Promise.withResolvers<StorageListMutationAttempt>()
   let calls = 0
   const writer = createSerializedStateWriter<string>([], async () => {
     calls += 1
@@ -81,7 +68,7 @@ test('a read failure preserves the reconciled cache as the rollback value', asyn
 })
 
 test('a newer storage event wins over a different in-flight write result', async () => {
-  const pendingResult = deferred<StorageListMutationAttempt>()
+  const pendingResult = Promise.withResolvers<StorageListMutationAttempt>()
   const writer = createSerializedStateWriter<string>([], async () => pendingResult.promise)
 
   const write = writer.write('local')
@@ -96,7 +83,7 @@ test('a newer storage event wins over a different in-flight write result', async
 })
 
 test('a matching storage event acknowledges its in-flight write result', async () => {
-  const pendingResult = deferred<StorageListMutationAttempt>()
+  const pendingResult = Promise.withResolvers<StorageListMutationAttempt>()
   const writer = createSerializedStateWriter<string>([], async () => pendingResult.promise)
 
   const write = writer.write('local')
@@ -111,7 +98,7 @@ test('a matching storage event acknowledges its in-flight write result', async (
 })
 
 test('a newer storage event remains the rollback baseline for an in-flight failure', async () => {
-  const pendingResult = deferred<StorageListMutationAttempt>()
+  const pendingResult = Promise.withResolvers<StorageListMutationAttempt>()
   const writer = createSerializedStateWriter<string>(['cached'], async () => pendingResult.promise)
 
   const write = writer.write('local')

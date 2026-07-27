@@ -1281,10 +1281,8 @@ test('startup snapshot cache serializes writes in-context before requesting the 
   const latestSnapshot = startupCacheSnapshot('latest.example')
   const sessionStore: Record<string, unknown> = {}
   const durableStore: Record<string, unknown> = {}
-  let releaseFirstRead!: () => void
-  let markFirstReadStarted!: () => void
-  const firstReadBlocked = new Promise<void>((resolve) => { releaseFirstRead = resolve })
-  const firstReadStarted = new Promise<void>((resolve) => { markFirstReadStarted = resolve })
+  const { promise: firstReadBlocked, resolve: releaseFirstRead } = Promise.withResolvers<void>()
+  const { promise: firstReadStarted, resolve: markFirstReadStarted } = Promise.withResolvers<void>()
   let sessionReads = 0
 
   ;(globalThis as any).chrome = {
@@ -1718,14 +1716,8 @@ test('page startup snapshot gathers one coherent view without writing the shared
 })
 
 test('coalesced page startup fetches share browser reads without writing the shared cache', async () => {
-  let releaseTabsQuery!: () => void
-  let markTabsQueryStarted!: () => void
-  const tabsQueryBlocked = new Promise<void>((resolve) => {
-    releaseTabsQuery = resolve
-  })
-  const tabsQueryStarted = new Promise<void>((resolve) => {
-    markTabsQueryStarted = resolve
-  })
+  const { promise: tabsQueryBlocked, resolve: releaseTabsQuery } = Promise.withResolvers<void>()
+  const { promise: tabsQueryStarted, resolve: markTabsQueryStarted } = Promise.withResolvers<void>()
   let tabsQueryCount = 0
   let startupCacheWrites = 0
 
@@ -1803,14 +1795,8 @@ test('coalesced page startup fetches share browser reads without writing the sha
 })
 
 test('concurrent page startup fetches remain read-only when an older read finishes last', async () => {
-  let releaseFirstTabsQuery!: () => void
-  let markFirstTabsQueryStarted!: () => void
-  const firstTabsQueryBlocked = new Promise<void>((resolve) => {
-    releaseFirstTabsQuery = resolve
-  })
-  const firstTabsQueryStarted = new Promise<void>((resolve) => {
-    markFirstTabsQueryStarted = resolve
-  })
+  const { promise: firstTabsQueryBlocked, resolve: releaseFirstTabsQuery } = Promise.withResolvers<void>()
+  const { promise: firstTabsQueryStarted, resolve: markFirstTabsQueryStarted } = Promise.withResolvers<void>()
   let tabsQueryCount = 0
   let startupCacheWrites = 0
 
@@ -1897,14 +1883,8 @@ test('concurrent page startup fetches remain read-only when an older read finish
 })
 
 test('latest refresh runner discards an overtaken result and applies one trailing result', async () => {
-  let releaseFirstRun!: () => void
-  let markFirstRunStarted!: () => void
-  const firstRunBlocked = new Promise<void>((resolve) => {
-    releaseFirstRun = resolve
-  })
-  const firstRunStarted = new Promise<void>((resolve) => {
-    markFirstRunStarted = resolve
-  })
+  const { promise: firstRunBlocked, resolve: releaseFirstRun } = Promise.withResolvers<void>()
+  const { promise: firstRunStarted, resolve: markFirstRunStarted } = Promise.withResolvers<void>()
   const runs: string[] = []
   const applied: string[] = []
   const runner = createLatestRefreshRunner<string>()

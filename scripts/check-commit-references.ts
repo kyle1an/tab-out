@@ -1,11 +1,9 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 
-const POLICY_FILE = fileURLToPath(
-  new URL('../.github/commit-reference-policy.json', import.meta.url)
-)
+const POLICY_FILE = resolve(import.meta.dirname, '../.github/commit-reference-policy.json')
 const ZERO_OBJECT_ID = /^(?:0{40}|0{64})$/
 const SAFE_REMOTE_NAME = /^[A-Za-z0-9._-]+$/
 const BACKUP_REF = /^refs\/(?:heads|tags)\/backup(?:[\/_-]|$)/
@@ -51,10 +49,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function lineAndColumn(message: string, index: number): Pick<CommitReferenceFinding, 'line' | 'column'> {
@@ -134,7 +128,7 @@ export function findCommitReferenceFindings(
   for (const customAutolink of policy.customAutolinks) {
     const identifier = customAutolink.isAlphanumeric ? '[A-Za-z0-9]+' : '[0-9]+'
     const pattern = new RegExp(
-      `(?<![A-Za-z0-9])${escapeRegExp(customAutolink.keyPrefix)}${identifier}(?![A-Za-z0-9])`,
+      `(?<![A-Za-z0-9])${RegExp.escape(customAutolink.keyPrefix)}${identifier}(?![A-Za-z0-9])`,
       'giu'
     )
     appendMatches(findings, message, pattern, 'custom-autolink')

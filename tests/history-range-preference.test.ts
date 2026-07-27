@@ -105,10 +105,7 @@ test('history range preference can change for the current page when extension st
 })
 
 test('rapid history range changes persist in invocation order even when the first write is slow', async () => {
-  let releaseFirstWrite!: () => void
-  const firstWrite = new Promise<void>((resolve) => {
-    releaseFirstWrite = resolve
-  })
+  const { promise: firstWrite, resolve: releaseFirstWrite } = Promise.withResolvers<void>()
   const writes: string[] = []
   let calls = 0
   const writer = createHistoryRangePreferenceWriter({
@@ -131,10 +128,7 @@ test('rapid history range changes persist in invocation order even when the firs
 })
 
 test('independent page writers cannot let an older delayed range overwrite a newer choice', async () => {
-  let releaseFirstWrite!: () => void
-  const firstWrite = new Promise<void>((resolve) => {
-    releaseFirstWrite = resolve
-  })
+  const { promise: firstWrite, resolve: releaseFirstWrite } = Promise.withResolvers<void>()
   const writes: string[] = []
   let stored = '1d'
   let calls = 0

@@ -4,14 +4,6 @@ import test from 'node:test'
 import { createBadgeRefreshService } from '../src/extension/background/badge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 
-function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
-
 function webTabs(count: number): chrome.tabs.Tab[] {
   return Array.from({ length: count }, (_, index) => ({
     id: index + 1,
@@ -21,8 +13,8 @@ function webTabs(count: number): chrome.tabs.Tab[] {
 }
 
 test('badge refresh coalesces an event burst and never applies an overtaken count', async () => {
-  const firstQuery = deferred<chrome.tabs.Tab[]>()
-  const latestQuery = deferred<chrome.tabs.Tab[]>()
+  const firstQuery = Promise.withResolvers<chrome.tabs.Tab[]>()
+  const latestQuery = Promise.withResolvers<chrome.tabs.Tab[]>()
   const queries = [firstQuery, latestQuery]
   const badgeText: string[] = []
   const badgeColors: string[] = []

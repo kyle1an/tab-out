@@ -25,19 +25,6 @@ import {
   type StorageListMutationAdapter
 } from '../src/extension/storage-list-mutations.js'
 
-type Deferred = {
-  promise: Promise<void>
-  resolve(): void
-}
-
-function deferred(): Deferred {
-  let resolve!: () => void
-  const promise = new Promise<void>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
-}
-
 function createSharedExclusiveRunner() {
   let queue = Promise.resolve()
   let active = 0
@@ -81,8 +68,8 @@ async function assertIndependentContextsPreservePins<Operation>({
   let stored: string[] = []
   let reads = 0
   let writes = 0
-  const firstWriteStarted = deferred()
-  const releaseFirstWrite = deferred()
+  const firstWriteStarted = Promise.withResolvers<void>()
+  const releaseFirstWrite = Promise.withResolvers<void>()
   const exclusive = createSharedExclusiveRunner()
 
   function createAdapter(): StorageListMutationAdapter {
@@ -144,8 +131,8 @@ test('one context serializes overlapping mutations without a Web Lock', async ()
   let stored: string[] = []
   let reads = 0
   let writes = 0
-  const firstWriteStarted = deferred()
-  const releaseFirstWrite = deferred()
+  const firstWriteStarted = Promise.withResolvers<void>()
+  const releaseFirstWrite = Promise.withResolvers<void>()
   const store = createStorageListMutationStore<PinnedDomainMutation>({
     adapter: {
       read: async () => {
@@ -215,8 +202,8 @@ test('two contexts preserve different Page Chip pin intents', async () => {
 
 test('a Domain Card reorder replays against the latest cross-context order', async () => {
   let stored = ['alpha.test', 'bravo.test', 'charlie.test']
-  const firstWriteStarted = deferred()
-  const releaseFirstWrite = deferred()
+  const firstWriteStarted = Promise.withResolvers<void>()
+  const releaseFirstWrite = Promise.withResolvers<void>()
   const exclusive = createSharedExclusiveRunner()
   let writes = 0
   function createAdapter(): StorageListMutationAdapter {

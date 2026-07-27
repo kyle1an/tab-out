@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { readdirSync, statSync, type Stats } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 type FileSnapshot = Map<string, string>
@@ -62,32 +62,23 @@ function snapshotFiles(): FileSnapshot {
   const snapshot: FileSnapshot = new Map()
 
   for (const target of WATCH_TARGETS) {
-    collectFileSnapshot(target, snapshot)
+    const stat = statSync(target, { throwIfNoEntry: false })
+    if (!stat) {
+      snapshot.set(target, 'missing')
+    } else if (stat.isFile()) {
+      snapshot.set(target, `${stat.mtimeMs}:${stat.size}`)
+    } else if (stat.isDirectory()) {
+      for (const entry of readdirSync(target, { recursive: true, withFileTypes: true })) {
+        if (!entry.isFile()) continue
+        const path = join(entry.parentPath, entry.name)
+        const fileStat = statSync(path, { throwIfNoEntry: false })
+        if (!fileStat) snapshot.set(path, 'missing')
+        else if (fileStat.isFile()) snapshot.set(path, `${fileStat.mtimeMs}:${fileStat.size}`)
+      }
+    }
   }
 
   return snapshot
-}
-
-function collectFileSnapshot(target: string, snapshot: FileSnapshot): void {
-  let stat: Stats
-
-  try {
-    stat = statSync(target)
-  } catch {
-    snapshot.set(target, 'missing')
-    return
-  }
-
-  if (stat.isDirectory()) {
-    for (const entry of readdirSync(target)) {
-      collectFileSnapshot(join(target, entry), snapshot)
-    }
-    return
-  }
-
-  if (stat.isFile()) {
-    snapshot.set(target, `${stat.mtimeMs}:${stat.size}`)
-  }
 }
 
 function findChangedPaths(

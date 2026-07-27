@@ -169,10 +169,7 @@ test('a stale zero-delay hover request cannot land after a newer target', async 
     fakeTab(3, 1, 2)
   ]
   const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
-  let releaseFirstRead = () => {}
-  const firstRead = new Promise<void>((resolve) => {
-    releaseFirstRead = resolve
-  })
+  const { promise: firstRead, resolve: releaseFirstRead } = Promise.withResolvers<void>()
   const dependencies: NativeTabHighlightDependencies = {
     ...harness.dependencies,
     async getTab(tabId) {

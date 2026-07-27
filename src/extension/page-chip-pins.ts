@@ -56,7 +56,7 @@ export function pageChipPinKeyForUrl(url: string): string {
 }
 
 export function pageChipPinKeyForFoldUrls(urls: readonly string[]): string {
-  return `fold:${urls.slice().sort().join('\u0000')}`
+  return `fold:${urls.toSorted().join('\u0000')}`
 }
 
 export function pageChipPinId(source: string, scopeId: string, chipKey: string): string {

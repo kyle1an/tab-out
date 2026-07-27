@@ -198,8 +198,7 @@ test('subscribeClosedTabChanges registers and unregisters a listener', async () 
 })
 
 test('restore suppression is armed before Chrome settles the restore promise', async () => {
-  let finishRestore!: () => void
-  const restoring = new Promise<void>((resolve) => { finishRestore = resolve })
+  const { promise: restoring, resolve: finishRestore } = Promise.withResolvers<void>()
   globalThis.chrome = {
     sessions: {
       restore: async () => restoring
@@ -216,10 +215,8 @@ test('restore suppression is armed before Chrome settles the restore promise', a
 test('a restore gated beyond 150ms stays suppressed and emits a settled trailing refresh', async () => {
   const realNow = Date.now()
   const clock = FakeTimers.install({ now: realNow, toFake: ['Date'] })
-  let finishRestore!: () => void
-  let markRestoreStarted!: () => void
-  const restoring = new Promise<void>((resolve) => { finishRestore = resolve })
-  const restoreStarted = new Promise<void>((resolve) => { markRestoreStarted = resolve })
+  const { promise: restoring, resolve: finishRestore } = Promise.withResolvers<void>()
+  const { promise: restoreStarted, resolve: markRestoreStarted } = Promise.withResolvers<void>()
   const sessionListeners: Array<() => void> = []
   const settleDelays: number[] = []
   globalThis.chrome = {

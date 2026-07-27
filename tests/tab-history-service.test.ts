@@ -187,14 +187,8 @@ test('history capture starts required browser reads together before either settl
     tabs
   })
   const started: string[] = []
-  let resolveTabs!: (tabs: chrome.tabs.Tab[]) => void
-  let resolveWindows!: (windows: chrome.windows.Window[]) => void
-  const tabsRead = new Promise<chrome.tabs.Tab[]>((resolve) => {
-    resolveTabs = resolve
-  })
-  const windowsRead = new Promise<chrome.windows.Window[]>((resolve) => {
-    resolveWindows = resolve
-  })
+  const { promise: tabsRead, resolve: resolveTabs } = Promise.withResolvers<chrome.tabs.Tab[]>()
+  const { promise: windowsRead, resolve: resolveWindows } = Promise.withResolvers<chrome.windows.Window[]>()
   chromeApi.tabs.query = async () => {
     started.push('tabs')
     return tabsRead
@@ -777,14 +771,8 @@ test('focused-window history preserves event order when captured active-tab look
     { id: 10, windowId: 1, url: 'https://one.example.test/', title: 'One', active: true } as chrome.tabs.Tab,
     { id: 20, windowId: 2, url: 'https://two.example.test/', title: 'Two', active: true } as chrome.tabs.Tab
   ]
-  let resolveWindowOne!: (tabs: chrome.tabs.Tab[]) => void
-  let resolveWindowTwo!: (tabs: chrome.tabs.Tab[]) => void
-  const windowOneLookup = new Promise<chrome.tabs.Tab[]>((resolve) => {
-    resolveWindowOne = resolve
-  })
-  const windowTwoLookup = new Promise<chrome.tabs.Tab[]>((resolve) => {
-    resolveWindowTwo = resolve
-  })
+  const { promise: windowOneLookup, resolve: resolveWindowOne } = Promise.withResolvers<chrome.tabs.Tab[]>()
+  const { promise: windowTwoLookup, resolve: resolveWindowTwo } = Promise.withResolvers<chrome.tabs.Tab[]>()
   const chromeApi = makeChromeApi({ tabs })
   chromeApi.tabs.query = async (queryInfo: chrome.tabs.QueryInfo) => {
     if (typeof queryInfo.windowId === 'number') {

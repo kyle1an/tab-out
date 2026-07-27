@@ -98,7 +98,7 @@ export function subscribeClosedGhostDismissals(
     changes: Record<string, chrome.storage.StorageChange>,
     areaName: string
   ) => {
-    if (areaName !== 'local' || !Object.prototype.hasOwnProperty.call(changes, CLOSED_GHOST_DISMISSAL_STORAGE_KEY)) return
+    if (areaName !== 'local' || !Object.hasOwn(changes, CLOSED_GHOST_DISMISSAL_STORAGE_KEY)) return
     handler(normalizeClosedGhostDismissals(changes[CLOSED_GHOST_DISMISSAL_STORAGE_KEY]?.newValue))
   }
   event.addListener(listener)
