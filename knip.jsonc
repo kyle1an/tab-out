@@ -10,9 +10,9 @@
     "tests/**/*.test.ts",
     "tests/browser/**/*.spec.ts",
     "tests/helpers/fake-chrome.mjs",
-    "scripts/*.mjs"
+    "scripts/*.ts"
   ],
-  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.mjs", "tests/**/*.{ts,mjs}"],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts", "tests/**/*.{ts,mjs}"],
   "ignoreDependencies": [
     // Icon sets are consumed by @iconify/tailwind4 through CSS class names
     // (icon-[lucide--…] etc.) in src/styles/app.css — invisible to knip.

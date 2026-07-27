@@ -12,6 +12,6 @@ keeps a concise index without replacing the full local tracker history.
 | Activation History reorder follow-up | Replaced pointer-only gating with visibility-first survivor FLIP behavior, including one deferred move after hidden commits while preserving immediate tab focus and existing removal motion. | `0a1f9dab`, `ae54a53c` |
 
 The React Compiler baseline is enforced by
-[`scripts/react-compiler-check.mjs`](../scripts/react-compiler-check.mjs).
+[`scripts/react-compiler-check.ts`](../scripts/react-compiler-check.ts).
 Runtime behavior contracts remain in [`AGENTS.md`](../AGENTS.md) and
 [`CONTEXT.md`](../CONTEXT.md).

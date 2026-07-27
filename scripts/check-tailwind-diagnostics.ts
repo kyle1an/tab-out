@@ -7,16 +7,51 @@ import process from 'node:process'
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+type JsonRpcMessage = {
+  id?: number
+  method?: string
+  params?: unknown
+  result?: unknown
+  error?: { message: string }
+}
+
+type PendingRequest = {
+  resolve(value: unknown): void
+  reject(reason?: unknown): void
+}
+
+type Diagnostic = {
+  range: {
+    start: {
+      line: number
+      character: number
+    }
+  }
+  severity?: number
+  code?: string | number
+  message: string
+  [key: string]: unknown
+}
+
+type PublishedDiagnosticsParams = {
+  uri: string
+  diagnostics: Diagnostic[]
+}
+
+type ConfigurationParams = {
+  items: Array<{ section?: string }>
+}
+
 const workspaceRoot = process.cwd()
 const workspaceUri = pathToFileURL(`${workspaceRoot}${path.sep}`).href
 const require = createRequire(import.meta.url)
 const serverPackagePath = require.resolve('@tailwindcss/language-server/package.json')
 const serverScript = path.join(path.dirname(serverPackagePath), 'bin', 'tailwindcss-language-server')
 const supportedExtensions = new Set(['.css', '.html', '.js', '.jsx', '.ts', '.tsx'])
-const diagnosticsByUri = new Map()
-const publishedUris = new Set()
-const pendingRequests = new Map()
-const serverErrors = []
+const diagnosticsByUri = new Map<string, Diagnostic[]>()
+const publishedUris = new Set<string>()
+const pendingRequests = new Map<number, PendingRequest>()
+const serverErrors: string[] = []
 let nextRequestId = 1
 let outputBuffer = Buffer.alloc(0)
 let lastDiagnosticsAt = 0
@@ -59,7 +94,7 @@ const tailwindSettings = {
   }
 }
 
-function sourceFiles() {
+function sourceFiles(): string[] {
   const output = execFileSync(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'extension/base.css'],
@@ -67,12 +102,12 @@ function sourceFiles() {
   )
 
   return [...new Set(output.split('\n'))]
-    .filter(Boolean)
+    .filter((file) => file.length > 0)
     .filter((file) => supportedExtensions.has(path.extname(file)))
     .sort()
 }
 
-function languageIdFor(file) {
+function languageIdFor(file: string): string {
   if (file === 'src/styles/app.css') return 'tailwindcss'
 
   switch (path.extname(file)) {
@@ -93,45 +128,52 @@ function languageIdFor(file) {
   }
 }
 
-function send(message) {
+function send(message: unknown): void {
   const body = JSON.stringify(message)
   server.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`)
 }
 
-function respond(id, result) {
+function respond(id: number, result: unknown): void {
   send({ jsonrpc: '2.0', id, result })
 }
 
-function request(method, params) {
+function request(method: string, params: unknown): Promise<unknown> {
   const id = nextRequestId++
   send({ jsonrpc: '2.0', id, method, params })
 
-  return new Promise((resolve, reject) => {
+  return new Promise<unknown>((resolve, reject) => {
     pendingRequests.set(id, { resolve, reject })
   })
 }
 
-function notify(method, params) {
+function notify(method: string, params?: unknown): void {
   send({ jsonrpc: '2.0', method, params })
 }
 
-function configurationFor(section) {
+function configurationFor(section: string | undefined): unknown {
   if (section === 'tailwindCSS') return tailwindSettings
   if (section?.startsWith('tailwindCSS.')) {
     return section
       .slice('tailwindCSS.'.length)
       .split('.')
-      .reduce((value, key) => value?.[key], tailwindSettings)
+      .reduce<unknown>(
+        (value, key) => (value as Record<string, unknown> | null | undefined)?.[key],
+        tailwindSettings
+      )
   }
   if (section === 'editor') return { tabSize: 2 }
   return null
 }
 
-function handleServerRequest(message) {
+function handleServerRequest(message: JsonRpcMessage): void {
+  if (message.id === undefined || !message.method) return
+
   switch (message.method) {
-    case 'workspace/configuration':
-      respond(message.id, message.params.items.map((item) => configurationFor(item.section)))
+    case 'workspace/configuration': {
+      const { items } = message.params as ConfigurationParams
+      respond(message.id, items.map((item) => configurationFor(item.section)))
       break
+    }
     case 'workspace/workspaceFolders':
       respond(message.id, [{ uri: workspaceUri, name: path.basename(workspaceRoot) }])
       break
@@ -152,7 +194,7 @@ function handleServerRequest(message) {
   }
 }
 
-function handleMessage(message) {
+function handleMessage(message: JsonRpcMessage): void {
   if (message.method && message.id !== undefined) {
     handleServerRequest(message)
     return
@@ -168,14 +210,14 @@ function handleMessage(message) {
   }
 
   if (message.method === 'textDocument/publishDiagnostics') {
-    const { uri, diagnostics } = message.params
+    const { uri, diagnostics } = message.params as PublishedDiagnosticsParams
     diagnosticsByUri.set(uri, diagnostics)
     publishedUris.add(uri)
     lastDiagnosticsAt = Date.now()
   }
 }
 
-function parseServerOutput(chunk) {
+function parseServerOutput(chunk: Buffer): void {
   outputBuffer = Buffer.concat([outputBuffer, chunk])
 
   while (true) {
@@ -193,15 +235,15 @@ function parseServerOutput(chunk) {
 
     const body = outputBuffer.subarray(bodyStart, bodyEnd).toString('utf8')
     outputBuffer = outputBuffer.subarray(bodyEnd)
-    handleMessage(JSON.parse(body))
+    handleMessage(JSON.parse(body) as JsonRpcMessage)
   }
 }
 
-function delay(milliseconds) {
+function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
-async function waitForDiagnostics(expectedUris) {
+async function waitForDiagnostics(expectedUris: readonly string[]): Promise<void> {
   const timeoutAt = Date.now() + 30_000
 
   while (Date.now() < timeoutAt) {
@@ -217,11 +259,12 @@ async function waitForDiagnostics(expectedUris) {
   )
 }
 
-function severityName(severity) {
+function severityName(severity: number | undefined): string {
+  if (severity === undefined) return 'unknown'
   return ['unknown', 'error', 'warning', 'information', 'hint'][severity] ?? 'unknown'
 }
 
-function relativeFileForUri(uri) {
+function relativeFileForUri(uri: string): string {
   return path.relative(workspaceRoot, fileURLToPath(uri))
 }
 
@@ -246,7 +289,7 @@ const server = spawn(process.execPath, [serverScript, '--stdio'], {
 
 server.stdout.on('data', parseServerOutput)
 server.stderr.setEncoding('utf8')
-server.stderr.on('data', (chunk) => serverErrors.push(chunk))
+server.stderr.on('data', (chunk: string) => serverErrors.push(chunk))
 
 try {
   await request('initialize', {
@@ -319,7 +362,10 @@ try {
     server.kill()
   }
 
-  await Promise.race([new Promise((resolve) => server.once('exit', resolve)), delay(2_000)])
+  await Promise.race([
+    new Promise<void>((resolve) => server.once('exit', () => resolve())),
+    delay(2_000)
+  ])
   if (server.exitCode === null) server.kill()
 
   if (serverErrors.length > 0 && process.exitCode) {

@@ -12,13 +12,22 @@ import { createExtensionManifest } from '../src/extension/manifest.js'
 
 test('extension HTML loads the Vite-built React entry', async () => {
   assert.ok(existsSync('package.json'), 'package.json should define the Vite build')
-  assert.ok(existsSync('scripts/build-extension.mjs'), 'scripts/build-extension.mjs should build extension entries without shared runtime chunks')
+  assert.ok(existsSync('scripts/build-extension.ts'), 'scripts/build-extension.ts should build extension entries without shared runtime chunks')
+  assert.ok(existsSync('scripts/check-tailwind-diagnostics.ts'), 'the Tailwind diagnostics client should be strict TypeScript')
   assert.ok(existsSync('scripts/check-dependency-architecture.ts'), 'dependency architecture checks should enforce baseline drift')
   assert.ok(existsSync('scripts/check-commit-references.ts'), 'commit reference checks should guard immutable commit messages')
   assert.ok(existsSync('scripts/chrome-support.ts'), 'scripts/chrome-support.ts should maintain the rolling Chrome floor')
   assert.ok(existsSync('scripts/write-manifest.ts'), 'scripts/write-manifest.ts should generate the committed manifest package file')
   assert.ok(existsSync('scripts/write-index-html.ts'), 'scripts/write-index-html.ts should generate the committed dashboard page')
-  assert.ok(existsSync('scripts/watch-build.mjs'), 'scripts/watch-build.mjs should drive local rebuilds without watching dist output')
+  assert.ok(existsSync('scripts/react-compiler-check.ts'), 'the React Compiler coverage gate should be strict TypeScript')
+  assert.ok(existsSync('scripts/serve.ts'), 'the local fixture server should be strict TypeScript')
+  assert.ok(existsSync('scripts/watch-build.ts'), 'scripts/watch-build.ts should drive local rebuilds without watching dist output')
+  assert.ok(existsSync('tsconfig.node.json'), 'Node-executed TypeScript should have a NodeNext compiler boundary')
+  assert.deepEqual(
+    readdirSync('scripts').filter((file) => file.endsWith('.mjs')),
+    [],
+    'maintained Node scripts should use TypeScript'
+  )
   assert.ok(existsSync('src/app.tsx'), 'src/app.tsx should be the React entry source')
   assert.ok(existsSync('src/extension/background.ts'), 'src/extension/background.ts should be the service worker source')
   assert.ok(existsSync('src/extension/manifest.ts'), 'src/extension/manifest.ts should be the manifest source')
@@ -35,6 +44,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
 
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
   const tsconfig = JSON.parse(readFileSync('tsconfig.json', 'utf8'))
+  const nodeTsconfig = JSON.parse(readFileSync('tsconfig.node.json', 'utf8'))
   const testTsconfig = JSON.parse(readFileSync('tsconfig.test.json', 'utf8'))
   const shadcnConfig = JSON.parse(readFileSync('components.json', 'utf8'))
   assert.equal(readFileSync('.node-version', 'utf8').trim(), '26.5.0')
@@ -44,9 +54,11 @@ test('extension HTML loads the Vite-built React entry', async () => {
     pkg.scripts?.['commit-references:check'],
     'tsx scripts/check-commit-references.ts'
   )
-  assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.mjs')
-  assert.equal(pkg.scripts?.build, 'node scripts/build-extension.mjs')
-  assert.equal(pkg.scripts?.['build:debug'], 'node scripts/build-extension.mjs --sourcemap')
+  assert.equal(pkg.scripts?.dev, 'node scripts/watch-build.ts')
+  assert.equal(pkg.scripts?.serve, 'node scripts/serve.ts')
+  assert.equal(pkg.scripts?.build, 'node scripts/build-extension.ts')
+  assert.equal(pkg.scripts?.['build:debug'], 'node scripts/build-extension.ts --sourcemap')
+  assert.match(pkg.scripts?.typecheck, /tsconfig\.node\.json/)
   assert.match(pkg.scripts?.test, /--experimental-import-text/)
   assert.equal(pkg.scripts?.lint, 'eslint . --max-warnings=0')
   assert.equal(
@@ -59,7 +71,8 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.doesNotMatch(pkg.scripts?.['test:browser'], /RUN_BROWSER_SMOKE/)
   assert.match(pkg.scripts?.['test:browser:layout'], /dashboard-layout\.spec\.ts/)
   assert.equal(pkg.scripts?.['verify:bundle'], 'git diff --exit-code -- extension/dist')
-  assert.equal(pkg.scripts?.['lint:tailwind'], 'node scripts/check-tailwind-diagnostics.mjs')
+  assert.equal(pkg.scripts?.['verify:compiler'], 'node scripts/react-compiler-check.ts')
+  assert.equal(pkg.scripts?.['lint:tailwind'], 'node scripts/check-tailwind-diagnostics.ts')
   assert.equal(
     pkg.scripts?.['verify:quick'],
     'pnpm run "/^(typecheck|lint|lint:tailwind|deps:architecture|react-doctor|verify:compiler)$/"'
@@ -100,6 +113,16 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(tsconfig.compilerOptions?.exactOptionalPropertyTypes, true)
   assert.equal(tsconfig.compilerOptions?.strict, true)
   assert.equal(tsconfig.compilerOptions?.strictNullChecks, true)
+  assert.equal(nodeTsconfig.extends, './tsconfig.json')
+  assert.equal(nodeTsconfig.compilerOptions?.module, 'NodeNext')
+  assert.equal(nodeTsconfig.compilerOptions?.moduleResolution, 'NodeNext')
+  assert.deepEqual(nodeTsconfig.compilerOptions?.types, ['node'])
+  assert.deepEqual(nodeTsconfig.compilerOptions?.paths, {})
+  assert.ok(nodeTsconfig.files?.includes('scripts/build-extension.ts'))
+  assert.ok(nodeTsconfig.files?.includes('scripts/check-tailwind-diagnostics.ts'))
+  assert.ok(nodeTsconfig.files?.includes('scripts/react-compiler-check.ts'))
+  assert.ok(nodeTsconfig.files?.includes('scripts/serve.ts'))
+  assert.ok(nodeTsconfig.files?.includes('scripts/watch-build.ts'))
   assert.equal(testTsconfig.extends, './tsconfig.json')
   assert.equal(testTsconfig.compilerOptions, undefined)
   assert.deepEqual(tsconfig.compilerOptions?.paths?.['@/*'], ['./src/*'])
@@ -144,12 +167,12 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.equal(manifest.minimum_chrome_version, MINIMUM_CHROME_VERSION)
 
   const viteConfig = readFileSync('vite.config.ts', 'utf8')
-  const buildScript = readFileSync('scripts/build-extension.mjs', 'utf8')
+  const buildScript = readFileSync('scripts/build-extension.ts', 'utf8')
   const writeManifestScript = readFileSync('scripts/write-manifest.ts', 'utf8')
   const writeIndexHtmlScript = readFileSync('scripts/write-index-html.ts', 'utf8')
   const manifestSource = readFileSync('src/extension/manifest.ts', 'utf8')
   const indexHtmlSource = readFileSync('src/index-html.tsx', 'utf8')
-  const watchScript = readFileSync('scripts/watch-build.mjs', 'utf8')
+  const watchScript = readFileSync('scripts/watch-build.ts', 'utf8')
   assert.match(writeManifestScript, /createExtensionManifest/)
   assert.match(writeManifestScript, /extension\/manifest\.json/)
   assert.match(writeIndexHtmlScript, /createIndexHtml/)

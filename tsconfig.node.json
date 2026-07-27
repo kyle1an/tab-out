@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ESNext"],
+    "types": ["node"],
+    "paths": {}
+  },
+  "files": [
+    "scripts/build-extension.ts",
+    "scripts/check-tailwind-diagnostics.ts",
+    "scripts/react-compiler-check.ts",
+    "scripts/serve.ts",
+    "scripts/watch-build.ts"
+  ],
+  "include": []
+}

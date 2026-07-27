@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 
 const viteArgs = process.argv.slice(2)
 
-function runGenerator(script, nodeArgs = []) {
+function runGenerator(script: string, nodeArgs: readonly string[] = []): void {
   const result = spawnSync(process.execPath, [...nodeArgs, '--import', 'tsx', script], {
     stdio: 'inherit'
   })
@@ -15,7 +15,7 @@ function runGenerator(script, nodeArgs = []) {
 runGenerator('scripts/write-manifest.ts')
 runGenerator('scripts/write-index-html.ts', ['--experimental-import-text'])
 
-function runBuild(entry) {
+function runBuild(entry: 'app' | 'background'): void {
   const result = spawnSync('pnpm', ['exec', 'vite', 'build', ...viteArgs], {
     env: { ...process.env, TAB_OUT_BUILD_ENTRY: entry },
     stdio: 'inherit',

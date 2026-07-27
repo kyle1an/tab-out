@@ -15,7 +15,7 @@ const DASHBOARD_FIXTURE = resolve(ROOT, 'tests/fixtures/dashboard-resize.html')
 const GENERATED_INDEX = resolve(ROOT, 'extension/index.html')
 const APP_ROOT_START = '<!-- TAB_OUT_APP_ROOT_START -->'
 const APP_ROOT_END = '<!-- TAB_OUT_APP_ROOT_END -->'
-const CONTENT_TYPES = {
+const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.css': 'text/css',
   '.html': 'text/html',
   '.js': 'text/javascript',
@@ -24,7 +24,7 @@ const CONTENT_TYPES = {
   '.svg': 'image/svg+xml'
 }
 
-function markedAppRoot(source) {
+function markedAppRoot(source: string): string {
   const start = source.indexOf(APP_ROOT_START)
   const end = source.indexOf(APP_ROOT_END, start)
   if (start < 0 || end < 0) throw new Error('Dashboard page is missing generated app-root markers')

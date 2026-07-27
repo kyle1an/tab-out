@@ -1,6 +1,8 @@
-import { spawn } from 'node:child_process'
-import { readdirSync, statSync } from 'node:fs'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { readdirSync, statSync, type Stats } from 'node:fs'
 import { join } from 'node:path'
+
+type FileSnapshot = Map<string, string>
 
 const WATCH_TARGETS = [
   'src',
@@ -16,11 +18,11 @@ const POLL_MS = 700
 
 let pending = false
 let building = false
-let buildProcess = null
-let debounceTimer = null
+let buildProcess: ChildProcess | null = null
+let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let lastSnapshot = snapshotFiles()
 
-function runBuild(reason = 'initial') {
+function runBuild(reason = 'initial'): void {
   if (building) {
     pending = true
     return
@@ -51,13 +53,13 @@ function runBuild(reason = 'initial') {
   })
 }
 
-function scheduleBuild(reason) {
+function scheduleBuild(reason: string): void {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => runBuild(reason), DEBOUNCE_MS)
 }
 
-function snapshotFiles() {
-  const snapshot = new Map()
+function snapshotFiles(): FileSnapshot {
+  const snapshot: FileSnapshot = new Map()
 
   for (const target of WATCH_TARGETS) {
     collectFileSnapshot(target, snapshot)
@@ -66,8 +68,8 @@ function snapshotFiles() {
   return snapshot
 }
 
-function collectFileSnapshot(target, snapshot) {
-  let stat
+function collectFileSnapshot(target: string, snapshot: FileSnapshot): void {
+  let stat: Stats
 
   try {
     stat = statSync(target)
@@ -88,8 +90,11 @@ function collectFileSnapshot(target, snapshot) {
   }
 }
 
-function findChangedPaths(previous, next) {
-  const changed = []
+function findChangedPaths(
+  previous: ReadonlyMap<string, string>,
+  next: ReadonlyMap<string, string>
+): string[] {
+  const changed: string[] = []
   const paths = new Set([...previous.keys(), ...next.keys()])
 
   for (const path of paths) {
@@ -114,7 +119,7 @@ const pollTimer = setInterval(() => {
 process.on('SIGINT', shutdown)
 process.on('SIGTERM', shutdown)
 
-function shutdown() {
+function shutdown(): void {
   clearTimeout(debounceTimer)
   clearInterval(pollTimer)
   if (buildProcess) buildProcess.kill('SIGTERM')

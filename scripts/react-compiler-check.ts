@@ -15,10 +15,28 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import process from 'node:process'
 
+import type { LoggerEvent } from 'babel-plugin-react-compiler'
+
+type BabelRuntime = {
+  transformSync(source: string, options: Record<string, unknown>): unknown
+}
+
+type CompilerRegression = {
+  rel: string
+  expected: number
+  errors: string[]
+}
+
+type CompilerImprovement = {
+  rel: string
+  expected: number
+  actual: number
+}
+
 const REPO = resolve(import.meta.dirname, '..')
 
 // file (repo-relative) -> expected CompileError count
-const BASELINE = new Map([
+const BASELINE: ReadonlyMap<string, number> = new Map([
   ['src/components/App.tsx', 1], // deliberate ordering-cache ref read in render
   ['src/components/title-expansion/use-title-expansion.ts', 1], // lazy-init ref facade (stable return)
   ['src/components/ui/tooltip.tsx', 3], // mergeRefs composition (documented suppressions)
@@ -27,17 +45,17 @@ const BASELINE = new Map([
 ])
 
 const repoRequire = createRequire(join(REPO, 'package.json'))
-const compiler = repoRequire('babel-plugin-react-compiler')
-let babel
+const compiler: unknown = repoRequire('babel-plugin-react-compiler')
+let babel: BabelRuntime
 try {
-  babel = repoRequire('@babel/core')
+  babel = repoRequire('@babel/core') as BabelRuntime
 } catch {
-  babel = createRequire(repoRequire.resolve('@rolldown/plugin-babel'))('@babel/core')
+  babel = createRequire(repoRequire.resolve('@rolldown/plugin-babel'))('@babel/core') as BabelRuntime
 }
 
-function sourceFiles() {
-  const files = []
-  const walk = (dir) => {
+function sourceFiles(): string[] {
+  const files: string[] = []
+  const walk = (dir: string): void => {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name)
       if (statSync(path).isDirectory()) walk(path)
@@ -48,8 +66,8 @@ function sourceFiles() {
   return files
 }
 
-function bailoutsForFile(file) {
-  const errors = []
+function bailoutsForFile(file: string): string[] {
+  const errors: string[] = []
   try {
     babel.transformSync(readFileSync(file, 'utf8'), {
       filename: file,
@@ -63,7 +81,7 @@ function bailoutsForFile(file) {
           {
             panicThreshold: 'none',
             logger: {
-              logEvent(_filename, event) {
+              logEvent(_filename: string | null, event: LoggerEvent) {
                 if (event.kind === 'CompileError') {
                   errors.push(`fn@${event.fnLoc?.start?.line ?? '?'}: ${event.detail?.reason ?? 'unknown reason'}`)
                 }
@@ -81,8 +99,8 @@ function bailoutsForFile(file) {
 
 const files = process.argv.length > 2 ? process.argv.slice(2).map((f) => resolve(f)) : sourceFiles()
 
-const regressions = []
-const improvements = []
+const regressions: CompilerRegression[] = []
+const improvements: CompilerImprovement[] = []
 let totalBailouts = 0
 
 for (const file of files) {
@@ -103,7 +121,7 @@ if (regressions.length > 0) {
     console.error(`  ${rel} (expected ${expected}, got ${errors.length}):`)
     for (const error of errors) console.error(`    ${error}`)
   }
-  console.error('\nFix the bailout using the existing stable-return and suppression patterns or, if deliberate and documented, update the baseline in scripts/react-compiler-check.mjs.')
+  console.error('\nFix the bailout using the existing stable-return and suppression patterns or, if deliberate and documented, update the baseline in scripts/react-compiler-check.ts.')
   process.exit(1)
 }
 
