@@ -81,13 +81,11 @@ function updatePathgroupLabelTruncation(
 }
 
 function getPathgroupLabelResizeObserver() {
-  if (!pathgroupLabelResizeObserver) {
-    pathgroupLabelResizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.target instanceof HTMLElement) syncPathgroupLabelTruncation(entry.target)
-      }
-    })
-  }
+  pathgroupLabelResizeObserver ??= new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.target instanceof HTMLElement) syncPathgroupLabelTruncation(entry.target)
+    }
+  })
   return pathgroupLabelResizeObserver
 }
 

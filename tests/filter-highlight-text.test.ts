@@ -56,7 +56,7 @@ test('highlightedTextNodes merges separate normalized matches that map to one gr
   const html = renderNodes(highlightedTextNodes(grapheme, ['a', '\u0302'], 'k'))
 
   assert.equal((html.match(/<mark/g) || []).length, 1)
-  assert.match(html, new RegExp(`<mark[^>]*>${grapheme}</mark>`))
+  assert.match(html, new RegExp(`<mark[^>]*>${RegExp.escape(grapheme)}</mark>`))
 })
 
 test('highlightedTextNodes tolerates zero-width spaces when matching', () => {

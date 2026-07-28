@@ -1,8 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import rawCommitReferencePolicy from '../.github/commit-reference-policy.json' with { type: 'json' }
 
-const POLICY_FILE = resolve(import.meta.dirname, '../.github/commit-reference-policy.json')
 const ZERO_OBJECT_ID = /^(?:0{40}|0{64})$/
 const SAFE_REMOTE_NAME = /^[A-Za-z0-9._-]+$/
 const BACKUP_REF = /^refs\/(?:heads|tags)\/backup(?:[\/_-]|$)/
@@ -181,7 +180,7 @@ function runGit(args: readonly string[]): string {
 }
 
 function readPolicy(): CommitReferencePolicy {
-  return parseCommitReferencePolicy(JSON.parse(readFileSync(POLICY_FILE, 'utf8')) as unknown)
+  return parseCommitReferencePolicy(rawCommitReferencePolicy)
 }
 
 function findingDescription(kind: CommitReferenceKind): string {

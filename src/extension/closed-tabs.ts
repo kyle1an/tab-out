@@ -128,7 +128,7 @@ function normalizeClosedTab(tab: chrome.tabs.Tab | undefined, lastModifiedMs: nu
   if (isJunkUrl(url)) return null
 
   const suspendedTitle = unwrapSuspenderTitle(rawUrl)
-  const cleanTitle = (tab.title || '').replace(/‎/g, '').trim()
+  const cleanTitle = (tab.title || '').replaceAll('\u200E', '').trim()
   const displayUrl = displayUrlForClosedTab(url)
   return {
     sessionId,

@@ -162,7 +162,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     await enqueueActivityMutation(async (activity) => {
       try {
         let tab = capturedTab ? await capturedTab : null
-        if (!tab) tab = (await chromeApi.tabs.query({ windowId })).find((candidate) => candidate.id === tabId) ?? null
+        tab ??= (await chromeApi.tabs.query({ windowId })).find((candidate) => candidate.id === tabId) ?? null
         if (tab?.id !== tabId || tab.windowId !== windowId) return { activity }
         return tab ? activityAfterActivationSignal(activity, tab, 'tab-activated', observedAt) : { activity }
       } catch {
@@ -177,7 +177,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     await enqueueActivityMutation(async (activity) => {
       try {
         let activeTab = capturedActiveTab ? await capturedActiveTab : null
-        if (!activeTab) activeTab = (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
+        activeTab ??= (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
         if (activeTab?.windowId !== windowId || !activeTab.active) return { activity }
         return activeTab ? activityAfterActivationSignal(activity, activeTab, 'window-focused', observedAt) : { activity }
       } catch {

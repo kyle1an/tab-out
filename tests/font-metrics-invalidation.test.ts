@@ -12,9 +12,7 @@ class FakeFontSet {
 
   addEventListener(type: string, listener: () => void): void {
     this.addCount += 1
-    const listeners = this.listeners.get(type) ?? new Set()
-    listeners.add(listener)
-    this.listeners.set(type, listeners)
+    this.listeners.getOrInsertComputed(type, () => new Set()).add(listener)
   }
 
   removeEventListener(type: string, listener: () => void): void {

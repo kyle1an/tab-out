@@ -282,7 +282,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
       let activatedTab: chrome.tabs.Tab | null = null
       try {
         activatedTab = capturedTab ? await capturedTab : null
-        if (!activatedTab) activatedTab = await chromeApi.tabs.get(tabId)
+        activatedTab ??= await chromeApi.tabs.get(tabId)
       } catch {
         return { history }
       }
@@ -476,7 +476,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
     await enqueueTabHistoryMutation(async (history) => {
       try {
         let activeTab = capturedActiveTab ? await capturedActiveTab : null
-        if (!activeTab) activeTab = (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
+        activeTab ??= (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
         if (typeof activeTab?.id !== 'number' || activeTab.windowId !== windowId || !activeTab.active) return { history }
         return {
           history: await historyAfterTabActivation(history, activeTab),
@@ -767,7 +767,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
               const url = unwrapSuspenderUrl(rawUrl)
               const suspended = isSuspended(rawUrl, url)
               const displayUrl = displayUrlForHistory(url)
-              const cleanTitle = (tab?.title || '').replace(/\u200e/g, '').trim()
+              const cleanTitle = (tab?.title || '').replaceAll('\u200E', '').trim()
               const title = unwrapSuspenderTitle(rawUrl) || (cleanTitle ? cleanTitle : displayUrl)
               const activityKey = pageIdentityForWorkingSet(url)
               return {

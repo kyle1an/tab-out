@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 
 import {
   createHistoryRangePreferenceWriter,
@@ -119,7 +120,7 @@ test('rapid history range changes persist in invocation order even when the firs
 
   const first = writer.save('30d')
   const second = writer.save('off')
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
   const callsWhileFirstWriteWasBlocked = calls
   releaseFirstWrite()
   await Promise.all([first, second])
@@ -146,7 +147,7 @@ test('independent page writers cannot let an older delayed range overwrite a new
 
   const olderSave = firstPageWriter.save('30d')
   const newerSave = secondPageWriter.save('off')
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
 
   assert.equal(calls, 1)
   releaseFirstWrite()

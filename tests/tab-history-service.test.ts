@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 import { createTabHistoryService } from '../src/extension/background/tab-history-service.js'
 import {
   effectiveUrlForHistoryIdentity,
@@ -199,7 +200,7 @@ test('history capture starts required browser reads together before either settl
   }
 
   const capturePromise = createTabHistoryService(chromeApi).getTabHistorySnapshotCapture(emptyWorkingSetActivity())
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
 
   try {
     assert.deepEqual(started, ['tabs', 'windows'])
@@ -795,7 +796,7 @@ test('focused-window history preserves event order when captured active-tab look
     windowTwoLookup.then((resolvedTabs) => resolvedTabs[0] ?? null)
   )
   resolveWindowTwo([valueAt(tabs, 1)])
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
   resolveWindowOne([valueAt(tabs, 0)])
   await Promise.all([firstFocus, secondFocus])
 

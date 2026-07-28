@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 
 import { createBadgeRefreshService } from '../src/extension/background/badge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
@@ -40,7 +41,7 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
   assert.equal(queryCount, 1)
 
   firstQuery.resolve(webTabs(1))
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
 
   assert.equal(queryCount, 2)
   assert.deepEqual(badgeText, [])

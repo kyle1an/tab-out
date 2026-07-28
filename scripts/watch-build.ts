@@ -86,7 +86,7 @@ function findChangedPaths(
   next: ReadonlyMap<string, string>
 ): string[] {
   const changed: string[] = []
-  const paths = new Set([...previous.keys(), ...next.keys()])
+  const paths = new Set(previous.keys()).union(next)
 
   for (const path of paths) {
     if (previous.get(path) !== next.get(path)) {

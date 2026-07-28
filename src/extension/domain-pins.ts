@@ -70,8 +70,7 @@ export function reorderPinnedDomainInList(
   const next = normalized.filter((candidate) => candidate !== domain)
   const adjustedTargetIndex = next.indexOf(targetDomain)
   const insertIndex = position === 'after' ? adjustedTargetIndex + 1 : adjustedTargetIndex
-  next.splice(insertIndex, 0, domain)
-  return next
+  return next.toSpliced(insertIndex, 0, domain)
 }
 
 export function movePinnedDomainInList(domains: unknown = [], domain: unknown, direction: 'previous' | 'next'): string[] {

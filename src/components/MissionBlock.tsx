@@ -100,7 +100,7 @@ function useProgressiveCards(cards: DashboardCardEntry[], resetKey: string) {
 
 function progressiveCardListKey(cards: DashboardCardEntry[]) {
   const first = cards[0]?.group
-  const last = cards[cards.length - 1]?.group
+  const last = cards.at(-1)?.group
   return `${cards.length}:${first ? domainGroupCardId(first) : ''}:${last ? domainGroupCardId(last) : ''}`
 }
 

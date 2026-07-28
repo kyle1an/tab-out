@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempDisposableSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -172,78 +172,75 @@ test('accepts the package-manager argument delimiter used by manual range checks
 })
 
 test('pre-push scans existing and new branch ranges and quarantines backup refs', () => {
-  const root = mkdtempSync(join(tmpdir(), 'tab-out-commit-references-'))
+  using temporaryRoot = mkdtempDisposableSync(join(tmpdir(), 'tab-out-commit-references-'))
+  const root = temporaryRoot.path
   const remote = join(root, 'remote.git')
   const work = join(root, 'work')
 
-  try {
-    mkdirSync(work)
-    git(root, 'init', '--bare', remote)
-    git(work, 'init', '-b', 'main')
-    git(work, 'config', 'user.name', 'Example Contributor')
-    git(work, 'config', 'user.email', 'contributor@example.test')
-    git(work, 'config', 'commit.gpgsign', 'false')
-    writeFileSync(join(work, 'example.txt'), 'baseline\n')
-    git(work, 'add', 'example.txt')
-    git(work, 'commit', '-m', 'chore: create baseline')
-    const baseline = git(work, 'rev-parse', 'HEAD')
-    git(work, 'remote', 'add', 'origin', remote)
-    git(work, 'push', '-u', 'origin', 'main')
+  mkdirSync(work)
+  git(root, 'init', '--bare', remote)
+  git(work, 'init', '-b', 'main')
+  git(work, 'config', 'user.name', 'Example Contributor')
+  git(work, 'config', 'user.email', 'contributor@example.test')
+  git(work, 'config', 'commit.gpgsign', 'false')
+  writeFileSync(join(work, 'example.txt'), 'baseline\n')
+  git(work, 'add', 'example.txt')
+  git(work, 'commit', '-m', 'chore: create baseline')
+  const baseline = git(work, 'rev-parse', 'HEAD')
+  git(work, 'remote', 'add', 'origin', remote)
+  git(work, 'push', '-u', 'origin', 'main')
 
-    writeFileSync(join(work, 'example.txt'), 'unsafe\n')
-    git(work, 'commit', '-am', 'test: preserve Image #42 example')
-    const unsafeExisting = git(work, 'rev-parse', 'HEAD')
-    const existingResult = runPrePush(
-      work,
-      `refs/heads/main ${unsafeExisting} refs/heads/main ${baseline}\n`
-    )
-    assert.equal(existingResult.status, 1, existingResult.stderr)
-    assert.match(existingResult.stderr, /#42/)
+  writeFileSync(join(work, 'example.txt'), 'unsafe\n')
+  git(work, 'commit', '-am', 'test: preserve Image #42 example')
+  const unsafeExisting = git(work, 'rev-parse', 'HEAD')
+  const existingResult = runPrePush(
+    work,
+    `refs/heads/main ${unsafeExisting} refs/heads/main ${baseline}\n`
+  )
+  assert.equal(existingResult.status, 1, existingResult.stderr)
+  assert.match(existingResult.stderr, /#42/)
 
-    git(work, 'reset', '--hard', baseline)
-    writeFileSync(join(work, 'example.txt'), 'safe\n')
-    git(work, 'commit', '-am', 'test: preserve image 42 example')
-    const safeExisting = git(work, 'rev-parse', 'HEAD')
-    const safeResult = runPrePush(
-      work,
-      `refs/heads/main ${safeExisting} refs/heads/main ${baseline}\n`
-    )
-    assert.equal(safeResult.status, 0, safeResult.stderr)
+  git(work, 'reset', '--hard', baseline)
+  writeFileSync(join(work, 'example.txt'), 'safe\n')
+  git(work, 'commit', '-am', 'test: preserve image 42 example')
+  const safeExisting = git(work, 'rev-parse', 'HEAD')
+  const safeResult = runPrePush(
+    work,
+    `refs/heads/main ${safeExisting} refs/heads/main ${baseline}\n`
+  )
+  assert.equal(safeResult.status, 0, safeResult.stderr)
 
-    const backupResult = runPrePush(
-      work,
-      `refs/heads/backup/example ${safeExisting} ` +
-      `refs/heads/backup/example ${ZERO_OBJECT_ID}\n`
-    )
-    assert.equal(backupResult.status, 1, backupResult.stderr)
-    assert.match(backupResult.stderr, /recovery ref/)
+  const backupResult = runPrePush(
+    work,
+    `refs/heads/backup/example ${safeExisting} ` +
+    `refs/heads/backup/example ${ZERO_OBJECT_ID}\n`
+  )
+  assert.equal(backupResult.status, 1, backupResult.stderr)
+  assert.match(backupResult.stderr, /recovery ref/)
 
-    git(work, 'reset', '--hard', baseline)
-    git(work, 'switch', '-c', 'example/unsafe')
-    writeFileSync(join(work, 'example.txt'), 'unsafe branch\n')
-    git(work, 'commit', '-am', 'docs: explain @returns syntax')
-    const unsafeNewBranch = git(work, 'rev-parse', 'HEAD')
-    const newBranchResult = runPrePush(
-      work,
-      `refs/heads/example/unsafe ${unsafeNewBranch} ` +
-      `refs/heads/example/unsafe ${ZERO_OBJECT_ID}\n`
-    )
-    assert.equal(newBranchResult.status, 1, newBranchResult.stderr)
-    assert.match(newBranchResult.stderr, /@returns/)
+  git(work, 'reset', '--hard', baseline)
+  git(work, 'switch', '-c', 'example/unsafe')
+  writeFileSync(join(work, 'example.txt'), 'unsafe branch\n')
+  git(work, 'commit', '-am', 'docs: explain @returns syntax')
+  const unsafeNewBranch = git(work, 'rev-parse', 'HEAD')
+  const newBranchResult = runPrePush(
+    work,
+    `refs/heads/example/unsafe ${unsafeNewBranch} ` +
+    `refs/heads/example/unsafe ${ZERO_OBJECT_ID}\n`
+  )
+  assert.equal(newBranchResult.status, 1, newBranchResult.stderr)
+  assert.match(newBranchResult.stderr, /@returns/)
 
-    const deletionResult = runPrePush(
-      work,
-      `refs/heads/main ${ZERO_OBJECT_ID} refs/heads/main ${baseline}\n`
-    )
-    assert.equal(deletionResult.status, 0, deletionResult.stderr)
+  const deletionResult = runPrePush(
+    work,
+    `refs/heads/main ${ZERO_OBJECT_ID} refs/heads/main ${baseline}\n`
+  )
+  assert.equal(deletionResult.status, 0, deletionResult.stderr)
 
-    const backupDeletionResult = runPrePush(
-      work,
-      `refs/heads/backup/example ${ZERO_OBJECT_ID} ` +
-      `refs/heads/backup/example ${baseline}\n`
-    )
-    assert.equal(backupDeletionResult.status, 0, backupDeletionResult.stderr)
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
+  const backupDeletionResult = runPrePush(
+    work,
+    `refs/heads/backup/example ${ZERO_OBJECT_ID} ` +
+    `refs/heads/backup/example ${baseline}\n`
+  )
+  assert.equal(backupDeletionResult.status, 0, backupDeletionResult.stderr)
 })

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 
 import { createWorkingSetService, WORKING_SET_ACTIVITY_KEY } from '../src/extension/background/working-set-service.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
@@ -78,7 +79,7 @@ test('Working Set activity reads wait for mutations that started first', async (
   const activity = service.getWorkingSetActivity()
   const firstTurn = await Promise.race([
     activity.then(() => 'settled' as const),
-    new Promise<'pending'>((resolve) => setImmediate(() => resolve('pending')))
+    setImmediate('pending' as const)
   ])
 
   assert.equal(firstTurn, 'pending')
@@ -131,7 +132,7 @@ test('Working Set window-focus activity preserves event order when captured tab 
   assert.ok(secondTab)
   assert.ok(firstTab)
   resolveWindowTwo([secondTab])
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
   resolveWindowOne([firstTab])
   await Promise.all([firstFocus, secondFocus])
 

@@ -12,7 +12,7 @@ const NUMERIC_TITLE_WORD_PATTERN = /^\p{N}+$/u
 const BIONIC_TITLE_GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 
 function cleanDisplayText(text: string) {
-  return text.replace(/\u200B/g, '').trim()
+  return text.replaceAll('\u200B', '').trim()
 }
 
 export function isUrlLikeTitle(text: string) {

@@ -326,14 +326,16 @@ export function historyForUserActivation(history: GlobalTabHistoryInput, activeE
   }
 
   if (current.stack[current.index]?.tabId === activeEntry.tabId) {
-    const nextStack = current.stack.slice()
-    nextStack[current.index] = normalizedActiveEntry
+    const nextStack = current.stack.with(current.index, normalizedActiveEntry)
     const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: current.index }).history
     return { history: nextHistory, changed: historyChanged(current, nextHistory) }
   }
 
-  const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push(normalizedActiveEntry)
+  const nextStack = current.stack.toSpliced(
+    current.index + 1,
+    current.stack.length,
+    normalizedActiveEntry
+  )
   const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: nextStack.length - 1 }).history
 
   return { history: nextHistory, changed: historyChanged(current, nextHistory) }
@@ -356,24 +358,25 @@ export function repairHistoryCursorForActiveTab(history: GlobalTabHistoryInput, 
     current.stack[current.index]?.tabId === activeTab.id &&
     current.stack[current.index]?.url === activeUrl
   ) {
-    const nextStack = current.stack.slice()
-    nextStack[current.index] = normalizedActiveEntry
+    const nextStack = current.stack.with(current.index, normalizedActiveEntry)
     const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: current.index }).history
     return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
   }
 
-  const latestActiveIndex = current.stack.map((entry) => (
-    entry.tabId === activeTab.id && entry.url === activeUrl ? activeTab.id : -1
-  )).lastIndexOf(activeTab.id)
+  const latestActiveIndex = current.stack.findLastIndex((entry) => (
+    entry.tabId === activeTab.id && entry.url === activeUrl
+  ))
   if (latestActiveIndex !== -1) {
-    const nextStack = current.stack.slice()
-    nextStack[latestActiveIndex] = normalizedActiveEntry
+    const nextStack = current.stack.with(latestActiveIndex, normalizedActiveEntry)
     const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: latestActiveIndex }).history
     return { history: nextHistory, activeWasInserted: false, changed: historyChanged(current, nextHistory) }
   }
 
-  const nextStack = current.index < current.stack.length - 1 ? current.stack.slice(0, current.index + 1) : current.stack.slice()
-  nextStack.push(normalizedActiveEntry)
+  const nextStack = current.stack.toSpliced(
+    current.index + 1,
+    current.stack.length,
+    normalizedActiveEntry
+  )
   const nextHistory = canonicalizeGlobalHistory({ ...current, stack: nextStack, index: nextStack.length - 1 }).history
 
   return { history: nextHistory, activeWasInserted: true, changed: true }

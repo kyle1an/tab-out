@@ -979,8 +979,8 @@ test('Page Chip preserves tall first-line glyph ink without changing its layout 
     }
     return changedPixels
   }, {
-    clippedPng: clippedScreenshot.toString('base64'),
-    visiblePng: visibleScreenshot.toString('base64'),
+    clippedPng: clippedScreenshot.toBase64(),
+    visiblePng: visibleScreenshot.toBase64(),
     boundaryY: Math.round(geometry.titleTop - screenshotClip.y)
   })
 

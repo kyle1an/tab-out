@@ -2,7 +2,6 @@
 
 import { spawn, execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import process from 'node:process'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -45,8 +44,7 @@ type ConfigurationParams = {
 
 const workspaceRoot = process.cwd()
 const workspaceUri = pathToFileURL(`${workspaceRoot}${path.sep}`).href
-const require = createRequire(import.meta.url)
-const serverPackagePath = require.resolve('@tailwindcss/language-server/package.json')
+const serverPackagePath = fileURLToPath(import.meta.resolve('@tailwindcss/language-server/package.json'))
 const serverScript = path.join(path.dirname(serverPackagePath), 'bin', 'tailwindcss-language-server')
 const supportedExtensions = new Set(['.css', '.html', '.js', '.jsx', '.ts', '.tsx'])
 const diagnosticsByUri = new Map<string, Diagnostic[]>()
@@ -242,17 +240,18 @@ function parseServerOutput(chunk: Buffer): void {
 
 async function waitForDiagnostics(expectedUris: readonly string[]): Promise<void> {
   const timeoutAt = Date.now() + 30_000
+  const expectedUriSet = new Set(expectedUris)
 
   while (Date.now() < timeoutAt) {
-    const allPublished = expectedUris.every((uri) => publishedUris.has(uri))
+    const allPublished = expectedUriSet.isSubsetOf(publishedUris)
     const settled = allPublished && Date.now() - lastDiagnosticsAt >= 500
     if (settled) return
     await delay(100)
   }
 
-  const missing = expectedUris.filter((uri) => !publishedUris.has(uri))
+  const missingCount = expectedUriSet.difference(publishedUris).size
   throw new Error(
-    `Timed out waiting for Tailwind diagnostics (${publishedUris.size}/${expectedUris.length} documents; missing ${missing.length})`
+    `Timed out waiting for Tailwind diagnostics (${publishedUris.size}/${expectedUris.length} documents; missing ${missingCount})`
   )
 }
 

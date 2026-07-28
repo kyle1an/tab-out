@@ -9,12 +9,10 @@ type ToastRuntime = typeof import('../components/mountToast')
 let toastRuntimePromise: Promise<ToastRuntime> | null = null
 
 function loadToastRuntime(): Promise<ToastRuntime> {
-  if (!toastRuntimePromise) {
-    toastRuntimePromise = import('../components/mountToast').catch((error) => {
-      toastRuntimePromise = null
-      throw error
-    })
-  }
+  toastRuntimePromise ??= import('../components/mountToast').catch((error) => {
+    toastRuntimePromise = null
+    throw error
+  })
   return toastRuntimePromise
 }
 

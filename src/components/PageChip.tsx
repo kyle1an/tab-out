@@ -1073,9 +1073,7 @@ function chipExpansionGeometryEqual(left: ChipExpansionGeometry, right: ChipExpa
 }
 
 function getChipTextResizeObserver() {
-  if (!chipTextResizeObserver) {
-    chipTextResizeObserver = createSizeChangeObserver(syncChipTextFade)
-  }
+  chipTextResizeObserver ??= createSizeChangeObserver(syncChipTextFade)
   return chipTextResizeObserver
 }
 

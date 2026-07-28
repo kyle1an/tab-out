@@ -1,7 +1,7 @@
-import { readFile } from 'node:fs/promises'
 import { cruise, type ICruiseResult } from 'dependency-cruiser'
 import extractDepcruiseOptions from 'dependency-cruiser/config-utl/extract-depcruise-options'
 import extractTSConfig from 'dependency-cruiser/config-utl/extract-ts-config'
+import rawDependencyBaseline from '../.dependency-cruiser-known-violations.json' with { type: 'json' }
 
 const CONFIG_FILE = '.dependency-cruiser.cjs'
 const BASELINE_FILE = '.dependency-cruiser-known-violations.json'
@@ -64,10 +64,9 @@ export function compareDependencyBaselines(
   }
 }
 
-function parseBaseline(value: string): DependencyBaselineViolation[] {
-  const parsed: unknown = JSON.parse(value)
-  if (!Array.isArray(parsed)) throw new TypeError('Dependency architecture baseline must be a JSON array')
-  return parsed as DependencyBaselineViolation[]
+function parseBaseline(value: unknown): DependencyBaselineViolation[] {
+  if (!Array.isArray(value)) throw new TypeError('Dependency architecture baseline must be a JSON array')
+  return value as DependencyBaselineViolation[]
 }
 
 function formatViolation(violation: DependencyBaselineViolation): string {
@@ -86,7 +85,7 @@ export async function checkDependencyArchitecture(): Promise<number> {
   )
   const result = (typeof report.output === 'string' ? JSON.parse(report.output) : report.output) as ICruiseResult
   const current = result.summary.violations as DependencyBaselineViolation[]
-  const known = parseBaseline(await readFile(BASELINE_FILE, 'utf8'))
+  const known = parseBaseline(rawDependencyBaseline)
   const diff = compareDependencyBaselines(current, known)
 
   if (diff.unexpected.length === 0 && diff.stale.length === 0) {

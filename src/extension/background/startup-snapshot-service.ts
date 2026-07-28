@@ -115,12 +115,10 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       closedTabsRetryTimer = null
       return true
     }
-    if (!closedTabsRetryTimer) {
-      closedTabsRetryTimer = setTimeout(() => {
-        closedTabsRetryTimer = null
-        void refreshNow()
-      }, Math.max(1, Math.ceil(remainingMs)))
-    }
+    closedTabsRetryTimer ||= setTimeout(() => {
+      closedTabsRetryTimer = null
+      void refreshNow()
+    }, Math.max(1, Math.ceil(remainingMs)))
     return true
   }
 
@@ -228,9 +226,7 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       void refreshNow()
     }
     quietTimer = setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_DEBOUNCE_MS)
-    if (maxWaitTimer === null) {
-      maxWaitTimer = setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_MAX_WAIT_MS)
-    }
+    maxWaitTimer ??= setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_MAX_WAIT_MS)
   }
 
   function sessionsChanged(): void {

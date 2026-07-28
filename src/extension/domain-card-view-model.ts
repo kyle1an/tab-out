@@ -317,10 +317,8 @@ function stripPgLabel(label: string, pgLabel: string): DashboardSegment[] {
   const re = new RegExp(`(^|${SEP})(${EL})`, 'g')
 
   const hits: Array<{ index: number; length: number; prefixSep: string }> = []
-  let m: RegExpExecArray | null
-  while ((m = re.exec(label)) !== null) {
-    hits.push({ index: m.index, length: m[0].length, prefixSep: m[1] ?? '' })
-    if (m.index === re.lastIndex) re.lastIndex++
+  for (const match of label.matchAll(re)) {
+    hits.push({ index: match.index, length: match[0].length, prefixSep: match[1] ?? '' })
   }
   if (hits.length === 0) return [label]
 
@@ -439,7 +437,7 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
   rows.forEach((row, rowIndex) => {
     for (const part of row.suppressedTitleParts) {
       const indexes = rowIndexesByPart.getOrInsertComputed(part, () => [])
-      if (indexes[indexes.length - 1] !== rowIndex) indexes.push(rowIndex)
+      if (indexes.at(-1) !== rowIndex) indexes.push(rowIndex)
     }
   })
 
@@ -568,8 +566,8 @@ function disambiguatingPaths(urls: string[]): string[] {
   let commonTrail = 0
   const maxTrail = minLen - commonLead
   for (let i = 1; i <= maxTrail; i++) {
-    const seg = firstTokens[firstTokens.length - i]
-    if (tokens.every((t) => t[t.length - i] === seg)) commonTrail = i
+    const seg = firstTokens.at(-i)
+    if (tokens.every((t) => t.at(-i) === seg)) commonTrail = i
     else break
   }
 
@@ -700,7 +698,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   function closableForUrl(u: string): number {
     return countClosableDuplicateExtras(tabsByUrl.get(u) || [], { isTabOutGroup, currentWindowId })
   }
-  const closableDupeUrls = [...tabsByUrl.keys()].filter((u) => closableForUrl(u) > 0)
+  const closableDupeUrls = tabsByUrl.keys().filter((u) => closableForUrl(u) > 0).toArray()
   const closableExtras = closableDupeUrls.reduce((s, u) => s + closableForUrl(u), 0)
 
   const tabOutDisplayMeta = new WeakMap<DashboardTab, TabOutDisplayMeta>()
@@ -1016,13 +1014,11 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     for (const tab of tabs) {
       for (const part of titlePresentation(tab).suppressedTitleParts) {
         const key = part.toLowerCase()
-        if (partsByKey.has(key)) continue
-        partsByKey.set(key, {
+        partsByKey.getOrInsertComputed(key, () => ({
           text: part,
           order: suppressedTitlePartOrder.get(key) ?? Number.MAX_SAFE_INTEGER,
-          firstSeen
-        })
-        firstSeen += 1
+          firstSeen: firstSeen++
+        }))
       }
     }
 
@@ -1845,7 +1841,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
   function mergeAdjacentTextSegments(segments: DashboardSegment[]): DashboardSegment[] {
     return segments.reduce<DashboardSegment[]>((merged, segment) => {
-      const previous = merged[merged.length - 1]
+      const previous = merged.at(-1)
       if (typeof previous === 'string' && typeof segment === 'string') {
         merged[merged.length - 1] = previous + segment
         return merged
@@ -1856,7 +1852,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   }
 
   function inlineSuppressionTextAfterSegments(segments: DashboardSegment[], part: string): DashboardSegment[] {
-    const last = segments[segments.length - 1]
+    const last = segments.at(-1)
     const needsSpace = typeof last === 'string' && last.length > 0 && !/\s$/.test(last) && !/^\s/.test(part)
     return mergeAdjacentTextSegments([...segments, `${needsSpace ? ' ' : ''}${injectBreakPoints(part)}`])
   }
@@ -1892,7 +1888,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       if ('titleSuppression' in segment) return segment.titleSuppression
       if ('placeholder' in segment) return segment.label || ''
       return ''
-    }).join('').replace(/\u200B/g, '')
+    }).join('').replaceAll('\u200B', '')
   }
 
   function tooltipForChipTitle(chip: DashboardChipData, title: string): string {

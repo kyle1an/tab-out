@@ -114,7 +114,7 @@ test('reorderPinnedDomainInList preserves generated membership and requested adj
         assert.ok(targetDomain)
         const reordered = reorderPinnedDomainInList(domains, domain, targetDomain, position)
 
-        assert.deepEqual([...reordered].sort(), [...domains].sort())
+        assert.deepEqual(reordered.toSorted(), domains.toSorted())
         assert.equal(new Set(reordered).size, domains.length)
         assert.equal(
           reordered.indexOf(domain),

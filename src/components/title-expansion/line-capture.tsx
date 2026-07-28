@@ -16,7 +16,7 @@ import type { ReactNode } from 'react'
 /** Last painted (non-empty) client rect of a Range — where its text visually ends. */
 export function paintedRangeRect(range: Range) {
   const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0)
-  return rects[rects.length - 1] || null
+  return rects.at(-1) ?? null
 }
 
 export function expansionLineHtmlEquals(left: readonly string[], right: readonly string[]) {

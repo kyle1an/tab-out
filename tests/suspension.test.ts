@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 
 import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
 import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
@@ -215,7 +216,7 @@ test('separate extension contexts cannot let an older trailing suspend target ov
 
   releaseFirstWrite()
   for (let turn = 0; turn < 6; turn += 1) {
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    await setImmediate()
     await lockManager.drain()
   }
 

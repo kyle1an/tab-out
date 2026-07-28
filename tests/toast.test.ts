@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 
 import { showToast } from '../src/extension/toast.js'
 
@@ -12,7 +13,7 @@ test('showToast is a quiet no-op outside a document context', async () => {
 
   try {
     showToast('Background action complete')
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    await setImmediate()
     assert.deepEqual(errors, [])
   } finally {
     console.error = originalError
@@ -33,7 +34,7 @@ test('showToast is a quiet no-op with a partial worker-style document shim', asy
 
   try {
     showToast('Background action complete')
-    await new Promise<void>((resolve) => setImmediate(resolve))
+    await setImmediate()
     assert.deepEqual(errors, [])
   } finally {
     console.error = originalError

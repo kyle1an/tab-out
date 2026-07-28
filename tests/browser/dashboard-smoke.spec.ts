@@ -1187,7 +1187,7 @@ async function measureVariantTitleRowStability(session: CdpSession) {
             range.setStart(node, offset)
             range.setEnd(node, offset + 1)
             const rects = Array.from(range.getClientRects()).filter((candidate) => candidate.width > 0 || candidate.height > 0)
-            const charRect = rects[rects.length - 1]
+            const charRect = rects.at(-1)
             if (!charRect) continue
             const line = Math.max(0, Math.round((charRect.top - rect.top) / lineHeight))
             lineTexts[line] = (lineTexts[line] || '') + text[offset]
@@ -2039,7 +2039,7 @@ async function measurePageChipTooltipLineCount(
                 range.setEnd(node, offset + 1)
                 const rects = Array.from(range.getClientRects())
                 const paintedRects = rects.filter((candidate) => candidate.width > 0 || candidate.height > 0)
-                const charRect = paintedRects[paintedRects.length - 1]
+                const charRect = paintedRects.at(-1)
                 if (!charRect) continue
                 const lineIndex = Math.max(0, Math.round((charRect.top - rootRect.top) / lineHeight))
                 if (lineIndex >= limit) return lines
@@ -2570,8 +2570,8 @@ async function measureTooltipPopupClickFocus(session: CdpSession) {
     expression: `(() => {
       document.querySelector('.scroll-region')?.scrollTo(0, 0)
       window.__tabOutSmokeFocusUpdates = []
-      window.__tabOutSmokeOriginalTabsUpdate = window.__tabOutSmokeOriginalTabsUpdate || chrome.tabs.update
-      window.__tabOutSmokeOriginalWindowsUpdate = window.__tabOutSmokeOriginalWindowsUpdate || chrome.windows.update
+      window.__tabOutSmokeOriginalTabsUpdate ||= chrome.tabs.update
+      window.__tabOutSmokeOriginalWindowsUpdate ||= chrome.windows.update
       chrome.tabs.update = async (...args) => {
         window.__tabOutSmokeFocusUpdates.push({ kind: 'tab', args })
         return window.__tabOutSmokeOriginalTabsUpdate(...args)
@@ -2686,8 +2686,8 @@ async function measureHistoryEntryExpansionClickFocus(session: CdpSession) {
     expression: `(() => {
       document.querySelector('.history-entry-list')?.scrollTo(0, 0)
       window.__tabOutSmokeFocusUpdates = []
-      window.__tabOutSmokeOriginalTabsUpdate = window.__tabOutSmokeOriginalTabsUpdate || chrome.tabs.update
-      window.__tabOutSmokeOriginalWindowsUpdate = window.__tabOutSmokeOriginalWindowsUpdate || chrome.windows.update
+      window.__tabOutSmokeOriginalTabsUpdate ||= chrome.tabs.update
+      window.__tabOutSmokeOriginalWindowsUpdate ||= chrome.windows.update
       chrome.tabs.update = async (...args) => {
         window.__tabOutSmokeFocusUpdates.push({ kind: 'tab', args })
         return window.__tabOutSmokeOriginalTabsUpdate(...args)
@@ -3682,7 +3682,7 @@ async function measureHistoryEntryExpansionWheelScroll(session: CdpSession) {
                 range.setEnd(node, offset + 1)
                 const rects = Array.from(range.getClientRects())
                 const paintedRects = rects.filter((candidate) => candidate.width > 0 || candidate.height > 0)
-                const charRect = paintedRects[paintedRects.length - 1]
+                const charRect = paintedRects.at(-1)
                 if (!charRect) continue
                 const lineIndex = Math.max(0, Math.round((charRect.top - rootRect.top) / lineHeight))
                 if (lineIndex >= limit) return lines
@@ -5654,7 +5654,7 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
         `regular page chip expansion should preserve visible line breaks before the tail row: ${JSON.stringify(lineCount)}`
       )
     }
-    const lastChipLine = chipLines[chipLines.length - 1]
+    const lastChipLine = chipLines.at(-1)
     const lastTooltipLine = tooltipLines[chipLines.length - 1]
     assert.ok(
       lastTooltipLine?.startsWith(lastChipLine),

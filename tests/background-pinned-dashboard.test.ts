@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 import FakeTimers from '@sinonjs/fake-timers'
 import { STARTUP_SNAPSHOT_DEBOUNCE_MS } from '../src/extension/background/startup-snapshot-service.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from '../src/extension/closed-tabs.js'
@@ -196,8 +197,10 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     nextWindowId: Math.max(1, ...initialWindowIds) + 1,
     lastFocusedWindowId: initialLastFocusedWindowId
   }
-  if (!state.windowsById[initialLastFocusedWindowId]) {
-    state.windowsById[initialLastFocusedWindowId] = { id: initialLastFocusedWindowId, type: 'normal', focused: true }
+  state.windowsById[initialLastFocusedWindowId] ||= {
+    id: initialLastFocusedWindowId,
+    type: 'normal',
+    focused: true
   }
   normalizeAllTabs(state)
 
@@ -313,9 +316,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       },
       async create(createProperties: chrome.tabs.CreateProperties) {
         const windowId = createProperties.windowId ?? state.lastFocusedWindowId
-        if (!state.windowsById[windowId]) {
-          state.windowsById[windowId] = { id: windowId, type: 'normal', focused: false }
-        }
+        state.windowsById[windowId] ||= { id: windowId, type: 'normal', focused: false }
         const existingTabs = Object.values(state.tabsById as Record<string, any>).filter((tab) => tab.windowId === windowId)
         const nextIndex =
           typeof createProperties.index === 'number'
@@ -547,8 +548,8 @@ function buildWorkingSetFromServiceState(response: CapturedDashboardServiceState
 }
 
 async function flushBackgroundWork() {
-  await new Promise((resolve) => setImmediate(resolve))
-  await new Promise((resolve) => setImmediate(resolve))
+  await setImmediate()
+  await setImmediate()
 }
 
 async function loadBackground(initialTabs: any[], options: any = {}) {
@@ -1765,7 +1766,7 @@ test('tab history command unsuspends the selected history target', async () => {
       message: { action: 'unsuspend', tabId: 87 }
     }
   ])
-  assert.deepEqual(mock.calls.update.filter((call) => call.updateProperties.active === true && call.tabId === 87).at(-1), {
+  assert.deepEqual(mock.calls.update.findLast((call) => call.updateProperties.active === true && call.tabId === 87), {
     tabId: 87,
     updateProperties: { active: true, url: 'https://example.com/docs' }
   })

@@ -201,7 +201,7 @@ export function createFakeChromeApi({
           if (keys == null) return { ...storageSeed }
           const result = {}
           for (const name of normalizeStorageKeys(keys)) {
-            if (name in storageSeed) result[name] = storageSeed[name]
+            if (Object.hasOwn(storageSeed, name)) result[name] = storageSeed[name]
           }
           return result
         },

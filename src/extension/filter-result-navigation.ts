@@ -184,11 +184,9 @@ export function reconcileVisibleFilterResultSelection(
   const exactCandidate = candidates.find((item) => item.key === current.candidateKey)
   if (exactCandidate && candidateIsVisible(exactCandidate)) candidate = exactCandidate
 
-  if (!candidate) {
-    candidate = candidates.find((item) => (
-      item.identity === current.identity && candidateIsVisible(item)
-    ))
-  }
+  candidate ??= candidates.find((item) => (
+    item.identity === current.identity && candidateIsVisible(item)
+  ))
 
   candidate ??= candidates.find(candidateIsVisible)
   return {

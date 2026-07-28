@@ -150,17 +150,16 @@ function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
     windows.getOrInsertComputed(tab.windowId, () => []).push({ tab, sequence })
   })
 
-  return Array.from(windows.values()).flatMap((bucket) => {
+  return windows.values().flatMap((bucket) => {
     return bucket
-      .slice()
-      .sort((a, b) => {
+      .toSorted((a, b) => {
         const aIndex = Number.isInteger(a.tab.index) ? a.tab.index as number : Number.POSITIVE_INFINITY
         const bIndex = Number.isInteger(b.tab.index) ? b.tab.index as number : Number.POSITIVE_INFINITY
         if (aIndex !== bIndex) return aIndex - bIndex
         return a.sequence - b.sequence
       })
       .map(({ tab }) => tab)
-  })
+  }).toArray()
 }
 
 /**

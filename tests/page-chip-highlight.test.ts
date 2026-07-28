@@ -3336,7 +3336,7 @@ test('DomainCard renders utility cards as explicitly pinnable instead of fixed',
     )
 
     assert.match(html, /data-tabout-part="card-menu"/)
-    assert.match(html, new RegExp(`aria-label="Actions for ${card.label}"`))
+    assert.match(html, new RegExp(`aria-label="Actions for ${RegExp.escape(card.label)}"`))
     assert.doesNotMatch(html, /data-tabout-part="pin-indicator"/)
     assert.doesNotMatch(html, /\bdomain-fixed-indicator\b/)
     assert.doesNotMatch(html, /\bdomain-block-fixed\b/)

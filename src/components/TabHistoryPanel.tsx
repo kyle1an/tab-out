@@ -573,9 +573,7 @@ function historyEntryExpansionGeometryEqual(left: HistoryEntryExpansionGeometry,
 }
 
 function getHistoryTitleResizeObserver() {
-  if (!historyTitleResizeObserver) {
-    historyTitleResizeObserver = createSizeChangeObserver(syncHistoryTitleFade)
-  }
+  historyTitleResizeObserver ??= createSizeChangeObserver(syncHistoryTitleFade)
   return historyTitleResizeObserver
 }
 

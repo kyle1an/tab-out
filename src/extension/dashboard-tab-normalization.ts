@@ -34,7 +34,7 @@ export function normalizeChromeTabToDashboardItem(
     !suspended &&
     tab.status === 'loading' &&
     previousTab?.url === effectiveUrl &&
-    !!previousTab.title.replace(/\u200e/g, '').trim() &&
+    !!previousTab.title.replaceAll('\u200E', '').trim() &&
     (previousTab.suspended || previousTab.retainedSuspendedTitle === true)
 
   if (retainsSuspendedTitle) title = previousTab.title

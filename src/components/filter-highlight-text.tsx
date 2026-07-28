@@ -64,7 +64,7 @@ export function highlightedTextNodes(text: string, highlightTerms: readonly stri
   originalRanges.sort((a, b) => a.start - b.start || b.end - a.end)
   const mergedRanges: Array<{ start: number; end: number }> = []
   for (const range of originalRanges) {
-    const previous = mergedRanges[mergedRanges.length - 1]
+    const previous = mergedRanges.at(-1)
     if (previous && range.start <= previous.end) {
       previous.end = Math.max(previous.end, range.end)
     } else {

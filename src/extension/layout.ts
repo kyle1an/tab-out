@@ -167,7 +167,7 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
 }
 
 export function useMissionsMasonry(...args: unknown[]) {
-  const options = isMasonryHookOptions(args[args.length - 1]) ? args.pop() as MasonryHookOptions : {}
+  const options = isMasonryHookOptions(args.at(-1)) ? args.pop() as MasonryHookOptions : {}
   const containerRefs = args as Array<RefObject<HTMLElement | null>>
   const { onAfterLayout = null, onBeforePack = null, onAfterPack = null } = options
   const lastColCountsRef = useRef(new WeakMap<HTMLElement, number>())
@@ -205,38 +205,30 @@ export function useMissionsMasonry(...args: unknown[]) {
   }, [packMissionsMasonryNow])
 
   useLayoutEffect(() => {
-    let observer = observerRef.current
-    if (!observer) {
-      observer = new ResizeObserver((entries) => {
-        let widthChanged = false
-        for (const entry of entries) {
-          if (!(entry.target instanceof HTMLElement)) continue
-          const previousWidth = observedContainerWidthsRef.current.get(entry.target)
-          const nextWidth = entry.target.clientWidth
-          observedContainerWidthsRef.current.set(entry.target, nextWidth)
-          if (previousWidth !== undefined && previousWidth !== nextWidth) widthChanged = true
-        }
-        // packContainer writes the grid height. ResizeObserver reports that
-        // height change too, but masonry only needs to react when its available
-        // inline width changes; repacking the height write would self-trigger.
-        if (!widthChanged) return
-        const containers = currentContainersFromRefs(containerRefsRef)
-        scheduleMissionsMasonry({ animate: shouldAnimateAnyMasonryResize(containers, lastColCountsRef.current) })
-      })
-      observerRef.current = observer
-    }
+    const observer = observerRef.current ??= new ResizeObserver((entries) => {
+      let widthChanged = false
+      for (const entry of entries) {
+        if (!(entry.target instanceof HTMLElement)) continue
+        const previousWidth = observedContainerWidthsRef.current.get(entry.target)
+        const nextWidth = entry.target.clientWidth
+        observedContainerWidthsRef.current.set(entry.target, nextWidth)
+        if (previousWidth !== undefined && previousWidth !== nextWidth) widthChanged = true
+      }
+      // packContainer writes the grid height. ResizeObserver reports that
+      // height change too, but masonry only needs to react when its available
+      // inline width changes; repacking the height write would self-trigger.
+      if (!widthChanged) return
+      const containers = currentContainersFromRefs(containerRefsRef)
+      scheduleMissionsMasonry({ animate: shouldAnimateAnyMasonryResize(containers, lastColCountsRef.current) })
+    })
     // Progressive reveal appends `.domain-block` children into a grid whose box
     // doesn't change (its height is set imperatively), so the ResizeObserver
     // alone never fires for it. A childList MutationObserver re-packs on append.
     // packContainer only mutates styles/height (never childList), so this can't
     // loop; scheduleMissionsMasonry rAF-coalesces bursts of appends into one pack.
-    let mutationObserver = mutationObserverRef.current
-    if (!mutationObserver) {
-      mutationObserver = new MutationObserver(() => {
-        scheduleMissionsMasonry({ animate: false })
-      })
-      mutationObserverRef.current = mutationObserver
-    }
+    const mutationObserver = mutationObserverRef.current ??= new MutationObserver(() => {
+      scheduleMissionsMasonry({ animate: false })
+    })
     const nextContainers = new Set<HTMLElement>()
     containerRefs.forEach((ref) => {
       const container = ref.current
