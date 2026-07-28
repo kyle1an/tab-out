@@ -736,12 +736,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     }>()
     urlTabs.forEach((tab, firstSeen) => {
       const bucket = tabOutBucketForTab(tab)
-      const existing = buckets.get(bucket.key)
-      if (existing) {
-        existing.tabs.push(tab)
-        return
-      }
-      buckets.set(bucket.key, { ...bucket, firstSeen, tabs: [tab] })
+      buckets
+        .getOrInsertComputed(bucket.key, () => ({ ...bucket, firstSeen, tabs: [] }))
+        .tabs.push(tab)
     })
 
     return [...buckets.values()]
@@ -1728,9 +1725,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     for (const tab of sectionTabs) {
       const websitePathSection = resolveWebsitePathSection(tab.url)
       if (websitePathSection) {
-        const bucket = websitePathBuckets.get(websitePathSection.key) || { ...websitePathSection, tabs: [] }
-        bucket.tabs.push(tab)
-        websitePathBuckets.set(websitePathSection.key, bucket)
+        websitePathBuckets
+          .getOrInsertComputed(websitePathSection.key, () => ({ ...websitePathSection, tabs: [] }))
+          .tabs.push(tab)
         continue
       }
 
@@ -1740,9 +1737,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         continue
       }
 
-      const bucket = genericWebsitePathBuckets.get(genericWebsitePathSection.key) || { ...genericWebsitePathSection, tabs: [] }
-      bucket.tabs.push(tab)
-      genericWebsitePathBuckets.set(genericWebsitePathSection.key, bucket)
+      genericWebsitePathBuckets
+        .getOrInsertComputed(
+          genericWebsitePathSection.key,
+          () => ({ ...genericWebsitePathSection, tabs: [] })
+        )
+        .tabs.push(tab)
     }
     for (const bucket of genericWebsitePathBuckets.values()) {
       if (bucket.tabs.length >= 2) {
@@ -1832,10 +1832,12 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     for (const chip of renderedChipsInSections(sectionsToScan)) {
       const chipKeys = new Set((chip.suppressedTitleParts || []).map(titleSuppressionKey))
       for (const key of chipKeys) {
-        const current = countsByKey.get(key) || { count: 0, titleVariantCount: 0 }
+        const current = countsByKey.getOrInsertComputed(
+          key,
+          () => ({ count: 0, titleVariantCount: 0 })
+        )
         current.count += 1
         if ((chip.titleVariantChips?.length || 0) > 1) current.titleVariantCount += 1
-        countsByKey.set(key, current)
       }
     }
     return countsByKey

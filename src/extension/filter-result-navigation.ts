@@ -177,11 +177,7 @@ export function reconcileVisibleFilterResultSelection(
 
   const visibilityByCandidate = new Map<FilterResultCandidate, boolean>()
   function candidateIsVisible(candidate: FilterResultCandidate): boolean {
-    const cached = visibilityByCandidate.get(candidate)
-    if (cached !== undefined) return cached
-    const visible = isVisible(candidate)
-    visibilityByCandidate.set(candidate, visible)
-    return visible
+    return visibilityByCandidate.getOrInsertComputed(candidate, () => isVisible(candidate))
   }
 
   let candidate: FilterResultCandidate | undefined

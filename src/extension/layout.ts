@@ -256,9 +256,7 @@ export function useMissionsMasonry(...args: unknown[]) {
     observer.disconnect()
     mutationObserver.disconnect()
     nextContainers.forEach((container) => {
-      if (!observedContainerWidthsRef.current.has(container)) {
-        observedContainerWidthsRef.current.set(container, container.clientWidth)
-      }
+      observedContainerWidthsRef.current.getOrInsertComputed(container, () => container.clientWidth)
       observer.observe(container)
       mutationObserver.observe(container, { childList: true })
     })

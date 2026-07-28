@@ -218,7 +218,7 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
       const altKey = dashboardChipOrderAltKeyForChip(chip)
       if (!order.has(key)) {
         order.set(key, index)
-        if (altKey && !order.has(altKey)) order.set(altKey, index)
+        if (altKey) order.getOrInsert(altKey, index)
         index++
       }
       for (const variant of chip.titleVariantChips || []) {
@@ -226,7 +226,7 @@ function chipOrderFromCards(cards: DashboardCardEntry[]): DashboardChipOrderByCa
         const variantAltKey = dashboardChipOrderAltKeyForChip(variant)
         if (!order.has(variantKey)) {
           order.set(variantKey, index)
-          if (variantAltKey && !order.has(variantAltKey)) order.set(variantAltKey, index)
+          if (variantAltKey) order.getOrInsert(variantAltKey, index)
           index++
         }
       }
