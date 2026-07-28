@@ -162,6 +162,7 @@ export function restoreSavedPageToStore(store: Partial<SavedPagesStore> | null |
 export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<SavedPagesStore> | null | undefined, now = Date.now()): { tabs: DashboardTab[]; store: SavedPagesStore } {
   const normalized = normalizeSavedPagesStore(store)
   const openKeys = new Set<string>()
+  const baseOpenRecords = new Map<string, SavedPageRecord>()
   let changed = false
 
   const mergedOpenTabs = tabs.map((tab) => {
@@ -169,6 +170,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     if (!key || !normalized.pages[key]) return tab
     openKeys.add(key)
     const record = normalized.pages[key]
+    if (!baseOpenRecords.has(key)) baseOpenRecords.set(key, record)
     const nextTitle = tab.status === 'loading' ? record.title : tab.title || record.title
     const nextFavIconUrl = tab.favIconUrl || record.favIconUrl
     const metadataChanged = nextTitle !== record.title || (nextFavIconUrl || '') !== (record.favIconUrl || '')
@@ -186,7 +188,6 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     }
     if (!savedPageRecordsEqual(record, nextRecord)) {
       normalized.pages[key] = nextRecord
-      changed = true
     }
     return {
       ...tab,
@@ -196,6 +197,24 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
       savedPageKey: key
     }
   })
+
+  for (const [key, baseRecord] of baseOpenRecords) {
+    const mergedRecord = normalized.pages[key]
+    if (!mergedRecord) continue
+    const metadataChanged = mergedRecord.title !== baseRecord.title || (mergedRecord.favIconUrl || '') !== (baseRecord.favIconUrl || '')
+    const needsLastSeenOpenAt = typeof baseRecord.lastSeenOpenAt !== 'number' || !Number.isFinite(baseRecord.lastSeenOpenAt)
+    const nextRecord: SavedPageRecord = {
+      ...mergedRecord,
+      updatedAt: metadataChanged ? now : baseRecord.updatedAt,
+      ...(metadataChanged || needsLastSeenOpenAt
+        ? { lastSeenOpenAt: now }
+        : baseRecord.lastSeenOpenAt === undefined
+          ? {}
+          : { lastSeenOpenAt: baseRecord.lastSeenOpenAt })
+    }
+    normalized.pages[key] = nextRecord
+    if (!savedPageRecordsEqual(baseRecord, nextRecord)) changed = true
+  }
 
   const closedSavedTabs = Object.values(normalized.pages)
     .filter((record) => !openKeys.has(record.key))

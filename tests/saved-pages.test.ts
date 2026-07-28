@@ -136,6 +136,32 @@ test('mergeSavedPagesWithTabs does not rewrite unchanged open saved page metadat
   assert.equal(storedOpenPage.lastSeenOpenAt, 100)
 })
 
+test('mergeSavedPagesWithTabs does not emit timestamp-only updates for mixed duplicate favicons', () => {
+  const url = 'https://example.test/open'
+  const savedStore = addSavedPageToStore(
+    emptySavedPagesStore(),
+    makeTab({ url, title: 'Open reference', favIconUrl: 'page.ico' }),
+    100
+  )
+
+  const { tabs, store } = mergeSavedPagesWithTabs(
+    [
+      makeTab({ id: 1, url, title: 'Open reference', favIconUrl: 'suspender.ico', suspended: true, status: 'unloaded' }),
+      makeTab({ id: 2, url, title: 'Open reference', favIconUrl: 'suspender.ico', suspended: true, status: 'unloaded' }),
+      makeTab({ id: 3, url, title: 'Open reference', favIconUrl: 'page.ico', status: 'complete' })
+    ],
+    savedStore,
+    300
+  )
+
+  assert.equal(tabs.every((tab) => tab.saved), true)
+  assert.equal(savedPagesStoresEqual(savedStore, store), true)
+  const storedOpenPage = store.pages[url]
+  assert.ok(storedOpenPage)
+  assert.equal(storedOpenPage.updatedAt, 100)
+  assert.equal(storedOpenPage.lastSeenOpenAt, 100)
+})
+
 test('mergeSavedPagesWithTabs retains the saved title while its matching open tab is loading', () => {
   const savedStore = addSavedPageToStore(
     emptySavedPagesStore(),
