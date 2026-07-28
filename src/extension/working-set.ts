@@ -195,9 +195,7 @@ export function buildWorkingSetSnapshot({
     if (tab.isTabOut || tab.isApp || typeof tab.id !== 'number') continue
     const key = pageIdentityForWorkingSet(tab.url || tab.rawUrl || '')
     if (!key) continue
-    const current = openByKey.get(key) || []
-    current.push(tab)
-    openByKey.set(key, current)
+    openByKey.getOrInsertComputed(key, () => []).push(tab)
   }
 
   const domainActivity = new Map<string, number>()

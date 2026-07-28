@@ -127,9 +127,8 @@ export function createPinnedPageChipIndex(ids: unknown = []): PinnedPageChipInde
     const parsed = parsePageChipPinId(id)
     if (!parsed) return
     const scopeKey = pageChipPinScopeIndexKey(parsed.source, parsed.scopeId)
-    const scopeIndex = index.get(scopeKey) || new Map<string, number>()
-    if (!scopeIndex.has(parsed.chipKey)) scopeIndex.set(parsed.chipKey, order)
-    index.set(scopeKey, scopeIndex)
+    const scopeIndex = index.getOrInsertComputed(scopeKey, () => new Map())
+    scopeIndex.getOrInsert(parsed.chipKey, order)
   })
   return index
 }

@@ -147,9 +147,7 @@ async function restoreSnapshotTab(tab: TabSnapshot): Promise<chrome.tabs.Tab | n
 function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
   const windows = new Map<number, Array<{ tab: TabSnapshot; sequence: number }>>()
   tabs.forEach((tab, sequence) => {
-    const bucket = windows.get(tab.windowId) ?? []
-    bucket.push({ tab, sequence })
-    windows.set(tab.windowId, bucket)
+    windows.getOrInsertComputed(tab.windowId, () => []).push({ tab, sequence })
   })
 
   return Array.from(windows.values()).flatMap((bucket) => {

@@ -419,9 +419,7 @@ export async function closeDuplicateTabsResult(
   for (const tab of allTabs) {
     const key = canonicalDedupeKey(unwrapSuspenderUrl(liveTabUrlForIdentity(tab)))
     if (!requestedUrlSet.has(key)) continue
-    const matching = tabsByDedupeKey.get(key)
-    if (matching) matching.push(tab)
-    else tabsByDedupeKey.set(key, [tab])
+    tabsByDedupeKey.getOrInsertComputed(key, () => []).push(tab)
   }
   const toCloseTabs: chrome.tabs.Tab[] = []
 

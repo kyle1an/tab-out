@@ -170,7 +170,7 @@ export function mergeSavedPagesWithTabs(tabs: DashboardTab[], store: Partial<Sav
     if (!key || !normalized.pages[key]) return tab
     openKeys.add(key)
     const record = normalized.pages[key]
-    if (!baseOpenRecords.has(key)) baseOpenRecords.set(key, record)
+    baseOpenRecords.getOrInsert(key, record)
     const nextTitle = tab.status === 'loading' ? record.title : tab.title || record.title
     const nextFavIconUrl = tab.favIconUrl || record.favIconUrl
     const metadataChanged = nextTitle !== record.title || (nextFavIconUrl || '') !== (record.favIconUrl || '')

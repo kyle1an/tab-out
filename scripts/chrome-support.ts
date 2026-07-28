@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 import {
   CHROME_PLATFORMS,
@@ -195,8 +194,7 @@ export async function chromeSupportMain(argv = process.argv.slice(2)): Promise<n
   }
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null
-if (invokedPath === import.meta.url) {
+if (import.meta.main) {
   chromeSupportMain().then((exitCode) => {
     process.exitCode = exitCode
   })

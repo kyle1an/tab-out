@@ -1,6 +1,4 @@
 import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { cruise, type ICruiseResult } from 'dependency-cruiser'
 import extractDepcruiseOptions from 'dependency-cruiser/config-utl/extract-depcruise-options'
 import extractTSConfig from 'dependency-cruiser/config-utl/extract-ts-config'
@@ -112,8 +110,7 @@ export async function checkDependencyArchitecture(): Promise<number> {
   return 1
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null
-if (invokedPath === import.meta.url) {
+if (import.meta.main) {
   checkDependencyArchitecture()
     .then((exitCode) => {
       process.exitCode = exitCode

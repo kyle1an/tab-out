@@ -118,12 +118,7 @@ export function createMoveAnimator(config: MoveAnimatorConfig): MoveAnimator {
       for (const item of itemsIn(root, config.snapshotItemSelector ?? config.itemSelector)) {
         const key = config.keyOf(item)
         if (!key) continue
-        let list = positions.get(key)
-        if (!list) {
-          list = []
-          positions.set(key, list)
-        }
-        list.push(positionOf(item, origin))
+        positions.getOrInsertComputed(key, () => []).push(positionOf(item, origin))
       }
     }
 

@@ -312,9 +312,8 @@ function stripPgLabel(label: string, pgLabel: string): DashboardSegment[] {
     return [label]
   }
   const seps = [' — ', ' – ', ' - ', ' · ', ' | ', ': ', ' ']
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const EL = esc(pgLabel)
-  const SEP = '(?:' + seps.map(esc).join('|') + ')'
+  const EL = RegExp.escape(pgLabel)
+  const SEP = `(?:${seps.map((separator) => RegExp.escape(separator)).join('|')})`
   const re = new RegExp(`(^|${SEP})(${EL})`, 'g')
 
   const hits: Array<{ index: number; length: number; prefixSep: string }> = []
@@ -439,9 +438,8 @@ function mergeContinuousSuppressedTitleParts(rows: TitlePresentationRow[]) {
   const rowIndexesByPart = new Map<string, number[]>()
   rows.forEach((row, rowIndex) => {
     for (const part of row.suppressedTitleParts) {
-      if (!rowIndexesByPart.has(part)) rowIndexesByPart.set(part, [])
-      const indexes = rowIndexesByPart.get(part)
-      if (indexes?.[indexes.length - 1] !== rowIndex) indexes?.push(rowIndex)
+      const indexes = rowIndexesByPart.getOrInsertComputed(part, () => [])
+      if (indexes[indexes.length - 1] !== rowIndex) indexes.push(rowIndex)
     }
   })
 
@@ -876,8 +874,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
           counts.set(key, (counts.get(key) || 0) + 1)
         }
         if (row.pathGroupKey) {
-          const groupCounts = pathGroupCounts.get(row.pathGroupKey) || new Map<string, number>()
-          pathGroupCounts.set(row.pathGroupKey, groupCounts)
+          const groupCounts = pathGroupCounts.getOrInsertComputed(row.pathGroupKey, () => new Map())
           for (const candidate of pathGroupCandidates) {
             const key = candidate.text.toLowerCase()
             groupCounts.set(key, (groupCounts.get(key) || 0) + 1)
@@ -886,7 +883,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       }
 
       const suffixesToSuppress = new Set(
-        [...counts.entries()]
+        counts.entries()
           .filter(([, count]) => count >= minCount && count / rows.length >= 0.25)
           .map(([suffix]) => suffix)
       )
@@ -895,7 +892,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         const groupSize = pathGroupSizes.get(pathGroupKey) || 0
         if (groupSize < 2) continue
         const suffixes = new Set(
-          [...groupCounts.entries()]
+          groupCounts.entries()
             .filter(([, count]) => count >= 2 && count / groupSize >= 0.75)
             .map(([suffix]) => suffix)
         )
@@ -960,8 +957,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     for (const presentation of titlePresentationByUrl.values()) {
       const partKeys = presentation.suppressedTitleParts.map(titleSuppressionKey)
       partKeys.forEach((key, index) => {
-        if (!beforeByKey.has(key)) beforeByKey.set(key, new Set())
-        for (const laterKey of partKeys.slice(index + 1)) beforeByKey.get(key)?.add(laterKey)
+        const laterParts = beforeByKey.getOrInsertComputed(key, () => new Set())
+        for (const laterKey of partKeys.slice(index + 1)) laterParts.add(laterKey)
       })
       presentation.suppressedTitleParts.forEach((part, partIndex) => {
         const existing = partsByText.get(part)
@@ -1147,8 +1144,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       const pathKey = parsed.pathname + parsed.search + parsed.hash
       const titleKey = displayTitle(tab).trim().toLowerCase()
       const pageKey = `${pathKey}\u0000${titleKey}`
-      if (!pageMap.has(pageKey)) pageMap.set(pageKey, [])
-      pageMap.get(pageKey)?.push(tab)
+      pageMap.getOrInsertComputed(pageKey, () => []).push(tab)
     }
     for (const tabs of pageMap.values()) {
       const subs = new Set<string>()
@@ -1177,8 +1173,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         key = subdomainPrefix(parsed.hostname, group.domain)
       }
     }
-    if (!bySubdomain.has(key)) bySubdomain.set(key, [])
-    bySubdomain.get(key)?.push(tab)
+    bySubdomain.getOrInsertComputed(key, () => []).push(tab)
   }
 
   // Sort policy: high-priority sections surface first; ties fall back to
@@ -1346,7 +1341,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   function duplicateLabels(labels: readonly string[]): Set<string> {
     const counts = new Map<string, number>()
     for (const label of labels) counts.set(label, (counts.get(label) || 0) + 1)
-    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([label]) => label))
+    return new Set(counts.entries().filter(([, count]) => count > 1).map(([label]) => label))
   }
 
   function titleVariantLabelForUrl(url: string): string {
@@ -1419,7 +1414,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     const entriesByTitle = Map.groupBy(entries, (entry) => entry.titleKey)
     entriesByTitle.delete('')
     const groupedTitleKeys = new Set(
-      [...entriesByTitle.entries()]
+      entriesByTitle.entries()
         .filter(([, groupEntries]) => groupEntries.length > 1 && new Set(groupEntries.map((entry) => entry.tab.url)).size > 1)
         .map(([titleKey]) => titleKey)
     )
@@ -1489,8 +1484,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         singletonTabs.push(t)
         continue
       }
-      if (!clusterByLabel.has(lbl)) clusterByLabel.set(lbl, [])
-      clusterByLabel.get(lbl)?.push(t)
+      clusterByLabel.getOrInsertComputed(lbl, () => []).push(t)
     }
     const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => compareWithPriority(
       chipPriorityScoreForTabs(a[1]),
@@ -1955,7 +1949,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
   const renderedSuppressionCounts = renderedSuppressionCountsByKey(sectionsData)
   const singletonSuppressionKeys = new Set(
-    [...renderedSuppressionCounts.entries()]
+    renderedSuppressionCounts.entries()
       .filter(([, counts]) => counts.count <= 1 && counts.titleVariantCount === counts.count)
       .map(([key]) => key)
   )
@@ -1981,12 +1975,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         // live titles, so only include a tab whose own title contains the token.
         if (titleSuppressionPartPosition(actualTitle, part) === Number.MAX_SAFE_INTEGER) continue
         const key = titleSuppressionKey(part)
-        let targets = targetsByKey.get(key)
-        if (!targets) {
-          targets = []
-          targetsByKey.set(key, targets)
-        }
-        targets.push({ tabId: tab.id, tabUrl: tab.url })
+        targetsByKey.getOrInsertComputed(key, () => []).push({ tabId: tab.id, tabUrl: tab.url })
       }
     }
     for (const [key, targets] of targetsByKey) targetsByText[key] = targets
@@ -2132,8 +2121,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       ) {
         const clusterRefKey = [...tracker.clusterRefs][0]
         if (clusterRefKey === undefined) continue
-        if (!clusterPartsByRef.has(clusterRefKey)) clusterPartsByRef.set(clusterRefKey, [])
-        clusterPartsByRef.get(clusterRefKey)?.push(part)
+        clusterPartsByRef.getOrInsertComputed(clusterRefKey, () => []).push(part)
         continue
       }
 
@@ -2145,8 +2133,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       ) {
         const clusterRefKey = [...tracker.websitePathClusterRefs][0]
         if (clusterRefKey === undefined) continue
-        if (!websitePathClusterPartsByRef.has(clusterRefKey)) websitePathClusterPartsByRef.set(clusterRefKey, [])
-        websitePathClusterPartsByRef.get(clusterRefKey)?.push(part)
+        websitePathClusterPartsByRef.getOrInsertComputed(clusterRefKey, () => []).push(part)
         continue
       }
 
@@ -2161,8 +2148,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         if (sectionIndexText === undefined || websitePathSectionIndexText === undefined) continue
         const sectionIndex = Number(sectionIndexText)
         const websitePathSectionIndex = Number(websitePathSectionIndexText)
-        if (!websitePathSectionPartsByRef.has(websiteRef)) websitePathSectionPartsByRef.set(websiteRef, [])
-        websitePathSectionPartsByRef.get(websiteRef)?.push(
+        websitePathSectionPartsByRef.getOrInsertComputed(websiteRef, () => []).push(
           childGroupScopedPart(part, websitePathChildGroupCount(tracker, sectionIndex, websitePathSectionIndex) > 1)
         )
         continue
@@ -2171,8 +2157,9 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       if (tracker.sectionIndexes.size === 1) {
         const sectionIndex = [...tracker.sectionIndexes][0]
         if (sectionIndex === undefined) continue
-        if (!sectionPartsByIndex.has(sectionIndex)) sectionPartsByIndex.set(sectionIndex, [])
-        sectionPartsByIndex.get(sectionIndex)?.push(childGroupScopedPart(part, sectionChildGroupCount(tracker, sectionIndex) > 1))
+        sectionPartsByIndex.getOrInsertComputed(sectionIndex, () => []).push(
+          childGroupScopedPart(part, sectionChildGroupCount(tracker, sectionIndex) > 1)
+        )
         continue
       }
 

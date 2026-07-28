@@ -142,9 +142,9 @@ function request(method: string, params: unknown): Promise<unknown> {
   const id = nextRequestId++
   send({ jsonrpc: '2.0', id, method, params })
 
-  return new Promise<unknown>((resolve, reject) => {
-    pendingRequests.set(id, { resolve, reject })
-  })
+  const { promise, resolve, reject } = Promise.withResolvers<unknown>()
+  pendingRequests.set(id, { resolve, reject })
+  return promise
 }
 
 function notify(method: string, params?: unknown): void {

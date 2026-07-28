@@ -245,7 +245,7 @@ export function useMissionsMasonry(...args: unknown[]) {
     })
     const observedContainers = observedContainersRef.current
     const targetsChanged = observedContainers.size !== nextContainers.size ||
-      Array.from(observedContainers).some((container) => !nextContainers.has(container))
+      !observedContainers.isSubsetOf(nextContainers)
     if (!targetsChanged) return
 
     // Most App renders do not replace a mission grid. Keep the observers

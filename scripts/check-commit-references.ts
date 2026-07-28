@@ -1,7 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
 
 const POLICY_FILE = resolve(import.meta.dirname, '../.github/commit-reference-policy.json')
 const ZERO_OBJECT_ID = /^(?:0{40}|0{64})$/
@@ -298,5 +297,4 @@ export function commitReferencesMain(
   }
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : null
-if (invokedPath === import.meta.url) process.exitCode = commitReferencesMain()
+if (import.meta.main) process.exitCode = commitReferencesMain()

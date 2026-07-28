@@ -39,12 +39,7 @@ export function buildDomainGroups(
     // card. registrableDomain() is a no-op for IPs, localhost, and
     // user-space suffixes like user.github.io — see domains.js.
     const key = registrableDomain(hostname)
-    const group = groupMap.get(key)
-    if (group) {
-      group.tabs.push(tab)
-    } else {
-      groupMap.set(key, { domain: key, tabs: [tab] })
-    }
+    groupMap.getOrInsertComputed(key, () => ({ domain: key, tabs: [] })).tabs.push(tab)
   }
 
   if (tabOutTabs.length > 0) {
