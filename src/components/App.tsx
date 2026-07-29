@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react'
 import { hydrateRoot } from 'react-dom/client'
 import { readAppStartup, readBuildTimeAppStartup, subscribeAppStartup, type AppStartupState } from '../app-startup.js'
-import { closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
+import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
 import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled, saveHistoryRangePreference } from '../extension/history-range.js'
@@ -438,9 +438,6 @@ export function App() {
   )
   const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceAppliedRequestId, sourceRequestId, sourceSelection, tabHistory, workingSet } = appDashboard
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
-  function setClosedTabs(next: readonly ClosedTabEntry[]) {
-    dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
-  }
   const setHistoryRange = useCallback(async function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
     try {
@@ -452,48 +449,9 @@ export function App() {
   const setTabHistory = useCallback(function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
     dispatchAppDashboard({ type: 'tabHistory', tabHistory: nextTabHistory })
   }, [])
-  const closedTabsSeqRef = useRef(0)
-  const closedTabsRetryTimerRef = useRef<number | null>(null)
+  useEffect(() => appDashboardStore.startClosedTabUpdates(), [])
   const firstDashboardLayoutRecordedRef = useRef(false)
   const startupRefreshRequestedRef = useRef(false)
-  const refreshClosedTabs = useCallback(async function refreshClosedTabs(settleDelayMs = 0) {
-    const seq = ++closedTabsSeqRef.current
-    const suppressionRemainingMs = closedTabFetchSuppressionRemainingMs()
-    const delayMs = Math.max(settleDelayMs, suppressionRemainingMs)
-    if (!Number.isFinite(delayMs)) {
-      // An unresolved sessions.restore has no safe deadline. Its settlement
-      // emits another change notification that arms the finite trailing read.
-      if (closedTabsRetryTimerRef.current !== null) {
-        window.clearTimeout(closedTabsRetryTimerRef.current)
-        closedTabsRetryTimerRef.current = null
-      }
-      return
-    }
-    if (delayMs > 0) {
-      if (closedTabsRetryTimerRef.current !== null) window.clearTimeout(closedTabsRetryTimerRef.current)
-      closedTabsRetryTimerRef.current = window.setTimeout(() => {
-        closedTabsRetryTimerRef.current = null
-        void refreshClosedTabs()
-      }, Math.max(1, Math.ceil(delayMs)))
-      return
-    }
-    if (closedTabsRetryTimerRef.current !== null) {
-      window.clearTimeout(closedTabsRetryTimerRef.current)
-      closedTabsRetryTimerRef.current = null
-    }
-    // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await seq comparison is a stale-response race guard; it must run after the await.
-    const result = await fetchClosedTabsResult()
-    if (seq !== closedTabsSeqRef.current) return
-    if (result.ok) setClosedTabs(result.value)
-  }, [])
-
-  useEffect(() => {
-    return subscribeClosedTabChanges((settleDelayMs) => { void refreshClosedTabs(settleDelayMs).catch(() => {}) })
-  }, [refreshClosedTabs])
-
-  useEffect(() => () => {
-    if (closedTabsRetryTimerRef.current !== null) window.clearTimeout(closedTabsRetryTimerRef.current)
-  }, [])
 
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
   const pendingSourceSwitchRectsRef = useRef<{
@@ -543,7 +501,7 @@ export function App() {
     setStartupPriorityWorkingSet(null)
     filterCardMoveRef.current = true
     primeCardMoveAnimation()
-  }, [primeCardMoveAnimation])
+  }, [primeCardMoveAnimation, setStartupPriorityWorkingSet])
   const { filterInput, filter, commitFilterInput, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
   const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
@@ -798,7 +756,7 @@ export function App() {
     if (requestId !== null) {
       pendingSourceSwitchRectsRef.current = { rects: previousRects, requestId }
     }
-  }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers])
+  }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers, setStartupPriorityWorkingSet])
 
   const primaryMissionsEmpty = matchedCards.length === 0
   const showHistorySection = showHistoryRange || showHistoryMatches

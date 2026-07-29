@@ -9,7 +9,13 @@
    store lands.
    ================================================================ */
 
-import { fetchClosedTabsResult, isClosedTabFetchSuppressed, type ClosedTabEntry } from './closed-tabs.js'
+import {
+  closedTabFetchSuppressionRemainingMs,
+  fetchClosedTabsResult,
+  isClosedTabFetchSuppressed,
+  subscribeClosedTabChanges,
+  type ClosedTabEntry
+} from './closed-tabs.js'
 import { registerDashboardRefresh, type DashboardRefreshOptions } from './dashboard-controller.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
@@ -583,8 +589,13 @@ export type DashboardBeforeApplyEvent =
   | { reason: 'startup-snapshot'; snapshot: DashboardStartupSnapshot }
 
 export type AppDashboardStoreDependencies = {
+  cancelTimeout?: (timer: ReturnType<typeof setTimeout>) => void
+  closedTabFetchSuppressionRemainingMs?: typeof closedTabFetchSuppressionRemainingMs
   fetchDashboardSnapshot?: typeof fetchDashboardSnapshot
+  fetchClosedTabsResult?: typeof fetchClosedTabsResult
+  scheduleTimeout?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>
   showToast?: typeof showToast
+  subscribeClosedTabChanges?: typeof subscribeClosedTabChanges
 }
 
 export type AppDashboardStore = {
@@ -593,6 +604,7 @@ export type AppDashboardStore = {
   readBuildTime: () => AppDashboardState
   refresh: (options?: DashboardRefreshRequestOptions) => Promise<void>
   setRefreshInputs: (inputs: DashboardRefreshInputs) => void
+  startClosedTabUpdates: () => () => void
   subscribe: (listener: () => void) => () => void
   subscribeBeforeApply: (listener: (event: DashboardBeforeApplyEvent) => void) => () => void
   switchSource: (nextSource: DashboardSource) => number | null
@@ -608,8 +620,13 @@ export type AppDashboardStore = {
  * capture pre-commit DOM geometry; the store itself stays DOM-free.
  */
 export function createAppDashboardStore({
+  cancelTimeout = clearTimeout,
+  closedTabFetchSuppressionRemainingMs: readClosedTabFetchSuppressionRemainingMs = closedTabFetchSuppressionRemainingMs,
   fetchDashboardSnapshot: fetchSourceSwitchSnapshot = fetchDashboardSnapshot,
-  showToast: showSourceSwitchToast = showToast
+  fetchClosedTabsResult: fetchLatestClosedTabsResult = fetchClosedTabsResult,
+  scheduleTimeout = setTimeout,
+  showToast: showSourceSwitchToast = showToast,
+  subscribeClosedTabChanges: subscribeToClosedTabChanges = subscribeClosedTabChanges
 }: AppDashboardStoreDependencies = {}): AppDashboardStore {
   const buildTimeState = initialAppDashboardState({
     historyRange: DEFAULT_HISTORY_RANGE,
@@ -627,6 +644,8 @@ export function createAppDashboardStore({
   let animatedRefreshPending = false
   let historySearchPendingRevision = 0
   let sourceSwitchSequence = 0
+  let closedTabsSequence = 0
+  let closedTabsRetryTimer: ReturnType<typeof setTimeout> | null = null
 
   function dispatch(action: AppDashboardAction): void {
     const nextState = appDashboardReducer(state, action)
@@ -637,6 +656,48 @@ export function createAppDashboardStore({
 
   function emitBeforeApply(event: DashboardBeforeApplyEvent): void {
     for (const listener of [...beforeApplyListeners]) listener(event)
+  }
+
+  function clearClosedTabsRetryTimer(): void {
+    if (closedTabsRetryTimer === null) return
+    cancelTimeout(closedTabsRetryTimer)
+    closedTabsRetryTimer = null
+  }
+
+  async function refreshClosedTabs(settleDelayMs = 0): Promise<void> {
+    const sequence = ++closedTabsSequence
+    const suppressionRemainingMs = readClosedTabFetchSuppressionRemainingMs()
+    const delayMs = Math.max(settleDelayMs, suppressionRemainingMs)
+    if (!Number.isFinite(delayMs)) {
+      // An unresolved sessions.restore has no safe deadline. Its settlement
+      // emits another change notification that arms the finite trailing read.
+      clearClosedTabsRetryTimer()
+      return
+    }
+    if (delayMs > 0) {
+      clearClosedTabsRetryTimer()
+      closedTabsRetryTimer = scheduleTimeout(() => {
+        closedTabsRetryTimer = null
+        void refreshClosedTabs()
+      }, Math.max(1, Math.ceil(delayMs)))
+      return
+    }
+    clearClosedTabsRetryTimer()
+    // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await sequence comparison is a stale-response race guard; it must run after the await.
+    const result = await fetchLatestClosedTabsResult()
+    if (sequence !== closedTabsSequence) return
+    if (result.ok) dispatch({ type: 'closedTabs', closedTabs: result.value })
+  }
+
+  function startClosedTabUpdates(): () => void {
+    const unsubscribe = subscribeToClosedTabChanges((settleDelayMs) => {
+      void refreshClosedTabs(settleDelayMs).catch(() => {})
+    })
+    return () => {
+      closedTabsSequence += 1
+      clearClosedTabsRetryTimer()
+      unsubscribe()
+    }
   }
 
   function refreshContextFromInputs(
@@ -827,6 +888,7 @@ export function createAppDashboardStore({
     setRefreshInputs: (inputs) => {
       refreshInputs = inputs
     },
+    startClosedTabUpdates,
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)

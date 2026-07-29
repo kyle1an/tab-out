@@ -7,6 +7,8 @@ import {
   initialAppDashboardState
 } from '../src/extension/dashboard-intake.js'
 import type { DashboardRefreshSnapshot, DashboardSnapshotOptions } from '../src/extension/dashboard-intake.js'
+import type { BrowserReadResult } from '../src/extension/browser-tabs-gateway.js'
+import type { ClosedTabEntry } from '../src/extension/closed-tabs.js'
 import type { DashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
 import type { TabHistorySnapshot } from '../src/extension/types'
 
@@ -338,3 +340,75 @@ test('a source switch retries with the latest intake context before applying', a
   assert.equal(store.read().source, 'bookmarks')
   assert.equal(store.read().dashboard, latestDashboard)
 })
+
+test('closed-tab intake waits for restore settlement and ignores an overtaken read', async () => {
+  let suppressionRemainingMs = Number.POSITIVE_INFINITY
+  let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null
+  let unsubscribed = false
+  const timers: Array<{ callback: () => void; delayMs: number }> = []
+  const flights: ReturnType<typeof deferred<BrowserReadResult<ClosedTabEntry[]>>>[] = []
+  const store = createAppDashboardStore({
+    closedTabFetchSuppressionRemainingMs: () => suppressionRemainingMs,
+    fetchClosedTabsResult: () => {
+      const flight = deferred<BrowserReadResult<ClosedTabEntry[]>>()
+      flights.push(flight)
+      return flight.promise
+    },
+    scheduleTimeout: (callback, delayMs) => {
+      timers.push({ callback, delayMs })
+      return timers.length as never
+    },
+    subscribeClosedTabChanges: (handler) => {
+      closedTabChangeHandler = handler
+      return () => { unsubscribed = true }
+    }
+  })
+  store.dispatch({
+    type: 'startup',
+    historyRange: '24h',
+    snapshot: startupSnapshot(historySnapshot(1))
+  })
+
+  const stopClosedTabUpdates = store.startClosedTabUpdates()
+  assert.equal(flights.length, 0, 'subscribing must not race the atomic startup snapshot')
+
+  closedTabChangeHandler!(0)
+  assert.equal(timers.length, 0, 'an unresolved restore has no safe retry deadline')
+  assert.equal(flights.length, 0)
+
+  suppressionRemainingMs = 25
+  closedTabChangeHandler!(10)
+  assert.equal(timers[0]?.delayMs, 25)
+  suppressionRemainingMs = 0
+  timers[0]!.callback()
+  assert.equal(flights.length, 1)
+
+  closedTabChangeHandler!(0)
+  assert.equal(flights.length, 2)
+
+  const staleClosedTab = closedTabEntry('stale')
+  flights[0]!.resolve({ ok: true, value: [staleClosedTab] })
+  await flushAsyncWork()
+  assert.deepEqual(store.read().closedTabs, [], 'an overtaken recently-closed read must stay hidden')
+
+  const latestClosedTab = closedTabEntry('latest')
+  flights[1]!.resolve({ ok: true, value: [latestClosedTab] })
+  await flushAsyncWork()
+  assert.deepEqual(store.read().closedTabs, [latestClosedTab])
+
+  stopClosedTabUpdates()
+  assert.equal(unsubscribed, true)
+})
+
+function closedTabEntry(id: string): ClosedTabEntry {
+  return {
+    sessionId: `session-${id}`,
+    tabId: 1,
+    url: `https://${id}.example.test/`,
+    rawUrl: `https://${id}.example.test/`,
+    displayUrl: `${id}.example.test`,
+    title: id,
+    favIconUrl: '',
+    lastClosedAt: 1
+  }
+}
