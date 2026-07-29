@@ -1,19 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { registerDashboardRefresh, settleDashboardRefresh } from '../extension/dashboard-controller.js'
-import type { DashboardRefreshOptions } from '../extension/dashboard-controller.js'
-import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
-import {
-  createLatestRefreshRunner,
-  dashboardRefreshContextMatches,
-  fetchDashboardSnapshot,
-  fetchDashboardStartupSnapshot,
-  retainHistorySearchResultsOnError,
-  type DashboardRefreshContext,
-  type DashboardRefreshSnapshot,
-  type DashboardSnapshotOptions
-} from '../extension/dashboard-intake.js'
-import type { DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
-import type { DashboardData, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
+import { useEffect, useLayoutEffect, useRef } from 'react'
+import { settleDashboardRefresh } from '../extension/dashboard-controller.js'
+import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
+import { appDashboardStore, type MissionOrderMap } from '../extension/dashboard-intake.js'
+import type { DashboardData, DashboardSource } from '../extension/types'
 
 // Compatibility shims: consumers keep importing these from the hook module
 // until they re-point at dashboard-intake / startup-snapshot directly.
@@ -22,20 +11,24 @@ export type { DashboardStartupSnapshot, CachedDashboardStartup, DashboardStartup
 export { createLatestRefreshRunner, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, retainHistorySearchResultsOnError } from '../extension/dashboard-intake.js'
 export type { MissionOrderMap } from '../extension/dashboard-intake.js'
 
-type UseDashboardRefreshOptions = DashboardSnapshotOptions & {
+type UseDashboardRefreshOptions = {
   dashboard: DashboardData | null
+  source: DashboardSource
+  filter: string
+  historyRange: string
+  historyFilterEnabled: boolean
+  pinnedDomains: string[]
   localStateLoaded: boolean
-  setDashboard: (dashboard: DashboardData | null) => void
-  setStartupSnapshot: (snapshot: DashboardStartupSnapshot) => void
-  setTabHistory: (tabHistory: TabHistorySnapshot | null) => void
-  setWorkingSet: (workingSet: WorkingSetSnapshot | null) => void
-  onBeforeAnimatedRefresh?: () => void
+  previousOrder: MissionOrderMap
   onBeforePinnedRefresh?: () => void
 }
-type DashboardRefreshRequestOptions = DashboardRefreshOptions & {
-  waitForStartup?: boolean
-}
 
+/**
+ * React adapter for the Dashboard Intake store's refresh path: it feeds the
+ * store its page-side refresh inputs and turns React-observable changes
+ * (filter search staleness, pinned-domain updates) into refresh requests.
+ * The latest-wins arbitration itself lives in the store.
+ */
 export function useDashboardRefresh({
   dashboard,
   source,
@@ -45,144 +38,22 @@ export function useDashboardRefresh({
   pinnedDomains,
   localStateLoaded,
   previousOrder,
-  setDashboard,
-  setStartupSnapshot,
-  setTabHistory,
-  setWorkingSet,
-  onBeforeAnimatedRefresh,
   onBeforePinnedRefresh
 }: UseDashboardRefreshOptions) {
-  const callbacksRef = useRef({ onBeforeAnimatedRefresh, onBeforePinnedRefresh })
-  const refreshRef = useRef<(options?: DashboardRefreshRequestOptions) => Promise<void>>(async () => {})
-  type DashboardRefreshResult =
-    | { kind: 'startup'; snapshot: DashboardStartupSnapshot }
-    | { kind: 'standard'; snapshot: DashboardRefreshSnapshot }
-  const [refreshRunner] = useState(() => createLatestRefreshRunner<DashboardRefreshResult>())
-  const refreshContextRef = useRef<DashboardRefreshContext>({
-    filter,
-    historyFilterEnabled,
-    historyRange,
-    pinnedDomains,
-    source
-  })
-  const startupRefreshPendingRef = useRef(false)
-  const animatedRefreshPendingRef = useRef(false)
-  const historySearchPendingRevisionRef = useRef(0)
-  const [historySearchPending, setHistorySearchPending] = useState(false)
+  const callbacksRef = useRef({ onBeforePinnedRefresh })
 
   useEffect(() => {
-    callbacksRef.current = { onBeforeAnimatedRefresh, onBeforePinnedRefresh }
-  }, [onBeforeAnimatedRefresh, onBeforePinnedRefresh])
+    callbacksRef.current = { onBeforePinnedRefresh }
+  }, [onBeforePinnedRefresh])
 
   useLayoutEffect(() => {
-    refreshContextRef.current = {
-      filter,
-      historyFilterEnabled,
-      historyRange,
-      pinnedDomains,
-      source
-    }
-  }, [filter, historyFilterEnabled, historyRange, pinnedDomains, source])
-
-  refreshRef.current = async ({
-    animateCards = false,
-    startupSnapshot = false,
-    waitForStartup = false
-  }: DashboardRefreshRequestOptions = {}) => {
-    if (waitForStartup && startupRefreshPendingRef.current && refreshRunner.active()) {
-      try {
-        await refreshRunner.wait()
-      } catch {}
-      return refreshRef.current()
-    }
-    if (startupSnapshot) startupRefreshPendingRef.current = true
-    if (animateCards) animatedRefreshPendingRef.current = true
-    if (document.visibilityState !== 'visible') return
-    if (!localStateLoaded) return
-    const useStartupSnapshot = source === 'tabs' && (!dashboard || startupRefreshPendingRef.current)
-    const requestContext: DashboardRefreshContext = {
-      filter,
-      historyFilterEnabled,
-      historyRange,
-      pinnedDomains: [...pinnedDomains],
-      source
-    }
-    const tracksHistorySearch = buildFilterSearchRequest(requestContext).includeHistoryMatches
-    const historySearchPendingRevision = tracksHistorySearch
-      ? historySearchPendingRevisionRef.current + 1
-      : 0
-    if (tracksHistorySearch) {
-      historySearchPendingRevisionRef.current = historySearchPendingRevision
-      setHistorySearchPending(true)
-    }
-    try {
-      await refreshRunner.request(
-        async () => {
-          if (animatedRefreshPendingRef.current) {
-            callbacksRef.current.onBeforeAnimatedRefresh?.()
-          }
-          if (useStartupSnapshot) {
-            return {
-              kind: 'startup' as const,
-              snapshot: await fetchDashboardStartupSnapshot({
-                source,
-                filter,
-                historyRange,
-                historyFilterEnabled,
-                pinnedDomains,
-                previousOrder
-              })
-            }
-          }
-          return {
-            kind: 'standard' as const,
-            snapshot: await fetchDashboardSnapshot({
-              source,
-              filter,
-              historyRange,
-              historyFilterEnabled,
-              pinnedDomains,
-              previousOrder
-            })
-          }
-        },
-        (result) => {
-          startupRefreshPendingRef.current = false
-          animatedRefreshPendingRef.current = false
-          if (
-            !refreshContextRef.current ||
-            !dashboardRefreshContextMatches(
-              requestContext,
-              refreshContextRef.current,
-              result.kind === 'startup'
-            )
-          ) return
-          if (result.kind === 'startup') {
-            setStartupSnapshot(result.snapshot)
-            return
-          }
-          setDashboard(retainHistorySearchResultsOnError(result.snapshot.dashboard, dashboard))
-          if (result.snapshot.tabHistory !== undefined) setTabHistory(result.snapshot.tabHistory)
-          if (result.snapshot.workingSet !== undefined) setWorkingSet(result.snapshot.workingSet)
-        }
-      )
-    } catch (error) {
-      startupRefreshPendingRef.current = false
-      animatedRefreshPendingRef.current = false
-      throw error
-    } finally {
-      if (tracksHistorySearch && historySearchPendingRevisionRef.current === historySearchPendingRevision) {
-        setHistorySearchPending(false)
-      }
-    }
-  }
-
-  useEffect(() => registerDashboardRefresh((options?: DashboardRefreshOptions) => refreshRef.current(options)), [])
+    appDashboardStore.setRefreshInputs({ filter, localStateLoaded, pinnedDomains, previousOrder })
+  }, [filter, localStateLoaded, pinnedDomains, previousOrder])
 
   useEffect(() => {
     if (!localStateLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return
     const frame = requestAnimationFrame(() => {
-      void settleDashboardRefresh(refreshRef.current({ waitForStartup: true }))
+      void settleDashboardRefresh(appDashboardStore.refresh({ waitForStartup: true }))
     })
     return () => cancelAnimationFrame(frame)
   }, [dashboard, filter, historyRange, historyFilterEnabled, localStateLoaded, source, dashboard?.bookmarkSearchReady, dashboard?.historySearchQuery, dashboard?.historyRange])
@@ -191,14 +62,10 @@ export function useDashboardRefresh({
     if (!localStateLoaded) return
     callbacksRef.current.onBeforePinnedRefresh?.()
     const frame = requestAnimationFrame(() => {
-      void settleDashboardRefresh(refreshRef.current())
+      void settleDashboardRefresh(appDashboardStore.refresh())
     })
     return () => cancelAnimationFrame(frame)
   }, [pinnedDomains, localStateLoaded])
 
-  // Stable identity: the hook itself bails out of React Compiler (the render-time
-  // refreshRef assignment is its latest-callback architecture), so the returned
-  // facade is memoized manually — consumers key effects and props on it.
-  const refreshDashboard = useCallback((options?: DashboardRefreshOptions) => refreshRef.current(options), [])
-  return { historySearchPending, refreshDashboard }
+  return { refreshDashboard: appDashboardStore.refresh }
 }

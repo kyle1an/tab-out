@@ -168,10 +168,9 @@ test('activation history panel stays visually empty when there are no rows', () 
 })
 
 test('startup snapshot updates dashboard and history rows atomically', () => {
-  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
 
-  assert.match(appSource, /type: 'startupSnapshot'/)
+  assert.match(intakeSource, /type: 'startupSnapshot'/)
   assert.match(intakeSource, /function appDashboardSnapshotFields/)
   assert.match(intakeSource, /closedTabs: snapshot\?\.closedTabs \?\? \[\]/)
   assert.match(intakeSource, /dashboard: snapshot\?\.dashboard \?\? null/)
@@ -244,10 +243,10 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.doesNotMatch(intakeSource, /localState\?: DashboardLocalState \| null/)
   assert.match(intakeSource, /export function createLatestRefreshRunner/)
   assert.match(intakeSource, /if \(requestRevision !== revision\) continue/)
-  assert.match(refreshSource, /useState\(\(\) => createLatestRefreshRunner/)
-  assert.match(refreshSource, /startupRefreshPendingRef/)
-  assert.match(refreshSource, /await refreshRunner\.request/)
-  assert.match(refreshSource, /animatedRefreshPendingRef/)
+  assert.match(intakeSource, /const refreshRunner = createLatestRefreshRunner/)
+  assert.match(intakeSource, /startupRefreshPending/)
+  assert.match(intakeSource, /await refreshRunner\.request/)
+  assert.match(intakeSource, /animatedRefreshPending/)
   assert.match(intakeSource, /buildTabsDashboardStartupSnapshot\(/)
   assert.match(viewModelSource, /useLayoutEffect\(\(\) => \{[\s\S]*previousOrderRef\.current\[source\]/)
   // The cache layer + snapshot builder live in the non-React startup-snapshot module (shared with

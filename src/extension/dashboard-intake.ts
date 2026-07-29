@@ -10,6 +10,7 @@
    ================================================================ */
 
 import { fetchClosedTabsResult, isClosedTabFetchSuppressed, type ClosedTabEntry } from './closed-tabs.js'
+import { registerDashboardRefresh, type DashboardRefreshOptions } from './dashboard-controller.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import { fetchDashboardServiceStateResult } from './dashboard-service-state.js'
@@ -289,6 +290,7 @@ export type AppDashboardState = {
   dashboard: DashboardData | null
   deferredStartupSourceFields: AppDashboardSnapshotFields | null
   historyRange: string
+  historySearchPending: boolean
   source: DashboardSource
   sourceAppliedRequestId: number
   sourceFieldsUpdatedBeforeStartup: AppDashboardSnapshotFieldUpdates
@@ -304,6 +306,7 @@ export type AppDashboardAction =
   | { type: 'closedTabs'; closedTabs: readonly ClosedTabEntry[] }
   | { type: 'dashboard'; dashboard: DashboardData | null }
   | { type: 'historyRange'; historyRange: string }
+  | { type: 'historySearchPending'; historySearchPending: boolean }
   | { type: 'source'; source: DashboardSource }
   | { type: 'sourceRequestCancelled' }
   | { type: 'sourceRequest'; requestId: number; source: DashboardSource }
@@ -339,6 +342,7 @@ export function initialAppDashboardState({
     ...appDashboardSnapshotFields(snapshot),
     deferredStartupSourceFields: null,
     historyRange,
+    historySearchPending: false,
     source: 'tabs',
     sourceAppliedRequestId: 0,
     sourceFieldsUpdatedBeforeStartup: {},
@@ -457,6 +461,10 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         historyRange: action.historyRange
       }
     }
+    case 'historySearchPending':
+      return state.historySearchPending === action.historySearchPending
+        ? state
+        : { ...state, historySearchPending: action.historySearchPending }
     case 'source':
       return state.source === action.source && state.sourceSelection === action.source
         ? state
@@ -557,11 +565,29 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
   }
 }
 
+export type DashboardRefreshInputs = {
+  filter: string
+  localStateLoaded: boolean
+  pinnedDomains: readonly string[]
+  previousOrder: MissionOrderMap
+}
+
+export type DashboardRefreshRequestOptions = DashboardRefreshOptions & {
+  waitForStartup?: boolean
+}
+
+export type DashboardBeforeApplyEvent =
+  | { reason: 'animated-refresh' }
+  | { reason: 'startup-snapshot'; snapshot: DashboardStartupSnapshot }
+
 export type AppDashboardStore = {
   dispatch: (action: AppDashboardAction) => void
   read: () => AppDashboardState
   readBuildTime: () => AppDashboardState
+  refresh: (options?: DashboardRefreshRequestOptions) => Promise<void>
+  setRefreshInputs: (inputs: DashboardRefreshInputs) => void
   subscribe: (listener: () => void) => () => void
+  subscribeBeforeApply: (listener: (event: DashboardBeforeApplyEvent) => void) => () => void
 }
 
 /**
@@ -569,7 +595,9 @@ export type AppDashboardStore = {
  * live refreshes, source switches, and closed-tab updates — applies through
  * this one dispatch, and the page renders its snapshot. The frozen
  * build-time state backs the hydration render, so the first client render
- * reproduces the generated shell exactly.
+ * reproduces the generated shell exactly. subscribeBeforeApply fires
+ * synchronously just before an arrival's dispatches so the React layer can
+ * capture pre-commit DOM geometry; the store itself stays DOM-free.
  */
 export function createAppDashboardStore(): AppDashboardStore {
   const buildTimeState = initialAppDashboardState({
@@ -578,20 +606,152 @@ export function createAppDashboardStore(): AppDashboardStore {
   })
   let state = buildTimeState
   const listeners = new Set<() => void>()
+  const beforeApplyListeners = new Set<(event: DashboardBeforeApplyEvent) => void>()
+  let refreshInputs: DashboardRefreshInputs | null = null
+  type DashboardRefreshResult =
+    | { kind: 'startup'; snapshot: DashboardStartupSnapshot }
+    | { kind: 'standard'; snapshot: DashboardRefreshSnapshot }
+  const refreshRunner = createLatestRefreshRunner<DashboardRefreshResult>()
+  let startupRefreshPending = false
+  let animatedRefreshPending = false
+  let historySearchPendingRevision = 0
+
+  function dispatch(action: AppDashboardAction): void {
+    const nextState = appDashboardReducer(state, action)
+    if (nextState === state) return
+    state = nextState
+    for (const listener of [...listeners]) listener()
+  }
+
+  function emitBeforeApply(event: DashboardBeforeApplyEvent): void {
+    for (const listener of [...beforeApplyListeners]) listener(event)
+  }
+
+  function refreshContextFromInputs(inputs: DashboardRefreshInputs): DashboardRefreshContext {
+    return {
+      filter: inputs.filter,
+      historyFilterEnabled: isHistoryFilterEnabled(state.historyRange),
+      historyRange: state.historyRange,
+      pinnedDomains: inputs.pinnedDomains,
+      source: state.source
+    }
+  }
+
+  async function refresh({
+    animateCards = false,
+    startupSnapshot = false,
+    waitForStartup = false
+  }: DashboardRefreshRequestOptions = {}): Promise<void> {
+    if (waitForStartup && startupRefreshPending && refreshRunner.active()) {
+      try {
+        await refreshRunner.wait()
+      } catch {}
+      return refresh()
+    }
+    if (startupSnapshot) startupRefreshPending = true
+    if (animateCards) animatedRefreshPending = true
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+    const inputs = refreshInputs
+    if (!inputs?.localStateLoaded) return
+    const useStartupSnapshot = state.source === 'tabs' && (!state.dashboard || startupRefreshPending)
+    const requestContext: DashboardRefreshContext = {
+      ...refreshContextFromInputs(inputs),
+      pinnedDomains: [...inputs.pinnedDomains]
+    }
+    const { filter, historyFilterEnabled, historyRange, pinnedDomains, source } = requestContext
+    const previousOrder = inputs.previousOrder
+    const tracksHistorySearch = buildFilterSearchRequest(requestContext).includeHistoryMatches
+    const historySearchRevision = tracksHistorySearch ? historySearchPendingRevision + 1 : 0
+    if (tracksHistorySearch) {
+      historySearchPendingRevision = historySearchRevision
+      dispatch({ type: 'historySearchPending', historySearchPending: true })
+    }
+    try {
+      await refreshRunner.request(
+        async () => {
+          if (animatedRefreshPending) emitBeforeApply({ reason: 'animated-refresh' })
+          if (useStartupSnapshot) {
+            return {
+              kind: 'startup' as const,
+              snapshot: await fetchDashboardStartupSnapshot({
+                source,
+                filter,
+                historyRange,
+                historyFilterEnabled,
+                pinnedDomains: [...pinnedDomains],
+                previousOrder
+              })
+            }
+          }
+          return {
+            kind: 'standard' as const,
+            snapshot: await fetchDashboardSnapshot({
+              source,
+              filter,
+              historyRange,
+              historyFilterEnabled,
+              pinnedDomains: [...pinnedDomains],
+              previousOrder
+            })
+          }
+        },
+        (result) => {
+          startupRefreshPending = false
+          animatedRefreshPending = false
+          const latestInputs = refreshInputs
+          if (
+            !latestInputs ||
+            !dashboardRefreshContextMatches(
+              requestContext,
+              refreshContextFromInputs(latestInputs),
+              result.kind === 'startup'
+            )
+          ) return
+          if (result.kind === 'startup') {
+            emitBeforeApply({ reason: 'startup-snapshot', snapshot: result.snapshot })
+            dispatch({ type: 'startupSnapshot', snapshot: result.snapshot })
+            return
+          }
+          dispatch({
+            type: 'dashboard',
+            dashboard: retainHistorySearchResultsOnError(result.snapshot.dashboard, state.dashboard)
+          })
+          if (result.snapshot.tabHistory !== undefined) dispatch({ type: 'tabHistory', tabHistory: result.snapshot.tabHistory })
+          if (result.snapshot.workingSet !== undefined) dispatch({ type: 'workingSet', workingSet: result.snapshot.workingSet })
+        }
+      )
+    } catch (error) {
+      startupRefreshPending = false
+      animatedRefreshPending = false
+      throw error
+    } finally {
+      if (tracksHistorySearch && historySearchPendingRevision === historySearchRevision) {
+        dispatch({ type: 'historySearchPending', historySearchPending: false })
+      }
+    }
+  }
+
   return {
-    dispatch(action) {
-      const nextState = appDashboardReducer(state, action)
-      if (nextState === state) return
-      state = nextState
-      for (const listener of [...listeners]) listener()
-    },
+    dispatch,
     read: () => state,
     readBuildTime: () => buildTimeState,
+    refresh,
+    setRefreshInputs: (inputs) => {
+      refreshInputs = inputs
+    },
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
+    },
+    subscribeBeforeApply(listener) {
+      beforeApplyListeners.add(listener)
+      return () => beforeApplyListeners.delete(listener)
     }
   }
 }
 
 export const appDashboardStore = createAppDashboardStore()
+
+// The page-context refresh trigger targets the intake store as soon as this
+// module loads; requests queued before load replay with merged options.
+registerDashboardRefresh((options) => appDashboardStore.refresh(options))

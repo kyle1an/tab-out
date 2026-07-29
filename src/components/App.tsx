@@ -37,7 +37,6 @@ import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupOrderDebugVmSample, recordSta
 import { cn } from '@/lib/utils'
 import type {
   DashboardCardEntry,
-  DashboardData,
   DashboardSource,
   DashboardStats,
   TabHistorySnapshot
@@ -503,24 +502,10 @@ export function App() {
     appDashboardStore.read,
     appDashboardStore.readBuildTime
   )
-  const { closedTabs, dashboard, historyRange, source, sourceAppliedRequestId, sourceRequestId, sourceSelection, tabHistory, workingSet } = appDashboard
+  const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceAppliedRequestId, sourceRequestId, sourceSelection, tabHistory, workingSet } = appDashboard
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   function setClosedTabs(next: readonly ClosedTabEntry[]) {
     dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
-  }
-  function setDashboard(nextDashboard: DashboardData | null) {
-    dispatchAppDashboard({ type: 'dashboard', dashboard: nextDashboard })
-  }
-  function setStartupSnapshot(snapshot: DashboardStartupSnapshot) {
-    recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-snapshot-applied', {
-      detail: {
-        closedTabs: snapshot.closedTabs.length,
-        domainGroups: snapshot.dashboard.domainGroups.length,
-        realTabs: snapshot.dashboard.realTabs.length,
-        workingSet: snapshot.workingSet.items.length
-      }
-    })
-    dispatchAppDashboard({ type: 'startupSnapshot', snapshot })
   }
   const setHistoryRange = useCallback(async function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
@@ -533,9 +518,6 @@ export function App() {
   const setTabHistory = useCallback(function setTabHistory(nextTabHistory: TabHistorySnapshot | null) {
     dispatchAppDashboard({ type: 'tabHistory', tabHistory: nextTabHistory })
   }, [])
-  function setWorkingSet(nextWorkingSet: WorkingSetSnapshot | null) {
-    dispatchAppDashboard({ type: 'workingSet', workingSet: nextWorkingSet })
-  }
   const closedTabsSeqRef = useRef(0)
   const closedTabsRetryTimerRef = useRef<number | null>(null)
   const firstDashboardLayoutRecordedRef = useRef(false)
@@ -710,7 +692,7 @@ export function App() {
       ? initialStartupViewModel.viewModel
       : null
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
-  const { historySearchPending, refreshDashboard } = useDashboardRefresh({
+  const { refreshDashboard } = useDashboardRefresh({
     dashboard,
     source,
     filter,
@@ -720,13 +702,24 @@ export function App() {
     localStateLoaded,
     // react-doctor-disable-next-line react-hooks-js/refs -- previousOrder is a mutable ordering cache read at refresh time, not render-derived state.
     previousOrder: previousOrderRef.current,
-    setDashboard,
-    setStartupSnapshot,
-    setTabHistory,
-    setWorkingSet,
-    onBeforeAnimatedRefresh: primeCardMoveAnimation,
     onBeforePinnedRefresh: clearHoverUrlNow
   })
+  useEffect(() => {
+    return appDashboardStore.subscribeBeforeApply((event) => {
+      if (event.reason === 'animated-refresh') {
+        primeCardMoveAnimation()
+        return
+      }
+      recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-snapshot-applied', {
+        detail: {
+          closedTabs: event.snapshot.closedTabs.length,
+          domainGroups: event.snapshot.dashboard.domainGroups.length,
+          realTabs: event.snapshot.dashboard.realTabs.length,
+          workingSet: event.snapshot.workingSet.items.length
+        }
+      })
+    })
+  }, [primeCardMoveAnimation])
   const retryHistorySearch = useCallback(function retryHistorySearch() {
     void refreshDashboard().catch(() => showToast('Could not update History'))
   }, [refreshDashboard])

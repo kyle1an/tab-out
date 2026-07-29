@@ -51,9 +51,16 @@ test('app dashboard store applies arrivals through the reducer and notifies only
   assert.equal(notifications, 1)
   assert.equal(store.read().source, 'bookmarks')
 
+  assert.equal(store.read().historySearchPending, false)
+  store.dispatch({ type: 'historySearchPending', historySearchPending: true })
+  assert.equal(notifications, 2, 'history search pending is arrival status in the snapshot')
+  assert.equal(store.read().historySearchPending, true)
+  store.dispatch({ type: 'historySearchPending', historySearchPending: true })
+  assert.equal(notifications, 2, 'an unchanged pending flag must not notify')
+
   unsubscribe()
   store.dispatch({ type: 'source', source: 'history' })
-  assert.equal(notifications, 1, 'unsubscribed listeners stop receiving arrivals')
+  assert.equal(notifications, 2, 'unsubscribed listeners stop receiving arrivals')
   assert.equal(store.read().source, 'history')
 })
 
