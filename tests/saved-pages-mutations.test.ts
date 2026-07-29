@@ -181,6 +181,52 @@ test('a Saved Pages storage read failure aborts before write and does not poison
   assert.deepEqual(Object.keys(stored.pages).sort(), [existingUrl, nextUrl])
 })
 
+test('persistMetadataUpdates with an unchanged merged store performs no reads or writes', async () => {
+  const url = 'https://example.test/article'
+  const baseStore = addSavedPageToStore(emptySavedPagesStore(), savedPage(url, 'Original title'), 100)
+  const mergedStore = mergeSavedPagesWithTabs([openTab(url, 'Original title')], baseStore, 200).store
+  let reads = 0
+  let writes = 0
+  const mutations = createSavedPagesMutationStore({
+    read: async () => {
+      reads += 1
+      return cloneStore(baseStore)
+    },
+    write: async () => { writes += 1 }
+  })
+
+  await mutations.persistMetadataUpdates(baseStore, mergedStore)
+
+  assert.equal(reads, 0, 'an unchanged merge must not read storage')
+  assert.equal(writes, 0, 'an unchanged merge must not write storage')
+})
+
+test('persistMetadataUpdates applies changed metadata in a single write', async () => {
+  const url = 'https://example.test/article'
+  const baseStore = addSavedPageToStore(emptySavedPagesStore(), savedPage(url, 'Original title'), 100)
+  const mergedStore = mergeSavedPagesWithTabs([openTab(url, 'Updated title')], baseStore, 200).store
+  let stored = cloneStore(baseStore)
+  let reads = 0
+  let writes = 0
+  const mutations = createSavedPagesMutationStore({
+    read: async () => {
+      reads += 1
+      return cloneStore(stored)
+    },
+    write: async (nextStore) => {
+      writes += 1
+      stored = cloneStore(nextStore)
+    }
+  })
+
+  await mutations.persistMetadataUpdates(baseStore, mergedStore)
+
+  assert.equal(stored.pages[url]?.title, 'Updated title')
+  assert.equal(stored.pages[url]?.updatedAt, 200)
+  assert.equal(reads, 1, 'one metadata heal is one storage read')
+  assert.equal(writes, 1, 'one metadata heal is one storage write')
+})
+
 test('a malformed Saved Pages store aborts mutation instead of erasing it', async () => {
   let writes = 0
   const mutations = createSavedPagesMutationStore({
