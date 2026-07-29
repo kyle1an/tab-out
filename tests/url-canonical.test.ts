@@ -148,9 +148,23 @@ test('Tab Out dashboard variants collapse to a single dedupe key', () => {
   })
 })
 
-test('chrome://newtab/ is not folded into the Tab Out dashboard key', () => {
+test('chrome://newtab/ folds into the Tab Out dashboard key', () => {
   withExtensionId('tab-out', () => {
-    assert.equal(canonicalDedupeKey('chrome://newtab/'), 'chrome://newtab/')
+    assert.equal(
+      canonicalDedupeKey('chrome://newtab/'),
+      'chrome-extension://tab-out/index.html'
+    )
+  })
+})
+
+test('other Chrome new-tab implementation URLs remain exact', () => {
+  withExtensionId('tab-out', () => {
+    for (const url of [
+      'chrome-search://local-ntp/local-ntp.html',
+      'chrome-untrusted://new-tab-page/'
+    ]) {
+      assert.equal(canonicalDedupeKey(url), url)
+    }
   })
 })
 

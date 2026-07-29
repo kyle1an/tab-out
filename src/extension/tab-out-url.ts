@@ -7,10 +7,11 @@
    (app.tsx). One definition guarantees the dedup identity and the
    "protect the active dashboard" logic agree on the dashboard base.
 
-   The dashboard overrides the native new tab, but blank new tabs are
-   kept as their own dedup identity, so:
+   The dashboard overrides the native new tab. Callers that need the actual
+   extension document keep using isTabOutDashboardUrl, while callers that own
+   Tab Out page identity use isTabOutPageUrl, so:
      - isTabOutDashboardUrl EXCLUDES chrome://newtab/
-     - isTabOutPageUrl (protection / startup) INCLUDES it
+     - isTabOutPageUrl (dedupe / protection / startup) INCLUDES it
    ================================================================ */
 
 const NEW_TAB_URL = 'chrome://newtab/'

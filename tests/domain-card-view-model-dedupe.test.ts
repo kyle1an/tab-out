@@ -81,3 +81,60 @@ test('dashboards with different filter params collapse into one closable Tab Out
     else g.chrome = previous
   }
 })
+
+test('current and ordinary Tab Out aliases share one closable identity while staying in separate state buckets', () => {
+  const g = globalThis as { chrome?: unknown }
+  const previous = g.chrome
+  g.chrome = { runtime: { id: 'tab-out' } }
+  try {
+    const base = 'chrome-extension://tab-out/index.html'
+    const newTab = 'chrome://newtab/'
+    const group: DomainGroup = {
+      domain: '__tab-out__',
+      tabs: [
+        makeDashboardTab({ id: 1, url: base, title: 'Tab Out', windowId: 1, active: true, isTabOut: true }),
+        makeDashboardTab({ id: 2, url: newTab, title: 'New Tab', windowId: 1, isTabOut: true })
+      ]
+    }
+
+    const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+    const chips = collectDashboardChips(vm)
+
+    assert.deepEqual(vm.closableDupeUrls, [base])
+    assert.equal(vm.closableExtras, 1)
+    assert.deepEqual(chips.map((chip) => chip.tabUrl).toSorted(), [base, newTab].toSorted())
+    assert.deepEqual(chips.map((chip) => chip.dupeCount), [1, 1])
+    assert.equal(chips.find((chip) => chip.tabUrl === base)?.isCurrentTabOut, true)
+    assert.equal(chips.find((chip) => chip.tabUrl === newTab)?.isCurrentTabOut, false)
+  } finally {
+    if (previous === undefined) delete g.chrome
+    else g.chrome = previous
+  }
+})
+
+test('ordinary Tab Out aliases collapse into one stacked display chip', () => {
+  const g = globalThis as { chrome?: unknown }
+  const previous = g.chrome
+  g.chrome = { runtime: { id: 'tab-out' } }
+  try {
+    const base = 'chrome-extension://tab-out/index.html'
+    const group: DomainGroup = {
+      domain: '__tab-out__',
+      tabs: [
+        makeDashboardTab({ id: 1, url: base, title: 'Tab Out', windowId: 2, isTabOut: true }),
+        makeDashboardTab({ id: 2, url: 'chrome://newtab/', title: 'New Tab', windowId: 2, isTabOut: true })
+      ]
+    }
+
+    const vm = computeDomainCardViewModel(group, { currentWindowId: 1 })
+    const chips = collectDashboardChips(vm)
+
+    assert.deepEqual(vm.closableDupeUrls, [base])
+    assert.equal(vm.closableExtras, 1)
+    assert.equal(chips.length, 1)
+    assert.equal(chips[0]?.dupeCount, 2)
+  } finally {
+    if (previous === undefined) delete g.chrome
+    else g.chrome = previous
+  }
+})

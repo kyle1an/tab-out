@@ -17,7 +17,7 @@
    path-groups.ts).
    ================================================================ */
 
-import { isTabOutDashboardUrl, tabOutDashboardCanonicalUrl } from './tab-out-url.js'
+import { isTabOutPageUrl, tabOutDashboardCanonicalUrl } from './tab-out-url.js'
 import { isGitHubRepositoryRootPath } from './github-url.js'
 import type { UrlCanonicalizerRule } from './types'
 
@@ -56,10 +56,11 @@ const BUILT_IN_CANONICALIZERS: UrlCanonicalizerRule[] = [
 export function canonicalDedupeKey(url: string): string {
   if (!url) return url
 
-  // Tab Out's own dashboard: collapse every filter/search/hash variant to a
-  // single identity so redundant dashboards are counted + closable as dupes.
-  // chrome://newtab/ is intentionally left as-is (see tab-out-url.ts).
-  if (isTabOutDashboardUrl(url)) return tabOutDashboardCanonicalUrl() ?? url
+  // Tab Out's own dashboard: collapse the native chrome://newtab/ alias and
+  // every filter/search/hash variant to a single identity so redundant
+  // dashboards are counted + closable as dupes. Keep each tab's physical URL
+  // unchanged; this key is only for duplicate grouping and close selection.
+  if (isTabOutPageUrl(url)) return tabOutDashboardCanonicalUrl() ?? url
 
   const parsed = URL.parse(url)
   if (!parsed) return url
