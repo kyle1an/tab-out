@@ -3,7 +3,7 @@ import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
 
 import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
-import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { suspendChipTarget, suspendDomainTabs, suspendExactTabTargets, suspendHistoryEntry } from '../src/extension/tab-actions.js'
 import { createSuspendTargetStore, extractSuspenderId, buildSuspendUrl, isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl, unwrapSuspenderTitle } from '../src/extension/suspension.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
@@ -312,7 +312,7 @@ test('suspend actions report unknown without mutating or refreshing when live ta
     throw new Error('Tab inventory unavailable')
   }
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
 
@@ -379,7 +379,7 @@ test('suspend actions report failure without refreshing when every tab update fa
   setChromeTabsApi(api)
   rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -441,7 +441,7 @@ test('suspendExactTabTargets preserves and refreshes confirmed partial updates',
   setChromeTabsApi(api)
   rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -494,7 +494,7 @@ test('suspendExactTabTargets skips a later target that navigates while earlier u
   setChromeTabsApi(api)
   rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -547,7 +547,7 @@ test('suspendExactTabTargets skips a later target with an uncommitted navigation
   setChromeTabsApi(api)
   rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -598,7 +598,7 @@ test('suspendChipTarget resolves and mutates with one live-tab inventory read', 
   setChromeTabsApi(api)
   rememberSuspendTargetFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
 

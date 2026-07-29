@@ -16,7 +16,7 @@
 
 import { createTabWithFallbackUrl, focusWindow, getTab, groupTabs, updateTab } from './browser-tabs-gateway.js'
 import { showToast } from './toast.js'
-import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-controller.js'
+import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-intake.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import type { TabSnapshot } from './types'
 

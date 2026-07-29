@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
-import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { duplicateTabTarget, reloadTabTarget } from '../src/extension/tab-actions.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 
@@ -54,7 +54,7 @@ test('reloadTabTarget reloads the exact represented tab from a duplicate set', a
     fakeTab(1, 'https://example.test/docs'),
     fakeTab(2, 'https://example.test/docs')
   ])
-  const unregisterRefresh = registerDashboardRefresh(() => {})
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {})
   t.after(() => {
     unregisterRefresh()
     chromeMock.restore()
@@ -71,7 +71,7 @@ test('duplicateTabTarget duplicates the exact represented tab and refreshes the 
     fakeTab(2, 'https://example.test/docs')
   ])
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   t.after(() => {
@@ -89,7 +89,7 @@ test('duplicateTabTarget duplicates the exact represented tab and refreshes the 
 test('tab menu actions can resolve a folded environment pill by effective URL', async (t) => {
   const suspendedUrl = 'chrome-extension://suspender/suspended.html#ttl=Docs&uri=https%3A%2F%2Fenv-alpha.example.test%2Fdocs'
   const chromeMock = installFakeChrome([fakeTab(3, suspendedUrl)])
-  const unregisterRefresh = registerDashboardRefresh(() => {})
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {})
   t.after(() => {
     unregisterRefresh()
     chromeMock.restore()
@@ -101,7 +101,7 @@ test('tab menu actions can resolve a folded environment pill by effective URL', 
 
 test('tab menu actions do not fall through to a different duplicate when an exact tab is gone', async (t) => {
   const chromeMock = installFakeChrome([fakeTab(1, 'https://example.test/docs')])
-  const unregisterRefresh = registerDashboardRefresh(() => {})
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {})
   t.after(() => {
     unregisterRefresh()
     chromeMock.restore()
@@ -114,7 +114,7 @@ test('tab menu actions do not fall through to a different duplicate when an exac
 
 test('tab menu actions reject a reused id whose current URL does not match the rendered target', async (t) => {
   const chromeMock = installFakeChrome([fakeTab(2, 'https://unrelated.example.test/')])
-  const unregisterRefresh = registerDashboardRefresh(() => {})
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {})
   t.after(() => {
     unregisterRefresh()
     chromeMock.restore()
@@ -134,7 +134,7 @@ test('URL-only tab menu actions report unknown when the live inventory cannot be
   }
   setChromeTabsApi(api)
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   t.after(() => {

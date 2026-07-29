@@ -9,7 +9,7 @@ import {
 import type { DashboardRefreshSnapshot, DashboardSnapshotOptions } from '../src/extension/dashboard-intake.js'
 import type { BrowserReadResult } from '../src/extension/browser-tabs-gateway.js'
 import type { ClosedTabEntry } from '../src/extension/closed-tabs.js'
-import type { DashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
+import type { DashboardStartupSnapshot } from '../src/extension/startup-snapshot.js'
 import type { TabHistorySnapshot } from '../src/extension/types'
 
 function deferred<T>() {

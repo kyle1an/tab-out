@@ -1,4 +1,4 @@
-import { requestDashboardRefresh } from './dashboard-controller.js'
+import { requestDashboardRefresh } from './dashboard-intake.js'
 import {
   addSavedPageToStore,
   mutateSavedPagesStore,

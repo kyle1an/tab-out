@@ -1,4 +1,4 @@
-import { mergeDashboardRefreshOptions, type DashboardRefreshOptions } from './dashboard-controller.js'
+import { mergeDashboardRefreshOptions, type DashboardRefreshOptions } from './dashboard-intake.js'
 
 const DASHBOARD_PAGE_REFRESH_DELAY_MS = 250
 

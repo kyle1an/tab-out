@@ -1,5 +1,5 @@
 import { duplicateTab, getTab, queryAllTabsResult, reloadTab, updateTab } from './browser-tabs-gateway.js'
-import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-controller.js'
+import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-intake.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
 import { liveTabMatchesIdentity, liveTabsMatchingTarget, liveTabUrlForIdentity } from './live-tab-matching.js'

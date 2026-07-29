@@ -5,8 +5,7 @@
    This module is UI-free: it gathers browser and service state, runs
    the pure Dashboard builds, and acts as the page-side single writer
    for the Saved Page metadata refresh those builds return. The React
-   layer consumes it through useDashboardRefresh until the intake
-   store lands.
+   layer consumes it through the intake store's React adapter.
    ================================================================ */
 
 import {
@@ -16,7 +15,6 @@ import {
   subscribeClosedTabChanges,
   type ClosedTabEntry
 } from './closed-tabs.js'
-import { registerDashboardRefresh, type DashboardRefreshOptions } from './dashboard-controller.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import { fetchDashboardServiceStateResult } from './dashboard-service-state.js'
@@ -31,6 +29,30 @@ import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnap
 import type { HistorySourceSearchResult } from './history-source.js'
 
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
+
+export type DashboardRefreshOptions = {
+  animateCards?: boolean
+  startupSnapshot?: boolean
+}
+
+export function mergeDashboardRefreshOptions(
+  current: DashboardRefreshOptions | undefined,
+  next: DashboardRefreshOptions
+): DashboardRefreshOptions {
+  return {
+    ...current,
+    ...next,
+    ...((current?.animateCards || next.animateCards) ? { animateCards: true } : {}),
+    ...((current?.startupSnapshot || next.startupSnapshot) ? { startupSnapshot: true } : {})
+  }
+}
+
+/** Settle automatic/event-driven refreshes without creating an unhandled rejection. */
+export async function settleDashboardRefresh(refresh: Promise<void> | void): Promise<void> {
+  try {
+    await refresh
+  } catch {}
+}
 
 export type DashboardSnapshotOptions = {
   source: DashboardSource
@@ -931,6 +953,22 @@ export function createAppDashboardStore({
 
 export const appDashboardStore = createAppDashboardStore()
 
-// The page-context refresh trigger targets the intake store as soon as this
-// module loads; requests queued before load replay with merged options.
-registerDashboardRefresh((options) => appDashboardStore.refresh(options))
+export function requestDashboardRefresh(options: DashboardRefreshOptions = {}): Promise<void> {
+  return appDashboardStore.refresh(options)
+}
+
+/** Replace the global refresh target for a focused test and restore it afterward. */
+export function replaceDashboardRefreshForTesting(
+  refresh: (options?: DashboardRefreshOptions) => Promise<void> | void
+): () => void {
+  const previousRefresh = appDashboardStore.refresh
+  const replacementRefresh: typeof appDashboardStore.refresh = async (options) => {
+    await refresh(options)
+  }
+  appDashboardStore.refresh = replacementRefresh
+  return () => {
+    if (appDashboardStore.refresh === replacementRefresh) {
+      appDashboardStore.refresh = previousRefresh
+    }
+  }
+}

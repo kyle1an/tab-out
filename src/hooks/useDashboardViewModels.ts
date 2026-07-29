@@ -6,7 +6,7 @@ import { tabMatchesSourceFilter } from '../extension/filter-match.js'
 import { buildDashboardViewModel, dashboardChipPriorityFromWorkingSet, dedupeCompanionSearchTabs } from '../extension/render.js'
 import type { DashboardCardEntry, DashboardCardVM, DashboardChipData, DashboardChipOrderByCard, DashboardData, DashboardSource, DashboardViewModel, DomainGroup, HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
 import type { PinnedPageChipIndex } from '../extension/page-chip-pins.js'
-import type { MissionOrderMap } from './useDashboardRefresh'
+import type { MissionOrderMap } from '../extension/dashboard-intake.js'
 
 const EMPTY_TABS: DashboardData['realTabs'] = []
 const EMPTY_DOMAIN_GROUPS: DomainGroup[] = []

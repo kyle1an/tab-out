@@ -40,8 +40,7 @@ const BASELINE: ReadonlyMap<string, number> = new Map([
   ['src/components/App.tsx', 5], // deliberate ordering-cache reads and forwarded grid refs in render
   ['src/components/title-expansion/use-title-expansion.ts', 1], // lazy-init ref facade (stable return)
   ['src/components/ui/tooltip.tsx', 3], // mergeRefs composition (documented suppressions)
-  ['src/extension/layout.ts', 2], // latest-ref render writes; returns are manual useCallbacks
-  ['src/hooks/useDashboardRefresh.ts', 1] // try/finally + latest-callback architecture; return is a manual useCallback
+  ['src/extension/layout.ts', 2] // latest-ref render writes; returns are manual useCallbacks
 ])
 
 const repoRequire = createRequire(join(REPO, 'package.json'))

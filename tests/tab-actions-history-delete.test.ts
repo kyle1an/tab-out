@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { deleteHistoryUrls, historyDeleteToastMessage } from '../src/extension/tab-actions.js'
 
 test('deleteHistoryUrls preserves confirmed partial deletion and reports the requested count', async () => {
@@ -15,7 +15,7 @@ test('deleteHistoryUrls preserves confirmed partial deletion and reports the req
     }
   }
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
 

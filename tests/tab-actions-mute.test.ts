@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { historyEntryMuteFailureToastMessage, setChipTargetMuted, setHistoryEntryMuted } from '../src/extension/tab-actions.js'
 
 type MuteCall = { tabId: number; muted: boolean }
@@ -95,7 +95,7 @@ test('setChipTargetMuted reports failure without refreshing when the live invent
     throw new Error('Tab inventory unavailable')
   }
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -121,7 +121,7 @@ test('setChipTargetMuted reports failure without refreshing when every mute writ
     throw new Error('Tab update unavailable')
   }
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -150,7 +150,7 @@ test('setChipTargetMuted preserves and refreshes a confirmed partial mute', asyn
     return updateTab(tabId, properties)
   }
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount
@@ -180,7 +180,7 @@ test('setChipTargetMuted skips a later target that navigates while earlier updat
     return updated
   }
   let refreshCount = 0
-  const unregisterRefresh = registerDashboardRefresh(() => {
+  const unregisterRefresh = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   const refreshBaseline = refreshCount

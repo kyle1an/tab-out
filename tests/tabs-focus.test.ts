@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { registerDashboardRefresh } from '../src/extension/dashboard-controller.js'
+import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntry, focusHistoryEntryResult } from '../src/extension/tab-history.js'
 import { focusExactTabTargetResult, focusExistingTabTargetResult, tabFocusResultToastMessage } from '../src/extension/tab-focus.js'
@@ -378,7 +378,7 @@ test('read-only activation reports failure without opening when the tab inventor
 })
 
 test('closeChipTarget closes and can undo the exact represented Tab Out sibling without animating the survivor', async () => {
-  const cleanup = registerDashboardRefresh(() => {})
+  const cleanup = replaceDashboardRefreshForTesting(() => {})
   try {
     const tabOutUrl = 'chrome-extension://tab-out/index.html'
     const { calls, tabs } = createChromeMock([
@@ -411,7 +411,7 @@ test('closeChipTarget closes and can undo the exact represented Tab Out sibling 
 })
 
 test('closeChipTarget does not close a same-URL sibling when its exact tab id is stale', async () => {
-  const cleanup = registerDashboardRefresh(() => {})
+  const cleanup = replaceDashboardRefreshForTesting(() => {})
   try {
     const tabOutUrl = 'chrome-extension://tab-out/index.html'
     const { calls, tabs } = createChromeMock([
@@ -430,7 +430,7 @@ test('closeChipTarget does not close a same-URL sibling when its exact tab id is
 })
 
 test('closeChipTarget rejects a reused same-URL id whose physical Tab Out state changed', async () => {
-  const cleanup = registerDashboardRefresh(() => {})
+  const cleanup = replaceDashboardRefreshForTesting(() => {})
   try {
     const tabOutUrl = 'chrome-extension://tab-out/index.html'
     const { calls, tabs } = createChromeMock([
@@ -454,7 +454,7 @@ test('closeChipTarget rejects a reused same-URL id whose physical Tab Out state 
 
 test('close actions report unknown and preserve tabs when the live inventory cannot be read', async () => {
   let refreshCount = 0
-  const cleanup = registerDashboardRefresh(() => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   try {
@@ -505,7 +505,7 @@ test('close actions report unknown and preserve tabs when the live inventory can
 })
 
 test('confirmed close keeps a working Undo when the follow-up dashboard refresh rejects', async () => {
-  const cleanup = registerDashboardRefresh(async () => {
+  const cleanup = replaceDashboardRefreshForTesting(async () => {
     throw new Error('Required refresh state unavailable')
   })
   try {
@@ -530,7 +530,7 @@ test('confirmed close keeps a working Undo when the follow-up dashboard refresh 
 
 test('closeChipTarget preserves a confirmed partial close without animating surviving variants', async () => {
   let refreshCount = 0
-  const cleanup = registerDashboardRefresh(() => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   try {
@@ -569,7 +569,7 @@ test('closeChipTarget preserves a confirmed partial close without animating surv
 
 test('closeChipTarget reports total write failure without refresh or removal animation', async () => {
   let refreshCount = 0
-  const cleanup = registerDashboardRefresh(() => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   try {
@@ -740,7 +740,7 @@ test('close paths prefer a pending navigation over the stale committed URL', asy
 
 test('closeExactTabSection keeps partial Undo and refreshes only for the confirmed removal', async () => {
   let refreshCount = 0
-  const cleanup = registerDashboardRefresh(() => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   try {
@@ -780,7 +780,7 @@ test('closeExactTabSection keeps partial Undo and refreshes only for the confirm
 
 test('closeExactTabTargets reports total write failure without refreshing', async () => {
   let refreshCount = 0
-  const cleanup = registerDashboardRefresh(() => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   try {
@@ -818,7 +818,7 @@ test('tab close feedback distinguishes total, partial, and complete writes', () 
 
 test('dedupeTabs reports a partial close, keeps Undo, and refreshes confirmed changes', async () => {
   let refreshCount = 0
-  const cleanup = registerDashboardRefresh(() => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {
     refreshCount += 1
   })
   try {
@@ -893,7 +893,7 @@ test('targeted bulk close does not expand one matching duplicate into every same
 })
 
 test('filtered domain close keeps a same-URL tab whose title does not match', async () => {
-  const cleanup = registerDashboardRefresh(() => {})
+  const cleanup = replaceDashboardRefreshForTesting(() => {})
   const previousDocument = globalThis.document
   ;(globalThis as { document?: unknown }).document = { getElementById: () => null }
   try {
@@ -1174,7 +1174,7 @@ test('undoLastClose restores tabs and requests animated dashboard refresh', asyn
     { id: 1, windowId: 1, url: 'https://alpha.example/', title: 'Alpha', active: true, pinned: false, groupId: -1, index: 0 }
   ])
   let refreshOptions = null
-  const unregister = registerDashboardRefresh((options) => {
+  const unregister = replaceDashboardRefreshForTesting((options) => {
     refreshOptions = options
   })
 

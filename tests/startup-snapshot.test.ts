@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createLatestRefreshRunner, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
+import { createLatestRefreshRunner, fetchDashboardSnapshot, fetchDashboardStartupSnapshot } from '../src/extension/dashboard-intake.js'
 import { loadDashboardLocalState, loadDashboardLocalStateResult } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
-import { promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../src/extension/startup-snapshot.js'
+import { DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot, promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../src/extension/startup-snapshot.js'
 import { addCurrentTabOutPageToStartupSnapshot, buildDashboardStartupViewModel } from '../src/extension/startup-view-model.js'
 import { makeChromeTab } from './helpers/chrome-tab.js'
 

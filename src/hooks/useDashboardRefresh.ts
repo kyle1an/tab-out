@@ -1,15 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { settleDashboardRefresh } from '../extension/dashboard-controller.js'
 import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
-import { appDashboardStore, type MissionOrderMap } from '../extension/dashboard-intake.js'
+import { appDashboardStore, settleDashboardRefresh, type MissionOrderMap } from '../extension/dashboard-intake.js'
 import type { DashboardData, DashboardSource } from '../extension/types'
-
-// Compatibility shims: consumers keep importing these from the hook module
-// until they re-point at dashboard-intake / startup-snapshot directly.
-export { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot } from '../extension/startup-snapshot.js'
-export type { DashboardStartupSnapshot, CachedDashboardStartup, DashboardStartupViewModel } from '../extension/startup-snapshot.js'
-export { createLatestRefreshRunner, fetchDashboardSnapshot, fetchDashboardStartupSnapshot, retainHistorySearchResultsOnError } from '../extension/dashboard-intake.js'
-export type { MissionOrderMap } from '../extension/dashboard-intake.js'
 
 type UseDashboardRefreshOptions = {
   dashboard: DashboardData | null

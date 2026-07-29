@@ -24,7 +24,7 @@ import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups,
 import { addSavedPageToStore, emptySavedPagesStore, SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { installWebLocksStub } from './helpers/web-locks.js'
 import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
-import { retainHistorySearchResultsOnError } from '../src/hooks/useDashboardRefresh.js'
+import { retainHistorySearchResultsOnError } from '../src/extension/dashboard-intake.js'
 import { historySearchStatusCopy } from '../src/components/history-search-status-copy.js'
 import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { resolveWebsitePathSection } from '../src/extension/website-path-sections.js'

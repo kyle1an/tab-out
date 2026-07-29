@@ -13,11 +13,11 @@ import {
   type PreparedIntraCardMove
 } from '../extension/intra-card-move-animation.js'
 import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
-import { settleDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
 import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
-import { appDashboardStore } from '../extension/dashboard-intake.js'
-import { useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
+import { appDashboardStore, settleDashboardRefresh, type MissionOrderMap } from '../extension/dashboard-intake.js'
+import type { DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
+import { useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
 import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
@@ -43,7 +43,6 @@ import type {
 } from './types'
 import type { HistorySearchSummary, WorkingSetSnapshot } from '../extension/types'
 import type { CardPositionMap, MissionContainer } from '../extension/card-move-animation'
-import type { MissionOrderMap } from '../hooks/useDashboardRefresh'
 
 type MissionContainerRef = {
   current: HTMLDivElement | null
