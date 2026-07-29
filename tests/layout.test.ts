@@ -169,7 +169,7 @@ test('activation history panel stays visually empty when there are no rows', () 
 
 test('startup snapshot updates dashboard and history rows atomically', () => {
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
-  const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
+  const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
 
   assert.match(appSource, /type: 'startupSnapshot'/)
   assert.match(appSource, /function appDashboardSnapshotFields/)
@@ -178,11 +178,11 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
   assert.match(appSource, /tabHistory: snapshot\?\.tabHistory \?\? null/)
   assert.match(appSource, /workingSet: snapshot\?\.workingSet \?\? null/)
   assert.match(appSource, /case 'startupSnapshot': \{[\s\S]*const sourceSnapshotFields = appDashboardSnapshotFields\(action\.snapshot\)[\s\S]*state\.sourceRequestId !== state\.sourceAppliedRequestId[\s\S]*deferredStartupSourceFields: sourceSnapshotFields/)
-  assert.match(refreshSource, /export async function fetchDashboardStartupSnapshot/)
-  assert.match(refreshSource, /fetchClosedTabs/)
-  assert.match(refreshSource, /buildWorkingSetSnapshot/)
-  assert.match(refreshSource, /fetchDashboardServiceState/)
-  assert.match(refreshSource, /startupSnapshotFlight/)
+  assert.match(intakeSource, /export async function fetchDashboardStartupSnapshot/)
+  assert.match(intakeSource, /fetchClosedTabs/)
+  assert.match(intakeSource, /buildWorkingSetSnapshot/)
+  assert.match(intakeSource, /fetchDashboardServiceState/)
+  assert.match(intakeSource, /startupSnapshotFlight/)
 })
 
 test('app bootstrap paints filter shell before cached startup content and live refresh', () => {
@@ -190,6 +190,7 @@ test('app bootstrap paints filter shell before cached startup content and live r
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const localStateSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
   const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
+  const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
   const startupSnapshotSource = readFileSync(new URL('../src/extension/startup-snapshot.ts', import.meta.url), 'utf8')
   const startupOrderDebugSource = readFileSync(new URL('../src/components/startup-order-debug.ts', import.meta.url), 'utf8')
   const startupOrderDebugHeavySource = readFileSync(new URL('../src/components/startup-order-debug-heavy.ts', import.meta.url), 'utf8')
@@ -238,14 +239,16 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(localStateSource, /if \(!ok && currentState\.loaded\) return/)
   assert.match(localStateSource, /if \(ok\) \{[\s\S]*domainPinWriter\.replacePersisted/)
   assert.doesNotMatch(refreshSource, /saveCachedDashboardStartupSnapshot/)
+  assert.doesNotMatch(intakeSource, /saveCachedDashboardStartupSnapshot/)
   assert.doesNotMatch(refreshSource, /localState\?: DashboardLocalState \| null/)
-  assert.match(refreshSource, /export function createLatestRefreshRunner/)
-  assert.match(refreshSource, /if \(requestRevision !== revision\) continue/)
+  assert.doesNotMatch(intakeSource, /localState\?: DashboardLocalState \| null/)
+  assert.match(intakeSource, /export function createLatestRefreshRunner/)
+  assert.match(intakeSource, /if \(requestRevision !== revision\) continue/)
   assert.match(refreshSource, /useState\(\(\) => createLatestRefreshRunner/)
   assert.match(refreshSource, /startupRefreshPendingRef/)
   assert.match(refreshSource, /await refreshRunner\.request/)
   assert.match(refreshSource, /animatedRefreshPendingRef/)
-  assert.match(refreshSource, /buildTabsDashboardStartupSnapshot\(/)
+  assert.match(intakeSource, /buildTabsDashboardStartupSnapshot\(/)
   assert.match(viewModelSource, /useLayoutEffect\(\(\) => \{[\s\S]*previousOrderRef\.current\[source\]/)
   // The cache layer + snapshot builder live in the non-React startup-snapshot module (shared with
   // the service worker): any valid session snapshot paints, with a durable chrome.storage.local fallback.
