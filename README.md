@@ -25,7 +25,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **See all your tabs at a glance** on a clean grid, grouped by domain
 - **Homepages stay with their site** so Gmail, GitHub, YouTube, and similar start pages remain in their own domain cards
 - **Close tabs with style** with a polished collapse animation, undoable via toast
-- **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card + a global Dedupe in the header
+- **Duplicate detection** flags when you have the same page open twice, with one-click Dedupe per card, a global Dedupe in the header, and a toolbar badge that shows how many duplicates can be safely closed and dedupes them when clicked
 - **Pin domain cards** to keep important sites at the top of the dashboard, plus per-card section and page-chip pins that keep important pages first inside their card
 - **Click any tab to jump to it** across Chrome windows
 - **Move or open with a modifier-click** — Cmd/Ctrl-click any chip or history row to pull that tab into the current window in the background, Cmd/Ctrl+Shift-click to pull it here and switch to it, or Shift-click to move the tab into a new Chrome window; if the page has no live tab, the current-window move gesture opens it in a new tab and Shift-click opens it in a new window

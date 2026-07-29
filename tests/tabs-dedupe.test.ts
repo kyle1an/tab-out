@@ -236,6 +236,24 @@ test('global dedupe aborts for Tab Out pages when current-window identity is una
   assert.deepEqual(removedIds, [])
 })
 
+test('global dedupe accepts toolbar-provided current-window identity', async () => {
+  const tabOutUrl = 'chrome-extension://tab-out/index.html'
+  const { removedIds } = createChromeMock([
+    { id: 1, url: tabOutUrl, title: 'Current Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 },
+    { id: 2, url: tabOutUrl, title: 'Other Tab Out', windowId: 2, index: 0, active: true, pinned: false, groupId: -1 }
+  ])
+  ;(globalThis as any).chrome.windows.getCurrent = async () => {
+    throw new Error('Current window should come from the toolbar click')
+  }
+
+  await closeDuplicateTabs([tabOutUrl], true, {
+    currentWindowId: 1,
+    preservePinnedTabOut: true
+  })
+
+  assert.deepEqual(removedIds, [2])
+})
+
 test('global dedupe returns an undo snapshot for closed Tab Out duplicates', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   createChromeMock([

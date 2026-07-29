@@ -22,6 +22,7 @@ type BackgroundMockCalls = {
   alarmsCreate: Array<{ name: string; alarmInfo: chrome.alarms.AlarmCreateInfo }>
   badgeColor: chrome.action.BadgeColorDetails[]
   badgeText: chrome.action.BadgeTextDetails[]
+  badgeTitle: chrome.action.TitleDetails[]
   create: chrome.tabs.CreateProperties[]
   remove: number[]
   runtimeMessages: Array<{ extensionId: string; message: unknown }>
@@ -180,6 +181,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const tabGroupsOnMoved = createEventSlot()
   const commandsOnCommand = createEventSlot()
   const alarmsOnAlarm = createEventSlot()
+  const actionOnClicked = createEventSlot()
   const sessionsOnChanged = createEventSlot()
   const storageOnChanged = createEventSlot()
 
@@ -214,6 +216,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     runtimeMessages: [],
     badgeText: [],
     badgeColor: [],
+    badgeTitle: [],
     tabGet: [],
     tabQuery: [],
     windowsGetAll: []
@@ -261,11 +264,15 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       onChanged: sessionsOnChanged.api
     },
     action: {
+      onClicked: actionOnClicked.api,
       async setBadgeText(payload: chrome.action.BadgeTextDetails) {
         calls.badgeText.push(clone(payload))
       },
       async setBadgeBackgroundColor(payload: chrome.action.BadgeColorDetails) {
         calls.badgeColor.push(clone(payload))
+      },
+      async setTitle(payload: chrome.action.TitleDetails) {
+        calls.badgeTitle.push(clone(payload))
       }
     },
     tabs: {
@@ -451,6 +458,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     storageValues,
     recentlyClosed,
     listeners: {
+      actionOnClicked: actionOnClicked.listeners,
       alarmsOnAlarm: alarmsOnAlarm.listeners,
       runtimeOnInstalled: runtimeOnInstalled.listeners,
       runtimeOnMessage: runtimeOnMessage.listeners,
@@ -685,6 +693,66 @@ test('metadata-only tab updates do not trigger redundant badge tab queries', asy
   assert.equal(mock.calls.tabQuery.length, queriesBeforeUpdate + 1)
 })
 
+test('toolbar badge counts closable duplicates and clicking it runs global dedupe', async () => {
+  const duplicateUrl = 'https://duplicate.example.test/docs'
+  const groupedUrl = 'https://grouped.example.test/docs'
+  const mock = await loadBackground([
+    {
+      id: 41,
+      windowId: 1,
+      url: duplicateUrl,
+      title: 'Current copy',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    },
+    {
+      id: 42,
+      windowId: 1,
+      url: duplicateUrl,
+      title: 'Duplicate copy',
+      active: false,
+      pinned: false,
+      groupId: -1,
+      index: 1
+    },
+    {
+      id: 43,
+      windowId: 1,
+      url: groupedUrl,
+      title: 'Group one',
+      active: false,
+      pinned: false,
+      groupId: 7,
+      index: 2
+    },
+    {
+      id: 44,
+      windowId: 1,
+      url: groupedUrl,
+      title: 'Group two',
+      active: false,
+      pinned: false,
+      groupId: 8,
+      index: 3
+    }
+  ])
+
+  assert.deepEqual(mock.calls.badgeText.at(-1), { text: '1' })
+  assert.deepEqual(mock.calls.badgeTitle.at(-1), { title: 'Dedupe 1 duplicate tab' })
+  const onClicked = mock.listeners.actionOnClicked[0]
+  assert.equal(typeof onClicked, 'function')
+
+  await onClicked(clone(mock.state.tabsById[41]))
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.remove, [42])
+  assert.deepEqual(mock.getWindowTabs(1).map((tab: any) => tab.id), [41, 43, 44])
+  assert.deepEqual(mock.calls.badgeText.at(-1), { text: '' })
+  assert.deepEqual(mock.calls.badgeTitle.at(-1), { title: 'Tab Out: no duplicates to dedupe' })
+})
+
 test('dashboard service state captures tabs and windows once for both open tabs and history', async () => {
   const mock = await loadBackground([
     {
@@ -736,8 +804,8 @@ test('tab activation shares one captured tab across history and Working Set', as
   assert.deepEqual(mock.calls.tabGet.slice(tabGetsBefore), [tab.id])
   assert.deepEqual(
     mock.calls.tabQuery.slice(tabQueriesBefore),
-    [],
-    'neither service should repeat the shared activation lookup with a window query'
+    [{}],
+    'history and Working Set share the exact-tab lookup while the badge reads global dedupe eligibility'
   )
 
   const response = await sendRuntimeMessage(mock, { type: 'tab-out:get-dashboard-service-state' })
@@ -807,6 +875,7 @@ test('window focus shares one active-tab query across history and Working Set', 
 
   assert.deepEqual(mock.calls.tabGet.slice(tabGetsBefore), [])
   assert.deepEqual(mock.calls.tabQuery.slice(tabQueriesBefore), [
+    {},
     { windowId: tab.windowId, active: true }
   ])
 

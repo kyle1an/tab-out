@@ -35,21 +35,31 @@ test('dashboard composition excludes internal schemes but retains its own Tab Ou
   assert.deepEqual(getDashboardTabsFromOpenTabs(tabs).map((tab) => tab.id), [4, 5, 6])
 })
 
-test('toolbar badge excludes every browser-internal protocol', async () => {
+test('toolbar badge counts duplicate extras while excluding every browser-internal protocol', async () => {
   const badgeText: string[] = []
+  const urls = [
+    'chrome-search://local-ntp/local-ntp.html',
+    'chrome-untrusted://new-tab-page/one-google-bar',
+    'devtools://devtools/bundled/inspector.html',
+    'file:///tmp/example.html',
+    'https://example.test/'
+  ]
   const chromeApi = {
     tabs: {
-      query: async () => [
-        { url: 'chrome-search://local-ntp/local-ntp.html' },
-        { url: 'chrome-untrusted://new-tab-page/one-google-bar' },
-        { url: 'devtools://devtools/bundled/inspector.html' },
-        { url: 'file:///tmp/example.html' },
-        { url: 'https://example.test/' }
-      ]
+      query: async () => urls.flatMap((url, urlIndex) => [0, 1].map((copyIndex) => ({
+        id: urlIndex * 2 + copyIndex + 1,
+        windowId: 1,
+        url,
+        groupId: -1
+      })))
+    },
+    windows: {
+      getCurrent: async () => ({ id: 1 })
     },
     action: {
       setBadgeText: async ({ text }: { text: string }) => { badgeText.push(text) },
-      setBadgeBackgroundColor: async () => {}
+      setBadgeBackgroundColor: async () => {},
+      setTitle: async () => {}
     }
   } as unknown as ChromeApi
 

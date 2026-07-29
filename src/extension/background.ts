@@ -1,17 +1,17 @@
 /**
- * background.ts — Service worker for badge, commands, and tab history
+ * background.ts — Service worker for toolbar dedupe, commands, and tab history
  *
  * Chrome's event-driven background service worker for Tab Out.
- * It keeps the toolbar badge current, handles extension commands, and
+ * It keeps the toolbar dedupe action current, handles extension commands, and
  * maintains the activation history used by tab switching / close restore.
  *
  * Since we no longer have a server, we query chrome.tabs directly.
- * The badge counts real web tabs (skipping chrome:// and extension pages).
+ * The badge counts duplicate tabs that the global dedupe policy can close.
  *
- * Color coding gives a quick at-a-glance health signal:
- *   Green  (#3d7a4a) → 1–10 tabs  (focused, manageable)
- *   Amber  (#b8892e) → 11–20 tabs (getting busy)
- *   Red    (#b35a5a) → 21+ tabs   (time to cull!)
+ * Color coding gives a quick at-a-glance cleanup signal:
+ *   Green  (#3d7a4a) → 1–10 duplicate extras
+ *   Amber  (#b8892e) → 11–20 duplicate extras
+ *   Red    (#b35a5a) → 21+ duplicate extras
  */
 
 import { createBadgeRefreshService } from './background/badge.js'
@@ -21,6 +21,8 @@ import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.j
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
 import type { CapturedDashboardServiceState } from './dashboard-service-messages.js'
 import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from './closed-tabs.js'
+import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
+import { closeDuplicateTabsResult } from './tabs.js'
 import { groupColorChanged } from './groups.js'
 import {
   TAB_HISTORY_GET_MESSAGE,
@@ -100,6 +102,7 @@ chromeApi.tabs.onCreated.addListener((tab) => {
 // Track tab activation history so commands and close-redirect can
 // follow the user's actual navigation path.
 chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  refreshBadge()
   const capturedTab = captureTab(tabId)
   void settleBackgroundTask(() => Promise.all([
     tabHistoryService.recordTabActivation(windowId, tabId, capturedTab),
@@ -109,6 +112,7 @@ chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
 })
 
 chromeApi.windows.onFocusChanged.addListener((windowId) => {
+  refreshBadge()
   if (windowId != null && windowId !== chromeApi.windows.WINDOW_ID_NONE) {
     const capturedActiveTab = captureActiveTab(windowId)
     void settleBackgroundTask(() => Promise.all([
@@ -143,7 +147,11 @@ chromeApi.tabs.onRemoved.addListener((tabId, removeInfo) => {
 
 // Update badge when a tab's URL changes (e.g. navigating to/from chrome://)
 chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.url !== undefined) refreshBadge()
+  if (
+    changeInfo.url !== undefined ||
+    changeInfo.groupId !== undefined ||
+    changeInfo.pinned !== undefined
+  ) refreshBadge()
   void settleBackgroundTask(() => Promise.all([
     tabHistoryService.recordTabNavigation(tabId, changeInfo, tab),
     workingSetService.recordTabNavigation(tabId, changeInfo, tab)
@@ -195,6 +203,27 @@ chromeApi.commands.onCommand.addListener((command) => {
     return settleBackgroundTask(() => openNewTab(chromeApi))
   }
   return undefined
+})
+
+chromeApi.action.onClicked.addListener((tab) => {
+  return settleBackgroundTask(async () => {
+    let tabs: chrome.tabs.Tab[]
+    try {
+      tabs = await chromeApi.tabs.query({})
+    } catch {
+      await badgeRefreshService.refresh()
+      return
+    }
+
+    const plan = buildOpenTabDedupePlan(tabs, tab.windowId)
+    if (plan.urls.length > 0) {
+      await closeDuplicateTabsResult(plan.urls, true, {
+        currentWindowId: tab.windowId,
+        preservePinnedTabOut: true
+      })
+    }
+    await badgeRefreshService.refresh()
+  })
 })
 
 chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {

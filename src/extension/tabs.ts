@@ -29,6 +29,7 @@ type CloseOptions = {
   preservePinnedTabOut?: boolean
 }
 type DedupeOptions = {
+  currentWindowId?: number
   preservePinned?: boolean
   preservePinnedTabOut?: boolean
 }
@@ -371,7 +372,7 @@ export async function openTabUrlInNewWindow(url: string): Promise<boolean> {
  *
  * @param {string[]} urls
  * @param {boolean} [keepOne=true]
- * @param {{ preservePinned?: boolean, preservePinnedTabOut?: boolean }} [opts]
+ * @param {{ currentWindowId?: number, preservePinned?: boolean, preservePinnedTabOut?: boolean }} [opts]
  * @returns {Promise<TabCloseResult>}
  */
 export async function closeDuplicateTabsResult(
@@ -382,9 +383,21 @@ export async function closeDuplicateTabsResult(
   const requestedUrls = [...new Set(urls.map(canonicalDedupeKey).filter(Boolean))]
   if (requestedUrls.length === 0) return emptyTabCloseResult('complete')
   const { preservePinned = false, preservePinnedTabOut = false } = opts
-  const currentWindowResult = await getCurrentWindowResult()
-  const currentWindowId = currentWindowResult.value?.id ?? -1
-  if ((!currentWindowResult.ok || currentWindowId < 0) && requestedUrls.some((url) => isTabOutPageUrl(url))) {
+  const suppliedCurrentWindowId = opts.currentWindowId
+  const hasSuppliedCurrentWindow =
+    typeof suppliedCurrentWindowId === 'number' &&
+    Number.isInteger(suppliedCurrentWindowId) &&
+    suppliedCurrentWindowId >= 0
+  let currentWindowId = hasSuppliedCurrentWindow
+    ? suppliedCurrentWindowId
+    : -1
+  let currentWindowKnown = currentWindowId >= 0
+  if (!currentWindowKnown) {
+    const currentWindowResult = await getCurrentWindowResult()
+    currentWindowId = currentWindowResult.value?.id ?? -1
+    currentWindowKnown = currentWindowResult.ok && currentWindowId >= 0
+  }
+  if (!currentWindowKnown && requestedUrls.some((url) => isTabOutPageUrl(url))) {
     return emptyTabCloseResult('unknown')
   }
   // Keep the live-tab inventory as the final awaited read before selecting
