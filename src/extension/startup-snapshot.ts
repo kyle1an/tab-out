@@ -13,7 +13,7 @@ import { buildDashboardDataFromTabs } from './render.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
-import type { SavedPagesStore } from './saved-pages.js'
+import type { SavedPageMetadataUpdates, SavedPagesStore } from './saved-pages.js'
 import type { DashboardData, DashboardTab, DashboardViewModel, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
 
 export type DashboardStartupViewModel = {
@@ -941,11 +941,17 @@ export type TabsStartupSnapshotInputs = {
   tabPreviousOrder?: Map<string, number>
 }
 
+export type TabsStartupSnapshotBuild = {
+  snapshot: DashboardStartupSnapshot
+  savedPageUpdates: SavedPageMetadataUpdates
+}
+
 // Build the unfiltered Tabs-source startup snapshot from already-gathered inputs. Shared by the
 // page (which gathers via chrome.* fetchers / service messaging) and the service worker (which
 // has the same data directly), so both produce an identical snapshot and hydration cannot shift.
-export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnapshotInputs): Promise<DashboardStartupSnapshot> {
-  const dashboard = await buildDashboardDataFromTabs(inputs.dashboardTabs, inputs.currentWindowId, inputs.tabPreviousOrder ?? new Map(), {
+// The build is pure: only page-side callers persist the returned savedPageUpdates.
+export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnapshotInputs): Promise<TabsStartupSnapshotBuild> {
+  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(inputs.dashboardTabs, inputs.currentWindowId, inputs.tabPreviousOrder ?? new Map(), {
     pinnedDomains: inputs.pinnedDomains,
     bookmarkPreviousOrder: new Map(),
     historyPreviousOrder: new Map(),
@@ -960,5 +966,8 @@ export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnaps
     activity: inputs.workingSetActivity,
     currentWindowId: inputs.currentWindowId
   })
-  return { dashboard, tabHistory: inputs.tabHistory, workingSet, closedTabs: inputs.closedTabs }
+  return {
+    snapshot: { dashboard, tabHistory: inputs.tabHistory, workingSet, closedTabs: inputs.closedTabs },
+    savedPageUpdates
+  }
 }

@@ -12,10 +12,11 @@ import {
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS } from '../src/extension/closed-tabs.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
-import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
+import { addSavedPageToStore, emptySavedPagesStore, SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 import { makeChromeTab } from './helpers/chrome-tab.js'
+import { installWebLocksStub } from './helpers/web-locks.js'
 
 const emptyTabHistory = {
   stackSize: 0,
@@ -166,6 +167,56 @@ test('startup snapshot service writes a render-ready Warm Snapshot and source-on
     SECTION_PIN_STORAGE_KEY,
     PAGE_CHIP_PIN_STORAGE_KEY
   ].every((key) => keys.includes(key))), true)
+})
+
+test('a worker snapshot rebuild never writes Saved Pages metadata', async () => {
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  const restoreLocks = installWebLocksStub()
+  const savedUrl = 'https://example.com/docs'
+  const baseStore = addSavedPageToStore(emptySavedPagesStore(), {
+    url: savedUrl,
+    rawUrl: savedUrl,
+    title: 'Stale saved title',
+    favIconUrl: '',
+    isTabOut: false,
+    isApp: false
+  }, 100)
+  const localStore: Record<string, unknown> = { [SAVED_PAGES_STORAGE_KEY]: baseStore }
+  let savedPagesWrites = 0
+
+  ;(globalThis as any).chrome = {
+    runtime: { id: 'tab-out', getURL: (path: string) => `chrome-extension://tab-out${path}` },
+    tabs: { query: async () => [makeChromeTab(1, savedUrl, 'Fresh page title')] },
+    windows: {
+      getAll: async () => [{ id: 1, focused: true, type: 'normal' }] as chrome.windows.Window[],
+      getCurrent: async () => ({ id: 1, focused: true, type: 'normal' }) as chrome.windows.Window
+    },
+    tabGroups: { query: async () => [] },
+    sessions: { getRecentlyClosed: async () => [] },
+    storage: {
+      session: { get: async () => ({}), set: async () => {} },
+      local: {
+        get: async () => localStore,
+        set: async (values: Record<string, unknown>) => {
+          if (SAVED_PAGES_STORAGE_KEY in values) savedPagesWrites += 1
+          Object.assign(localStore, values)
+        }
+      }
+    }
+  }
+
+  try {
+    const service = createStartupSnapshotService({
+      getDashboardServiceState: captureDashboardServiceState()
+    })
+    await service.refreshNow()
+    for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0))
+
+    assert.equal(savedPagesWrites, 0, 'the worker build must leave Saved Pages storage to the page')
+  } finally {
+    ;(globalThis as { chrome?: unknown }).chrome = previousChrome
+    restoreLocks()
+  }
 })
 
 test('startup snapshot service schedules one non-sliding checkpoint and promotes the latest Warm Snapshot without rebuilding', async () => {

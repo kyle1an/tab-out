@@ -17,7 +17,7 @@
 import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
 import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, persistSavedPageMetadataUpdates, savedPageKeyForUrl, savedPageKeysFromStore, savedPagesStoresEqual, type SavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, persistSavedPageMetadataUpdates, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
@@ -224,6 +224,11 @@ export function dedupeCompanionSearchTabs(
   }
 }
 
+export type DashboardDataBuild = {
+  dashboard: Required<DashboardData>
+  savedPageUpdates: SavedPageMetadataUpdates
+}
+
 export async function buildDashboardDataFromTabs(
   dashboardTabs: DashboardTab[],
   currentWindowId: number | null,
@@ -241,33 +246,33 @@ export async function buildDashboardDataFromTabs(
     historyTabs = [],
     savedPagesStore
   }: FetchDashboardDataOptions = {}
-): Promise<Required<DashboardData>> {
+): Promise<DashboardDataBuild> {
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
   const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
   const companionBookmarkTabs = includeBookmarkMatches ? bookmarkTabs : []
   const companionHistoryTabs = includeHistoryMatches ? historyTabs : []
   const savedPagesMerge = mergeSavedPagesWithTabs(dashboardTabs, resolvedSavedPagesStore)
-  if (!savedPagesStoresEqual(resolvedSavedPagesStore, savedPagesMerge.store)) {
-    void persistSavedPageMetadataUpdates(resolvedSavedPagesStore, savedPagesMerge.store).catch(() => {})
-  }
   const realTabs = savedPagesMerge.tabs
   const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)
   const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains })
   const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains })
   const historyDomainGroups = buildDomainGroups(companionHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains })
   return {
-    realTabs,
-    domainGroups,
-    currentWindowId,
-    bookmarkTabs: annotatedBookmarkTabs,
-    bookmarkDomainGroups,
-    bookmarkSearchReady: includeBookmarkMatches,
-    historyTabs: companionHistoryTabs,
-    historyDomainGroups,
-    historySearchQuery: historyQuery,
-    historyRange,
-    historySearchStatus: includeHistoryMatches ? historySearchStatus : 'idle',
-    savedKeys: savedPageKeysFromStore(savedPagesMerge.store)
+    dashboard: {
+      realTabs,
+      domainGroups,
+      currentWindowId,
+      bookmarkTabs: annotatedBookmarkTabs,
+      bookmarkDomainGroups,
+      bookmarkSearchReady: includeBookmarkMatches,
+      historyTabs: companionHistoryTabs,
+      historyDomainGroups,
+      historySearchQuery: historyQuery,
+      historyRange,
+      historySearchStatus: includeHistoryMatches ? historySearchStatus : 'idle',
+      savedKeys: savedPageKeysFromStore(savedPagesMerge.store)
+    },
+    savedPageUpdates: { base: resolvedSavedPagesStore, merged: savedPagesMerge.store }
   }
 }
 
@@ -326,7 +331,7 @@ export async function fetchDashboardData(
     dashboardTabsForData(dashboardTabs),
     currentWindowId === undefined ? getCurrentWindowId() : Promise.resolve(currentWindowId)
   ])
-  return buildDashboardDataFromTabs(resolvedDashboardTabs, resolvedCurrentWindowId, previousOrder, {
+  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(resolvedDashboardTabs, resolvedCurrentWindowId, previousOrder, {
     pinnedDomains,
     bookmarkPreviousOrder,
     historyPreviousOrder,
@@ -339,4 +344,8 @@ export async function fetchDashboardData(
     historyTabs,
     ...(savedPagesStore === undefined ? {} : { savedPagesStore })
   })
+  // Page fetchers are the only Saved Pages metadata writers; builds stay pure
+  // and the worker discards its copy of these updates.
+  void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
+  return dashboard
 }

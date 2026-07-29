@@ -19,6 +19,16 @@ export interface SavedPagesStore {
   pages: Record<string, SavedPageRecord>
 }
 
+/**
+ * A dashboard build's Saved Page metadata refresh, returned as data so builds
+ * stay pure. Only page-side fetchers hand it to the writer; the worker's
+ * builds discard it.
+ */
+export type SavedPageMetadataUpdates = {
+  base: SavedPagesStore
+  merged: SavedPagesStore
+}
+
 export type SavedPagesStoreLoadResult =
   | { ok: true; value: SavedPagesStore }
   | { ok: false; value: SavedPagesStore }

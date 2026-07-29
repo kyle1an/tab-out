@@ -20,7 +20,9 @@ import { filterInputFromSearch, isFilterFocusShortcut, titleForFilterInput, urlF
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../src/extension/filter-focus-buffer.js'
 import { buildFilterSearchRequest, canDisplayHistorySearchResults, canUseHistorySearchResults, dashboardNeedsFilterSearchRefresh, isHistorySearchRequestSettled } from '../src/extension/filter-search.js'
 import { parseFilterQuery } from '../src/extension/filter-query.js'
-import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, tabMatchesFilter } from '../src/extension/render.js'
+import { buildDashboardDataFromTabs, buildDashboardViewModel, buildDomainGroups, computeDomainCardViewModel, dashboardChipOrderKeyForTab, fetchDashboardData, tabMatchesFilter } from '../src/extension/render.js'
+import { addSavedPageToStore, emptySavedPagesStore, SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
+import { installWebLocksStub } from './helpers/web-locks.js'
 import { useDashboardViewModels } from '../src/hooks/useDashboardViewModels.js'
 import { retainHistorySearchResultsOnError } from '../src/hooks/useDashboardRefresh.js'
 import { historySearchStatusCopy } from '../src/components/history-search-status-copy.js'
@@ -125,7 +127,7 @@ test('buildDomainGroups orders normal domain cards by tab count', () => {
 })
 
 test('buildDashboardDataFromTabs builds dashboard data from an injected open-tab snapshot', async () => {
-  const dashboard = await buildDashboardDataFromTabs(
+  const { dashboard } = await buildDashboardDataFromTabs(
     [
       makeTab({ url: 'https://example.com/docs', title: 'Docs' }),
       makeTab({ id: 2, url: 'https://example.test/app', title: 'App' })
@@ -2683,7 +2685,7 @@ test('a history result suppressed by an open tab appears immediately after that 
     title: 'World Reference',
     url: 'https://priority.test/reference'
   })
-  const dashboard = await buildDashboardDataFromTabs(
+  const { dashboard } = await buildDashboardDataFromTabs(
     [openTab],
     1,
     new Map(),
@@ -2754,7 +2756,7 @@ test('filter companion results dedupe by tabs, then history, then bookmarks', as
     { id: 'h1', title: 'World Open History', url: 'https://priority.test/open' },
     { id: 'h2', title: 'World History', url: 'https://priority.test/history' }
   ])
-  const dashboard = await buildDashboardDataFromTabs(
+  const { dashboard } = await buildDashboardDataFromTabs(
     [makeTab({ url: 'https://priority.test/open', title: 'World Open' })],
     1,
     new Map(),
@@ -3046,4 +3048,94 @@ test('manifest keeps only the permissions used by the extension', () => {
   assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')
   assert.equal(manifest.commands['open-new-tab'].description, 'Open a new Tab Out tab')
   assert.equal('global' in manifest.commands['open-new-tab'], false)
+})
+
+function installSavedPagesStorageProbe(initialStore: unknown) {
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  const restoreLocks = installWebLocksStub()
+  const state = { reads: 0, writes: 0, stored: initialStore }
+  ;(globalThis as any).chrome = {
+    ...(previousChrome as object),
+    storage: {
+      local: {
+        get: async (key: string) => {
+          if (key === SAVED_PAGES_STORAGE_KEY) state.reads += 1
+          return { [key]: state.stored }
+        },
+        set: async (values: Record<string, unknown>) => {
+          if (SAVED_PAGES_STORAGE_KEY in values) {
+            state.writes += 1
+            state.stored = values[SAVED_PAGES_STORAGE_KEY]
+          }
+        }
+      }
+    }
+  }
+  return {
+    state,
+    restore: () => {
+      ;(globalThis as { chrome?: unknown }).chrome = previousChrome
+      restoreLocks()
+    }
+  }
+}
+
+async function drainSavedPagesWrites(): Promise<void> {
+  for (let i = 0; i < 5; i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+}
+
+function staleSavedPageStore(savedUrl: string) {
+  return addSavedPageToStore(emptySavedPagesStore(), {
+    url: savedUrl,
+    rawUrl: savedUrl,
+    title: 'Stale saved title',
+    favIconUrl: '',
+    isTabOut: false,
+    isApp: false
+  }, 100)
+}
+
+test('buildDashboardDataFromTabs returns saved page metadata updates instead of persisting them', async () => {
+  const savedUrl = 'https://example.com/docs'
+  const baseStore = staleSavedPageStore(savedUrl)
+  const probe = installSavedPagesStorageProbe(baseStore)
+  try {
+    const build = await buildDashboardDataFromTabs(
+      [makeTab({ url: savedUrl, title: 'Fresh page title' })],
+      1,
+      new Map(),
+      { savedPagesStore: baseStore }
+    )
+    await drainSavedPagesWrites()
+
+    assert.deepEqual(build.dashboard.realTabs.map((tab) => tab.url), [savedUrl])
+    assert.equal(build.savedPageUpdates.base.pages[savedUrl]?.title, 'Stale saved title')
+    assert.equal(build.savedPageUpdates.merged.pages[savedUrl]?.title, 'Fresh page title')
+    assert.equal(probe.state.reads, 0, 'a pure build must not read Saved Pages storage')
+    assert.equal(probe.state.writes, 0, 'a pure build must not write Saved Pages storage')
+  } finally {
+    probe.restore()
+  }
+})
+
+test('fetchDashboardData heals changed Saved Page metadata with a single storage write', async () => {
+  const savedUrl = 'https://example.com/docs'
+  const baseStore = staleSavedPageStore(savedUrl)
+  const probe = installSavedPagesStorageProbe(baseStore)
+  try {
+    const dashboard = await fetchDashboardData(new Map(), 'tabs', {
+      dashboardTabs: [makeTab({ url: savedUrl, title: 'Fresh page title' })],
+      currentWindowId: 1,
+      savedPagesStore: baseStore
+    })
+    await drainSavedPagesWrites()
+
+    assert.equal(dashboard.realTabs[0]?.saved, true)
+    assert.equal(probe.state.writes, 1, 'one changed merge is one Saved Pages write')
+    assert.equal((probe.state.stored as { pages?: Record<string, { title?: string }> })?.pages?.[savedUrl]?.title, 'Fresh page title')
+  } finally {
+    probe.restore()
+  }
 })

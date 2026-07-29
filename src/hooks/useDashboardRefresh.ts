@@ -8,7 +8,7 @@ import { buildFilterSearchRequest, dashboardNeedsFilterSearchRefresh } from '../
 import { buildDashboardDataFromTabs, fetchDashboardData, getCurrentWindowIdResult } from '../extension/render.js'
 import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs } from '../extension/tabs.js'
 import { buildWorkingSetSnapshot } from '../extension/working-set.js'
-import { loadSavedPagesStoreResult, type SavedPagesStore } from '../extension/saved-pages.js'
+import { loadSavedPagesStoreResult, persistSavedPageMetadataUpdates, type SavedPagesStore } from '../extension/saved-pages.js'
 import { buildTabsDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from '../extension/types'
 import type { HistorySourceSearchResult } from '../extension/history-source.js'
@@ -192,7 +192,7 @@ async function fetchTabsDashboardSnapshot({ source, filter, historyRange, histor
   const openTabs = openTabsResult.tabs
   const resolvedSavedPagesStore = savedPagesResult.value
   const dashboardTabs = getDashboardTabsFromOpenTabs(openTabs)
-  const dashboard = await buildDashboardDataFromTabs(dashboardTabs, currentWindowId, previousOrder[source] || new Map(), {
+  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(dashboardTabs, currentWindowId, previousOrder[source] || new Map(), {
     pinnedDomains,
     bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
     historyPreviousOrder: previousOrder.history || new Map(),
@@ -205,6 +205,8 @@ async function fetchTabsDashboardSnapshot({ source, filter, historyRange, histor
     historyTabs: historySearch.tabs,
     savedPagesStore: resolvedSavedPagesStore
   })
+  // Page fetchers are the Saved Pages metadata writers; the build stays pure.
+  void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
   const workingSet = buildWorkingSetSnapshot({
     tabs: dashboardTabs,
     activity: serviceState.workingSetActivity,
@@ -259,7 +261,7 @@ async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptio
   if (!closedTabsResult.ok) throw new Error('Could not read recently closed tabs')
   const openTabsResult = await fetchOpenTabsSnapshotResult(serviceStateResult.value.openTabsSnapshot)
   if (!openTabsResult.ok) throw new Error('Could not read open tabs')
-  return buildTabsDashboardStartupSnapshot({
+  const { snapshot, savedPageUpdates } = await buildTabsDashboardStartupSnapshot({
     dashboardTabs: getDashboardTabsFromOpenTabs(openTabsResult.tabs),
     currentWindowId: currentWindowResult.value,
     tabHistory: serviceStateResult.value.tabHistory,
@@ -269,6 +271,9 @@ async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptio
     pinnedDomains: options.pinnedDomains,
     tabPreviousOrder: options.previousOrder.tabs || new Map()
   })
+  // Page fetchers are the Saved Pages metadata writers; the build stays pure.
+  void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
+  return snapshot
 }
 
 export async function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {

@@ -6,7 +6,7 @@ import { DOMAIN_PIN_STORAGE_KEY } from '../domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
 import { loadSavedPagesStoreResult, SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
-import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, loadCachedDashboardStartupResult, promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../startup-snapshot.js'
+import { buildTabsDashboardStartupSnapshot, captureDashboardStartupSnapshotStartedAt, loadCachedDashboardStartupResult, promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot, type DashboardStartupSnapshot } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
 import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs, seedOpenTabsTitleHistory } from '../tabs.js'
 
@@ -76,7 +76,7 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
     } catch {}
   }
 
-  function rememberTabOrder(snapshot: Awaited<ReturnType<typeof buildTabsDashboardStartupSnapshot>>): void {
+  function rememberTabOrder(snapshot: DashboardStartupSnapshot): void {
     tabPreviousOrder = new Map(
       snapshot.dashboard.domainGroups.map((group, index) => [domainGroupCardId(group), index])
     )
@@ -168,7 +168,9 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       Number.isInteger(capturedActiveWindowId) && capturedActiveWindowId >= 0
       ? capturedActiveWindowId
       : null
-    const snapshot = await buildTabsDashboardStartupSnapshot({
+    // The worker deliberately drops the build's savedPageUpdates: Saved Pages
+    // metadata writes belong to page fetchers only.
+    const { snapshot } = await buildTabsDashboardStartupSnapshot({
       dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
       // The worker's `windows.getCurrent()` is another last-focused-window
       // read. Reuse the window captured atomically with tabs + history instead
