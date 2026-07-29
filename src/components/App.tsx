@@ -17,7 +17,7 @@ import { settleDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
 import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { appDashboardStore } from '../extension/dashboard-intake.js'
-import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
+import { useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
 import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
 import { useDashboardViewModels, useMissionOrderMemory, type DashboardChipOrderMemoryMap } from '../hooks/useDashboardViewModels'
@@ -108,74 +108,8 @@ type DashboardMissionsListProps = {
   onRetryHistorySearch: () => void
   sections: DashboardMissionSection[]
 }
-type SourceSwitchRequestContext = {
-  filter: string
-  historyFilterEnabled: boolean
-  historyRange: string
-  pinnedDomains: readonly string[]
-}
-type SourceSwitchSnapshotResult =
-  | { status: 'cancelled' }
-  | { status: 'failed' }
-  | {
-      status: 'ready'
-      snapshot: Awaited<ReturnType<typeof fetchDashboardSnapshot>>
-    }
-type MutableValue<T> = { current: T }
-
 function sameStringList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index])
-}
-
-function sourceSwitchRequestContextMatches(
-  request: SourceSwitchRequestContext,
-  current: SourceSwitchRequestContext
-): boolean {
-  return request.filter === current.filter &&
-    request.historyFilterEnabled === current.historyFilterEnabled &&
-    request.historyRange === current.historyRange &&
-    sameStringList(request.pinnedDomains, current.pinnedDomains)
-}
-
-async function fetchLatestSourceSwitchSnapshot({
-  nextSource,
-  previousOrderRef,
-  requestId,
-  sourceSwitchContextRef,
-  sourceSwitchSeqRef
-}: {
-  nextSource: DashboardSource
-  previousOrderRef: MutableValue<MissionOrderMap>
-  requestId: number
-  sourceSwitchContextRef: MutableValue<SourceSwitchRequestContext>
-  sourceSwitchSeqRef: MutableValue<number>
-}): Promise<SourceSwitchSnapshotResult> {
-  while (requestId === sourceSwitchSeqRef.current) {
-    const currentContext = sourceSwitchContextRef.current
-    const requestContext: SourceSwitchRequestContext = {
-      ...currentContext,
-      pinnedDomains: [...currentContext.pinnedDomains]
-    }
-    try {
-      // react-doctor-disable-next-line react-doctor/async-defer-await, react-doctor/async-await-in-loop -- each retry supersedes the stale request context, so the next fetch must start only after the previous result is rejected.
-      const snapshot = await fetchDashboardSnapshot({
-        source: nextSource,
-        filter: requestContext.filter,
-        historyRange: requestContext.historyRange,
-        historyFilterEnabled: requestContext.historyFilterEnabled,
-        pinnedDomains: [...requestContext.pinnedDomains],
-        previousOrder: previousOrderRef.current
-      })
-      if (requestId !== sourceSwitchSeqRef.current) return { status: 'cancelled' }
-      if (!sourceSwitchRequestContextMatches(requestContext, sourceSwitchContextRef.current)) continue
-      return { status: 'ready', snapshot }
-    } catch {
-      if (requestId !== sourceSwitchSeqRef.current) return { status: 'cancelled' }
-      if (!sourceSwitchRequestContextMatches(requestContext, sourceSwitchContextRef.current)) continue
-      return { status: 'failed' }
-    }
-  }
-  return { status: 'cancelled' }
 }
 
 function startupViewModelMatchesLocalState(startupViewModel: DashboardStartupSnapshot['startupViewModel'], localState: DashboardLocalState | null): startupViewModel is NonNullable<DashboardStartupSnapshot['startupViewModel']> {
@@ -561,8 +495,11 @@ export function App() {
     if (closedTabsRetryTimerRef.current !== null) window.clearTimeout(closedTabsRetryTimerRef.current)
   }, [])
 
-  const sourceSwitchSeqRef = useRef(0)
   const layoutMoveRectsRef = useRef<CardPositionMap | null>(null)
+  const pendingSourceSwitchRectsRef = useRef<{
+    rects: CardPositionMap | null
+    requestId: number
+  } | null>(null)
   const filterCardMoveRef = useRef(false)
   const intraCardMoveRef = useRef<PreparedIntraCardMove | null>(null)
   const previousOrderRef = useRef<MissionOrderMap>({
@@ -668,20 +605,6 @@ export function App() {
     appliedStartupPriorityRef.current = startupState
     setStartupPriorityWorkingSet(startupState.snapshot?.workingSet ?? null)
   }, [source, sourceAppliedRequestId, sourceRequestId, sourceSelection, startupState])
-  const sourceSwitchContextRef = useRef<SourceSwitchRequestContext>({
-    filter,
-    historyFilterEnabled,
-    historyRange,
-    pinnedDomains: [...pinnedDomains]
-  })
-  useLayoutEffect(() => {
-    sourceSwitchContextRef.current = {
-      filter,
-      historyFilterEnabled,
-      historyRange,
-      pinnedDomains: [...pinnedDomains]
-    }
-  }, [filter, historyFilterEnabled, historyRange, pinnedDomains])
   const initialStartupViewModel = startupSnapshot?.startupViewModel
   const startupDashboardViewModel =
     visibleDashboard === startupSnapshot?.dashboard &&
@@ -708,6 +631,13 @@ export function App() {
     return appDashboardStore.subscribeBeforeApply((event) => {
       if (event.reason === 'animated-refresh') {
         primeCardMoveAnimation()
+        return
+      }
+      if (event.reason === 'source-switch') {
+        const pendingRects = pendingSourceSwitchRectsRef.current
+        if (pendingRects?.requestId !== event.requestId) return
+        pendingSourceSwitchRectsRef.current = null
+        layoutMoveRectsRef.current = pendingRects.rects
         return
       }
       recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'live-startup-snapshot-applied', {
@@ -856,44 +786,18 @@ export function App() {
 
   const onSourceChange = useCallback(function onSourceChange(nextSource: DashboardSource) {
     if (nextSource === sourceSelection) return
-    const requestId = ++sourceSwitchSeqRef.current
     if (nextSource === source) {
-      dispatchAppDashboard({ type: 'sourceRequestCancelled' })
+      pendingSourceSwitchRectsRef.current = null
+      appDashboardStore.switchSource(nextSource)
       return
     }
-    dispatchAppDashboard({ type: 'sourceRequest', requestId, source: nextSource })
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
     setStartupPriorityWorkingSet(null)
     clearHoverUrlNow()
-    void fetchLatestSourceSwitchSnapshot({
-      nextSource,
-      previousOrderRef,
-      requestId,
-      sourceSwitchContextRef,
-      sourceSwitchSeqRef
-    }).then((result) => {
-      if (requestId !== sourceSwitchSeqRef.current || result.status === 'cancelled') return
-      if (result.status === 'failed') {
-        dispatchAppDashboard({
-          type: 'sourceRequestFailed',
-          requestId
-        })
-        showToast('Could not switch source')
-        return
-      }
-
-      layoutMoveRectsRef.current = previousRects
-      // Store arrivals commit synchronously (useSyncExternalStore updates are
-      // never transitions); progressive card mounting bounds the render cost.
-      dispatchAppDashboard({
-        type: 'sourceSnapshot',
-        dashboard: result.snapshot.dashboard,
-        requestId,
-        source: nextSource,
-        ...(result.snapshot.tabHistory === undefined ? {} : { tabHistory: result.snapshot.tabHistory }),
-        ...(result.snapshot.workingSet === undefined ? {} : { workingSet: result.snapshot.workingSet })
-      })
-    })
+    const requestId = appDashboardStore.switchSource(nextSource)
+    if (requestId !== null) {
+      pendingSourceSwitchRectsRef.current = { rects: previousRects, requestId }
+    }
   }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers])
 
   const primaryMissionsEmpty = matchedCards.length === 0

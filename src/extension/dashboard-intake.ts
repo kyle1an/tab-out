@@ -20,6 +20,7 @@ import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs } from './tab
 import { buildWorkingSetSnapshot } from './working-set.js'
 import { loadSavedPagesStoreResult, persistSavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
 import { buildTabsDashboardStartupSnapshot, type DashboardStartupSnapshot } from './startup-snapshot.js'
+import { showToast } from './toast.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from './types'
 import type { HistorySourceSearchResult } from './history-source.js'
 
@@ -578,7 +579,13 @@ export type DashboardRefreshRequestOptions = DashboardRefreshOptions & {
 
 export type DashboardBeforeApplyEvent =
   | { reason: 'animated-refresh' }
+  | { reason: 'source-switch'; requestId: number }
   | { reason: 'startup-snapshot'; snapshot: DashboardStartupSnapshot }
+
+export type AppDashboardStoreDependencies = {
+  fetchDashboardSnapshot?: typeof fetchDashboardSnapshot
+  showToast?: typeof showToast
+}
 
 export type AppDashboardStore = {
   dispatch: (action: AppDashboardAction) => void
@@ -588,6 +595,7 @@ export type AppDashboardStore = {
   setRefreshInputs: (inputs: DashboardRefreshInputs) => void
   subscribe: (listener: () => void) => () => void
   subscribeBeforeApply: (listener: (event: DashboardBeforeApplyEvent) => void) => () => void
+  switchSource: (nextSource: DashboardSource) => number | null
 }
 
 /**
@@ -599,7 +607,10 @@ export type AppDashboardStore = {
  * synchronously just before an arrival's dispatches so the React layer can
  * capture pre-commit DOM geometry; the store itself stays DOM-free.
  */
-export function createAppDashboardStore(): AppDashboardStore {
+export function createAppDashboardStore({
+  fetchDashboardSnapshot: fetchSourceSwitchSnapshot = fetchDashboardSnapshot,
+  showToast: showSourceSwitchToast = showToast
+}: AppDashboardStoreDependencies = {}): AppDashboardStore {
   const buildTimeState = initialAppDashboardState({
     historyRange: DEFAULT_HISTORY_RANGE,
     snapshot: null
@@ -615,6 +626,7 @@ export function createAppDashboardStore(): AppDashboardStore {
   let startupRefreshPending = false
   let animatedRefreshPending = false
   let historySearchPendingRevision = 0
+  let sourceSwitchSequence = 0
 
   function dispatch(action: AppDashboardAction): void {
     const nextState = appDashboardReducer(state, action)
@@ -627,14 +639,90 @@ export function createAppDashboardStore(): AppDashboardStore {
     for (const listener of [...beforeApplyListeners]) listener(event)
   }
 
-  function refreshContextFromInputs(inputs: DashboardRefreshInputs): DashboardRefreshContext {
+  function refreshContextFromInputs(
+    inputs: DashboardRefreshInputs,
+    source: DashboardSource = state.source
+  ): DashboardRefreshContext {
     return {
       filter: inputs.filter,
       historyFilterEnabled: isHistoryFilterEnabled(state.historyRange),
       historyRange: state.historyRange,
       pinnedDomains: inputs.pinnedDomains,
-      source: state.source
+      source
     }
+  }
+
+  async function runSourceSwitch(requestId: number, nextSource: DashboardSource): Promise<void> {
+    while (requestId === sourceSwitchSequence) {
+      const inputs = refreshInputs
+      if (!inputs) {
+        dispatch({ type: 'sourceRequestFailed', requestId })
+        showSourceSwitchToast('Could not switch source')
+        return
+      }
+      const requestContext: DashboardRefreshContext = {
+        ...refreshContextFromInputs(inputs, nextSource),
+        pinnedDomains: [...inputs.pinnedDomains]
+      }
+      try {
+        // react-doctor-disable-next-line react-doctor/async-defer-await, react-doctor/async-await-in-loop -- each retry supersedes stale page inputs, so the next fetch starts only after the previous result is rejected.
+        const snapshot = await fetchSourceSwitchSnapshot({
+          source: nextSource,
+          filter: requestContext.filter,
+          historyRange: requestContext.historyRange,
+          historyFilterEnabled: requestContext.historyFilterEnabled,
+          pinnedDomains: [...requestContext.pinnedDomains],
+          previousOrder: inputs.previousOrder
+        })
+        if (requestId !== sourceSwitchSequence) return
+        const latestInputs = refreshInputs
+        if (
+          !latestInputs ||
+          !dashboardRefreshContextMatches(
+            requestContext,
+            refreshContextFromInputs(latestInputs, nextSource),
+            false
+          )
+        ) continue
+        emitBeforeApply({ reason: 'source-switch', requestId })
+        dispatch({
+          type: 'sourceSnapshot',
+          dashboard: snapshot.dashboard,
+          requestId,
+          source: nextSource,
+          ...(snapshot.tabHistory === undefined ? {} : { tabHistory: snapshot.tabHistory }),
+          ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet })
+        })
+        return
+      } catch {
+        if (requestId !== sourceSwitchSequence) return
+        const latestInputs = refreshInputs
+        if (
+          latestInputs &&
+          !dashboardRefreshContextMatches(
+            requestContext,
+            refreshContextFromInputs(latestInputs, nextSource),
+            false
+          )
+        ) continue
+        dispatch({ type: 'sourceRequestFailed', requestId })
+        showSourceSwitchToast('Could not switch source')
+        return
+      }
+    }
+  }
+
+  function switchSource(nextSource: DashboardSource): number | null {
+    if (nextSource === state.sourceSelection) return null
+    sourceSwitchSequence += 1
+    const requestId = sourceSwitchSequence
+    if (nextSource === state.source) {
+      dispatch({ type: 'sourceRequestCancelled' })
+      return null
+    }
+    dispatch({ type: 'sourceRequest', requestId, source: nextSource })
+    void runSourceSwitch(requestId, nextSource)
+    return requestId
   }
 
   async function refresh({
@@ -746,7 +834,8 @@ export function createAppDashboardStore(): AppDashboardStore {
     subscribeBeforeApply(listener) {
       beforeApplyListeners.add(listener)
       return () => beforeApplyListeners.delete(listener)
-    }
+    },
+    switchSource
   }
 }
 

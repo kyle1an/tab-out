@@ -92,11 +92,15 @@ test('domain card mission names use the heaviest title weight', () => {
 })
 
 test('source switch keeps one primed card-move refresh', () => {
-  const source = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /const previousRects = prepareDomainCardMoveAnimation\(currentMissionContainers\(\)\)/)
-  assert.match(source, /layoutMoveRectsRef\.current = previousRects/)
-  assert.doesNotMatch(source, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
+  assert.match(appSource, /const previousRects = prepareDomainCardMoveAnimation\(currentMissionContainers\(\)\)/)
+  assert.match(appSource, /pendingSourceSwitchRectsRef\.current = \{ rects: previousRects, requestId \}/)
+  assert.match(appSource, /pendingRects\?\.requestId !== event\.requestId/)
+  assert.match(appSource, /layoutMoveRectsRef\.current = pendingRects\.rects/)
+  assert.match(intakeSource, /emitBeforeApply\(\{ reason: 'source-switch', requestId \}\)/)
+  assert.doesNotMatch(appSource, /\[source,\s*pinnedDomains,\s*pinsLoaded\]/)
 })
 
 test('user-driven pinned domain order changes prime card move animation', () => {

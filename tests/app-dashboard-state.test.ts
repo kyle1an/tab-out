@@ -6,8 +6,21 @@ import {
   createAppDashboardStore,
   initialAppDashboardState
 } from '../src/extension/dashboard-intake.js'
+import type { DashboardRefreshSnapshot, DashboardSnapshotOptions } from '../src/extension/dashboard-intake.js'
 import type { DashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
 import type { TabHistorySnapshot } from '../src/extension/types'
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
+async function flushAsyncWork(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve))
+}
 
 function historySnapshot(activeTabId: number): TabHistorySnapshot {
   return {
@@ -249,4 +262,79 @@ test('a live supplemental update still wins when startup resolves after source s
   })
 
   assert.equal(state.tabHistory, liveHistory)
+})
+
+test('only the latest source switch announces and applies its arriving snapshot', async () => {
+  const requests: DashboardSnapshotOptions[] = []
+  const flights: ReturnType<typeof deferred<DashboardRefreshSnapshot>>[] = []
+  const store = createAppDashboardStore({
+    fetchDashboardSnapshot: (options) => {
+      requests.push(options)
+      const flight = deferred<DashboardRefreshSnapshot>()
+      flights.push(flight)
+      return flight.promise
+    },
+    showToast: () => assert.fail('a successful source switch must not show a failure toast')
+  })
+  store.setRefreshInputs({
+    filter: '',
+    localStateLoaded: true,
+    pinnedDomains: [],
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+  })
+  const beforeApplyEvents: unknown[] = []
+  store.subscribeBeforeApply((event) => beforeApplyEvents.push(event))
+
+  const bookmarkRequestId = store.switchSource('bookmarks')
+  const historyRequestId = store.switchSource('history')
+
+  assert.equal(bookmarkRequestId, 1)
+  assert.equal(historyRequestId, 2)
+  assert.equal(store.read().sourceSelection, 'history')
+  assert.deepEqual(requests.map(({ source }) => source), ['bookmarks', 'history'])
+
+  flights[0]!.resolve({ dashboard: { realTabs: [], domainGroups: [] } })
+  await flushAsyncWork()
+
+  assert.equal(store.read().source, 'tabs', 'a stale source snapshot must not apply')
+  assert.deepEqual(beforeApplyEvents, [], 'a stale source snapshot must not hand off card geometry')
+
+  const historyDashboard = { realTabs: [], domainGroups: [] }
+  flights[1]!.resolve({ dashboard: historyDashboard })
+  await flushAsyncWork()
+
+  assert.equal(store.read().source, 'history')
+  assert.equal(store.read().dashboard, historyDashboard)
+  assert.deepEqual(beforeApplyEvents, [{ reason: 'source-switch', requestId: 2 }])
+})
+
+test('a source switch retries with the latest intake context before applying', async () => {
+  const requests: DashboardSnapshotOptions[] = []
+  const flights: ReturnType<typeof deferred<DashboardRefreshSnapshot>>[] = []
+  const store = createAppDashboardStore({
+    fetchDashboardSnapshot: (options) => {
+      requests.push(options)
+      const flight = deferred<DashboardRefreshSnapshot>()
+      flights.push(flight)
+      return flight.promise
+    },
+    showToast: () => assert.fail('a retried source switch must not show a failure toast')
+  })
+  const previousOrder = { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+  store.setRefreshInputs({ filter: 'first', localStateLoaded: true, pinnedDomains: [], previousOrder })
+
+  store.switchSource('bookmarks')
+  store.setRefreshInputs({ filter: 'latest', localStateLoaded: true, pinnedDomains: [], previousOrder })
+  flights[0]!.resolve({ dashboard: { realTabs: [], domainGroups: [] } })
+  await flushAsyncWork()
+
+  assert.deepEqual(requests.map(({ filter }) => filter), ['first', 'latest'])
+  assert.equal(store.read().source, 'tabs', 'the stale-context snapshot must remain hidden')
+
+  const latestDashboard = { realTabs: [], domainGroups: [] }
+  flights[1]!.resolve({ dashboard: latestDashboard })
+  await flushAsyncWork()
+
+  assert.equal(store.read().source, 'bookmarks')
+  assert.equal(store.read().dashboard, latestDashboard)
 })
