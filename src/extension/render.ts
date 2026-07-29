@@ -15,7 +15,7 @@
    ================================================================ */
 
 import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
-import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs, getRealTabs } from './tabs.js'
+import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs } from './tabs.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, persistSavedPageMetadataUpdates, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
@@ -43,11 +43,11 @@ export { tabMatchesFilter } from './filter-match.js'
  * same groups.
  */
 /**
- * @param {{ realTabs?: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource, currentWindowId?: number | null }} [opts]
+ * @param {{ realTabs: DashboardTab[], domainGroups?: DomainGroup[], filter?: string, source?: DashboardSource, currentWindowId?: number | null }} opts
  * @returns {DashboardViewModel}
  */
 type DashboardViewModelOptions = {
-  realTabs?: DashboardTab[]
+  realTabs: DashboardTab[]
   domainGroups?: DomainGroup[]
   filter?: string
   source?: DashboardSource
@@ -73,7 +73,7 @@ type FetchDashboardDataOptions = {
   savedPagesStore?: SavedPagesStore
 }
 
-export function buildDashboardViewModel({ realTabs = getRealTabs(), domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections, pinnedPageChips }: DashboardViewModelOptions = {}): DashboardViewModel {
+export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections, pinnedPageChips }: DashboardViewModelOptions): DashboardViewModel {
   const filterQuery = compileFilterQuery(filter)
   const filtering = filterQuery.active
   const openTabs = realTabs.filter((t) => !isClosedSavedDashboardTab(t))

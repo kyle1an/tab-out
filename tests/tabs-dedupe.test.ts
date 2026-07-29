@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { countClosableDuplicateExtras, pickDuplicateTabsToClose } from '../src/extension/tab-dedupe-policy.js'
-import { closeDuplicateTabs, closeDuplicateTabsResult, fetchOpenTabs, openTabs } from '../src/extension/tabs.js'
+import { closeDuplicateTabs, closeDuplicateTabsResult, fetchOpenTabsSnapshot } from '../src/extension/tabs.js'
 
 function createChromeMock(initialTabs: any[]) {
   let tabs = initialTabs.map((tab) => ({ ...tab }))
@@ -435,16 +435,16 @@ test('global dedupe does not preserve pinned non-Tab-Out tabs with the Tab Out-o
   assert.deepEqual(removedIds, [1])
 })
 
-test('fetchOpenTabs recognizes filter-focus dashboard URLs as Tab Out pages', async () => {
+test('fetchOpenTabsSnapshot recognizes filter-focus dashboard URLs as Tab Out pages', async () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html?focusFilter=1'
   createChromeMock([
     { id: 1, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: true, pinned: false, groupId: -1 }
   ])
 
-  await fetchOpenTabs()
+  const tabs = await fetchOpenTabsSnapshot()
 
-  assert.equal(openTabs.length, 1)
-  const [tab] = openTabs
+  assert.equal(tabs.length, 1)
+  const [tab] = tabs
   assert.ok(tab)
   assert.equal(tab.rawUrl, tabOutUrl)
   assert.equal(tab.isTabOut, true)

@@ -1,11 +1,11 @@
 /* ================================================================
    Chrome tabs — fetch / close / focus / snapshot
 
-   `openTabs` is the canonical in-memory cache of all open tabs.
-   It's exported as a `let` binding so importers see updates after
-   each fetchOpenTabs() call (ES module live bindings). Use
-   getRealTabs() to get a filtered subset (skips chrome://, about:,
-   extension pages).
+   `openTabs` is the module-private in-memory cache of all open
+   tabs, refreshed by fetchOpenTabsSnapshot() and kept for title
+   retention across suspensions, reloads, and startup seeding.
+   Consumers receive tab snapshots as explicit inputs instead of
+   reading this cache.
    ================================================================ */
 
 import { createTab, createWindow, getAllWindowsResult, getCurrentWindowResult, getTab, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
@@ -50,7 +50,7 @@ export type TabCloseResult = {
   failedCount: number
 }
 
-export let openTabs: DashboardTab[] = []
+let openTabs: DashboardTab[] = []
 let seededOpenTabsTitleHistory: DashboardTab[] = []
 
 function tabIds(tabs: chrome.tabs.Tab[]): number[] {
@@ -159,27 +159,6 @@ export async function fetchOpenTabsSnapshotResult(
 
 export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
   return (await fetchOpenTabsSnapshotResult()).tabs
-}
-
-/**
- * fetchOpenTabs() — refreshes `openTabs` from chrome.tabs.query(),
- * normalizing each tab into our internal shape. Suspended tabs get
- * `url` = unwrapped real URL, `rawUrl` = Chrome's actual URL.
- *
- * @returns {Promise<void>}
- */
-export async function fetchOpenTabs(): Promise<void> {
-  await fetchOpenTabsSnapshot()
-}
-
-/**
- * getRealTabs() — `openTabs` minus chrome://, extension pages, about:,
- * etc. The grid only ever shows real web pages.
- *
- * @returns {DashboardTab[]}
- */
-export function getRealTabs(): DashboardTab[] {
-  return openTabs.filter((tab) => !isBrowserInternalUrl(tab.url))
 }
 
 export function getDashboardTabsFromOpenTabs(tabs: readonly DashboardTab[]): DashboardTab[] {
