@@ -135,6 +135,7 @@ test('a live history update without a source request waits for the atomic startu
   state = appDashboardReducer(state, { type: 'tabHistory', tabHistory: liveHistory })
 
   assert.equal(state.tabHistory, null)
+  assert.deepEqual(state.deferredStartupSourceFields, { tabHistory: liveHistory })
 
   state = appDashboardReducer(state, {
     type: 'startup',

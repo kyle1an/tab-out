@@ -180,12 +180,25 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
   assert.match(intakeSource, /dashboard: snapshot\?\.dashboard \?\? null/)
   assert.match(intakeSource, /tabHistory: snapshot\?\.tabHistory \?\? null/)
   assert.match(intakeSource, /workingSet: snapshot\?\.workingSet \?\? null/)
+  assert.doesNotMatch(intakeSource, /sourceFieldsUpdatedBeforeStartup/)
   assert.match(intakeSource, /case 'startupSnapshot': \{[\s\S]*const sourceSnapshotFields = appDashboardSnapshotFields\(action\.snapshot\)[\s\S]*state\.sourceRequestId !== state\.sourceAppliedRequestId[\s\S]*deferredStartupSourceFields: sourceSnapshotFields/)
   assert.match(intakeSource, /export async function fetchDashboardStartupSnapshot/)
   assert.match(intakeSource, /fetchClosedTabs/)
   assert.match(intakeSource, /buildWorkingSetSnapshot/)
   assert.match(intakeSource, /fetchDashboardServiceState/)
   assert.match(intakeSource, /startupSnapshotFlight/)
+})
+
+test('source snapshot arrivals cross a page-side transition mirror', () => {
+  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const mirrorSource = readFileSync(new URL('../src/hooks/useDashboardIntakeSnapshot.ts', import.meta.url), 'utf8')
+
+  assert.match(appSource, /const appDashboard = useDashboardIntakeSnapshot\(\)/)
+  assert.doesNotMatch(appSource, /const appDashboard = useSyncExternalStore\(/)
+  assert.match(mirrorSource, /appDashboardStore\.subscribeBeforeApply/)
+  assert.match(mirrorSource, /event\.reason === 'source-switch'/)
+  assert.match(mirrorSource, /nextSnapshot\.sourceAppliedRequestId === transitioningSourceRequestId/)
+  assert.match(mirrorSource, /startTransition\(\(\) => setSnapshot\(nextSnapshot\)\)/)
 })
 
 test('app bootstrap paints filter shell before cached startup content and live refresh', () => {

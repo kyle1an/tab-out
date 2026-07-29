@@ -17,6 +17,7 @@ import { buildFilterResultCandidates, type FilterResultCandidate } from '../exte
 import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
 import { appDashboardStore, settleDashboardRefresh, type MissionOrderMap } from '../extension/dashboard-intake.js'
 import type { DashboardStartupSnapshot } from '../extension/startup-snapshot.js'
+import { useDashboardIntakeSnapshot } from '../hooks/useDashboardIntakeSnapshot'
 import { useDashboardRefresh } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
 import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
@@ -430,11 +431,7 @@ export function App() {
     readBuildTimeAppStartup
   )
   const startupSnapshot = startupState?.snapshot ?? null
-  const appDashboard = useSyncExternalStore(
-    appDashboardStore.subscribe,
-    appDashboardStore.read,
-    appDashboardStore.readBuildTime
-  )
+  const appDashboard = useDashboardIntakeSnapshot()
   const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceSelection, startupPriorityWorkingSet, tabHistory, workingSet } = appDashboard
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   const setHistoryRange = useCallback(async function setHistoryRange(nextHistoryRange: string) {

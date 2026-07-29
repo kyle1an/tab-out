@@ -318,12 +318,11 @@ export type AppDashboardState = {
   closedTabs: readonly ClosedTabEntry[]
   dashboard: DashboardData | null
   deferredStartupPriorityWorkingSet: WorkingSetSnapshot | null
-  deferredStartupSourceFields: AppDashboardSnapshotFields | null
+  deferredStartupSourceFields: Partial<AppDashboardSnapshotFields> | null
   historyRange: string
   historySearchPending: boolean
   source: DashboardSource
   sourceAppliedRequestId: number
-  sourceFieldsUpdatedBeforeStartup: AppDashboardSnapshotFieldUpdates
   sourceRequestId: number
   sourceSelection: DashboardSource
   startupPriorityWorkingSet: WorkingSetSnapshot | null
@@ -332,7 +331,6 @@ export type AppDashboardState = {
   workingSet: WorkingSetSnapshot | null
 }
 type AppDashboardSnapshotFields = Pick<AppDashboardState, 'closedTabs' | 'dashboard' | 'tabHistory' | 'workingSet'>
-type AppDashboardSnapshotFieldUpdates = Partial<Record<keyof AppDashboardSnapshotFields, true>>
 export type AppDashboardAction =
   | { type: 'closedTabs'; closedTabs: readonly ClosedTabEntry[] }
   | { type: 'dashboard'; dashboard: DashboardData | null }
@@ -378,7 +376,6 @@ export function initialAppDashboardState({
     historySearchPending: false,
     source: 'tabs',
     sourceAppliedRequestId: 0,
-    sourceFieldsUpdatedBeforeStartup: {},
     sourceRequestId: 0,
     sourceSelection: 'tabs',
     startupPriorityWorkingSet: snapshot?.workingSet ?? null,
@@ -397,28 +394,14 @@ function appDashboardSnapshotFields(
   }
 }
 
-function currentAppDashboardSnapshotFields(state: AppDashboardState): AppDashboardSnapshotFields {
-  return state.deferredStartupSourceFields ?? {
-    closedTabs: state.closedTabs,
-    dashboard: state.dashboard,
-    tabHistory: state.tabHistory,
-    workingSet: state.workingSet
-  }
-}
-
 function startupSnapshotFieldsAfterLiveUpdates(
   state: AppDashboardState,
   snapshot: DashboardStartupSnapshot | null
 ): AppDashboardSnapshotFields {
   const cachedFields = appDashboardSnapshotFields(snapshot)
-  const currentFields = currentAppDashboardSnapshotFields(state)
-  const updatedFields = state.sourceFieldsUpdatedBeforeStartup
-  return {
-    closedTabs: updatedFields.closedTabs ? currentFields.closedTabs : cachedFields.closedTabs,
-    dashboard: updatedFields.dashboard ? currentFields.dashboard : cachedFields.dashboard,
-    tabHistory: updatedFields.tabHistory ? currentFields.tabHistory : cachedFields.tabHistory,
-    workingSet: updatedFields.workingSet ? currentFields.workingSet : cachedFields.workingSet
-  }
+  return !state.startupStateApplied && state.deferredStartupSourceFields
+    ? { ...cachedFields, ...state.deferredStartupSourceFields }
+    : cachedFields
 }
 
 function clearDashboardHistorySearch(dashboard: DashboardData | null, historyRange: string): DashboardData | null {
@@ -456,29 +439,21 @@ function updateAppDashboardSnapshotField<K extends keyof AppDashboardSnapshotFie
   field: K,
   value: AppDashboardSnapshotFields[K]
 ): AppDashboardState {
-  const sourceFieldsUpdatedBeforeStartup = state.startupStateApplied || state.sourceFieldsUpdatedBeforeStartup[field]
-    ? state.sourceFieldsUpdatedBeforeStartup
-    : { ...state.sourceFieldsUpdatedBeforeStartup, [field]: true as const }
-  const deferredStartupSourceFields = state.deferredStartupSourceFields ?? (
-    !state.startupStateApplied ? currentAppDashboardSnapshotFields(state) : null
-  )
-  if (deferredStartupSourceFields) {
-    if (
-      deferredStartupSourceFields[field] === value &&
-      deferredStartupSourceFields === state.deferredStartupSourceFields &&
-      sourceFieldsUpdatedBeforeStartup === state.sourceFieldsUpdatedBeforeStartup
-    ) return state
+  const deferredStartupSourceFields = state.deferredStartupSourceFields
+  if (!state.startupStateApplied || deferredStartupSourceFields) {
+    if (deferredStartupSourceFields &&
+      Object.hasOwn(deferredStartupSourceFields, field) &&
+      deferredStartupSourceFields[field] === value) return state
     return {
       ...state,
       deferredStartupSourceFields: {
         ...deferredStartupSourceFields,
         [field]: value
-      },
-      sourceFieldsUpdatedBeforeStartup
+      }
     }
   }
-  if (state[field] === value && sourceFieldsUpdatedBeforeStartup === state.sourceFieldsUpdatedBeforeStartup) return state
-  return { ...state, [field]: value, sourceFieldsUpdatedBeforeStartup }
+  if (state[field] === value) return state
+  return { ...state, [field]: value }
 }
 
 export function appDashboardReducer(state: AppDashboardState, action: AppDashboardAction): AppDashboardState {
@@ -542,7 +517,6 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
           ? sourceSnapshotFields
           : null,
         historyRange: action.historyRange,
-        sourceFieldsUpdatedBeforeStartup: {},
         startupPriorityWorkingSet: applySourceSnapshot
           ? action.snapshot?.workingSet ?? null
           : state.startupPriorityWorkingSet,
@@ -577,34 +551,38 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
     }
     case 'sourceSnapshot': {
       if (action.requestId !== state.sourceRequestId) return state
-      const sourceFieldsUpdatedBeforeStartup = state.startupStateApplied
-        ? state.sourceFieldsUpdatedBeforeStartup
+      const deferredSupplementalFields: Partial<AppDashboardSnapshotFields> = {}
+      const deferredFields = state.deferredStartupSourceFields
+      if (deferredFields) {
+        const deferredClosedTabs = deferredFields.closedTabs
+        if (deferredClosedTabs !== undefined) {
+          deferredSupplementalFields.closedTabs = deferredClosedTabs
+        }
+        const deferredTabHistory = deferredFields.tabHistory
+        if (action.tabHistory === undefined && deferredTabHistory !== undefined) {
+          deferredSupplementalFields.tabHistory = deferredTabHistory
+        }
+        const deferredWorkingSet = deferredFields.workingSet
+        if (action.workingSet === undefined && deferredWorkingSet !== undefined) {
+          deferredSupplementalFields.workingSet = deferredWorkingSet
+        }
+      }
+      const deferredStartupSourceFields = state.startupStateApplied
+        ? null
         : {
-            ...state.sourceFieldsUpdatedBeforeStartup,
-            dashboard: true as const,
-            ...(action.tabHistory !== undefined ? { tabHistory: true as const } : {}),
-            ...(action.workingSet !== undefined ? { workingSet: true as const } : {})
+            ...deferredFields,
+            dashboard: action.dashboard,
+            ...(action.tabHistory === undefined ? {} : { tabHistory: action.tabHistory }),
+            ...(action.workingSet === undefined ? {} : { workingSet: action.workingSet })
           }
-      const deferredSupplementalFields = state.deferredStartupSourceFields
-        ? {
-            closedTabs: state.deferredStartupSourceFields.closedTabs,
-            ...(action.tabHistory === undefined
-              ? { tabHistory: state.deferredStartupSourceFields.tabHistory }
-              : {}),
-            ...(action.workingSet === undefined
-              ? { workingSet: state.deferredStartupSourceFields.workingSet }
-              : {})
-          }
-        : {}
       return {
         ...state,
         ...deferredSupplementalFields,
         dashboard: action.dashboard,
         deferredStartupPriorityWorkingSet: null,
-        deferredStartupSourceFields: null,
+        deferredStartupSourceFields,
         source: action.source,
         sourceAppliedRequestId: action.requestId,
-        sourceFieldsUpdatedBeforeStartup,
         sourceSelection: action.source,
         startupPriorityWorkingSet: null,
         ...(action.tabHistory !== undefined ? { tabHistory: action.tabHistory } : {}),

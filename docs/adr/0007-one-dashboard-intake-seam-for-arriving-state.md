@@ -54,10 +54,12 @@ stale metadata across a browser restart if no dashboard page opened after the
 change; the same open that would reveal it also heals it.
 
 Source-switch snapshot commits leave `startTransition` when the store lands,
-because `useSyncExternalStore` updates cannot be transitions. Progressive
-card mounting bounds the render cost; if measurement shows a regression, the
-fallback is a page-side mirror that re-dispatches store snapshots inside a
-transition — an adapter detail, not a seam change.
+because `useSyncExternalStore` updates cannot be transitions. A 1,008-card
+fixture comparison found that the synchronous store path added a roughly 68
+ms median long task even though first-content timing stayed level. The page
+therefore mirrors store snapshots and schedules only an arriving source
+snapshot inside a transition; all other arrivals remain synchronous. This is
+an adapter detail, not a seam change.
 
 Until the migration completes, arrival arbitration temporarily spans the
 intake store and the remaining page wiring; slices are ordered so each path
