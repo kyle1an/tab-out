@@ -49,7 +49,7 @@ function isMasonryHookOptions(value: unknown): value is MasonryHookOptions {
 }
 
 function readCssPx(style: CSSStyleDeclaration, name: string, fallback: number): number {
-  const value = parseFloat(style.getPropertyValue(name))
+  const value = Number.parseFloat(style.getPropertyValue(name))
   return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
@@ -116,7 +116,7 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
   const containerWidth = container.clientWidth
   if (containerWidth === 0) return // section hidden — nothing to layout
 
-  const cards = Array.from(container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)')).filter((c) => getComputedStyle(c).display !== 'none')
+  const cards = Array.from(container.querySelectorAll<HTMLElement>('.domain-block:not(.closing)')).filter((card) => getComputedStyle(card).display !== 'none')
   if (cards.length === 0) {
     container.style.height = ''
     return
@@ -147,7 +147,7 @@ function packContainer(container: HTMLElement | null, unpin: boolean, lastColCou
   const colHeights: number[] = new Array(colCount).fill(0)
   cards.forEach((card, index) => {
     let col = 0
-    const prev = parseInt(card.dataset.masonryCol || '', 10)
+    const prev = Number.parseInt(card.dataset.masonryCol || '', 10)
     if (Number.isInteger(prev) && prev >= 0 && prev < colCount) {
       col = prev
     } else {

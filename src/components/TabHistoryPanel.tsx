@@ -296,7 +296,8 @@ function historyTitleExpandedMeasureFitsLineCount(
   const styles = window.getComputedStyle(measureEl)
   const lineHeight = Number.parseFloat(styles.lineHeight)
   if (!lineHeight || !Number.isFinite(lineHeight)) return true
-  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.history-entry-expanded-line:not(.history-entry-expanded-line-tail)'))
+  const fixedLineOverflows = measureEl.querySelectorAll<HTMLElement>('.history-entry-expanded-line:not(.history-entry-expanded-line-tail)')
+    .values()
     .some((line) => expandedLineContentOverflows(line, HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX))
   return !fixedLineOverflows && measureEl.getBoundingClientRect().height <=
     targetLineCount * lineHeight + HISTORY_ENTRY_EXPANDED_LINE_TOLERANCE_PX
@@ -428,7 +429,7 @@ let historyTitleMeasurementFlushQueued = false
 
 function flushHistoryTitleMeasurementJobs() {
   historyTitleMeasurementFlushQueued = false
-  const jobs = Array.from(pendingHistoryTitleMeasurementJobs.values())
+  const jobs = pendingHistoryTitleMeasurementJobs.values().toArray()
   pendingHistoryTitleMeasurementJobs.clear()
   // Complete every natural-box and Range read before the first truncation
   // class or captured-line state write. Interleaving those phases makes each

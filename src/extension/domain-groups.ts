@@ -52,7 +52,7 @@ export function buildDomainGroups(
   const normalizedPinnedDomains = normalizePinnedDomains(pinnedDomains)
   const pinnedOrder = new Map(normalizedPinnedDomains.map((domain, index) => [domain, index]))
 
-  const groupedDomains = [...groupMap.values()]
+  const groupedDomains = groupMap.values().toArray()
   groupedDomains.forEach((group) => {
     group.pinned = isPinnableDomain(group.domain) && pinnedOrder.has(group.domain)
   })

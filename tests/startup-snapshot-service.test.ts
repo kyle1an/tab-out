@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setTimeout as delay } from 'node:timers/promises'
 import FakeTimers from '@sinonjs/fake-timers'
 
 import {
@@ -210,7 +211,7 @@ test('a worker snapshot rebuild never writes Saved Pages metadata', async () => 
       getDashboardServiceState: captureDashboardServiceState()
     })
     await service.refreshNow()
-    for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setTimeout(resolve, 0))
+    for (let i = 0; i < 5; i += 1) await delay(0)
 
     assert.equal(savedPagesWrites, 0, 'the worker build must leave Saved Pages storage to the page')
   } finally {

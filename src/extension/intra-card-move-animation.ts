@@ -87,12 +87,12 @@ function restorePendingPageChipFocus() {
     return
   }
 
-  const card = Array.from(
-    pending.document.querySelectorAll<HTMLElement>(DOMAIN_CARD_SELECTOR)
-  ).find((candidate) => candidate.dataset.taboutDomain === pending.domain)
-  const replacementSlot = Array.from(
-    card?.querySelectorAll<HTMLElement>(PAGE_CHIP_REMOVAL_ITEM_SELECTOR) ?? []
-  ).find((candidate) => candidate.dataset.taboutRemovalKey === pending.focusRemovalKey)
+  const card = pending.document.querySelectorAll<HTMLElement>(DOMAIN_CARD_SELECTOR)
+    .values()
+    .find((candidate) => candidate.dataset.taboutDomain === pending.domain)
+  const replacementSlot = card?.querySelectorAll<HTMLElement>(PAGE_CHIP_REMOVAL_ITEM_SELECTOR)
+    .values()
+    .find((candidate) => candidate.dataset.taboutRemovalKey === pending.focusRemovalKey)
   const replacement = replacementSlot?.querySelector<HTMLElement>(
     '[data-tabout="page-chip"][tabindex="0"], [data-tabout-default-variant="true"]'
   )
@@ -215,7 +215,8 @@ export function animateQueuedPageChipRefreshMoves() {
 
 export function prepareIntraCardMoveAnimationByKey(key: string): PreparedIntraCardMove | null {
   if (!key || typeof document === 'undefined') return null
-  const target = Array.from(document.querySelectorAll<HTMLElement>(LAYOUT_ANCHOR_SELECTOR))
+  const target = document.querySelectorAll<HTMLElement>(LAYOUT_ANCHOR_SELECTOR)
+    .values()
     .find((candidate) => candidate.dataset.taboutLayoutKey === key)
   return prepareIntraCardMoveAnimation(target, { reducedMotionOpacity: true })
 }
@@ -224,7 +225,8 @@ export function animateIntraCardMoves(prepared: PreparedIntraCardMove | null) {
   if (!prepared) return
   if (prepared.reducedMotionTarget) {
     const { key, scope } = prepared.reducedMotionTarget
-    const target = Array.from(prepared.root.querySelectorAll<HTMLElement>(LAYOUT_ITEM_SELECTOR))
+    const target = prepared.root.querySelectorAll<HTMLElement>(LAYOUT_ITEM_SELECTOR)
+      .values()
       .find((candidate) => (
         candidate.dataset.taboutLayoutKey === key &&
         candidate.dataset.taboutLayoutScope === scope

@@ -184,7 +184,7 @@ function startupSnapshotFlightKey({ pinnedDomains, previousOrder, savedPagesStor
   return JSON.stringify({
     pinnedDomains,
     savedPagesStore: savedPagesStore ?? null,
-    tabPreviousOrder: Array.from(previousOrder.tabs || []).sort(([left], [right]) => left.localeCompare(right))
+    tabPreviousOrder: previousOrder.tabs.entries().toArray().sort(([left], [right]) => left.localeCompare(right))
   })
 }
 

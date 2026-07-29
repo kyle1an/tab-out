@@ -50,7 +50,7 @@ test('chip-trim: plain chips get the translucent fill, the quiet hover line, and
   assert.equal(trim.frame, null)
   assert.equal(trim.expandedFill, null)
   assert.equal(trim.iconChipClasses, '')
-  assert.match(trim.slotClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.slotRow}\\b`))
+  assert.match(trim.slotClasses, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.slotRow)}\\b`))
   assert.equal(trim.styleVars.interactionBg, TRANSLUCENT_CLICKABLE)
   assert.equal(trim.styleVars.closedInteractionBg, GROUP_BG)
   assert.equal(trim.styleVars.fadeBg, OPAQUE_CLICKABLE)
@@ -59,7 +59,7 @@ test('chip-trim: plain chips get the translucent fill, the quiet hover line, and
 
 test('chip-trim: saved-closed chips carry the marker and the interaction outline', () => {
   const trim = chipTrim(facts({ closedSavedPage: true }))
-  assert.match(trim.chipClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.savedClosed}\\b`))
+  assert.match(trim.chipClasses, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.savedClosed)}\\b`))
   assert.match(trim.chipClasses, /text-tab-closed/)
   assert.match(trim.chipClasses, OUTLINE_TRIO)
   assert.equal(trim.frame, null)
@@ -73,7 +73,7 @@ test('chip-trim: read-only filter results use the closed fill without changing t
   assert.match(trim.chipClasses, /hover:bg-\(--chip-interaction-bg\)/)
   assert.match(trim.chipClasses, OUTLINE_TRIO)
   assert.doesNotMatch(trim.chipClasses, /text-tab-closed/)
-  assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.savedClosed}\\b`))
+  assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.savedClosed)}\\b`))
   assert.equal(trim.styleVars.interactionBg, GROUP_BG)
   assert.equal(trim.styleVars.fadeBg, GROUP_BG)
   assert.equal(trim.styleVars.hoverBorder, CLICKABLE_LINE)
@@ -83,7 +83,7 @@ test('chip-trim: variant-group and folded chips get the group outline', () => {
   for (const kind of [{ titleVariantGroup: true }, { folded: true }]) {
     const trim = chipTrim(facts(kind))
     assert.match(trim.chipClasses, OUTLINE_TRIO)
-    assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${CHIP_TRIM_TOKENS.savedClosed}\\b`))
+    assert.doesNotMatch(trim.chipClasses, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.savedClosed)}\\b`))
     assert.equal(trim.frame, null)
     assert.equal(trim.styleVars.hoverBorder, GROUP_LINE)
     assert.equal(trim.styleVars.interactionBg, GROUP_BG)
@@ -224,7 +224,7 @@ test('chip-trim: full-width slots carry the seam overlap and interaction lift', 
   // Unconditional adjacent-sibling overlap: trim capability is app state,
   // so the -1px must never key off trim markers or hover state.
   assert.match(slot, /\[\.chip-slot-row\+&\]:-mt-px/)
-  assert.match(slot, new RegExp(`\\b${CHIP_TRIM_TOKENS.slotRow}\\b`))
+  assert.match(slot, new RegExp(`\\b${RegExp.escape(CHIP_TRIM_TOKENS.slotRow)}\\b`))
   // The interacting slot lifts above neighbours so its strengthened frame
   // paints on top at the shared seam — for hover, expansion, menu, and tooltip.
   assert.match(slot, /has-\[\.page-chip:hover\]:z-4/)

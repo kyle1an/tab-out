@@ -125,8 +125,9 @@ export function pageIdentityForWorkingSet(url = ''): string {
 
   parsed.hash = ''
   const cleanParams = new URLSearchParams()
-  const paramEntries = Array.from(parsed.searchParams.entries())
+  const paramEntries = parsed.searchParams.entries()
     .filter(([name]) => !name.toLowerCase().startsWith('utm_') && !NOISY_QUERY_PARAMS.has(name.toLowerCase()))
+    .toArray()
     .sort(([a], [b]) => a.localeCompare(b))
   for (const [name, value] of paramEntries) cleanParams.append(name, value)
   parsed.search = cleanParams.toString()

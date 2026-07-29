@@ -247,7 +247,7 @@ function getChipTextPaintedContentWidth(textEl: HTMLElement | null) {
     range.detach()
   }
 
-  for (const marker of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator'))) {
+  for (const marker of textEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator')) {
     includeRect(marker.getBoundingClientRect())
   }
 
@@ -301,7 +301,7 @@ function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
   if (!textEl) return 0
 
   let width = 0
-  for (const shell of Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-variant-shell'))) {
+  for (const shell of textEl.querySelectorAll<HTMLElement>('.chip-title-variant-shell')) {
     const button = shell.querySelector<HTMLElement>('.chip-title-variant')
     if (!button) continue
     const list = shell.closest<HTMLElement>('.chip-title-variant-list')
@@ -316,7 +316,8 @@ function getTitleVariantMinimumContentWidth(textEl: HTMLElement | null) {
 
 function titleVariantLabelsOverflow(textEl: HTMLElement | null) {
   if (!textEl) return false
-  return Array.from(textEl.querySelectorAll<HTMLElement>('.chip-title-variant-label'))
+  return textEl.querySelectorAll<HTMLElement>('.chip-title-variant-label')
+    .values()
     .some((label) => label.scrollWidth - label.clientWidth > PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX)
 }
 
@@ -457,23 +458,23 @@ function ensureLeadingExpandedMarkerSpace(document: Document, marker: Element) {
 }
 
 function hydrateClonedExpandedChipFragment(document: Document, fragment: DocumentFragment) {
-  for (const content of Array.from(fragment.querySelectorAll('.chip-title-variant-content'))) {
+  for (const content of fragment.querySelectorAll('.chip-title-variant-content')) {
     content.className = 'chip-title-variant-content inline-flex max-w-full min-w-0 flex-col items-start gap-0.5 align-top'
   }
 
-  for (const list of Array.from(fragment.querySelectorAll('.chip-title-variant-list'))) {
+  for (const list of fragment.querySelectorAll('.chip-title-variant-list')) {
     list.className = 'chip-title-variant-list inline-flex max-w-full flex-col items-stretch pr-[5px] pb-1 align-top divide-y divide-neutral-500/15'
   }
 
-  for (const shell of Array.from(fragment.querySelectorAll('.chip-title-variant-shell'))) {
+  for (const shell of fragment.querySelectorAll('.chip-title-variant-shell')) {
     shell.className = 'chip-title-variant-shell inline-flex max-w-full min-w-0 items-center'
   }
 
-  for (const variant of Array.from(fragment.querySelectorAll('.chip-title-variant'))) {
+  for (const variant of fragment.querySelectorAll('.chip-title-variant')) {
     variant.className = 'chip-title-variant inline-flex max-w-full min-w-0 items-center gap-1 rounded-none bg-transparent px-1.5 py-[3px] [font-size:inherit] leading-tight font-normal text-neutral-600'
   }
 
-  for (const marker of Array.from(fragment.querySelectorAll('.chip-title-suppression-marker'))) {
+  for (const marker of fragment.querySelectorAll('.chip-title-suppression-marker')) {
     const label = marker.getAttribute('aria-label') || ''
     const hiddenTitleText = label.replace(/^Suppressed title text:\s*/, '').trim()
     if (!hiddenTitleText) continue
@@ -483,7 +484,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
     marker.replaceChildren(document.createTextNode(hiddenTitleText))
   }
 
-  for (const marker of Array.from(fragment.querySelectorAll('.chip-strip-indicator'))) {
+  for (const marker of fragment.querySelectorAll('.chip-strip-indicator')) {
     if (!marker.textContent?.trim()) {
       marker.remove()
       continue
@@ -496,7 +497,7 @@ function hydrateClonedExpandedChipFragment(document: Document, fragment: Documen
     marker.replaceChildren(document.createTextNode(label))
   }
 
-  for (const path of Array.from(fragment.querySelectorAll('.chip-path'))) {
+  for (const path of fragment.querySelectorAll('.chip-path')) {
     path.className = PAGE_CHIP_EXPANDED_PATH_CLASS_NAME
   }
 }
@@ -719,15 +720,17 @@ function expandedMeasureFitsLineCount(
   measureEl.style.width = `${Math.max(1, width)}px`
   const lineHeight = getChipTextLineHeight(measureEl)
   const height = measureEl.getBoundingClientRect().height
-  const fixedLineOverflows = Array.from(measureEl.querySelectorAll<HTMLElement>('.page-chip-expanded-line:not(.page-chip-expanded-line-tail)'))
+  const fixedLineOverflows = measureEl.querySelectorAll<HTMLElement>('.page-chip-expanded-line:not(.page-chip-expanded-line-tail)')
+    .values()
     .some((line) => expandedLineContentOverflows(line, PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX))
-  const markerWrapsTaller = Array.from(measureEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator'))
+  const markerWrapsTaller = measureEl.querySelectorAll<HTMLElement>('.chip-title-suppression-marker, .chip-strip-indicator')
+    .values()
     .some((marker) => marker.getBoundingClientRect().height > lineHeight + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX)
   return !fixedLineOverflows && !markerWrapsTaller && height <= targetLineCount * lineHeight + PAGE_CHIP_EXPANDED_LINE_TOLERANCE_PX
 }
 
 function getExpandedSingleLineNaturalWidth(measureEl: HTMLElement) {
-  const elements = [measureEl, ...Array.from(measureEl.querySelectorAll<HTMLElement>('*'))]
+  const elements = [measureEl, ...measureEl.querySelectorAll<HTMLElement>('*')]
   for (const element of elements) {
     element.style.whiteSpace = 'nowrap'
   }
@@ -757,7 +760,7 @@ function expansionRevealsHydratingPills(textEl: HTMLElement) {
  */
 function measureConstrainedPackedWidth(measureEl: HTMLElement, maxContentWidth: number) {
   measureEl.style.whiteSpace = 'normal'
-  for (const element of Array.from(measureEl.querySelectorAll<HTMLElement>('*'))) {
+  for (const element of measureEl.querySelectorAll<HTMLElement>('*')) {
     element.style.whiteSpace = ''
   }
   measureEl.style.width = `${Math.max(1, maxContentWidth)}px`

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
+import { setTimeout as delay } from 'node:timers/promises'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
@@ -3082,7 +3083,7 @@ function installSavedPagesStorageProbe(initialStore: unknown) {
 
 async function drainSavedPagesWrites(): Promise<void> {
   for (let i = 0; i < 5; i += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await delay(0)
   }
 }
 

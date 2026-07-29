@@ -739,7 +739,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         .tabs.push(tab)
     })
 
-    return [...buckets.values()]
+    return buckets.values().toArray()
       .sort((a, b) => a.rank - b.rank || a.groupId - b.groupId || a.firstSeen - b.firstSeen)
       .flatMap((bucket) => {
         const representative = bucket.tabs[0]
@@ -982,12 +982,14 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       if (seen.has(fromKey)) return false
       seen.add(fromKey)
       const direct = beforeByKey.get(fromKey)
-      const result = !!direct?.has(toKey) || [...(direct ?? [])].some((nextKey) => reaches(nextKey, toKey, seen))
+      const result = direct
+        ? direct.has(toKey) || direct.values().some((nextKey) => reaches(nextKey, toKey, seen))
+        : false
       reachesCache.set(cacheKey, result)
       return result
     }
 
-    return [...partsByText.values()]
+    return partsByText.values().toArray()
       .filter((part) => part.count > 1)
       .sort((a, b) => {
         const aKey = titleSuppressionKey(a.text)
@@ -1022,7 +1024,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       }
     }
 
-    return [...partsByKey.values()]
+    return partsByKey.values().toArray()
       .sort((a, b) => a.order - b.order || a.firstSeen - b.firstSeen)
       .map((part) => part.text)
   }
@@ -1171,7 +1173,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
 
   // Sort policy: high-priority sections surface first; ties fall back to
   // root tabs (empty key) first, then alphabetically by subdomain.
-  const sections = [...bySubdomain.entries()].sort((a, b) => {
+  const sections = bySubdomain.entries().toArray().sort((a, b) => {
     return compareWithPriority(
       chipPriorityScoreForTabs(a[1]),
       chipPriorityScoreForTabs(b[1]),
@@ -1479,7 +1481,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       }
       clusterByLabel.getOrInsertComputed(lbl, () => []).push(t)
     }
-    const sortedClusters = [...clusterByLabel.entries()].sort((a, b) => compareWithPriority(
+    const sortedClusters = clusterByLabel.entries().toArray().sort((a, b) => compareWithPriority(
       chipPriorityScoreForTabs(a[1]),
       chipPriorityScoreForTabs(b[1]),
       () => compareNumericText(a[0], b[0])
@@ -1747,7 +1749,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
         tabsWithoutWebsitePathSection.push(...bucket.tabs)
       }
     }
-    const websitePathBucketList = [...websitePathBuckets.values()].sort((a, b) => compareWithPriority(
+    const websitePathBucketList = websitePathBuckets.values().toArray().sort((a, b) => compareWithPriority(
       chipPriorityScoreForTabs(a.tabs),
       chipPriorityScoreForTabs(b.tabs),
       () => compareNumericText(a.label, b.label)

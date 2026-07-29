@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { setImmediate } from 'node:timers/promises'
 
 import {
   appDashboardReducer,
@@ -13,15 +14,11 @@ import type { DashboardStartupSnapshot } from '../src/extension/startup-snapshot
 import type { TabHistorySnapshot } from '../src/extension/types'
 
 function deferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((nextResolve) => {
-    resolve = nextResolve
-  })
-  return { promise, resolve }
+  return Promise.withResolvers<T>()
 }
 
 async function flushAsyncWork(): Promise<void> {
-  await new Promise<void>((resolve) => setImmediate(resolve))
+  await setImmediate()
 }
 
 function historySnapshot(activeTabId: number): TabHistorySnapshot {

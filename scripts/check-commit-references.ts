@@ -138,7 +138,7 @@ export function findCommitReferenceFindings(
     const existing = uniqueFindings.get(key)
     if (!existing || existing.kind === 'custom-autolink') uniqueFindings.set(key, finding)
   }
-  return [...uniqueFindings.values()].sort((left, right) => left.index - right.index)
+  return uniqueFindings.values().toArray().sort((left, right) => left.index - right.index)
 }
 
 export function parsePrePushUpdates(input: string): PrePushUpdate[] {

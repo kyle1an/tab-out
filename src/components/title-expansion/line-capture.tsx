@@ -250,8 +250,8 @@ function firstCapturedTextOffsetOnLine(
  * one subtree operation, so it should not become part of future captures.
  */
 export function unwrapClampedTitleLines(root: ParentNode) {
-  for (const line of Array.from(root.querySelectorAll('.clamped-title-line, .captured-title-content-root'))) {
-    line.replaceWith(...Array.from(line.childNodes))
+  for (const line of root.querySelectorAll('.clamped-title-line, .captured-title-content-root')) {
+    line.replaceWith(...line.childNodes)
   }
 }
 
