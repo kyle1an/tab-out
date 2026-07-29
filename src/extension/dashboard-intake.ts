@@ -10,7 +10,7 @@
    ================================================================ */
 
 import { fetchClosedTabsResult, isClosedTabFetchSuppressed, type ClosedTabEntry } from './closed-tabs.js'
-import { isHistoryFilterEnabled } from './history-range.js'
+import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import { fetchDashboardServiceStateResult } from './dashboard-service-state.js'
 import { buildFilterSearchRequest } from './filter-search.js'
@@ -556,3 +556,42 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
     }
   }
 }
+
+export type AppDashboardStore = {
+  dispatch: (action: AppDashboardAction) => void
+  read: () => AppDashboardState
+  readBuildTime: () => AppDashboardState
+  subscribe: (listener: () => void) => () => void
+}
+
+/**
+ * The Dashboard Intake store: every arrival — startup cache application,
+ * live refreshes, source switches, and closed-tab updates — applies through
+ * this one dispatch, and the page renders its snapshot. The frozen
+ * build-time state backs the hydration render, so the first client render
+ * reproduces the generated shell exactly.
+ */
+export function createAppDashboardStore(): AppDashboardStore {
+  const buildTimeState = initialAppDashboardState({
+    historyRange: DEFAULT_HISTORY_RANGE,
+    snapshot: null
+  })
+  let state = buildTimeState
+  const listeners = new Set<() => void>()
+  return {
+    dispatch(action) {
+      const nextState = appDashboardReducer(state, action)
+      if (nextState === state) return
+      state = nextState
+      for (const listener of [...listeners]) listener()
+    },
+    read: () => state,
+    readBuildTime: () => buildTimeState,
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }
+  }
+}
+
+export const appDashboardStore = createAppDashboardStore()

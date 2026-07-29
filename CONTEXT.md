@@ -23,6 +23,7 @@
 - **Working Set**: A ranking signal over open-tab Dashboard Items that the user is likely to return to before scanning Domain Cards or using a Filter Query.
 - **Warm Snapshot**: The newest render-ready projection of Dashboard startup state for pages opened during the current browser session.
 - **Durable Checkpoint**: Restart-surviving Dashboard source state from which a render-ready projection can be derived; it may intentionally trail the Warm Snapshot within a target checkpoint window.
+- **Dashboard Intake**: The Dashboard page's single owner of arriving state — startup cache application, live refreshes, source-switch snapshots, and closed-tab updates all apply through its one store, and the page renders its snapshot.
 - **Tab Action**: A user intent from the dashboard that mutates tabs or history, records undo/toast feedback, and refreshes the Dashboard.
 - **Suspend Target**: The remembered third-party suspender (extension id plus an observed suspended-page URL template) used to rebuild suspend URLs when a Tab Action suspends tabs.
 - **Browser Tabs Gateway**: The Dashboard's single crossing point to live browser tabs, windows, tab groups, and recently-closed sessions; it speaks browser vocabulary and absorbs browser quirks, while matching and action policy stay with Tab Actions.

@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import {
   appDashboardReducer,
+  createAppDashboardStore,
   initialAppDashboardState
 } from '../src/extension/dashboard-intake.js'
 import type { DashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
@@ -31,6 +32,30 @@ function startupSnapshot(tabHistory: TabHistorySnapshot): DashboardStartupSnapsh
     closedTabs: []
   }
 }
+
+test('app dashboard store applies arrivals through the reducer and notifies only on change', () => {
+  const store = createAppDashboardStore()
+
+  assert.equal(store.read(), store.readBuildTime(), 'reads return the build-time state before any arrival')
+  assert.equal(store.read().dashboard, null)
+  assert.equal(store.read().startupStateApplied, false)
+
+  let notifications = 0
+  const unsubscribe = store.subscribe(() => { notifications += 1 })
+
+  store.dispatch({ type: 'source', source: 'tabs' })
+  assert.equal(notifications, 0, 'a no-op arrival must not notify')
+  assert.equal(store.read(), store.readBuildTime(), 'a no-op arrival must keep snapshot identity')
+
+  store.dispatch({ type: 'source', source: 'bookmarks' })
+  assert.equal(notifications, 1)
+  assert.equal(store.read().source, 'bookmarks')
+
+  unsubscribe()
+  store.dispatch({ type: 'source', source: 'history' })
+  assert.equal(notifications, 1, 'unsubscribed listeners stop receiving arrivals')
+  assert.equal(store.read().source, 'history')
+})
 
 test('a live history update supersedes the deferred startup target before source cancellation', () => {
   const cachedHistory = historySnapshot(10)

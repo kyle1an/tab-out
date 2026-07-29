@@ -1,10 +1,10 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, useTransition, type ReactNode, type Ref } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type Ref } from 'react'
 import { hydrateRoot } from 'react-dom/client'
 import { readAppStartup, readBuildTimeAppStartup, subscribeAppStartup, type AppStartupState } from '../app-startup.js'
 import { closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, subscribeClosedTabChanges, type ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
-import { DEFAULT_HISTORY_RANGE, HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled, saveHistoryRangePreference } from '../extension/history-range.js'
+import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled, saveHistoryRangePreference } from '../extension/history-range.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, hasActiveDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import {
   animateIntraCardMoves,
@@ -16,7 +16,7 @@ import { closeFilteredTabs, dedupeTabs } from '../extension/tab-actions'
 import { settleDashboardRefresh } from '../extension/dashboard-controller.js'
 import { buildFilterResultCandidates, type FilterResultCandidate } from '../extension/filter-result-navigation.js'
 import { dashboardNeedsFilterSearchRefresh } from '../extension/filter-search.js'
-import { appDashboardReducer, initialAppDashboardState } from '../extension/dashboard-intake.js'
+import { appDashboardStore } from '../extension/dashboard-intake.js'
 import { fetchDashboardSnapshot, useDashboardRefresh, type DashboardStartupSnapshot } from '../hooks/useDashboardRefresh'
 import { useDashboardLocalState } from '../hooks/useDashboardLocalState'
 import type { DashboardLocalState } from '../extension/dashboard-local-state.js'
@@ -51,6 +51,10 @@ type MissionContainerRef = {
 }
 
 const EMPTY_CLOSED_TABS: readonly ClosedTabEntry[] = []
+
+// Module-stable dispatch: every Dashboard arrival applies through the intake
+// store, and the alias stays non-reactive for hook dependency purposes.
+const dispatchAppDashboard = appDashboardStore.dispatch
 
 type HistoryRangeSelectModule = typeof import('./HistoryRangeSelect')
 
@@ -494,12 +498,12 @@ export function App() {
     readBuildTimeAppStartup
   )
   const startupSnapshot = startupState?.snapshot ?? null
-  const [appDashboard, dispatchAppDashboard] = useReducer(appDashboardReducer, {
-    historyRange: DEFAULT_HISTORY_RANGE,
-    snapshot: null
-  }, initialAppDashboardState)
+  const appDashboard = useSyncExternalStore(
+    appDashboardStore.subscribe,
+    appDashboardStore.read,
+    appDashboardStore.readBuildTime
+  )
   const { closedTabs, dashboard, historyRange, source, sourceAppliedRequestId, sourceRequestId, sourceSelection, tabHistory, workingSet } = appDashboard
-  const [, startSourceTransition] = useTransition()
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   function setClosedTabs(next: readonly ClosedTabEntry[]) {
     dispatchAppDashboard({ type: 'closedTabs', closedTabs: next })
@@ -886,15 +890,15 @@ export function App() {
       }
 
       layoutMoveRectsRef.current = previousRects
-      startSourceTransition(() => {
-        dispatchAppDashboard({
-          type: 'sourceSnapshot',
-          dashboard: result.snapshot.dashboard,
-          requestId,
-          source: nextSource,
-          ...(result.snapshot.tabHistory === undefined ? {} : { tabHistory: result.snapshot.tabHistory }),
-          ...(result.snapshot.workingSet === undefined ? {} : { workingSet: result.snapshot.workingSet })
-        })
+      // Store arrivals commit synchronously (useSyncExternalStore updates are
+      // never transitions); progressive card mounting bounds the render cost.
+      dispatchAppDashboard({
+        type: 'sourceSnapshot',
+        dashboard: result.snapshot.dashboard,
+        requestId,
+        source: nextSource,
+        ...(result.snapshot.tabHistory === undefined ? {} : { tabHistory: result.snapshot.tabHistory }),
+        ...(result.snapshot.workingSet === undefined ? {} : { workingSet: result.snapshot.workingSet })
       })
     })
   }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers])
