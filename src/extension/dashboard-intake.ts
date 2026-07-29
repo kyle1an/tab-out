@@ -295,6 +295,7 @@ export async function fetchDashboardStartupSnapshot(options: DashboardSnapshotOp
 export type AppDashboardState = {
   closedTabs: readonly ClosedTabEntry[]
   dashboard: DashboardData | null
+  deferredStartupPriorityWorkingSet: WorkingSetSnapshot | null
   deferredStartupSourceFields: AppDashboardSnapshotFields | null
   historyRange: string
   historySearchPending: boolean
@@ -303,6 +304,7 @@ export type AppDashboardState = {
   sourceFieldsUpdatedBeforeStartup: AppDashboardSnapshotFieldUpdates
   sourceRequestId: number
   sourceSelection: DashboardSource
+  startupPriorityWorkingSet: WorkingSetSnapshot | null
   startupStateApplied: boolean
   tabHistory: TabHistorySnapshot | null
   workingSet: WorkingSetSnapshot | null
@@ -318,6 +320,7 @@ export type AppDashboardAction =
   | { type: 'sourceRequestCancelled' }
   | { type: 'sourceRequest'; requestId: number; source: DashboardSource }
   | { type: 'sourceRequestFailed'; requestId: number }
+  | { type: 'startupPriorityCleared' }
   | { type: 'tabHistory'; tabHistory: TabHistorySnapshot | null }
   | { type: 'workingSet'; workingSet: WorkingSetSnapshot | null }
   | {
@@ -347,6 +350,7 @@ export function initialAppDashboardState({
 }): AppDashboardState {
   return {
     ...appDashboardSnapshotFields(snapshot),
+    deferredStartupPriorityWorkingSet: null,
     deferredStartupSourceFields: null,
     historyRange,
     historySearchPending: false,
@@ -355,6 +359,7 @@ export function initialAppDashboardState({
     sourceFieldsUpdatedBeforeStartup: {},
     sourceRequestId: 0,
     sourceSelection: 'tabs',
+    startupPriorityWorkingSet: snapshot?.workingSet ?? null,
     startupStateApplied: snapshot !== null
   }
 }
@@ -414,11 +419,13 @@ function settleSourceRequestWithoutSnapshot(state: AppDashboardState): AppDashbo
   return {
     ...state,
     ...(restoreDeferredStartup ?? {}),
+    deferredStartupPriorityWorkingSet: null,
     deferredStartupSourceFields: state.startupStateApplied
       ? null
       : state.deferredStartupSourceFields,
     sourceRequestId: state.sourceAppliedRequestId,
-    sourceSelection: state.source
+    sourceSelection: state.source,
+    startupPriorityWorkingSet: state.deferredStartupPriorityWorkingSet ?? state.startupPriorityWorkingSet
   }
 }
 
@@ -480,7 +487,8 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
       return {
         ...state,
         sourceRequestId: action.requestId,
-        sourceSelection: action.source
+        sourceSelection: action.source,
+        startupPriorityWorkingSet: null
       }
     case 'sourceRequestCancelled':
       return settleSourceRequestWithoutSnapshot(state)
@@ -488,6 +496,10 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
       if (action.requestId !== state.sourceRequestId) return state
       return settleSourceRequestWithoutSnapshot(state)
     }
+    case 'startupPriorityCleared':
+      return state.startupPriorityWorkingSet === null
+        ? state
+        : { ...state, startupPriorityWorkingSet: null }
     case 'tabHistory':
       return updateAppDashboardSnapshotField(state, 'tabHistory', action.tabHistory)
     case 'workingSet':
@@ -501,11 +513,17 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
       const applySupplementalFields = state.sourceAppliedRequestId !== 0
       return {
         ...state,
+        deferredStartupPriorityWorkingSet: !applySourceSnapshot && state.sourceAppliedRequestId === 0 && state.source === 'tabs'
+          ? action.snapshot?.workingSet ?? null
+          : null,
         deferredStartupSourceFields: !applySourceSnapshot && state.sourceAppliedRequestId === 0
           ? sourceSnapshotFields
           : null,
         historyRange: action.historyRange,
         sourceFieldsUpdatedBeforeStartup: {},
+        startupPriorityWorkingSet: applySourceSnapshot
+          ? action.snapshot?.workingSet ?? null
+          : state.startupPriorityWorkingSet,
         startupStateApplied: true,
         // A source request is causally newer than the startup cache. Its
         // completed or pending dashboard generation must survive a late cache
@@ -560,11 +578,13 @@ export function appDashboardReducer(state: AppDashboardState, action: AppDashboa
         ...state,
         ...deferredSupplementalFields,
         dashboard: action.dashboard,
+        deferredStartupPriorityWorkingSet: null,
         deferredStartupSourceFields: null,
         source: action.source,
         sourceAppliedRequestId: action.requestId,
         sourceFieldsUpdatedBeforeStartup,
         sourceSelection: action.source,
+        startupPriorityWorkingSet: null,
         ...(action.tabHistory !== undefined ? { tabHistory: action.tabHistory } : {}),
         ...(action.workingSet !== undefined ? { workingSet: action.workingSet } : {})
       }
@@ -599,6 +619,8 @@ export type AppDashboardStoreDependencies = {
 }
 
 export type AppDashboardStore = {
+  applyStartup: (startup: { historyRange: string; snapshot: DashboardStartupSnapshot | null }) => void
+  clearStartupPriority: () => void
   dispatch: (action: AppDashboardAction) => void
   read: () => AppDashboardState
   readBuildTime: () => AppDashboardState
@@ -881,6 +903,12 @@ export function createAppDashboardStore({
   }
 
   return {
+    applyStartup: ({ historyRange, snapshot }) => {
+      dispatch({ type: 'startup', historyRange, snapshot })
+    },
+    clearStartupPriority: () => {
+      dispatch({ type: 'startupPriorityCleared' })
+    },
     dispatch,
     read: () => state,
     readBuildTime: () => buildTimeState,

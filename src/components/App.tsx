@@ -436,7 +436,7 @@ export function App() {
     appDashboardStore.read,
     appDashboardStore.readBuildTime
   )
-  const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceAppliedRequestId, sourceRequestId, sourceSelection, tabHistory, workingSet } = appDashboard
+  const { closedTabs, dashboard, historyRange, historySearchPending, source, sourceSelection, startupPriorityWorkingSet, tabHistory, workingSet } = appDashboard
   const { hoverStateStore, urlPreviewStore, handleHoverUrlChange, clearHoverUrlNow } = useHoverMatch()
   const setHistoryRange = useCallback(async function setHistoryRange(nextHistoryRange: string) {
     dispatchAppDashboard({ type: 'historyRange', historyRange: nextHistoryRange })
@@ -496,12 +496,11 @@ export function App() {
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
   }, [currentMissionContainers])
 
-  const [startupPriorityWorkingSet, setStartupPriorityWorkingSet] = useState<WorkingSetSnapshot | null>(null)
   const handleBeforeFilterCommit = useCallback(function handleBeforeFilterCommit() {
-    setStartupPriorityWorkingSet(null)
+    appDashboardStore.clearStartupPriority()
     filterCardMoveRef.current = true
     primeCardMoveAnimation()
-  }, [primeCardMoveAnimation, setStartupPriorityWorkingSet])
+  }, [primeCardMoveAnimation])
   const { filterInput, filter, commitFilterInput, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
   const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
@@ -546,23 +545,7 @@ export function App() {
     if (!startupState || appliedStartupStateRef.current === startupState) return
     appliedStartupStateRef.current = startupState
     applyStartupState(startupState.localState)
-    dispatchAppDashboard({
-      type: 'startup',
-      historyRange: startupState.historyRange,
-      snapshot: startupState.snapshot
-    })
   }, [applyStartupState, startupState])
-  const appliedStartupPriorityRef = useRef<AppStartupState | null>(null)
-  useLayoutEffect(() => {
-    if (!startupState ||
-      appliedStartupPriorityRef.current === startupState ||
-      sourceRequestId !== 0 ||
-      sourceAppliedRequestId !== 0 ||
-      source !== 'tabs' ||
-      sourceSelection !== 'tabs') return
-    appliedStartupPriorityRef.current = startupState
-    setStartupPriorityWorkingSet(startupState.snapshot?.workingSet ?? null)
-  }, [source, sourceAppliedRequestId, sourceRequestId, sourceSelection, startupState])
   const initialStartupViewModel = startupSnapshot?.startupViewModel
   const startupDashboardViewModel =
     visibleDashboard === startupSnapshot?.dashboard &&
@@ -750,13 +733,13 @@ export function App() {
       return
     }
     const previousRects = prepareDomainCardMoveAnimation(currentMissionContainers())
-    setStartupPriorityWorkingSet(null)
+    appDashboardStore.clearStartupPriority()
     clearHoverUrlNow()
     const requestId = appDashboardStore.switchSource(nextSource)
     if (requestId !== null) {
       pendingSourceSwitchRectsRef.current = { rects: previousRects, requestId }
     }
-  }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers, setStartupPriorityWorkingSet])
+  }, [source, sourceSelection, clearHoverUrlNow, currentMissionContainers])
 
   const primaryMissionsEmpty = matchedCards.length === 0
   const showHistorySection = showHistoryRange || showHistoryMatches

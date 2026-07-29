@@ -266,6 +266,36 @@ test('a live supplemental update still wins when startup resolves after source s
   assert.equal(state.tabHistory, liveHistory)
 })
 
+test('startup intake defers its Tabs ordering priority until a pending source switch is cancelled', () => {
+  const sourceFlight = deferred<DashboardRefreshSnapshot>()
+  const cachedSnapshot = startupSnapshot(historySnapshot(10))
+  const store = createAppDashboardStore({
+    fetchDashboardSnapshot: () => sourceFlight.promise,
+    showToast: () => assert.fail('a cancelled source switch must not show a failure toast')
+  })
+  store.setRefreshInputs({
+    filter: '',
+    localStateLoaded: true,
+    pinnedDomains: [],
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+  })
+
+  store.switchSource('bookmarks')
+  store.applyStartup({ historyRange: '7d', snapshot: cachedSnapshot })
+
+  assert.equal(store.read().historyRange, '7d')
+  assert.equal(store.read().dashboard, null, 'the pending source keeps the startup projection atomic')
+  assert.equal(store.read().startupPriorityWorkingSet, null)
+
+  store.switchSource('tabs')
+
+  assert.equal(store.read().dashboard, cachedSnapshot.dashboard)
+  assert.equal(store.read().startupPriorityWorkingSet, cachedSnapshot.workingSet)
+
+  store.clearStartupPriority()
+  assert.equal(store.read().startupPriorityWorkingSet, null)
+})
+
 test('only the latest source switch announces and applies its arriving snapshot', async () => {
   const requests: DashboardSnapshotOptions[] = []
   const flights: ReturnType<typeof deferred<DashboardRefreshSnapshot>>[] = []

@@ -190,6 +190,7 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
 
 test('app bootstrap paints filter shell before cached startup content and live refresh', () => {
   const appEntrySource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
+  const appStartupSource = readFileSync(new URL('../src/app-startup.ts', import.meta.url), 'utf8')
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const localStateSource = readFileSync(new URL('../src/hooks/useDashboardLocalState.ts', import.meta.url), 'utf8')
   const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
@@ -212,6 +213,7 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(appEntrySource, /const currentTabOutPagePromise = cachedStartupSnapshot \? getCurrentTabOutPageForStartup\(\) : Promise\.resolve\(null\)/)
   assert.match(appEntrySource, /const startupSnapshot = fallbackStartupSnapshot/)
   assert.match(appEntrySource, /applyAppStartup\(\{ historyRange, localState, snapshot: startupSnapshot \}\)/)
+  assert.match(appStartupSource, /appDashboardStore\.applyStartup\(\{[\s\S]*historyRange: nextState\.historyRange,[\s\S]*snapshot: nextState\.snapshot/)
   assert.doesNotMatch(appEntrySource, /mountApp\(/)
   assert.doesNotMatch(appEntrySource, /getLiveStartupSnapshotFromBackground/)
   assert.doesNotMatch(appEntrySource, /requestDashboardRefresh\(\{ startupSnapshot: true/)
@@ -222,6 +224,9 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(appSource, /requestAnimationFrame\(\(\) => setDashboardContentVisible\(true\)\)/)
   assert.match(appSource, /const visibleDashboard = dashboardContentVisible \? dashboard : null/)
   assert.match(appSource, /startupPriorityWorkingSet/)
+  assert.doesNotMatch(appSource, /setStartupPriorityWorkingSet|appliedStartupPriorityRef/)
+  assert.doesNotMatch(appSource, /type: 'startup',[\s\S]*historyRange: startupState\.historyRange/)
+  assert.match(intakeSource, /startupPriorityWorkingSet/)
   assert.match(appSource, /dashboard: visibleDashboard/)
   assert.match(appSource, /workingSet: visibleWorkingSet/)
   assert.match(appSource, /freezeTabsChipOrder: dashboardContentVisible && !!effectiveStartupPriorityWorkingSet/)

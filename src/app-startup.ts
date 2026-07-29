@@ -1,4 +1,5 @@
 import type { DashboardLocalState } from './extension/dashboard-local-state.js'
+import { appDashboardStore } from './extension/dashboard-intake.js'
 import type { DashboardStartupSnapshot } from './extension/startup-snapshot.js'
 
 export type AppStartupState = {
@@ -12,6 +13,10 @@ const startupListeners = new Set<() => void>()
 
 export function applyAppStartup(nextState: AppStartupState): void {
   currentStartupState = nextState
+  appDashboardStore.applyStartup({
+    historyRange: nextState.historyRange,
+    snapshot: nextState.snapshot
+  })
   for (const listener of startupListeners) listener()
 }
 

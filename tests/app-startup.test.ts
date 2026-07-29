@@ -8,6 +8,7 @@ import {
   subscribeAppStartup
 } from '../src/app-startup.js'
 import { emptyDashboardLocalState } from '../src/extension/dashboard-local-state.js'
+import { appDashboardStore } from '../src/extension/dashboard-intake.js'
 
 test('app startup publishes snapshot, local state, and history range through one update', () => {
   let notifications = 0
@@ -24,4 +25,6 @@ test('app startup publishes snapshot, local state, and history range through one
   assert.equal(notifications, 1)
   assert.equal(readAppStartup(), startup)
   assert.equal(readBuildTimeAppStartup(), null)
+  assert.equal(appDashboardStore.read().historyRange, 'off')
+  assert.equal(appDashboardStore.read().startupStateApplied, true)
 })
