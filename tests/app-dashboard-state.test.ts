@@ -4,7 +4,7 @@ import test from 'node:test'
 import {
   appDashboardReducer,
   initialAppDashboardState
-} from '../src/components/App.js'
+} from '../src/extension/dashboard-intake.js'
 import type { DashboardStartupSnapshot } from '../src/hooks/useDashboardRefresh.js'
 import type { TabHistorySnapshot } from '../src/extension/types'
 
