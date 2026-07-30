@@ -5,6 +5,8 @@ local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
 local WINDOW_FOCUS_DELAY_SECONDS = 0.15
+local WINDOW_FOCUS_RETRY_INTERVAL_SECONDS = 0.05
+local WINDOW_FOCUS_RETRY_LIMIT = 10
 
 local state = {
   busy = false,
@@ -249,6 +251,46 @@ local function isChromeWindow(window)
 
   local application = window:application()
   return application and application:bundleID() == state.config.chromeBundleId and not application:isHidden()
+end
+
+local function focusWindowThen(window, onFocused, onFailure, attempt, expectedWindowId)
+  attempt = attempt or 0
+  expectedWindowId = expectedWindowId or (window and window:id() or nil)
+
+  local windowId = window and window:id() or nil
+  local application = window and window:application() or nil
+  if not windowId
+    or windowId ~= expectedWindowId
+    or not application
+    or application:bundleID() ~= state.config.chromeBundleId
+  then
+    onFailure("The Chrome window is no longer available")
+    return
+  end
+
+  local focusedWindow = hs.window.focusedWindow()
+  if focusedWindow and focusedWindow:id() == expectedWindowId then
+    onFocused()
+    return
+  end
+
+  if attempt >= WINDOW_FOCUS_RETRY_LIMIT then
+    onFailure("Timed out waiting for Chrome to focus the requested window")
+    return
+  end
+
+  local succeeded, focusError = pcall(function()
+    window:raise()
+    window:focus()
+  end)
+  if not succeeded then
+    onFailure(focusError)
+    return
+  end
+
+  later(WINDOW_FOCUS_RETRY_INTERVAL_SECONDS, function()
+    focusWindowThen(window, onFocused, onFailure, attempt + 1, expectedWindowId)
+  end, true)
 end
 
 local function eligibleChromeWindows(screen, spaceId)
@@ -568,25 +610,25 @@ end
 local function finishWindowActivation(kind, window)
   later(0.2, function()
     if kind == "newPage" then
-      local focusedWindow = hs.window.focusedWindow()
-      if not focusedWindow or focusedWindow:id() ~= window:id() then
-        failCurrent("The Tab Out window did not retain focus")
-        return
-      end
+      focusWindowThen(window, function()
+        local application = window:application()
+        if not application then
+          failCurrent("Chrome closed before its address bar could be focused")
+          return
+        end
 
-      local application = window:application()
-      if not application then
-        failCurrent("Chrome closed before its address bar could be focused")
-        return
-      end
+        local succeeded, focusError = pcall(hs.eventtap.keyStroke, { "cmd" }, "l", 0, application)
+        if not succeeded then
+          failCurrent("Chrome's address bar could not be focused", focusError)
+          return
+        end
 
-      local succeeded, focusError = pcall(hs.eventtap.keyStroke, { "cmd" }, "l", 0, application)
-      if not succeeded then
-        failCurrent("Chrome's address bar could not be focused", focusError)
-        return
-      end
-
-      log.d("Focused Chrome's address bar for the new-page shortcut")
+        log.d("Focused Chrome's address bar for the new-page shortcut")
+        finishCurrent()
+      end, function(focusError)
+        failCurrent("The Tab Out window did not retain focus", focusError)
+      end)
+      return
     end
 
     finishCurrent()
@@ -594,14 +636,7 @@ local function finishWindowActivation(kind, window)
 end
 
 local function activateExistingWindow(kind, window)
-  window:focus()
-  later(WINDOW_FOCUS_DELAY_SECONDS, function()
-    local focusedWindow = hs.window.focusedWindow()
-    if not focusedWindow or focusedWindow:id() ~= window:id() then
-      failCurrent("The selected Chrome window did not retain focus")
-      return
-    end
-
+  focusWindowThen(window, function()
     local opened, openError = openTabOutInFrontChrome(kind)
     if not opened then
       failCurrent("Chrome could not open the Tab Out page", openError)
@@ -610,7 +645,9 @@ local function activateExistingWindow(kind, window)
 
     log.df("Opened the %s page in an existing target-profile window", kind)
     finishWindowActivation(kind, window)
-  end, true)
+  end, function(focusError)
+    failCurrent("The selected Chrome window did not retain focus", focusError)
+  end)
 end
 
 local function translatedRect(currentFrame, sourceFrame, targetFrame)
@@ -949,16 +986,11 @@ local function createTargetProfileWindow(request, targetScreen)
   end
 
   local targetFrame = translatedFrame(anchorWindow, targetScreen)
-  anchorWindow:focus()
-  later(WINDOW_FOCUS_DELAY_SECONDS, function()
-    local focusedWindow = hs.window.focusedWindow()
-    if not focusedWindow or focusedWindow:id() ~= anchorWindow:id() then
-      failCurrent("The target-profile Chrome window did not retain focus")
-      return
-    end
-
+  focusWindowThen(anchorWindow, function()
     createBoundedTargetProfileWindow(request, targetScreen, targetFrame)
-  end, true)
+  end, function(focusError)
+    failCurrent("The target-profile Chrome window did not retain focus", focusError)
+  end)
 end
 
 local function tryCandidate(request, targetScreen, candidates, index)
