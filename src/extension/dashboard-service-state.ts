@@ -5,7 +5,7 @@ import { emptyWorkingSetActivity, normalizeWorkingSetActivity } from './working-
 import type { ChromeOpenTabsSnapshot } from './tabs.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from './types'
 
-export type DashboardServiceState = Omit<CapturedDashboardServiceState, 'openTabsSnapshot'> & {
+type DashboardServiceState = Omit<CapturedDashboardServiceState, 'openTabsSnapshot'> & {
   openTabsSnapshot: ChromeOpenTabsSnapshot | null
 }
 export type DashboardServiceStateResult =
@@ -77,9 +77,4 @@ export async function fetchDashboardServiceStateResult(): Promise<DashboardServi
       openTabsSnapshot: normalizeOpenTabsSnapshot(response.openTabsSnapshot) as ChromeOpenTabsSnapshot
     }
   }
-}
-
-/** Compatibility loader for optional consumers that intentionally accept empty fallback state. */
-export async function fetchDashboardServiceState(): Promise<DashboardServiceState> {
-  return (await fetchDashboardServiceStateResult()).value
 }

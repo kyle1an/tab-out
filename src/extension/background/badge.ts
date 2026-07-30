@@ -100,7 +100,3 @@ export function createBadgeRefreshService(chromeApi: ChromeApi = chrome): BadgeR
 
   return { refresh }
 }
-
-export async function updateBadge(chromeApi: ChromeApi = chrome): Promise<void> {
-  await createBadgeRefreshService(chromeApi).refresh()
-}

@@ -17,10 +17,6 @@ export type PinnedDomainMutation =
   | { type: 'set-pinned'; domain: string; pinned: boolean }
   | { type: 'reorder'; domain: string; placement: PinnedDomainReorderPlacement }
 
-export type PinnedDomainsLoadResult =
-  | { ok: true; value: string[] }
-  | { ok: false; value: string[] }
-
 export function isPinnableDomain(domain: unknown): domain is string {
   return !!domain && typeof domain === 'string' && (!domain.startsWith('__') || PINNABLE_SYSTEM_DOMAINS.has(domain))
 }
@@ -34,12 +30,6 @@ export function normalizePinnedDomains(domains: unknown = []): string[] {
     normalized.push(domain)
   }
   return normalized
-}
-
-export function togglePinnedDomainInList(domains: unknown = [], domain: unknown): string[] {
-  const normalized = normalizePinnedDomains(domains)
-  if (!isPinnableDomain(domain)) return normalized
-  return setPinnedDomainInList(normalized, domain, !normalized.includes(domain))
 }
 
 function setPinnedDomainInList(
@@ -105,16 +95,4 @@ export function applyPinnedDomainMutation(
         mutation.placement.targetDomain,
         mutation.placement.position
       )
-}
-
-export async function loadPinnedDomainsResult(): Promise<PinnedDomainsLoadResult> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ok: false, value: [] }
-  try {
-    const stored = await chrome.storage.local.get(DOMAIN_PIN_STORAGE_KEY)
-    const value = stored[DOMAIN_PIN_STORAGE_KEY]
-    if (value !== undefined && !Array.isArray(value)) return { ok: false, value: [] }
-    return { ok: true, value: normalizePinnedDomains(value) }
-  } catch {
-    return { ok: false, value: [] }
-  }
 }

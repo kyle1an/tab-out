@@ -1,19 +1,19 @@
 import { spawnSync } from 'node:child_process'
+import { writeFile } from 'node:fs/promises'
+
+import packageJson from '../package.json' with { type: 'json' }
+import { createExtensionManifest } from '../src/extension/manifest.js'
+import { createIndexHtml } from '../src/index-html.js'
 
 const viteArgs = process.argv.slice(2)
 
-function runGenerator(script: string, nodeArgs: readonly string[] = []): void {
-  const result = spawnSync(process.execPath, [...nodeArgs, '--import', 'tsx', script], {
-    stdio: 'inherit'
-  })
-
-  if (result.status !== 0) {
-    process.exit(result.status ?? 1)
-  }
+if (typeof packageJson.version !== 'string' || !packageJson.version) {
+  throw new Error('package.json must define a string version for extension/manifest.json')
 }
 
-runGenerator('scripts/write-manifest.ts')
-runGenerator('scripts/write-index-html.ts', ['--experimental-import-text'])
+const manifest = createExtensionManifest({ version: packageJson.version })
+await writeFile(new URL('../extension/manifest.json', import.meta.url), `${JSON.stringify(manifest, null, 2)}\n`)
+await writeFile(new URL('../extension/index.html', import.meta.url), await createIndexHtml())
 
 function runBuild(entry: 'app' | 'background'): void {
   const result = spawnSync('pnpm', ['exec', 'vite', 'build', ...viteArgs], {

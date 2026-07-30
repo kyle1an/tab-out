@@ -15,10 +15,6 @@ export type PinnedSectionMutation = {
   pinned: boolean
 }
 
-export type PinnedSectionsLoadResult =
-  | { ok: true; value: string[] }
-  | { ok: false; value: string[] }
-
 const PIN_KIND_SUBDOMAIN = 'subdomain'
 const PIN_KIND_WEBSITE_PATH = 'website-path'
 const PIN_KIND_PATHGROUP = 'pathgroup'
@@ -88,12 +84,6 @@ export function normalizePinnedSections(ids: unknown = []): string[] {
   return normalized
 }
 
-export function togglePinnedSectionInList(ids: unknown = [], id: unknown): string[] {
-  const normalized = normalizePinnedSections(ids)
-  if (!isPinnableSectionId(id)) return normalized
-  return setPinnedSectionInList(normalized, id, !normalized.includes(id))
-}
-
 function setPinnedSectionInList(ids: unknown = [], id: unknown, pinned: boolean): string[] {
   const normalized = normalizePinnedSections(ids)
   if (!isPinnableSectionId(id)) return normalized
@@ -104,16 +94,4 @@ function setPinnedSectionInList(ids: unknown = [], id: unknown, pinned: boolean)
 
 export function applyPinnedSectionMutation(ids: unknown, mutation: PinnedSectionMutation): string[] {
   return setPinnedSectionInList(ids, mutation.id, mutation.pinned)
-}
-
-export async function loadPinnedSectionsResult(): Promise<PinnedSectionsLoadResult> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) return { ok: false, value: [] }
-  try {
-    const stored = await chrome.storage.local.get(SECTION_PIN_STORAGE_KEY)
-    const value = stored[SECTION_PIN_STORAGE_KEY]
-    if (value !== undefined && !Array.isArray(value)) return { ok: false, value: [] }
-    return { ok: true, value: normalizePinnedSections(value) }
-  } catch {
-    return { ok: false, value: [] }
-  }
 }

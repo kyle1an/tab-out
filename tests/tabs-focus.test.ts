@@ -3,11 +3,11 @@ import test from 'node:test'
 
 import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
 import { closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
-import { closeHistoryEntry, focusHistoryEntry, focusHistoryEntryResult } from '../src/extension/tab-history.js'
+import { closeHistoryEntry, focusHistoryEntryResult } from '../src/extension/tab-history.js'
 import { focusExactTabTargetResult, focusExistingTabTargetResult, tabFocusResultToastMessage } from '../src/extension/tab-focus.js'
-import { closeTabsByTargets, closeTabsByTargetsResult, closeTabsExact, closeTabsExactResult, focusExactTabOrOpen, focusExactTabOrOpenResult, focusTab, openTabUrl, openTabUrlInNewWindow, snapshotChromeTabs } from '../src/extension/tabs.js'
+import { closeTabsByTargetsResult, closeTabsExactResult, focusExactTabOrOpenResult, focusTab, openTabUrl, openTabUrlInNewWindow, snapshotChromeTabs } from '../src/extension/tabs.js'
 import { markClosure, switchToRestoredTab, undoLastClose } from '../src/extension/undo.js'
-import { focusWorkingSetItem, focusWorkingSetItemResult } from '../src/extension/working-set-client.js'
+import { focusWorkingSetItemResult } from '../src/extension/working-set-client.js'
 
 type ChromeMockCalls = {
   create: chrome.tabs.CreateProperties[]
@@ -331,11 +331,11 @@ test('exact live-tab focus reports a rejected activation without opening a dupli
 
   const existingResult = await focusExistingTabTargetResult({ tabId: 2, url })
   const exactResult = await focusExactTabTargetResult(url)
-  const handled = await focusExactTabOrOpen(url)
+  const openResult = await focusExactTabOrOpenResult(url)
 
   assert.deepEqual(existingResult, { status: 'failed' })
   assert.deepEqual(exactResult, { status: 'failed' })
-  assert.equal(handled, false)
+  assert.deepEqual(openResult, { status: 'failed' })
   assert.deepEqual(calls.create, [])
 })
 
@@ -371,9 +371,9 @@ test('read-only activation reports failure without opening when the tab inventor
     throw new Error('tabs unavailable')
   }
 
-  const handled = await focusExactTabOrOpen('https://example.test/docs')
+  const result = await focusExactTabOrOpenResult('https://example.test/docs')
 
-  assert.equal(handled, false)
+  assert.deepEqual(result, { status: 'unknown' })
   assert.deepEqual(calls.create, [])
 })
 
@@ -619,7 +619,7 @@ test('bulk close returns undo snapshots only for tabs Chrome actually removed', 
     await removeTab(tabIds)
   }
 
-  const snapshot = await closeTabsExact([
+  const { value: snapshot } = await closeTabsExactResult([
     'https://kept.example.test/',
     'https://closed.example.test/'
   ])
@@ -869,7 +869,7 @@ test('bulk close preserves a pinned Tab Out copy and snapshots the ordinary copy
     { id: 2, windowId: 1, url: tabOutUrl, title: 'Ordinary Tab Out', active: false, pinned: false, groupId: -1 }
   ])
 
-  const snapshot = await closeTabsExact([tabOutUrl], { preserveGroups: true })
+  const { value: snapshot } = await closeTabsExactResult([tabOutUrl], { preserveGroups: true })
 
   assert.deepEqual(calls.remove, [2])
   assert.deepEqual(tabs.map((tab) => tab.id), [1])
@@ -885,7 +885,7 @@ test('targeted bulk close does not expand one matching duplicate into every same
     { id: 2, windowId: 1, url, title: 'Beta non-match', active: false, pinned: false, groupId: -1 }
   ])
 
-  const snapshot = await closeTabsByTargets([{ tabId: 1, tabUrl: url }], { preserveGroups: true })
+  const { value: snapshot } = await closeTabsByTargetsResult([{ tabId: 1, tabUrl: url }], { preserveGroups: true })
 
   assert.deepEqual(calls.remove, [1])
   assert.deepEqual(tabs.map((tab) => tab.id), [2])
@@ -1032,7 +1032,7 @@ test('focusHistoryEntry uses the same suspended-tab activation path as page chip
     { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
   ])
 
-  const focused = await focusHistoryEntry({
+  const result = await focusHistoryEntryResult({
     exists: true,
     tabId: 2,
     windowId: 2,
@@ -1040,7 +1040,7 @@ test('focusHistoryEntry uses the same suspended-tab activation path as page chip
     rawUrl: suspendedUrl
   } as any)
 
-  assert.equal(focused, true)
+  assert.deepEqual(result, { status: 'focused' })
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'marvellous',
@@ -1080,14 +1080,14 @@ test('focusWorkingSetItem falls back to the effective URL for blocked suspended 
     { id: 2, windowId: 2, url: suspendedUrl, title: 'Docs', active: false, pinned: false, groupId: -1 }
   ])
 
-  const focused = await focusWorkingSetItem({
+  const result = await focusWorkingSetItemResult({
     tabId: 2,
     windowId: 2,
     tabUrl: 'https://example.com/docs',
     rawUrl: suspendedUrl
   })
 
-  assert.equal(focused, true)
+  assert.deepEqual(result, { status: 'focused' })
   assert.deepEqual(calls.runtimeMessages, [
     {
       extensionId: 'blocked',

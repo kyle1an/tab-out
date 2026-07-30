@@ -61,10 +61,6 @@ export async function fetchHistorySourceSearch(query = '', range = DEFAULT_HISTO
   }
 }
 
-export async function fetchHistorySourceItems(query = '', range = DEFAULT_HISTORY_RANGE): Promise<DashboardTab[]> {
-  return (await fetchHistorySourceSearch(query, range)).tabs
-}
-
 /**
  * Delete every visit for a URL from Chrome history.
  *

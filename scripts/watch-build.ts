@@ -1,26 +1,24 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { watch, type FSWatcher } from 'node:fs'
 
-type FileSnapshot = Map<string, string>
+type WatchTarget = {
+  path: string
+  filenames?: ReadonlySet<string>
+  recursive?: boolean
+}
 
-const WATCH_TARGETS = [
-  'src',
-  'extension/base.css',
-  'chrome-support.json',
-  'package.json',
-  'scripts/write-index-html.ts',
-  'scripts/write-manifest.ts',
-  'vite.config.ts'
+const WATCH_TARGETS: WatchTarget[] = [
+  { path: 'src', recursive: true },
+  { path: '.', filenames: new Set(['chrome-support.json', 'package.json', 'vite.config.ts']) },
+  { path: 'extension', filenames: new Set(['base.css']) },
+  { path: 'scripts', filenames: new Set(['build-extension.ts']) }
 ]
 const DEBOUNCE_MS = 120
-const POLL_MS = 700
 
 let pending = false
 let building = false
 let buildProcess: ChildProcess | null = null
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
-let lastSnapshot = snapshotFiles()
 
 function runBuild(reason = 'initial'): void {
   if (building) {
@@ -31,7 +29,6 @@ function runBuild(reason = 'initial'): void {
   building = true
   pending = false
   console.log(`\n[watch] build started (${reason})`)
-
   buildProcess = spawn('pnpm', ['build'], {
     stdio: 'inherit',
     env: process.env
@@ -40,15 +37,9 @@ function runBuild(reason = 'initial'): void {
   buildProcess.on('exit', (code, signal) => {
     building = false
     buildProcess = null
-
-    if (signal) {
-      console.log(`[watch] build stopped by ${signal}`)
-    } else if (code === 0) {
-      console.log('[watch] build completed')
-    } else {
-      console.log(`[watch] build failed with exit code ${code}`)
-    }
-
+    if (signal) console.log(`[watch] build stopped by ${signal}`)
+    else if (code === 0) console.log('[watch] build completed')
+    else console.log(`[watch] build failed with exit code ${code}`)
     if (pending) runBuild('queued changes')
   })
 }
@@ -58,64 +49,23 @@ function scheduleBuild(reason: string): void {
   debounceTimer = setTimeout(() => runBuild(reason), DEBOUNCE_MS)
 }
 
-function snapshotFiles(): FileSnapshot {
-  const snapshot: FileSnapshot = new Map()
-
-  for (const target of WATCH_TARGETS) {
-    const stat = statSync(target, { throwIfNoEntry: false })
-    if (!stat) {
-      snapshot.set(target, 'missing')
-    } else if (stat.isFile()) {
-      snapshot.set(target, `${stat.mtimeMs}:${stat.size}`)
-    } else if (stat.isDirectory()) {
-      for (const entry of readdirSync(target, { recursive: true, withFileTypes: true })) {
-        if (!entry.isFile()) continue
-        const path = join(entry.parentPath, entry.name)
-        const fileStat = statSync(path, { throwIfNoEntry: false })
-        if (!fileStat) snapshot.set(path, 'missing')
-        else if (fileStat.isFile()) snapshot.set(path, `${fileStat.mtimeMs}:${fileStat.size}`)
-      }
-    }
-  }
-
-  return snapshot
-}
-
-function findChangedPaths(
-  previous: ReadonlyMap<string, string>,
-  next: ReadonlyMap<string, string>
-): string[] {
-  const changed: string[] = []
-  const paths = new Set(previous.keys()).union(next)
-
-  for (const path of paths) {
-    if (previous.get(path) !== next.get(path)) {
-      changed.push(path)
-    }
-  }
-
-  return changed
-}
-
-const pollTimer = setInterval(() => {
-  const nextSnapshot = snapshotFiles()
-  const changedPaths = findChangedPaths(lastSnapshot, nextSnapshot)
-
-  if (changedPaths.length > 0) {
-    lastSnapshot = nextSnapshot
-    scheduleBuild(changedPaths.slice(0, 3).join(', '))
-  }
-}, POLL_MS)
-
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
+const watchers: FSWatcher[] = WATCH_TARGETS.map(({ path, filenames, recursive = false }) => (
+  watch(path, { recursive }, (_event, filename) => {
+    const changedPath = filename?.toString()
+    if (filenames && (!changedPath || !filenames.has(changedPath))) return
+    scheduleBuild(changedPath ? `${path}/${changedPath}` : path)
+  })
+))
 
 function shutdown(): void {
   clearTimeout(debounceTimer)
-  clearInterval(pollTimer)
+  for (const watcher of watchers) watcher.close()
   if (buildProcess) buildProcess.kill('SIGTERM')
   process.exit(0)
 }
 
-console.log(`[watch] watching ${WATCH_TARGETS.join(', ')}`)
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
+
+console.log(`[watch] watching ${WATCH_TARGETS.map(({ path }) => path).join(', ')}`)
 runBuild()

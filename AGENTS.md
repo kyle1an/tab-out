@@ -29,8 +29,8 @@ This repo is a Chrome Manifest V3 extension. Treat `AGENTS.md` as the day-to-day
   - `src/extension/filter-focus-boot.ts` to `extension/dist/filter-focus-boot.js`
   - `src/extension/background.ts` to `extension/dist/background.js`
   - `src/styles/app.css` plus extension styles to `extension/dist/assets/app.css`
-- `pnpm build` intentionally runs entry-specific Vite builds so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
-- `src/`, `extension/base.css`, `chrome-support.json`, `package.json`, `scripts/write-manifest.ts`, and `vite.config.ts` are watched by `pnpm dev`.
+- `pnpm build` imports the manifest and dashboard-page generators directly before running entry-specific Vite builds, so the MV3 service worker stays a standalone `extension/dist/background.js`; use the package scripts instead of raw `vite build` when regenerating committed bundles.
+- `src/`, `extension/base.css`, `chrome-support.json`, `package.json`, `scripts/build-extension.ts`, and `vite.config.ts` are watched by `pnpm dev` through native filesystem events.
 - `extension/index.html` and `extension/manifest.json` are generated runtime package files. HTML changes need a page or extension reload; manifest, permission, and service-worker changes need an extension reload in `chrome://extensions`.
 - Do not hand-edit `extension/dist/*`, `extension/index.html`, or `extension/manifest.json` except for emergency diagnosis. Regenerate generated output with `pnpm build` or `pnpm verify`.
 - When source or style changes legitimately alter `extension/dist/*`, include the generated bundle changes in the final ready-to-commit diff.
@@ -54,7 +54,7 @@ pnpm dev
 ```
 
 - Use the exact Node and pnpm versions pinned by `.node-version` and `package.json#packageManager`. With Mise configured to read those version files, `mise install` provisions both tools. Once Mise is active, use normal `pnpm` commands; `mise exec -- pnpm <script>` is the fallback when shell activation is unavailable. pnpm remains authoritative for installs and the lockfile.
-- `pnpm typecheck` intentionally resolves TypeScript 7's native `tsc` from the `@typescript/native` alias. Native Node entrypoints are additionally checked through `tsconfig.node.json` with `NodeNext` resolution; keep their syntax erasable so the pinned Node runtime can execute them directly. The dependency named `typescript` intentionally aliases `@typescript/typescript6` for legacy compiler-API consumers; use `tsc6` only for targeted bridge diagnosis, and do not collapse the bridge or introduce TypeScript-7-only source syntax until those consumers move to the new API. See [ADR 0006](docs/adr/0006-run-typescript-7-with-a-typescript-6-api-bridge.md).
+- `pnpm typecheck` intentionally resolves TypeScript 7's native `tsc` from the `@typescript/native` alias. Native Node entrypoints that do not import the browser render graph are additionally checked through `tsconfig.node.json` with `NodeNext` resolution; keep their syntax erasable so the pinned Node runtime can execute them directly. The build orchestrator is checked by the browser-aware root project because it imports the manifest and prerender generators. The dependency named `typescript` intentionally aliases `@typescript/typescript6` for legacy compiler-API consumers; use `tsc6` only for targeted bridge diagnosis, and do not collapse the bridge or introduce TypeScript-7-only source syntax until those consumers move to the new API. See [ADR 0006](docs/adr/0006-run-typescript-7-with-a-typescript-6-api-bridge.md).
 - Run `pnpm install` when dependencies are missing or `pnpm-lock.yaml` changes.
 - Run `pnpm dev` while editing source or bundled styles.
 - Use `pnpm verify:quick` for an iteration-only parallel pass over typechecking, lint, React Doctor, and the React Compiler baseline check. It does not replace the full verification pipeline.

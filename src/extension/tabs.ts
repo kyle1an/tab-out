@@ -263,11 +263,6 @@ export async function closeTabsExactResult(
   return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
 }
 
-/** Convenience value API; use closeTabsExactResult when mutation status matters. */
-export async function closeTabsExact(urls: string[], opts: CloseOptions = {}): Promise<TabSnapshot[]> {
-  return (await closeTabsExactResult(urls, opts)).value
-}
-
 /**
  * Close an exact render-derived set. The URL guard prevents a stale tab id
  * (including one revived from a startup snapshot after an id reuse) from
@@ -296,14 +291,6 @@ export async function closeTabsByTargetsResult(
   return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
 }
 
-/** Convenience value API; use closeTabsByTargetsResult when mutation status matters. */
-export async function closeTabsByTargets(
-  targets: readonly DashboardTabMutationTarget[],
-  opts: CloseOptions = {}
-): Promise<TabSnapshot[]> {
-  return (await closeTabsByTargetsResult(targets, opts)).value
-}
-
 /**
  * focusTab(url) — switch Chrome to the tab matching `url` (exact first,
  * hostname fallback) and focus its window.
@@ -326,11 +313,6 @@ export async function focusExactTabOrOpenResult(url: string): Promise<ExactTabFo
     return { status: await openTabUrl(url) ? 'opened' : 'open-failed' }
   }
   return { status: result.status }
-}
-
-export async function focusExactTabOrOpen(url: string): Promise<boolean> {
-  const result = await focusExactTabOrOpenResult(url)
-  return result.status === 'focused' || result.status === 'activated' || result.status === 'opened'
 }
 
 /**
@@ -429,9 +411,4 @@ export async function closeDuplicateTabsResult(
   }
 
   return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
-}
-
-/** Convenience value API; use closeDuplicateTabsResult when mutation status matters. */
-export async function closeDuplicateTabs(urls: string[], keepOne = true, opts: DedupeOptions = {}): Promise<TabSnapshot[]> {
-  return (await closeDuplicateTabsResult(urls, keepOne, opts)).value
 }

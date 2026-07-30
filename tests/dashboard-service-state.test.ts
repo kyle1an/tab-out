@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
-  fetchDashboardServiceState,
-  fetchDashboardServiceStateResult
-} from '../src/extension/dashboard-service-state.js'
+import { fetchDashboardServiceStateResult } from '../src/extension/dashboard-service-state.js'
 
 test('dashboard service state distinguishes a transport failure from valid empty state', async () => {
   globalThis.chrome = {
@@ -42,7 +39,6 @@ test('dashboard service state treats an explicit successful empty response as kn
   assert.equal(result.ok, true)
   assert.equal(result.value.tabHistory.maxSize, 48)
   assert.equal(result.value.openTabsSnapshot?.tabs[0]?.id, 1)
-  assert.deepEqual(await fetchDashboardServiceState(), result.value)
 })
 
 test('dashboard service state rejects malformed successful responses instead of clearing known state', async () => {

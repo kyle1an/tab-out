@@ -229,7 +229,3 @@ export async function fetchClosedTabsResult(): Promise<BrowserReadResult<ClosedT
   }
   return { ok: true, value: entries }
 }
-
-export async function fetchClosedTabs(): Promise<ClosedTabEntry[]> {
-  return (await fetchClosedTabsResult()).value
-}

@@ -14,7 +14,7 @@ function injectAppMarkup(appMarkup: string): string {
 }
 
 /**
- * Builds `extension/index.html`. `scripts/write-index-html.ts` writes the
+ * Builds `extension/index.html`. `scripts/build-extension.ts` writes the
  * result during `pnpm build`, prerendering the same AppRoot that the client
  * attaches so the first-render markup has one declaration.
  */

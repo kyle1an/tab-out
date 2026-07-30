@@ -27,10 +27,6 @@ export function tabMatchesSourceFilter(
   return tabMatchesFilter(tab, filter)
 }
 
-export function getFilteredCloseableUrlsForQuery(realTabs: DashboardTab[], query: CompiledFilterQuery): string[] {
-  return getFilteredCloseableTabsForQuery(realTabs, query).map((tab) => tab.url)
-}
-
 export function getFilteredCloseableTabsForQuery(realTabs: DashboardTab[], query: CompiledFilterQuery): DashboardTab[] {
   if (!query.active) return []
   return realTabs

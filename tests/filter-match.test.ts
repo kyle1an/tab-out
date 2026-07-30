@@ -3,7 +3,7 @@ import test from 'node:test'
 
 import { computeDomainCardViewModel } from '../src/extension/domain-card-view-model.js'
 import {
-  getFilteredCloseableUrlsForQuery,
+  getFilteredCloseableTabsForQuery,
   tabMatchesCompiledFilter,
   tabMatchesFilter
 } from '../src/extension/filter-match.js'
@@ -129,11 +129,11 @@ test('one compiled query serves every item, card mode, and filtered-close pass',
     { domain: 'example.test', tabs },
     { filter, filterQuery: query, mode: 'unmatched' }
   )
-  const filteredCloseUrls = getFilteredCloseableUrlsForQuery(tabs, query)
+  const filteredCloseTabs = getFilteredCloseableTabsForQuery(tabs, query)
 
   assert.equal(compileCount, 1)
   assert.equal(directMatches.length, 120)
   assert.equal(matchedCard.tabCount, 120)
   assert.equal(unmatchedCard.tabCount, 120)
-  assert.equal(filteredCloseUrls.length, 120)
+  assert.equal(filteredCloseTabs.length, 120)
 })

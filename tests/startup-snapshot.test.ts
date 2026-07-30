@@ -8,7 +8,7 @@ import { DEFAULT_HISTORY_RANGE } from '../src/extension/history-source.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
 import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/section-pins.js'
-import { DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, loadCachedDashboardStartup, loadCachedDashboardStartupSnapshot, promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../src/extension/startup-snapshot.js'
+import { DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS, loadCachedDashboardStartup, promoteCachedDashboardStartupSnapshot, saveCachedDashboardStartupSnapshot } from '../src/extension/startup-snapshot.js'
 import { addCurrentTabOutPageToStartupSnapshot, buildDashboardStartupViewModel } from '../src/extension/startup-view-model.js'
 import { makeChromeTab } from './helpers/chrome-tab.js'
 
@@ -47,6 +47,36 @@ test('dashboard local state rejects malformed pin storage instead of clearing wa
 
   assert.equal(result.ok, false)
   assert.deepEqual(result.state.pinnedDomains, [])
+})
+
+test('dashboard local state loads and normalizes every pin kind atomically', async () => {
+  const sectionId = subdomainPinId('example.test', 'docs')
+  const pageChipId = pageChipPinId(
+    'tabs',
+    pageChipPinScopeId('example.test', 'docs', '', ''),
+    pageChipPinKeyForUrl('https://docs.example.test/')
+  )
+  ;(globalThis as any).chrome = {
+    storage: {
+      local: {
+        get: async () => ({
+          [DOMAIN_PIN_STORAGE_KEY]: ['example.test', 'example.test', '__private__'],
+          [SECTION_PIN_STORAGE_KEY]: [sectionId, 'bogus', sectionId],
+          [PAGE_CHIP_PIN_STORAGE_KEY]: [pageChipId, 'bogus', pageChipId]
+        })
+      }
+    }
+  }
+
+  assert.deepEqual(await loadDashboardLocalStateResult(), {
+    ok: true,
+    state: {
+      loaded: true,
+      pinnedDomains: ['example.test'],
+      pinnedSectionIds: [sectionId],
+      pinnedPageChipIds: [pageChipId]
+    }
+  })
 })
 
 function activityRecord(url: string, title: string, at: number) {
@@ -128,7 +158,7 @@ test('startup snapshot cache paints any structurally valid session snapshot', as
   assert.deepEqual(fresh?.localState?.pinnedDomains, ['example.test'])
   assert.deepEqual(fresh?.localState?.pinnedSectionIds, ['section-alpha'])
   assert.deepEqual(fresh?.localState?.pinnedPageChipIds, ['chip-alpha'])
-  assert.equal((await loadCachedDashboardStartupSnapshot())?.dashboard, snapshot.dashboard)
+  assert.equal((await loadCachedDashboardStartup())?.snapshot.dashboard, snapshot.dashboard)
 
   // An aged snapshot still belongs to this browser session (chrome.storage.session is
   // cleared on restart), so it is painted immediately instead of dropped; otherwise reopens

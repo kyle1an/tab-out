@@ -52,7 +52,3 @@ export async function focusWorkingSetItemResult(item: Pick<WorkingSetItem, 'tabI
     rawUrl: item.rawUrl
   })
 }
-
-export async function focusWorkingSetItem(item: Pick<WorkingSetItem, 'tabId' | 'windowId' | 'tabUrl' | 'rawUrl'>): Promise<boolean> {
-  return (await focusWorkingSetItemResult(item)).status === 'focused'
-}

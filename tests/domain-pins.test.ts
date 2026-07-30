@@ -3,13 +3,11 @@ import test from 'node:test'
 import fc from 'fast-check'
 
 import {
-  DOMAIN_PIN_STORAGE_KEY,
+  applyPinnedDomainMutation,
   isPinnableDomain,
-  loadPinnedDomainsResult,
   movePinnedDomainInList,
   normalizePinnedDomains,
-  reorderPinnedDomainInList,
-  togglePinnedDomainInList
+  reorderPinnedDomainInList
 } from '../src/extension/domain-pins.js'
 
 const pinnedDomainsArbitrary = (minimumLength: number) =>
@@ -44,12 +42,12 @@ test('normalizePinnedDomains satisfies its invariants for arbitrary stored value
   )
 })
 
-test('togglePinnedDomainInList removes existing domains and appends new domains', () => {
-  assert.deepEqual(togglePinnedDomainInList(['example.com', 'docs.example'], 'example.com'), ['docs.example'])
-  assert.deepEqual(togglePinnedDomainInList(['example.com'], 'docs.example'), ['example.com', 'docs.example'])
+test('applyPinnedDomainMutation removes existing domains and appends new domains', () => {
+  assert.deepEqual(applyPinnedDomainMutation(['example.com', 'docs.example'], { type: 'set-pinned', domain: 'example.com', pinned: false }), ['docs.example'])
+  assert.deepEqual(applyPinnedDomainMutation(['example.com'], { type: 'set-pinned', domain: 'docs.example', pinned: true }), ['example.com', 'docs.example'])
 })
 
-test('togglePinnedDomainInList changes only the selected generated domain', () => {
+test('applyPinnedDomainMutation changes only the selected generated domain', () => {
   fc.assert(
     fc.property(pinnedDomainsArbitrary(0), fc.nat(), fc.boolean(), (domains, seed, selectExisting) => {
       const domain = selectExisting && domains.length > 0
@@ -60,7 +58,11 @@ test('togglePinnedDomainInList changes only the selected generated domain', () =
         ? domains.filter((candidate) => candidate !== domain)
         : [...domains, domain]
 
-      assert.deepEqual(togglePinnedDomainInList(domains, domain), expected)
+      assert.deepEqual(applyPinnedDomainMutation(domains, {
+        type: 'set-pinned',
+        domain,
+        pinned: !domains.includes(domain)
+      }), expected)
     })
   )
 })
@@ -163,21 +165,4 @@ test('moving an interior generated domain and reversing the move restores the li
       )
     })
   )
-})
-
-test('loadPinnedDomainsResult rejects malformed stored state', async () => {
-  const previous = globalThis.chrome
-  globalThis.chrome = {
-    storage: {
-      local: {
-        get: async () => ({ [DOMAIN_PIN_STORAGE_KEY]: {} })
-      }
-    }
-  } as unknown as typeof globalThis.chrome
-
-  try {
-    assert.deepEqual(await loadPinnedDomainsResult(), { ok: false, value: [] })
-  } finally {
-    globalThis.chrome = previous
-  }
 })

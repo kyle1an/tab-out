@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { countClosableDuplicateExtras, pickDuplicateTabsToClose } from '../src/extension/tab-dedupe-policy.js'
-import { closeDuplicateTabs, closeDuplicateTabsResult, fetchOpenTabsSnapshot } from '../src/extension/tabs.js'
+import { closeDuplicateTabsResult, fetchOpenTabsSnapshot } from '../src/extension/tabs.js'
 
 function createChromeMock(initialTabs: any[]) {
   let tabs = initialTabs.map((tab) => ({ ...tab }))
@@ -191,7 +191,7 @@ test('global dedupe keeps the current Tab Out tab when a pinned duplicate exists
     { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
-  await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [])
 })
@@ -203,7 +203,7 @@ test('global dedupe preserves pinned Tab Out tabs while closing non-current unpi
     { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
-  await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [2])
 })
@@ -215,7 +215,7 @@ test('global dedupe keeps the current Tab Out tab when a grouped duplicate exist
     { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 1, index: 0, active: false, pinned: false, groupId: 7 }
   ])
 
-  await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [])
 })
@@ -230,7 +230,7 @@ test('global dedupe aborts for Tab Out pages when current-window identity is una
     throw new Error('Current window disappeared')
   }
 
-  const snapshot = await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+  const { value: snapshot } = await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(snapshot, [])
   assert.deepEqual(removedIds, [])
@@ -246,7 +246,7 @@ test('global dedupe accepts toolbar-provided current-window identity', async () 
     throw new Error('Current window should come from the toolbar click')
   }
 
-  await closeDuplicateTabs([tabOutUrl], true, {
+  await closeDuplicateTabsResult([tabOutUrl], true, {
     currentWindowId: 1,
     preservePinnedTabOut: true
   })
@@ -261,7 +261,7 @@ test('global dedupe returns an undo snapshot for closed Tab Out duplicates', asy
     { id: 2, url: tabOutUrl, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
-  const snapshot = await closeDuplicateTabs([tabOutUrl], true, { preservePinnedTabOut: true })
+  const { value: snapshot } = await closeDuplicateTabsResult([tabOutUrl], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(snapshot, [
     {
@@ -426,7 +426,7 @@ test('global dedupe returns an undo snapshot for closed native new-tab duplicate
     { id: 2, url: newTabUrl, title: 'New Tab', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
-  const snapshot = await closeDuplicateTabs([newTabUrl], true, { preservePinnedTabOut: true })
+  const { value: snapshot } = await closeDuplicateTabsResult([newTabUrl], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(snapshot, [
     {
@@ -448,7 +448,7 @@ test('global dedupe does not preserve pinned non-Tab-Out tabs with the Tab Out-o
     { id: 2, url, title: 'Example', windowId: 1, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
-  await closeDuplicateTabs([url], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([url], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [1])
 })
@@ -476,7 +476,7 @@ test('global dedupe collapses dashboards with different filter params, keeping t
     { id: 3, url: base, title: 'Tab Out', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
   ])
 
-  await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds.toSorted((a, b) => a - b), [2, 3])
 })
@@ -489,7 +489,7 @@ test('global dedupe closes an ordinary native new-tab alias while keeping the cu
     { id: 2, url: newTab, title: 'New Tab', windowId: 2, index: 0, active: false, pinned: false, groupId: -1 }
   ])
 
-  const snapshot = await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
+  const { value: snapshot } = await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [2])
   assert.deepEqual(snapshot, [{
@@ -510,7 +510,7 @@ test('global dedupe uses existing recency ranking instead of preferring one Tab 
     { id: 2, url: 'chrome://newtab/', title: 'New Tab', windowId: 2, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
   ])
 
-  await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [1])
 })
@@ -522,7 +522,7 @@ test('global dedupe preserves a pinned dashboard even when filters differ', asyn
     { id: 2, url: `${base}?filter=docs`, title: 'Tab Out', windowId: 2, index: 1, active: true, pinned: false, groupId: -1 }
   ])
 
-  await closeDuplicateTabs([base], true, { preservePinnedTabOut: true })
+  await closeDuplicateTabsResult([base], true, { preservePinnedTabOut: true })
 
   assert.deepEqual(removedIds, [2])
 })
@@ -536,7 +536,7 @@ test('closeDuplicateTabs accepts a non-canonical requested URL for equivalent Ji
     { id: 2, url: shortForm, title: 'ABC-123', windowId: 1, index: 1, active: false, pinned: false, groupId: -1, lastAccessed: 200 }
   ])
 
-  await closeDuplicateTabs([longForm], true)
+  await closeDuplicateTabsResult([longForm], true)
 
   assert.deepEqual(removedIds, [1])
 })
@@ -548,7 +548,7 @@ test('closeDuplicateTabs treats GitHub repository root slash variants as duplica
     { id: 2, url: `${repository}/`, title: 'example/repo', windowId: 1, index: 1, active: true, pinned: false, groupId: -1, lastAccessed: 100 }
   ])
 
-  await closeDuplicateTabs([`${repository}/`], true)
+  await closeDuplicateTabsResult([`${repository}/`], true)
 
   assert.deepEqual(removedIds, [1])
 })

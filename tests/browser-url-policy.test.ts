@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { updateBadge } from '../src/extension/background/badge.js'
+import { createBadgeRefreshService } from '../src/extension/background/badge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import { isBrowserInternalUrl } from '../src/extension/browser-url-policy.js'
 import { getDashboardTabsFromOpenTabs } from '../src/extension/tabs.js'
@@ -63,7 +63,7 @@ test('toolbar badge counts duplicate extras while excluding every browser-intern
     }
   } as unknown as ChromeApi
 
-  await updateBadge(chromeApi)
+  await createBadgeRefreshService(chromeApi).refresh()
 
   assert.deepEqual(badgeText, ['2'])
 })

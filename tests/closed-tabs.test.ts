@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 
-import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabs, fetchClosedTabsResult, isClosedTabFetchSuppressed, restoreClosedTab, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
+import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, isClosedTabFetchSuppressed, restoreClosedTab, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
 
 type Session = chrome.sessions.Session
 type SessionTab = chrome.tabs.Tab
@@ -49,7 +49,7 @@ test('fetchClosedTabs flattens single tab sessions and window sessions to one en
     }
   ])
 
-  const result = await fetchClosedTabs()
+  const result = (await fetchClosedTabsResult()).value
   assert.equal(result.length, 3)
   assert.equal(valueAt(result, 0).sessionId, 'tab-a')
   assert.equal(valueAt(result, 0).lastClosedAt, 1_700_000_010)
@@ -79,7 +79,7 @@ test('fetchClosedTabs drops every browser-internal URL kind', async () => {
     }
   ])
 
-  const result = await fetchClosedTabs()
+  const result = (await fetchClosedTabsResult()).value
   assert.equal(result.length, 1)
   assert.equal(valueAt(result, 0).sessionId, 'd')
 })
@@ -89,13 +89,13 @@ test('fetchClosedTabs drops tabs without urls and entries without sessionId', as
     { lastModified: 1, tab: { id: 1, windowId: 1, url: '', title: 'no url', favIconUrl: '' } as SessionTab },
     { lastModified: 2, tab: { sessionId: '', id: 2, windowId: 1, url: 'https://example.com/x', title: 'x', favIconUrl: '' } as SessionTab & { sessionId: string } }
   ])
-  const result = await fetchClosedTabs()
+  const result = (await fetchClosedTabsResult()).value
   assert.equal(result.length, 0)
 })
 
 test('fetchClosedTabs resolves to empty when chrome.sessions is unavailable', async () => {
   globalThis.chrome = {} as unknown as typeof globalThis.chrome
-  const result = await fetchClosedTabs()
+  const result = (await fetchClosedTabsResult()).value
   assert.deepEqual(result, [])
 })
 

@@ -8,7 +8,6 @@
     "paths": {}
   },
   "files": [
-    "scripts/build-extension.ts",
     "scripts/check-tailwind-diagnostics.ts",
     "scripts/react-compiler-check.ts",
     "scripts/serve.ts",

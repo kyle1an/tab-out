@@ -79,10 +79,6 @@ export async function queryAllTabsResult(): Promise<BrowserReadResult<chrome.tab
   }
 }
 
-export async function queryAllTabs(): Promise<chrome.tabs.Tab[]> {
-  return (await queryAllTabsResult()).value
-}
-
 export async function queryTabsInWindowResult(windowId: number): Promise<BrowserReadResult<chrome.tabs.Tab[]>> {
   const api = chromeTabsApi()
   if (!api?.tabs?.query) return { ok: false, value: [] }
@@ -242,10 +238,6 @@ export async function getAllWindowsResult(): Promise<BrowserReadResult<chrome.wi
   }
 }
 
-export async function getAllWindows(): Promise<chrome.windows.Window[]> {
-  return (await getAllWindowsResult()).value
-}
-
 export async function getWindow(windowId: number): Promise<chrome.windows.Window | null> {
   const api = chromeTabsApi()
   if (!api?.windows?.get) return null
@@ -304,10 +296,6 @@ export async function queryTabGroupsResult(): Promise<BrowserReadResult<chrome.t
   }
 }
 
-export async function queryTabGroups(): Promise<chrome.tabGroups.TabGroup[]> {
-  return (await queryTabGroupsResult()).value
-}
-
 export async function getRecentlyClosedResult(filter?: chrome.sessions.Filter): Promise<BrowserReadResult<chrome.sessions.Session[]>> {
   const api = chromeTabsApi()
   if (!api?.sessions?.getRecentlyClosed) return { ok: true, value: [] }
@@ -316,10 +304,6 @@ export async function getRecentlyClosedResult(filter?: chrome.sessions.Filter): 
   } catch {
     return { ok: false, value: [] }
   }
-}
-
-export async function getRecentlyClosed(filter?: chrome.sessions.Filter): Promise<chrome.sessions.Session[]> {
-  return (await getRecentlyClosedResult(filter)).value
 }
 
 /** restoreSession — reopen a recently-closed session entry; false when unavailable or already gone. */

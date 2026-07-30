@@ -13,15 +13,3 @@ export async function writeChromeStorageValue(
 ): Promise<void> {
   await storage.set({ [key]: value })
 }
-
-export async function writeChromeStorageValueBestEffort(
-  storage: chrome.storage.StorageArea,
-  key: string,
-  value: unknown
-): Promise<void> {
-  try {
-    await writeChromeStorageValue(storage, key, value)
-  } catch (error) {
-    console.warn('Tab Out background best-effort storage write failed', key, error)
-  }
-}

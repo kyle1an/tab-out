@@ -2,17 +2,14 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  PAGE_CHIP_PIN_STORAGE_KEY,
+  applyPinnedPageChipMutation,
   createPinnedPageChipIndex,
-  loadPinnedPageChipsResult,
   normalizePinnedPageChips,
   pageChipPinId,
   pageChipPinKeyForUrl,
   pageChipPinScopeId,
-  pinnedPageChipOrder,
-  togglePinnedPageChipInList
+  pinnedPageChipOrder
 } from '../src/extension/page-chip-pins.js'
-import { installChromeStorageMock } from './helpers/chrome-storage.js'
 
 test('pageChipPinId produces a source-scoped encoded page chip identity', () => {
   const scopeId = pageChipPinScopeId('example.com', 'docs', '/guide', 'alpha/repo')
@@ -35,13 +32,13 @@ test('normalizePinnedPageChips preserves valid ids in pin order and dedupes by i
   )
 })
 
-test('togglePinnedPageChipInList removes an existing pin and appends a new pin', () => {
+test('applyPinnedPageChipMutation removes an existing pin and appends a new pin', () => {
   const scopeId = pageChipPinScopeId('example.com', '', '', '')
   const first = pageChipPinId('tabs', scopeId, pageChipPinKeyForUrl('https://example.com/a'))
   const second = pageChipPinId('tabs', scopeId, pageChipPinKeyForUrl('https://example.com/b'))
 
-  assert.deepEqual(togglePinnedPageChipInList([first], first), [])
-  assert.deepEqual(togglePinnedPageChipInList([first], second), [first, second])
+  assert.deepEqual(applyPinnedPageChipMutation([first], { type: 'set-pinned', id: first, pinned: false }), [])
+  assert.deepEqual(applyPinnedPageChipMutation([first], { type: 'set-pinned', id: second, pinned: true }), [first, second])
 })
 
 test('createPinnedPageChipIndex exposes per-source and per-scope pin order', () => {
@@ -58,36 +55,4 @@ test('createPinnedPageChipIndex exposes per-source and per-scope pin order', () 
   assert.equal(pinnedPageChipOrder(index, 'tabs', docsScope, pageChipPinKeyForUrl('https://example.com/docs/a')), 2)
   assert.equal(pinnedPageChipOrder(index, 'bookmarks', rootScope, pageChipPinKeyForUrl('https://example.com/a')), 3)
   assert.equal(pinnedPageChipOrder(index, 'tabs', rootScope, pageChipPinKeyForUrl('https://example.com/c')), null)
-})
-
-test('loadPinnedPageChipsResult reports unavailable chrome.storage', async () => {
-  const previous = (globalThis as { chrome?: unknown }).chrome
-  delete (globalThis as { chrome?: unknown }).chrome
-  try {
-    assert.deepEqual(await loadPinnedPageChipsResult(), { ok: false, value: [] })
-  } finally {
-    if (previous !== undefined) (globalThis as { chrome?: unknown }).chrome = previous
-  }
-})
-
-test('loadPinnedPageChipsResult reads and normalizes the stored value', async () => {
-  const scopeId = pageChipPinScopeId('example.com', '', '', '')
-  const id = pageChipPinId('tabs', scopeId, pageChipPinKeyForUrl('https://example.com/a'))
-  const restore = installChromeStorageMock({
-    [PAGE_CHIP_PIN_STORAGE_KEY]: [id, 'bogus', id]
-  })
-  try {
-    assert.deepEqual(await loadPinnedPageChipsResult(), { ok: true, value: [id] })
-  } finally {
-    restore()
-  }
-})
-
-test('loadPinnedPageChipsResult rejects malformed stored state', async () => {
-  const restore = installChromeStorageMock({ [PAGE_CHIP_PIN_STORAGE_KEY]: {} })
-  try {
-    assert.deepEqual(await loadPinnedPageChipsResult(), { ok: false, value: [] })
-  } finally {
-    restore()
-  }
 })

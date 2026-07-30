@@ -675,10 +675,6 @@ export async function loadCachedDashboardStartup(now = Date.now()): Promise<Cach
   return (await loadCachedDashboardStartupResult(now)).value
 }
 
-export async function loadCachedDashboardStartupSnapshot(now = Date.now()): Promise<DashboardStartupSnapshot | null> {
-  return (await loadCachedDashboardStartup(now))?.snapshot ?? null
-}
-
 async function writeStartupSnapshotCache(storage: chrome.storage.StorageArea | null, payload: CachedDashboardStartupSnapshot): Promise<boolean> {
   if (!storage) return true
   let fallbackPayload = payload

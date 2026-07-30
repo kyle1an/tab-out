@@ -54,7 +54,7 @@ export type DashboardSource = 'tabs' | 'bookmarks' | 'history'
 
 export type HistorySearchStatus = 'idle' | 'ready' | 'error'
 
-export type HistorySearchSummaryPhase = 'searching' | 'updating' | 'ready' | 'error'
+type HistorySearchSummaryPhase = 'searching' | 'updating' | 'ready' | 'error'
 
 export interface HistorySearchSummary {
   phase: HistorySearchSummaryPhase

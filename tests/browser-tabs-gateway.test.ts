@@ -6,21 +6,17 @@ import {
   createTabWithFallbackUrl,
   duplicateTab,
   focusWindow,
-  getAllWindows,
   getAllWindowsResult,
   getCurrentWindow,
   getCurrentWindowResult,
-  getRecentlyClosed,
   getRecentlyClosedResult,
   getTab,
   getWindow,
   groupTabs,
   highlightTabs,
   moveTab,
-  queryAllTabs,
   queryAllTabsResult,
   queryTabsInWindowResult,
-  queryTabGroups,
   queryTabGroupsResult,
   reloadTab,
   removeTabs,
@@ -55,10 +51,10 @@ test('gateway resolves the injected api before the global, and releases on null'
   ;(globalThis as { chrome?: unknown }).chrome = createFakeChromeApi({ tabs: [fakeTab(2, 'https://global.test/')] })
 
   setChromeTabsApi(injected)
-  assert.deepEqual((await queryAllTabs()).map((tab) => tab.url), ['https://injected.test/'])
+  assert.deepEqual((await queryAllTabsResult()).value.map((tab) => tab.url), ['https://injected.test/'])
 
   setChromeTabsApi(null)
-  assert.deepEqual((await queryAllTabs()).map((tab) => tab.url), ['https://global.test/'])
+  assert.deepEqual((await queryAllTabsResult()).value.map((tab) => tab.url), ['https://global.test/'])
 })
 
 test('gateway re-reads globalThis.chrome on every call — no module-load caching', async (t) => {
@@ -66,10 +62,10 @@ test('gateway re-reads globalThis.chrome on every call — no module-load cachin
   t.after(restoreGlobal)
 
   ;(globalThis as { chrome?: unknown }).chrome = createFakeChromeApi({ tabs: [fakeTab(1, 'https://first.test/')] })
-  assert.equal((await queryAllTabs()).length, 1)
+  assert.equal((await queryAllTabsResult()).value.length, 1)
 
   ;(globalThis as { chrome?: unknown }).chrome = createFakeChromeApi({ tabs: [fakeTab(2, 'https://second.test/'), fakeTab(3, 'https://third.test/')] })
-  assert.deepEqual((await queryAllTabs()).map((tab) => tab.url), ['https://second.test/', 'https://third.test/'])
+  assert.deepEqual((await queryAllTabsResult()).value.map((tab) => tab.url), ['https://second.test/', 'https://third.test/'])
 })
 
 test('gateway never throws: missing global and rejecting apis normalize to empty values', async (t) => {
@@ -79,7 +75,6 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
     restoreGlobal()
   })
 
-  assert.deepEqual(await queryAllTabs(), [])
   assert.deepEqual(await queryAllTabsResult(), { ok: false, value: [] })
   assert.equal(await getTab(1), null)
   assert.deepEqual(await removeTabs([1, 2]), [])
@@ -90,15 +85,12 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   assert.equal(await highlightTabs(1, [0]), false)
   assert.equal(await groupTabs([1], 5), false)
   assert.equal(await moveTab(1, { index: 0 }), null)
-  assert.deepEqual(await getAllWindows(), [])
   assert.deepEqual(await getAllWindowsResult(), { ok: false, value: [] })
   assert.equal(await getWindow(1), null)
   assert.equal(await getCurrentWindow(), null)
   assert.deepEqual(await getCurrentWindowResult(), { ok: false, value: null })
   assert.equal(await focusWindow(1), false)
-  assert.deepEqual(await queryTabGroups(), [])
   assert.deepEqual(await queryTabGroupsResult(), { ok: true, value: [] })
-  assert.deepEqual(await getRecentlyClosed(), [])
   assert.deepEqual(await getRecentlyClosedResult(), { ok: true, value: [] })
 
   const rejecting = {
@@ -112,7 +104,7 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
     }
   } as unknown as ChromeTabsApi
   setChromeTabsApi(rejecting)
-  assert.deepEqual(await queryAllTabs(), [])
+  assert.deepEqual(await queryAllTabsResult(), { ok: false, value: [] })
   assert.equal(await getTab(1), null)
 })
 
@@ -328,5 +320,5 @@ test('fake windows and sessions back the read ops', async (t) => {
   assert.equal(await focusWindow(1), true)
   assert.equal(windows[0]?.focused, true)
   assert.equal(windows[1]?.focused, false)
-  assert.equal((await getRecentlyClosed()).length, 1)
+  assert.equal((await getRecentlyClosedResult()).value.length, 1)
 })

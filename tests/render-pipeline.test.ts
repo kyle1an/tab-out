@@ -13,7 +13,6 @@ import {
   HISTORY_RANGE_OPTIONS,
   deleteHistorySourceUrl,
   fetchHistorySourceSearch,
-  fetchHistorySourceItems,
   flattenHistoryItems,
   isHistoryFilterEnabled
 } from '../src/extension/history-source.js'
@@ -2336,7 +2335,7 @@ test('history source sends the raw trimmed filter text to Chrome history search'
   }
 
   try {
-    const items = await fetchHistorySourceItems(' github "pull request" 4706 ', '7d')
+    const { tabs: items } = await fetchHistorySourceSearch(' github "pull request" 4706 ', '7d')
     assert.equal(searchedText, 'github "pull request" 4706')
     assert.deepEqual(items.map((item) => item.sourceType), ['history'])
   } finally {
@@ -2423,7 +2422,7 @@ test('history filter off skips Chrome history search', async () => {
   }
 
   try {
-    const items = await fetchHistorySourceItems('openai', HISTORY_FILTER_OFF)
+    const { tabs: items } = await fetchHistorySourceSearch('openai', HISTORY_FILTER_OFF)
     assert.deepEqual(items, [])
     assert.equal(searched, false)
   } finally {
@@ -2443,7 +2442,7 @@ test('all-time history search starts at the Unix epoch', async () => {
   }
 
   try {
-    await fetchHistorySourceItems('example', 'all')
+    await fetchHistorySourceSearch('example', 'all')
     assert.equal(searchQuery.text, 'example')
     assert.equal(searchQuery.maxResults, 30)
     assert.equal(searchQuery.startTime, 0)

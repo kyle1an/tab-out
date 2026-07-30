@@ -2,15 +2,12 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  SECTION_PIN_STORAGE_KEY,
-  loadPinnedSectionsResult,
+  applyPinnedSectionMutation,
   normalizePinnedSections,
   pathgroupPinId,
   subdomainPinId,
-  togglePinnedSectionInList,
   websitePathPinId
 } from '../src/extension/section-pins.js'
-import { installChromeStorageMock } from './helpers/chrome-storage.js'
 
 // === Identity builders ===
 
@@ -50,7 +47,7 @@ test('section pin identities escape delimiters in arbitrary URL-derived keys', (
 
   assert.equal(id, 'website-path:v2|example.test||/foo%7Cbar')
   assert.deepEqual(normalizePinnedSections([id]), [id])
-  assert.deepEqual(togglePinnedSectionInList([], id), [id])
+  assert.deepEqual(applyPinnedSectionMutation([], { type: 'set-pinned', id, pinned: true }), [id])
 })
 
 test('section pin identities preserve legacy percent-escaped URL paths', () => {
@@ -93,59 +90,26 @@ test('normalizePinnedSections filters out non-string / empty / unknown-kind entr
   assert.deepEqual(normalizePinnedSections(input), [valid])
 })
 
-// === togglePinnedSectionInList ===
+// === applyPinnedSectionMutation ===
 
-test('togglePinnedSectionInList adds an absent id', () => {
+test('applyPinnedSectionMutation adds an absent id', () => {
   const id = subdomainPinId('a.com', 'x')
-  assert.deepEqual(togglePinnedSectionInList([], id), [id])
+  assert.deepEqual(applyPinnedSectionMutation([], { type: 'set-pinned', id, pinned: true }), [id])
 })
 
-test('togglePinnedSectionInList removes a present id', () => {
+test('applyPinnedSectionMutation removes a present id', () => {
   const id = subdomainPinId('a.com', 'x')
-  assert.deepEqual(togglePinnedSectionInList([id], id), [])
+  assert.deepEqual(applyPinnedSectionMutation([id], { type: 'set-pinned', id, pinned: false }), [])
 })
 
-test('togglePinnedSectionInList ignores invalid identities', () => {
+test('applyPinnedSectionMutation ignores invalid identities', () => {
   const valid = subdomainPinId('a.com', 'x')
-  assert.deepEqual(togglePinnedSectionInList([valid], 'bogus'), [valid])
-  assert.deepEqual(togglePinnedSectionInList([valid], ''), [valid])
+  assert.deepEqual(applyPinnedSectionMutation([valid], { type: 'set-pinned', id: 'bogus', pinned: true }), [valid])
+  assert.deepEqual(applyPinnedSectionMutation([valid], { type: 'set-pinned', id: '', pinned: true }), [valid])
 })
 
-test('togglePinnedSectionInList normalizes the existing list before toggling', () => {
+test('applyPinnedSectionMutation normalizes the existing list before setting', () => {
   const a = subdomainPinId('a.com', 'x')
   const b = subdomainPinId('b.com', '')
-  assert.deepEqual(togglePinnedSectionInList([a, a, 'bogus', undefined], b), [a, b])
-})
-
-// === load/save (chrome.storage.local shim) ===
-
-test('loadPinnedSectionsResult reports unavailable chrome.storage', async () => {
-  const previous = (globalThis as { chrome?: unknown }).chrome
-  delete (globalThis as { chrome?: unknown }).chrome
-  try {
-    assert.deepEqual(await loadPinnedSectionsResult(), { ok: false, value: [] })
-  } finally {
-    if (previous !== undefined) (globalThis as { chrome?: unknown }).chrome = previous
-  }
-})
-
-test('loadPinnedSectionsResult reads and normalizes the stored value', async () => {
-  const id = subdomainPinId('a.com', 'x')
-  const restore = installChromeStorageMock({
-    [SECTION_PIN_STORAGE_KEY]: [id, 'bogus', id]
-  })
-  try {
-    assert.deepEqual(await loadPinnedSectionsResult(), { ok: true, value: [id] })
-  } finally {
-    restore()
-  }
-})
-
-test('loadPinnedSectionsResult rejects malformed stored state', async () => {
-  const restore = installChromeStorageMock({ [SECTION_PIN_STORAGE_KEY]: {} })
-  try {
-    assert.deepEqual(await loadPinnedSectionsResult(), { ok: false, value: [] })
-  } finally {
-    restore()
-  }
+  assert.deepEqual(applyPinnedSectionMutation([a, a, 'bogus', undefined], { type: 'set-pinned', id: b, pinned: true }), [a, b])
 })

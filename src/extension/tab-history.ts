@@ -197,10 +197,6 @@ export async function focusHistoryEntryResult(entry: TabHistoryEntry): Promise<E
   })
 }
 
-export async function focusHistoryEntry(entry: TabHistoryEntry): Promise<boolean> {
-  return (await focusHistoryEntryResult(entry)).status === 'focused'
-}
-
 export type CloseHistoryEntryResult = {
   status: 'closed' | 'not-found' | 'unknown' | 'failed'
   closed: boolean
