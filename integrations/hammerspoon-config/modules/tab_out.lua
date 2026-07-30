@@ -14,6 +14,7 @@ local state = {
   extensionId = nil,
   hotkeys = {},
   lastUserSpaceByScreen = {},
+  pendingWindowLaunch = nil,
   profileByWindow = {},
   profileProbes = {},
   queue = {},
@@ -89,6 +90,7 @@ local function showFailure(message, detail, screen)
 end
 
 finishCurrent = function()
+  state.pendingWindowLaunch = nil
   state.busy = false
   state.currentRequest = nil
   later(0.08, function()
@@ -526,6 +528,43 @@ end tell
   return false, "Chrome did not accept the new tab request"
 end
 
+local function createChromeWindowAtFrame(kind, frame)
+  local navigation = ""
+  if kind == "filter" then
+    local url, urlError = filterFocusUrl()
+    if not url then
+      return false, urlError
+    end
+
+    navigation = string.format('set URL of active tab of createdWindow to "%s"', url)
+  end
+
+  local left = math.floor(frame.x)
+  local top = math.floor(frame.y)
+  local right = math.floor(frame.x + frame.w)
+  local bottom = math.floor(frame.y + frame.h)
+  local script = string.format([[
+tell application "Google Chrome"
+  set createdWindow to make new window with properties {bounds:{%d, %d, %d, %d}}
+  %s
+  set index of createdWindow to 1
+  activate
+end tell
+]], left, top, right, bottom, navigation)
+
+  local succeeded, _, descriptor = hs.osascript.applescript(script)
+  if succeeded then
+    return true
+  end
+
+  local errorNumber = type(descriptor) == "table" and descriptor.NSAppleScriptErrorNumber or nil
+  if errorNumber then
+    return false, "Chrome AppleScript error " .. tostring(errorNumber)
+  end
+
+  return false, "Chrome did not accept the bounded window request"
+end
+
 local function finishWindowActivation(kind, window)
   later(0.2, function()
     if kind == "newPage" then
@@ -574,12 +613,7 @@ local function activateExistingWindow(kind, window)
   end, true)
 end
 
-local function translatedFrame(window, targetScreen)
-  local currentFrame = window:frame()
-  local targetFrame = targetScreen:frame()
-  local sourceScreen = window:screen()
-  local sourceFrame = sourceScreen and sourceScreen:frame() or targetFrame
-
+local function translatedRect(currentFrame, sourceFrame, targetFrame)
   local width = math.min(currentFrame.w, targetFrame.w)
   local height = math.min(currentFrame.h, targetFrame.h)
   local offsetX = currentFrame.x - sourceFrame.x
@@ -590,6 +624,66 @@ local function translatedFrame(window, targetScreen)
   local y = targetFrame.y + math.max(0, math.min(offsetY, maxY))
 
   return hs.geometry.rect(x, y, width, height)
+end
+
+local function translatedFrame(window, targetScreen)
+  local targetFrame = targetScreen:frame()
+  local sourceScreen = window:screen()
+  local sourceFrame = sourceScreen and sourceScreen:frame() or targetFrame
+  return translatedRect(window:frame(), sourceFrame, targetFrame)
+end
+
+local function rememberedTargetProfileFrame(targetScreen)
+  local profilePath = state.config.chromeUserDataDirectory .. "/" .. state.config.chromeProfileDirectory
+  local preferences = hs.json.read(profilePath .. "/Preferences")
+  local placement = preferences and preferences.browser and preferences.browser.window_placement or nil
+  local required = {
+    "bottom",
+    "left",
+    "right",
+    "top",
+    "work_area_bottom",
+    "work_area_left",
+    "work_area_right",
+    "work_area_top",
+  }
+
+  for _, key in ipairs(required) do
+    if type(placement) ~= "table" or type(placement[key]) ~= "number" then
+      local targetFrame = targetScreen:frame()
+      return hs.geometry.rect(
+        targetFrame.x,
+        targetFrame.y,
+        math.min(1200, targetFrame.w),
+        math.min(900, targetFrame.h)
+      )
+    end
+  end
+
+  local currentFrame = hs.geometry.rect(
+    placement.left,
+    placement.top,
+    placement.right - placement.left,
+    placement.bottom - placement.top
+  )
+  local sourceFrame = hs.geometry.rect(
+    placement.work_area_left,
+    placement.work_area_top,
+    placement.work_area_right - placement.work_area_left,
+    placement.work_area_bottom - placement.work_area_top
+  )
+
+  if currentFrame.w <= 0 or currentFrame.h <= 0 or sourceFrame.w <= 0 or sourceFrame.h <= 0 then
+    local targetFrame = targetScreen:frame()
+    return hs.geometry.rect(
+      targetFrame.x,
+      targetFrame.y,
+      math.min(1200, targetFrame.w),
+      math.min(900, targetFrame.h)
+    )
+  end
+
+  return translatedRect(currentFrame, sourceFrame, targetScreen:frame())
 end
 
 local function finishNewWindow(request, window, targetScreen, originalFrame)
@@ -613,7 +707,20 @@ local function placeNewWindow(request, window, targetScreen, attempt, targetFram
   end
 
   if attempt >= 5 then
-    failCurrent("Could not place the new Chrome window on the target Desktop", "The Space move did not settle")
+    local detail = "The display move did not settle"
+    if screenUuid(window:screen()) == request.screenUuid then
+      detail = "The Space move did not settle"
+    end
+
+    failCurrent("Could not place the new Chrome window on the target Desktop", detail)
+    return
+  end
+
+  if screenUuid(window:screen()) ~= request.screenUuid then
+    window:setFrame(targetFrame, 0)
+    later(0.2, function()
+      placeNewWindow(request, window, targetScreen, attempt + 1, targetFrame)
+    end, true)
     return
   end
 
@@ -638,6 +745,26 @@ local function trackedChromeWindows(sortOrder)
 
   local application = chromeApplication()
   return application and application:allWindows() or {}
+end
+
+local function targetProfileAnchorWindow()
+  for _, window in ipairs(hs.window.orderedWindows()) do
+    local windowId = window:id()
+    if isChromeWindow(window)
+      and windowId
+      and state.profileByWindow[windowId] == state.config.chromeProfileDirectory
+    then
+      return window
+    end
+  end
+
+  return nil
+end
+
+local function targetProfileIsLastUsed()
+  local localState = chromeLocalState()
+  local profile = localState and localState.profile or nil
+  return profile and profile.last_used == state.config.chromeProfileDirectory or false
 end
 
 local function managedWindowIds()
@@ -686,12 +813,56 @@ local function findNewChromeWindow(previousIds)
   return newestWindow
 end
 
+local function beginNewWindowPlacement(request, targetScreen, launchState, window)
+  if launchState.windowFound then
+    return
+  end
+
+  launchState.windowFound = true
+  if state.pendingWindowLaunch and state.pendingWindowLaunch.launchState == launchState then
+    state.pendingWindowLaunch = nil
+  end
+
+  local targetFrame = translatedFrame(window, targetScreen)
+  if screenUuid(window:screen()) ~= request.screenUuid then
+    window:setFrame(targetFrame, 0)
+  end
+
+  placeNewWindow(request, window, targetScreen, 0, targetFrame)
+end
+
+local function expectNewChromeWindow(request, targetScreen, previousIds, launchState)
+  state.pendingWindowLaunch = {
+    launchState = launchState,
+    previousIds = previousIds,
+    request = request,
+    targetScreen = targetScreen,
+  }
+end
+
+local function handlePendingChromeWindow(window)
+  local pending = state.pendingWindowLaunch
+  local windowId = window and window:id() or nil
+  if not pending
+    or pending.launchState.windowFound
+    or not windowId
+    or pending.previousIds[windowId]
+    or not window:isStandard()
+  then
+    return
+  end
+
+  beginNewWindowPlacement(pending.request, pending.targetScreen, pending.launchState, window)
+end
+
 local function pollForNewWindow(request, targetScreen, previousIds, launchState, attempt)
+  if launchState.windowFound then
+    return
+  end
+
   local window = findNewChromeWindow(previousIds)
   if window then
-    launchState.windowFound = true
-    local targetFrame = translatedFrame(window, targetScreen)
-    placeNewWindow(request, window, targetScreen, 0, targetFrame)
+    beginNewWindowPlacement(request, targetScreen, launchState, window)
     return
   end
 
@@ -710,7 +881,7 @@ local function pollForNewWindow(request, targetScreen, previousIds, launchState,
   end, true)
 end
 
-local function createTargetProfileWindow(request, targetScreen)
+local function launchTargetProfileWindow(request, targetScreen)
   local previousIds = managedWindowIds()
   local launchState = {
     errorOutput = nil,
@@ -742,6 +913,7 @@ local function createTargetProfileWindow(request, targetScreen)
     end
   end, arguments)
 
+  expectNewChromeWindow(request, targetScreen, previousIds, launchState)
   if not task or not task:start() then
     failCurrent("Chrome could not be launched for the target profile")
     return
@@ -749,6 +921,44 @@ local function createTargetProfileWindow(request, targetScreen)
 
   state.tasks[task] = true
   pollForNewWindow(request, targetScreen, previousIds, launchState, 0)
+end
+
+local function createBoundedTargetProfileWindow(request, targetScreen, targetFrame)
+  local previousIds = managedWindowIds()
+  local launchState = { windowFound = false }
+  expectNewChromeWindow(request, targetScreen, previousIds, launchState)
+
+  local created, createError = createChromeWindowAtFrame(request.kind, targetFrame)
+  if not created then
+    failCurrent("Chrome could not create the Tab Out window", createError)
+    return
+  end
+
+  pollForNewWindow(request, targetScreen, previousIds, launchState, 0)
+end
+
+local function createTargetProfileWindow(request, targetScreen)
+  local anchorWindow = targetProfileAnchorWindow()
+  if not anchorWindow then
+    if targetProfileIsLastUsed() then
+      createBoundedTargetProfileWindow(request, targetScreen, rememberedTargetProfileFrame(targetScreen))
+    else
+      launchTargetProfileWindow(request, targetScreen)
+    end
+    return
+  end
+
+  local targetFrame = translatedFrame(anchorWindow, targetScreen)
+  anchorWindow:focus()
+  later(WINDOW_FOCUS_DELAY_SECONDS, function()
+    local focusedWindow = hs.window.focusedWindow()
+    if not focusedWindow or focusedWindow:id() ~= anchorWindow:id() then
+      failCurrent("The target-profile Chrome window did not retain focus")
+      return
+    end
+
+    createBoundedTargetProfileWindow(request, targetScreen, targetFrame)
+  end, true)
 end
 
 local function tryCandidate(request, targetScreen, candidates, index)
@@ -862,6 +1072,8 @@ local function configureChromeWindowCache()
   state.chromeWindowFilter:subscribe(hs.window.filter.windowFocused, function(window)
     learnFocusedChromeProfile(window)
   end, true)
+
+  state.chromeWindowFilter:subscribe(hs.window.filter.windowCreated, handlePendingChromeWindow)
 
   state.chromeWindowFilter:subscribe(hs.window.filter.windowDestroyed, function(window)
     local windowId = window and window:id() or nil
