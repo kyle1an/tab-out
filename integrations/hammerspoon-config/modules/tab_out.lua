@@ -14,7 +14,6 @@ local INACTIVE_WINDOW_COMMANDS = {
 }
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local NEW_TAB_URL = "chrome://newtab/"
-local OPEN_EXECUTABLE = "/usr/bin/open"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
 local DESTINATION_CONTROL_TIMEOUT_SECONDS = 6
 local TARGET_FOCUS_TIMEOUT_SECONDS = 2
@@ -29,7 +28,7 @@ local state = {
   extensionId = nil,
   hotkeys = {},
   lastUserSpaceByScreen = {},
-  pendingWindowLaunch = nil,
+  pendingDirectPlacement = nil,
   privateFocus = nil,
   privateFocusError = nil,
   profileByWindow = {},
@@ -38,7 +37,6 @@ local state = {
   screenWatcher = nil,
   spaceWatcher = nil,
   started = false,
-  tasks = {},
   timers = {},
 }
 
@@ -107,7 +105,11 @@ local function showFailure(message, detail, screen)
 end
 
 finishCurrent = function()
-  state.pendingWindowLaunch = nil
+  local pendingDirectPlacement = state.pendingDirectPlacement
+  if pendingDirectPlacement then
+    stopTimer(pendingDirectPlacement.timeout)
+  end
+  state.pendingDirectPlacement = nil
   state.busy = false
   state.currentRequest = nil
   later(0.08, function()
@@ -586,7 +588,7 @@ local function roundedCoordinate(value)
   return math.floor(value + 0.5)
 end
 
-local function openTabOutInWindowWithoutActivation(kind, window, createTab)
+local function openTabOutTabInFrontWindow(kind, window)
   local url = NEW_TAB_URL
   local urlError
   if kind == "filter" then
@@ -605,36 +607,15 @@ local function openTabOutInWindowWithoutActivation(kind, window, createTab)
   local top = roundedCoordinate(frame.y)
   local right = roundedCoordinate(frame.x + frame.w)
   local bottom = roundedCoordinate(frame.y + frame.h)
-  local tabAction
-  if createTab then
-    tabAction = string.format([[
+  local tabAction = string.format([[
     make new tab at end of tabs with properties {URL:"%s"}
     set active tab index to count of tabs
 ]], url)
-  else
-    tabAction = string.format([[
-    set URL of active tab to "%s"
-]], url)
-  end
 
-  local windowSelection
-  if createTab then
-    windowSelection = [[
+  local windowSelection = [[
   set candidateWindow to front window
   if (bounds of candidateWindow) is not targetBounds then error "The privately focused Chrome window changed before navigation"
 ]]
-  else
-    windowSelection = [[
-  set matchingWindows to {}
-  repeat with candidateWindow in windows
-    if (bounds of candidateWindow) is targetBounds then
-      set end of matchingWindows to candidateWindow
-    end if
-  end repeat
-  if (count matchingWindows) is not 1 then error "The target Chrome window could not be identified uniquely"
-  set candidateWindow to item 1 of matchingWindows
-]]
-  end
 
   local script = string.format([[
 tell application "Google Chrome"
@@ -719,7 +700,7 @@ local function focusDestinationControl(kind, window)
   end
 
   local focused = control:setAttributeValue("AXFocused", true)
-  if not focused then
+  if not focused or control:attributeValue("AXFocused") ~= true then
     return false, "Chrome's destination control could not be focused"
   end
 
@@ -730,12 +711,23 @@ local function focusWindowPrivately(window)
   local windowId = window and window:id() or nil
   local application = window and window:application() or nil
   local processId = application and application:pid() or nil
+  local request = state.currentRequest
   if not windowId
     or not application
     or application:bundleID() ~= state.config.chromeBundleId
     or type(processId) ~= "number"
   then
     return false, "The exact Chrome window identity is unavailable"
+  end
+
+  local windowSpaces = hs.spaces.windowSpaces(window)
+  if not request
+    or screenUuid(window:screen()) ~= request.screenUuid
+    or not windowSpaces
+    or not containsValue(windowSpaces, request.targetSpaceId)
+    or state.profileByWindow[windowId] ~= state.config.chromeProfileDirectory
+  then
+    return false, "The Chrome window no longer matches the target display, Desktop, and profile"
   end
 
   if not state.privateFocus then
@@ -776,7 +768,7 @@ local function privatelyActivateWindow(window, onActivated)
   end)
 end
 
--- Direct-placement windows already contain their destination before Chrome is
+-- Direct-Placement Bridge windows already contain their destination before Chrome is
 -- made active. Existing windows invert that order: exact private focus first,
 -- then script Chrome's now-unambiguous front window.
 local function finishExtensionWindowActivation(kind, window)
@@ -791,7 +783,7 @@ end
 
 local function activateExistingWindow(kind, window)
   privatelyActivateWindow(window, function()
-    local opened, openError = openTabOutInWindowWithoutActivation(kind, window, true)
+    local opened, openError = openTabOutTabInFrontWindow(kind, window)
     if not opened then
       failCurrent("Chrome could not open the Tab Out page", openError)
       return
@@ -806,174 +798,43 @@ local function activateExistingWindow(kind, window)
   end)
 end
 
-local function translatedRect(currentFrame, sourceFrame, targetFrame)
-  local width = math.min(currentFrame.w, targetFrame.w)
-  local height = math.min(currentFrame.h, targetFrame.h)
-  local offsetX = currentFrame.x - sourceFrame.x
-  local offsetY = currentFrame.y - sourceFrame.y
-  local maxX = math.max(0, targetFrame.w - width)
-  local maxY = math.max(0, targetFrame.h - height)
-  local x = targetFrame.x + math.max(0, math.min(offsetX, maxX))
-  local y = targetFrame.y + math.max(0, math.min(offsetY, maxY))
-
-  return hs.geometry.rect(x, y, width, height)
-end
-
-local function translatedFrame(window, targetScreen)
-  local targetFrame = targetScreen:frame()
-  local sourceScreen = window:screen()
-  local sourceFrame = sourceScreen and sourceScreen:frame() or targetFrame
-  return translatedRect(window:frame(), sourceFrame, targetFrame)
-end
-
-local function finishNewWindow(request, window, targetScreen, originalFrame)
-  if originalFrame then
-    window:setFrame(originalFrame, 0)
-  else
-    window:setFrame(translatedFrame(window, targetScreen), 0)
-  end
-
-  state.profileByWindow[window:id()] = state.config.chromeProfileDirectory
-  local opened, openError = openTabOutInWindowWithoutActivation(request.kind, window, false)
-  if not opened then
-    failCurrent("Chrome could not open the Tab Out page", openError)
-    return
-  end
-
-  log.df("Opened the %s destination in the exact new Chrome window", request.kind)
-  finishExtensionWindowActivation(request.kind, window)
-end
-
-local function placeNewWindow(request, window, targetScreen, attempt, targetFrame)
-  local spaces = hs.spaces.windowSpaces(window)
-  if spaces and containsValue(spaces, request.targetSpaceId) then
-    finishNewWindow(request, window, targetScreen, targetFrame)
-    return
-  end
-
-  if attempt >= 5 then
-    local detail = "The display move did not settle"
-    if screenUuid(window:screen()) == request.screenUuid then
-      detail = "The Space move did not settle"
-    end
-
-    failCurrent("Could not place the new Chrome window on the target Desktop", detail)
-    return
-  end
-
-  if screenUuid(window:screen()) ~= request.screenUuid then
-    window:setFrame(targetFrame, 0)
-    later(0.2, function()
-      placeNewWindow(request, window, targetScreen, attempt + 1, targetFrame)
-    end, true)
-    return
-  end
-
-  local moved, moveError = hs.spaces.moveWindowToSpace(window, request.targetSpaceId)
-  if moved then
-    later(0.2, function()
-      placeNewWindow(request, window, targetScreen, attempt + 1, targetFrame)
-    end, true)
-    return
-  end
-
-  later(0.2, function()
-    placeNewWindow(request, window, targetScreen, attempt + 1, targetFrame)
-  end, true)
-  log.wf("Chrome window Space move attempt %d failed: %s", attempt + 1, moveError or "unknown error")
-end
-
-local function trackedChromeWindows(sortOrder)
+local function trackedChromeWindows()
   if state.chromeWindowFilter then
-    return state.chromeWindowFilter:getWindows(sortOrder)
+    return state.chromeWindowFilter:getWindows()
   end
 
   local application = chromeApplication()
   return application and application:allWindows() or {}
 end
 
-local function managedWindowIds()
-  local ids = {}
-
-  local spacesByScreen = hs.spaces.allSpaces() or {}
-  for _, spaces in pairs(spacesByScreen) do
-    for _, spaceId in ipairs(spaces) do
-      for _, windowId in ipairs(hs.spaces.windowsForSpace(spaceId) or {}) do
-        ids[windowId] = true
-      end
-    end
-  end
-
-  for _, window in ipairs(trackedChromeWindows()) do
-    if window:id() then
-      ids[window:id()] = true
-    end
-  end
-
-  return ids
-end
-
-local function findNewChromeWindow(previousIds)
-  local application = chromeApplication()
-  if not application then
-    return nil
-  end
-
-  local focusedWindow = application:focusedWindow()
-  if focusedWindow and focusedWindow:id() and focusedWindow:isStandard() and not previousIds[focusedWindow:id()] then
-    return focusedWindow
-  end
-
-  local newestWindow
-  local windows = trackedChromeWindows(hs.window.filter.sortByCreatedLast)
-  for _, window in ipairs(windows) do
-    local windowId = window:id()
-    if windowId and window:isStandard() and not previousIds[windowId] then
-      if not newestWindow or windowId > newestWindow:id() then
-        newestWindow = window
-      end
-    end
-  end
-
-  return newestWindow
-end
-
-local function beginNewWindowPlacement(request, targetScreen, launchState, window)
-  if launchState.windowFound then
+local function acceptDirectPlacementWindow(pending, window)
+  if pending.windowFound then
     return
   end
 
-  launchState.windowFound = true
-  if state.pendingWindowLaunch and state.pendingWindowLaunch.launchState == launchState then
-    state.pendingWindowLaunch = nil
+  pending.windowFound = true
+  stopTimer(pending.timeout)
+  if state.pendingDirectPlacement == pending then
+    state.pendingDirectPlacement = nil
   end
 
-  if launchState.directPlacement then
-    local windowScreen = window:screen()
-    local spaces = hs.spaces.windowSpaces(window)
-    if screenUuid(windowScreen) ~= request.screenUuid
-      or not spaces
-      or not containsValue(spaces, request.targetSpaceId)
-    then
-      failCurrent(
-        "Tab Out did not create its window on the target Desktop",
-        "The direct-placement bridge returned a window on a different display or Space"
-      )
-      return
-    end
-
-    state.profileByWindow[window:id()] = state.config.chromeProfileDirectory
-    log.df("Tab Out created the %s window directly on the target Desktop", request.kind)
-    finishExtensionWindowActivation(request.kind, window)
+  local request = pending.request
+  local windowScreen = window:screen()
+  local spaces = hs.spaces.windowSpaces(window)
+  if screenUuid(windowScreen) ~= request.screenUuid
+    or not spaces
+    or not containsValue(spaces, request.targetSpaceId)
+  then
+    failCurrent(
+      "Tab Out did not create its window on the target Desktop",
+      "The Direct-Placement Bridge returned a window on a different display or Space"
+    )
     return
   end
 
-  local targetFrame = translatedFrame(window, targetScreen)
-  if screenUuid(window:screen()) ~= request.screenUuid then
-    window:setFrame(targetFrame, 0)
-  end
-
-  placeNewWindow(request, window, targetScreen, 0, targetFrame)
+  state.profileByWindow[window:id()] = state.config.chromeProfileDirectory
+  log.df("Tab Out created the %s window directly on the target Desktop", request.kind)
+  finishExtensionWindowActivation(request.kind, window)
 end
 
 local function windowOccupiesActiveSpace(window)
@@ -1003,7 +864,7 @@ local function uniqueChromeEmptyScreen()
   end
 
   if #emptyScreens ~= 1 then
-    return nil, "Direct placement requires exactly one display without a normal Chrome window"
+    return nil, "The Direct-Placement Bridge requires exactly one display without a normal Chrome window"
   end
 
   return emptyScreens[1]
@@ -1012,7 +873,7 @@ end
 local function screenDesktopPosition(targetScreen)
   local screens = hs.screen.allScreens()
   if #screens ~= 2 then
-    return nil, "The display-addressed bridge requires exactly two enabled displays"
+    return nil, "The Direct-Placement Bridge requires exactly two enabled displays"
   end
 
   table.sort(screens, function(left, right)
@@ -1037,63 +898,44 @@ local function screenDesktopPosition(targetScreen)
   return nil, "The pointer display could not be assigned a desktop position"
 end
 
-local function expectNewChromeWindow(request, targetScreen, previousIds, launchState)
-  state.pendingWindowLaunch = {
-    launchState = launchState,
-    previousIds = previousIds,
+local function expectDirectPlacementWindow(request)
+  local pending = {
     request = request,
-    targetScreen = targetScreen,
+    timeout = nil,
+    windowFound = false,
   }
+  state.pendingDirectPlacement = pending
+  pending.timeout = later(NEW_WINDOW_TIMEOUT_SECONDS, function()
+    if state.pendingDirectPlacement ~= pending or pending.windowFound then
+      return
+    end
+
+    state.pendingDirectPlacement = nil
+    failCurrent(
+      "Timed out waiting for Tab Out's directly placed Chrome window",
+      "Reload Tab Out and verify all four Direct-Placement Bridge commands are assigned to their configured global shortcuts"
+    )
+  end, true)
 end
 
 local function handlePendingChromeWindow(window)
-  local pending = state.pendingWindowLaunch
+  local pending = state.pendingDirectPlacement
   local windowId = window and window:id() or nil
   if not pending
-    or pending.launchState.windowFound
+    or pending.windowFound
     or not windowId
-    or pending.previousIds[windowId]
     or not window:isStandard()
   then
     return
   end
 
-  beginNewWindowPlacement(pending.request, pending.targetScreen, pending.launchState, window)
-end
-
-local function pollForNewWindow(request, targetScreen, previousIds, launchState, attempt)
-  if launchState.windowFound then
-    return
-  end
-
-  local window = findNewChromeWindow(previousIds)
-  if window then
-    beginNewWindowPlacement(request, targetScreen, launchState, window)
-    return
-  end
-
-  if launchState.exitCode and launchState.exitCode ~= 0 then
-    failCurrent("Chrome could not create the target-profile window", launchState.errorOutput)
-    return
-  end
-
-  if attempt * 0.1 >= NEW_WINDOW_TIMEOUT_SECONDS then
-    failCurrent(
-      launchState.timeoutMessage or "Timed out waiting for the new Chrome window",
-      launchState.timeoutDetail
-    )
-    return
-  end
-
-  later(0.1, function()
-    pollForNewWindow(request, targetScreen, previousIds, launchState, attempt + 1)
-  end, true)
+  acceptDirectPlacementWindow(pending, window)
 end
 
 local function requestInactiveTargetProfileWindow(request, targetScreen)
   local extensionId, extensionError = tabOutExtensionId()
   if not extensionId then
-    failCurrent("Tab Out's inactive-window bridge is unavailable", extensionError)
+    failCurrent("Tab Out's Direct-Placement Bridge is unavailable", extensionError)
     return
   end
 
@@ -1112,18 +954,9 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
     return
   end
 
-  local previousIds = managedWindowIds()
-  local launchState = {
-    directPlacement = true,
-    errorOutput = nil,
-    exitCode = nil,
-    timeoutDetail = "Reload Tab Out and verify all four display-addressed commands are assigned to their configured global shortcuts",
-    timeoutMessage = "Timed out waiting for Tab Out's directly placed Chrome window",
-    windowFound = false,
-  }
   local shortcut = state.config.shortcuts.inactiveWindow[displayPosition][request.kind]
 
-  expectNewChromeWindow(request, targetScreen, previousIds, launchState)
+  expectDirectPlacementWindow(request)
   local triggered, triggerError = pcall(
     hs.eventtap.keyStroke,
     shortcut.modifiers,
@@ -1131,66 +964,21 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
     0
   )
   if not triggered then
-    failCurrent("Tab Out's direct-placement shortcut could not be sent", triggerError)
+    failCurrent("Tab Out's Direct-Placement Bridge shortcut could not be sent", triggerError)
     return
   end
-
-  pollForNewWindow(request, targetScreen, previousIds, launchState, 0)
-end
-
-local function launchTargetProfileWindow(request, targetScreen)
-  local previousIds = managedWindowIds()
-  local launchState = {
-    errorOutput = nil,
-    exitCode = nil,
-    windowFound = false,
-  }
-  local arguments = {
-    "-g",
-    "-n",
-    "-b",
-    state.config.chromeBundleId,
-    "--args",
-    "--profile-directory=" .. state.config.chromeProfileDirectory,
-    "--new-window",
-  }
-
-  if request.kind == "filter" then
-    local url, urlError = filterFocusUrl()
-    if not url then
-      failCurrent("Tab Out's Chrome shortcut mapping is unavailable", urlError)
-      return
-    end
-  end
-  table.insert(arguments, NEW_TAB_URL)
-
-  local task
-  task = hs.task.new(OPEN_EXECUTABLE, function(exitCode, _, standardError)
-    state.tasks[task] = nil
-    launchState.exitCode = exitCode
-    if exitCode ~= 0 then
-      launchState.errorOutput = standardError
-      log.ef("Chrome launcher exited with code %d", exitCode)
-    end
-  end, arguments)
-
-  expectNewChromeWindow(request, targetScreen, previousIds, launchState)
-  if not task or not task:start() then
-    failCurrent("Chrome could not be launched for the target profile")
-    return
-  end
-
-  state.tasks[task] = true
-  pollForNewWindow(request, targetScreen, previousIds, launchState, 0)
 end
 
 local function createTargetProfileWindow(request, targetScreen)
-  if chromeApplication() then
-    requestInactiveTargetProfileWindow(request, targetScreen)
+  if not chromeApplication() then
+    failCurrent(
+      "Google Chrome is not running",
+      "The Direct-Placement Bridge cannot create a guaranteed inactive window until Chrome is running"
+    )
     return
   end
 
-  launchTargetProfileWindow(request, targetScreen)
+  requestInactiveTargetProfileWindow(request, targetScreen)
 end
 
 local function tryCandidate(request, targetScreen, candidates, index)

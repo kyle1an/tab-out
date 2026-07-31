@@ -11,26 +11,16 @@ end
 
 local modulePath = currentDirectory() .. "/../modules/tab_out.lua"
 
-local function runShortcut(
-  kind,
-  targetHasChromeWindow,
-  targetProfileIsLastUsed,
-  chromeIsRunning,
-  cacheTargetProfile,
-  targetHasInactiveSpaceChromeWindow,
-  targetDisplayPosition,
-  privateFocusAvailable
-)
-  targetHasChromeWindow = targetHasChromeWindow ~= false
-  targetProfileIsLastUsed = targetProfileIsLastUsed ~= false
-  cacheTargetProfile = cacheTargetProfile ~= false
-  targetDisplayPosition = targetDisplayPosition or 2
-  privateFocusAvailable = privateFocusAvailable ~= false
-  local chromeWasRunning = chromeIsRunning ~= false
-  local chromeRunning = chromeWasRunning
+local function runShortcut(kind, options)
+  options = options or {}
+  local targetHasChromeWindow = options.targetHasChromeWindow ~= false
+  local chromeIsRunning = options.chromeIsRunning ~= false
+  local cacheTargetProfile = options.cacheTargetProfile ~= false
+  local targetHasInactiveSpaceChromeWindow = options.targetHasInactiveSpaceChromeWindow == true
+  local targetDisplayPosition = options.targetDisplayPosition or 2
+  local privateFocusAvailable = options.privateFocusAvailable ~= false
   local clock = 0
   local addressBarFocused = false
-  local addressBarValue
   local activationClickCount = 0
   local filterInputFocused = false
   local inactiveWindowShortcutSent = false
@@ -43,8 +33,6 @@ local function runShortcut(
   local focusedWindow
   local frontmostApplication
   local focusCountByWindowId = {}
-  local launcherArguments
-  local launcherExecutable
   local navigationObservedPrivateFocus = false
   local navigationUsesFrontWindow = false
   local otherChromeFocused = false
@@ -53,9 +41,7 @@ local function runShortcut(
   local openedFilter = false
   local openedNewPage = false
   local pendingTimers = {}
-  local pointerPosition = { x = 700, y = 450 }
   local windowCreatedCallback
-  local windowFocusedCallbacks = {}
 
   local function newWatcher()
     return {
@@ -83,14 +69,8 @@ local function runShortcut(
   }
 
   local chromeApplication = {
-    allWindows = function()
-      return {}
-    end,
     bundleID = function()
       return "com.google.Chrome"
-    end,
-    focusedWindow = function()
-      return focusedWindow
     end,
     getMenuItems = function(_, callback)
       callback({
@@ -207,12 +187,12 @@ local function runShortcut(
     end,
   }
   focusedWindow = targetHasChromeWindow and cacheTargetProfile and targetChromeWindow
-    or (not targetHasChromeWindow and chromeWasRunning and otherChromeWindow)
+    or (not targetHasChromeWindow and chromeIsRunning and otherChromeWindow)
     or originalWindow
 
   local function currentChromeWindows()
     local windows = {}
-    if not chromeRunning then
+    if not chromeIsRunning then
       return windows
     end
     if createdChromeWindow then
@@ -224,7 +204,7 @@ local function runShortcut(
     if targetHasInactiveSpaceChromeWindow then
       table.insert(windows, inactiveSpaceChromeWindow)
     end
-    if chromeWasRunning then
+    if chromeIsRunning then
       table.insert(windows, otherChromeWindow)
     end
     return windows
@@ -238,7 +218,7 @@ local function runShortcut(
     if targetHasChromeWindow then
       table.insert(windows, targetChromeWindow)
     end
-    if not chromeWasRunning then
+    if not chromeIsRunning then
       table.insert(windows, remoteTopWindow)
     elseif otherChromeRaised then
       table.insert(windows, otherChromeWindow)
@@ -261,11 +241,6 @@ local function runShortcut(
       end
       if attribute == "AXDescription" then
         return "Address and search bar"
-      elseif attribute == "AXPosition" then
-        local frame = (createdChromeWindow or targetChromeWindow):frame()
-        return { x = frame.x + 200, y = frame.y + 40 }
-      elseif attribute == "AXSize" then
-        return { h = 24, w = 500 }
       elseif attribute == "AXFocused" then
         return addressBarFocused
       end
@@ -274,9 +249,6 @@ local function runShortcut(
     setAttributeValue = function(_, attribute, value)
       if attribute == "AXFocused" and value == true then
         addressBarFocused = true
-        return true
-      elseif attribute == "AXValue" and type(value) == "string" then
-        addressBarValue = value
         return true
       end
       return false
@@ -288,11 +260,6 @@ local function runShortcut(
         return "AXTextField"
       elseif attribute == "AXDescription" then
         return "Filter tabs, bookmarks, history…"
-      elseif attribute == "AXPosition" then
-        local frame = (createdChromeWindow or targetChromeWindow):frame()
-        return { x = frame.x + 400, y = frame.y + 90 }
-      elseif attribute == "AXSize" then
-        return { h = 34, w = 280 }
       elseif attribute == "AXFocused" then
         return filterInputFocused
       elseif attribute == "AXChildren" then
@@ -308,32 +275,13 @@ local function runShortcut(
       return false
     end,
   }
-  local selectedTab = {
-    attributeValue = function(_, attribute)
-      if attribute == "AXRole" then
-        return "AXRadioButton"
-      elseif attribute == "AXSubrole" then
-        return "AXTabButton"
-      elseif attribute == "AXValue" then
-        return true
-      elseif attribute == "AXPosition" then
-        local frame = (createdChromeWindow or targetChromeWindow):frame()
-        return { x = frame.x + 20, y = frame.y + 10 }
-      elseif attribute == "AXSize" then
-        return { h = 24, w = 60 }
-      elseif attribute == "AXChildren" then
-        return {}
-      end
-      return nil
-    end,
-  }
   local axRoot = {
     attributeValue = function(_, attribute)
       if attribute == "AXRole" then
         return "AXWindow"
       end
       if attribute == "AXChildren" then
-        return { selectedTab, filterInput, addressBar }
+        return { filterInput, addressBar }
       end
       return nil
     end,
@@ -342,7 +290,6 @@ local function runShortcut(
     [addressBar] = true,
     [axRoot] = true,
     [filterInput] = true,
-    [selectedTab] = true,
   }
 
   local fakeHs = {
@@ -356,7 +303,7 @@ local function runShortcut(
         return frontmostApplication
       end,
       get = function(bundleId)
-        if bundleId == "com.google.Chrome" and chromeRunning then
+        if bundleId == "com.google.Chrome" and chromeIsRunning then
           return chromeApplication
         end
         return nil
@@ -375,50 +322,29 @@ local function runShortcut(
         targetWindow:focus()
       end,
       keyStroke = function(modifiers, key, _, application)
-        if application == nil then
-          local expectedKey = targetDisplayPosition == 1
-            and (kind == "filter" and "6" or "7")
-            or (kind == "filter" and "8" or "9")
-          assertEqual(key, expectedKey, "display-addressed direct-placement shortcut key")
-          assertEqual(modifiers[1], "cmd", "inactive-window shortcut primary modifier")
-          assertEqual(modifiers[2], "shift", "inactive-window shortcut secondary modifier")
-          inactiveWindowShortcutSent = true
-          inactiveWindowShortcutKey = key
-          if kind == "filter" then
-            openedFilter = true
-          else
-            openedNewPage = true
-          end
-          createdChromeWindow = newChromeWindow(404, targetScreen)
-          if windowCreatedCallback then
-            windowCreatedCallback(createdChromeWindow)
-          end
-          return
-        end
-
-        assertEqual(application, chromeApplication, "Chrome keystroke application")
-        if key == "t" then
-          assertEqual(modifiers[1], "cmd", "new-page shortcut modifier")
+        assertEqual(application, nil, "Direct-Placement Bridge shortcut must not target Chrome")
+        local expectedKey = targetDisplayPosition == 1
+          and (kind == "filter" and "6" or "7")
+          or (kind == "filter" and "8" or "9")
+        assertEqual(key, expectedKey, "Direct-Placement Bridge shortcut key")
+        assertEqual(modifiers[1], "cmd", "Direct-Placement Bridge shortcut primary modifier")
+        assertEqual(modifiers[2], "shift", "Direct-Placement Bridge shortcut secondary modifier")
+        inactiveWindowShortcutSent = true
+        inactiveWindowShortcutKey = key
+        if kind == "filter" then
+          openedFilter = true
+        else
           openedNewPage = true
-          return
         end
-
-        assertEqual(key, "return", "address-bar navigation key")
-        assertEqual(#modifiers, 0, "address-bar navigation modifiers")
-        openedFilter = addressBarValue and addressBarValue:find("focusFilter=1", 1, true) ~= nil
+        createdChromeWindow = newChromeWindow(404, targetScreen)
+        if windowCreatedCallback then
+          windowCreatedCallback(createdChromeWindow)
+        end
       end,
     },
     hotkey = {
       bind = function()
         return {}
-      end,
-    },
-    geometry = {
-      point = function(x, y)
-        return { x = x, y = y }
-      end,
-      rect = function(x, y, width, height)
-        return { h = height, w = width, x = x, y = y }
       end,
     },
     json = {
@@ -429,7 +355,6 @@ local function runShortcut(
               info_cache = {
                 ["Profile 3"] = { name = "Target Profile" },
               },
-              last_used = targetProfileIsLastUsed and "Profile 3" or "Default",
             },
           }
         end
@@ -471,12 +396,6 @@ local function runShortcut(
       end,
     },
     mouse = {
-      absolutePosition = function(position)
-        if position then
-          pointerPosition = { x = position.x, y = position.y }
-        end
-        return { x = pointerPosition.x, y = pointerPosition.y }
-      end,
       getCurrentScreen = function()
         return targetScreen
       end,
@@ -486,24 +405,10 @@ local function runShortcut(
         local focusesFilter = script:find("focusFilter=1", 1, true) ~= nil
         local focusesWindow = script:find("focusWindow=1", 1, true) ~= nil
         local opensNewPage = script:find("chrome://newtab/", 1, true) ~= nil
-        local createsWindow = script:find("make new window", 1, true) ~= nil
-        if createsWindow then
-          otherChromeRaised = true
-          createdChromeWindow = newChromeWindow(404, targetScreen)
-          if focusesFilter then
-            openedFilter = true
-          else
-            openedNewPage = true
-          end
-          if windowCreatedCallback then
-            windowCreatedCallback(createdChromeWindow)
-          end
-        else
-          navigationObservedPrivateFocus = privateFocusCount > 0 and focusedWindow == targetChromeWindow
-          navigationUsesFrontWindow = script:find("set candidateWindow to front window", 1, true) ~= nil
-          openedFilter = focusesFilter
-          openedNewPage = opensNewPage
-        end
+        navigationObservedPrivateFocus = privateFocusCount > 0 and focusedWindow == targetChromeWindow
+        navigationUsesFrontWindow = script:find("set candidateWindow to front window", 1, true) ~= nil
+        openedFilter = focusesFilter
+        openedNewPage = opensNewPage
         if focusesWindow then
           extensionWindowFocusRequested = true
           if focusesFilter then
@@ -541,15 +446,6 @@ local function runShortcut(
       activeSpaceOnScreen = function(screen)
         return screen == targetScreen and 11 or 22
       end,
-      allSpaces = function()
-        return {
-          ["other-screen"] = { 22 },
-          ["target-screen"] = { 11, 33 },
-        }
-      end,
-      moveWindowToSpace = function()
-        return true
-      end,
       spaceType = function()
         return "user"
       end,
@@ -564,66 +460,6 @@ local function runShortcut(
           return { 33 }
         end
         return (window == targetChromeWindow or window == createdChromeWindow) and { 11 } or { 22 }
-      end,
-      windowsForSpace = function(spaceId)
-        local ids = {}
-        for _, window in ipairs(currentChromeWindows()) do
-          local windowSpaces
-          if window == inactiveSpaceChromeWindow then
-            windowSpaces = { 33 }
-          else
-            windowSpaces = (window == targetChromeWindow or window == createdChromeWindow) and { 11 } or { 22 }
-          end
-          if windowSpaces[1] == spaceId then
-            table.insert(ids, window:id())
-          end
-        end
-        return ids
-      end,
-    },
-    task = {
-      new = function(executable, exitCallback, arguments)
-        launcherExecutable = executable
-        launcherArguments = arguments
-        return {
-          start = function()
-            local focusesFilter = false
-            local hasBackgroundFlag = false
-            local opensNewTab = false
-            for _, argument in ipairs(arguments) do
-              if argument:find("focusFilter=1", 1, true) then
-                focusesFilter = true
-              elseif argument == "chrome://newtab/" then
-                opensNewTab = true
-              elseif argument == "-g" then
-                hasBackgroundFlag = true
-              end
-            end
-
-            local launchesInBackground = executable == "/usr/bin/open" and hasBackgroundFlag
-            if not launchesInBackground then
-              otherChromeRaised = true
-            end
-            if chromeWasRunning then
-              otherChromeWindow:focus()
-              for _, callback in ipairs(windowFocusedCallbacks) do
-                callback(otherChromeWindow)
-              end
-            end
-            chromeRunning = true
-            createdChromeWindow = newChromeWindow(404, targetScreen)
-            if focusesFilter then
-              openedFilter = true
-            elseif opensNewTab then
-              openedNewPage = true
-            end
-            if windowCreatedCallback then
-              windowCreatedCallback(createdChromeWindow)
-            end
-            exitCallback(0, "", "")
-            return true
-          end,
-        }
       end,
     },
     timer = {
@@ -651,7 +487,6 @@ local function runShortcut(
               if event == "windowCreated" then
                 windowCreatedCallback = callback
               elseif event == "windowFocused" then
-                table.insert(windowFocusedCallbacks, callback)
                 if immediate and (focusedWindow == otherChromeWindow or focusedWindow == targetChromeWindow) then
                   callback(focusedWindow)
                 end
@@ -665,11 +500,6 @@ local function runShortcut(
       },
       focusedWindow = function()
         return focusedWindow
-      end,
-      allWindows = function()
-        local windows = currentOrderedWindows()
-        table.insert(windows, originalWindow)
-        return windows
       end,
       orderedWindows = function()
         return currentOrderedWindows()
@@ -767,11 +597,10 @@ local function runShortcut(
     createdWindowSetFrameCount = createdWindowSetFrameCount,
     extensionWindowFocusRequested = extensionWindowFocusRequested,
     failureAlert = failureAlert,
+    filterInputFocused = filterInputFocused,
     existingTargetFocusCount = focusCountByWindowId[targetChromeWindow:id()] or 0,
     inactiveWindowShortcutSent = inactiveWindowShortcutSent,
     inactiveWindowShortcutKey = inactiveWindowShortcutKey,
-    launcherArguments = launcherArguments,
-    launcherExecutable = launcherExecutable,
     navigationObservedPrivateFocus = navigationObservedPrivateFocus,
     navigationUsesFrontWindow = navigationUsesFrontWindow,
     openedFilter = openedFilter,
@@ -787,17 +616,25 @@ end
 
 local filterResult = runShortcut("filter")
 local newPageResult = runShortcut("newPage")
-local noTargetFilterResult = runShortcut("filter", false)
-local noTargetNewPageResult = runShortcut("newPage", false)
-local noTargetExplicitProfileFilterResult = runShortcut("filter", false, false)
-local noTargetExplicitProfileNewPageResult = runShortcut("newPage", false, false)
-local stoppedChromeNewPageResult = runShortcut("newPage", false, true, false)
-local unknownTargetFilterResult = runShortcut("filter", true, true, true, false)
-local inactiveSpaceTargetFilterResult = runShortcut("filter", false, true, true, true, true)
-local firstDisplayPositionFilterResult = runShortcut("filter", false, true, true, true, false, 1)
-local unavailablePrivateFocusResult = runShortcut("filter", true, true, true, true, false, 2, false)
+local noTargetFilterResult = runShortcut("filter", { targetHasChromeWindow = false })
+local noTargetNewPageResult = runShortcut("newPage", { targetHasChromeWindow = false })
+local stoppedChromeNewPageResult = runShortcut("newPage", {
+  chromeIsRunning = false,
+  targetHasChromeWindow = false,
+})
+local unknownTargetFilterResult = runShortcut("filter", { cacheTargetProfile = false })
+local inactiveSpaceTargetFilterResult = runShortcut("filter", {
+  targetHasChromeWindow = false,
+  targetHasInactiveSpaceChromeWindow = true,
+})
+local firstDisplayPositionFilterResult = runShortcut("filter", {
+  targetDisplayPosition = 1,
+  targetHasChromeWindow = false,
+})
+local unavailablePrivateFocusResult = runShortcut("filter", { privateFocusAvailable = false })
 
 assertEqual(filterResult.openedFilter, true, "filter shortcut should open the focused-filter page")
+assertEqual(filterResult.filterInputFocused, true, "filter shortcut should focus the in-page filter")
 assertEqual(filterResult.extensionWindowFocusRequested, false, "filter shortcut should not activate Chrome from its extension page")
 assertEqual(filterResult.targetFocused, true, "filter shortcut should focus the routed Chrome window")
 assertEqual(filterResult.activationClickCount, 0, "filter shortcut should not use a visible activation click")
@@ -815,21 +652,20 @@ assertEqual(newPageResult.navigationUsesFrontWindow, true, "new-page shortcut sh
 assertEqual(newPageResult.otherChromeRaised, false, "new-page shortcut should not raise Chrome on another display")
 assertEqual(filterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
 assertEqual(noTargetFilterResult.createdWindow, true, "filter shortcut should create a window on an empty target display")
-assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "filter bridge should leave the created Chrome window inactive")
+assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "Direct-Placement Bridge should leave the created Chrome window inactive")
 assertEqual(noTargetFilterResult.inactiveWindowShortcutSent, true, "filter shortcut should ask Tab Out to create an inactive window")
-assertEqual(noTargetFilterResult.launcherExecutable, nil, "filter shortcut should not hand a launch request to running Chrome")
 assertEqual(noTargetFilterResult.createdWindowSetFrameCount, 0, "filter shortcut should not move the window after Chrome shows it")
+assertEqual(noTargetFilterResult.filterInputFocused, true, "filter shortcut should focus the created window's in-page filter")
 assertEqual(noTargetFilterResult.targetFocused, true, "filter shortcut should focus the created target-display window")
 assertEqual(noTargetFilterResult.otherChromeFocused, false, "filter shortcut should not focus Chrome on another display")
 assertEqual(noTargetFilterResult.otherChromeReceivedFocus, false, "filter shortcut should avoid Chrome's remote launch handoff")
 assertEqual(noTargetFilterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
 assertEqual(noTargetFilterResult.activationClickCount, 0, "directly placed filter window should not receive a visible activation click")
 assertEqual(noTargetFilterResult.privateFocusCount, 1, "directly placed filter window should receive one exact private focus call")
-assertEqual(noTargetFilterResult.inactiveWindowShortcutKey, "8", "second desktop position should use its filter bridge command")
+assertEqual(noTargetFilterResult.inactiveWindowShortcutKey, "8", "second desktop position should use its Direct-Placement Bridge filter command")
 assertEqual(noTargetNewPageResult.createdWindow, true, "new-page shortcut should create a window on an empty target display")
-assertEqual(noTargetNewPageResult.extensionWindowFocusRequested, false, "new-page bridge should leave the created Chrome window inactive")
+assertEqual(noTargetNewPageResult.extensionWindowFocusRequested, false, "Direct-Placement Bridge should leave the created Chrome window inactive")
 assertEqual(noTargetNewPageResult.inactiveWindowShortcutSent, true, "new-page shortcut should ask Tab Out to create an inactive window")
-assertEqual(noTargetNewPageResult.launcherExecutable, nil, "new-page shortcut should not hand a launch request to running Chrome")
 assertEqual(noTargetNewPageResult.createdWindowSetFrameCount, 0, "new-page shortcut should not move the window after Chrome shows it")
 assertEqual(noTargetNewPageResult.openedNewPage, true, "new-page shortcut should open the native Tab Out page")
 assertEqual(noTargetNewPageResult.addressBarFocused, true, "new-page shortcut should focus the created window's address bar")
@@ -838,23 +674,10 @@ assertEqual(noTargetNewPageResult.otherChromeFocused, false, "new-page shortcut 
 assertEqual(noTargetNewPageResult.otherChromeReceivedFocus, false, "new-page shortcut should avoid Chrome's remote launch handoff")
 assertEqual(noTargetNewPageResult.otherChromeRaised, false, "new-page shortcut should not raise Chrome on another display")
 assertEqual(noTargetNewPageResult.privateFocusCount, 1, "directly placed new-page window should receive one exact private focus call")
-assertEqual(noTargetExplicitProfileFilterResult.createdWindow, true, "filter shortcut should launch the configured profile on an empty target display")
-assertEqual(noTargetExplicitProfileFilterResult.targetFocused, true, "filter shortcut should focus the explicitly launched target-display window")
-assertEqual(noTargetExplicitProfileFilterResult.otherChromeFocused, false, "filter shortcut should not focus a remote profile anchor before launch")
-assertEqual(noTargetExplicitProfileFilterResult.otherChromeRaised, false, "filter shortcut should not raise remote Chrome during explicit profile launch")
-assertEqual(noTargetExplicitProfileNewPageResult.createdWindow, true, "new-page shortcut should launch the configured profile on an empty target display")
-assertEqual(noTargetExplicitProfileNewPageResult.addressBarFocused, true, "new-page shortcut should focus the explicitly launched window's address bar")
-assertEqual(noTargetExplicitProfileNewPageResult.targetFocused, true, "new-page shortcut should focus the explicitly launched target-display window")
-assertEqual(noTargetExplicitProfileNewPageResult.otherChromeFocused, false, "new-page shortcut should not focus a remote profile anchor before launch")
-assertEqual(noTargetExplicitProfileNewPageResult.otherChromeRaised, false, "new-page shortcut should not raise remote Chrome during explicit profile launch")
-assertEqual(stoppedChromeNewPageResult.createdWindow, true, "new-page shortcut should start Chrome when it is not running")
-assertEqual(stoppedChromeNewPageResult.inactiveWindowShortcutSent, false, "stopped Chrome cannot receive the extension bridge shortcut")
-assertEqual(stoppedChromeNewPageResult.launcherExecutable, "/usr/bin/open", "stopped Chrome should use the background app launcher")
-assertEqual(stoppedChromeNewPageResult.launcherArguments[1], "-g", "stopped Chrome should launch in the background")
-assertEqual(stoppedChromeNewPageResult.launcherArguments[2], "-n", "stopped Chrome should request a new app launch event")
-assertEqual(stoppedChromeNewPageResult.launcherArguments[4], "com.google.Chrome", "stopped Chrome should launch the configured browser")
-assertEqual(stoppedChromeNewPageResult.launcherArguments[7], "--new-window", "stopped Chrome should request a new window")
-assertEqual(stoppedChromeNewPageResult.launcherArguments[8], "chrome://newtab/", "stopped Chrome should open the native new-tab route")
+assertEqual(stoppedChromeNewPageResult.createdWindow, false, "a stopped Chrome should Safe Abort before creating a window")
+assertEqual(stoppedChromeNewPageResult.inactiveWindowShortcutSent, false, "stopped Chrome cannot receive a Direct-Placement Bridge shortcut")
+assertEqual(stoppedChromeNewPageResult.privateFocusCount, 0, "a stopped Chrome should not attempt private focus")
+assertEqual(stoppedChromeNewPageResult.failureAlert ~= nil, true, "a stopped Chrome should explain its Safe Abort")
 assertEqual(unknownTargetFilterResult.createdWindow, false, "an occupied target with no verified profile should abort before creating a window")
 assertEqual(unknownTargetFilterResult.existingTargetFocusCount, 0, "profile discovery should never focus an unverified Chrome window")
 assertEqual(unknownTargetFilterResult.extensionWindowFocusRequested, false, "safe abort should not request Chrome focus")
@@ -862,8 +685,8 @@ assertEqual(unknownTargetFilterResult.privateFocusCount, 0, "safe abort should n
 assertEqual(unknownTargetFilterResult.otherChromeReceivedFocus, false, "the unverified-window fallback should not focus remote Chrome")
 assertEqual(unknownTargetFilterResult.failureAlert ~= nil, true, "an ambiguous target should explain its safe abort")
 assertEqual(inactiveSpaceTargetFilterResult.createdWindow, true, "a Chrome window on an inactive target Space must not make the active target Space occupied")
-assertEqual(inactiveSpaceTargetFilterResult.failureAlert, nil, "inactive-Space Chrome windows must not block direct placement")
-assertEqual(firstDisplayPositionFilterResult.inactiveWindowShortcutKey, "6", "first desktop position should use its filter bridge command")
+assertEqual(inactiveSpaceTargetFilterResult.failureAlert, nil, "inactive-Space Chrome windows must not block the Direct-Placement Bridge")
+assertEqual(firstDisplayPositionFilterResult.inactiveWindowShortcutKey, "6", "first desktop position should use its Direct-Placement Bridge filter command")
 assertEqual(unavailablePrivateFocusResult.openedFilter, false, "an unavailable private helper should abort before navigation")
 assertEqual(unavailablePrivateFocusResult.privateFocusCount, 0, "an unavailable private helper should not attempt exact focus")
 assertEqual(unavailablePrivateFocusResult.failureAlert ~= nil, true, "an unavailable private helper should explain its safe abort")

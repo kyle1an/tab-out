@@ -15,6 +15,7 @@
 ## Routing invariants
 
 - The Direct-Placement Bridge owns inactive creation only. It must not activate Chrome or focus any Chrome window.
+- Chrome must already be running so the Direct-Placement Bridge can own creation; otherwise the shortcut Safe Aborts before mutation.
 - Hammerspoon must establish the exact target display, Space, profile, PID, and native window ID before Private Exact-Window Activation.
 - Existing-window navigation occurs only after the exact target is privately activated and verified as Chrome's front window; bounds alone are not an identity because another Space may contain a same-sized window.
 - Private Exact-Window Activation has no fallback to ordinary Chrome activation, a click, or remote z-order restoration. A missing capability or failed postcondition becomes a Safe Abort.

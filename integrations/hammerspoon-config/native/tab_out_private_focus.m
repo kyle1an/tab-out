@@ -7,6 +7,21 @@
 static const char *kAllowedOSBuild = "25F84";
 static const uint32_t kCPSUserGenerated = 0x200;
 
+enum {
+  kKeyWindowEventRecordBytes = 0x100,
+  kEventRecordSizeOffset = 0x04,
+  kEventRecordPhaseOffset = 0x08,
+  kEventRecordSentinelOffset = 0x20,
+  kEventRecordSentinelBytes = 0x10,
+  kEventRecordWindowMarkerOffset = 0x3a,
+  kEventRecordWindowIDOffset = 0x3c,
+};
+
+static const uint8_t kEncodedEventRecordSize = 0xf8;
+static const uint8_t kWindowEventMarker = 0x10;
+static const uint8_t kWindowEventBeginPhase = 0x01;
+static const uint8_t kWindowEventEndPhase = 0x02;
+
 typedef AXError (*AXElementWindowIDFunction)(AXUIElementRef, CGWindowID *);
 typedef int (*MainConnectionIDFunction)(void);
 typedef CGError (*SetFrontProcessFunction)(ProcessSerialNumber *, uint32_t, uint32_t);
@@ -52,6 +67,14 @@ static NSString *baseCapabilityError(void) {
   }
   if (!AXIsProcessTrusted()) return @"Hammerspoon does not have Accessibility permission";
   return nil;
+}
+
+static void prepareKeyWindowEventRecord(uint8_t *eventRecord, CGWindowID windowID) {
+  memset(eventRecord, 0, kKeyWindowEventRecordBytes);
+  eventRecord[kEventRecordSizeOffset] = kEncodedEventRecordSize;
+  eventRecord[kEventRecordWindowMarkerOffset] = kWindowEventMarker;
+  memcpy(eventRecord + kEventRecordWindowIDOffset, &windowID, sizeof(windowID));
+  memset(eventRecord + kEventRecordSentinelOffset, 0xff, kEventRecordSentinelBytes);
 }
 
 static void closePrivateSymbols(PrivateFocusSymbols *symbols) {
@@ -266,14 +289,11 @@ static int focusExactWindow(lua_State *L) {
       return pushFailure(L, [NSString stringWithFormat:@"exact-window foreground call failed (%d)", frontError]);
     }
 
-    uint8_t eventRecord[0x100] = {0};
-    eventRecord[0x04] = 0xf8;
-    eventRecord[0x3a] = 0x10;
-    memcpy(eventRecord + 0x3c, &windowID, sizeof(windowID));
-    memset(eventRecord + 0x20, 0xff, 0x10);
-    eventRecord[0x08] = 0x01;
+    uint8_t eventRecord[kKeyWindowEventRecordBytes];
+    prepareKeyWindowEventRecord(eventRecord, windowID);
+    eventRecord[kEventRecordPhaseOffset] = kWindowEventBeginPhase;
     CGError firstEventError = symbols.postEventRecord(&psn, eventRecord);
-    eventRecord[0x08] = 0x02;
+    eventRecord[kEventRecordPhaseOffset] = kWindowEventEndPhase;
     CGError secondEventError = symbols.postEventRecord(&psn, eventRecord);
     if (firstEventError != kCGErrorSuccess || secondEventError != kCGErrorSuccess) {
       CFRelease(targetWindow);
