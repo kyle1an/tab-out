@@ -1411,7 +1411,6 @@ test('PageChip keeps icon-only tooltip popups click-through while text chips exp
 test('PageChip routes saved-page mutation actions through Base UI context menus', () => {
   const pageChipSource = readFileSync(new URL('../src/components/PageChip.tsx', import.meta.url), 'utf8')
   const contextMenuComponentSource = readFileSync(new URL('../src/components/PageChipContextMenu.tsx', import.meta.url), 'utf8')
-  const contextMenuLoadedSource = readFileSync(new URL('../src/components/PageChipContextMenuLoaded.tsx', import.meta.url), 'utf8')
   const contextMenuContentSource = readFileSync(new URL('../src/components/PageChipContextMenuContent.tsx', import.meta.url), 'utf8')
   const tabHistoryPanelSource = readFileSync(new URL('../src/components/TabHistoryPanel.tsx', import.meta.url), 'utf8')
 
@@ -1420,29 +1419,22 @@ test('PageChip routes saved-page mutation actions through Base UI context menus'
   assert.match(pageChipSource, /import \{ PageChipContextMenu \} from '\.\/PageChipContextMenu'/)
   assert.doesNotMatch(pageChipSource, /import \{ PageChipContextMenuContent \} from '\.\/PageChipContextMenuContent'/)
 
-  // The extracted wrapper owns arming and lazy-loads the Base UI context menu path.
+  // The extracted wrapper owns the eager Base UI trigger and visual-open lifecycle.
   assert.match(contextMenuComponentSource, /export function PageChipContextMenu\(/)
   assert.match(contextMenuComponentSource, /onOpenChange\?: \(\(open: boolean\) => void\) \| undefined/)
-  assert.doesNotMatch(contextMenuComponentSource, /from '\.\/ui\/context-menu'/)
-  assert.match(contextMenuComponentSource, /import\('\.\/PageChipContextMenuLoaded'\)/)
+  assert.match(contextMenuComponentSource, /from '\.\/ui\/context-menu'/)
+  assert.doesNotMatch(contextMenuComponentSource, /PageChipContextMenuLoaded|import\(/)
   assert.doesNotMatch(contextMenuComponentSource, /\blazy\b|\bSuspense\b/)
-  assert.match(contextMenuComponentSource, /function loadPageChipContextMenu\(\)/)
-  assert.match(contextMenuComponentSource, /onPointerEnter: \(event\) => \{[\s\S]*armContextMenu\(\)/)
-  assert.match(contextMenuComponentSource, /onFocus: \(event\) => \{[\s\S]*const path = focusPath[\s\S]*pendingFocusPaths\.set[\s\S]*armContextMenu\(\)/)
-  assert.match(contextMenuComponentSource, /if \(event\.button === 2\) armContextMenu\(\)/)
-  assert.match(contextMenuComponentSource, /if \(!LoadedMenu\) return armedTrigger/)
-  assert.match(contextMenuComponentSource, /useLayoutEffect\(\(\) => \{[\s\S]*focus\(\{ preventScroll: true \}\)/)
   assert.match(tabHistoryPanelSource, /data-tabout-part="focus-button"[\s\S]*aria-label=\{entryLabel\}/)
 
-  // The loaded chunk owns the visual-open lifecycle and trigger cloning.
-  assert.match(contextMenuLoadedSource, /PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80/)
-  assert.match(contextMenuLoadedSource, /function handleOpenChange\(nextOpen: boolean\)/)
-  assert.match(contextMenuLoadedSource, /const \[visualOpen, setVisualOpen\] = useState\(false\)/)
-  assert.match(contextMenuLoadedSource, /window\.setTimeout\(\(\) => \{[\s\S]*setVisualOpen\(false\)[\s\S]*PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS/)
-  assert.match(contextMenuLoadedSource, /const trigger = visualOpen/)
-  assert.match(contextMenuLoadedSource, /<ContextMenu onOpenChange=\{handleOpenChange\}>/)
-  assert.match(contextMenuLoadedSource, /<ContextMenuTrigger render=\{trigger\} \/>/)
-  assert.match(contextMenuLoadedSource, /page-chip-context-menu-open/)
+  assert.match(contextMenuComponentSource, /PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS = 80/)
+  assert.match(contextMenuComponentSource, /function handleOpenChange\(nextOpen: boolean\)/)
+  assert.match(contextMenuComponentSource, /const \[visualOpen, setVisualOpen\] = useState\(false\)/)
+  assert.match(contextMenuComponentSource, /window\.setTimeout\(\(\) => \{[\s\S]*setVisualOpen\(false\)[\s\S]*PAGE_CHIP_CONTEXT_MENU_VISUAL_CLOSE_DELAY_MS/)
+  assert.match(contextMenuComponentSource, /const trigger = visualOpen/)
+  assert.match(contextMenuComponentSource, /<ContextMenu onOpenChange=\{handleOpenChange\}>/)
+  assert.match(contextMenuComponentSource, /<ContextMenuTrigger render=\{trigger\} \/>/)
+  assert.match(contextMenuComponentSource, /page-chip-context-menu-open/)
 
   // The extracted content renders the live-tab, saved, page-pin, suspend, and copy menu items.
   assert.match(contextMenuContentSource, /className="page-chip-reload-menu-item"/)

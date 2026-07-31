@@ -1181,7 +1181,7 @@ test('Activation History scrollbar follows filtered row content', async ({ page 
   await expect(scrollbar).toHaveCount(1)
 })
 
-test('lazy context-menu arming preserves keyboard focus on chips and history entries', async ({ page }) => {
+test('context-menu triggers preserve keyboard focus on chips and history entries', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
 
@@ -1195,6 +1195,60 @@ test('lazy context-menu arming preserves keyboard focus on chips and history ent
       element === document.activeElement || element.contains(document.activeElement)
     ))).toBe(true)
   }
+})
+
+test('the first right-click opens a Page Chip context menu immediately after refresh', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await page.reload()
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  let interactionScriptRequestStarted = false
+  await page.route('**/extension/dist/**/*.js', async (route) => {
+    interactionScriptRequestStarted = true
+    await new Promise((resolve) => setTimeout(resolve, 750))
+    await route.continue()
+  })
+
+  const trigger = page.locator('[data-tabout="page-chip"]').filter({ hasText: 'Short title' }).first()
+  const triggerBox = await trigger.boundingBox()
+  if (!triggerBox) throw new Error('Page Chip context-menu trigger geometry is unavailable')
+
+  const triggerPoint = {
+    x: triggerBox.x + Math.min(30, triggerBox.width / 2),
+    y: triggerBox.y + triggerBox.height / 2
+  }
+  await page.mouse.move(triggerPoint.x, triggerPoint.y)
+  await page.mouse.click(triggerPoint.x, triggerPoint.y, { button: 'right' })
+
+  await expect(page.locator('[data-slot="context-menu-content"]:visible')).toHaveCount(1, { timeout: 250 })
+  expect(interactionScriptRequestStarted).toBe(false)
+})
+
+test('the first right-click opens a title-suppression context menu immediately after refresh', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  let interactionScriptRequestStarted = false
+  await page.route('**/TitleSuppressionTokenContextMenuLoaded-*.js', async (route) => {
+    interactionScriptRequestStarted = true
+    await new Promise((resolve) => setTimeout(resolve, 2_000))
+    await route.continue()
+  })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+
+  const trigger = page.locator('.title-suppression-token').first()
+  await expect(trigger).toBeVisible()
+  const triggerBox = await trigger.boundingBox()
+  if (!triggerBox) throw new Error('Title-suppression context-menu trigger geometry is unavailable')
+
+  const triggerPoint = {
+    x: triggerBox.x + triggerBox.width / 2,
+    y: triggerBox.y + triggerBox.height / 2
+  }
+  await page.mouse.move(triggerPoint.x, triggerPoint.y)
+  await page.mouse.click(triggerPoint.x, triggerPoint.y, { button: 'right' })
+
+  await expect(page.locator('[data-slot="context-menu-content"]:visible')).toHaveCount(1, { timeout: 250 })
+  expect(interactionScriptRequestStarted).toBe(false)
 })
 
 test('the first pointer click opens a card menu immediately after refresh', async ({ page }) => {

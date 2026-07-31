@@ -1,5 +1,6 @@
-import { lazy, Suspense } from 'react'
 import type { ReactElement } from 'react'
+import { ContextMenu, ContextMenuTrigger } from './ui/context-menu'
+import { TitleSuppressionTokenContextMenuContent } from './TitleSuppressionTokenContextMenuContent'
 
 type StopPropagationEvent = {
   stopPropagation: () => void
@@ -16,12 +17,23 @@ export interface TitleSuppressionTokenContextMenuProps {
   children: TitleSuppressionTokenContextMenuTriggerElement
 }
 
-const TitleSuppressionTokenContextMenuLoaded = lazy(() => import('./TitleSuppressionTokenContextMenuLoaded').then((module) => ({ default: module.TitleSuppressionTokenContextMenuLoaded })))
-
-export function TitleSuppressionTokenContextMenu(props: TitleSuppressionTokenContextMenuProps) {
+export function TitleSuppressionTokenContextMenu({
+  closableCount,
+  suspendableCount = 0,
+  onSuspend,
+  onClose,
+  onOpenChange,
+  children
+}: TitleSuppressionTokenContextMenuProps) {
   return (
-    <Suspense fallback={props.children}>
-      <TitleSuppressionTokenContextMenuLoaded {...props} />
-    </Suspense>
+    <ContextMenu onOpenChange={(open) => onOpenChange?.(open)}>
+      <ContextMenuTrigger render={children} />
+      <TitleSuppressionTokenContextMenuContent
+        closableCount={closableCount}
+        suspendableCount={suspendableCount}
+        onSuspend={onSuspend}
+        onClose={onClose}
+      />
+    </ContextMenu>
   )
 }
