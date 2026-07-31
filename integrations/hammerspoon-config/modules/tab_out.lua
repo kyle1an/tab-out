@@ -844,36 +844,23 @@ local function windowOccupiesActiveSpace(window)
   return activeSpace and windowSpaces and containsValue(windowSpaces, activeSpace) or false
 end
 
-local function uniqueChromeEmptyScreen()
-  local occupiedScreenUuids = {}
+local function screenHasChromeWindowOnActiveSpace(targetScreen)
+  local targetUuid = screenUuid(targetScreen)
   for _, window in ipairs(trackedChromeWindows()) do
-    if isChromeWindow(window) and windowOccupiesActiveSpace(window) then
-      local uuid = screenUuid(window:screen())
-      if uuid then
-        occupiedScreenUuids[uuid] = true
-      end
+    if isChromeWindow(window)
+      and windowOccupiesActiveSpace(window)
+      and screenUuid(window:screen()) == targetUuid
+    then
+      return true
     end
   end
-
-  local emptyScreens = {}
-  for _, screen in ipairs(hs.screen.allScreens()) do
-    local uuid = screenUuid(screen)
-    if uuid and not occupiedScreenUuids[uuid] then
-      table.insert(emptyScreens, screen)
-    end
-  end
-
-  if #emptyScreens ~= 1 then
-    return nil, "The Direct-Placement Bridge requires exactly one display without a normal Chrome window"
-  end
-
-  return emptyScreens[1]
+  return false
 end
 
 local function screenDesktopPosition(targetScreen)
   local screens = hs.screen.allScreens()
-  if #screens ~= 2 then
-    return nil, "The Direct-Placement Bridge requires exactly two enabled displays"
+  if #screens < 1 or #screens > 2 then
+    return nil, "The Direct-Placement Bridge requires one or two enabled displays"
   end
 
   table.sort(screens, function(left, right)
@@ -939,11 +926,10 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
     return
   end
 
-  local emptyScreen, emptyScreenError = uniqueChromeEmptyScreen()
-  if not emptyScreen or screenUuid(emptyScreen) ~= request.screenUuid then
+  if screenHasChromeWindowOnActiveSpace(targetScreen) then
     failCurrent(
-      "The target Desktop is not the unique Chrome-empty active Space",
-      emptyScreenError or "A normal Chrome window already occupies the target display's active Space"
+      "The target Desktop already has a normal Chrome window",
+      "Direct placement is reserved for a Chrome-empty active Space on the pointer display"
     )
     return
   end

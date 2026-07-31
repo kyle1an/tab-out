@@ -34,7 +34,7 @@ Hammerspoon owns the two visible keyboard chords. Tab Out's four hidden Direct-P
 | 1 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>6</kbd> | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>7</kbd> |
 | 2 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>8</kbd> | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>9</kbd> |
 
-Both sides assign desktop positions by display top edge, then left edge, then stable ID; the Direct-Placement Bridge currently requires exactly two enabled displays. The extension's ordinary filter and new-tab commands can remain unassigned.
+Both sides assign desktop positions by display top edge, then left edge, then stable ID. The Direct-Placement Bridge supports one or two enabled displays; a single display uses the position-1 commands. The extension's ordinary filter and new-tab commands can remain unassigned.
 
 The Direct-Placement Bridge stops after `chrome.windows.create({ focused: false, ...finalBounds })`. Hammerspoon waits for the destination control, activates the exact target CGWindow ID through the native helper, verifies that same ID owns keyboard focus, and then focuses either Tab Out's search field or Chrome's address bar through Accessibility. It never falls back to `window:focus()`, application activation, or a synthetic click on Chrome.
 

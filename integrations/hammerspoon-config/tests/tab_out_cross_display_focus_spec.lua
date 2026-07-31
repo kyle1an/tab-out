@@ -14,6 +14,7 @@ local modulePath = currentDirectory() .. "/../modules/tab_out.lua"
 local function runShortcut(kind, options)
   options = options or {}
   local targetHasChromeWindow = options.targetHasChromeWindow ~= false
+  local otherHasChromeWindow = options.otherHasChromeWindow ~= false
   local chromeIsRunning = options.chromeIsRunning ~= false
   local cacheTargetProfile = options.cacheTargetProfile ~= false
   local targetHasInactiveSpaceChromeWindow = options.targetHasInactiveSpaceChromeWindow == true
@@ -187,7 +188,7 @@ local function runShortcut(kind, options)
     end,
   }
   focusedWindow = targetHasChromeWindow and cacheTargetProfile and targetChromeWindow
-    or (not targetHasChromeWindow and chromeIsRunning and otherChromeWindow)
+    or (not targetHasChromeWindow and otherHasChromeWindow and chromeIsRunning and otherChromeWindow)
     or originalWindow
 
   local function currentChromeWindows()
@@ -204,7 +205,7 @@ local function runShortcut(kind, options)
     if targetHasInactiveSpaceChromeWindow then
       table.insert(windows, inactiveSpaceChromeWindow)
     end
-    if chromeIsRunning then
+    if otherHasChromeWindow then
       table.insert(windows, otherChromeWindow)
     end
     return windows
@@ -218,7 +219,7 @@ local function runShortcut(kind, options)
     if targetHasChromeWindow then
       table.insert(windows, targetChromeWindow)
     end
-    if not chromeIsRunning then
+    if not chromeIsRunning or not otherHasChromeWindow then
       table.insert(windows, remoteTopWindow)
     elseif otherChromeRaised then
       table.insert(windows, otherChromeWindow)
@@ -427,6 +428,9 @@ local function runShortcut(kind, options)
     },
     screen = {
       allScreens = function()
+        if options.screenCount == 1 then
+          return { targetScreen }
+        end
         return { targetScreen, otherScreen }
       end,
       mainScreen = function()
@@ -618,6 +622,26 @@ local filterResult = runShortcut("filter")
 local newPageResult = runShortcut("newPage")
 local noTargetFilterResult = runShortcut("filter", { targetHasChromeWindow = false })
 local noTargetNewPageResult = runShortcut("newPage", { targetHasChromeWindow = false })
+local allDisplaysEmptyFilterResult = runShortcut("filter", {
+  otherHasChromeWindow = false,
+  targetHasChromeWindow = false,
+})
+local allDisplaysEmptyNewPageResult = runShortcut("newPage", {
+  otherHasChromeWindow = false,
+  targetHasChromeWindow = false,
+})
+local singleDisplayEmptyFilterResult = runShortcut("filter", {
+  otherHasChromeWindow = false,
+  screenCount = 1,
+  targetDisplayPosition = 1,
+  targetHasChromeWindow = false,
+})
+local singleDisplayEmptyNewPageResult = runShortcut("newPage", {
+  otherHasChromeWindow = false,
+  screenCount = 1,
+  targetDisplayPosition = 1,
+  targetHasChromeWindow = false,
+})
 local stoppedChromeNewPageResult = runShortcut("newPage", {
   chromeIsRunning = false,
   targetHasChromeWindow = false,
@@ -674,6 +698,18 @@ assertEqual(noTargetNewPageResult.otherChromeFocused, false, "new-page shortcut 
 assertEqual(noTargetNewPageResult.otherChromeReceivedFocus, false, "new-page shortcut should avoid Chrome's remote launch handoff")
 assertEqual(noTargetNewPageResult.otherChromeRaised, false, "new-page shortcut should not raise Chrome on another display")
 assertEqual(noTargetNewPageResult.privateFocusCount, 1, "directly placed new-page window should receive one exact private focus call")
+assertEqual(allDisplaysEmptyFilterResult.createdWindow, true, "filter shortcut should create a window when both displays are Chrome-empty")
+assertEqual(allDisplaysEmptyFilterResult.failureAlert, nil, "two Chrome-empty displays should not block the filter shortcut")
+assertEqual(allDisplaysEmptyFilterResult.filterInputFocused, true, "all-empty filter creation should focus the in-page filter")
+assertEqual(allDisplaysEmptyNewPageResult.createdWindow, true, "new-page shortcut should create a window when both displays are Chrome-empty")
+assertEqual(allDisplaysEmptyNewPageResult.failureAlert, nil, "two Chrome-empty displays should not block the new-page shortcut")
+assertEqual(allDisplaysEmptyNewPageResult.addressBarFocused, true, "all-empty new-page creation should focus the address bar")
+assertEqual(singleDisplayEmptyFilterResult.createdWindow, true, "filter shortcut should create a window on one Chrome-empty display")
+assertEqual(singleDisplayEmptyFilterResult.failureAlert, nil, "one Chrome-empty display should not block the filter shortcut")
+assertEqual(singleDisplayEmptyFilterResult.inactiveWindowShortcutKey, "6", "one display should use the first Direct-Placement Bridge filter command")
+assertEqual(singleDisplayEmptyNewPageResult.createdWindow, true, "new-page shortcut should create a window on one Chrome-empty display")
+assertEqual(singleDisplayEmptyNewPageResult.failureAlert, nil, "one Chrome-empty display should not block the new-page shortcut")
+assertEqual(singleDisplayEmptyNewPageResult.inactiveWindowShortcutKey, "7", "one display should use the first Direct-Placement Bridge new-page command")
 assertEqual(stoppedChromeNewPageResult.createdWindow, false, "a stopped Chrome should Safe Abort before creating a window")
 assertEqual(stoppedChromeNewPageResult.inactiveWindowShortcutSent, false, "stopped Chrome cannot receive a Direct-Placement Bridge shortcut")
 assertEqual(stoppedChromeNewPageResult.privateFocusCount, 0, "a stopped Chrome should not attempt private focus")
