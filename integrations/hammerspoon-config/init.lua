@@ -42,10 +42,34 @@ _G.tabOutAutomation.start({
   chromeBundleId = "com.google.Chrome",
   chromeProfileDirectory = "Profile 3",
   chromeUserDataDirectory = homeDirectory .. "/Library/Application Support/Google/Chrome",
+  privateFocusEnabled = true,
+  privateFocusModulePath = configRoot .. "/native/build/tab_out_private_focus.dylib",
   shortcuts = {
     filter = {
       key = "k",
       modifiers = { "cmd", "shift" },
+    },
+    inactiveWindow = {
+      [1] = {
+        filter = {
+          key = "6",
+          modifiers = { "cmd", "shift" },
+        },
+        newPage = {
+          key = "7",
+          modifiers = { "cmd", "shift" },
+        },
+      },
+      [2] = {
+        filter = {
+          key = "8",
+          modifiers = { "cmd", "shift" },
+        },
+        newPage = {
+          key = "9",
+          modifiers = { "cmd", "shift" },
+        },
+      },
     },
     newPage = {
       key = "space",
