@@ -136,12 +136,55 @@ test('bridge ignores a target-display Chrome window that Hammerspoon found on an
   assert.deepEqual(calls.update, [])
 })
 
-test('bridge aborts before mutation when the display-addressed contract is not exactly two displays', async () => {
-  const { calls, chromeApi } = createChromeApi({ displays: [displays[0]!] })
+test('filter bridge creates on the addressed display when both displays have no Chrome window', async () => {
+  const { calls, chromeApi } = createChromeApi({ windows: [] })
+
+  await createInactiveWindow('filter', 1, chromeApi)
+
+  assert.deepEqual(calls.create, [
+    {
+      type: 'normal',
+      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      focused: false,
+      left: -1920,
+      top: 0,
+      width: 1920,
+      height: 1080
+    }
+  ])
+  assert.deepEqual(calls.update, [])
+})
+
+test('new-page bridge creates on one display when it has no Chrome window', async () => {
+  const { calls, chromeApi } = createChromeApi({ displays: [displays[0]!], windows: [] })
+
+  await createInactiveWindow('newPage', 1, chromeApi)
+
+  assert.deepEqual(calls.create, [
+    {
+      type: 'normal',
+      focused: false,
+      left: 0,
+      top: 25,
+      width: 1440,
+      height: 875
+    }
+  ])
+  assert.deepEqual(calls.update, [])
+})
+
+test('bridge aborts before mutation when more than two displays are enabled', async () => {
+  const thirdDisplay = {
+    ...displays[0]!,
+    id: 'third-display',
+    bounds: { left: 1440, top: 0, width: 1280, height: 800 },
+    workArea: { left: 1440, top: 25, width: 1280, height: 775 }
+  }
+  const { calls, chromeApi } = createChromeApi({ displays: [...displays, thirdDisplay] })
 
   await assert.rejects(
     () => createInactiveWindow('filter', 1, chromeApi),
-    /exactly two enabled displays/
+    /one or two enabled displays/
   )
 
   assert.deepEqual(calls.create, [])

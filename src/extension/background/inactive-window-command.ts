@@ -114,6 +114,17 @@ function translatedBounds(
   }
 }
 
+function workAreaBounds(
+  display: chrome.system.display.DisplayUnitInfo
+): Pick<chrome.windows.CreateData, 'height' | 'left' | 'top' | 'width'> {
+  return {
+    left: Math.round(display.workArea.left),
+    top: Math.round(display.workArea.top),
+    width: Math.round(display.workArea.width),
+    height: Math.round(display.workArea.height)
+  }
+}
+
 function filterFocusUrl(chromeApi: ChromeApi): string {
   return `chrome-extension://${chromeApi.runtime.id}/index.html?focusFilter=1`
 }
@@ -126,8 +137,8 @@ export async function createInactiveWindow(
   const displays = displaysByDesktopPosition(
     (await chromeApi.system.display.getInfo()).filter((display) => display.isEnabled !== false)
   )
-  if (displays.length !== DISPLAY_POSITIONS.length) {
-    throw new Error('Direct placement requires exactly two enabled displays')
+  if (displays.length < 1 || displays.length > DISPLAY_POSITIONS.length) {
+    throw new Error('Direct placement requires one or two enabled displays')
   }
 
   const targetDisplay = displays[displayPosition - 1]
@@ -150,15 +161,14 @@ export async function createInactiveWindow(
   })
   const sourceWindows = windowsWithDisplays.filter(({ display }) => display.id !== targetDisplay.id)
   const source = sourceWindows.find(({ window }) => window.focused) ?? sourceWindows[0]
-  if (!source) {
-    throw new Error('Direct placement requires a normal Chrome window on the other display')
-  }
 
   const createData: chrome.windows.CreateData = {
     type: 'normal',
     ...(kind === 'filter' ? { url: filterFocusUrl(chromeApi) } : {}),
     focused: false,
-    ...translatedBounds(source.window, source.display, targetDisplay)
+    ...(source
+      ? translatedBounds(source.window, source.display, targetDisplay)
+      : workAreaBounds(targetDisplay))
   }
   await chromeApi.windows.create(createData)
 }
