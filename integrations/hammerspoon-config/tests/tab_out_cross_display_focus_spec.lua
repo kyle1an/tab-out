@@ -22,11 +22,13 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
   local launcherArguments
   local launcherExecutable
   local otherChromeFocused = false
+  local otherChromeReceivedFocus = false
   local otherChromeRaised = false
   local openedFilter = false
   local openedNewPage = false
   local pendingTimers = {}
   local windowCreatedCallback
+  local windowFocusedCallbacks = {}
 
   local function newWatcher()
     return {
@@ -85,7 +87,10 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
       focus = function(self)
         if isOtherWindow then
           otherChromeFocused = true
+          otherChromeReceivedFocus = true
           otherChromeRaised = true
+        else
+          otherChromeFocused = false
         end
         focusedWindow = self
         return true
@@ -135,6 +140,7 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
       return remoteTopApplication
     end,
     focus = function(self)
+      otherChromeFocused = false
       otherChromeRaised = false
       focusedWindow = self
       return true
@@ -146,6 +152,10 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
       return false
     end,
     isStandard = function()
+      return true
+    end,
+    raise = function()
+      otherChromeRaised = false
       return true
     end,
     screen = function()
@@ -426,6 +436,10 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
             if not launchesInBackground then
               otherChromeRaised = true
             end
+            otherChromeWindow:focus()
+            for _, callback in ipairs(windowFocusedCallbacks) do
+              callback(otherChromeWindow)
+            end
             createdChromeWindow = newChromeWindow(404, targetScreen)
             if focusesFilter then
               openedFilter = true
@@ -465,8 +479,11 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
             subscribe = function(_, event, callback, immediate)
               if event == "windowCreated" then
                 windowCreatedCallback = callback
-              elseif event == "windowFocused" and immediate and focusedWindow == otherChromeWindow then
-                callback(otherChromeWindow)
+              elseif event == "windowFocused" then
+                table.insert(windowFocusedCallbacks, callback)
+                if immediate and focusedWindow == otherChromeWindow then
+                  callback(otherChromeWindow)
+                end
               end
             end,
           }
@@ -553,6 +570,7 @@ local function runShortcut(kind, targetHasChromeWindow, targetProfileIsLastUsed)
     openedFilter = openedFilter,
     openedNewPage = openedNewPage,
     otherChromeFocused = otherChromeFocused,
+    otherChromeReceivedFocus = otherChromeReceivedFocus,
     otherChromeRaised = otherChromeRaised,
     targetFocused = focusedWindow == (createdChromeWindow or targetChromeWindow),
   }
@@ -585,6 +603,7 @@ assertEqual(
 )
 assertEqual(noTargetFilterResult.targetFocused, true, "filter shortcut should focus the created target-display window")
 assertEqual(noTargetFilterResult.otherChromeFocused, false, "filter shortcut should not focus Chrome on another display")
+assertEqual(noTargetFilterResult.otherChromeReceivedFocus, true, "filter regression should exercise Chrome's remote launch handoff")
 assertEqual(noTargetFilterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
 assertEqual(noTargetNewPageResult.createdWindow, true, "new-page shortcut should create a window on an empty target display")
 assertEqual(noTargetNewPageResult.launcherExecutable, "/usr/bin/open", "new-page shortcut should use the background app launcher")
@@ -598,6 +617,7 @@ assertEqual(noTargetNewPageResult.openedNewPage, true, "new-page shortcut should
 assertEqual(noTargetNewPageResult.addressBarFocused, true, "new-page shortcut should focus the created window's address bar")
 assertEqual(noTargetNewPageResult.targetFocused, true, "new-page shortcut should focus the created target-display window")
 assertEqual(noTargetNewPageResult.otherChromeFocused, false, "new-page shortcut should not focus Chrome on another display")
+assertEqual(noTargetNewPageResult.otherChromeReceivedFocus, true, "new-page regression should exercise Chrome's remote launch handoff")
 assertEqual(noTargetNewPageResult.otherChromeRaised, false, "new-page shortcut should not raise Chrome on another display")
 assertEqual(noTargetExplicitProfileFilterResult.createdWindow, true, "filter shortcut should launch the configured profile on an empty target display")
 assertEqual(noTargetExplicitProfileFilterResult.targetFocused, true, "filter shortcut should focus the explicitly launched target-display window")

@@ -23,13 +23,13 @@ The router:
 1. Reuses the frontmost eligible Chrome window on that display and Space.
 2. Restricts reuse to the configured Chrome profile by reading Chrome's local profile metadata and checked profile menu item.
 3. Creates one normal target-profile Chrome window when no eligible window exists.
-4. Does not focus a Chrome window on another display while creating the destination window.
+4. Preserves the frontmost non-Chrome window on every other display while creating the destination window.
 5. Never moves or resizes an existing Chrome window.
 6. Preserves a new window's size while clamping it into the target display.
 
 Hammerspoon owns the two visible keyboard chords. Chrome's extension-shortcut assignments can remain unassigned; after selecting and verifying the destination window, the router opens Tab Out's internal extension page directly in that window.
 
-The new-page shortcut invokes Chrome's native new-tab action in an existing window. When it must create a window, it launches Chrome in the background with an explicit `chrome://newtab/` destination, so Tab Out's override retains its new-tab identity and Chrome's normal empty omnibox. The filter shortcut uses Tab Out's extension URL because its `focusFilter=1` parameter is what focuses the in-page filter before the app mounts.
+The new-page shortcut invokes Chrome's native new-tab action in an existing window. When it must create a window, it launches Chrome in the background with an explicit `chrome://newtab/` destination, so Tab Out's override retains its new-tab identity and Chrome's normal empty omnibox. Chrome can briefly focus an existing window while handing that request to its running process; the router immediately restores the prior front window on that display so Chrome never becomes visibly topmost there. The filter shortcut uses Tab Out's extension URL because its `focusFilter=1` parameter is what focuses the in-page filter before the app mounts.
 
 When the pointer display's active Space is full-screen, the router switches that display to its last observed regular Desktop. It fails with a short Hammerspoon HUD if no regular Desktop has been observed.
 

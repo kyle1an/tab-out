@@ -799,6 +799,38 @@ local function trackedChromeWindows(sortOrder)
   return application and application:allWindows() or {}
 end
 
+local function captureOtherDisplayFrontWindows(targetScreen)
+  local frontWindowByScreen = {}
+  local seenScreens = {}
+  local targetScreenUuid = screenUuid(targetScreen)
+
+  for _, window in ipairs(hs.window.orderedWindows()) do
+    local windowScreen = window:screen()
+    local windowScreenUuid = screenUuid(windowScreen)
+    if windowScreenUuid
+      and windowScreenUuid ~= targetScreenUuid
+      and not seenScreens[windowScreenUuid]
+    then
+      seenScreens[windowScreenUuid] = true
+      local application = window:application()
+      if window:id()
+        and window:isStandard()
+        and not window:isMinimized()
+        and application
+        and application:bundleID() ~= state.config.chromeBundleId
+        and not application:isHidden()
+      then
+        frontWindowByScreen[windowScreenUuid] = {
+          spaceId = hs.spaces.activeSpaceOnScreen(windowScreen),
+          window = window,
+        }
+      end
+    end
+  end
+
+  return frontWindowByScreen
+end
+
 local function managedWindowIds()
   local ids = {}
 
@@ -887,6 +919,46 @@ local function handlePendingChromeWindow(window)
   beginNewWindowPlacement(pending.request, pending.targetScreen, pending.launchState, window)
 end
 
+local function handlePendingChromeFocus(window)
+  local pending = state.pendingWindowLaunch
+  local windowId = window and window:id() or nil
+  if not pending or pending.launchState.windowFound or not windowId or not window:isStandard() then
+    return
+  end
+
+  if not pending.previousIds[windowId] then
+    handlePendingChromeWindow(window)
+    return
+  end
+
+  local focusedScreenUuid = screenUuid(window:screen())
+  if not focusedScreenUuid or focusedScreenUuid == pending.request.screenUuid then
+    return
+  end
+
+  local frontWindow = pending.launchState.frontWindowByScreen[focusedScreenUuid]
+  local cover = frontWindow and frontWindow.window or nil
+  local coverScreen = cover and cover:screen() or nil
+  if not cover
+    or not cover:id()
+    or not cover:isStandard()
+    or cover:isMinimized()
+    or screenUuid(coverScreen) ~= focusedScreenUuid
+    or hs.spaces.activeSpaceOnScreen(coverScreen) ~= frontWindow.spaceId
+    or not containsValue(hs.spaces.windowSpaces(cover), frontWindow.spaceId)
+  then
+    return
+  end
+
+  local restored, restoreError = pcall(function()
+    cover:raise()
+    cover:focus()
+  end)
+  if not restored then
+    log.wf("Could not preserve the front window on another display: %s", restoreError)
+  end
+end
+
 local function pollForNewWindow(request, targetScreen, previousIds, launchState, attempt)
   if launchState.windowFound then
     return
@@ -918,6 +990,7 @@ local function launchTargetProfileWindow(request, targetScreen)
   local launchState = {
     errorOutput = nil,
     exitCode = nil,
+    frontWindowByScreen = captureOtherDisplayFrontWindows(targetScreen),
     windowFound = false,
   }
   local arguments = {
@@ -1072,6 +1145,7 @@ local function configureChromeWindowCache()
   end, "tab-out-profile-cache", "warning")
 
   state.chromeWindowFilter:subscribe(hs.window.filter.windowFocused, function(window)
+    handlePendingChromeFocus(window)
     learnFocusedChromeProfile(window)
   end, true)
 
