@@ -1197,6 +1197,53 @@ test('lazy context-menu arming preserves keyboard focus on chips and history ent
   }
 })
 
+test('the first pointer click opens a card menu immediately after refresh', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await page.reload()
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  let interactionScriptRequestStarted = false
+  await page.route('**/extension/dist/**/*.js', async (route) => {
+    interactionScriptRequestStarted = true
+    await new Promise((resolve) => setTimeout(resolve, 750))
+    await route.continue()
+  })
+
+  const trigger = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"] [data-tabout-part="card-menu"]'
+  )
+  const triggerBox = await trigger.boundingBox()
+  if (!triggerBox) throw new Error('Card menu trigger geometry is unavailable')
+
+  const triggerCenter = {
+    x: triggerBox.x + triggerBox.width / 2,
+    y: triggerBox.y + triggerBox.height / 2
+  }
+  await page.mouse.move(triggerCenter.x, triggerCenter.y)
+  await expect.poll(() => trigger.evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    const hitTarget = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+    return hitTarget === element || element.contains(hitTarget)
+  })).toBe(true)
+  await page.mouse.click(triggerCenter.x, triggerCenter.y)
+
+  await expect(page.locator('[data-slot="menu-content"]:visible')).toHaveCount(1, { timeout: 250 })
+  expect(interactionScriptRequestStarted).toBe(false)
+})
+
+test('the first keyboard activation opens a card menu', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+
+  const trigger = page.locator(
+    '[data-tabout="domain-card"][data-tabout-domain="tab-out-smoke-02.com"] [data-tabout-part="card-menu"]'
+  )
+  await trigger.focus()
+  await page.keyboard.press('Enter')
+
+  await expect(page.locator('[data-slot="menu-content"]:visible')).toHaveCount(1)
+})
+
 test('keyboard focus reveals section actions and lifts unmatched-card dimming', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await page.evaluate(async () => {
@@ -1679,7 +1726,6 @@ test('large Tabs rendering stays bounded and retains mounted depth across card r
   await target.hover()
   const menu = target.locator('[data-tabout-part="card-menu"]')
   await menu.hover()
-  await expect(menu).toHaveAttribute('data-tabout-menu-loaded', 'true')
   await menu.click()
   await page.locator('[data-slot="menu-content"]:visible [data-tabout-part="pin-button"]').click()
 
@@ -1890,10 +1936,6 @@ test('a pending filter Enter is cancelled when the selected source changes', asy
 })
 
 test('a pending source switch rebuilds with the latest domain pins', async ({ page }) => {
-  await page.route('**/extension/dist/assets/CardActionsMenuLoaded-*.js', async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    await route.continue()
-  })
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
   await installBookmarkFetchGate(page, [{

@@ -6408,7 +6408,6 @@ test('domain card menu keeps close suspended visible and disabled at zero', asyn
 
   const cardMenu = contentfulCard.locator('[data-tabout-part="card-menu"]')
   await cardMenu.hover()
-  await expect(cardMenu).toHaveAttribute('data-tabout-menu-loaded', 'true')
   await cardMenu.click()
 
   const closeSuspended = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
@@ -6457,7 +6456,6 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
   await contentfulCard.hover()
   const contentfulMenu = contentfulCard.locator('[data-tabout-part="card-menu"]')
   await contentfulMenu.hover()
-  await expect(contentfulMenu).toHaveAttribute('data-tabout-menu-loaded', 'true')
   await contentfulMenu.click()
   await page.locator('[data-slot="menu-content"]:visible [data-tabout-part="pin-button"]').click()
   await expect.poll(() => page.evaluate(() => (
@@ -6467,7 +6465,6 @@ test('rapid domain pin writes preserve the latest optimistic state', async ({ pa
   await suppressionCard.hover()
   const suppressionMenu = suppressionCard.locator('[data-tabout-part="card-menu"]')
   await suppressionMenu.hover()
-  await expect(suppressionMenu).toHaveAttribute('data-tabout-menu-loaded', 'true')
   await suppressionMenu.click()
   await page.locator('[data-slot="menu-content"]:visible [data-tabout-part="pin-button"]').click()
   await expect(contentfulCard).toHaveAttribute('data-tabout-domain-pinned', 'true')

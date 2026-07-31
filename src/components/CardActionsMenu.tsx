@@ -1,8 +1,6 @@
-import { lazy, Suspense, useState } from 'react'
+import { Menu, MenuContent, MenuItem, MenuTrigger } from './ui/menu'
 
-const CardActionsMenuLoaded = lazy(() => import('./CardActionsMenuLoaded').then((module) => ({ default: module.CardActionsMenuLoaded })))
-
-export interface CardActionsMenuProps {
+interface CardActionsMenuProps {
   displayName: string
   label?: string | undefined
   onClose?: (() => void | Promise<void>) | undefined
@@ -15,55 +13,76 @@ export interface CardActionsMenuProps {
   onCloseSuspended?: (() => void | Promise<void>) | undefined
 }
 
-const triggerClassName = 'card-actions-menu-trigger z-2 grid size-[22px] shrink-0 cursor-pointer place-items-center self-start justify-self-end rounded-lg border border-transparent bg-transparent p-0 text-muted-foreground opacity-0 pointer-events-none transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground focus-visible:opacity-100 data-[popup-open]:pointer-events-auto data-[popup-open]:opacity-100 data-[popup-open]:border-(--warm-gray) data-[popup-open]:bg-[rgba(82,82,82,0.08)] data-[popup-open]:text-foreground'
-
-function CardActionsMenuTriggerFallback({
+export function CardActionsMenu({
   displayName,
-  onArm,
-  onRequestOpen
-}: {
-  displayName: string
-  onArm: () => void
-  onRequestOpen: () => void
-}) {
-  return (
-    <button
-      type="button"
-      data-tabout-part="card-menu"
-      aria-haspopup="menu"
-      aria-label={`Actions for ${displayName}`}
-      className={triggerClassName}
-      onClick={onRequestOpen}
-      onFocus={onArm}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') onRequestOpen()
-      }}
-      onPointerDown={onRequestOpen}
-      onPointerEnter={onArm}
-    >
-      <span className="icon-[lucide--ellipsis-vertical] size-3.5" aria-hidden="true" />
-    </button>
-  )
-}
-
-export function CardActionsMenu(props: CardActionsMenuProps) {
-  const [armed, setArmed] = useState(false)
-  const [openOnLoad, setOpenOnLoad] = useState(false)
-  const fallback = (
-    <CardActionsMenuTriggerFallback
-      displayName={props.displayName}
-      onArm={() => setArmed(true)}
-      onRequestOpen={() => {
-        setOpenOnLoad(true)
-        setArmed(true)
-      }}
-    />
-  )
-  if (!armed) return fallback
+  label,
+  onClose,
+  pinned,
+  onTogglePin,
+  suspendLabel,
+  onSuspend,
+  closeSuspendedLabel,
+  closeSuspendedEnabled = true,
+  onCloseSuspended
+}: CardActionsMenuProps) {
+  const pinLabel = pinned ? 'Unpin card' : 'Pin card'
 
   return (
-    <Suspense fallback={fallback}>
-      <CardActionsMenuLoaded {...props} defaultOpen={openOnLoad} />
-    </Suspense>
+    <Menu>
+      <MenuTrigger
+        data-tabout-part="card-menu"
+        aria-label={`Actions for ${displayName}`}
+        className="card-actions-menu-trigger z-2 grid size-5.5 shrink-0 cursor-pointer place-items-center self-start justify-self-end rounded-lg border border-transparent bg-transparent p-0 text-muted-foreground opacity-0 pointer-events-none transition-[opacity,color,background,border-color] duration-200 ease-out [corner-shape:squircle] group-hover/domain-block:pointer-events-auto group-hover/domain-block:opacity-100 hover:border-(--warm-gray) hover:bg-[rgba(82,82,82,0.06)] hover:text-foreground focus-visible:opacity-100 data-popup-open:pointer-events-auto data-popup-open:opacity-100 data-popup-open:border-(--warm-gray) data-popup-open:bg-[rgba(82,82,82,0.08)] data-popup-open:text-foreground"
+      >
+        <span className="icon-[lucide--ellipsis-vertical] size-3.5" aria-hidden="true" />
+      </MenuTrigger>
+      <MenuContent>
+        {onTogglePin && (
+          <MenuItem
+            data-tabout-part="pin-button"
+            className="card-actions-pin-item"
+            label={pinLabel}
+            onClick={onTogglePin}
+          >
+            <span className={pinned ? 'icon-[lucide--pin-off] size-3.5' : 'icon-[lucide--pin] size-3.5'} aria-hidden="true" />
+            <span className="min-w-0 flex-1">{pinLabel}</span>
+          </MenuItem>
+        )}
+        {suspendLabel && onSuspend && (
+          <MenuItem
+            data-tabout-part="suspend-button"
+            className="card-actions-suspend-item"
+            label={suspendLabel}
+            onClick={onSuspend}
+          >
+            <span className="icon-[lucide--circle-pause] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{suspendLabel}</span>
+          </MenuItem>
+        )}
+        {closeSuspendedLabel && onCloseSuspended && (
+          <MenuItem
+            data-tabout-part="close-suspended-button"
+            className="card-actions-close-suspended-item data-highlighted:text-(--status-abandoned)!"
+            disabled={!closeSuspendedEnabled}
+            label={closeSuspendedLabel}
+            onClick={onCloseSuspended}
+          >
+            <span className="icon-[lucide--circle-x] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{closeSuspendedLabel}</span>
+          </MenuItem>
+        )}
+        {onClose && (
+          <MenuItem
+            data-tabout-part="close-button"
+            className="card-actions-close-item data-highlighted:text-(--status-abandoned)!"
+            label={label}
+            onClick={onClose}
+          >
+            <span className="icon-[lucide--x] size-3.5" aria-hidden="true" />
+            {label && <span className="min-w-0 flex-1">{label}</span>}
+          </MenuItem>
+        )}
+      </MenuContent>
+    </Menu>
   )
 }

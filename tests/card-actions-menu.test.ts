@@ -77,12 +77,10 @@ test('DomainCard keeps the actions menu in the first header row flow', () => {
   assert.doesNotMatch(triggerClass, /\b(?:top-0|right-0)\b/)
   assert.match(triggerClass, /\bshrink-0\b/)
   assert.match(triggerClass, /\bjustify-self-end\b/)
-  assert.doesNotMatch(menuSource, /from '\.\/ui\/menu'/)
-  assert.match(menuSource, /lazy\(\(\) => import\('\.\/CardActionsMenuLoaded'\)/)
 })
 
 test('CardActionsMenu orders pin, suspend, close suspended, then close all', () => {
-  const source = readFileSync(new URL('../src/components/CardActionsMenuLoaded.tsx', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
 
   assert.ok(source.indexOf('data-tabout-part="pin-button"') < source.indexOf('data-tabout-part="suspend-button"'))
   assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-suspended-button"'))
@@ -99,16 +97,6 @@ test('DomainCard keeps close suspended visible and disables it at zero', () => {
   assert.match(source, /closeSuspendedLabel=\{showBulkActions \? closeSuspendedLabel : undefined\}/)
   assert.match(source, /onCloseSuspended=\{showBulkActions \? onCloseSuspendedDomain : undefined\}/)
   assert.match(source, /closeSuspendedEnabled=\{showBulkActions && closableSuspendedCount > 0\}/)
-})
-
-test('CardActionsMenu replays a first press that lands while the menu is loading', () => {
-  const menuSource = readFileSync(new URL('../src/components/CardActionsMenu.tsx', import.meta.url), 'utf8')
-  const loadedSource = readFileSync(new URL('../src/components/CardActionsMenuLoaded.tsx', import.meta.url), 'utf8')
-
-  assert.match(menuSource, /onPointerDown=\{onRequestOpen\}/)
-  assert.match(menuSource, /setOpenOnLoad\(true\)/)
-  assert.match(menuSource, /defaultOpen=\{openOnLoad\}/)
-  assert.match(loadedSource, /<Menu defaultOpen=\{defaultOpen\} defaultTriggerId=/)
 })
 
 test('DomainCard keeps a pin-only actions menu when there is nothing closable', () => {

@@ -801,7 +801,7 @@ test('built extension bundle is packaged locally', () => {
     assetJsFiles.reduce((total, name) => total + statSync(`extension/dist/assets/${name}`).size, 0)
   assert.deepEqual(distFiles, ['app.js', 'assets', 'background.js', 'filter-focus-boot.js'])
   assert.ok(assetFiles.includes('app.css'))
-  assert.equal(assetJsFiles.length, 16)
+  assert.equal(assetJsFiles.length, 11)
   // Caps are anchored to the pinned-Node production build with modest growth
   // room. Both entries retain the complete exact Public Suffix List through
   // tldts's pre-minified ESM build rather than duplicating its source payload.
@@ -811,20 +811,16 @@ test('built extension bundle is packaged locally', () => {
   assert.ok(totalJavaScriptBytes <= 1_350_000, `total JavaScript exceeded 1350000 bytes: ${totalJavaScriptBytes}`)
   assert.ok(assetJsFiles.some((name) => /^startup-order-debug-heavy-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^bookmarks-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^CardActionsMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^getPseudoElementBounds-[A-Za-z0-9_-]+\.js$/.test(name)))
+  assert.ok(!assetJsFiles.some((name) => /^CardActionsMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^HistoryRangeSelect-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^history-source-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^inertValue-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^mountToast-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^PageChipContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^ReactStore-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^rolldown-runtime-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^TitleSuppressionTokenContextMenuLoaded-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^context-menu-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^menu-styles-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.ok(assetJsFiles.some((name) => /^useOpenInteractionType-[A-Za-z0-9_-]+\.js$/.test(name)))
-  assert.ok(assetJsFiles.some((name) => /^usePositioner-[A-Za-z0-9_-]+\.js$/.test(name)))
   assert.deepEqual(readdirSync('extension').filter((name) => name.endsWith('.js')), [])
   assert.doesNotMatch(indexHtml, /config\.local\.js/)
 
