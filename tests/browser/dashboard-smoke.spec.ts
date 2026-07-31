@@ -6400,6 +6400,23 @@ test('dashboard cards repack when the viewport resizes', async ({ page, context 
   assert.equal(largeBookmarks.final.measureNodeCount, 0, `large bookmark source should not create hidden page-chip measure nodes after all chunks render: ${JSON.stringify(largeBookmarks)}`)
 })
 
+test('domain card menu keeps close suspended visible and disabled at zero', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  const contentfulCard = page.locator('[data-tabout="domain-card"][data-tabout-domain="contentful.com"]')
+  await expect(contentfulCard).toBeVisible()
+  await contentfulCard.hover()
+
+  const cardMenu = contentfulCard.locator('[data-tabout-part="card-menu"]')
+  await cardMenu.hover()
+  await expect(cardMenu).toHaveAttribute('data-tabout-menu-loaded', 'true')
+  await cardMenu.click()
+
+  const closeSuspended = page.locator('[data-slot="menu-content"]:visible [data-tabout-part="close-suspended-button"]')
+  await expect(closeSuspended).toBeVisible()
+  await expect(closeSuspended).toContainText('Close all 0 suspended tabs')
+  await expect(closeSuspended).toHaveAttribute('data-disabled', '')
+})
+
 test('rapid domain pin writes preserve the latest optimistic state', async ({ page }) => {
   await page.goto('/tests/fixtures/dashboard-resize.html')
   await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)

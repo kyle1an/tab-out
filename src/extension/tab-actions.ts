@@ -193,10 +193,7 @@ export async function closeFilteredTabs(targets: DashboardTabMutationTarget[]): 
 }
 
 export async function closeDomainTabs({ group, filter, displayName, onAfterClose }: CloseDomainTabsOptions): Promise<TabActionResult> {
-  const isTabOutGroup = group.domain === '__tab-out__'
-  const scopedTabs = (filter ? group.tabs.filter((tab) => tabMatchesSourceFilter(tab, filter)) : group.tabs)
-    .filter((tab) => !isClosedSavedDashboardTab(tab))
-    .filter((tab) => !isGroupedTab(tab) && !(isTabOutGroup && tab.pinned))
+  const scopedTabs = domainMutationTabs({ group, filter })
   const closeResult = await closeTabsByTargetsResult(tabMutationTargets(scopedTabs), { preserveGroups: true })
   return finishTabCloseAction({
     closeResult,
@@ -212,17 +209,39 @@ function tabMutationTargets(tabs: readonly DashboardTab[]): DashboardTabMutation
     : [])
 }
 
-function domainSuspendTargets({ group, filter }: SuspendDomainTabsOptions): DashboardTabMutationTarget[] {
+function domainMutationTabs({ group, filter }: SuspendDomainTabsOptions): DashboardTab[] {
   const isTabOutGroup = group.domain === '__tab-out__'
   const scopedTabs = filter ? group.tabs.filter((tab) => tabMatchesSourceFilter(tab, filter)) : group.tabs
-  return tabMutationTargets(scopedTabs
+  return scopedTabs
     .filter((tab) => !isClosedSavedDashboardTab(tab))
     .filter((tab) => !isGroupedTab(tab) && !(isTabOutGroup && tab.pinned))
-    .filter((tab) => !tab.suspended))
+}
+
+function domainSuspendTargets(options: SuspendDomainTabsOptions): DashboardTabMutationTarget[] {
+  return tabMutationTargets(domainMutationTabs(options).filter((tab) => !tab.suspended))
 }
 
 export async function suspendDomainTabs(options: SuspendDomainTabsOptions): Promise<SuspendTabsResult> {
   return suspendMutationTargets(domainSuspendTargets(options))
+}
+
+export async function closeSuspendedDomainTabs({
+  group,
+  filter,
+  displayName,
+  onAfterClose
+}: CloseDomainTabsOptions): Promise<TabActionResult> {
+  const targets = tabMutationTargets(domainMutationTabs({ group, filter }).filter((tab) => tab.suspended))
+  const closeResult = await closeTabsByTargetsResult(targets, {
+    preserveGroups: true,
+    requireSuspended: true
+  })
+  return finishTabCloseAction({
+    closeResult,
+    nothingMessage: 'Nothing suspended to close',
+    labelSuffix: ` from ${displayName}`,
+    ...(onAfterClose ? { onAfterClose } : {})
+  })
 }
 
 async function suspendMutationTargets(targets: readonly DashboardTabMutationTarget[]): Promise<SuspendTabsResult> {

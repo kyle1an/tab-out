@@ -10,7 +10,7 @@
 
 import { createTab, createWindow, getAllWindowsResult, getCurrentWindowResult, getTab, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
-import { rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
+import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
@@ -27,6 +27,9 @@ type SnapshotOptions = {
 type CloseOptions = {
   preserveGroups?: boolean
   preservePinnedTabOut?: boolean
+}
+type TargetCloseOptions = CloseOptions & {
+  requireSuspended?: boolean
 }
 type DedupeOptions = {
   currentWindowId?: number
@@ -266,15 +269,17 @@ export async function closeTabsExactResult(
 /**
  * Close an exact render-derived set. The URL guard prevents a stale tab id
  * (including one revived from a startup snapshot after an id reuse) from
- * closing a page that no longer matches the action the user selected. Returns
- * confirmed snapshots plus mutation status and attempted/removed/failed counts.
+ * closing a page that no longer matches the action the user selected. Callers
+ * can additionally require that each matching live tab is still suspended.
+ * Returns confirmed snapshots plus mutation status and attempted/removed/failed
+ * counts.
  */
 export async function closeTabsByTargetsResult(
   targets: readonly DashboardTabMutationTarget[],
-  opts: CloseOptions = {}
+  opts: TargetCloseOptions = {}
 ): Promise<TabCloseResult> {
   if (targets.length === 0) return emptyTabCloseResult('complete')
-  const { preserveGroups = false, preservePinnedTabOut = true } = opts
+  const { preserveGroups = false, preservePinnedTabOut = true, requireSuspended = false } = opts
   const expectedUrlById = new Map(targets.map((target) => [target.tabId, target.tabUrl]))
   const allTabsResult = await queryAllTabsResult()
   if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
@@ -283,8 +288,10 @@ export async function closeTabsByTargetsResult(
     if (typeof tab.id !== 'number') return false
     const expectedUrl = expectedUrlById.get(tab.id)
     if (!expectedUrl) return false
-    const effectiveUrl = unwrapSuspenderUrl(liveTabUrlForIdentity(tab))
+    const rawUrl = liveTabUrlForIdentity(tab)
+    const effectiveUrl = unwrapSuspenderUrl(rawUrl)
     if (effectiveUrl !== expectedUrl) return false
+    if (requireSuspended && !isSuspended(rawUrl, effectiveUrl)) return false
     if (preserveGroups && isGroupedTab(tab)) return false
     return !(preservePinnedTabOut && tab.pinned && isTabOutPageUrl(effectiveUrl))
   })

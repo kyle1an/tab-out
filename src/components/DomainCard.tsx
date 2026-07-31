@@ -1,6 +1,6 @@
 import { isPinnableDomain } from '../extension/domain-pins.js'
 import { splitDomainForDisplay } from '../extension/domains.js'
-import { closeDomainTabs, dedupeTabs, suspendDomainTabs } from '../extension/tab-actions'
+import { closeDomainTabs, closeSuspendedDomainTabs, dedupeTabs, suspendDomainTabs } from '../extension/tab-actions'
 import { DomainCardProvider } from './DomainCardContext'
 import { useDashboardActions } from './DashboardInteractionContext'
 import { SubdomainSection } from './SubdomainSection'
@@ -207,6 +207,12 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
   const closableExtras = vm.closableExtras ?? 0
   const closableCount = vm.closableCount ?? 0
   const suspendableCount = vm.suspendableCount ?? 0
+  const closableSuspendedCount = vm.closableSuspendedCount ?? Math.max(0, closableCount - suspendableCount)
+  const closeSuspendedLabel = vm.closableSuspendedCountLabel ?? (
+    closableCount === (vm.tabCount ?? closableCount)
+      ? `Close all ${closableSuspendedCount} suspended tab${closableSuspendedCount === 1 ? '' : 's'}`
+      : `Close ${closableSuspendedCount} suspended ungrouped tab${closableSuspendedCount === 1 ? '' : 's'}`
+  )
   const sections = vm.sections ?? []
   const highlightFilter = vm.displayMode !== 'unmatched' ? filter : ''
   const suppressedTitleParts = vm.suppressedTitleParts ?? []
@@ -242,6 +248,27 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
     await suspendDomainTabs({
       group,
       filter
+    })
+  }
+
+  async function onCloseSuspendedDomain() {
+    const block = blockRef.current
+
+    await closeSuspendedDomainTabs({
+      group,
+      filter,
+      displayName,
+      onAfterClose: async ({ snapshot }) => {
+        if (block && domainCardCloseRemovesAllItems({
+          closableCount: closableSuspendedCount,
+          filter,
+          group,
+          removedCount: snapshot.length
+        })) {
+          block.classList.add('closing')
+          await new Promise((resolve) => setTimeout(resolve, 250))
+        }
+      }
     })
   }
 
@@ -429,6 +456,9 @@ export function DomainCard({ group, vm, filter = '', highlightTerms }: DomainCar
               onClose={showBulkActions ? onCloseDomain : undefined}
               suspendLabel={showBulkActions && suspendableCount > 0 ? vm.suspendableCountLabel : undefined}
               onSuspend={showBulkActions && suspendableCount > 0 ? onSuspendDomain : undefined}
+              closeSuspendedLabel={showBulkActions ? closeSuspendedLabel : undefined}
+              closeSuspendedEnabled={showBulkActions && closableSuspendedCount > 0}
+              onCloseSuspended={showBulkActions ? onCloseSuspendedDomain : undefined}
             />
           )}
         </header>

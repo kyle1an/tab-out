@@ -39,6 +39,8 @@ function makeClosableCardVM(overrides: Partial<DashboardCardVM> = {}): Dashboard
     closableCountLabel: 'Close all 5 tabs',
     suspendableCount: 5,
     suspendableCountLabel: 'Suspend all 5 tabs',
+    closableSuspendedCount: 2,
+    closableSuspendedCountLabel: 'Close all 2 suspended tabs',
     suppressedTitleParts: [],
     sections: [],
     ...overrides
@@ -79,13 +81,24 @@ test('DomainCard keeps the actions menu in the first header row flow', () => {
   assert.match(menuSource, /lazy\(\(\) => import\('\.\/CardActionsMenuLoaded'\)/)
 })
 
-test('CardActionsMenu orders pin before suspend and close', () => {
+test('CardActionsMenu orders pin, suspend, close suspended, then close all', () => {
   const source = readFileSync(new URL('../src/components/CardActionsMenuLoaded.tsx', import.meta.url), 'utf8')
 
   assert.ok(source.indexOf('data-tabout-part="pin-button"') < source.indexOf('data-tabout-part="suspend-button"'))
-  assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-button"'))
+  assert.ok(source.indexOf('data-tabout-part="suspend-button"') < source.indexOf('data-tabout-part="close-suspended-button"'))
+  assert.ok(source.indexOf('data-tabout-part="close-suspended-button"') < source.indexOf('data-tabout-part="close-button"'))
   assert.match(source, /pinned \? 'icon-\[lucide--pin-off\]/)
   assert.match(source, /: 'icon-\[lucide--pin\]/)
+  assert.match(source, /icon-\[lucide--circle-x\]/)
+  assert.match(source, /disabled=\{!closeSuspendedEnabled\}/)
+})
+
+test('DomainCard keeps close suspended visible and disables it at zero', () => {
+  const source = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')
+
+  assert.match(source, /closeSuspendedLabel=\{showBulkActions \? closeSuspendedLabel : undefined\}/)
+  assert.match(source, /onCloseSuspended=\{showBulkActions \? onCloseSuspendedDomain : undefined\}/)
+  assert.match(source, /closeSuspendedEnabled=\{showBulkActions && closableSuspendedCount > 0\}/)
 })
 
 test('CardActionsMenu replays a first press that lands while the menu is loading', () => {

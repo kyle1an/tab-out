@@ -228,6 +228,8 @@ export interface DashboardCardVM {
   closableCountLabel?: string
   suspendableCount?: number
   suspendableCountLabel?: string
+  closableSuspendedCount?: number
+  closableSuspendedCountLabel?: string
   closableDupeUrls?: string[]
   closableExtras?: number
   singleSubdomainKey?: string

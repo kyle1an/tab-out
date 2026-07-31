@@ -15,6 +15,9 @@ export function CardActionsMenuLoaded({
   onTogglePin,
   suspendLabel,
   onSuspend,
+  closeSuspendedLabel,
+  closeSuspendedEnabled = true,
+  onCloseSuspended,
   defaultOpen = false
 }: CardActionsMenuLoadedProps) {
   const pinLabel = pinned ? 'Unpin card' : 'Pin card'
@@ -52,6 +55,18 @@ export function CardActionsMenuLoaded({
           >
             <span className="icon-[lucide--circle-pause] size-3.5" aria-hidden="true" />
             <span className="min-w-0 flex-1">{suspendLabel}</span>
+          </MenuItem>
+        )}
+        {closeSuspendedLabel && onCloseSuspended && (
+          <MenuItem
+            data-tabout-part="close-suspended-button"
+            className="card-actions-close-suspended-item data-highlighted:text-(--status-abandoned)!"
+            disabled={!closeSuspendedEnabled}
+            label={closeSuspendedLabel}
+            onClick={onCloseSuspended}
+          >
+            <span className="icon-[lucide--circle-x] size-3.5" aria-hidden="true" />
+            <span className="min-w-0 flex-1">{closeSuspendedLabel}</span>
           </MenuItem>
         )}
         {onClose && (

@@ -382,6 +382,8 @@ function isCachedDashboardCard(value: unknown): boolean {
     isOptionalString(value.closableCountLabel) &&
     isOptionalFiniteNumber(value.suspendableCount) &&
     isOptionalString(value.suspendableCountLabel) &&
+    isOptionalFiniteNumber(value.closableSuspendedCount) &&
+    isOptionalString(value.closableSuspendedCountLabel) &&
     isOptionalStringArray(value.closableDupeUrls) &&
     isOptionalFiniteNumber(value.closableExtras) &&
     isOptionalString(value.singleSubdomainKey) &&

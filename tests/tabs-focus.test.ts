@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { replaceDashboardRefreshForTesting } from '../src/extension/dashboard-intake.js'
-import { closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
+import { closeChipTarget, closeDomainTabs, closeExactTabSection, closeExactTabTargets, closeFilteredTabs, closeSuspendedDomainTabs, dedupeTabs, tabCloseProgressLabel } from '../src/extension/tab-actions.js'
 import { closeHistoryEntry, focusHistoryEntryResult } from '../src/extension/tab-history.js'
 import { focusExactTabTargetResult, focusExistingTabTargetResult, tabFocusResultToastMessage } from '../src/extension/tab-focus.js'
 import { closeTabsByTargetsResult, closeTabsExactResult, focusExactTabOrOpenResult, focusTab, openTabUrl, openTabUrlInNewWindow, snapshotChromeTabs } from '../src/extension/tabs.js'
@@ -921,6 +921,84 @@ test('filtered domain close keeps a same-URL tab whose title does not match', as
     assert.deepEqual(calls.remove, [1])
     assert.deepEqual(tabs.map((tab) => tab.id), [2])
     assert.deepEqual(result.snapshot.map((tab) => tab.title), ['Alpha match'])
+  } finally {
+    cleanup()
+    ;(globalThis as { document?: unknown }).document = previousDocument
+  }
+})
+
+test('close suspended domain tabs closes only live suspended tabs in the bulk-action scope', async () => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {})
+  const previousDocument = globalThis.document
+  ;(globalThis as { document?: unknown }).document = { getElementById: () => null }
+  try {
+    const activeUrl = 'https://example.test/active'
+    const suspendedUrl = 'https://example.test/suspended'
+    const groupedUrl = 'https://example.test/grouped'
+    const suspendedRawUrl = `chrome-extension://suspender/suspended.html#uri=${encodeURIComponent(suspendedUrl)}`
+    const groupedRawUrl = `chrome-extension://suspender/suspended.html#uri=${encodeURIComponent(groupedUrl)}`
+    const { calls, tabs } = createChromeMock([
+      { id: 1, windowId: 1, url: activeUrl, title: 'Active', active: false, pinned: false, groupId: -1 },
+      { id: 2, windowId: 1, url: suspendedRawUrl, title: 'Suspended', active: false, pinned: false, groupId: -1 },
+      { id: 3, windowId: 1, url: groupedRawUrl, title: 'Grouped', active: false, pinned: false, groupId: 7 }
+    ])
+    const dashboardTabs = [
+      { id: 1, url: activeUrl, rawUrl: activeUrl, suspended: false, title: 'Active', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: -1, isTabOut: false, isApp: false },
+      { id: 2, url: suspendedUrl, rawUrl: suspendedRawUrl, suspended: true, title: 'Suspended', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: -1, isTabOut: false, isApp: false },
+      { id: 3, url: groupedUrl, rawUrl: groupedRawUrl, suspended: true, title: 'Grouped', favIconUrl: '', windowId: 1, active: false, pinned: false, groupId: 7, isTabOut: false, isApp: false }
+    ]
+
+    const result = await closeSuspendedDomainTabs({
+      group: { domain: 'example.test', tabs: dashboardTabs },
+      filter: '',
+      displayName: 'example.test'
+    })
+
+    assert.deepEqual(calls.remove, [2])
+    assert.deepEqual(tabs.map((tab) => tab.id), [1, 3])
+    assert.deepEqual(result.snapshot.map((tab) => tab.rawUrl), [suspendedRawUrl])
+  } finally {
+    cleanup()
+    ;(globalThis as { document?: unknown }).document = previousDocument
+  }
+})
+
+test('close suspended domain tabs preserves a target that woke before the action resolved', async () => {
+  const cleanup = replaceDashboardRefreshForTesting(() => {})
+  const previousDocument = globalThis.document
+  ;(globalThis as { document?: unknown }).document = { getElementById: () => null }
+  try {
+    const url = 'https://example.test/docs'
+    const suspendedRawUrl = `chrome-extension://suspender/suspended.html#uri=${encodeURIComponent(url)}`
+    const { calls, tabs } = createChromeMock([
+      { id: 2, windowId: 1, url, title: 'Docs', active: false, pinned: false, groupId: -1 }
+    ])
+
+    const result = await closeSuspendedDomainTabs({
+      group: {
+        domain: 'example.test',
+        tabs: [{
+          id: 2,
+          url,
+          rawUrl: suspendedRawUrl,
+          suspended: true,
+          title: 'Docs',
+          favIconUrl: '',
+          windowId: 1,
+          active: false,
+          pinned: false,
+          groupId: -1,
+          isTabOut: false,
+          isApp: false
+        }]
+      },
+      filter: '',
+      displayName: 'example.test'
+    })
+
+    assert.deepEqual(calls.remove, [])
+    assert.deepEqual(tabs.map((tab) => tab.id), [2])
+    assert.deepEqual(result.snapshot, [])
   } finally {
     cleanup()
     ;(globalThis as { document?: unknown }).document = previousDocument

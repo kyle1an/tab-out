@@ -689,6 +689,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const closableCount = closableTabs.length
   const suspendableTabs = closableTabs.filter((t) => !t.suspended)
   const suspendableCount = suspendableTabs.length
+  const closableSuspendedCount = closableTabs.filter((t) => t.suspended).length
 
   // Count duplicates per URL and delegate the closeability rules to the
   // shared dedupe policy so dashboard counts mirror tab mutation behavior.
@@ -2199,6 +2200,10 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
       : closableCount !== tabCount
         ? `Suspend ${suspendableCount} ungrouped tab${suspendableCount !== 1 ? 's' : ''}`
         : `Suspend ${suspendableCount} active tab${suspendableCount !== 1 ? 's' : ''}`
+  const closableSuspendedCountLabel =
+    closableCount === tabCount
+      ? `Close all ${closableSuspendedCount} suspended tab${closableSuspendedCount !== 1 ? 's' : ''}`
+      : `Close ${closableSuspendedCount} suspended ungrouped tab${closableSuspendedCount !== 1 ? 's' : ''}`
 
   const displayName = group.label || group.domain.replace(/^www\./, '')
 
@@ -2211,6 +2216,7 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
   const isUnmatched = displayMode === 'unmatched'
   const vmClosableCount = isUnmatched || !allowMutations ? 0 : closableCount
   const vmSuspendableCount = isUnmatched || !allowMutations ? 0 : suspendableCount
+  const vmClosableSuspendedCount = isUnmatched || !allowMutations ? 0 : closableSuspendedCount
   const vmClosableExtras = isUnmatched || !allowMutations ? 0 : closableExtras
   const vmClosableDupeUrls = isUnmatched || !allowMutations ? [] : closableDupeUrls
   const vmSections = isUnmatched
@@ -2241,6 +2247,8 @@ export function computeDomainCardViewModel(group: DomainGroup, { filter = '', fi
     closableCountLabel,
     suspendableCount: vmSuspendableCount,
     suspendableCountLabel,
+    closableSuspendedCount: vmClosableSuspendedCount,
+    closableSuspendedCountLabel,
     closableDupeUrls: vmClosableDupeUrls,
     closableExtras: vmClosableExtras,
     singleSubdomainKey,
