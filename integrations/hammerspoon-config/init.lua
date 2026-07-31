@@ -40,7 +40,6 @@ local homeDirectory = os.getenv("HOME")
 _G.tabOutAutomation = require("modules.tab_out")
 _G.tabOutAutomation.start({
   chromeBundleId = "com.google.Chrome",
-  chromeExecutable = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   chromeProfileDirectory = "Profile 3",
   chromeUserDataDirectory = homeDirectory .. "/Library/Application Support/Google/Chrome",
   shortcuts = {

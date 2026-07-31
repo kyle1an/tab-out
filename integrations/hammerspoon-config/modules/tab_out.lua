@@ -3,6 +3,8 @@ local M = {}
 local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
+local NEW_TAB_URL = "chrome://newtab/"
+local OPEN_EXECUTABLE = "/usr/bin/open"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
 local WINDOW_FOCUS_DELAY_SECONDS = 0.15
 local WINDOW_FOCUS_RETRY_INTERVAL_SECONDS = 0.05
@@ -344,6 +346,37 @@ local function focusChromeAddressBar(window)
   return focused, focusError
 end
 
+local function navigateChromeAddressBar(window, url)
+  local callSucceeded, navigated, navigationError = pcall(function()
+    local addressBar = chromeAddressBar(window)
+    if not addressBar then
+      return false, "Chrome's address bar is unavailable"
+    end
+
+    if not addressBar:setAttributeValue("AXFocused", true) then
+      return false, "Chrome's address bar could not be focused"
+    end
+
+    if not addressBar:setAttributeValue("AXValue", url) then
+      return false, "Chrome's address bar value could not be changed"
+    end
+
+    local application = window:application()
+    if not application then
+      return false, "Google Chrome is no longer running"
+    end
+
+    hs.eventtap.keyStroke({}, "return", 0, application)
+    return true
+  end)
+
+  if not callSucceeded then
+    return false, navigated
+  end
+
+  return navigated, navigationError
+end
+
 local function eligibleChromeWindows(screen, spaceId)
   local candidates = {}
   local targetScreenUuid = screenUuid(screen)
@@ -620,67 +653,25 @@ end tell
   return false, "Chrome did not accept the new tab request"
 end
 
-local function createChromeWindowAtFrame(kind, frame)
-  local navigation = ""
-  if kind == "filter" then
-    local url, urlError = filterFocusUrl()
-    if not url then
-      return false, urlError
-    end
-
-    navigation = string.format('set URL of active tab of createdWindow to "%s"', url)
-  end
-
-  local left = math.floor(frame.x)
-  local top = math.floor(frame.y)
-  local right = math.floor(frame.x + frame.w)
-  local bottom = math.floor(frame.y + frame.h)
-  local script = string.format([[
-tell application "Google Chrome"
-  set createdWindow to make new window with properties {bounds:{%d, %d, %d, %d}}
-  %s
-  set index of createdWindow to 1
-  activate
-end tell
-]], left, top, right, bottom, navigation)
-
-  local succeeded, _, descriptor = hs.osascript.applescript(script)
-  if succeeded then
-    return true
-  end
-
-  local errorNumber = type(descriptor) == "table" and descriptor.NSAppleScriptErrorNumber or nil
-  if errorNumber then
-    return false, "Chrome AppleScript error " .. tostring(errorNumber)
-  end
-
-  return false, "Chrome did not accept the bounded window request"
-end
-
 local function finishWindowActivation(kind, window, focusAddressBarExplicitly)
   later(0.2, function()
-    if kind == "newPage" then
-      focusWindowThen(window, function()
-        if focusAddressBarExplicitly then
-          local focused, focusError = focusChromeAddressBar(window)
-          if not focused then
-            failCurrent("Chrome's address bar could not be focused", focusError)
-            return
-          end
-
-          log.d("Focused Chrome's address bar through Accessibility")
-        else
-          log.d("Kept Chrome's native new-tab address-bar focus")
+    focusWindowThen(window, function()
+      if kind == "newPage" and focusAddressBarExplicitly then
+        local focused, focusError = focusChromeAddressBar(window)
+        if not focused then
+          failCurrent("Chrome's address bar could not be focused", focusError)
+          return
         end
 
-        finishCurrent()
-      end, function(focusError)
-        failCurrent("The Tab Out window did not retain focus", focusError)
-      end)
-      return
-    end
+        log.d("Focused Chrome's address bar through Accessibility")
+      elseif kind == "newPage" then
+        log.d("Kept Chrome's native new-tab address-bar focus")
+      end
 
-    finishCurrent()
+      finishCurrent()
+    end, function(focusError)
+      failCurrent("The Tab Out window did not retain focus", focusError)
+    end)
   end, true)
 end
 
@@ -719,59 +710,6 @@ local function translatedFrame(window, targetScreen)
   return translatedRect(window:frame(), sourceFrame, targetFrame)
 end
 
-local function rememberedTargetProfileFrame(targetScreen)
-  local profilePath = state.config.chromeUserDataDirectory .. "/" .. state.config.chromeProfileDirectory
-  local preferences = hs.json.read(profilePath .. "/Preferences")
-  local placement = preferences and preferences.browser and preferences.browser.window_placement or nil
-  local required = {
-    "bottom",
-    "left",
-    "right",
-    "top",
-    "work_area_bottom",
-    "work_area_left",
-    "work_area_right",
-    "work_area_top",
-  }
-
-  for _, key in ipairs(required) do
-    if type(placement) ~= "table" or type(placement[key]) ~= "number" then
-      local targetFrame = targetScreen:frame()
-      return hs.geometry.rect(
-        targetFrame.x,
-        targetFrame.y,
-        math.min(1200, targetFrame.w),
-        math.min(900, targetFrame.h)
-      )
-    end
-  end
-
-  local currentFrame = hs.geometry.rect(
-    placement.left,
-    placement.top,
-    placement.right - placement.left,
-    placement.bottom - placement.top
-  )
-  local sourceFrame = hs.geometry.rect(
-    placement.work_area_left,
-    placement.work_area_top,
-    placement.work_area_right - placement.work_area_left,
-    placement.work_area_bottom - placement.work_area_top
-  )
-
-  if currentFrame.w <= 0 or currentFrame.h <= 0 or sourceFrame.w <= 0 or sourceFrame.h <= 0 then
-    local targetFrame = targetScreen:frame()
-    return hs.geometry.rect(
-      targetFrame.x,
-      targetFrame.y,
-      math.min(1200, targetFrame.w),
-      math.min(900, targetFrame.h)
-    )
-  end
-
-  return translatedRect(currentFrame, sourceFrame, targetScreen:frame())
-end
-
 local function finishNewWindow(request, window, targetScreen, originalFrame)
   if originalFrame then
     window:setFrame(originalFrame, 0)
@@ -780,6 +718,34 @@ local function finishNewWindow(request, window, targetScreen, originalFrame)
   end
 
   state.profileByWindow[window:id()] = state.config.chromeProfileDirectory
+  if request.kind == "filter" then
+    focusWindowThen(window, function()
+      later(WINDOW_FOCUS_DELAY_SECONDS, function()
+        focusWindowThen(window, function()
+          local url, urlError = filterFocusUrl()
+          if not url then
+            failCurrent("Tab Out's Chrome shortcut mapping is unavailable", urlError)
+            return
+          end
+
+          local navigated, navigationError = navigateChromeAddressBar(window, url)
+          if not navigated then
+            failCurrent("Chrome could not open the Tab Out page", navigationError)
+            return
+          end
+
+          log.d("Opened the filter page after placing the new target-profile Chrome window")
+          finishWindowActivation(request.kind, window, false)
+        end, function(focusError)
+          failCurrent("The new Chrome window did not retain focus", focusError)
+        end)
+      end, true)
+    end, function(focusError)
+      failCurrent("The new Chrome window did not retain focus", focusError)
+    end)
+    return
+  end
+
   window:focus()
   log.df("Created a target-profile Chrome window for the %s shortcut", request.kind)
   finishWindowActivation(request.kind, window, true)
@@ -831,26 +797,6 @@ local function trackedChromeWindows(sortOrder)
 
   local application = chromeApplication()
   return application and application:allWindows() or {}
-end
-
-local function targetProfileAnchorWindow()
-  for _, window in ipairs(hs.window.orderedWindows()) do
-    local windowId = window:id()
-    if isChromeWindow(window)
-      and windowId
-      and state.profileByWindow[windowId] == state.config.chromeProfileDirectory
-    then
-      return window
-    end
-  end
-
-  return nil
-end
-
-local function targetProfileIsLastUsed()
-  local localState = chromeLocalState()
-  local profile = localState and localState.profile or nil
-  return profile and profile.last_used == state.config.chromeProfileDirectory or false
 end
 
 local function managedWindowIds()
@@ -975,6 +921,11 @@ local function launchTargetProfileWindow(request, targetScreen)
     windowFound = false,
   }
   local arguments = {
+    "-g",
+    "-n",
+    "-b",
+    state.config.chromeBundleId,
+    "--args",
     "--profile-directory=" .. state.config.chromeProfileDirectory,
     "--new-window",
   }
@@ -985,12 +936,11 @@ local function launchTargetProfileWindow(request, targetScreen)
       failCurrent("Tab Out's Chrome shortcut mapping is unavailable", urlError)
       return
     end
-
-    table.insert(arguments, url)
   end
+  table.insert(arguments, NEW_TAB_URL)
 
   local task
-  task = hs.task.new(state.config.chromeExecutable, function(exitCode, _, standardError)
+  task = hs.task.new(OPEN_EXECUTABLE, function(exitCode, _, standardError)
     state.tasks[task] = nil
     launchState.exitCode = exitCode
     if exitCode ~= 0 then
@@ -1009,37 +959,8 @@ local function launchTargetProfileWindow(request, targetScreen)
   pollForNewWindow(request, targetScreen, previousIds, launchState, 0)
 end
 
-local function createBoundedTargetProfileWindow(request, targetScreen, targetFrame)
-  local previousIds = managedWindowIds()
-  local launchState = { windowFound = false }
-  expectNewChromeWindow(request, targetScreen, previousIds, launchState)
-
-  local created, createError = createChromeWindowAtFrame(request.kind, targetFrame)
-  if not created then
-    failCurrent("Chrome could not create the Tab Out window", createError)
-    return
-  end
-
-  pollForNewWindow(request, targetScreen, previousIds, launchState, 0)
-end
-
 local function createTargetProfileWindow(request, targetScreen)
-  local anchorWindow = targetProfileAnchorWindow()
-  if not anchorWindow then
-    if targetProfileIsLastUsed() then
-      createBoundedTargetProfileWindow(request, targetScreen, rememberedTargetProfileFrame(targetScreen))
-    else
-      launchTargetProfileWindow(request, targetScreen)
-    end
-    return
-  end
-
-  local targetFrame = translatedFrame(anchorWindow, targetScreen)
-  focusWindowThen(anchorWindow, function()
-    createBoundedTargetProfileWindow(request, targetScreen, targetFrame)
-  end, function(focusError)
-    failCurrent("The target-profile Chrome window did not retain focus", focusError)
-  end)
+  launchTargetProfileWindow(request, targetScreen)
 end
 
 local function tryCandidate(request, targetScreen, candidates, index)
@@ -1168,7 +1089,6 @@ end
 local function validateConfig(config)
   assert(type(config) == "table", "Tab Out config must be a table")
   assert(type(config.chromeBundleId) == "string", "chromeBundleId is required")
-  assert(type(config.chromeExecutable) == "string", "chromeExecutable is required")
   assert(type(config.chromeProfileDirectory) == "string", "chromeProfileDirectory is required")
   assert(type(config.chromeUserDataDirectory) == "string", "chromeUserDataDirectory is required")
   assert(type(config.shortcuts) == "table", "shortcuts are required")
