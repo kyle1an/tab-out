@@ -16,7 +16,7 @@ Write Hammerspoon behavior in native Lua. Keep `init.lua` as a small bootstrap a
 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>K</kbd> | Open a fresh Tab Out page with the filter focused |
 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>Space</kbd> | Open a fresh Tab Out page with Chrome's address bar focused |
 
-Both shortcuts capture the display and Mission Control Space containing the frontmost window. If there is no usable frontmost window, the mouse display and then the main display are fallbacks.
+Both shortcuts capture the display containing the mouse pointer and the active Mission Control Space on that display. If the pointer display is unavailable, the frontmost window's display and then the main display are fallbacks.
 
 The router:
 
@@ -30,7 +30,7 @@ Hammerspoon owns the two visible keyboard chords. Chrome's extension-shortcut as
 
 The new-page shortcut invokes Chrome's native new-tab action without supplying a URL. Tab Out's override therefore retains its `chrome://newtab/` identity and Chrome's normal empty omnibox. The filter shortcut uses Tab Out's extension URL because its `focusFilter=1` parameter is what focuses the in-page filter before the app mounts.
 
-When invoked from another app's full-screen Space, the router switches that display to its last observed regular Desktop. It fails with a short Hammerspoon HUD if no regular Desktop has been observed.
+When the pointer display's active Space is full-screen, the router switches that display to its last observed regular Desktop. It fails with a short Hammerspoon HUD if no regular Desktop has been observed.
 
 Success is silent. Detailed diagnostics are written to the Hammerspoon Console without logging profile names, account names, extension IDs, or page URLs.
 

@@ -120,9 +120,9 @@ local function containsValue(values, expected)
 end
 
 local function captureTargetContext()
+  local screen = hs.mouse.getCurrentScreen()
   local focusedWindow = hs.window.focusedWindow()
-  local screen = focusedWindow and focusedWindow:screen() or nil
-  screen = screen or hs.mouse.getCurrentScreen() or hs.screen.mainScreen()
+  screen = screen or (focusedWindow and focusedWindow:screen()) or hs.screen.mainScreen()
 
   if not screen then
     return nil, "No target display is available"
@@ -291,6 +291,57 @@ local function focusWindowThen(window, onFocused, onFailure, attempt, expectedWi
   later(WINDOW_FOCUS_RETRY_INTERVAL_SECONDS, function()
     focusWindowThen(window, onFocused, onFailure, attempt + 1, expectedWindowId)
   end, true)
+end
+
+local function chromeAddressBar(window)
+  local root = window and hs.axuielement.windowElement(window) or nil
+  local visited = {}
+
+  local function findAddressBar(element, depth)
+    if type(element) ~= "userdata" or visited[element] or depth > 20 then
+      return nil
+    end
+
+    visited[element] = true
+    local role = element:attributeValue("AXRole")
+    if role == "AXWebArea" then
+      return nil
+    end
+
+    if role == "AXTextField"
+      and element:attributeValue("AXDescription") == "Address and search bar"
+    then
+      return element
+    end
+
+    for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
+      local found = findAddressBar(child, depth + 1)
+      if found then
+        return found
+      end
+    end
+
+    return nil
+  end
+
+  return root and findAddressBar(root, 0) or nil
+end
+
+local function focusChromeAddressBar(window)
+  local callSucceeded, focused, focusError = pcall(function()
+    local addressBar = chromeAddressBar(window)
+    if not addressBar then
+      return false, "Chrome's address bar is unavailable"
+    end
+
+    return addressBar:setAttributeValue("AXFocused", true)
+  end)
+
+  if not callSucceeded then
+    return false, focused
+  end
+
+  return focused, focusError
 end
 
 local function eligibleChromeWindows(screen, spaceId)
@@ -607,23 +658,22 @@ end tell
   return false, "Chrome did not accept the bounded window request"
 end
 
-local function finishWindowActivation(kind, window)
+local function finishWindowActivation(kind, window, focusAddressBarExplicitly)
   later(0.2, function()
     if kind == "newPage" then
       focusWindowThen(window, function()
-        local application = window:application()
-        if not application then
-          failCurrent("Chrome closed before its address bar could be focused")
-          return
+        if focusAddressBarExplicitly then
+          local focused, focusError = focusChromeAddressBar(window)
+          if not focused then
+            failCurrent("Chrome's address bar could not be focused", focusError)
+            return
+          end
+
+          log.d("Focused Chrome's address bar through Accessibility")
+        else
+          log.d("Kept Chrome's native new-tab address-bar focus")
         end
 
-        local succeeded, focusError = pcall(hs.eventtap.keyStroke, { "cmd" }, "l", 0, application)
-        if not succeeded then
-          failCurrent("Chrome's address bar could not be focused", focusError)
-          return
-        end
-
-        log.d("Focused Chrome's address bar for the new-page shortcut")
         finishCurrent()
       end, function(focusError)
         failCurrent("The Tab Out window did not retain focus", focusError)
@@ -644,7 +694,7 @@ local function activateExistingWindow(kind, window)
     end
 
     log.df("Opened the %s page in an existing target-profile window", kind)
-    finishWindowActivation(kind, window)
+    finishWindowActivation(kind, window, false)
   end, function(focusError)
     failCurrent("The selected Chrome window did not retain focus", focusError)
   end)
@@ -733,7 +783,7 @@ local function finishNewWindow(request, window, targetScreen, originalFrame)
   state.profileByWindow[window:id()] = state.config.chromeProfileDirectory
   window:focus()
   log.df("Created a target-profile Chrome window for the %s shortcut", request.kind)
-  finishWindowActivation(request.kind, window)
+  finishWindowActivation(request.kind, window, true)
 end
 
 local function placeNewWindow(request, window, targetScreen, attempt, targetFrame)
