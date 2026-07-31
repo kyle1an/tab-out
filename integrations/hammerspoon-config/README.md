@@ -50,6 +50,14 @@ Inspect the safe runtime status from a terminal:
 hs -c 'return hs.inspect(tabOutAutomation.status())'
 ```
 
+Run the isolated cross-display focus regression after changing the Tab Out router:
+
+```bash
+hs -c 'return dofile(hs.configdir .. "/tests/tab_out_cross_display_focus_spec.lua")'
+```
+
+The regression test loads the router with a fake Hammerspoon API and does not open or focus live Chrome windows.
+
 Hammerspoon requires these macOS permissions:
 
 - **System Settings → Privacy & Security → Accessibility** for global hotkeys, windows, and Spaces. Relaunch Hammerspoon after granting it.

@@ -604,7 +604,6 @@ tell application "Google Chrome"
     make new tab at end of tabs with properties {URL:"%s"}
     set active tab index to (count of tabs)
   end tell
-  activate
 end tell
 ]], url)
 
