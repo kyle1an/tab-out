@@ -13,7 +13,8 @@
     "sessions",
     "storage",
     "alarms",
-    "favicon"
+    "favicon",
+    "system.display"
   ],
   "chrome_url_overrides": {
     "newtab": "index.html"
@@ -33,6 +34,38 @@
     },
     "open-new-tab": {
       "description": "Open a new Tab Out tab"
+    },
+    "create-inactive-filter-window-display-1": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+6",
+        "mac": "Command+Shift+6"
+      },
+      "description": "Open filtered Tab Out on desktop position 1",
+      "global": true
+    },
+    "create-inactive-new-page-window-display-1": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+7",
+        "mac": "Command+Shift+7"
+      },
+      "description": "Open a new Tab Out window on desktop position 1",
+      "global": true
+    },
+    "create-inactive-filter-window-display-2": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+8",
+        "mac": "Command+Shift+8"
+      },
+      "description": "Open filtered Tab Out on desktop position 2",
+      "global": true
+    },
+    "create-inactive-new-page-window-display-2": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+9",
+        "mac": "Command+Shift+9"
+      },
+      "description": "Open a new Tab Out window on desktop position 2",
+      "global": true
     }
   },
   "action": {

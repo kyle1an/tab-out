@@ -3070,13 +3070,43 @@ test('buildDomainGroups keeps saved-only cards after cards with open tabs despit
 
 test('manifest keeps only the permissions used by the extension', () => {
   const manifest = JSON.parse(readFileSync(new URL('../extension/manifest.json', import.meta.url), 'utf8'))
-  assert.deepEqual(manifest.permissions, ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon'])
+  assert.deepEqual(manifest.permissions, [
+    'tabs',
+    'tabGroups',
+    'bookmarks',
+    'history',
+    'sessions',
+    'storage',
+    'alarms',
+    'favicon',
+    'system.display'
+  ])
   assert.equal(manifest.incognito, 'not_allowed')
   assert.equal(manifest.commands['switch-to-last-tab'].description, 'Switch to the previous tab in global activation history')
   assert.equal(manifest.commands['switch-to-next-tab'].description, 'Switch forward to the next tab in global activation history')
   assert.equal(manifest.commands['open-filter-tab'].description, 'Open Tab Out with the filter focused')
   assert.equal(manifest.commands['open-new-tab'].description, 'Open a new Tab Out tab')
   assert.equal('global' in manifest.commands['open-new-tab'], false)
+  assert.deepEqual(manifest.commands['create-inactive-filter-window-display-1'], {
+    suggested_key: { default: 'Ctrl+Shift+6', mac: 'Command+Shift+6' },
+    description: 'Open filtered Tab Out on desktop position 1',
+    global: true
+  })
+  assert.deepEqual(manifest.commands['create-inactive-new-page-window-display-1'], {
+    suggested_key: { default: 'Ctrl+Shift+7', mac: 'Command+Shift+7' },
+    description: 'Open a new Tab Out window on desktop position 1',
+    global: true
+  })
+  assert.deepEqual(manifest.commands['create-inactive-filter-window-display-2'], {
+    suggested_key: { default: 'Ctrl+Shift+8', mac: 'Command+Shift+8' },
+    description: 'Open filtered Tab Out on desktop position 2',
+    global: true
+  })
+  assert.deepEqual(manifest.commands['create-inactive-new-page-window-display-2'], {
+    suggested_key: { default: 'Ctrl+Shift+9', mac: 'Command+Shift+9' },
+    description: 'Open a new Tab Out window on desktop position 2',
+    global: true
+  })
 })
 
 function installSavedPagesStorageProbe(initialStore: unknown) {

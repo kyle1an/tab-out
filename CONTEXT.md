@@ -126,6 +126,10 @@
 
 ## Runtime and Interaction Contracts
 
+- Four global desktop-automation bridge commands encode filtered/new-page creation for desktop positions 1 and 2. They require exactly two enabled displays, sort them by top edge, left edge, and stable display ID, translate a normal source window's geometry into the addressed work area, and Safe Abort before mutation when a source or usable bounds are unavailable.
+- A bridge command creates one normal window at its final target-display bounds with `focused: false` and never calls a Chrome tab/window activation API afterward. The filter route starts at `focusFilter=1`; the new-page route starts as Chrome's native new-tab page. Desktop automation observes the new native window and exclusively owns the later exact-window focus handoff.
+- The `focusFilter=1` page bootstrap owns only early search-field seeding and focus. It must not focus a Chrome window, create/replace tabs, or request Chrome application activation.
+
 This section is the canonical implementation contract for durable runtime and interaction behavior. Update it in the same patch as an intentional behavior change; use an ADR for its rationale or history.
 
 ### Dashboard startup, sources, and persistence

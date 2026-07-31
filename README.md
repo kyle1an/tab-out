@@ -40,6 +40,7 @@ The agent will walk you through it. Takes about 1 minute.
 - **Filter keyboard shortcut** — press Cmd+K on macOS or Ctrl+K on Windows/Linux to focus the filter input
 - **Filter shortcut support** — assign "Open Tab Out with the filter focused" in `chrome://extensions/shortcuts` to open a fresh dashboard tab ready for typing
 - **Global new-tab shortcut support** — assign "Open a new Tab Out tab" in `chrome://extensions/shortcuts` and set it to Global to create a fresh Tab Out page even when Chrome is not focused
+- **Direct-placement automation bridge** — four global commands address desktop positions 1 and 2 and create either filtered Tab Out or a native new-tab window at its final display bounds with `focused: false`; desktop automation owns the later exact-window focus handoff
 - **Shared-page fold** — if the same path and visible title are open in multiple subdomains (e.g. `dev2`, `dev11`, `qa`), they collapse into one chip with a row of clickable env pills; same-path tabs with different titles stay separate, and each pill jumps to its specific tab
 - **URL preview on hover** — Chrome-style bottom-left status bar shows the target URL for any chip or env pill
 - **Suspended-tab support** — unwraps Marvellous / Great Suspender URLs and titles so chips read normally, recovers the real page favicon over the suspender's faded copy, and unsuspends through the owning suspender when activated

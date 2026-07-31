@@ -1,4 +1,5 @@
 import { MINIMUM_CHROME_VERSION } from './chrome-support.js'
+import { INACTIVE_WINDOW_COMMANDS } from './background/inactive-window-command.js'
 
 export type ExtensionManifestInput = {
   version: string
@@ -12,7 +13,7 @@ export function createExtensionManifest(input: ExtensionManifestInput): chrome.r
     version: input.version,
     description: 'Keep tabs on your tabs. New tab page that groups your open tabs by domain and lets you close them with style.',
     incognito: 'not_allowed',
-    permissions: ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon'],
+    permissions: ['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon', 'system.display'],
     chrome_url_overrides: { newtab: 'index.html' },
     background: { service_worker: 'dist/background.js' },
     commands: {
@@ -27,6 +28,38 @@ export function createExtensionManifest(input: ExtensionManifestInput): chrome.r
       },
       'open-new-tab': {
         description: 'Open a new Tab Out tab'
+      },
+      [INACTIVE_WINDOW_COMMANDS.filter[1]]: {
+        suggested_key: {
+          default: 'Ctrl+Shift+6',
+          mac: 'Command+Shift+6'
+        },
+        description: 'Open filtered Tab Out on desktop position 1',
+        global: true
+      },
+      [INACTIVE_WINDOW_COMMANDS.newPage[1]]: {
+        suggested_key: {
+          default: 'Ctrl+Shift+7',
+          mac: 'Command+Shift+7'
+        },
+        description: 'Open a new Tab Out window on desktop position 1',
+        global: true
+      },
+      [INACTIVE_WINDOW_COMMANDS.filter[2]]: {
+        suggested_key: {
+          default: 'Ctrl+Shift+8',
+          mac: 'Command+Shift+8'
+        },
+        description: 'Open filtered Tab Out on desktop position 2',
+        global: true
+      },
+      [INACTIVE_WINDOW_COMMANDS.newPage[2]]: {
+        suggested_key: {
+          default: 'Ctrl+Shift+9',
+          mac: 'Command+Shift+9'
+        },
+        description: 'Open a new Tab Out window on desktop position 2',
+        global: true
       }
     },
     action: {

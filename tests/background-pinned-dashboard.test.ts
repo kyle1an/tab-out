@@ -192,7 +192,12 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
     windowsById: Object.fromEntries(
       initialWindowIds.map((windowId) => {
         const firstTab = initialTabs.find((tab) => tab.windowId === windowId)
-        return [windowId, { id: windowId, type: firstTab?.windowType || 'normal', focused: windowId === initialLastFocusedWindowId }]
+        return [windowId, {
+          id: windowId,
+          type: firstTab?.windowType || 'normal',
+          focused: windowId === initialLastFocusedWindowId,
+          ...(firstTab?.windowBounds || {})
+        }]
       })
     ),
     nextTabId: Math.max(...initialTabs.map((tab) => tab.id)) + 1,
@@ -239,6 +244,13 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         if (extensionId === 'blocked') throw new Error('Cannot message extension')
         if (extensionId === 'rejects') return 'Error: tab is not suspended'
         return undefined
+      }
+    },
+    system: {
+      display: {
+        async getInfo() {
+          return clone(options.displays || [])
+        }
       }
     },
     storage: {
@@ -434,7 +446,15 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       },
       async create(createData: any = {}) {
         const windowId = state.nextWindowId++
-        state.windowsById[windowId] = { id: windowId, type: createData.type || 'normal', focused: false }
+        state.windowsById[windowId] = {
+          id: windowId,
+          type: createData.type || 'normal',
+          focused: false,
+          left: createData.left,
+          top: createData.top,
+          width: createData.width,
+          height: createData.height
+        }
         if (createData.focused !== false) focusWindow(state, windowId)
         calls.windowCreate.push(clone(createData))
         return clone(state.windowsById[windowId])
@@ -1129,6 +1149,60 @@ test('global new-tab shortcut opens a normal browser window when no normal windo
   ])
 })
 
+test('desktop automation filter shortcut directly places a returned window without focusing Chrome', async () => {
+  const mock = await loadBackground([
+    {
+      id: 92,
+      windowId: 1,
+      windowBounds: { left: 100, top: 100, width: 1200, height: 700 },
+      url: 'https://openai.com/',
+      title: 'OpenAI',
+      active: true,
+      pinned: false,
+      groupId: -1,
+      index: 0
+    }
+  ], {
+    displays: [
+      {
+        id: 'remote-display',
+        isEnabled: true,
+        bounds: { left: 0, top: 0, width: 1440, height: 900 },
+        workArea: { left: 0, top: 25, width: 1440, height: 875 }
+      },
+      {
+        id: 'target-display',
+        isEnabled: true,
+        bounds: { left: -1920, top: 0, width: 1920, height: 1080 },
+        workArea: { left: -1920, top: 0, width: 1920, height: 1080 }
+      }
+    ]
+  })
+
+  const onCommand = mock.listeners.commandsOnCommand[0]
+  assert.equal(typeof onCommand, 'function')
+
+  onCommand('create-inactive-filter-window-display-1')
+  await flushBackgroundWork()
+
+  assert.deepEqual(mock.calls.create, [])
+  assert.deepEqual(mock.calls.update, [])
+  assert.deepEqual(mock.calls.windowUpdate, [])
+  assert.deepEqual(mock.calls.windowCreate, [
+    {
+      type: 'normal',
+      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      focused: false,
+      left: -1820,
+      top: 75,
+      width: 1200,
+      height: 700
+    }
+  ])
+  assert.equal(mock.state.windowsById[1].focused, true)
+  assert.equal(mock.state.windowsById[2].focused, false)
+})
+
 test('background command listener settles every rejected async command', async () => {
   const mock = await loadBackground([
     {
@@ -1159,7 +1233,16 @@ test('background command listener settles every rejected async command', async (
     throw new Error('Window creation failed')
   }
 
-  for (const command of ['switch-to-last-tab', 'switch-to-next-tab', 'open-filter-tab', 'open-new-tab']) {
+  for (const command of [
+    'switch-to-last-tab',
+    'switch-to-next-tab',
+    'open-filter-tab',
+    'open-new-tab',
+    'create-inactive-filter-window-display-1',
+    'create-inactive-new-page-window-display-1',
+    'create-inactive-filter-window-display-2',
+    'create-inactive-new-page-window-display-2'
+  ]) {
     const commandTask = onCommand(command)
     assert.ok(commandTask instanceof Promise)
     await assert.doesNotReject(() => commandTask)
