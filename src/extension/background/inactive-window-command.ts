@@ -2,8 +2,8 @@ import type { ChromeApi } from './chrome-api.js'
 
 const DISPLAY_POSITIONS = [1, 2] as const
 
-export type InactiveWindowKind = 'filter' | 'newPage'
-export type InactiveWindowDisplayPosition = typeof DISPLAY_POSITIONS[number]
+type InactiveWindowKind = 'filter' | 'newPage'
+type InactiveWindowDisplayPosition = typeof DISPLAY_POSITIONS[number]
 
 export const INACTIVE_WINDOW_COMMANDS = {
   filter: {
@@ -16,7 +16,7 @@ export const INACTIVE_WINDOW_COMMANDS = {
   }
 } as const
 
-export type InactiveWindowCommandTarget = {
+type InactiveWindowCommandTarget = {
   kind: InactiveWindowKind
   displayPosition: InactiveWindowDisplayPosition
 }
@@ -160,8 +160,5 @@ export async function createInactiveWindow(
     focused: false,
     ...translatedBounds(source.window, source.display, targetDisplay)
   }
-  const createdWindow = await chromeApi.windows.create(createData)
-  if (typeof createdWindow?.id !== 'number') {
-    throw new Error('Chrome created a window without returning its ID')
-  }
+  await chromeApi.windows.create(createData)
 }

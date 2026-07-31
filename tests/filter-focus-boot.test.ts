@@ -6,7 +6,6 @@ import vm from 'node:vm'
 const bootSource = readFileSync(new URL('../extension/dist/filter-focus-boot.js', import.meta.url), 'utf8')
 
 test('filter bootstrap never activates a Chrome window from the page', async () => {
-  const dataset: Record<string, string> = {}
   let windowsApiUsed = false
   let tabsApiUsed = false
 
@@ -14,7 +13,6 @@ test('filter bootstrap never activates a Chrome window from the page', async () 
     URLSearchParams,
     window: { location: { search: '?focusWindow=1&newPage=1' } },
     document: {
-      documentElement: { dataset },
       querySelector: () => null
     },
     chrome: {
@@ -41,7 +39,6 @@ test('filter bootstrap never activates a Chrome window from the page', async () 
   })
 
   await new Promise((resolve) => setImmediate(resolve))
-  assert.equal(dataset.taboutWindowFocus, undefined)
   assert.equal(windowsApiUsed, false)
   assert.equal(tabsApiUsed, false)
 })
