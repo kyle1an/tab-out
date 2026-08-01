@@ -21,6 +21,8 @@ local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local NEW_WINDOW_POLL_INTERVAL_SECONDS = 0.005
+local CREATED_WINDOW_CLOSE_FOCUS_TIMEOUT_SECONDS = 0.5
+local CREATED_WINDOW_CLOSE_RETRY_INTERVAL_SECONDS = 0.005
 local NEW_TAB_URL = "chrome://newtab/"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
 local DESTINATION_CONTROL_TIMEOUT_SECONDS = 6
@@ -30,9 +32,11 @@ local WINDOW_FOCUS_RETRY_INTERVAL_SECONDS = 0.05
 
 local state = {
   busy = false,
+  closeGestureTap = nil,
   chromeWindowFilter = nil,
   config = nil,
   currentRequest = nil,
+  createdWindowCloseRecovery = {},
   extensionId = nil,
   hotkeys = {},
   lastUserSpaceByScreen = {},
@@ -49,6 +53,7 @@ local state = {
   started = false,
   timers = {},
   transitionShield = nil,
+  suppressCloseMouseUp = false,
 }
 
 local drainQueue
@@ -204,6 +209,8 @@ end
 local function captureTargetContext()
   local screen = hs.mouse.getCurrentScreen()
   local focusedWindow = hs.window.focusedWindow()
+  local focusedApplication = focusedWindow and focusedWindow:application() or nil
+  local focusedScreen = focusedWindow and focusedWindow:screen() or nil
   screen = screen or (focusedWindow and focusedWindow:screen()) or hs.screen.mainScreen()
 
   if not screen then
@@ -234,6 +241,9 @@ local function captureTargetContext()
     capturedSpaceId = spaceId,
     capturedSpaceType = spaceType,
     fallbackUserSpaceId = spaceType == "fullscreen" and state.lastUserSpaceByScreen[uuid] or nil,
+    focusedWindowBundleId = focusedApplication and focusedApplication:bundleID() or nil,
+    focusedWindowId = focusedWindow and focusedWindow:id() or nil,
+    focusedWindowScreenUuid = screenUuid(focusedScreen),
     screenUuid = uuid,
   }
 end
@@ -462,6 +472,242 @@ local function destinationControl(kind, window)
     return chromeFilterInput(root)
   end
   return chromeAddressBar(root)
+end
+
+local function topStandardWindowOnScreen(screen)
+  local expectedScreenUuid = screenUuid(screen)
+  local activeSpace = screen and hs.spaces.activeSpaceOnScreen(screen) or nil
+  if not expectedScreenUuid or not activeSpace then
+    return nil
+  end
+
+  for _, window in ipairs(hs.window.orderedWindows()) do
+    if window
+      and window:id()
+      and window:isStandard()
+      and not window:isMinimized()
+      and screenUuid(window:screen()) == expectedScreenUuid
+    then
+      local spaces = hs.spaces.windowSpaces(window)
+      if spaces and containsValue(spaces, activeSpace) then
+        return window
+      end
+    end
+  end
+  return nil
+end
+
+local function recoveryWindow(recovery, requireTop)
+  local window = recovery and hs.window.get(recovery.windowId) or nil
+  local application = window and window:application() or nil
+  local screen = window and window:screen() or nil
+  if not window
+    or not window:id()
+    or not window:isStandard()
+    or window:isMinimized()
+    or not application
+    or application:isHidden()
+    or application:bundleID() ~= recovery.bundleId
+    or application:bundleID() == state.config.chromeBundleId
+    or screenUuid(screen) ~= recovery.screenUuid
+  then
+    return nil
+  end
+
+  local activeSpace = hs.spaces.activeSpaceOnScreen(screen)
+  local spaces = hs.spaces.windowSpaces(window)
+  if not activeSpace or not spaces or not containsValue(spaces, activeSpace) then
+    return nil
+  end
+
+  if requireTop then
+    local topWindow = topStandardWindowOnScreen(screen)
+    if not topWindow or topWindow:id() ~= window:id() then
+      return nil
+    end
+  end
+  return window
+end
+
+local function createdWindowCloseButtonFrame(window)
+  local root = window and hs.axuielement.windowElement(window) or nil
+  local closeButton = root and root:attributeValue("AXCloseButton") or nil
+  local frame = closeButton and closeButton:attributeValue("AXFrame") or nil
+  if not frame
+    or type(frame.x) ~= "number"
+    or type(frame.y) ~= "number"
+    or type(frame.w) ~= "number"
+    or type(frame.h) ~= "number"
+    or frame.w <= 0
+    or frame.h <= 0
+  then
+    return nil
+  end
+  return frame
+end
+
+local function chromeTabCount(window)
+  local root = window and hs.axuielement.windowElement(window) or nil
+  local visited = {}
+  local count = 0
+
+  local function countTabs(element, depth)
+    if type(element) ~= "userdata" or visited[element] or depth > 20 then
+      return
+    end
+    visited[element] = true
+
+    local role = element:attributeValue("AXRole")
+    if role == "AXWebArea" then
+      return
+    end
+    if role == "AXRadioButton" and element:attributeValue("AXSubrole") == "AXTabButton" then
+      count = count + 1
+      return
+    end
+    for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
+      countTabs(child, depth + 1)
+    end
+  end
+
+  if not root then
+    return nil
+  end
+  countTabs(root, 0)
+  return count > 0 and count or nil
+end
+
+local function pointIsInsideFrame(point, frame)
+  return point
+    and point.x >= frame.x
+    and point.x <= frame.x + frame.w
+    and point.y >= frame.y
+    and point.y <= frame.y + frame.h
+end
+
+local function finishCreatedWindowClose(windowId, attempt)
+  attempt = attempt or 0
+  local recovery = state.createdWindowCloseRecovery[windowId]
+  local targetWindow = hs.window.get(windowId)
+  local restoreWindow = recoveryWindow(recovery, false)
+  if not recovery or not targetWindow then
+    return
+  end
+  if not restoreWindow then
+    recovery.closing = false
+    log.wf("Prior non-Chrome window became unavailable before closing created Chrome window %d", windowId)
+    targetWindow:close()
+    return
+  end
+
+  local focusedWindow = hs.window.focusedWindow()
+  if focusedWindow and focusedWindow:id() == restoreWindow:id() then
+    if targetWindow:close() == false then
+      recovery.closing = false
+      log.wf("Could not close created Chrome window %d after restoring prior focus", windowId)
+    end
+    return
+  end
+
+  if attempt * CREATED_WINDOW_CLOSE_RETRY_INTERVAL_SECONDS
+    >= CREATED_WINDOW_CLOSE_FOCUS_TIMEOUT_SECONDS
+  then
+    recovery.closing = false
+    log.wf("Timed out restoring prior focus before closing created Chrome window %d", windowId)
+    targetWindow:close()
+    return
+  end
+
+  later(CREATED_WINDOW_CLOSE_RETRY_INTERVAL_SECONDS, function()
+    finishCreatedWindowClose(windowId, attempt + 1)
+  end, false)
+end
+
+local function beginCreatedWindowClose(window, recovery)
+  if recovery.closing then
+    return true
+  end
+
+  local restoreWindow = recoveryWindow(recovery, true)
+  if not restoreWindow then
+    return false
+  end
+
+  recovery.closing = true
+  if restoreWindow:focus() == false then
+    recovery.closing = false
+    return false
+  end
+  later(CREATED_WINDOW_CLOSE_RETRY_INTERVAL_SECONDS, function()
+    finishCreatedWindowClose(window:id(), 0)
+  end, false)
+  return true
+end
+
+local function focusedCreatedWindowCloseRecovery()
+  local window = hs.window.focusedWindow()
+  local windowId = window and window:id() or nil
+  local application = window and window:application() or nil
+  local recovery = windowId and state.createdWindowCloseRecovery[windowId] or nil
+  if not recovery
+    or not application
+    or application:bundleID() ~= state.config.chromeBundleId
+    or screenUuid(window:screen()) ~= recovery.targetScreenUuid
+  then
+    return nil, nil
+  end
+  return window, recovery
+end
+
+local function shouldInterceptKeyboardClose(event, window)
+  if event:getKeyCode() ~= hs.keycodes.map.w then
+    return false
+  end
+  local flags = event:getFlags()
+  if not flags.cmd or flags.alt or flags.ctrl then
+    return false
+  end
+  if flags.shift then
+    return true
+  end
+  return chromeTabCount(window) == 1
+end
+
+local function handleCreatedWindowCloseGesture(event)
+  local eventType = event:getType()
+  if eventType == hs.eventtap.event.types.leftMouseUp and state.suppressCloseMouseUp then
+    state.suppressCloseMouseUp = false
+    return true
+  end
+  if next(state.createdWindowCloseRecovery) == nil then
+    return false
+  end
+
+  local window, recovery = focusedCreatedWindowCloseRecovery()
+  if not window then
+    return false
+  end
+
+  if eventType == hs.eventtap.event.types.keyDown then
+    if shouldInterceptKeyboardClose(event, window) then
+      return beginCreatedWindowClose(window, recovery)
+    end
+    return false
+  end
+
+  if eventType ~= hs.eventtap.event.types.leftMouseDown then
+    return false
+  end
+  local closeButtonFrame = createdWindowCloseButtonFrame(window)
+  if not closeButtonFrame or not pointIsInsideFrame(event:location(), closeButtonFrame) then
+    return false
+  end
+
+  local intercepted = beginCreatedWindowClose(window, recovery)
+  if intercepted then
+    state.suppressCloseMouseUp = true
+  end
+  return intercepted
 end
 
 local function eligibleChromeWindows(screen, spaceId)
@@ -930,6 +1176,49 @@ local function activateExistingWindow(kind, window)
   end)
 end
 
+local function registerCreatedWindowCloseRecovery(request, window)
+  local windowId = window and window:id() or nil
+  if not windowId
+    or not request.focusedWindowId
+    or not request.focusedWindowBundleId
+    or not request.focusedWindowScreenUuid
+    or request.focusedWindowBundleId == state.config.chromeBundleId
+    or request.focusedWindowScreenUuid == request.screenUuid
+  then
+    return
+  end
+
+  local recovery = {
+    bundleId = request.focusedWindowBundleId,
+    closing = false,
+    screenUuid = request.focusedWindowScreenUuid,
+    targetScreenUuid = request.screenUuid,
+    windowId = request.focusedWindowId,
+  }
+  if recoveryWindow(recovery, true) then
+    state.createdWindowCloseRecovery[windowId] = recovery
+  end
+end
+
+local function repairCreatedWindowCloseFallback(recovery)
+  local frontmostApplication = hs.application.frontmostApplication()
+  local focusedWindow = hs.window.focusedWindow()
+  local focusedApplication = focusedWindow and focusedWindow:application() or nil
+  if not frontmostApplication
+    or frontmostApplication:bundleID() ~= state.config.chromeBundleId
+    or not focusedApplication
+    or focusedApplication:bundleID() ~= state.config.chromeBundleId
+    or screenUuid(focusedWindow:screen()) == recovery.targetScreenUuid
+  then
+    return
+  end
+
+  local restoreWindow = recoveryWindow(recovery, false)
+  if restoreWindow then
+    restoreWindow:focus()
+  end
+end
+
 local function acceptNativePlacementWindow(pending, window)
   if pending.windowFound then
     return
@@ -943,6 +1232,7 @@ local function acceptNativePlacementWindow(pending, window)
   end
 
   local request = pending.request
+  registerCreatedWindowCloseRecovery(request, window)
   log.df("Tab Out created the %s window directly on the target Desktop", request.kind)
   finishExtensionWindowActivation(request.kind, window)
 end
@@ -1261,10 +1551,32 @@ local function configureChromeWindowCache()
   state.chromeWindowFilter:subscribe(hs.window.filter.windowDestroyed, function(window)
     local windowId = window and window:id() or nil
     if windowId then
+      local recovery = state.createdWindowCloseRecovery[windowId]
+      state.createdWindowCloseRecovery[windowId] = nil
       state.profileByWindow[windowId] = nil
       state.profileProbes[windowId] = nil
+      if recovery then
+        repairCreatedWindowCloseFallback(recovery)
+      end
     end
   end)
+end
+
+local function configureCreatedWindowCloseGestures()
+  state.closeGestureTap = hs.eventtap.new({
+    hs.eventtap.event.types.keyDown,
+    hs.eventtap.event.types.leftMouseDown,
+    hs.eventtap.event.types.leftMouseUp,
+  }, function(event)
+    local ok, intercepted = xpcall(function()
+      return handleCreatedWindowCloseGesture(event)
+    end, debug.traceback)
+    if not ok then
+      log.ef("Created-window close handling failed: %s", intercepted)
+      return false
+    end
+    return intercepted == true
+  end):start()
 end
 
 local function configurePrivateFocus(config)
@@ -1422,6 +1734,7 @@ function M:start(config)
   state.spaceWatcher = hs.spaces.watcher.new(refreshLastUserSpaces):start()
   state.screenWatcher = hs.screen.watcher.new(refreshLastUserSpaces):start()
   configureChromeWindowCache()
+  configureCreatedWindowCloseGestures()
 
   tabOutExtensionId()
 

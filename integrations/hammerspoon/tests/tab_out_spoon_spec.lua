@@ -23,6 +23,11 @@ local function runShortcut(kind, options)
   local clock = 0
   local addressBarFocused = false
   local activationClickCount = 0
+  local closeGestureCallback
+  local closeGestureConsumed = false
+  local closeMouseUpConsumed = false
+  local createdWindowNativeTabCloseAllowed = false
+  local createdWindowClosed = false
   local filterInputFocused = false
   local nativeBridgeRequest
   local extensionWindowFocusRequested = false
@@ -32,6 +37,7 @@ local function runShortcut(kind, options)
   local destinationChildrenReadCount = 0
   local destinationWindowElementReadCount = 0
   local remoteDestinationFocusCount = 0
+  local remoteTopHidden = false
   local createdWindowInitiallyMinimized = false
   local createdWindowRevealedByPrivateFocus = false
   local createdWindowSetFrameCount = 0
@@ -54,6 +60,7 @@ local function runShortcut(kind, options)
   local pendingTimers = {}
   local securePreferencesReadCount = 0
   local windowCreatedCallback
+  local windowDestroyedCallback
 
   local function newWatcher()
     return {
@@ -180,7 +187,7 @@ local function runShortcut(kind, options)
       return "com.example.Editor"
     end,
     isHidden = function()
-      return false
+      return remoteTopHidden
     end,
   }
   local remoteTopWindow = {
@@ -190,7 +197,11 @@ local function runShortcut(kind, options)
     focus = function(self)
       otherChromeFocused = false
       otherChromeRaised = false
+      frontmostApplication = remoteTopApplication
       focusedWindow = self
+      if options.invalidateCloseRecoveryAfterFocus then
+        remoteTopHidden = true
+      end
       return true
     end,
     id = function()
@@ -212,6 +223,9 @@ local function runShortcut(kind, options)
   }
   frontmostApplication = remoteTopApplication
   local originalWindow = {
+    application = function()
+      return remoteTopApplication
+    end,
     id = function()
       return 304
     end,
@@ -315,6 +329,31 @@ local function runShortcut(kind, options)
       return false
     end,
   }
+  local closeButton = {
+    attributeValue = function(_, attribute)
+      if attribute == "AXFrame" then
+        return { h = 16, w = 16, x = targetScreen:frame().x + 12, y = 46 }
+      elseif attribute == "AXRole" then
+        return "AXButton"
+      end
+      return nil
+    end,
+  }
+  local tabButton = {
+    attributeValue = function(_, attribute)
+      if attribute == "AXRole" then
+        return "AXRadioButton"
+      elseif attribute == "AXSubrole" then
+        return "AXTabButton"
+      elseif attribute == "AXChildren" then
+        return {}
+      end
+      return nil
+    end,
+  }
+  local secondTabButton = options.createdTabCount == 2 and {
+    attributeValue = tabButton.attributeValue,
+  } or nil
   axRoot = {
     attributeValue = function(_, attribute)
       if attribute == "AXRole" then
@@ -325,7 +364,13 @@ local function runShortcut(kind, options)
         if createdChromeWindow and privateFocusCount == 0 then
           createdDestinationReadBeforePrivateFocus = true
         end
-        return { filterInput, addressBar }
+        local children = { filterInput, addressBar, tabButton }
+        if secondTabButton then
+          table.insert(children, secondTabButton)
+        end
+        return children
+      elseif attribute == "AXCloseButton" then
+        return closeButton
       end
       return nil
     end,
@@ -366,11 +411,16 @@ local function runShortcut(kind, options)
   local fakeAxElements = {
     [addressBar] = true,
     [axRoot] = true,
+    [closeButton] = true,
     [filterInput] = true,
     [remoteAxRoot] = true,
     [remoteDestinationControl] = true,
     [systemWideElement] = true,
+    [tabButton] = true,
   }
+  if secondTabButton then
+    fakeAxElements[secondTabButton] = true
+  end
 
   local fakeHs = {
     accessibilityState = function()
@@ -428,11 +478,27 @@ local function runShortcut(kind, options)
       end,
     },
     eventtap = {
+      event = {
+        types = {
+          keyDown = "keyDown",
+          leftMouseDown = "leftMouseDown",
+          leftMouseUp = "leftMouseUp",
+        },
+      },
       leftClick = function()
         activationClickCount = activationClickCount + 1
         frontmostApplication = chromeApplication
         local targetWindow = createdChromeWindow or targetChromeWindow
         targetWindow:focus()
+      end,
+      new = function(_, callback)
+        closeGestureCallback = callback
+        return {
+          start = function(self)
+            return self
+          end,
+          stop = function() end,
+        }
       end,
     },
     hotkey = {
@@ -470,6 +536,9 @@ local function runShortcut(kind, options)
 
         return nil
       end,
+    },
+    keycodes = {
+      map = { w = 13 },
     },
     logger = {
       new = function()
@@ -601,6 +670,8 @@ local function runShortcut(kind, options)
             subscribe = function(_, event, callback, immediate)
               if event == "windowCreated" then
                 windowCreatedCallback = callback
+              elseif event == "windowDestroyed" then
+                windowDestroyedCallback = callback
               elseif event == "windowFocused" then
                 if immediate and (focusedWindow == otherChromeWindow or focusedWindow == targetChromeWindow) then
                   callback(focusedWindow)
@@ -615,6 +686,21 @@ local function runShortcut(kind, options)
       },
       focusedWindow = function()
         return focusedWindow
+      end,
+      get = function(windowId)
+        for _, window in ipairs({
+          createdChromeWindow,
+          targetChromeWindow,
+          inactiveSpaceChromeWindow,
+          otherChromeWindow,
+          remoteTopWindow,
+          originalWindow,
+        }) do
+          if window and window:id() == windowId then
+            return window
+          end
+        end
+        return nil
       end,
       orderedWindows = function()
         orderedWindowsCallCount = orderedWindowsCallCount + 1
@@ -707,6 +793,19 @@ local function runShortcut(kind, options)
         openedNewPage = true
       end
       createdChromeWindow = newChromeWindow(404, targetScreen, false, false)
+      function createdChromeWindow:close()
+        local closingWindow = self
+        if focusedWindow == closingWindow and otherHasChromeWindow then
+          frontmostApplication = chromeApplication
+          otherChromeWindow:focus()
+        end
+        createdChromeWindow = nil
+        createdWindowClosed = true
+        if windowDestroyedCallback then
+          windowDestroyedCallback(closingWindow)
+        end
+        return true
+      end
       createdWindowInitiallyMinimized = createdChromeWindow:isMinimized()
       if windowCreatedCallback then
         windowCreatedCallback(createdChromeWindow)
@@ -734,7 +833,8 @@ local function runShortcut(kind, options)
   })
 
   runPendingTimers()
-  focusedWindow = originalWindow
+  focusedWindow = options.sourceWindowOnRemote and remoteTopWindow or originalWindow
+  frontmostApplication = remoteTopApplication
   otherChromeFocused = false
   otherChromeReceivedFocus = false
   otherChromeRaised = false
@@ -747,12 +847,61 @@ local function runShortcut(kind, options)
 
   runPendingTimers()
 
+  if options.closeCreatedWindowAfterShortcut and createdChromeWindow then
+    local closeGesture = options.closeCreatedWindowAfterShortcut == true
+        and "mouse"
+      or options.closeCreatedWindowAfterShortcut
+    local closeFrame = closeButton:attributeValue("AXFrame")
+    local event = {
+      getFlags = function()
+        if closeGesture == "windowShortcut" then
+          return { cmd = true, shift = true }
+        elseif closeGesture == "tabShortcut" then
+          return { cmd = true }
+        end
+        return {}
+      end,
+      getKeyCode = function()
+        return closeGesture == "mouse" and -1 or 13
+      end,
+      getType = function()
+        return closeGesture == "mouse" and "leftMouseDown" or "keyDown"
+      end,
+      location = function()
+        return {
+          x = closeFrame.x + closeFrame.w / 2,
+          y = closeFrame.y + closeFrame.h / 2,
+        }
+      end,
+    }
+    closeGestureConsumed = closeGestureCallback and closeGestureCallback(event) == true or false
+    if closeGesture == "mouse" and closeGestureConsumed then
+      closeMouseUpConsumed = closeGestureCallback({
+        getType = function()
+          return "leftMouseUp"
+        end,
+      }) == true
+    end
+    if not closeGestureConsumed and createdChromeWindow then
+      if closeGesture == "tabShortcut" and options.createdTabCount == 2 then
+        createdWindowNativeTabCloseAllowed = true
+      else
+        createdChromeWindow:close()
+      end
+    end
+    runPendingTimers()
+  end
+
   local diagnostics = tabOut.status()
 
   return {
     activationClickCount = activationClickCount,
     addressBarFocused = addressBarFocused,
+    closeGestureConsumed = closeGestureConsumed,
+    closeMouseUpConsumed = closeMouseUpConsumed,
     createdWindow = createdChromeWindow ~= nil,
+    createdWindowClosed = createdWindowClosed,
+    createdWindowNativeTabCloseAllowed = createdWindowNativeTabCloseAllowed,
     createdDestinationReadBeforePrivateFocus = createdDestinationReadBeforePrivateFocus,
     createdWindowInitiallyMinimized = createdWindowInitiallyMinimized,
     createdWindowRevealedByPrivateFocus = createdWindowRevealedByPrivateFocus,
@@ -776,6 +925,7 @@ local function runShortcut(kind, options)
     otherChromeRaised = otherChromeRaised,
     privateFocusCount = privateFocusCount,
     remoteDestinationFocusCount = remoteDestinationFocusCount,
+    remoteTopFocused = focusedWindow == remoteTopWindow,
     securePreferencesReadCount = securePreferencesReadCount,
     targetFocused = focusedWindow == (createdChromeWindow or targetChromeWindow),
     targetAppActive = frontmostApplication == chromeApplication,
@@ -838,6 +988,33 @@ local failedCreatedWindowFocusResult = runShortcut("filter", {
 })
 local mismatchedFocusedControlFilterResult = runShortcut("filter", {
   focusedDestinationOwnerMismatch = true,
+  targetHasChromeWindow = false,
+})
+local closeCreatedFilterResult = runShortcut("filter", {
+  closeCreatedWindowAfterShortcut = true,
+  sourceWindowOnRemote = true,
+  targetHasChromeWindow = false,
+})
+local closeCreatedNewPageResult = runShortcut("newPage", {
+  closeCreatedWindowAfterShortcut = "windowShortcut",
+  sourceWindowOnRemote = true,
+  targetHasChromeWindow = false,
+})
+local closeCreatedLastTabResult = runShortcut("filter", {
+  closeCreatedWindowAfterShortcut = "tabShortcut",
+  sourceWindowOnRemote = true,
+  targetHasChromeWindow = false,
+})
+local closeCreatedMultiTabResult = runShortcut("filter", {
+  closeCreatedWindowAfterShortcut = "tabShortcut",
+  createdTabCount = 2,
+  sourceWindowOnRemote = true,
+  targetHasChromeWindow = false,
+})
+local closeAfterRecoveryInvalidationResult = runShortcut("filter", {
+  closeCreatedWindowAfterShortcut = "windowShortcut",
+  invalidateCloseRecoveryAfterFocus = true,
+  sourceWindowOnRemote = true,
   targetHasChromeWindow = false,
 })
 
@@ -953,5 +1130,25 @@ assertEqual(failedCreatedWindowFocusResult.transitionShieldDeletedCount, 1, "fai
 assertEqual(mismatchedFocusedControlFilterResult.remoteDestinationFocusCount, 0, "a focused control owned by another window must not be reused")
 assertEqual(mismatchedFocusedControlFilterResult.destinationChildrenReadCount > 0, true, "a mismatched focused control should fall back to the target window accessibility tree")
 assertEqual(mismatchedFocusedControlFilterResult.filterInputFocused, true, "a mismatched focused control should still focus the target window destination")
+assertEqual(closeCreatedFilterResult.createdWindowClosed, true, "the filter window close gesture should still close the created window")
+assertEqual(closeCreatedFilterResult.closeGestureConsumed, true, "the filter window close gesture should be handled before Chrome's remote fallback")
+assertEqual(closeCreatedFilterResult.closeMouseUpConsumed, true, "the intercepted close button mouse-up should not land in the restored application")
+assertEqual(closeCreatedFilterResult.otherChromeReceivedFocus, false, "closing the created filter window should never focus remote Chrome")
+assertEqual(closeCreatedFilterResult.remoteTopFocused, true, "closing the created filter window should restore the prior remote window")
+assertEqual(closeCreatedNewPageResult.createdWindowClosed, true, "the new-page window close gesture should still close the created window")
+assertEqual(closeCreatedNewPageResult.closeGestureConsumed, true, "the new-page window close gesture should be handled before Chrome's remote fallback")
+assertEqual(closeCreatedNewPageResult.otherChromeReceivedFocus, false, "closing the created new-page window should never focus remote Chrome")
+assertEqual(closeCreatedNewPageResult.remoteTopFocused, true, "closing the created new-page window should restore the prior remote window")
+assertEqual(closeCreatedLastTabResult.createdWindowClosed, true, "closing the created window's last tab should still close the window")
+assertEqual(closeCreatedLastTabResult.closeGestureConsumed, true, "the last-tab close gesture should be handled before Chrome's remote fallback")
+assertEqual(closeCreatedLastTabResult.otherChromeReceivedFocus, false, "closing the created window's last tab should never focus remote Chrome")
+assertEqual(closeCreatedLastTabResult.remoteTopFocused, true, "closing the created window's last tab should restore the prior remote window")
+assertEqual(closeCreatedMultiTabResult.closeGestureConsumed, false, "multi-tab Command-W should remain Chrome-owned")
+assertEqual(closeCreatedMultiTabResult.createdWindowClosed, false, "multi-tab Command-W should not close the created window")
+assertEqual(closeCreatedMultiTabResult.createdWindow, true, "multi-tab Command-W should leave the created window open")
+assertEqual(closeCreatedMultiTabResult.createdWindowNativeTabCloseAllowed, true, "multi-tab Command-W should pass through to Chrome's tab close")
+assertEqual(closeCreatedMultiTabResult.otherChromeReceivedFocus, false, "multi-tab Command-W should not involve remote Chrome")
+assertEqual(closeAfterRecoveryInvalidationResult.closeGestureConsumed, true, "eligible close recovery should consume the whole-window shortcut")
+assertEqual(closeAfterRecoveryInvalidationResult.createdWindowClosed, true, "a consumed close must still close the target if recovery later becomes unavailable")
 
 return "cross-display focus regression: ok"

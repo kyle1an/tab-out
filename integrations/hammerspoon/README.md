@@ -58,10 +58,18 @@ non-focusable transition shield. It validates the new native window ID,
 privately focuses that exact window, focuses the destination control, and then
 removes the shield so Chrome's first exposed frame is already frontmost.
 
-There is no fallback to application activation, `window:focus()`, a synthetic
-click, or remote z-order restoration. If the target identity, Accessibility
-capability, native bridge, or private helper is unavailable, the shortcut Safe
-Aborts before mutation.
+Creation and activation have no fallback to application activation,
+`window:focus()`, a synthetic click, or remote z-order restoration. If the
+target identity, Accessibility capability, native bridge, or private helper is
+unavailable, the shortcut Safe Aborts before mutation.
+
+When closing a bridge-created window would otherwise promote another Chrome
+window, the Spoon handles the red close button, Command-Shift-W, and a
+single-tab Command-W before Chrome. It first restores the eligible non-Chrome
+window that was focused when the shortcut ran, then closes the created window.
+Command-W remains Chrome-owned when multiple tabs are present. Unhandled close
+paths receive best-effort final focus repair but may still show a transient
+remote Chrome frame.
 
 The private helper uses undocumented WindowServer calls and is allowlisted only
 for the qualified macOS build `25F84`. Do not update the allowlist until both
