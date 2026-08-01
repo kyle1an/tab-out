@@ -24,8 +24,7 @@ local function runShortcut(kind, options)
   local addressBarFocused = false
   local activationClickCount = 0
   local filterInputFocused = false
-  local inactiveWindowShortcutSent = false
-  local inactiveWindowShortcutKey
+  local nativeBridgeRequest
   local extensionWindowFocusRequested = false
   local privateFocusCount = 0
   local createdChromeWindow
@@ -54,7 +53,10 @@ local function runShortcut(kind, options)
 
   local targetScreen = {
     frame = function()
-      return { h = 900, w = 1440, x = targetDisplayPosition == 1 and 0 or 1440, y = 0 }
+      return { h = 900, w = 1440, x = (targetDisplayPosition - 1) * 1440, y = 0 }
+    end,
+    fullFrame = function()
+      return { h = 900, w = 1440, x = (targetDisplayPosition - 1) * 1440, y = 0 }
     end,
     getUUID = function()
       return "target-screen"
@@ -66,6 +68,17 @@ local function runShortcut(kind, options)
     end,
     getUUID = function()
       return "other-screen"
+    end,
+  }
+  local thirdScreen = {
+    frame = function()
+      return { h = 900, w = 1440, x = targetDisplayPosition == 3 and 1440 or 2880, y = 0 }
+    end,
+    fullFrame = function()
+      return { h = 900, w = 1440, x = targetDisplayPosition == 3 and 1440 or 2880, y = 0 }
+    end,
+    getUUID = function()
+      return "third-screen"
     end,
   }
 
@@ -294,6 +307,9 @@ local function runShortcut(kind, options)
   }
 
   local fakeHs = {
+    accessibilityState = function()
+      return true
+    end,
     alert = {
       show = function(message)
         failureAlert = message
@@ -310,6 +326,9 @@ local function runShortcut(kind, options)
         return nil
       end,
     },
+    autoLaunch = function()
+      return true
+    end,
     axuielement = {
       windowElement = function()
         return axRoot
@@ -321,26 +340,6 @@ local function runShortcut(kind, options)
         frontmostApplication = chromeApplication
         local targetWindow = createdChromeWindow or targetChromeWindow
         targetWindow:focus()
-      end,
-      keyStroke = function(modifiers, key, _, application)
-        assertEqual(application, nil, "Direct-Placement Bridge shortcut must not target Chrome")
-        local expectedKey = targetDisplayPosition == 1
-          and (kind == "filter" and "6" or "7")
-          or (kind == "filter" and "8" or "9")
-        assertEqual(key, expectedKey, "Direct-Placement Bridge shortcut key")
-        assertEqual(modifiers[1], "cmd", "Direct-Placement Bridge shortcut primary modifier")
-        assertEqual(modifiers[2], "shift", "Direct-Placement Bridge shortcut secondary modifier")
-        inactiveWindowShortcutSent = true
-        inactiveWindowShortcutKey = key
-        if kind == "filter" then
-          openedFilter = true
-        else
-          openedNewPage = true
-        end
-        createdChromeWindow = newChromeWindow(404, targetScreen)
-        if windowCreatedCallback then
-          windowCreatedCallback(createdChromeWindow)
-        end
       end,
     },
     hotkey = {
@@ -366,10 +365,6 @@ local function runShortcut(kind, options)
               settings = {
                 [string.rep("a", 32)] = {
                   commands = {
-                    ["create-inactive-filter-window-display-1"] = {},
-                    ["create-inactive-new-page-window-display-1"] = {},
-                    ["create-inactive-filter-window-display-2"] = {},
-                    ["create-inactive-new-page-window-display-2"] = {},
                     ["open-filter-tab"] = {},
                     ["open-new-tab"] = {},
                   },
@@ -430,6 +425,8 @@ local function runShortcut(kind, options)
       allScreens = function()
         if options.screenCount == 1 then
           return { targetScreen }
+        elseif options.screenCount == 3 then
+          return { otherScreen, thirdScreen, targetScreen }
         end
         return { targetScreen, otherScreen }
       end,
@@ -478,6 +475,9 @@ local function runShortcut(kind, options)
         end
         table.insert(pendingTimers, timer)
         return timer
+      end,
+      secondsSinceEpoch = function()
+        return 1800000000 + clock
       end,
     },
     window = {
@@ -558,24 +558,58 @@ local function runShortcut(kind, options)
       return true
     end,
   }
+  local nativeBridge = {
+    isReady = function()
+      return options.nativeBridgeStarts ~= false
+    end,
+    request = function(_, payload, callback)
+      if options.nativeBridgeStarts == false then
+        return false, "native bridge unavailable"
+      end
+
+      nativeBridgeRequest = payload
+      assertEqual(payload.version, 1, "Native Placement Bridge protocol version")
+      assertEqual(payload.type, "create-window", "Native Placement Bridge request type")
+      assertEqual(payload.operation, kind, "Native Placement Bridge operation")
+      assertEqual(payload.targetBounds.left, targetScreen:fullFrame().x, "Native Placement Bridge target left")
+      assertEqual(payload.targetBounds.top, targetScreen:fullFrame().y, "Native Placement Bridge target top")
+      assertEqual(payload.targetBounds.width, targetScreen:fullFrame().w, "Native Placement Bridge target width")
+      assertEqual(payload.targetBounds.height, targetScreen:fullFrame().h, "Native Placement Bridge target height")
+
+      if kind == "filter" then
+        openedFilter = true
+      else
+        openedNewPage = true
+      end
+      createdChromeWindow = newChromeWindow(404, targetScreen)
+      if windowCreatedCallback then
+        windowCreatedCallback(createdChromeWindow)
+      end
+      callback({
+        version = 1,
+        type = "response",
+        requestId = payload.requestId,
+        status = "accepted",
+      })
+      return true
+    end,
+    status = function()
+      return {
+        connected = nativeBridgeRequest ~= nil and options.nativeBridgeStarts ~= false,
+        hostInstalled = options.nativeBridgeStarts ~= false,
+        version = 1,
+      }
+    end,
+  }
 
   tabOut.start({
     chromeBundleId = "com.google.Chrome",
     chromeProfileDirectory = "Profile 3",
     chromeUserDataDirectory = "/tmp/tab-out-test-profile",
+    nativeBridge = nativeBridge,
     privateFocus = privateFocus,
     shortcuts = {
       filter = { key = "k", modifiers = { "cmd", "shift" } },
-      inactiveWindow = {
-        [1] = {
-          filter = { key = "6", modifiers = { "cmd", "shift" } },
-          newPage = { key = "7", modifiers = { "cmd", "shift" } },
-        },
-        [2] = {
-          filter = { key = "8", modifiers = { "cmd", "shift" } },
-          newPage = { key = "9", modifiers = { "cmd", "shift" } },
-        },
-      },
       newPage = { key = "space", modifiers = { "cmd", "shift" } },
     },
   })
@@ -594,6 +628,8 @@ local function runShortcut(kind, options)
 
   runPendingTimers()
 
+  local diagnostics = tabOut.status()
+
   return {
     activationClickCount = activationClickCount,
     addressBarFocused = addressBarFocused,
@@ -603,8 +639,9 @@ local function runShortcut(kind, options)
     failureAlert = failureAlert,
     filterInputFocused = filterInputFocused,
     existingTargetFocusCount = focusCountByWindowId[targetChromeWindow:id()] or 0,
-    inactiveWindowShortcutSent = inactiveWindowShortcutSent,
-    inactiveWindowShortcutKey = inactiveWindowShortcutKey,
+    nativeBridgeRequest = nativeBridgeRequest,
+    nativeBridgeInstalled = diagnostics.nativeBridgeInstalled,
+    nativeBridgeReady = diagnostics.nativeBridgeReady,
     navigationObservedPrivateFocus = navigationObservedPrivateFocus,
     navigationUsesFrontWindow = navigationUsesFrontWindow,
     openedFilter = openedFilter,
@@ -651,11 +688,16 @@ local inactiveSpaceTargetFilterResult = runShortcut("filter", {
   targetHasChromeWindow = false,
   targetHasInactiveSpaceChromeWindow = true,
 })
-local firstDisplayPositionFilterResult = runShortcut("filter", {
-  targetDisplayPosition = 1,
+local threeDisplayFilterResult = runShortcut("filter", {
+  screenCount = 3,
+  targetDisplayPosition = 3,
   targetHasChromeWindow = false,
 })
 local unavailablePrivateFocusResult = runShortcut("filter", { privateFocusAvailable = false })
+local unavailableNativeBridgeResult = runShortcut("filter", {
+  nativeBridgeStarts = false,
+  targetHasChromeWindow = false,
+})
 
 assertEqual(filterResult.openedFilter, true, "filter shortcut should open the focused-filter page")
 assertEqual(filterResult.filterInputFocused, true, "filter shortcut should focus the in-page filter")
@@ -675,9 +717,11 @@ assertEqual(newPageResult.navigationObservedPrivateFocus, true, "new-page shortc
 assertEqual(newPageResult.navigationUsesFrontWindow, true, "new-page shortcut should script the privately selected front Chrome window")
 assertEqual(newPageResult.otherChromeRaised, false, "new-page shortcut should not raise Chrome on another display")
 assertEqual(filterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
+assertEqual(filterResult.nativeBridgeInstalled, true, "installed bridge status should be independent of route use")
+assertEqual(filterResult.nativeBridgeReady, false, "unused bridge should not claim a proven connection")
 assertEqual(noTargetFilterResult.createdWindow, true, "filter shortcut should create a window on an empty target display")
-assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "Direct-Placement Bridge should leave the created Chrome window inactive")
-assertEqual(noTargetFilterResult.inactiveWindowShortcutSent, true, "filter shortcut should ask Tab Out to create an inactive window")
+assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "Native Placement Bridge should leave the created Chrome window inactive")
+assertEqual(noTargetFilterResult.nativeBridgeRequest ~= nil, true, "filter shortcut should ask the native bridge to create an inactive window")
 assertEqual(noTargetFilterResult.createdWindowSetFrameCount, 0, "filter shortcut should not move the window after Chrome shows it")
 assertEqual(noTargetFilterResult.filterInputFocused, true, "filter shortcut should focus the created window's in-page filter")
 assertEqual(noTargetFilterResult.targetFocused, true, "filter shortcut should focus the created target-display window")
@@ -686,10 +730,12 @@ assertEqual(noTargetFilterResult.otherChromeReceivedFocus, false, "filter shortc
 assertEqual(noTargetFilterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
 assertEqual(noTargetFilterResult.activationClickCount, 0, "directly placed filter window should not receive a visible activation click")
 assertEqual(noTargetFilterResult.privateFocusCount, 1, "directly placed filter window should receive one exact private focus call")
-assertEqual(noTargetFilterResult.inactiveWindowShortcutKey, "8", "second desktop position should use its Direct-Placement Bridge filter command")
+assertEqual(noTargetFilterResult.nativeBridgeRequest.targetBounds.left, 1440, "native bridge should receive the pointer display bounds")
+assertEqual(noTargetFilterResult.nativeBridgeInstalled, true, "successful native placement should keep host installation visible")
+assertEqual(noTargetFilterResult.nativeBridgeReady, true, "successful native placement should prove bridge connectivity")
 assertEqual(noTargetNewPageResult.createdWindow, true, "new-page shortcut should create a window on an empty target display")
-assertEqual(noTargetNewPageResult.extensionWindowFocusRequested, false, "Direct-Placement Bridge should leave the created Chrome window inactive")
-assertEqual(noTargetNewPageResult.inactiveWindowShortcutSent, true, "new-page shortcut should ask Tab Out to create an inactive window")
+assertEqual(noTargetNewPageResult.extensionWindowFocusRequested, false, "Native Placement Bridge should leave the created Chrome window inactive")
+assertEqual(noTargetNewPageResult.nativeBridgeRequest ~= nil, true, "new-page shortcut should ask the native bridge to create an inactive window")
 assertEqual(noTargetNewPageResult.createdWindowSetFrameCount, 0, "new-page shortcut should not move the window after Chrome shows it")
 assertEqual(noTargetNewPageResult.openedNewPage, true, "new-page shortcut should open the native Tab Out page")
 assertEqual(noTargetNewPageResult.addressBarFocused, true, "new-page shortcut should focus the created window's address bar")
@@ -706,12 +752,12 @@ assertEqual(allDisplaysEmptyNewPageResult.failureAlert, nil, "two Chrome-empty d
 assertEqual(allDisplaysEmptyNewPageResult.addressBarFocused, true, "all-empty new-page creation should focus the address bar")
 assertEqual(singleDisplayEmptyFilterResult.createdWindow, true, "filter shortcut should create a window on one Chrome-empty display")
 assertEqual(singleDisplayEmptyFilterResult.failureAlert, nil, "one Chrome-empty display should not block the filter shortcut")
-assertEqual(singleDisplayEmptyFilterResult.inactiveWindowShortcutKey, "6", "one display should use the first Direct-Placement Bridge filter command")
+assertEqual(singleDisplayEmptyFilterResult.nativeBridgeRequest.targetBounds.left, 0, "one display should be addressed by its bounds")
 assertEqual(singleDisplayEmptyNewPageResult.createdWindow, true, "new-page shortcut should create a window on one Chrome-empty display")
 assertEqual(singleDisplayEmptyNewPageResult.failureAlert, nil, "one Chrome-empty display should not block the new-page shortcut")
-assertEqual(singleDisplayEmptyNewPageResult.inactiveWindowShortcutKey, "7", "one display should use the first Direct-Placement Bridge new-page command")
+assertEqual(singleDisplayEmptyNewPageResult.nativeBridgeRequest.targetBounds.left, 0, "one display should use the same native bridge interface")
 assertEqual(stoppedChromeNewPageResult.createdWindow, false, "a stopped Chrome should Safe Abort before creating a window")
-assertEqual(stoppedChromeNewPageResult.inactiveWindowShortcutSent, false, "stopped Chrome cannot receive a Direct-Placement Bridge shortcut")
+assertEqual(stoppedChromeNewPageResult.nativeBridgeRequest, nil, "stopped Chrome should not receive a Native Placement Bridge request")
 assertEqual(stoppedChromeNewPageResult.privateFocusCount, 0, "a stopped Chrome should not attempt private focus")
 assertEqual(stoppedChromeNewPageResult.failureAlert ~= nil, true, "a stopped Chrome should explain its Safe Abort")
 assertEqual(unknownTargetFilterResult.createdWindow, false, "an occupied target with no verified profile should abort before creating a window")
@@ -721,10 +767,17 @@ assertEqual(unknownTargetFilterResult.privateFocusCount, 0, "safe abort should n
 assertEqual(unknownTargetFilterResult.otherChromeReceivedFocus, false, "the unverified-window fallback should not focus remote Chrome")
 assertEqual(unknownTargetFilterResult.failureAlert ~= nil, true, "an ambiguous target should explain its safe abort")
 assertEqual(inactiveSpaceTargetFilterResult.createdWindow, true, "a Chrome window on an inactive target Space must not make the active target Space occupied")
-assertEqual(inactiveSpaceTargetFilterResult.failureAlert, nil, "inactive-Space Chrome windows must not block the Direct-Placement Bridge")
-assertEqual(firstDisplayPositionFilterResult.inactiveWindowShortcutKey, "6", "first desktop position should use its Direct-Placement Bridge filter command")
+assertEqual(inactiveSpaceTargetFilterResult.failureAlert, nil, "inactive-Space Chrome windows must not block the Native Placement Bridge")
+assertEqual(threeDisplayFilterResult.createdWindow, true, "three displays should use the same native bridge without extra shortcuts")
+assertEqual(threeDisplayFilterResult.nativeBridgeRequest.targetBounds.left, 2880, "the third display should be addressed by bounds")
+assertEqual(threeDisplayFilterResult.failureAlert, nil, "three displays should not block native placement")
 assertEqual(unavailablePrivateFocusResult.openedFilter, false, "an unavailable private helper should abort before navigation")
 assertEqual(unavailablePrivateFocusResult.privateFocusCount, 0, "an unavailable private helper should not attempt exact focus")
 assertEqual(unavailablePrivateFocusResult.failureAlert ~= nil, true, "an unavailable private helper should explain its safe abort")
+assertEqual(unavailableNativeBridgeResult.createdWindow, false, "an unavailable native bridge should abort before creation")
+assertEqual(unavailableNativeBridgeResult.privateFocusCount, 0, "an unavailable native bridge should not attempt exact focus")
+assertEqual(unavailableNativeBridgeResult.failureAlert ~= nil, true, "an unavailable native bridge should explain its safe abort")
+assertEqual(unavailableNativeBridgeResult.nativeBridgeInstalled, false, "missing bridge host should report not installed")
+assertEqual(unavailableNativeBridgeResult.nativeBridgeReady, false, "missing bridge host should report not ready")
 
 return "cross-display focus regression: ok"

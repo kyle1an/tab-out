@@ -2,16 +2,7 @@ local M = {}
 
 local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
-local INACTIVE_WINDOW_COMMANDS = {
-  filter = {
-    "create-inactive-filter-window-display-1",
-    "create-inactive-filter-window-display-2",
-  },
-  newPage = {
-    "create-inactive-new-page-window-display-1",
-    "create-inactive-new-page-window-display-2",
-  },
-}
+local NATIVE_PLACEMENT_BRIDGE_VERSION = 1
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local NEW_TAB_URL = "chrome://newtab/"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
@@ -28,7 +19,10 @@ local state = {
   extensionId = nil,
   hotkeys = {},
   lastUserSpaceByScreen = {},
-  pendingDirectPlacement = nil,
+  nativeBridge = nil,
+  nativeBridgeError = nil,
+  nextBridgeRequestId = 0,
+  pendingNativePlacement = nil,
   privateFocus = nil,
   privateFocusError = nil,
   profileByWindow = {},
@@ -105,11 +99,11 @@ local function showFailure(message, detail, screen)
 end
 
 finishCurrent = function()
-  local pendingDirectPlacement = state.pendingDirectPlacement
-  if pendingDirectPlacement then
-    stopTimer(pendingDirectPlacement.timeout)
+  local pendingNativePlacement = state.pendingNativePlacement
+  if pendingNativePlacement then
+    stopTimer(pendingNativePlacement.timeout)
   end
-  state.pendingDirectPlacement = nil
+  state.pendingNativePlacement = nil
   state.busy = false
   state.currentRequest = nil
   later(0.08, function()
@@ -559,10 +553,6 @@ local function tabOutExtensionId()
     if type(commands) == "table"
       and type(commands["open-filter-tab"]) == "table"
       and type(commands["open-new-tab"]) == "table"
-      and type(commands[INACTIVE_WINDOW_COMMANDS.filter[1]]) == "table"
-      and type(commands[INACTIVE_WINDOW_COMMANDS.newPage[1]]) == "table"
-      and type(commands[INACTIVE_WINDOW_COMMANDS.filter[2]]) == "table"
-      and type(commands[INACTIVE_WINDOW_COMMANDS.newPage[2]]) == "table"
       and type(extensionId) == "string"
       and #extensionId == 32
       and extensionId:match("^[a-p]+$")
@@ -768,7 +758,7 @@ local function privatelyActivateWindow(window, onActivated)
   end)
 end
 
--- Direct-Placement Bridge windows already contain their destination before Chrome is
+-- Native Placement Bridge windows already contain their destination before Chrome is
 -- made active. Existing windows invert that order: exact private focus first,
 -- then script Chrome's now-unambiguous front window.
 local function finishExtensionWindowActivation(kind, window)
@@ -807,15 +797,15 @@ local function trackedChromeWindows()
   return application and application:allWindows() or {}
 end
 
-local function acceptDirectPlacementWindow(pending, window)
+local function acceptNativePlacementWindow(pending, window)
   if pending.windowFound then
     return
   end
 
   pending.windowFound = true
   stopTimer(pending.timeout)
-  if state.pendingDirectPlacement == pending then
-    state.pendingDirectPlacement = nil
+  if state.pendingNativePlacement == pending then
+    state.pendingNativePlacement = nil
   end
 
   local request = pending.request
@@ -827,7 +817,7 @@ local function acceptDirectPlacementWindow(pending, window)
   then
     failCurrent(
       "Tab Out did not create its window on the target Desktop",
-      "The Direct-Placement Bridge returned a window on a different display or Space"
+      "The Native Placement Bridge returned a window on a different display or Space"
     )
     return
   end
@@ -857,56 +847,56 @@ local function screenHasChromeWindowOnActiveSpace(targetScreen)
   return false
 end
 
-local function screenDesktopPosition(targetScreen)
-  local screens = hs.screen.allScreens()
-  if #screens < 1 or #screens > 2 then
-    return nil, "The Direct-Placement Bridge requires one or two enabled displays"
+local function screenBoundsForBridge(targetScreen)
+  local frame = targetScreen and targetScreen:fullFrame() or nil
+  if not frame
+    or type(frame.x) ~= "number"
+    or type(frame.y) ~= "number"
+    or type(frame.w) ~= "number"
+    or type(frame.h) ~= "number"
+    or frame.w <= 0
+    or frame.h <= 0
+  then
+    return nil, "The pointer display bounds are unavailable"
   end
 
-  table.sort(screens, function(left, right)
-    local leftFrame = left:frame()
-    local rightFrame = right:frame()
-    if leftFrame.y ~= rightFrame.y then
-      return leftFrame.y < rightFrame.y
-    end
-    if leftFrame.x ~= rightFrame.x then
-      return leftFrame.x < rightFrame.x
-    end
-    return (screenUuid(left) or "") < (screenUuid(right) or "")
-  end)
-
-  local targetUuid = screenUuid(targetScreen)
-  for position, screen in ipairs(screens) do
-    if screenUuid(screen) == targetUuid then
-      return position
-    end
-  end
-
-  return nil, "The pointer display could not be assigned a desktop position"
+  return {
+    height = roundedCoordinate(frame.h),
+    left = roundedCoordinate(frame.x),
+    top = roundedCoordinate(frame.y),
+    width = roundedCoordinate(frame.w),
+  }
 end
 
-local function expectDirectPlacementWindow(request)
+local function nextBridgeRequestId()
+  state.nextBridgeRequestId = state.nextBridgeRequestId + 1
+  local timestampMs = math.floor(hs.timer.secondsSinceEpoch() * 1000)
+  return string.format("hs-%d-%d", timestampMs, state.nextBridgeRequestId)
+end
+
+local function expectNativePlacementWindow(request)
   local pending = {
     request = request,
     timeout = nil,
     windowFound = false,
   }
-  state.pendingDirectPlacement = pending
+  state.pendingNativePlacement = pending
   pending.timeout = later(NEW_WINDOW_TIMEOUT_SECONDS, function()
-    if state.pendingDirectPlacement ~= pending or pending.windowFound then
+    if state.pendingNativePlacement ~= pending or pending.windowFound then
       return
     end
 
-    state.pendingDirectPlacement = nil
+    state.pendingNativePlacement = nil
     failCurrent(
       "Timed out waiting for Tab Out's directly placed Chrome window",
-      "Reload Tab Out and verify all four Direct-Placement Bridge commands are assigned to their configured global shortcuts"
+      "Check the native bridge status and reload the Tab Out extension"
     )
   end, true)
+  return pending
 end
 
 local function handlePendingChromeWindow(window)
-  local pending = state.pendingDirectPlacement
+  local pending = state.pendingNativePlacement
   local windowId = window and window:id() or nil
   if not pending
     or pending.windowFound
@@ -916,13 +906,13 @@ local function handlePendingChromeWindow(window)
     return
   end
 
-  acceptDirectPlacementWindow(pending, window)
+  acceptNativePlacementWindow(pending, window)
 end
 
 local function requestInactiveTargetProfileWindow(request, targetScreen)
   local extensionId, extensionError = tabOutExtensionId()
   if not extensionId then
-    failCurrent("Tab Out's Direct-Placement Bridge is unavailable", extensionError)
+    failCurrent("Tab Out's Native Placement Bridge is unavailable", extensionError)
     return
   end
 
@@ -934,23 +924,54 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
     return
   end
 
-  local displayPosition, displayPositionError = screenDesktopPosition(targetScreen)
-  if not displayPosition then
-    failCurrent("Tab Out cannot address the target display", displayPositionError)
+  if not state.nativeBridge then
+    failCurrent(
+      "Tab Out's Native Placement Bridge is unavailable",
+      state.nativeBridgeError or "The native bridge client is not configured"
+    )
     return
   end
 
-  local shortcut = state.config.shortcuts.inactiveWindow[displayPosition][request.kind]
+  local targetBounds, targetBoundsError = screenBoundsForBridge(targetScreen)
+  if not targetBounds then
+    failCurrent("Tab Out cannot address the target display", targetBoundsError)
+    return
+  end
 
-  expectDirectPlacementWindow(request)
-  local triggered, triggerError = pcall(
-    hs.eventtap.keyStroke,
-    shortcut.modifiers,
-    shortcut.key,
-    0
-  )
-  if not triggered then
-    failCurrent("Tab Out's Direct-Placement Bridge shortcut could not be sent", triggerError)
+  local requestId = nextBridgeRequestId()
+  local pending = expectNativePlacementWindow(request)
+  local started, startError = state.nativeBridge:request({
+    version = NATIVE_PLACEMENT_BRIDGE_VERSION,
+    type = "create-window",
+    requestId = requestId,
+    expiresAtMs = math.floor(hs.timer.secondsSinceEpoch() * 1000) + NEW_WINDOW_TIMEOUT_SECONDS * 1000,
+    operation = request.kind,
+    targetBounds = targetBounds,
+  }, function(response, bridgeError)
+    local ok, callbackError = xpcall(function()
+      if state.pendingNativePlacement ~= pending or pending.windowFound then
+        return
+      end
+      if bridgeError or not response or response.status ~= "accepted" then
+        state.pendingNativePlacement = nil
+        stopTimer(pending.timeout)
+        failCurrent(
+          "Tab Out's Native Placement Bridge rejected the request",
+          bridgeError or (response and response.reason) or "The extension returned no reason"
+        )
+        return
+      end
+    end, debug.traceback)
+
+    if not ok and state.busy then
+      failCurrent("Automation failed", callbackError)
+    end
+  end)
+
+  if not started then
+    state.pendingNativePlacement = nil
+    stopTimer(pending.timeout)
+    failCurrent("Tab Out's Native Placement Bridge could not start", startError)
     return
   end
 end
@@ -959,7 +980,7 @@ local function createTargetProfileWindow(request, targetScreen)
   if not chromeApplication() then
     failCurrent(
       "Google Chrome is not running",
-      "The Direct-Placement Bridge cannot create a guaranteed inactive window until Chrome is running"
+      "The Native Placement Bridge cannot create a guaranteed inactive window until Chrome is running"
     )
     return
   end
@@ -1148,6 +1169,44 @@ local function configurePrivateFocus(config)
   state.privateFocus = privateFocus
 end
 
+local function configureNativeBridge(config)
+  state.nativeBridge = nil
+  state.nativeBridgeError = nil
+
+  local nativeBridge = config.nativeBridge
+  if not nativeBridge then
+    local loaded, bridgeModule = pcall(require, "modules.tab_out_bridge")
+    if not loaded then
+      state.nativeBridgeError = "The native bridge module could not be loaded: " .. tostring(bridgeModule)
+      return
+    end
+
+    local created, bridgeOrError = pcall(bridgeModule.new, {
+      hostPath = config.nativeBridgeHostPath,
+    })
+    if not created then
+      state.nativeBridgeError = "The native bridge client could not initialize: " .. tostring(bridgeOrError)
+      return
+    end
+    nativeBridge = bridgeOrError
+  end
+
+  if type(nativeBridge) ~= "table" or type(nativeBridge.request) ~= "function" then
+    state.nativeBridgeError = "The native bridge client does not expose request transport"
+    return
+  end
+
+  state.nativeBridge = nativeBridge
+  if type(nativeBridge.isReady) == "function" then
+    local called, ready = pcall(nativeBridge.isReady, nativeBridge)
+    if not called then
+      state.nativeBridgeError = "The native bridge readiness check failed: " .. tostring(ready)
+    elseif not ready then
+      log.w("The native bridge host is not installed")
+    end
+  end
+end
+
 local function validateConfig(config)
   assert(type(config) == "table", "Tab Out config must be a table")
   assert(type(config.chromeBundleId) == "string", "chromeBundleId is required")
@@ -1163,14 +1222,12 @@ local function validateConfig(config)
       "privateFocus or privateFocusModulePath is required"
     )
   end
+  assert(
+    type(config.nativeBridge) == "table" or type(config.nativeBridgeHostPath) == "string",
+    "nativeBridge or nativeBridgeHostPath is required"
+  )
   assert(type(config.shortcuts) == "table", "shortcuts are required")
   assert(type(config.shortcuts.filter) == "table", "filter shortcut is required")
-  assert(type(config.shortcuts.inactiveWindow) == "table", "inactiveWindow shortcut is required")
-  for position = 1, 2 do
-    assert(type(config.shortcuts.inactiveWindow[position]) == "table", "inactiveWindow display shortcut is required")
-    assert(type(config.shortcuts.inactiveWindow[position].filter) == "table", "inactiveWindow filter shortcut is required")
-    assert(type(config.shortcuts.inactiveWindow[position].newPage) == "table", "inactiveWindow newPage shortcut is required")
-  end
   assert(type(config.shortcuts.newPage) == "table", "newPage shortcut is required")
 end
 
@@ -1184,6 +1241,10 @@ function M.start(config)
   configurePrivateFocus(config)
   if not state.privateFocus then
     log.ef("Private Chrome focus is unavailable: %s", state.privateFocusError or "unknown error")
+  end
+  configureNativeBridge(config)
+  if state.nativeBridgeError then
+    log.ef("Native placement bridge is unavailable: %s", state.nativeBridgeError)
   end
 
   local storedSpaces = hs.settings.get(LAST_USER_SPACES_KEY)
@@ -1244,6 +1305,9 @@ function M.status()
     cachedTargetProfileWindows = targetWindows,
     extensionReady = false,
     launchAtLogin = hs.autoLaunch(),
+    nativeBridgeError = state.nativeBridgeError,
+    nativeBridgeInstalled = false,
+    nativeBridgeReady = false,
     privateFocusError = state.privateFocusError,
     privateFocusReady = state.privateFocus ~= nil,
     queueDepth = #state.queue,
@@ -1253,6 +1317,15 @@ function M.status()
   if state.config then
     diagnostics.extensionReady = tabOutExtensionId() ~= nil
     diagnostics.profileMetadataReady = chromeLocalState() ~= nil
+  end
+
+  if state.nativeBridge and type(state.nativeBridge.status) == "function" then
+    local called, bridgeStatus = pcall(state.nativeBridge.status, state.nativeBridge)
+    if called then
+      diagnostics.nativeBridge = bridgeStatus
+      diagnostics.nativeBridgeInstalled = bridgeStatus.hostInstalled == true
+      diagnostics.nativeBridgeReady = bridgeStatus.connected == true
+    end
   end
 
   return diagnostics
