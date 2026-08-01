@@ -357,8 +357,40 @@ local function screenHasChromeWindowOnSpace(screen, spaceId)
   return false
 end
 
-local function chromeAddressBar(window)
-  local root = window and hs.axuielement.windowElement(window) or nil
+local function isDestinationControl(kind, element, role)
+  if type(element) ~= "userdata" then
+    return false
+  end
+  role = role or element:attributeValue("AXRole")
+  if role ~= "AXTextField" then
+    return false
+  end
+
+  local description = element:attributeValue("AXDescription")
+  if kind == "filter" then
+    return type(description) == "string" and description:match("^Filter ") ~= nil
+  end
+  return description == "Address and search bar"
+end
+
+local function focusedDestinationControl(kind, root)
+  local systemWideElement = hs.axuielement.systemWideElement
+    and hs.axuielement.systemWideElement()
+    or nil
+  local control = systemWideElement
+    and systemWideElement:attributeValue("AXFocusedUIElement")
+    or nil
+  if not isDestinationControl(kind, control)
+    or control:attributeValue("AXFocused") ~= true
+    or control:attributeValue("AXWindow") ~= root
+  then
+    return nil
+  end
+
+  return control
+end
+
+local function chromeAddressBar(root)
   local visited = {}
 
   local function findAddressBar(element, depth)
@@ -372,9 +404,7 @@ local function chromeAddressBar(window)
       return nil
     end
 
-    if role == "AXTextField"
-      and element:attributeValue("AXDescription") == "Address and search bar"
-    then
+    if isDestinationControl("newPage", element, role) then
       return element
     end
 
@@ -391,8 +421,7 @@ local function chromeAddressBar(window)
   return root and findAddressBar(root, 0) or nil
 end
 
-local function chromeFilterInput(window)
-  local root = window and hs.axuielement.windowElement(window) or nil
+local function chromeFilterInput(root)
   local visited = {}
 
   local function findFilterInput(element, depth)
@@ -401,11 +430,7 @@ local function chromeFilterInput(window)
     end
 
     visited[element] = true
-    local description = element:attributeValue("AXDescription")
-    if element:attributeValue("AXRole") == "AXTextField"
-      and type(description) == "string"
-      and description:match("^Filter ")
-    then
+    if isDestinationControl("filter", element) then
       return element
     end
 
@@ -423,10 +448,20 @@ local function chromeFilterInput(window)
 end
 
 local function destinationControl(kind, window)
-  if kind == "filter" then
-    return chromeFilterInput(window)
+  local root = window and hs.axuielement.windowElement(window) or nil
+  if not root then
+    return nil
   end
-  return chromeAddressBar(window)
+
+  local focusedControl = focusedDestinationControl(kind, root)
+  if focusedControl then
+    return focusedControl
+  end
+
+  if kind == "filter" then
+    return chromeFilterInput(root)
+  end
+  return chromeAddressBar(root)
 end
 
 local function eligibleChromeWindows(screen, spaceId)
@@ -744,8 +779,9 @@ local function waitForDestinationControl(kind, window, onReady, onFailure, attem
     return
   end
 
-  if destinationControl(kind, window) then
-    onReady()
+  local control = destinationControl(kind, window)
+  if control then
+    onReady(control)
     return
   end
 
@@ -784,8 +820,8 @@ local function waitForTargetWindowFocus(window, onFocused, onFailure, attempt, e
   end, true)
 end
 
-local function focusDestinationControl(kind, window)
-  local control = destinationControl(kind, window)
+local function focusDestinationControl(kind, window, control)
+  control = control or destinationControl(kind, window)
   if not control then
     return false, "Chrome's destination control is unavailable"
   end
@@ -840,8 +876,8 @@ local function focusWindowPrivately(window, expectedProfileDirectory)
   return true
 end
 
-local function finishDestinationControlFocus(kind, window)
-  local controlFocused, controlError = focusDestinationControl(kind, window)
+local function finishDestinationControlFocus(kind, window, control)
+  local controlFocused, controlError = focusDestinationControl(kind, window, control)
   if not controlFocused then
     failCurrent("The Tab Out destination could not receive keyboard focus", controlError)
     return
@@ -869,8 +905,8 @@ end
 -- complete, so the created window is first exposed in its final frontmost state.
 local function finishExtensionWindowActivation(kind, window)
   privatelyActivateWindow(window, function()
-    waitForDestinationControl(kind, window, function()
-      finishDestinationControlFocus(kind, window)
+    waitForDestinationControl(kind, window, function(control)
+      finishDestinationControlFocus(kind, window, control)
     end, function(controlError)
       failCurrent("The Tab Out destination did not become ready", controlError)
     end)
@@ -886,8 +922,8 @@ local function activateExistingWindow(kind, window)
     end
 
     log.df("Opened the %s destination in the privately selected Chrome window", kind)
-    waitForDestinationControl(kind, window, function()
-      finishDestinationControlFocus(kind, window)
+    waitForDestinationControl(kind, window, function(control)
+      finishDestinationControlFocus(kind, window, control)
     end, function(controlError)
       failCurrent("The Tab Out destination did not become ready", controlError)
     end)

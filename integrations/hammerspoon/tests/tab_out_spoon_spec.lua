@@ -29,6 +29,9 @@ local function runShortcut(kind, options)
   local privateFocusCount = 0
   local createdChromeWindow
   local createdDestinationReadBeforePrivateFocus = false
+  local destinationChildrenReadCount = 0
+  local destinationWindowElementReadCount = 0
+  local remoteDestinationFocusCount = 0
   local createdWindowInitiallyMinimized = false
   local createdWindowRevealedByPrivateFocus = false
   local createdWindowSetFrameCount = 0
@@ -264,6 +267,7 @@ local function runShortcut(kind, options)
     return currentChromeWindows()
   end
 
+  local axRoot
   local addressBar = {
     attributeValue = function(_, attribute)
       if attribute == "AXRole" then
@@ -273,6 +277,9 @@ local function runShortcut(kind, options)
         return "Address and search bar"
       elseif attribute == "AXFocused" then
         return addressBarFocused
+          or (createdChromeWindow ~= nil and privateFocusCount > 0 and kind == "newPage")
+      elseif attribute == "AXWindow" then
+        return axRoot
       end
       return nil
     end,
@@ -292,6 +299,9 @@ local function runShortcut(kind, options)
         return "Filter tabs, bookmarks, history…"
       elseif attribute == "AXFocused" then
         return filterInputFocused
+          or (createdChromeWindow ~= nil and privateFocusCount > 0 and kind == "filter")
+      elseif attribute == "AXWindow" then
+        return axRoot
       elseif attribute == "AXChildren" then
         return {}
       end
@@ -305,12 +315,13 @@ local function runShortcut(kind, options)
       return false
     end,
   }
-  local axRoot = {
+  axRoot = {
     attributeValue = function(_, attribute)
       if attribute == "AXRole" then
         return "AXWindow"
       end
       if attribute == "AXChildren" then
+        destinationChildrenReadCount = destinationChildrenReadCount + 1
         if createdChromeWindow and privateFocusCount == 0 then
           createdDestinationReadBeforePrivateFocus = true
         end
@@ -319,10 +330,46 @@ local function runShortcut(kind, options)
       return nil
     end,
   }
+  local remoteAxRoot = {}
+  local remoteDestinationControl = {
+    attributeValue = function(_, attribute)
+      if attribute == "AXRole" then
+        return "AXTextField"
+      elseif attribute == "AXDescription" then
+        return kind == "filter" and "Filter tabs, bookmarks, history…" or "Address and search bar"
+      elseif attribute == "AXFocused" then
+        return true
+      elseif attribute == "AXWindow" then
+        return remoteAxRoot
+      end
+      return nil
+    end,
+    setAttributeValue = function(_, attribute, value)
+      if attribute == "AXFocused" and value == true then
+        remoteDestinationFocusCount = remoteDestinationFocusCount + 1
+        return true
+      end
+      return false
+    end,
+  }
+  local systemWideElement = {
+    attributeValue = function(_, attribute)
+      if attribute ~= "AXFocusedUIElement" or privateFocusCount == 0 or not createdChromeWindow then
+        return nil
+      end
+      if options.focusedDestinationOwnerMismatch then
+        return remoteDestinationControl
+      end
+      return kind == "filter" and filterInput or addressBar
+    end,
+  }
   local fakeAxElements = {
     [addressBar] = true,
     [axRoot] = true,
     [filterInput] = true,
+    [remoteAxRoot] = true,
+    [remoteDestinationControl] = true,
+    [systemWideElement] = true,
   }
 
   local fakeHs = {
@@ -372,7 +419,11 @@ local function runShortcut(kind, options)
       end,
     },
     axuielement = {
+      systemWideElement = function()
+        return systemWideElement
+      end,
       windowElement = function()
+        destinationWindowElementReadCount = destinationWindowElementReadCount + 1
         return axRoot
       end,
     },
@@ -706,6 +757,8 @@ local function runShortcut(kind, options)
     createdWindowInitiallyMinimized = createdWindowInitiallyMinimized,
     createdWindowRevealedByPrivateFocus = createdWindowRevealedByPrivateFocus,
     createdWindowSetFrameCount = createdWindowSetFrameCount,
+    destinationChildrenReadCount = destinationChildrenReadCount,
+    destinationWindowElementReadCount = destinationWindowElementReadCount,
     extensionWindowFocusRequested = extensionWindowFocusRequested,
     failureAlert = failureAlert,
     filterInputFocused = filterInputFocused,
@@ -722,6 +775,7 @@ local function runShortcut(kind, options)
     otherChromeReceivedFocus = otherChromeReceivedFocus,
     otherChromeRaised = otherChromeRaised,
     privateFocusCount = privateFocusCount,
+    remoteDestinationFocusCount = remoteDestinationFocusCount,
     securePreferencesReadCount = securePreferencesReadCount,
     targetFocused = focusedWindow == (createdChromeWindow or targetChromeWindow),
     targetAppActive = frontmostApplication == chromeApplication,
@@ -782,6 +836,10 @@ local failedCreatedWindowFocusResult = runShortcut("filter", {
   privateFocusSucceeds = false,
   targetHasChromeWindow = false,
 })
+local mismatchedFocusedControlFilterResult = runShortcut("filter", {
+  focusedDestinationOwnerMismatch = true,
+  targetHasChromeWindow = false,
+})
 
 assertEqual(filterResult.openedFilter, true, "filter shortcut should open the focused-filter page")
 assertEqual(filterResult.filterInputFocused, true, "filter shortcut should focus the in-page filter")
@@ -816,6 +874,8 @@ assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "Native P
 assertEqual(noTargetFilterResult.nativeBridgeRequest ~= nil, true, "filter shortcut should ask the native bridge to create an inactive window")
 assertEqual(noTargetFilterResult.createdWindowSetFrameCount, 0, "filter shortcut should not move the window after Chrome shows it")
 assertEqual(noTargetFilterResult.filterInputFocused, true, "filter shortcut should focus the created window's in-page filter")
+assertEqual(noTargetFilterResult.destinationChildrenReadCount, 0, "filter creation should reuse the already-focused destination without scanning its accessibility tree")
+assertEqual(noTargetFilterResult.destinationWindowElementReadCount, 1, "filter creation should reuse the destination control found by its readiness check")
 assertEqual(noTargetFilterResult.targetFocused, true, "filter shortcut should focus the created target-display window")
 assertEqual(noTargetFilterResult.otherChromeFocused, false, "filter shortcut should not focus Chrome on another display")
 assertEqual(noTargetFilterResult.otherChromeReceivedFocus, false, "filter shortcut should avoid Chrome's remote launch handoff")
@@ -839,6 +899,8 @@ assertEqual(noTargetNewPageResult.nativeBridgeRequest ~= nil, true, "new-page sh
 assertEqual(noTargetNewPageResult.createdWindowSetFrameCount, 0, "new-page shortcut should not move the window after Chrome shows it")
 assertEqual(noTargetNewPageResult.openedNewPage, true, "new-page shortcut should open the native Tab Out page")
 assertEqual(noTargetNewPageResult.addressBarFocused, true, "new-page shortcut should focus the created window's address bar")
+assertEqual(noTargetNewPageResult.destinationChildrenReadCount, 0, "new-page creation should reuse the already-focused destination without scanning its accessibility tree")
+assertEqual(noTargetNewPageResult.destinationWindowElementReadCount, 1, "new-page creation should reuse the destination control found by its readiness check")
 assertEqual(noTargetNewPageResult.targetFocused, true, "new-page shortcut should focus the created target-display window")
 assertEqual(noTargetNewPageResult.otherChromeFocused, false, "new-page shortcut should not focus Chrome on another display")
 assertEqual(noTargetNewPageResult.otherChromeReceivedFocus, false, "new-page shortcut should avoid Chrome's remote launch handoff")
@@ -888,5 +950,8 @@ assertEqual(unavailableScreenRecordingResult.transitionShieldCreatedCount, 0, "m
 assertEqual(failedCreatedWindowFocusResult.failureAlert ~= nil, true, "failed private focus should surface a safe error")
 assertEqual(failedCreatedWindowFocusResult.transitionShieldVisibleAtPrivateFocus, true, "failed private focus should remain covered during the attempt")
 assertEqual(failedCreatedWindowFocusResult.transitionShieldDeletedCount, 1, "failed private focus should clean up the transition shield")
+assertEqual(mismatchedFocusedControlFilterResult.remoteDestinationFocusCount, 0, "a focused control owned by another window must not be reused")
+assertEqual(mismatchedFocusedControlFilterResult.destinationChildrenReadCount > 0, true, "a mismatched focused control should fall back to the target window accessibility tree")
+assertEqual(mismatchedFocusedControlFilterResult.filterInputFocused, true, "a mismatched focused control should still focus the target window destination")
 
 return "cross-display focus regression: ok"
