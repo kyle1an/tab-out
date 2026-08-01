@@ -19,7 +19,6 @@ end
 
 local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
-local NATIVE_PLACEMENT_BRIDGE_VERSION = 1
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local NEW_TAB_URL = "chrome://newtab/"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
@@ -38,7 +37,6 @@ local state = {
   lastUserSpaceByScreen = {},
   nativeBridge = nil,
   nativeBridgeError = nil,
-  nextBridgeRequestId = 0,
   pendingNativePlacement = nil,
   privateFocus = nil,
   privateFocusError = nil,
@@ -885,12 +883,6 @@ local function screenBoundsForBridge(targetScreen)
   }
 end
 
-local function nextBridgeRequestId()
-  state.nextBridgeRequestId = state.nextBridgeRequestId + 1
-  local timestampMs = math.floor(hs.timer.secondsSinceEpoch() * 1000)
-  return string.format("hs-%d-%d", timestampMs, state.nextBridgeRequestId)
-end
-
 local function expectNativePlacementWindow(request)
   local pending = {
     request = request,
@@ -955,26 +947,22 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
     return
   end
 
-  local requestId = nextBridgeRequestId()
   local pending = expectNativePlacementWindow(request)
-  local started, startError = state.nativeBridge:request({
-    version = NATIVE_PLACEMENT_BRIDGE_VERSION,
-    type = "create-window",
-    requestId = requestId,
-    expiresAtMs = math.floor(hs.timer.secondsSinceEpoch() * 1000) + NEW_WINDOW_TIMEOUT_SECONDS * 1000,
+  local started, startError = state.nativeBridge:createWindow({
     operation = request.kind,
     targetBounds = targetBounds,
-  }, function(response, bridgeError)
+    timeoutSeconds = NEW_WINDOW_TIMEOUT_SECONDS,
+  }, function(accepted, bridgeError)
     local ok, callbackError = xpcall(function()
       if state.pendingNativePlacement ~= pending or pending.windowFound then
         return
       end
-      if bridgeError or not response or response.status ~= "accepted" then
+      if bridgeError or accepted ~= true then
         state.pendingNativePlacement = nil
         stopTimer(pending.timeout)
         failCurrent(
           "Tab Out's Native Placement Bridge rejected the request",
-          bridgeError or (response and response.reason) or "The extension returned no reason"
+          bridgeError or "The extension returned no reason"
         )
         return
       end
@@ -1208,8 +1196,8 @@ local function configureNativeBridge(config)
     nativeBridge = bridgeOrError
   end
 
-  if type(nativeBridge) ~= "table" or type(nativeBridge.request) ~= "function" then
-    state.nativeBridgeError = "The native bridge client does not expose request transport"
+  if type(nativeBridge) ~= "table" or type(nativeBridge.createWindow) ~= "function" then
+    state.nativeBridgeError = "The native bridge client does not expose window creation"
     return
   end
 

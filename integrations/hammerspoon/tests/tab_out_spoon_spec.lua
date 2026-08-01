@@ -564,19 +564,18 @@ local function runShortcut(kind, options)
     isReady = function()
       return options.nativeBridgeStarts ~= false
     end,
-    request = function(_, payload, callback)
+    createWindow = function(_, createOptions, callback)
       if options.nativeBridgeStarts == false then
         return false, "native bridge unavailable"
       end
 
-      nativeBridgeRequest = payload
-      assertEqual(payload.version, 1, "Native Placement Bridge protocol version")
-      assertEqual(payload.type, "create-window", "Native Placement Bridge request type")
-      assertEqual(payload.operation, kind, "Native Placement Bridge operation")
-      assertEqual(payload.targetBounds.left, targetScreen:fullFrame().x, "Native Placement Bridge target left")
-      assertEqual(payload.targetBounds.top, targetScreen:fullFrame().y, "Native Placement Bridge target top")
-      assertEqual(payload.targetBounds.width, targetScreen:fullFrame().w, "Native Placement Bridge target width")
-      assertEqual(payload.targetBounds.height, targetScreen:fullFrame().h, "Native Placement Bridge target height")
+      nativeBridgeRequest = createOptions
+      assertEqual(createOptions.operation, kind, "Native Placement Bridge operation")
+      assertEqual(createOptions.targetBounds.left, targetScreen:fullFrame().x, "Native Placement Bridge target left")
+      assertEqual(createOptions.targetBounds.top, targetScreen:fullFrame().y, "Native Placement Bridge target top")
+      assertEqual(createOptions.targetBounds.width, targetScreen:fullFrame().w, "Native Placement Bridge target width")
+      assertEqual(createOptions.targetBounds.height, targetScreen:fullFrame().h, "Native Placement Bridge target height")
+      assertEqual(createOptions.timeoutSeconds, 12, "Native Placement Bridge timeout budget")
 
       if kind == "filter" then
         openedFilter = true
@@ -587,12 +586,7 @@ local function runShortcut(kind, options)
       if windowCreatedCallback then
         windowCreatedCallback(createdChromeWindow)
       end
-      callback({
-        version = 1,
-        type = "response",
-        requestId = payload.requestId,
-        status = "accepted",
-      })
+      callback(true)
       return true
     end,
     status = function()
