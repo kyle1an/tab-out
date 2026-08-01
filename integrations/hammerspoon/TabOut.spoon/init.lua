@@ -833,10 +833,10 @@ local function privatelyActivateWindow(window, onActivated, expectedProfileDirec
   end)
 end
 
--- Native Placement Bridge windows already contain their destination and remain
--- minimized through placement. The target-display snapshot stays above the
--- unminimize animation until private activation and destination focus complete,
--- so the created window is first exposed in its final frontmost state.
+-- Native Placement Bridge windows already contain their destination and are
+-- created inactive at final target bounds. The target-display snapshot stays
+-- above the inactive window until private activation and destination focus
+-- complete, so the created window is first exposed in its final frontmost state.
 local function finishExtensionWindowActivation(kind, window)
   privatelyActivateWindow(window, function()
     waitForDestinationControl(kind, window, function()

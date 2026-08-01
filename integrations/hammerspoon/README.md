@@ -52,12 +52,11 @@ The Spoon captures one target display and active Space for each invocation. It
 reuses only a verified window from the configured profile on that destination,
 or sends the destination kind and full display bounds through the Native
 Placement Bridge for inactive creation. Tab Out creates the new Chrome window
-with `focused: false` and `state: minimized`, positions it while concealed, and
-then confirms placement. Before creation, the Spoon snapshots only the target
-display into a non-focusable transition shield. It validates the new native
-window ID, privately reveals and focuses that exact window, focuses the
-destination control, and then removes the shield so Chrome's first exposed
-frame is already frontmost.
+with `focused: false` and its final target-display bounds in the same call.
+Before creation, the Spoon snapshots only the target display into a
+non-focusable transition shield. It validates the new native window ID,
+privately focuses that exact window, focuses the destination control, and then
+removes the shield so Chrome's first exposed frame is already frontmost.
 
 There is no fallback to application activation, `window:focus()`, a synthetic
 click, or remote z-order restoration. If the target identity, Accessibility
@@ -89,7 +88,7 @@ scripts/native-host/status
 
 Hammerspoon needs Accessibility permission. Screen Recording permission enables
 the target-display transition shield; without it, routing still works but the
-normal macOS unminimize animation may be visible. The verified destination
+normal inactive-to-front transition may be visible. The verified destination
 window also requires Automation permission for Hammerspoon to send navigation
 to Google Chrome.
 

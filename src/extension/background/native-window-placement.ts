@@ -145,20 +145,9 @@ export async function createInactiveWindow(
     type: 'normal',
     ...(kind === 'filter' ? { url: filterFocusUrl(chromeApi) } : {}),
     focused: false,
-    state: 'minimized'
+    ...placement
   })
   if (typeof createdWindow?.id !== 'number') {
-    throw new Error('Chrome did not return the concealed window identity')
-  }
-
-  try {
-    await chromeApi.windows.update(createdWindow.id, placement)
-  } catch (error) {
-    try {
-      await chromeApi.windows.remove(createdWindow.id)
-    } catch {
-      // Preserve the placement failure; cleanup is best-effort.
-    }
-    throw error
+    throw new Error('Chrome did not return the placed window identity')
   }
 }

@@ -651,7 +651,7 @@ local function runShortcut(kind, options)
       else
         openedNewPage = true
       end
-      createdChromeWindow = newChromeWindow(404, targetScreen, false, true)
+      createdChromeWindow = newChromeWindow(404, targetScreen, false, false)
       createdWindowInitiallyMinimized = createdChromeWindow:isMinimized()
       if windowCreatedCallback then
         windowCreatedCallback(createdChromeWindow)
@@ -799,8 +799,8 @@ assertEqual(filterResult.nativeBridgeInstalled, true, "installed bridge status s
 assertEqual(filterResult.nativeBridgeReady, false, "unused bridge should not claim a proven connection")
 assertEqual(filterResult.transitionShieldCreatedCount, 0, "existing-window activation should not create a transition shield")
 assertEqual(noTargetFilterResult.createdWindow, true, "filter shortcut should create a window on an empty target display")
-assertEqual(noTargetFilterResult.createdWindowInitiallyMinimized, true, "filter shortcut should keep the created window concealed until private focus")
-assertEqual(noTargetFilterResult.createdWindowRevealedByPrivateFocus, true, "private focus should reveal the created filter window")
+assertEqual(noTargetFilterResult.createdWindowInitiallyMinimized, false, "filter shortcut should create directly at target bounds without a deferred minimized placement")
+assertEqual(noTargetFilterResult.createdWindowRevealedByPrivateFocus, false, "private focus should not need to unminimize the created filter window")
 assertEqual(noTargetFilterResult.createdDestinationReadBeforePrivateFocus, false, "created filter window should be privately focused before waiting for its destination")
 assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "Native Placement Bridge should leave the created Chrome window inactive")
 assertEqual(noTargetFilterResult.nativeBridgeRequest ~= nil, true, "filter shortcut should ask the native bridge to create an inactive window")
@@ -819,8 +819,8 @@ assertEqual(noTargetFilterResult.nativeBridgeRequest.targetBounds.left, 1440, "n
 assertEqual(noTargetFilterResult.nativeBridgeInstalled, true, "successful native placement should keep host installation visible")
 assertEqual(noTargetFilterResult.nativeBridgeReady, true, "successful native placement should prove bridge connectivity")
 assertEqual(noTargetNewPageResult.createdWindow, true, "new-page shortcut should create a window on an empty target display")
-assertEqual(noTargetNewPageResult.createdWindowInitiallyMinimized, true, "new-page shortcut should keep the created window concealed until private focus")
-assertEqual(noTargetNewPageResult.createdWindowRevealedByPrivateFocus, true, "private focus should reveal the created new-page window")
+assertEqual(noTargetNewPageResult.createdWindowInitiallyMinimized, false, "new-page shortcut should create directly at target bounds without a deferred minimized placement")
+assertEqual(noTargetNewPageResult.createdWindowRevealedByPrivateFocus, false, "private focus should not need to unminimize the created new-page window")
 assertEqual(noTargetNewPageResult.createdDestinationReadBeforePrivateFocus, false, "created new-page window should be privately focused before waiting for its destination")
 assertEqual(noTargetNewPageResult.extensionWindowFocusRequested, false, "Native Placement Bridge should leave the created Chrome window inactive")
 assertEqual(noTargetNewPageResult.nativeBridgeRequest ~= nil, true, "new-page shortcut should ask the native bridge to create an inactive window")
