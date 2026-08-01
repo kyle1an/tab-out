@@ -47,7 +47,9 @@ local function runShortcut(kind, options)
   local otherChromeRaised = false
   local openedFilter = false
   local openedNewPage = false
+  local orderedWindowsCallCount = 0
   local pendingTimers = {}
+  local securePreferencesReadCount = 0
   local windowCreatedCallback
 
   local function newWatcher()
@@ -400,6 +402,7 @@ local function runShortcut(kind, options)
         end
 
         if path:match("/Secure Preferences$") then
+          securePreferencesReadCount = securePreferencesReadCount + 1
           return {
             extensions = {
               settings = {
@@ -563,6 +566,7 @@ local function runShortcut(kind, options)
         return focusedWindow
       end,
       orderedWindows = function()
+        orderedWindowsCallCount = orderedWindowsCallCount + 1
         return currentOrderedWindows()
       end,
     },
@@ -713,10 +717,12 @@ local function runShortcut(kind, options)
     navigationUsesFrontWindow = navigationUsesFrontWindow,
     openedFilter = openedFilter,
     openedNewPage = openedNewPage,
+    orderedWindowsCallCount = orderedWindowsCallCount,
     otherChromeFocused = otherChromeFocused,
     otherChromeReceivedFocus = otherChromeReceivedFocus,
     otherChromeRaised = otherChromeRaised,
     privateFocusCount = privateFocusCount,
+    securePreferencesReadCount = securePreferencesReadCount,
     targetFocused = focusedWindow == (createdChromeWindow or targetChromeWindow),
     targetAppActive = frontmostApplication == chromeApplication,
     transitionShieldCreatedCount = transitionShieldCreatedCount,
@@ -798,7 +804,11 @@ assertEqual(filterResult.otherChromeRaised, false, "filter shortcut should not r
 assertEqual(filterResult.nativeBridgeInstalled, true, "installed bridge status should be independent of route use")
 assertEqual(filterResult.nativeBridgeReady, false, "unused bridge should not claim a proven connection")
 assertEqual(filterResult.transitionShieldCreatedCount, 0, "existing-window activation should not create a transition shield")
+assertEqual(filterResult.orderedWindowsCallCount > 0, true, "existing-window activation should preserve front-to-back Chrome ordering")
+assertEqual(filterResult.securePreferencesReadCount, 1, "filter routing and diagnostics should reuse one discovered extension ID")
 assertEqual(noTargetFilterResult.createdWindow, true, "filter shortcut should create a window on an empty target display")
+assertEqual(noTargetFilterResult.orderedWindowsCallCount, 0, "Chrome-empty filter routing should skip global window ordering")
+assertEqual(noTargetFilterResult.securePreferencesReadCount, 1, "filter creation and diagnostics should reuse one discovered extension ID")
 assertEqual(noTargetFilterResult.createdWindowInitiallyMinimized, false, "filter shortcut should create directly at target bounds without a deferred minimized placement")
 assertEqual(noTargetFilterResult.createdWindowRevealedByPrivateFocus, false, "private focus should not need to unminimize the created filter window")
 assertEqual(noTargetFilterResult.createdDestinationReadBeforePrivateFocus, false, "created filter window should be privately focused before waiting for its destination")
@@ -819,6 +829,8 @@ assertEqual(noTargetFilterResult.nativeBridgeRequest.targetBounds.left, 1440, "n
 assertEqual(noTargetFilterResult.nativeBridgeInstalled, true, "successful native placement should keep host installation visible")
 assertEqual(noTargetFilterResult.nativeBridgeReady, true, "successful native placement should prove bridge connectivity")
 assertEqual(noTargetNewPageResult.createdWindow, true, "new-page shortcut should create a window on an empty target display")
+assertEqual(noTargetNewPageResult.orderedWindowsCallCount, 0, "Chrome-empty new-page routing should skip global window ordering")
+assertEqual(noTargetNewPageResult.securePreferencesReadCount, 1, "new-page creation and diagnostics should reuse one discovered extension ID")
 assertEqual(noTargetNewPageResult.createdWindowInitiallyMinimized, false, "new-page shortcut should create directly at target bounds without a deferred minimized placement")
 assertEqual(noTargetNewPageResult.createdWindowRevealedByPrivateFocus, false, "private focus should not need to unminimize the created new-page window")
 assertEqual(noTargetNewPageResult.createdDestinationReadBeforePrivateFocus, false, "created new-page window should be privately focused before waiting for its destination")

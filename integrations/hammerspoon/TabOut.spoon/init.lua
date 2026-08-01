@@ -326,6 +326,15 @@ local function chromeApplication()
   return hs.application.get(state.config.chromeBundleId)
 end
 
+local function trackedChromeWindows()
+  if state.chromeWindowFilter then
+    return state.chromeWindowFilter:getWindows()
+  end
+
+  local application = chromeApplication()
+  return application and application:allWindows() or {}
+end
+
 local function isChromeWindow(window)
   if not window or not window:id() or not window:isStandard() or window:isMinimized() then
     return false
@@ -333,6 +342,19 @@ local function isChromeWindow(window)
 
   local application = window:application()
   return application and application:bundleID() == state.config.chromeBundleId and not application:isHidden()
+end
+
+local function screenHasChromeWindowOnSpace(screen, spaceId)
+  local targetScreenUuid = screenUuid(screen)
+  for _, window in ipairs(trackedChromeWindows()) do
+    if isChromeWindow(window) and screenUuid(window:screen()) == targetScreenUuid then
+      local spaces = hs.spaces.windowSpaces(window)
+      if spaces and containsValue(spaces, spaceId) then
+        return true
+      end
+    end
+  end
+  return false
 end
 
 local function chromeAddressBar(window)
@@ -409,6 +431,10 @@ end
 
 local function eligibleChromeWindows(screen, spaceId)
   local candidates = {}
+  if not screenHasChromeWindowOnSpace(screen, spaceId) then
+    return candidates
+  end
+
   local targetScreenUuid = screenUuid(screen)
 
   for _, window in ipairs(hs.window.orderedWindows()) do
@@ -612,6 +638,10 @@ local function secureProfilePreferences()
 end
 
 local function tabOutExtensionId()
+  if state.extensionId then
+    return state.extensionId
+  end
+
   local preferences = secureProfilePreferences()
   local settings = preferences and preferences.extensions and preferences.extensions.settings or nil
 
@@ -864,15 +894,6 @@ local function activateExistingWindow(kind, window)
   end)
 end
 
-local function trackedChromeWindows()
-  if state.chromeWindowFilter then
-    return state.chromeWindowFilter:getWindows()
-  end
-
-  local application = chromeApplication()
-  return application and application:allWindows() or {}
-end
-
 local function acceptNativePlacementWindow(pending, window)
   if pending.windowFound then
     return
@@ -890,24 +911,9 @@ local function acceptNativePlacementWindow(pending, window)
   finishExtensionWindowActivation(request.kind, window)
 end
 
-local function windowOccupiesActiveSpace(window)
-  local screen = window and window:screen() or nil
-  local activeSpace = screen and hs.spaces.activeSpaceOnScreen(screen) or nil
-  local windowSpaces = window and hs.spaces.windowSpaces(window) or nil
-  return activeSpace and windowSpaces and containsValue(windowSpaces, activeSpace) or false
-end
-
 local function screenHasChromeWindowOnActiveSpace(targetScreen)
-  local targetUuid = screenUuid(targetScreen)
-  for _, window in ipairs(trackedChromeWindows()) do
-    if isChromeWindow(window)
-      and windowOccupiesActiveSpace(window)
-      and screenUuid(window:screen()) == targetUuid
-    then
-      return true
-    end
-  end
-  return false
+  local activeSpace = targetScreen and hs.spaces.activeSpaceOnScreen(targetScreen) or nil
+  return activeSpace and screenHasChromeWindowOnSpace(targetScreen, activeSpace) or false
 end
 
 local function screenBoundsForBridge(targetScreen)
