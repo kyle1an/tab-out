@@ -1,0 +1,8 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+
+"$script_directory/hammerspoon/uninstall"
+"$script_directory/native-host/uninstall"

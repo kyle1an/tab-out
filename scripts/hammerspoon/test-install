@@ -1,0 +1,21 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+temporary_config=$(mktemp -d)
+trap 'rm -rf "$temporary_config"' EXIT
+
+TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$script_directory/install" >/dev/null
+
+destination="$temporary_config/Spoons/TabOut.spoon"
+expected_source="$repository_root/integrations/hammerspoon/TabOut.spoon"
+[[ -L $destination ]]
+[[ $(readlink "$destination") == "$expected_source" ]]
+
+TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$script_directory/install" >/dev/null
+TAB_OUT_HAMMERSPOON_CONFIG_DIR="$temporary_config" "$script_directory/uninstall" >/dev/null
+[[ ! -e $destination && ! -L $destination ]]
+
+printf '%s\n' "Hammerspoon Spoon install regression: ok"

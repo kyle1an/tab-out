@@ -8,6 +8,8 @@
     "setup:hooks": "git config core.hooksPath .githooks",
     "commit-references:check": "tsx scripts/check-commit-references.ts",
     "dev": "node scripts/watch-build.ts",
+    "hammerspoon:build": "scripts/hammerspoon/build",
+    "hammerspoon:test": "scripts/hammerspoon/test",
     "native-host:build": "scripts/native-host/build",
     "native-host:test": "scripts/native-host/test",
     "serve": "node scripts/serve.ts",

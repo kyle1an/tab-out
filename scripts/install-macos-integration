@@ -1,0 +1,16 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+if [[ $# -ne 1 || ! $1 =~ '^[a-p]{32}$' ]]; then
+  printf '%s\n' "Usage: scripts/install-macos-integration <32-character-extension-id>" >&2
+  exit 64
+fi
+
+script_directory=${0:A:h}
+
+"$script_directory/hammerspoon/build" >/dev/null
+"$script_directory/hammerspoon/install"
+"$script_directory/native-host/install" "$1"
+
+printf '%s\n' "Reload Tab Out in chrome://extensions, then reload Hammerspoon."

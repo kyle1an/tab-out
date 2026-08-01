@@ -1,10 +1,12 @@
 #!/bin/zsh
+
 set -euo pipefail
 
-script_dir=${0:A:h}
-repository_root=${script_dir:h}
-source_file="$repository_root/native/tab_out_private_focus.m"
-output_directory="$repository_root/native/build"
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+spoon_directory="$repository_root/integrations/hammerspoon/TabOut.spoon"
+source_file="$spoon_directory/native/tab_out_private_focus.m"
+output_directory="$spoon_directory/native/build"
 output_file="$output_directory/tab_out_private_focus.dylib"
 
 mkdir -p "$output_directory"

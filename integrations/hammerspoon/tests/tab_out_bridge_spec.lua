@@ -9,7 +9,7 @@ local function currentDirectory()
   return source:sub(1, 1) == "@" and source:sub(2):match("^(.*)/[^/]+$") or "."
 end
 
-local modulePath = currentDirectory() .. "/../modules/tab_out_bridge.lua"
+local modulePath = currentDirectory() .. "/../TabOut.spoon/bridge.lua"
 local filePresent = true
 local nextExitCode = 0
 local nextStandardError = ""

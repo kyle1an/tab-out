@@ -1,0 +1,22 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+source_spoon="$repository_root/integrations/hammerspoon/TabOut.spoon"
+config_directory=${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-"$HOME/.hammerspoon"}
+destination="$config_directory/Spoons/TabOut.spoon"
+
+if [[ ! -e $destination && ! -L $destination ]]; then
+  printf '%s\n' "Tab Out Spoon is not installed at $destination"
+  exit 0
+fi
+
+if [[ ! -L $destination || $(readlink "$destination") != "$source_spoon" ]]; then
+  printf '%s\n' "Refusing to remove a TabOut.spoon not owned by this checkout: $destination" >&2
+  exit 1
+fi
+
+rm "$destination"
+printf '%s\n' "Removed Tab Out Spoon link at $destination"

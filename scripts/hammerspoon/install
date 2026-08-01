@@ -1,0 +1,29 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+source_spoon="$repository_root/integrations/hammerspoon/TabOut.spoon"
+config_directory=${TAB_OUT_HAMMERSPOON_CONFIG_DIR:-"$HOME/.hammerspoon"}
+spoons_directory="$config_directory/Spoons"
+destination="$spoons_directory/TabOut.spoon"
+
+mkdir -p "$spoons_directory"
+
+if [[ -L $destination ]]; then
+  if [[ $(readlink "$destination") == "$source_spoon" ]]; then
+    printf '%s\n' "Tab Out Spoon is already installed at $destination"
+    exit 0
+  fi
+  printf '%s\n' "Refusing to replace an existing TabOut.spoon link: $destination" >&2
+  exit 1
+fi
+
+if [[ -e $destination ]]; then
+  printf '%s\n' "Refusing to replace an existing TabOut.spoon: $destination" >&2
+  exit 1
+fi
+
+ln -s "$source_spoon" "$destination"
+printf '%s\n' "Installed Tab Out Spoon at $destination"

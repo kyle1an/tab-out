@@ -28,6 +28,14 @@
 - **Suspend Target**: The remembered third-party suspender (extension id plus an observed suspended-page URL template) used to rebuild suspend URLs when a Tab Action suspends tabs.
 - **Browser Tabs Gateway**: The Dashboard's single crossing point to live browser tabs, windows, tab groups, and recently-closed sessions; it speaks browser vocabulary and absorbs browser quirks, while matching and action policy stay with Tab Actions.
 - **Native Placement Bridge**: The optional, user-local native-messaging channel that accepts one versioned Hammerspoon request containing a destination kind and target display bounds, then creates a Chrome window without activating Chrome.
+- **Target Focus**: Keyboard input is directed to the Tab Out Chrome window on the pointer display.
+- **Target Profile Continuity**: The destination window belongs to the configured profile in the existing Chrome application; another browser application or isolated Chrome profile does not satisfy the shortcut.
+- **Remote Raise**: An existing Chrome window becomes visually frontmost on a non-target display.
+- **Remote Focus**: Keyboard input is directed to a Chrome window on a non-target display.
+- **Remote Display Preservation**: Every non-target display keeps its active Space and frontmost window unchanged throughout and after a Tab Out shortcut, whether the destination window is reused or newly created. Remote Raise or Remote Focus violates this guarantee.
+- **Safe Abort**: When Target Focus and Remote Display Preservation cannot both be guaranteed for the current desktop state, the shortcut makes no window or Space changes and presents a short explanation.
+- **Private Exact-Window Activation**: The gated one-shot native operation that names a validated Chrome CGWindow ID in the WindowServer foreground/key sequence and then raises that same Accessibility window.
+- **Qualified Build**: An exact macOS build on which every create and reuse route has passed the live Remote Display Preservation oracle. Private Exact-Window Activation is unavailable on other builds until requalified.
 
 ## Relationships
 
@@ -127,8 +135,14 @@
 
 ## Runtime and Interaction Contracts
 
+- The Tab Out Spoon captures one pointer display and active Space for every shortcut invocation. It owns destination display and Space policy, Target Profile Continuity, native-window observation and validation, and Private Exact-Window Activation; machine-local Hammerspoon configuration supplies only lifecycle, profile, and keybinding settings.
 - The **Native Placement Bridge** accepts one short-lived request containing filtered/new-page intent and the pointer display's full bounds. It resolves those bounds to exactly one enabled Chrome display, regardless of display count. When a normal source window exists on another display, it translates that window's geometry into the target work area; otherwise it uses the target display's full work area, so creation does not depend on another Chrome window. Invalid, expired, ambiguous, or unsupported requests Safe Abort before mutation.
 - The **Native Placement Bridge** creates one normal window at its final target-display bounds with `focused: false` and never calls a Chrome tab/window activation API afterward. The filter route starts at `focusFilter=1`; the new-page route starts as Chrome's native new-tab page. Hammerspoon observes the new native window and exclusively owns the later exact-window focus handoff.
+- Chrome must already be running and the Native Placement Bridge must be connected for creation on a Chrome-empty destination. Otherwise the shortcut Safe Aborts before mutation.
+- The Native Placement Bridge addresses the pointer display by full bounds and never imposes a display-count or shortcut-position limit.
+- Existing-window navigation begins only after the Spoon has established the exact destination display, Space, configured profile, Chrome PID, and native window ID, privately activated that window, and verified it as Chrome's front window. Bounds alone are not a window identity.
+- Private Exact-Window Activation has no fallback to ordinary Chrome activation, `window:focus()`, a synthetic click, or remote z-order restoration. A missing capability or failed postcondition becomes a Safe Abort.
+- A **Qualified Build** requires manual create and reuse runs for both shortcuts against the live Remote Display Preservation oracle; isolated tests and a successful build do not qualify it.
 - The `focusFilter=1` page bootstrap owns only early search-field seeding and focus. It must not focus a Chrome window, create/replace tabs, or request Chrome application activation.
 
 This section is the canonical implementation contract for durable runtime and interaction behavior. Update it in the same patch as an intentional behavior change; use an ADR for its rationale or history.

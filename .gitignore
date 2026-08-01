@@ -6,3 +6,4 @@ node_modules/
 playwright-report/
 test-results/
 native/bridge-host/build/
+integrations/hammerspoon/TabOut.spoon/native/build/

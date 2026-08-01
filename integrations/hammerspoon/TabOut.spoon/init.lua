@@ -1,5 +1,22 @@
 local M = {}
 
+M.name = "Tab Out"
+M.version = "1.0.0"
+M.author = "Tab Out contributors"
+M.license = "MIT"
+
+local moduleSource = debug.getinfo(1, "S").source
+local modulePath = moduleSource:sub(1, 1) == "@" and moduleSource:sub(2) or moduleSource
+local moduleDirectory = modulePath:match("^(.*)/[^/]+$") or "."
+
+local function loadSiblingModule(fileName)
+  local chunk, loadError = loadfile(moduleDirectory .. "/" .. fileName, "t", _ENV)
+  if not chunk then
+    error(loadError)
+  end
+  return chunk()
+end
+
 local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
 local NATIVE_PLACEMENT_BRIDGE_VERSION = 1
@@ -1175,7 +1192,7 @@ local function configureNativeBridge(config)
 
   local nativeBridge = config.nativeBridge
   if not nativeBridge then
-    local loaded, bridgeModule = pcall(require, "modules.tab_out_bridge")
+    local loaded, bridgeModule = pcall(loadSiblingModule, "bridge.lua")
     if not loaded then
       state.nativeBridgeError = "The native bridge module could not be loaded: " .. tostring(bridgeModule)
       return
@@ -1231,11 +1248,31 @@ local function validateConfig(config)
   assert(type(config.shortcuts.newPage) == "table", "newPage shortcut is required")
 end
 
-function M.start(config)
+local function configWithDefaults(config)
+  assert(type(config) == "table", "Tab Out config must be a table")
+
+  local resolved = {}
+  for key, value in pairs(config) do
+    resolved[key] = value
+  end
+
+  local homeDirectory = os.getenv("HOME")
+  resolved.chromeBundleId = resolved.chromeBundleId or "com.google.Chrome"
+  resolved.chromeUserDataDirectory = resolved.chromeUserDataDirectory
+    or (homeDirectory .. "/Library/Application Support/Google/Chrome")
+  resolved.nativeBridgeHostPath = resolved.nativeBridgeHostPath
+    or (homeDirectory .. "/Library/Application Support/Tab Out/bin/tab-out-native-bridge")
+  resolved.privateFocusModulePath = resolved.privateFocusModulePath
+    or (moduleDirectory .. "/native/build/tab_out_private_focus.dylib")
+  return resolved
+end
+
+function M:start(config)
   if state.started then
     return M
   end
 
+  config = configWithDefaults(config)
   validateConfig(config)
   state.config = config
   configurePrivateFocus(config)

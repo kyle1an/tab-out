@@ -9,7 +9,7 @@ local function currentDirectory()
   return source:sub(1, 1) == "@" and source:sub(2):match("^(.*)/[^/]+$") or "."
 end
 
-local modulePath = currentDirectory() .. "/../modules/tab_out.lua"
+local modulePath = currentDirectory() .. "/../TabOut.spoon/init.lua"
 
 local function runShortcut(kind, options)
   options = options or {}
@@ -541,6 +541,8 @@ local function runShortcut(kind, options)
   local chunk, loadError = loadfile(modulePath, "t", environment)
   assert(chunk, loadError)
   local tabOut = chunk()
+  assertEqual(tabOut.name, "Tab Out", "Spoon should expose its public name")
+  assertEqual(type(tabOut.start), "function", "Spoon should expose its start interface")
   local privateFocus = {
     capability = function()
       if not privateFocusAvailable then
@@ -602,10 +604,8 @@ local function runShortcut(kind, options)
     end,
   }
 
-  tabOut.start({
-    chromeBundleId = "com.google.Chrome",
+  tabOut:start({
     chromeProfileDirectory = "Profile 3",
-    chromeUserDataDirectory = "/tmp/tab-out-test-profile",
     nativeBridge = nativeBridge,
     privateFocus = privateFocus,
     shortcuts = {

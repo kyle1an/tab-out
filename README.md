@@ -75,22 +75,28 @@ You'll see Tab Out.
 
 The companion Hammerspoon shortcuts can create Tab Out on the display under the
 pointer without assigning hidden Chrome shortcuts. Copy Tab Out's 32-character
-ID from `chrome://extensions`, then install the user-level native host:
+ID from `chrome://extensions`, then install the Spoon and user-level native
+host:
 
 ```bash
-scripts/native-host/install <extension-id>
+scripts/install-macos-integration <extension-id>
 ```
 
-Reload Tab Out from `chrome://extensions` after installation. Check or remove
-the bridge with:
+Add your Chrome profile and keybindings to `~/.hammerspoon/init.lua`, then
+reload Tab Out from `chrome://extensions` and reload Hammerspoon. The complete
+configuration, verification, and permission guide is in
+[`integrations/hammerspoon/README.md`](integrations/hammerspoon/README.md).
+
+Check the bridge or remove the whole macOS integration with:
 
 ```bash
 scripts/native-host/status
-scripts/native-host/uninstall
+scripts/uninstall-macos-integration
 ```
 
 Chrome starts the host only while the extension is connected. Installation
-adds no LaunchAgent, login item, root file, or network listener.
+adds a checkout-owned Spoon link and per-user native-host files, but no
+LaunchAgent, login item, root file, or network listener.
 
 ---
 
@@ -143,7 +149,8 @@ Before committing:
 pnpm verify
 ```
 
-When changing the macOS native host, also run `pnpm native-host:test`.
+When changing the macOS integration, also run `pnpm native-host:test` and
+`pnpm hammerspoon:test`.
 
 `pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/filter-focus-boot.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
 
