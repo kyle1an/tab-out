@@ -1,0 +1,29 @@
+#!/bin/zsh
+set -euo pipefail
+
+script_dir=${0:A:h}
+repository_root=${script_dir:h}
+source_file="$repository_root/native/tab_out_private_focus.m"
+output_directory="$repository_root/native/build"
+output_file="$output_directory/tab_out_private_focus.dylib"
+
+mkdir -p "$output_directory"
+xcrun clang \
+  -fobjc-arc \
+  -Wall \
+  -Wextra \
+  -Werror \
+  -O2 \
+  -mmacosx-version-min=13.0 \
+  -dynamiclib \
+  -fvisibility=hidden \
+  -F/Applications/Hammerspoon.app/Contents/Frameworks \
+  -I/Applications/Hammerspoon.app/Contents/Frameworks/LuaSkin.framework/Headers \
+  "$source_file" \
+  -framework LuaSkin \
+  -framework Cocoa \
+  -framework ApplicationServices \
+  -ldl \
+  -o "$output_file"
+
+printf '%s\n' "$output_file"
