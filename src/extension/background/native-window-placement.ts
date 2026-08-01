@@ -138,13 +138,27 @@ export async function createInactiveWindow(
   const sourceWindows = windowsWithDisplays.filter(({ display }) => display.id !== targetDisplay.id)
   const source = sourceWindows.find(({ window }) => window.focused) ?? sourceWindows[0]
 
-  const createData: chrome.windows.CreateData = {
+  const placement = source
+    ? translatedBounds(source.window, source.display, targetDisplay)
+    : workAreaBounds(targetDisplay)
+  const createdWindow = await chromeApi.windows.create({
     type: 'normal',
     ...(kind === 'filter' ? { url: filterFocusUrl(chromeApi) } : {}),
     focused: false,
-    ...(source
-      ? translatedBounds(source.window, source.display, targetDisplay)
-      : workAreaBounds(targetDisplay))
+    state: 'minimized'
+  })
+  if (typeof createdWindow?.id !== 'number') {
+    throw new Error('Chrome did not return the concealed window identity')
   }
-  await chromeApi.windows.create(createData)
+
+  try {
+    await chromeApi.windows.update(createdWindow.id, placement)
+  } catch (error) {
+    try {
+      await chromeApi.windows.remove(createdWindow.id)
+    } catch {
+      // Preserve the placement failure; cleanup is best-effort.
+    }
+    throw error
+  }
 }

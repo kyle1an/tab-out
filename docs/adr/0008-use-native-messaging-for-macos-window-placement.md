@@ -26,7 +26,10 @@ mode.
   it owns no display, profile, window-creation, or focus policy.
 - Hammerspoon sends the operation, pointer-display bounds, request ID, and
   deadline. The extension uniquely maps those bounds to an enabled Chrome
-  display and retains ownership of `chrome.windows.create({ focused: false })`.
+  display and retains ownership of concealed, inactive Chrome window creation.
+  ADR 0010 refines the creation-to-focus handoff so the window remains minimized
+  while the extension places it and a target-display snapshot covers macOS's
+  unminimize transition until exact activation completes.
 - Hammerspoon continues to observe the created native window, validate its
   display, Space, profile, PID, and window ID, and perform Private Exact-Window
   Activation. A bridge failure remains a Safe Abort.

@@ -24,6 +24,7 @@ const targetDisplay = {
 
 function createChromeApi() {
   const createCalls: chrome.windows.CreateData[] = []
+  const updateCalls: Array<{ windowId: number; updateInfo: chrome.windows.UpdateInfo }> = []
   const chromeApi = {
     runtime: { id: 'tab-out' },
     system: {
@@ -39,12 +40,16 @@ function createChromeApi() {
       },
       async create(createData: chrome.windows.CreateData) {
         createCalls.push(createData)
-        return { id: 91, type: 'normal', focused: false } as chrome.windows.Window
+        return { id: 91, type: 'normal', focused: false, state: 'minimized' } as chrome.windows.Window
+      },
+      async update(windowId: number, updateInfo: chrome.windows.UpdateInfo) {
+        updateCalls.push({ windowId, updateInfo })
+        return { id: windowId, type: 'normal', focused: false, state: 'minimized' } as chrome.windows.Window
       }
     }
   } as unknown as ChromeApi
 
-  return { chromeApi, createCalls }
+  return { chromeApi, createCalls, updateCalls }
 }
 
 function createRequest(overrides: Record<string, unknown> = {}) {
@@ -59,8 +64,8 @@ function createRequest(overrides: Record<string, unknown> = {}) {
   }
 }
 
-test('native placement bridge creates the requested inactive window', async () => {
-  const { chromeApi, createCalls } = createChromeApi()
+test('native placement bridge conceals and places the requested inactive window', async () => {
+  const { chromeApi, createCalls, updateCalls } = createChromeApi()
 
   const result = await handleNativePlacementBridgeMessage(createRequest(), chromeApi, nowMs)
 
@@ -74,10 +79,16 @@ test('native placement bridge creates the requested inactive window', async () =
     type: 'normal',
     url: 'chrome-extension://tab-out/index.html?focusFilter=1',
     focused: false,
-    left: 1440,
-    top: 25,
-    width: 1920,
-    height: 1055
+    state: 'minimized'
+  }])
+  assert.deepEqual(updateCalls, [{
+    windowId: 91,
+    updateInfo: {
+      left: 1440,
+      top: 25,
+      width: 1920,
+      height: 1055
+    }
   }])
 })
 

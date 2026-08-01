@@ -28,7 +28,14 @@ local function runShortcut(kind, options)
   local extensionWindowFocusRequested = false
   local privateFocusCount = 0
   local createdChromeWindow
+  local createdDestinationReadBeforePrivateFocus = false
+  local createdWindowInitiallyMinimized = false
+  local createdWindowRevealedByPrivateFocus = false
   local createdWindowSetFrameCount = 0
+  local transitionShieldCreatedCount = 0
+  local transitionShieldDeletedCount = 0
+  local transitionShieldVisible = false
+  local transitionShieldVisibleAtPrivateFocus = false
   local failureAlert
   local focusedWindow
   local frontmostApplication
@@ -60,6 +67,9 @@ local function runShortcut(kind, options)
     end,
     getUUID = function()
       return "target-screen"
+    end,
+    snapshot = function()
+      return { name = "target-screen-snapshot" }
     end,
   }
   local otherScreen = {
@@ -102,8 +112,9 @@ local function runShortcut(kind, options)
     end,
   }
 
-  local function newChromeWindow(id, screen, isOtherWindow)
+  local function newChromeWindow(id, screen, isOtherWindow, initiallyMinimized)
     local currentFrame = screen:frame()
+    local minimized = initiallyMinimized == true
     local window = {
       application = function()
         return chromeApplication
@@ -127,7 +138,7 @@ local function runShortcut(kind, options)
         return id
       end,
       isMinimized = function()
-        return false
+        return minimized
       end,
       isStandard = function()
         return true
@@ -148,6 +159,9 @@ local function runShortcut(kind, options)
           createdWindowSetFrameCount = createdWindowSetFrameCount + 1
         end
         currentFrame = frame
+      end,
+      setMinimized = function(_, value)
+        minimized = value == true
       end,
     }
     return window
@@ -226,7 +240,7 @@ local function runShortcut(kind, options)
 
   local function currentOrderedWindows()
     local windows = {}
-    if createdChromeWindow then
+    if createdChromeWindow and not createdChromeWindow:isMinimized() then
       table.insert(windows, createdChromeWindow)
     end
     if targetHasChromeWindow then
@@ -295,6 +309,9 @@ local function runShortcut(kind, options)
         return "AXWindow"
       end
       if attribute == "AXChildren" then
+        if createdChromeWindow and privateFocusCount == 0 then
+          createdDestinationReadBeforePrivateFocus = true
+        end
         return { filterInput, addressBar }
       end
       return nil
@@ -329,6 +346,29 @@ local function runShortcut(kind, options)
     autoLaunch = function()
       return true
     end,
+    canvas = {
+      new = function(frame)
+        assertEqual(frame.x, targetScreen:fullFrame().x, "transition shield target left")
+        assertEqual(frame.y, targetScreen:fullFrame().y, "transition shield target top")
+        transitionShieldCreatedCount = transitionShieldCreatedCount + 1
+        local shield = {}
+        function shield:bringToFront()
+          return self
+        end
+        function shield:canvasMouseEvents()
+          return self
+        end
+        function shield:delete()
+          transitionShieldDeletedCount = transitionShieldDeletedCount + 1
+          transitionShieldVisible = false
+        end
+        function shield:show()
+          transitionShieldVisible = true
+          return self
+        end
+        return shield
+      end,
+    },
     axuielement = {
       windowElement = function()
         return axRoot
@@ -437,6 +477,9 @@ local function runShortcut(kind, options)
         new = newWatcher,
       },
     },
+    screenRecordingState = function()
+      return options.screenRecordingAvailable ~= false
+    end,
     settings = {
       get = function()
         return nil
@@ -464,6 +507,20 @@ local function runShortcut(kind, options)
       end,
     },
     timer = {
+      doEvery = function(delay, callback)
+        local timer = {
+          callback = callback,
+          due = clock + delay,
+          interval = delay,
+          repeating = true,
+          stopped = false,
+        }
+        function timer:stop()
+          self.stopped = true
+        end
+        table.insert(pendingTimers, timer)
+        return timer
+      end,
       doAfter = function(delay, callback)
         local timer = {
           callback = callback,
@@ -529,6 +586,10 @@ local function runShortcut(kind, options)
       table.remove(pendingTimers, nextIndex)
       clock = nextTimer.due
       nextTimer.callback()
+      if nextTimer.repeating and not nextTimer.stopped then
+        nextTimer.due = clock + nextTimer.interval
+        table.insert(pendingTimers, nextTimer)
+      end
     end
   end
 
@@ -555,6 +616,14 @@ local function runShortcut(kind, options)
       local targetWindow = createdChromeWindow or targetChromeWindow
       assertEqual(windowId, targetWindow:id(), "private focus exact target window ID")
       privateFocusCount = privateFocusCount + 1
+      transitionShieldVisibleAtPrivateFocus = transitionShieldVisible
+      if options.privateFocusSucceeds == false then
+        return nil, "mock private focus failure"
+      end
+      if targetWindow == createdChromeWindow and targetWindow:isMinimized() then
+        createdWindowRevealedByPrivateFocus = true
+        targetWindow:setMinimized(false)
+      end
       frontmostApplication = chromeApplication
       focusedWindow = targetWindow
       return true
@@ -582,7 +651,8 @@ local function runShortcut(kind, options)
       else
         openedNewPage = true
       end
-      createdChromeWindow = newChromeWindow(404, targetScreen)
+      createdChromeWindow = newChromeWindow(404, targetScreen, false, true)
+      createdWindowInitiallyMinimized = createdChromeWindow:isMinimized()
       if windowCreatedCallback then
         windowCreatedCallback(createdChromeWindow)
       end
@@ -628,6 +698,9 @@ local function runShortcut(kind, options)
     activationClickCount = activationClickCount,
     addressBarFocused = addressBarFocused,
     createdWindow = createdChromeWindow ~= nil,
+    createdDestinationReadBeforePrivateFocus = createdDestinationReadBeforePrivateFocus,
+    createdWindowInitiallyMinimized = createdWindowInitiallyMinimized,
+    createdWindowRevealedByPrivateFocus = createdWindowRevealedByPrivateFocus,
     createdWindowSetFrameCount = createdWindowSetFrameCount,
     extensionWindowFocusRequested = extensionWindowFocusRequested,
     failureAlert = failureAlert,
@@ -646,6 +719,9 @@ local function runShortcut(kind, options)
     privateFocusCount = privateFocusCount,
     targetFocused = focusedWindow == (createdChromeWindow or targetChromeWindow),
     targetAppActive = frontmostApplication == chromeApplication,
+    transitionShieldCreatedCount = transitionShieldCreatedCount,
+    transitionShieldDeletedCount = transitionShieldDeletedCount,
+    transitionShieldVisibleAtPrivateFocus = transitionShieldVisibleAtPrivateFocus,
   }
 end
 
@@ -692,6 +768,14 @@ local unavailableNativeBridgeResult = runShortcut("filter", {
   nativeBridgeStarts = false,
   targetHasChromeWindow = false,
 })
+local unavailableScreenRecordingResult = runShortcut("filter", {
+  screenRecordingAvailable = false,
+  targetHasChromeWindow = false,
+})
+local failedCreatedWindowFocusResult = runShortcut("filter", {
+  privateFocusSucceeds = false,
+  targetHasChromeWindow = false,
+})
 
 assertEqual(filterResult.openedFilter, true, "filter shortcut should open the focused-filter page")
 assertEqual(filterResult.filterInputFocused, true, "filter shortcut should focus the in-page filter")
@@ -713,7 +797,11 @@ assertEqual(newPageResult.otherChromeRaised, false, "new-page shortcut should no
 assertEqual(filterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
 assertEqual(filterResult.nativeBridgeInstalled, true, "installed bridge status should be independent of route use")
 assertEqual(filterResult.nativeBridgeReady, false, "unused bridge should not claim a proven connection")
+assertEqual(filterResult.transitionShieldCreatedCount, 0, "existing-window activation should not create a transition shield")
 assertEqual(noTargetFilterResult.createdWindow, true, "filter shortcut should create a window on an empty target display")
+assertEqual(noTargetFilterResult.createdWindowInitiallyMinimized, true, "filter shortcut should keep the created window concealed until private focus")
+assertEqual(noTargetFilterResult.createdWindowRevealedByPrivateFocus, true, "private focus should reveal the created filter window")
+assertEqual(noTargetFilterResult.createdDestinationReadBeforePrivateFocus, false, "created filter window should be privately focused before waiting for its destination")
 assertEqual(noTargetFilterResult.extensionWindowFocusRequested, false, "Native Placement Bridge should leave the created Chrome window inactive")
 assertEqual(noTargetFilterResult.nativeBridgeRequest ~= nil, true, "filter shortcut should ask the native bridge to create an inactive window")
 assertEqual(noTargetFilterResult.createdWindowSetFrameCount, 0, "filter shortcut should not move the window after Chrome shows it")
@@ -724,10 +812,16 @@ assertEqual(noTargetFilterResult.otherChromeReceivedFocus, false, "filter shortc
 assertEqual(noTargetFilterResult.otherChromeRaised, false, "filter shortcut should not raise Chrome on another display")
 assertEqual(noTargetFilterResult.activationClickCount, 0, "directly placed filter window should not receive a visible activation click")
 assertEqual(noTargetFilterResult.privateFocusCount, 1, "directly placed filter window should receive one exact private focus call")
+assertEqual(noTargetFilterResult.transitionShieldCreatedCount, 1, "filter creation should shield the target-display transition")
+assertEqual(noTargetFilterResult.transitionShieldVisibleAtPrivateFocus, true, "filter transition shield should remain visible through private focus")
+assertEqual(noTargetFilterResult.transitionShieldDeletedCount, 1, "filter transition shield should be removed after destination focus")
 assertEqual(noTargetFilterResult.nativeBridgeRequest.targetBounds.left, 1440, "native bridge should receive the pointer display bounds")
 assertEqual(noTargetFilterResult.nativeBridgeInstalled, true, "successful native placement should keep host installation visible")
 assertEqual(noTargetFilterResult.nativeBridgeReady, true, "successful native placement should prove bridge connectivity")
 assertEqual(noTargetNewPageResult.createdWindow, true, "new-page shortcut should create a window on an empty target display")
+assertEqual(noTargetNewPageResult.createdWindowInitiallyMinimized, true, "new-page shortcut should keep the created window concealed until private focus")
+assertEqual(noTargetNewPageResult.createdWindowRevealedByPrivateFocus, true, "private focus should reveal the created new-page window")
+assertEqual(noTargetNewPageResult.createdDestinationReadBeforePrivateFocus, false, "created new-page window should be privately focused before waiting for its destination")
 assertEqual(noTargetNewPageResult.extensionWindowFocusRequested, false, "Native Placement Bridge should leave the created Chrome window inactive")
 assertEqual(noTargetNewPageResult.nativeBridgeRequest ~= nil, true, "new-page shortcut should ask the native bridge to create an inactive window")
 assertEqual(noTargetNewPageResult.createdWindowSetFrameCount, 0, "new-page shortcut should not move the window after Chrome shows it")
@@ -738,6 +832,9 @@ assertEqual(noTargetNewPageResult.otherChromeFocused, false, "new-page shortcut 
 assertEqual(noTargetNewPageResult.otherChromeReceivedFocus, false, "new-page shortcut should avoid Chrome's remote launch handoff")
 assertEqual(noTargetNewPageResult.otherChromeRaised, false, "new-page shortcut should not raise Chrome on another display")
 assertEqual(noTargetNewPageResult.privateFocusCount, 1, "directly placed new-page window should receive one exact private focus call")
+assertEqual(noTargetNewPageResult.transitionShieldCreatedCount, 1, "new-page creation should shield the target-display transition")
+assertEqual(noTargetNewPageResult.transitionShieldVisibleAtPrivateFocus, true, "new-page transition shield should remain visible through private focus")
+assertEqual(noTargetNewPageResult.transitionShieldDeletedCount, 1, "new-page transition shield should be removed after destination focus")
 assertEqual(allDisplaysEmptyFilterResult.createdWindow, true, "filter shortcut should create a window when both displays are Chrome-empty")
 assertEqual(allDisplaysEmptyFilterResult.failureAlert, nil, "two Chrome-empty displays should not block the filter shortcut")
 assertEqual(allDisplaysEmptyFilterResult.filterInputFocused, true, "all-empty filter creation should focus the in-page filter")
@@ -773,5 +870,11 @@ assertEqual(unavailableNativeBridgeResult.privateFocusCount, 0, "an unavailable 
 assertEqual(unavailableNativeBridgeResult.failureAlert ~= nil, true, "an unavailable native bridge should explain its safe abort")
 assertEqual(unavailableNativeBridgeResult.nativeBridgeInstalled, false, "missing bridge host should report not installed")
 assertEqual(unavailableNativeBridgeResult.nativeBridgeReady, false, "missing bridge host should report not ready")
+assertEqual(unavailableScreenRecordingResult.createdWindow, true, "missing Screen Recording permission should preserve window creation")
+assertEqual(unavailableScreenRecordingResult.filterInputFocused, true, "missing Screen Recording permission should preserve destination focus")
+assertEqual(unavailableScreenRecordingResult.transitionShieldCreatedCount, 0, "missing Screen Recording permission should skip the optional transition shield")
+assertEqual(failedCreatedWindowFocusResult.failureAlert ~= nil, true, "failed private focus should surface a safe error")
+assertEqual(failedCreatedWindowFocusResult.transitionShieldVisibleAtPrivateFocus, true, "failed private focus should remain covered during the attempt")
+assertEqual(failedCreatedWindowFocusResult.transitionShieldDeletedCount, 1, "failed private focus should clean up the transition shield")
 
 return "cross-display focus regression: ok"

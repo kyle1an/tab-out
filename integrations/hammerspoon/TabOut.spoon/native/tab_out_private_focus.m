@@ -137,6 +137,7 @@ static AXUIElementRef copyWindowElement(
   pid_t pid,
   CGWindowID targetWindowID,
   AXElementWindowIDFunction getWindowID,
+  BOOL *wasMinimized,
   NSString **errorMessage
 ) {
   AXUIElementRef application = AXUIElementCreateApplication(pid);
@@ -177,6 +178,10 @@ static AXUIElementRef copyWindowElement(
   AXError roleError = AXUIElementCopyAttributeValue(result, kAXRoleAttribute, &role);
   AXError subroleError = AXUIElementCopyAttributeValue(result, kAXSubroleAttribute, &subrole);
   AXError minimizedError = AXUIElementCopyAttributeValue(result, kAXMinimizedAttribute, &minimized);
+  BOOL minimizedValue = minimizedError == kAXErrorSuccess
+    && minimized
+    && CFGetTypeID(minimized) == CFBooleanGetTypeID()
+    && CFBooleanGetValue(minimized);
   BOOL valid = roleError == kAXErrorSuccess
     && role
     && CFEqual(role, kAXWindowRole)
@@ -185,8 +190,7 @@ static AXUIElementRef copyWindowElement(
     && CFEqual(subrole, kAXStandardWindowSubrole)
     && minimizedError == kAXErrorSuccess
     && minimized
-    && CFGetTypeID(minimized) == CFBooleanGetTypeID()
-    && !CFBooleanGetValue(minimized);
+    && CFGetTypeID(minimized) == CFBooleanGetTypeID();
 
   if (role) CFRelease(role);
   if (subrole) CFRelease(subrole);
@@ -194,9 +198,11 @@ static AXUIElementRef copyWindowElement(
 
   if (!valid) {
     CFRelease(result);
-    *errorMessage = @"the target is not a non-minimized standard Chrome window";
+    *errorMessage = @"the target is not a standard Chrome window";
     return NULL;
   }
+
+  *wasMinimized = minimizedValue;
 
   CFArrayRef actions = NULL;
   AXError actionsError = AXUIElementCopyActionNames(result, &actions);
@@ -246,29 +252,38 @@ static int focusExactWindow(lua_State *L) {
       return pushFailure(L, @"pid is not the running Google Chrome application");
     }
 
-    NSDictionary *info = windowInfo(windowID);
-    NSNumber *ownerPID = info[(__bridge NSString *)kCGWindowOwnerPID];
-    NSNumber *layer = info[(__bridge NSString *)kCGWindowLayer];
-    NSNumber *onScreen = info[(__bridge NSString *)kCGWindowIsOnscreen];
-    NSString *ownerName = info[(__bridge NSString *)kCGWindowOwnerName];
-    if (!info
-      || ownerPID.intValue != pid
-      || layer.intValue != 0
-      || !onScreen.boolValue
-      || ![ownerName isEqualToString:@"Google Chrome"]
-    ) {
-      return pushFailure(L, @"window-id is not an on-screen normal window owned by that Chrome pid");
-    }
-
     PrivateFocusSymbols symbols;
     NSString *symbolsError = loadPrivateSymbols(&symbols);
     if (symbolsError) return pushFailure(L, symbolsError);
 
     NSString *accessibilityError = nil;
-    AXUIElementRef targetWindow = copyWindowElement(pid, windowID, symbols.getWindowID, &accessibilityError);
+    BOOL wasMinimized = NO;
+    AXUIElementRef targetWindow = copyWindowElement(
+      pid,
+      windowID,
+      symbols.getWindowID,
+      &wasMinimized,
+      &accessibilityError
+    );
     if (!targetWindow) {
       closePrivateSymbols(&symbols);
       return pushFailure(L, accessibilityError);
+    }
+
+    NSDictionary *info = windowInfo(windowID);
+    NSNumber *ownerPID = info[(__bridge NSString *)kCGWindowOwnerPID];
+    NSNumber *layer = info[(__bridge NSString *)kCGWindowLayer];
+    NSNumber *onScreen = info[(__bridge NSString *)kCGWindowIsOnscreen];
+    NSString *ownerName = info[(__bridge NSString *)kCGWindowOwnerName];
+    BOOL validWindowInfo = info
+      && ownerPID.intValue == pid
+      && layer.intValue == 0
+      && [ownerName isEqualToString:@"Google Chrome"]
+      && (onScreen.boolValue || wasMinimized);
+    if ((info && !validWindowInfo) || (!info && !wasMinimized)) {
+      CFRelease(targetWindow);
+      closePrivateSymbols(&symbols);
+      return pushFailure(L, @"window-id is not a normal window owned by that Chrome pid");
     }
 
     ProcessSerialNumber psn = {0, 0};
@@ -304,7 +319,26 @@ static int focusExactWindow(lua_State *L) {
       );
     }
 
+    if (wasMinimized) {
+      AXError unminimizeError = AXUIElementSetAttributeValue(
+        targetWindow,
+        kAXMinimizedAttribute,
+        kCFBooleanFalse
+      );
+      if (unminimizeError != kAXErrorSuccess) {
+        CFRelease(targetWindow);
+        closePrivateSymbols(&symbols);
+        return pushFailure(
+          L,
+          [NSString stringWithFormat:@"target-window reveal failed (AX error %d)", unminimizeError]
+        );
+      }
+    }
+
     AXError raiseError = AXUIElementPerformAction(targetWindow, kAXRaiseAction);
+    if (raiseError != kAXErrorSuccess && wasMinimized) {
+      AXUIElementSetAttributeValue(targetWindow, kAXMinimizedAttribute, kCFBooleanTrue);
+    }
     CFRelease(targetWindow);
     closePrivateSymbols(&symbols);
     if (raiseError != kAXErrorSuccess) {

@@ -20,6 +20,7 @@ end
 local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
+local NEW_WINDOW_POLL_INTERVAL_SECONDS = 0.005
 local NEW_TAB_URL = "chrome://newtab/"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
 local DESTINATION_CONTROL_TIMEOUT_SECONDS = 6
@@ -47,6 +48,7 @@ local state = {
   spaceWatcher = nil,
   started = false,
   timers = {},
+  transitionShield = nil,
 }
 
 local drainQueue
@@ -77,6 +79,57 @@ local function stopTimer(timer)
 
   timer:stop()
   state.timers[timer] = nil
+end
+
+local function releaseTransitionShield()
+  local shield = state.transitionShield
+  state.transitionShield = nil
+  if shield then
+    pcall(function()
+      shield:delete()
+    end)
+  end
+end
+
+local function captureTransitionShield(screen)
+  releaseTransitionShield()
+  if type(hs.screenRecordingState) == "function" and not hs.screenRecordingState() then
+    return false, "Hammerspoon does not have Screen Recording permission"
+  end
+
+  local shield
+  local captured, captureError = xpcall(function()
+    local frame = screen and screen:fullFrame() or nil
+    local image = screen and screen:snapshot() or nil
+    if not frame or not image then
+      error("the target display snapshot is unavailable")
+    end
+
+    shield = hs.canvas.new(frame)
+    if not shield then
+      error("the transition shield could not be created")
+    end
+    shield[1] = {
+      frame = { x = 0, y = 0, w = frame.w, h = frame.h },
+      image = image,
+      imageScaling = "scaleProportionally",
+      type = "image",
+    }
+    shield:canvasMouseEvents(false, false, false, false)
+    shield:bringToFront(false):show()
+  end, debug.traceback)
+
+  if not captured then
+    if shield then
+      pcall(function()
+        shield:delete()
+      end)
+    end
+    return false, captureError
+  end
+
+  state.transitionShield = shield
+  return true
 end
 
 local function screenUuid(screen)
@@ -117,7 +170,9 @@ finishCurrent = function()
   local pendingNativePlacement = state.pendingNativePlacement
   if pendingNativePlacement then
     stopTimer(pendingNativePlacement.timeout)
+    stopTimer(pendingNativePlacement.poll)
   end
+  releaseTransitionShield()
   state.pendingNativePlacement = nil
   state.busy = false
   state.currentRequest = nil
@@ -131,6 +186,7 @@ failCurrent = function(message, detail)
     return
   end
 
+  releaseTransitionShield()
   showFailure(message, detail, currentRequestScreen())
   finishCurrent()
 end
@@ -712,7 +768,7 @@ local function focusDestinationControl(kind, window)
   return true
 end
 
-local function focusWindowPrivately(window)
+local function focusWindowPrivately(window, expectedProfileDirectory)
   local windowId = window and window:id() or nil
   local application = window and window:application() or nil
   local processId = application and application:pid() or nil
@@ -730,7 +786,7 @@ local function focusWindowPrivately(window)
     or screenUuid(window:screen()) ~= request.screenUuid
     or not windowSpaces
     or not containsValue(windowSpaces, request.targetSpaceId)
-    or state.profileByWindow[windowId] ~= state.config.chromeProfileDirectory
+    or (expectedProfileDirectory or state.profileByWindow[windowId]) ~= state.config.chromeProfileDirectory
   then
     return false, "The Chrome window no longer matches the target display, Desktop, and profile"
   end
@@ -747,6 +803,10 @@ local function focusWindowPrivately(window)
     return false, focusError or "The private focus helper rejected the target window"
   end
 
+  if expectedProfileDirectory then
+    state.profileByWindow[windowId] = expectedProfileDirectory
+  end
+
   return true
 end
 
@@ -761,8 +821,8 @@ local function finishDestinationControlFocus(kind, window)
   finishCurrent()
 end
 
-local function privatelyActivateWindow(window, onActivated)
-  local focused, focusError = focusWindowPrivately(window)
+local function privatelyActivateWindow(window, onActivated, expectedProfileDirectory)
+  local focused, focusError = focusWindowPrivately(window, expectedProfileDirectory)
   if not focused then
     failCurrent("The Tab Out window could not be focused privately", focusError)
     return
@@ -773,17 +833,18 @@ local function privatelyActivateWindow(window, onActivated)
   end)
 end
 
--- Native Placement Bridge windows already contain their destination before Chrome is
--- made active. Existing windows invert that order: exact private focus first,
--- then script Chrome's now-unambiguous front window.
+-- Native Placement Bridge windows already contain their destination and remain
+-- minimized through placement. The target-display snapshot stays above the
+-- unminimize animation until private activation and destination focus complete,
+-- so the created window is first exposed in its final frontmost state.
 local function finishExtensionWindowActivation(kind, window)
-  waitForDestinationControl(kind, window, function()
-    privatelyActivateWindow(window, function()
+  privatelyActivateWindow(window, function()
+    waitForDestinationControl(kind, window, function()
       finishDestinationControlFocus(kind, window)
+    end, function(controlError)
+      failCurrent("The Tab Out destination did not become ready", controlError)
     end)
-  end, function(controlError)
-    failCurrent("The Tab Out destination did not become ready", controlError)
-  end)
+  end, state.config.chromeProfileDirectory)
 end
 
 local function activateExistingWindow(kind, window)
@@ -819,25 +880,12 @@ local function acceptNativePlacementWindow(pending, window)
 
   pending.windowFound = true
   stopTimer(pending.timeout)
+  stopTimer(pending.poll)
   if state.pendingNativePlacement == pending then
     state.pendingNativePlacement = nil
   end
 
   local request = pending.request
-  local windowScreen = window:screen()
-  local spaces = hs.spaces.windowSpaces(window)
-  if screenUuid(windowScreen) ~= request.screenUuid
-    or not spaces
-    or not containsValue(spaces, request.targetSpaceId)
-  then
-    failCurrent(
-      "Tab Out did not create its window on the target Desktop",
-      "The Native Placement Bridge returned a window on a different display or Space"
-    )
-    return
-  end
-
-  state.profileByWindow[window:id()] = state.config.chromeProfileDirectory
   log.df("Tab Out created the %s window directly on the target Desktop", request.kind)
   finishExtensionWindowActivation(request.kind, window)
 end
@@ -885,10 +933,20 @@ end
 
 local function expectNativePlacementWindow(request)
   local pending = {
+    baselineWindowIds = {},
+    bridgeAccepted = false,
+    poll = nil,
     request = request,
     timeout = nil,
     windowFound = false,
   }
+  local application = chromeApplication()
+  for _, window in ipairs(application and application:allWindows() or {}) do
+    local windowId = window:id()
+    if windowId then
+      pending.baselineWindowIds[windowId] = true
+    end
+  end
   state.pendingNativePlacement = pending
   pending.timeout = later(NEW_WINDOW_TIMEOUT_SECONDS, function()
     if state.pendingNativePlacement ~= pending or pending.windowFound then
@@ -908,6 +966,7 @@ local function handlePendingChromeWindow(window)
   local pending = state.pendingNativePlacement
   local windowId = window and window:id() or nil
   if not pending
+    or not pending.bridgeAccepted
     or pending.windowFound
     or not windowId
     or not window:isStandard()
@@ -916,6 +975,39 @@ local function handlePendingChromeWindow(window)
   end
 
   acceptNativePlacementWindow(pending, window)
+end
+
+local function startNativePlacementPoll(pending)
+  local poll
+  poll = hs.timer.doEvery(NEW_WINDOW_POLL_INTERVAL_SECONDS, function()
+    local ok, pollError = xpcall(function()
+      if state.pendingNativePlacement ~= pending or pending.windowFound then
+        stopTimer(poll)
+        return
+      end
+
+      if not pending.bridgeAccepted then
+        return
+      end
+
+      local application = chromeApplication()
+      for _, window in ipairs(application and application:allWindows() or {}) do
+        local windowId = window:id()
+        if windowId and not pending.baselineWindowIds[windowId] then
+          handlePendingChromeWindow(window)
+          if pending.windowFound then
+            return
+          end
+        end
+      end
+    end, debug.traceback)
+
+    if not ok and state.busy then
+      failCurrent("Automation failed", pollError)
+    end
+  end)
+  pending.poll = poll
+  state.timers[poll] = true
 end
 
 local function requestInactiveTargetProfileWindow(request, targetScreen)
@@ -947,7 +1039,13 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
     return
   end
 
+  local shieldCaptured, shieldError = captureTransitionShield(targetScreen)
+  if not shieldCaptured then
+    log.wf("Could not shield the new-window transition: %s", shieldError or "unknown error")
+  end
+
   local pending = expectNativePlacementWindow(request)
+  startNativePlacementPoll(pending)
   local started, startError = state.nativeBridge:createWindow({
     operation = request.kind,
     targetBounds = targetBounds,
@@ -966,6 +1064,7 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
         )
         return
       end
+      pending.bridgeAccepted = true
     end, debug.traceback)
 
     if not ok and state.busy then

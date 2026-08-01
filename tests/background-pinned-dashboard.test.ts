@@ -457,6 +457,9 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         const win = state.windowsById[windowId]
         if (!win) throw new Error(`Missing window ${windowId}`)
         calls.windowUpdate.push({ windowId, updateInfo: clone(updateInfo) })
+        for (const property of ['height', 'left', 'state', 'top', 'width'] as const) {
+          if (updateInfo[property] !== undefined) win[property] = updateInfo[property]
+        }
         if (updateInfo.focused) focusWindow(state, windowId)
         return clone(win)
       },
@@ -465,6 +468,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
         state.windowsById[windowId] = {
           id: windowId,
           type: createData.type || 'normal',
+          state: createData.state || 'normal',
           focused: false,
           left: createData.left,
           top: createData.top,
@@ -1211,20 +1215,26 @@ test('native placement bridge directly places a requested window without focusin
 
   assert.deepEqual(mock.calls.create, [])
   assert.deepEqual(mock.calls.update, [])
-  assert.deepEqual(mock.calls.windowUpdate, [])
-  assert.deepEqual(mock.calls.windowCreate, [
-    {
-      type: 'normal',
-      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
-      focused: false,
+  assert.deepEqual(mock.calls.windowUpdate, [{
+    windowId: 2,
+    updateInfo: {
       left: -1820,
       top: 75,
       width: 1200,
       height: 700
     }
+  }])
+  assert.deepEqual(mock.calls.windowCreate, [
+    {
+      type: 'normal',
+      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      focused: false,
+      state: 'minimized'
+    }
   ])
   assert.equal(mock.state.windowsById[1].focused, true)
   assert.equal(mock.state.windowsById[2].focused, false)
+  assert.equal(mock.state.windowsById[2].state, 'minimized')
   assert.deepEqual(mock.calls.nativeHostNames, ['com.tabout.native_bridge'])
   assert.deepEqual(mock.calls.nativeMessages, [{
     version: 1,
