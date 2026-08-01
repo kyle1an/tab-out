@@ -1,0 +1,19 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+installed_host="$HOME/Library/Application Support/Tab Out/bin/tab-out-native-bridge"
+manifest_path="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.tabout.native_bridge.json"
+
+if [[ ! -f $manifest_path ]]; then
+  echo "Native host manifest is not installed: $manifest_path" >&2
+  exit 1
+fi
+if [[ ! -x $installed_host ]]; then
+  echo "Native host executable is not installed: $installed_host" >&2
+  exit 1
+fi
+
+echo "Native host version: $($installed_host --version)"
+echo "Native host manifest: $manifest_path"
+"$installed_host" --status

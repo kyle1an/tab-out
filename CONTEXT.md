@@ -27,6 +27,7 @@
 - **Tab Action**: A user intent from the dashboard that mutates tabs or history, records undo/toast feedback, and refreshes the Dashboard.
 - **Suspend Target**: The remembered third-party suspender (extension id plus an observed suspended-page URL template) used to rebuild suspend URLs when a Tab Action suspends tabs.
 - **Browser Tabs Gateway**: The Dashboard's single crossing point to live browser tabs, windows, tab groups, and recently-closed sessions; it speaks browser vocabulary and absorbs browser quirks, while matching and action policy stay with Tab Actions.
+- **Native Placement Bridge**: The optional, user-local native-messaging channel that accepts one versioned Hammerspoon request containing a destination kind and target display bounds, then creates a Chrome window without activating Chrome.
 
 ## Relationships
 
@@ -126,8 +127,8 @@
 
 ## Runtime and Interaction Contracts
 
-- Four global desktop-automation bridge commands encode filtered/new-page creation for desktop positions 1 and 2. They support one or two enabled displays and sort them by top edge, left edge, and stable display ID; one display uses position 1. When a normal source window exists on another display, the bridge translates its geometry into the addressed work area; otherwise it uses the addressed display's full work area, so creation does not depend on another Chrome window. It Safe Aborts before mutation when the display count, addressed position, or available Chrome window bounds are invalid.
-- A bridge command creates one normal window at its final target-display bounds with `focused: false` and never calls a Chrome tab/window activation API afterward. The filter route starts at `focusFilter=1`; the new-page route starts as Chrome's native new-tab page. Desktop automation observes the new native window and exclusively owns the later exact-window focus handoff.
+- The **Native Placement Bridge** accepts one short-lived request containing filtered/new-page intent and the pointer display's full bounds. It resolves those bounds to exactly one enabled Chrome display, regardless of display count. When a normal source window exists on another display, it translates that window's geometry into the target work area; otherwise it uses the target display's full work area, so creation does not depend on another Chrome window. Invalid, expired, ambiguous, or unsupported requests Safe Abort before mutation.
+- The **Native Placement Bridge** creates one normal window at its final target-display bounds with `focused: false` and never calls a Chrome tab/window activation API afterward. The filter route starts at `focusFilter=1`; the new-page route starts as Chrome's native new-tab page. Hammerspoon observes the new native window and exclusively owns the later exact-window focus handoff.
 - The `focusFilter=1` page bootstrap owns only early search-field seeding and focus. It must not focus a Chrome window, create/replace tabs, or request Chrome application activation.
 
 This section is the canonical implementation contract for durable runtime and interaction behavior. Update it in the same patch as an intentional behavior change; use an ADR for its rationale or history.

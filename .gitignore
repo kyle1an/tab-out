@@ -5,3 +5,4 @@ node_modules/
 .playwright-mcp/
 playwright-report/
 test-results/
+native/bridge-host/build/

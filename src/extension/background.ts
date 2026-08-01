@@ -17,10 +17,7 @@
 import { createBadgeRefreshService } from './background/badge.js'
 import { settleBackgroundTask } from './background/background-task.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
-import {
-  createInactiveWindow,
-  inactiveWindowCommandTarget
-} from './background/inactive-window-command.js'
+import { connectNativePlacementBridge } from './background/native-placement-bridge.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
 import type { CapturedDashboardServiceState } from './dashboard-service-messages.js'
@@ -40,6 +37,7 @@ const chromeApi = chrome
 const badgeRefreshService = createBadgeRefreshService(chromeApi)
 const tabHistoryService = createTabHistoryService(chromeApi)
 const workingSetService = createWorkingSetService(chromeApi)
+connectNativePlacementBridge(chromeApi)
 
 async function captureDashboardServiceState(): Promise<CapturedDashboardServiceState> {
   const workingSetActivity = await workingSetService.getWorkingSetActivity()
@@ -197,7 +195,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 })
 
 chromeApi.commands.onCommand.addListener((command) => {
-  const inactiveWindowTarget = inactiveWindowCommandTarget(command)
   if (command === 'switch-to-last-tab') {
     return settleBackgroundTask(() => tabHistoryService.switchTabHistory(-1))
   } else if (command === 'switch-to-next-tab') {
@@ -206,12 +203,6 @@ chromeApi.commands.onCommand.addListener((command) => {
     return settleBackgroundTask(() => openFilterTab(chromeApi))
   } else if (command === OPEN_NEW_TAB_COMMAND) {
     return settleBackgroundTask(() => openNewTab(chromeApi))
-  } else if (inactiveWindowTarget) {
-    return settleBackgroundTask(() => createInactiveWindow(
-      inactiveWindowTarget.kind,
-      inactiveWindowTarget.displayPosition,
-      chromeApi
-    ))
   }
   return undefined
 })

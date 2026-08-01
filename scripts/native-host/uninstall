@@ -1,0 +1,11 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+installed_host="$HOME/Library/Application Support/Tab Out/bin/tab-out-native-bridge"
+manifest_path="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.tabout.native_bridge.json"
+socket_path="$HOME/Library/Application Support/Tab Out/run/native-bridge-v1.sock"
+
+rm -f "$manifest_path" "$installed_host" "$socket_path"
+
+echo "Uninstalled the Tab Out native bridge. No login item or LaunchAgent was installed."

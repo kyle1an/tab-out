@@ -24,6 +24,8 @@ type BackgroundMockCalls = {
   badgeText: chrome.action.BadgeTextDetails[]
   badgeTitle: chrome.action.TitleDetails[]
   create: chrome.tabs.CreateProperties[]
+  nativeHostNames: string[]
+  nativeMessages: unknown[]
   remove: number[]
   runtimeMessages: Array<{ extensionId: string; message: unknown }>
   tabGet: number[]
@@ -184,6 +186,8 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const actionOnClicked = createEventSlot()
   const sessionsOnChanged = createEventSlot()
   const storageOnChanged = createEventSlot()
+  const nativePortOnMessage = createEventSlot()
+  const nativePortOnDisconnect = createEventSlot()
 
   const initialWindowIds = [...new Set(initialTabs.map((tab) => tab.windowId))]
   const initialLastFocusedWindowId = initialTabs[0]?.windowId || 1
@@ -214,6 +218,8 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
   const calls: BackgroundMockCalls = {
     alarmsCreate: [],
     create: [],
+    nativeHostNames: [],
+    nativeMessages: [],
     windowCreate: [],
     remove: [],
     update: [],
@@ -239,6 +245,16 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       onMessage: runtimeOnMessage.api,
       onInstalled: runtimeOnInstalled.api,
       onStartup: runtimeOnStartup.api,
+      connectNative(hostName: string) {
+        calls.nativeHostNames.push(hostName)
+        return {
+          onMessage: nativePortOnMessage.api,
+          onDisconnect: nativePortOnDisconnect.api,
+          postMessage(message: unknown) {
+            calls.nativeMessages.push(clone(message))
+          }
+        }
+      },
       async sendMessage(extensionId: string, message: any) {
         calls.runtimeMessages.push({ extensionId, message: clone(message) })
         if (extensionId === 'blocked') throw new Error('Cannot message extension')
@@ -483,6 +499,7 @@ function createChromeMock(initialTabs: any[], options: any = {}) {
       runtimeOnInstalled: runtimeOnInstalled.listeners,
       runtimeOnMessage: runtimeOnMessage.listeners,
       runtimeOnStartup: runtimeOnStartup.listeners,
+      nativePortOnMessage: nativePortOnMessage.listeners,
       tabsOnCreated: tabsOnCreated.listeners,
       tabsOnActivated: tabsOnActivated.listeners,
       tabsOnRemoved: tabsOnRemoved.listeners,
@@ -1149,7 +1166,7 @@ test('global new-tab shortcut opens a normal browser window when no normal windo
   ])
 })
 
-test('desktop automation filter shortcut directly places a returned window without focusing Chrome', async () => {
+test('native placement bridge directly places a requested window without focusing Chrome', async () => {
   const mock = await loadBackground([
     {
       id: 92,
@@ -1179,10 +1196,17 @@ test('desktop automation filter shortcut directly places a returned window witho
     ]
   })
 
-  const onCommand = mock.listeners.commandsOnCommand[0]
-  assert.equal(typeof onCommand, 'function')
+  const onNativeMessage = mock.listeners.nativePortOnMessage[0]
+  assert.equal(typeof onNativeMessage, 'function')
 
-  onCommand('create-inactive-filter-window-display-1')
+  onNativeMessage({
+    version: 1,
+    type: 'create-window',
+    requestId: 'hs-bridge-test-1',
+    expiresAtMs: Date.now() + 12_000,
+    operation: 'filter',
+    targetBounds: { left: -1920, top: 0, width: 1920, height: 1080 }
+  })
   await flushBackgroundWork()
 
   assert.deepEqual(mock.calls.create, [])
@@ -1201,6 +1225,13 @@ test('desktop automation filter shortcut directly places a returned window witho
   ])
   assert.equal(mock.state.windowsById[1].focused, true)
   assert.equal(mock.state.windowsById[2].focused, false)
+  assert.deepEqual(mock.calls.nativeHostNames, ['com.tabout.native_bridge'])
+  assert.deepEqual(mock.calls.nativeMessages, [{
+    version: 1,
+    type: 'response',
+    requestId: 'hs-bridge-test-1',
+    status: 'accepted'
+  }])
 })
 
 test('background command listener settles every rejected async command', async () => {
@@ -1237,11 +1268,7 @@ test('background command listener settles every rejected async command', async (
     'switch-to-last-tab',
     'switch-to-next-tab',
     'open-filter-tab',
-    'open-new-tab',
-    'create-inactive-filter-window-display-1',
-    'create-inactive-new-page-window-display-1',
-    'create-inactive-filter-window-display-2',
-    'create-inactive-new-page-window-display-2'
+    'open-new-tab'
   ]) {
     const commandTask = onCommand(command)
     assert.ok(commandTask instanceof Promise)

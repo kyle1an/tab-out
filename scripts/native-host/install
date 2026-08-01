@@ -1,0 +1,45 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+if [[ $# -ne 1 || ! $1 =~ '^[a-p]{32}$' ]]; then
+  echo "Usage: scripts/native-host/install <32-character-extension-id>" >&2
+  exit 64
+fi
+
+extension_id=$1
+script_directory=${0:A:h}
+built_host=$($script_directory/build)
+install_directory="$HOME/Library/Application Support/Tab Out/bin"
+installed_host="$install_directory/tab-out-native-bridge"
+manifest_directory="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+manifest_path="$manifest_directory/com.tabout.native_bridge.json"
+
+mkdir -p "$install_directory" "$manifest_directory"
+temporary_host=$(mktemp "$install_directory/.tab-out-native-bridge.XXXXXX")
+temporary_manifest=$(mktemp "$manifest_directory/.com.tabout.native_bridge.XXXXXX")
+trap 'rm -f "$temporary_host" "$temporary_manifest"' EXIT
+
+cp "$built_host" "$temporary_host"
+chmod 755 "$temporary_host"
+
+escaped_host=${installed_host//\\/\\\\}
+escaped_host=${escaped_host//\"/\\\"}
+printf '%s\n' \
+  '{' \
+  '  "name": "com.tabout.native_bridge",' \
+  '  "description": "Tab Out local native placement bridge",' \
+  "  \"path\": \"$escaped_host\"," \
+  '  "type": "stdio",' \
+  '  "allowed_origins": [' \
+  "    \"chrome-extension://$extension_id/\"" \
+  '  ]' \
+  '}' > "$temporary_manifest"
+chmod 644 "$temporary_manifest"
+
+mv "$temporary_host" "$installed_host"
+mv "$temporary_manifest" "$manifest_path"
+trap - EXIT
+
+echo "Installed Tab Out native bridge $($installed_host --version)."
+echo "Reload Tab Out in chrome://extensions so its service worker connects to the host."

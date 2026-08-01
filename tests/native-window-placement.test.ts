@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
-  createInactiveWindow,
-  inactiveWindowCommandTarget
-} from '../src/extension/background/inactive-window-command.js'
+import { createInactiveWindow } from '../src/extension/background/native-window-placement.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 
 const displays = [
@@ -31,6 +28,8 @@ const displays = [
     dpiY: 110
   }
 ] as chrome.system.display.DisplayUnitInfo[]
+
+const targetBounds = displays[1]!.bounds
 
 const remoteWindow = {
   id: 41,
@@ -85,7 +84,7 @@ function createChromeApi(options: {
 test('filter bridge creates an inactive window at the addressed display without activating Chrome', async () => {
   const { calls, chromeApi } = createChromeApi()
 
-  await createInactiveWindow('filter', 1, chromeApi)
+  await createInactiveWindow('filter', targetBounds, chromeApi)
 
   assert.deepEqual(calls.getAll, [{ windowTypes: ['normal'] }])
   assert.deepEqual(calls.create, [
@@ -105,7 +104,7 @@ test('filter bridge creates an inactive window at the addressed display without 
 test('new-page bridge creates an inactive native new-tab window at the target bounds', async () => {
   const { calls, chromeApi } = createChromeApi()
 
-  await createInactiveWindow('newPage', 1, chromeApi)
+  await createInactiveWindow('newPage', targetBounds, chromeApi)
 
   assert.deepEqual(calls.create, [
     {
@@ -129,7 +128,7 @@ test('bridge ignores a target-display Chrome window that Hammerspoon found on an
   } as chrome.windows.Window
   const { calls, chromeApi } = createChromeApi({ windows: [remoteWindow, inactiveSpaceWindow] })
 
-  await createInactiveWindow('filter', 1, chromeApi)
+  await createInactiveWindow('filter', targetBounds, chromeApi)
 
   assert.equal(calls.create.length, 1)
   assert.equal(calls.create[0]?.left, -1820)
@@ -139,7 +138,7 @@ test('bridge ignores a target-display Chrome window that Hammerspoon found on an
 test('filter bridge creates on the addressed display when both displays have no Chrome window', async () => {
   const { calls, chromeApi } = createChromeApi({ windows: [] })
 
-  await createInactiveWindow('filter', 1, chromeApi)
+  await createInactiveWindow('filter', targetBounds, chromeApi)
 
   assert.deepEqual(calls.create, [
     {
@@ -158,7 +157,7 @@ test('filter bridge creates on the addressed display when both displays have no 
 test('new-page bridge creates on one display when it has no Chrome window', async () => {
   const { calls, chromeApi } = createChromeApi({ displays: [displays[0]!], windows: [] })
 
-  await createInactiveWindow('newPage', 1, chromeApi)
+  await createInactiveWindow('newPage', displays[0]!.bounds, chromeApi)
 
   assert.deepEqual(calls.create, [
     {
@@ -173,7 +172,7 @@ test('new-page bridge creates on one display when it has no Chrome window', asyn
   assert.deepEqual(calls.update, [])
 })
 
-test('bridge aborts before mutation when more than two displays are enabled', async () => {
+test('bridge addresses a third display without adding another extension command', async () => {
   const thirdDisplay = {
     ...displays[0]!,
     id: 'third-display',
@@ -182,23 +181,43 @@ test('bridge aborts before mutation when more than two displays are enabled', as
   }
   const { calls, chromeApi } = createChromeApi({ displays: [...displays, thirdDisplay] })
 
+  await createInactiveWindow('filter', thirdDisplay.bounds, chromeApi)
+
+  assert.deepEqual(calls.create, [
+    {
+      type: 'normal',
+      url: 'chrome-extension://tab-out/index.html?focusFilter=1',
+      focused: false,
+      left: 1520,
+      top: 100,
+      width: 1200,
+      height: 700
+    }
+  ])
+  assert.deepEqual(calls.update, [])
+})
+
+test('bridge aborts before mutation when target bounds do not identify a display', async () => {
+  const { calls, chromeApi } = createChromeApi()
+
   await assert.rejects(
-    () => createInactiveWindow('filter', 1, chromeApi),
-    /one or two enabled displays/
+    () => createInactiveWindow('filter', { left: 9000, top: 9000, width: 100, height: 100 }, chromeApi),
+    /do not identify one enabled display/
   )
 
   assert.deepEqual(calls.create, [])
   assert.deepEqual(calls.update, [])
 })
 
-test('display-addressed command names map both routes to both desktop positions', () => {
-  assert.deepEqual(inactiveWindowCommandTarget('create-inactive-filter-window-display-1'), {
-    kind: 'filter',
-    displayPosition: 1
-  })
-  assert.deepEqual(inactiveWindowCommandTarget('create-inactive-new-page-window-display-2'), {
-    kind: 'newPage',
-    displayPosition: 2
-  })
-  assert.equal(inactiveWindowCommandTarget('open-filter-tab'), null)
+test('bridge aborts before mutation when target bounds only partially match a display', async () => {
+  const { calls, chromeApi } = createChromeApi()
+
+  await assert.rejects(
+    () => createInactiveWindow('filter', { left: 100, top: 100, width: 100, height: 100 }, chromeApi),
+    /do not identify one enabled display/
+  )
+
+  assert.deepEqual(calls.getAll, [])
+  assert.deepEqual(calls.create, [])
+  assert.deepEqual(calls.update, [])
 })

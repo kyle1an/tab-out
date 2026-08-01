@@ -1,0 +1,20 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+script_directory=${0:A:h}
+repository_root=${script_directory:h:h}
+source_path="$repository_root/native/bridge-host/TabOutNativeBridge.swift"
+build_directory=${TAB_OUT_NATIVE_BUILD_DIRECTORY:-"$repository_root/native/bridge-host/build"}
+output_path="$build_directory/tab-out-native-bridge"
+
+mkdir -p "$build_directory"
+temporary_output=$(mktemp "$build_directory/.tab-out-native-bridge.XXXXXX")
+trap 'rm -f "$temporary_output"' EXIT
+
+xcrun swiftc -O -o "$temporary_output" "$source_path"
+chmod 755 "$temporary_output"
+mv "$temporary_output" "$output_path"
+trap - EXIT
+
+echo "$output_path"

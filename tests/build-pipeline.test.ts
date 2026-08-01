@@ -173,7 +173,7 @@ test('extension HTML loads the Vite-built React entry', async () => {
   assert.match(indexHtmlSource, /await prerender\(<AppRoot \/>\)/)
   assert.match(manifestSource, /chrome\.runtime\.ManifestV3/)
   assert.match(manifestSource, /minimum_chrome_version: MINIMUM_CHROME_VERSION/)
-  assert.match(manifestSource, /permissions: \['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon', 'system\.display'\]/)
+  assert.match(manifestSource, /permissions: \['tabs', 'tabGroups', 'bookmarks', 'history', 'sessions', 'storage', 'alarms', 'favicon', 'system\.display', 'nativeMessaging'\]/)
   assert.match(viteConfig, /reactCompilerPreset/)
   assert.match(viteConfig, /@rolldown\/plugin-babel/)
   assert.match(viteConfig, /@tailwindcss\/vite/)

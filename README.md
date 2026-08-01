@@ -71,6 +71,27 @@ git clone https://github.com/zarazhangrui/tab-out.git
 
 You'll see Tab Out.
 
+### Optional macOS Hammerspoon placement bridge
+
+The companion Hammerspoon shortcuts can create Tab Out on the display under the
+pointer without assigning hidden Chrome shortcuts. Copy Tab Out's 32-character
+ID from `chrome://extensions`, then install the user-level native host:
+
+```bash
+scripts/native-host/install <extension-id>
+```
+
+Reload Tab Out from `chrome://extensions` after installation. Check or remove
+the bridge with:
+
+```bash
+scripts/native-host/status
+scripts/native-host/uninstall
+```
+
+Chrome starts the host only while the extension is connected. Installation
+adds no LaunchAgent, login item, root file, or network listener.
+
 ---
 
 ## How it works
@@ -95,6 +116,7 @@ Everything runs inside the Chrome extension. No external server, no API calls, n
 | Rendering | React + TSX source under `src/`, bundled by Vite into `extension/dist/app.js` |
 | Styling | Semantic CSS classes plus Tailwind v4 utilities, bundled by Vite into `extension/dist/assets/app.css` |
 | Service worker | Source under `src/extension/background.ts`, bundled by Vite into `extension/dist/background.js` |
+| macOS placement bridge | Optional Swift native-messaging host under `native/bridge-host/`, installed per user |
 | Layout | JS-driven Pinterest-style masonry |
 | Animations | CSS transitions + JS-driven close and move animations |
 | State | In-memory cache over `chrome.tabs` / `chrome.tabGroups` / `chrome.windows`; `chrome.storage.local` stores user state such as card/section/page pins, saved pages, activation history, working-set activity, and the detected suspender |
@@ -120,6 +142,8 @@ Before committing:
 ```bash
 pnpm verify
 ```
+
+When changing the macOS native host, also run `pnpm native-host:test`.
 
 `pnpm verify` rebuilds `extension/dist/app.js`, `extension/dist/filter-focus-boot.js`, `extension/dist/assets/app.css`, and `extension/dist/background.js`, then fails if the committed bundle output is out of sync with the source.
 

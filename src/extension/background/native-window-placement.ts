@@ -1,36 +1,12 @@
 import type { ChromeApi } from './chrome-api.js'
 
-const DISPLAY_POSITIONS = [1, 2] as const
+export type InactiveWindowKind = 'filter' | 'newPage'
 
-type InactiveWindowKind = 'filter' | 'newPage'
-type InactiveWindowDisplayPosition = typeof DISPLAY_POSITIONS[number]
-
-export const INACTIVE_WINDOW_COMMANDS = {
-  filter: {
-    1: 'create-inactive-filter-window-display-1',
-    2: 'create-inactive-filter-window-display-2'
-  },
-  newPage: {
-    1: 'create-inactive-new-page-window-display-1',
-    2: 'create-inactive-new-page-window-display-2'
-  }
-} as const
-
-type InactiveWindowCommandTarget = {
-  kind: InactiveWindowKind
-  displayPosition: InactiveWindowDisplayPosition
-}
-
-export function inactiveWindowCommandTarget(command: string): InactiveWindowCommandTarget | null {
-  for (const kind of ['filter', 'newPage'] as const) {
-    for (const displayPosition of DISPLAY_POSITIONS) {
-      if (INACTIVE_WINDOW_COMMANDS[kind][displayPosition] === command) {
-        return { kind, displayPosition }
-      }
-    }
-  }
-
-  return null
+export type TargetDisplayBounds = {
+  height: number
+  left: number
+  top: number
+  width: number
 }
 
 type WindowWithBounds = chrome.windows.Window & {
@@ -50,13 +26,13 @@ function isWindowWithBounds(window: chrome.windows.Window): window is WindowWith
 }
 
 function intersectionArea(
-  window: WindowWithBounds,
+  bounds: TargetDisplayBounds,
   display: chrome.system.display.DisplayUnitInfo
 ): number {
-  const left = Math.max(window.left, display.bounds.left)
-  const top = Math.max(window.top, display.bounds.top)
-  const right = Math.min(window.left + window.width, display.bounds.left + display.bounds.width)
-  const bottom = Math.min(window.top + window.height, display.bounds.top + display.bounds.height)
+  const left = Math.max(bounds.left, display.bounds.left)
+  const top = Math.max(bounds.top, display.bounds.top)
+  const right = Math.min(bounds.left + bounds.width, display.bounds.left + display.bounds.width)
+  const bottom = Math.min(bounds.top + bounds.height, display.bounds.top + display.bounds.height)
   return Math.max(0, right - left) * Math.max(0, bottom - top)
 }
 
@@ -78,14 +54,22 @@ function owningDisplay(
   return owner
 }
 
-function displaysByDesktopPosition(
+function targetDisplayForBounds(
+  targetBounds: TargetDisplayBounds,
   displays: chrome.system.display.DisplayUnitInfo[]
-): chrome.system.display.DisplayUnitInfo[] {
-  return displays.slice().sort((left, right) => (
-    left.bounds.top - right.bounds.top
-    || left.bounds.left - right.bounds.left
-    || left.id.localeCompare(right.id)
+): chrome.system.display.DisplayUnitInfo {
+  const matches = displays.filter((display) => (
+    targetBounds.left === display.bounds.left
+    && targetBounds.top === display.bounds.top
+    && targetBounds.width === display.bounds.width
+    && targetBounds.height === display.bounds.height
   ))
+
+  if (matches.length !== 1) {
+    throw new Error('Native placement target bounds do not identify one enabled display')
+  }
+
+  return matches[0]!
 }
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -131,20 +115,12 @@ function filterFocusUrl(chromeApi: ChromeApi): string {
 
 export async function createInactiveWindow(
   kind: InactiveWindowKind,
-  displayPosition: InactiveWindowDisplayPosition,
+  targetBounds: TargetDisplayBounds,
   chromeApi: ChromeApi = chrome
 ): Promise<void> {
-  const displays = displaysByDesktopPosition(
-    (await chromeApi.system.display.getInfo()).filter((display) => display.isEnabled !== false)
-  )
-  if (displays.length < 1 || displays.length > DISPLAY_POSITIONS.length) {
-    throw new Error('Direct placement requires one or two enabled displays')
-  }
-
-  const targetDisplay = displays[displayPosition - 1]
-  if (!targetDisplay) {
-    throw new Error(`Direct placement display position ${displayPosition} is unavailable`)
-  }
+  const displays = (await chromeApi.system.display.getInfo())
+    .filter((display) => display.isEnabled !== false)
+  const targetDisplay = targetDisplayForBounds(targetBounds, displays)
 
   const normalWindows = (await chromeApi.windows.getAll({ windowTypes: ['normal'] }))
     .filter((window) => window.state !== 'minimized')
