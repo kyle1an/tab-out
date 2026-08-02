@@ -8,8 +8,6 @@ local NEW_WINDOW_POLL_INTERVAL_SECONDS = 0.005
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS = 3
 
-M.lastUserSpacesKey = LAST_USER_SPACES_KEY
-
 local function noOp() end
 
 local function loggerOrNoOp(logger)
@@ -24,24 +22,25 @@ function M.new(options)
   assert(type(options.catalog) == "table", "catalog is required")
   assert(type(options.chromeWindows) == "function", "chromeWindows is required")
   assert(type(options.config) == "table", "config is required")
-  assert(type(options.fail) == "function", "fail is required")
   assert(type(options.hs) == "table", "hs is required")
-  assert(type(options.isBusy) == "function", "isBusy is required")
-  assert(type(options.isCurrent) == "function", "isCurrent is required")
   assert(type(options.later) == "function", "later is required")
+  assert(type(options.reportFailure) == "function", "reportFailure is required")
   assert(type(options.stopTimer) == "function", "stopTimer is required")
   assert(type(options.trackTimer) == "function", "trackTimer is required")
   assert(type(options.transition) == "function", "transition is required")
 
   local catalog = options.catalog
+  local busy = false
   local chromeLaunchTask
   local chromeWindows = options.chromeWindows
   local config = options.config
-  local fail = options.fail
+  local currentRequest
+  local fail
   local hs = options.hs
-  local isBusy = options.isBusy
-  local isCurrent = options.isCurrent
-  local lastUserSpaceByScreen = options.lastUserSpaces or {}
+  local lastUserSpaceByScreen = hs.settings.get(LAST_USER_SPACES_KEY)
+  if type(lastUserSpaceByScreen) ~= "table" then
+    lastUserSpaceByScreen = {}
+  end
   local later = options.later
   local log = loggerOrNoOp(options.log)
   local nativeBridge = options.nativeBridge
@@ -49,10 +48,19 @@ function M.new(options)
   local pendingNativePlacement
   local privateFocus = options.privateFocus
   local privateFocusError = options.privateFocusError
+  local queue = {}
   local stopTimer = options.stopTimer
   local trackTimer = options.trackTimer
   local transition = options.transition
   local router = {}
+
+  local function isBusy()
+    return busy
+  end
+
+  local function isCurrent(request)
+    return currentRequest == request
+  end
 
   local function screenUuid(screen)
     return screen and screen:getUUID() or nil
@@ -673,7 +681,7 @@ function M.new(options)
   end
 
 
-  function router:cleanup()
+  local function cleanup()
     if pendingNativePlacement then
       stopTimer(pendingNativePlacement.timeout)
       stopTimer(pendingNativePlacement.poll)
@@ -682,25 +690,67 @@ function M.new(options)
     pendingNativePlacement = nil
   end
 
-  function router:handleChromeWindowCreated(window)
-    handlePendingChromeWindow(window)
+  local function drain()
+    if busy or #queue == 0 then
+      return
+    end
+
+    currentRequest = table.remove(queue, 1)
+    busy = true
+    local ok, err = xpcall(function()
+      processRequest(currentRequest)
+    end, debug.traceback)
+    if not ok then
+      fail("Automation failed", err)
+    end
   end
 
-  function router:prepare(kind)
-    return prepareRoutingRequest(kind)
+  fail = function(message, detail)
+    if not busy then
+      return false
+    end
+
+    transition():releaseShield()
+    options.reportFailure(message, detail, screenForUuid(currentRequest.screenUuid))
+    router:finish()
+    return true
   end
 
-  function router:process(request)
-    processRequest(request)
+  function router:current() return currentRequest end
+
+  function router:enqueue(kind)
+    local request, message, detail = prepareRoutingRequest(kind)
+    if not request then
+      options.reportFailure(message, detail)
+      return false
+    end
+
+    table.insert(queue, request)
+    drain()
+    return true
   end
 
-  function router:refreshSpaces()
-    refreshLastUserSpaces()
+  function router:fail(message, detail) return fail(message, detail) end
+
+  function router:finish()
+    if not busy then
+      return false
+    end
+
+    cleanup()
+    busy = false
+    currentRequest = nil
+    later(0.08, drain, false)
+    return true
   end
 
-  function router:screenFor(request)
-    return request and screenForUuid(request.screenUuid) or nil
-  end
+  function router:handleChromeWindowCreated(window) handlePendingChromeWindow(window) end
+
+  function router:isBusy() return busy end
+
+  function router:queueDepth() return #queue end
+
+  function router:refreshSpaces() refreshLastUserSpaces() end
 
   return router
 end

@@ -3,6 +3,20 @@ local M = {}
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
 local PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS = 3
 local WINDOW_FOCUS_DELAY_SECONDS = 0.15
+local PROFILE_WINDOW_INVENTORY_SCRIPT = [[
+tell application "Google Chrome"
+  -- TAB_OUT_PROFILE_WINDOW_INVENTORY
+  set windowRecords to {}
+  repeat with browserWindow in windows
+    set documentUrl to ""
+    try
+      set documentUrl to URL of active tab of browserWindow
+    end try
+    set end of windowRecords to {id of browserWindow, bounds of browserWindow, documentUrl}
+  end repeat
+  return windowRecords
+end tell
+]]
 
 local function noOp() end
 
@@ -86,11 +100,64 @@ local function markedMenuTitles(value, results, seen)
   end
 end
 
+local function hammerspoonPlatform(options)
+  local hs = assert(options.hs, "hs or platform is required")
+  local bundleId = assert(options.chromeBundleId, "chromeBundleId is required")
+  local userDataDirectory = assert(options.chromeUserDataDirectory, "chromeUserDataDirectory is required")
+  local profilePath = userDataDirectory .. "/" .. options.configuredProfileDirectory
+
+  return {
+    describeWindow = function(window)
+      local frame = window and window:frame() or nil
+      local root = window and hs.axuielement.windowElement(window) or nil
+      if not frame then
+        return nil
+      end
+      return {
+        bounds = { frame.x, frame.y, frame.x + frame.w, frame.y + frame.h },
+        documentUrl = root and root:attributeValue("AXDocument") or nil,
+      }
+    end,
+    focusedWindowId = function()
+      local window = hs.window.focusedWindow()
+      return window and window:id() or nil
+    end,
+    readBrowserWindows = function()
+      local succeeded, records, descriptor = hs.osascript.applescript(PROFILE_WINDOW_INVENTORY_SCRIPT)
+      if not succeeded or type(records) ~= "table" then
+        return nil, "Chrome's focus-independent window inventory is unavailable: " .. tostring(descriptor)
+      end
+      local windows = {}
+      for _, record in ipairs(records) do
+        windows[#windows + 1] = {
+          bounds = type(record) == "table" and record[2] or nil,
+          browserWindowId = type(record) == "table" and record[1] or nil,
+          documentUrl = type(record) == "table" and record[3] or nil,
+        }
+      end
+      return windows
+    end,
+    readLocalState = function()
+      return hs.json.read(userDataDirectory .. "/Local State")
+    end,
+    readProfileMenu = function(callback)
+      local application = hs.application.get(bundleId)
+      if not application then
+        return false, "Google Chrome is no longer running"
+      end
+      application:getMenuItems(callback)
+      return true
+    end,
+    readSecurePreferences = function()
+      return hs.json.read(profilePath .. "/Secure Preferences")
+    end,
+  }
+end
+
 function M.new(options)
   assert(type(options) == "table", "Chrome catalog options must be a table")
   assert(type(options.configuredProfileDirectory) == "string", "configuredProfileDirectory is required")
   assert(type(options.later) == "function", "later is required")
-  assert(type(options.platform) == "table", "platform is required")
   assert(type(options.stopTimer) == "function", "stopTimer is required")
 
   local bridge = options.bridge
@@ -98,7 +165,7 @@ function M.new(options)
   local later = options.later
   local log = loggerOrNoOp(options.log)
   local onAsyncError = options.onAsyncError or noOp
-  local platform = options.platform
+  local platform = options.platform or hammerspoonPlatform(options)
   local stopTimer = options.stopTimer
   local extensionId
   local profileByWindow = {}

@@ -18,8 +18,6 @@ local function loadSiblingModule(fileName)
 end
 
 local ChromeCatalog = loadSiblingModule("chrome_catalog.lua")
-local HammerspoonPlatform = loadSiblingModule("platform/hammerspoon.lua")
-local RoutingSession = loadSiblingModule("routing_session.lua")
 local WindowTransition = loadSiblingModule("window_transition.lua")
 local WindowRouter = loadSiblingModule("window_router.lua")
 
@@ -33,7 +31,6 @@ local state = {
   nativeBridgeError = nil,
   privateFocus = nil,
   privateFocusError = nil,
-  routingSession = nil,
   screenWatcher = nil,
   spaceWatcher = nil,
   started = false,
@@ -42,15 +39,8 @@ local state = {
   windowTransition = nil,
 }
 
-local failCurrent
-local finishCurrent
-
 local function routingIsBusy()
-  return state.routingSession and state.routingSession:isBusy() or false
-end
-
-local function currentRoutingRequest()
-  return state.routingSession and state.routingSession:current() or nil
+  return state.windowRouter and state.windowRouter:isBusy() or false
 end
 
 local function later(delay, callback, fatal)
@@ -61,8 +51,8 @@ local function later(delay, callback, fatal)
 
     if not ok then
       log.ef("Asynchronous callback failed: %s", err)
-      if fatal and routingIsBusy() and failCurrent then
-        failCurrent("Automation failed", err)
+      if fatal and routingIsBusy() then
+        state.windowRouter:fail("Automation failed", err)
       end
     end
   end)
@@ -79,12 +69,6 @@ local function stopTimer(timer)
   state.timers[timer] = nil
 end
 
-local function releaseTransitionShield()
-  if state.windowTransition then
-    state.windowTransition:releaseShield()
-  end
-end
-
 local function showFailure(message, detail, screen)
   if detail and detail ~= "" then
     log.ef("%s: %s", message, detail)
@@ -95,20 +79,12 @@ local function showFailure(message, detail, screen)
   hs.alert.show("Tab Out: " .. message, nil, screen or hs.screen.mainScreen(), 2.5)
 end
 
-finishCurrent = function()
-  state.routingSession:finish()
-end
-
-failCurrent = function(message, detail)
-  state.routingSession:fail(message, detail)
-end
-
 local function enqueue(kind)
-  if not state.started or not state.routingSession then
+  if not state.started or not state.windowRouter then
     showFailure("The Hammerspoon module is not running")
     return
   end
-  state.routingSession:enqueue(kind)
+  state.windowRouter:enqueue(kind)
 end
 
 local function learnFocusedChromeProfile(window)
@@ -229,48 +205,38 @@ local function configureNativeBridge(config)
 end
 
 local function configureChromeCatalog(config)
-  local platform = HammerspoonPlatform.new({
-    chromeBundleId = config.chromeBundleId,
-    chromeProfileDirectory = config.chromeProfileDirectory,
-    chromeUserDataDirectory = config.chromeUserDataDirectory,
-    hs = hs,
-  })
-
   state.chromeCatalog = ChromeCatalog.new({
     bridge = state.nativeBridge,
+    chromeBundleId = config.chromeBundleId,
+    chromeUserDataDirectory = config.chromeUserDataDirectory,
     configuredProfileDirectory = config.chromeProfileDirectory,
+    hs = hs,
     later = later,
     log = log,
     onAsyncError = function(err)
       if routingIsBusy() then
-        failCurrent("Automation failed", err)
+        state.windowRouter:fail("Automation failed", err)
       end
     end,
-    platform = platform,
     stopTimer = stopTimer,
   })
 end
 
-local function configureWindowRouter(config, storedSpaces)
+local function configureWindowRouter(config)
   state.windowRouter = WindowRouter.new({
     catalog = state.chromeCatalog,
     chromeWindows = function()
       return state.chromeWindowFilter and state.chromeWindowFilter:getWindows() or nil
     end,
     config = config,
-    fail = failCurrent,
     hs = hs,
-    isBusy = routingIsBusy,
-    isCurrent = function(request)
-      return state.routingSession and state.routingSession:isCurrent(request) or false
-    end,
-    lastUserSpaces = storedSpaces,
     later = later,
     log = log,
     nativeBridge = state.nativeBridge,
     nativeBridgeError = state.nativeBridgeError,
     privateFocus = state.privateFocus,
     privateFocusError = state.privateFocusError,
+    reportFailure = showFailure,
     stopTimer = stopTimer,
     trackTimer = function(timer)
       state.timers[timer] = true
@@ -281,34 +247,20 @@ local function configureWindowRouter(config, storedSpaces)
   })
 end
 
-local function configureRoutingSession()
-  state.routingSession = RoutingSession.new({
-    cleanup = function()
-      state.windowRouter:cleanup()
-    end,
-    later = later,
-    prepare = function(kind)
-      return state.windowRouter:prepare(kind)
-    end,
-    process = function(request)
-      state.windowRouter:process(request)
-    end,
-    releaseBeforeFailure = releaseTransitionShield,
-    reportFailure = function(message, detail, request)
-      local screen = state.windowRouter:screenFor(request) or hs.screen.mainScreen()
-      showFailure(message, detail, screen)
-    end,
-  })
-end
-
 local function configureWindowTransition(config)
   state.windowTransition = WindowTransition.new({
     catalog = state.chromeCatalog,
     chromeBundleId = config.chromeBundleId,
     configuredProfileDirectory = config.chromeProfileDirectory,
-    currentRequest = currentRoutingRequest,
-    fail = failCurrent,
-    finish = finishCurrent,
+    currentRequest = function()
+      return state.windowRouter:current()
+    end,
+    fail = function(message, detail)
+      state.windowRouter:fail(message, detail)
+    end,
+    finish = function()
+      state.windowRouter:finish()
+    end,
     hs = hs,
     later = later,
     log = log,
@@ -377,12 +329,7 @@ function M:start(config)
     log.ef("Native placement bridge is unavailable: %s", state.nativeBridgeError)
   end
   configureChromeCatalog(config)
-  local storedSpaces = hs.settings.get(WindowRouter.lastUserSpacesKey)
-  if type(storedSpaces) ~= "table" then
-    storedSpaces = {}
-  end
-  configureWindowRouter(config, storedSpaces)
-  configureRoutingSession()
+  configureWindowRouter(config)
   configureWindowTransition(config)
 
   state.windowRouter:refreshSpaces()
@@ -439,7 +386,7 @@ function M.status()
     nativeBridgeReady = false,
     privateFocusError = state.privateFocusError,
     privateFocusReady = state.privateFocus ~= nil,
-    queueDepth = state.routingSession and state.routingSession:queueDepth() or 0,
+    queueDepth = state.windowRouter and state.windowRouter:queueDepth() or 0,
     started = state.started,
   }
 

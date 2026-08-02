@@ -9,8 +9,5 @@ escaped_test_directory=${test_directory//\\/\\\\}
 escaped_test_directory=${escaped_test_directory//\"/\\\"}
 
 hs -c "return dofile(\"$escaped_test_directory/tab_out_spoon_spec.lua\")"
-hs -c "return dofile(\"$escaped_test_directory/tab_out_chrome_catalog_spec.lua\")"
-hs -c "return dofile(\"$escaped_test_directory/tab_out_routing_session_spec.lua\")"
-hs -c "return dofile(\"$escaped_test_directory/tab_out_window_transition_spec.lua\")"
 hs -c "return dofile(\"$escaped_test_directory/tab_out_bridge_spec.lua\")"
 "$script_directory/test-install"

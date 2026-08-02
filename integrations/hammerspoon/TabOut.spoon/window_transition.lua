@@ -148,61 +148,42 @@ function M.new(options)
     return control
   end
 
-  local function chromeAddressBar(root)
+  local function walkAccessibility(root, maxDepth, skipWebAreas, visit)
     local visited = {}
-
-    local function findAddressBar(element, depth)
-      if type(element) ~= "userdata" or visited[element] or depth > 20 then
+    local function walk(element, depth)
+      if type(element) ~= "userdata" or visited[element] or depth > maxDepth then
         return nil
       end
 
       visited[element] = true
       local role = element:attributeValue("AXRole")
-      if role == "AXWebArea" then
+      if skipWebAreas and role == "AXWebArea" then
         return nil
       end
-
-      if isDestinationControl("newPage", element, role) then
-        return element
+      local result, skipChildren = visit(element, role)
+      if result ~= nil then
+        return result
       end
-
-      for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
-        local found = findAddressBar(child, depth + 1)
-        if found then
-          return found
+      if not skipChildren then
+        for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
+          local found = walk(child, depth + 1)
+          if found then
+            return found
+          end
         end
       end
-
       return nil
     end
-
-    return root and findAddressBar(root, 0) or nil
+    return root and walk(root, 0) or nil
   end
 
-  local function chromeFilterInput(root)
-    local visited = {}
-
-    local function findFilterInput(element, depth)
-      if type(element) ~= "userdata" or visited[element] or depth > 30 then
-        return nil
-      end
-
-      visited[element] = true
-      if isDestinationControl("filter", element) then
+  local function findDestinationControl(kind, root)
+    return walkAccessibility(root, kind == "filter" and 30 or 20, kind ~= "filter", function(element, role)
+      if isDestinationControl(kind, element, role) then
         return element
       end
-
-      for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
-        local found = findFilterInput(child, depth + 1)
-        if found then
-          return found
-        end
-      end
-
       return nil
-    end
-
-    return root and findFilterInput(root, 0) or nil
+    end)
   end
 
   local function destinationControl(kind, window)
@@ -216,10 +197,7 @@ function M.new(options)
       return focusedControl
     end
 
-    if kind == "filter" then
-      return chromeFilterInput(root)
-    end
-    return chromeAddressBar(root)
+    return findDestinationControl(kind, root)
   end
 
   local function topStandardWindowOnScreen(screen, excludedWindowId)
@@ -297,32 +275,17 @@ function M.new(options)
 
   local function chromeTabCount(window)
     local root = window and hs.axuielement.windowElement(window) or nil
-    local visited = {}
-    local count = 0
-
-    local function countTabs(element, depth)
-      if type(element) ~= "userdata" or visited[element] or depth > 20 then
-        return
-      end
-      visited[element] = true
-
-      local role = element:attributeValue("AXRole")
-      if role == "AXWebArea" then
-        return
-      end
-      if role == "AXRadioButton" and element:attributeValue("AXSubrole") == "AXTabButton" then
-        count = count + 1
-        return
-      end
-      for _, child in ipairs(element:attributeValue("AXChildren") or {}) do
-        countTabs(child, depth + 1)
-      end
-    end
-
     if not root then
       return nil
     end
-    countTabs(root, 0)
+    local count = 0
+    walkAccessibility(root, 20, true, function(element, role)
+      if role == "AXRadioButton" and element:attributeValue("AXSubrole") == "AXTabButton" then
+        count = count + 1
+        return nil, true
+      end
+      return nil
+    end)
     return count > 0 and count or nil
   end
 
@@ -511,60 +474,53 @@ function M.new(options)
     return false, "Chrome did not accept the target-window request"
   end
 
-  local function waitForDestinationControl(kind, window, onReady, onFailure, attempt, expectedWindowId)
+  local function pollUntil(timeout, timeoutMessage, probe, onReady, onFailure, attempt)
+    local ready, value, errorMessage = probe()
+    if ready then
+      onReady(value)
+      return
+    end
+    if errorMessage then
+      onFailure(errorMessage)
+      return
+    end
     attempt = attempt or 0
-    expectedWindowId = expectedWindowId or (window and window:id() or nil)
-
-    local windowId = window and window:id() or nil
-    local application = window and window:application() or nil
-    if not windowId
-      or windowId ~= expectedWindowId
-      or not application
-      or application:bundleID() ~= chromeBundleId
-    then
-      onFailure("The Chrome window is no longer available")
+    if attempt * WINDOW_FOCUS_RETRY_INTERVAL_SECONDS >= timeout then
+      onFailure(timeoutMessage)
       return
     end
-
-    local control = destinationControl(kind, window)
-    if control then
-      onReady(control)
-      return
-    end
-
-    if attempt * WINDOW_FOCUS_RETRY_INTERVAL_SECONDS >= DESTINATION_CONTROL_TIMEOUT_SECONDS then
-      onFailure("Timed out waiting for the Tab Out destination control")
-      return
-    end
-
     later(WINDOW_FOCUS_RETRY_INTERVAL_SECONDS, function()
-      waitForDestinationControl(kind, window, onReady, onFailure, attempt + 1, expectedWindowId)
+      pollUntil(timeout, timeoutMessage, probe, onReady, onFailure, attempt + 1)
     end, true)
   end
 
-  local function waitForTargetWindowFocus(window, onFocused, onFailure, attempt, expectedWindowId)
-    attempt = attempt or 0
-    expectedWindowId = expectedWindowId or (window and window:id() or nil)
+  local function waitForDestinationControl(kind, window, onReady, onFailure)
+    local expectedWindowId = window and window:id() or nil
+    pollUntil(DESTINATION_CONTROL_TIMEOUT_SECONDS, "Timed out waiting for the Tab Out destination control", function()
+      local windowId = window and window:id() or nil
+      local application = window and window:application() or nil
+      if not windowId
+        or windowId ~= expectedWindowId
+        or not application
+        or application:bundleID() ~= chromeBundleId
+      then
+        return false, nil, "The Chrome window is no longer available"
+      end
+      local control = destinationControl(kind, window)
+      return control ~= nil, control
+    end, onReady, onFailure)
+  end
 
-    local frontmostApplication = hs.application.frontmostApplication()
-    local focusedWindow = hs.window.focusedWindow()
-    if frontmostApplication
-      and frontmostApplication:bundleID() == chromeBundleId
-      and focusedWindow
-      and focusedWindow:id() == expectedWindowId
-    then
-      onFocused()
-      return
-    end
-
-    if attempt * WINDOW_FOCUS_RETRY_INTERVAL_SECONDS >= TARGET_FOCUS_TIMEOUT_SECONDS then
-      onFailure("Timed out waiting for Chrome to activate the requested window")
-      return
-    end
-
-    later(WINDOW_FOCUS_RETRY_INTERVAL_SECONDS, function()
-      waitForTargetWindowFocus(window, onFocused, onFailure, attempt + 1, expectedWindowId)
-    end, true)
+  local function waitForTargetWindowFocus(window, onFocused, onFailure)
+    local expectedWindowId = window and window:id() or nil
+    pollUntil(TARGET_FOCUS_TIMEOUT_SECONDS, "Timed out waiting for Chrome to activate the requested window", function()
+      local application = hs.application.frontmostApplication()
+      local focusedWindow = hs.window.focusedWindow()
+      return application
+        and application:bundleID() == chromeBundleId
+        and focusedWindow
+        and focusedWindow:id() == expectedWindowId
+    end, onFocused, onFailure)
   end
 
   local function focusDestinationControl(kind, window, control)
@@ -771,25 +727,11 @@ function M.new(options)
   end
 
 
-  function transition:captureShield(screen)
-    return captureTransitionShield(screen)
-  end
-
-  function transition:releaseShield()
-    releaseTransitionShield()
-  end
-
-  function transition:activateCreated(kind, window)
-    finishExtensionWindowActivation(kind, window)
-  end
-
-  function transition:activateExisting(kind, window)
-    activateExistingWindow(kind, window)
-  end
-
-  function transition:registerCreatedWindow(request, window)
-    registerCreatedWindowCloseRecovery(request, window)
-  end
+  function transition:captureShield(screen) return captureTransitionShield(screen) end
+  function transition:releaseShield() releaseTransitionShield() end
+  function transition:activateCreated(kind, window) finishExtensionWindowActivation(kind, window) end
+  function transition:activateExisting(kind, window) activateExistingWindow(kind, window) end
+  function transition:registerCreatedWindow(request, window) registerCreatedWindowCloseRecovery(request, window) end
 
   function transition:handleWindowDestroyed(window)
     local id = window and window:id() or nil
@@ -803,9 +745,7 @@ function M.new(options)
     end
   end
 
-  function transition:handleCloseGesture(event)
-    return handleCreatedWindowCloseGesture(event)
-  end
+  function transition:handleCloseGesture(event) return handleCreatedWindowCloseGesture(event) end
 
   function transition:start()
     closeGestureTap = hs.eventtap.new({
