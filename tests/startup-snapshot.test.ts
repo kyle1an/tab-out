@@ -1944,6 +1944,100 @@ test('latest refresh runner discards an overtaken result and applies one trailin
   assert.equal(runner.active(), false)
 })
 
+test('latest refresh runner ignores an overtaken failure and applies the latest request', async () => {
+  const { promise: firstRunBlocked, resolve: releaseFirstRun } = Promise.withResolvers<void>()
+  const { promise: firstRunStarted, resolve: markFirstRunStarted } = Promise.withResolvers<void>()
+  const staleFailure = new Error('stale refresh failed')
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  const firstRequest = runner.request(
+    async () => {
+      markFirstRunStarted()
+      await firstRunBlocked
+      throw staleFailure
+    },
+    (value) => applied.push(value)
+  )
+  await firstRunStarted
+  const latestRequest = runner.request(
+    async () => 'latest',
+    (value) => applied.push(value)
+  )
+  releaseFirstRun()
+  await Promise.all([firstRequest, latestRequest])
+
+  assert.deepEqual(applied, ['latest'])
+  assert.equal(runner.active(), false)
+})
+
+test('latest refresh runner preserves the current failure and accepts a later request', async () => {
+  const expectedFailure = new Error('refresh failed')
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  await assert.rejects(
+    runner.request(
+      async () => { throw expectedFailure },
+      (value) => applied.push(value)
+    ),
+    (error) => error === expectedFailure
+  )
+  assert.equal(runner.active(), false)
+
+  await runner.request(
+    async () => 'recovered',
+    (value) => applied.push(value)
+  )
+
+  assert.deepEqual(applied, ['recovered'])
+})
+
+test('latest refresh runner preserves a failure thrown while applying', async () => {
+  const expectedFailure = new Error('apply failed')
+  const runner = createLatestRefreshRunner<string>()
+
+  await assert.rejects(
+    runner.request(
+      async () => 'value',
+      () => { throw expectedFailure }
+    ),
+    (error) => error === expectedFailure
+  )
+
+  assert.equal(runner.active(), false)
+})
+
+test('latest refresh runner executes a request queued synchronously while applying', async () => {
+  const runs: string[] = []
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+  let trailingRequest: Promise<void> | null = null
+
+  const firstRequest = runner.request(
+    async () => {
+      runs.push('first')
+      return 'first'
+    },
+    (value) => {
+      applied.push(value)
+      trailingRequest = runner.request(
+        async () => {
+          runs.push('trailing')
+          return 'trailing'
+        },
+        (trailingValue) => applied.push(trailingValue)
+      )
+    }
+  )
+  await firstRequest
+  await trailingRequest
+
+  assert.deepEqual(runs, ['first', 'trailing'])
+  assert.deepEqual(applied, ['first', 'trailing'])
+  assert.equal(runner.active(), false)
+})
+
 test('startup snapshot cache preserves fresh cached working set priority when saving live startup data', async () => {
   let cachedStartupSnapshot: Record<string, unknown> | null = null
   const cachedWorkingSet = {

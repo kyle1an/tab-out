@@ -59,6 +59,13 @@ slice adds 24,638 raw bytes (8,465 gzip bytes) to the app entry, bringing it to
 Contributors must understand the Effect workflow inside adopted modules even
 though ordinary callers remain Promise-based.
 
+The second slice moves the serialized latest-wins Dashboard refresh flight
+behind a named Effect operation and names the source-switch operation with
+`Effect.fn`. It adds 11,621 raw bytes (3,496 deterministic gzip bytes), bringing
+the app entry to 828,138 bytes; the background worker remains unchanged. The
+runner still exposes one shared Promise, allows only one fetch at a time, drops
+overtaken results and failures, and applies only the newest trailing request.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

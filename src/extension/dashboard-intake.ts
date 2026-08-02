@@ -93,33 +93,50 @@ class DashboardSourceFetchError extends Data.TaggedError('DashboardSourceFetchEr
   readonly cause: unknown
 }> {}
 
+class DashboardRefreshRunError extends Data.TaggedError('DashboardRefreshRunError')<{
+  readonly cause: unknown
+}> {}
+
 export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
   let inFlight: Promise<void> | null = null
   let latestRequest: LatestRefreshRequest<T> | null = null
   let revision = 0
+
+  const runLatestRefreshFlight = Effect.fn('dashboardIntake.runLatestRefreshFlight')(function*() {
+    while (latestRequest) {
+      const requestRevision = revision
+      const currentRequest = latestRequest
+      const runResult = yield* Effect.result(Effect.tryPromise({
+        try: currentRequest.run,
+        catch: (cause) => new DashboardRefreshRunError({ cause })
+      }))
+      if (Result.isFailure(runResult)) {
+        if (requestRevision !== revision) continue
+        return yield* Effect.fail(runResult.failure)
+      }
+      if (requestRevision !== revision) continue
+      const applyResult = yield* Effect.result(Effect.try({
+        try: () => currentRequest.apply(runResult.success),
+        catch: (cause) => new DashboardRefreshRunError({ cause })
+      }))
+      if (Result.isFailure(applyResult)) {
+        if (requestRevision !== revision) continue
+        return yield* Effect.fail(applyResult.failure)
+      }
+      if (requestRevision !== revision) continue
+      latestRequest = null
+      return
+    }
+  })
 
   function request(run: () => Promise<T>, apply: (value: T) => void): Promise<void> {
     latestRequest = { apply, run }
     revision += 1
     if (inFlight) return inFlight
 
-    const flight = (async () => {
-      while (latestRequest) {
-        const requestRevision = revision
-        const currentRequest = latestRequest
-        try {
-          const value = await currentRequest.run()
-          if (requestRevision !== revision) continue
-          currentRequest.apply(value)
-          if (requestRevision !== revision) continue
-          latestRequest = null
-          return
-        } catch (error) {
-          if (requestRevision !== revision) continue
-          throw error
-        }
-      }
-    })()
+    const flight = Effect.runPromise(runLatestRefreshFlight().pipe(
+      Effect.catchTag('DashboardRefreshRunError', (error) => Effect.fail(error.cause))
+    ))
     inFlight = flight
     const clearFlight = () => {
       if (inFlight === flight) inFlight = null
@@ -750,64 +767,65 @@ export function createAppDashboardStore({
     showSourceSwitchToast('Could not switch source')
   }
 
-  function runSourceSwitch(requestId: number, nextSource: DashboardSource): Effect.Effect<void> {
-    return Effect.gen(function*() {
-      while (true) {
-        const inputs = refreshInputs
-        if (!inputs) {
-          failSourceSwitch(requestId)
-          return
-        }
-        const requestContext: DashboardRefreshContext = {
-          ...refreshContextFromInputs(inputs, nextSource),
-          pinnedDomains: [...inputs.pinnedDomains]
-        }
-        const result = yield* Effect.result(Effect.tryPromise({
-          try: () => fetchSourceSwitchSnapshot({
-            source: nextSource,
-            filter: requestContext.filter,
-            historyRange: requestContext.historyRange,
-            historyFilterEnabled: requestContext.historyFilterEnabled,
-            pinnedDomains: [...requestContext.pinnedDomains],
-            previousOrder: inputs.previousOrder
-          }),
-          catch: (cause) => new DashboardSourceFetchError({ cause })
-        }))
-        const latestInputs = refreshInputs
-        if (Result.isFailure(result)) {
-          if (
-            latestInputs &&
-            !dashboardRefreshContextMatches(
-              requestContext,
-              refreshContextFromInputs(latestInputs, nextSource),
-              false
-            )
-          ) continue
-          failSourceSwitch(requestId)
-          return
-        }
+  const runSourceSwitch = Effect.fn('dashboardIntake.runSourceSwitch')(function*(
+    requestId: number,
+    nextSource: DashboardSource
+  ) {
+    while (true) {
+      const inputs = refreshInputs
+      if (!inputs) {
+        failSourceSwitch(requestId)
+        return
+      }
+      const requestContext: DashboardRefreshContext = {
+        ...refreshContextFromInputs(inputs, nextSource),
+        pinnedDomains: [...inputs.pinnedDomains]
+      }
+      const result = yield* Effect.result(Effect.tryPromise({
+        try: () => fetchSourceSwitchSnapshot({
+          source: nextSource,
+          filter: requestContext.filter,
+          historyRange: requestContext.historyRange,
+          historyFilterEnabled: requestContext.historyFilterEnabled,
+          pinnedDomains: [...requestContext.pinnedDomains],
+          previousOrder: inputs.previousOrder
+        }),
+        catch: (cause) => new DashboardSourceFetchError({ cause })
+      }))
+      const latestInputs = refreshInputs
+      if (Result.isFailure(result)) {
         if (
-          !latestInputs ||
+          latestInputs &&
           !dashboardRefreshContextMatches(
             requestContext,
             refreshContextFromInputs(latestInputs, nextSource),
             false
           )
         ) continue
-        const snapshot = result.success
-        emitBeforeApply({ reason: 'source-switch', requestId })
-        dispatch({
-          type: 'sourceSnapshot',
-          dashboard: snapshot.dashboard,
-          requestId,
-          source: nextSource,
-          ...(snapshot.tabHistory === undefined ? {} : { tabHistory: snapshot.tabHistory }),
-          ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet })
-        })
+        failSourceSwitch(requestId)
         return
       }
-    })
-  }
+      if (
+        !latestInputs ||
+        !dashboardRefreshContextMatches(
+          requestContext,
+          refreshContextFromInputs(latestInputs, nextSource),
+          false
+        )
+      ) continue
+      const snapshot = result.success
+      emitBeforeApply({ reason: 'source-switch', requestId })
+      dispatch({
+        type: 'sourceSnapshot',
+        dashboard: snapshot.dashboard,
+        requestId,
+        source: nextSource,
+        ...(snapshot.tabHistory === undefined ? {} : { tabHistory: snapshot.tabHistory }),
+        ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet })
+      })
+      return
+    }
+  })
 
   function interruptActiveSourceSwitch(): void {
     const active = activeSourceSwitch
