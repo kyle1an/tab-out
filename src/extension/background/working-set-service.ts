@@ -1,3 +1,5 @@
+import { Data, Deferred, Effect, Queue } from 'effect'
+
 import {
   emptyWorkingSetActivity,
   normalizeWorkingSetActivity,
@@ -17,7 +19,25 @@ type ActivityMutation = {
   activity: WorkingSetActivityStore
   commit?: () => void
 }
+type ActivityMutator = (
+  activity: WorkingSetActivityStore
+) => ActivityMutation | Promise<ActivityMutation>
 type CapturedTab = Promise<chrome.tabs.Tab | null>
+
+class WorkingSetTaskError extends Data.TaggedError('WorkingSetTaskError')<{
+  readonly cause: unknown
+}> {}
+
+type ActivityTask =
+  | {
+      readonly _tag: 'Mutation'
+      readonly mutator: ActivityMutator
+      readonly completion: Deferred.Deferred<void, WorkingSetTaskError>
+    }
+  | {
+      readonly _tag: 'Read'
+      readonly completion: Deferred.Deferred<WorkingSetActivityStore, WorkingSetTaskError>
+    }
 
 export type WorkingSetService = {
   getWorkingSetActivity: () => Promise<WorkingSetActivityStore>
@@ -29,7 +49,8 @@ export type WorkingSetService = {
 
 export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingSetService {
   let activityCache: WorkingSetActivityStore | null = null
-  let activityQueue: Promise<void> = Promise.resolve()
+  const activityTasks = Effect.runSync(Queue.unbounded<ActivityTask>())
+  let activityDrainRunning = false
   let lastActivityAt = 0
   const lastPageIdentityByTabId = new Map<number, string>()
   let lastActivationSignal: {
@@ -62,22 +83,71 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     activityCache = nextActivity
   }
 
-  function enqueueActivityMutation(mutator: (activity: WorkingSetActivityStore) => ActivityMutation | Promise<ActivityMutation>) {
-    const task = activityQueue.catch(() => {}).then(async () => {
-      const before = await readActivity()
-      const mutation = await mutator(before)
-      // No-op signals (paired activation/focus events, failed tab lookups, and
-      // tab-id rebases) still need their commit callback, but must not rewrite
-      // the entire 30-day activity store. Real event mutations already return
-      // a normalized immutable store from recordWorkingSetActivity.
-      if (mutation.activity !== before) await writeActivity(mutation.activity)
-      mutation.commit?.()
+  const runActivityMutation = Effect.fn('workingSet.mutateActivity')(function*(
+    mutator: ActivityMutator
+  ) {
+    return yield* Effect.tryPromise({
+      try: async () => {
+        const before = await readActivity()
+        const mutation = await mutator(before)
+        // No-op signals (paired activation/focus events, failed tab lookups, and
+        // tab-id rebases) still need their commit callback, but must not rewrite
+        // the entire 30-day activity store. Real event mutations already return
+        // a normalized immutable store from recordWorkingSetActivity.
+        if (mutation.activity !== before) await writeActivity(mutation.activity)
+        mutation.commit?.()
+      },
+      catch: (cause) => new WorkingSetTaskError({ cause })
     })
-    activityQueue = task.then(
-      () => {},
-      () => {}
+  })
+
+  const readSerializedActivity = Effect.fn('workingSet.readActivity')(function*() {
+    return yield* Effect.tryPromise({
+      try: readActivity,
+      catch: (cause) => new WorkingSetTaskError({ cause })
+    })
+  })
+
+  const completeActivityTask = Effect.fn('workingSet.completeActivityTask')(function*(
+    task: ActivityTask
+  ) {
+    if (task._tag === 'Mutation') {
+      yield* Deferred.complete(task.completion, runActivityMutation(task.mutator))
+      return
+    }
+    yield* Deferred.complete(task.completion, readSerializedActivity())
+  })
+
+  const runActivityQueue = Effect.fn('workingSet.drainActivityQueue')(function*() {
+    while (Queue.sizeUnsafe(activityTasks) > 0) {
+      const tasks = yield* Queue.takeAll(activityTasks)
+      for (const task of tasks) yield* completeActivityTask(task)
+    }
+  })
+
+  function startActivityDrain(): void {
+    if (activityDrainRunning || Queue.sizeUnsafe(activityTasks) === 0) return
+    activityDrainRunning = true
+    const finish = () => {
+      activityDrainRunning = false
+      if (Queue.sizeUnsafe(activityTasks) > 0) startActivityDrain()
+    }
+    void Effect.runPromise(runActivityQueue()).then(finish, finish)
+  }
+
+  function offerActivityTask(task: ActivityTask): void {
+    Effect.runSync(Queue.offer(activityTasks, task))
+    startActivityDrain()
+  }
+
+  function enqueueActivityMutation(mutator: ActivityMutator): Promise<void> {
+    const completion = Deferred.makeUnsafe<void, WorkingSetTaskError>()
+    offerActivityTask({ _tag: 'Mutation', mutator, completion })
+    return Effect.runPromise(
+      Deferred.await(completion).pipe(
+        Effect.catchTag('WorkingSetTaskError', (error) => Effect.fail(error.cause))
+      )
     )
-    return task
   }
 
   function activityAfterTabEvent(
@@ -149,11 +219,14 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     }
   }
 
-  async function getWorkingSetActivity(): Promise<WorkingSetActivityStore> {
-    try {
-      await activityQueue
-    } catch {}
-    return readActivity()
+  function getWorkingSetActivity(): Promise<WorkingSetActivityStore> {
+    const completion = Deferred.makeUnsafe<WorkingSetActivityStore, WorkingSetTaskError>()
+    offerActivityTask({ _tag: 'Read', completion })
+    return Effect.runPromise(
+      Deferred.await(completion).pipe(
+        Effect.catchTag('WorkingSetTaskError', (error) => Effect.fail(error.cause))
+      )
+    )
   }
 
   async function recordTabActivation(windowId: number, tabId: number, capturedTab?: CapturedTab): Promise<void> {

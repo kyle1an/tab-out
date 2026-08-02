@@ -386,6 +386,18 @@ test('background Tab History serializes complete browser and persistence tasks w
   assert.doesNotMatch(source, /let tabHistoryQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 
+test('background Working Set serializes complete activity transactions with Effect', () => {
+  const source = readFileSync(new URL('../src/extension/background/working-set-service.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runActivityMutation = Effect\.fn/)
+  assert.match(source, /const readSerializedActivity = Effect\.fn/)
+  assert.match(source, /Queue\.unbounded<ActivityTask>/)
+  assert.match(source, /const runActivityQueue = Effect\.fn/)
+  assert.match(source, /Deferred\.complete/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /let activityQueue: Promise<void> = Promise\.resolve\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

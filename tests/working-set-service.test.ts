@@ -338,6 +338,7 @@ test('Working Set rebases its activation signal when Chrome replaces a tab id', 
 test('Working Set mutation retries persisted activity after a transient initial storage read failure', async () => {
   const existingTab = chromeTab(1, 'existing')
   const activatedTab = chromeTab(2, 'activated')
+  const readFailure = new Error('activity read failed')
   let persistedActivity = recordWorkingSetActivity(emptyWorkingSetActivity(), {
     kind: 'activation',
     at: Date.now() - 1000,
@@ -355,7 +356,7 @@ test('Working Set mutation retries persisted activity after a transient initial 
       local: {
         get: async () => {
           readAttempts += 1
-          if (readAttempts === 1) throw new Error('activity read failed')
+          if (readAttempts === 1) throw readFailure
           return { [WORKING_SET_ACTIVITY_KEY]: persistedActivity }
         },
         set: async (value: Record<string, unknown>) => {
@@ -367,7 +368,7 @@ test('Working Set mutation retries persisted activity after a transient initial 
   } as unknown as ChromeApi
   const service = createWorkingSetService(chromeApi)
 
-  await assert.rejects(service.recordTabActivation(1, 2), /activity read failed/)
+  await assert.rejects(service.recordTabActivation(1, 2), (error) => error === readFailure)
   assert.equal(writeAttempts, 0)
   assert.ok(persistedActivity.records['https://example.test/existing'])
   assert.equal(persistedActivity.records['https://example.test/activated'], undefined)

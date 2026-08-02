@@ -114,6 +114,15 @@ bytes; the app entry remains unchanged. This is intentionally an in-memory
 ordering mechanism only: persisted history remains the recovery authority
 across MV3 worker termination.
 
+The ninth slice replaces the Working Set activity Promise tail with an Effect
+`Queue` and per-operation `Deferred` results. One named drain preserves strict
+offer order, so an activity read still waits for mutations that began first,
+while each mutation owns its tab lookup, deduplication, read-modify-write
+persistence, cache update, and in-memory signal commit. It adds 5,522 raw bytes
+(1,597 deterministic gzip bytes), bringing the worker entry to 283,417 bytes;
+the app entry remains unchanged. Persisted activity remains the recovery
+authority across MV3 worker termination.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
