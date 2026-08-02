@@ -17,7 +17,7 @@ const reactHooksRules = {
 
 export default tseslint.config(
   {
-    ignores: ['extension/dist/**', 'extension/vendor/**', 'node_modules/**']
+    ignores: ['.repos/**', 'extension/dist/**', 'extension/vendor/**', 'node_modules/**']
   },
   {
     files: ['**/*.{js,mjs}'],

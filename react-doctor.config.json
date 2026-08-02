@@ -4,6 +4,6 @@
   "deadCode": false,
   "verbose": true,
   "ignore": {
-    "files": ["extension/dist/**", "extension/vendor/**"]
+    "files": [".repos/**", "extension/dist/**", "extension/vendor/**"]
   }
 }
