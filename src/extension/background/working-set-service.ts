@@ -1,4 +1,4 @@
-import { Data, Deferred, Effect, Queue } from 'effect'
+import { Data, Effect } from 'effect'
 
 import {
   emptyWorkingSetActivity,
@@ -7,6 +7,7 @@ import {
   recordWorkingSetActivity
 } from '../working-set.js'
 import { normalizeChromeTabToDashboardItem } from '../dashboard-tab-normalization.js'
+import { createSerializedEffectQueue } from '../serialized-effect-queue.js'
 import { readChromeStorageValue, writeChromeStorageValue } from './chrome-storage.js'
 import type { ChromeApi } from './chrome-api.js'
 import type { DashboardTab, WorkingSetActivityKind, WorkingSetActivityStore } from '../types'
@@ -28,17 +29,6 @@ class WorkingSetTaskError extends Data.TaggedError('WorkingSetTaskError')<{
   readonly cause: unknown
 }> {}
 
-type ActivityTask =
-  | {
-      readonly _tag: 'Mutation'
-      readonly mutator: ActivityMutator
-      readonly completion: Deferred.Deferred<void, WorkingSetTaskError>
-    }
-  | {
-      readonly _tag: 'Read'
-      readonly completion: Deferred.Deferred<WorkingSetActivityStore, WorkingSetTaskError>
-    }
-
 export type WorkingSetService = {
   getWorkingSetActivity: () => Promise<WorkingSetActivityStore>
   recordFocusedWindowActiveTab: (windowId: number, capturedActiveTab?: CapturedTab) => Promise<void>
@@ -49,8 +39,7 @@ export type WorkingSetService = {
 
 export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingSetService {
   let activityCache: WorkingSetActivityStore | null = null
-  const activityTasks = Effect.runSync(Queue.unbounded<ActivityTask>())
-  let activityDrainRunning = false
+  const activityTasks = createSerializedEffectQueue()
   let lastActivityAt = 0
   const lastPageIdentityByTabId = new Map<number, string>()
   let lastActivationSignal: {
@@ -108,43 +97,9 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     })
   })
 
-  const completeActivityTask = Effect.fn('workingSet.completeActivityTask')(function*(
-    task: ActivityTask
-  ) {
-    if (task._tag === 'Mutation') {
-      yield* Deferred.complete(task.completion, runActivityMutation(task.mutator))
-      return
-    }
-    yield* Deferred.complete(task.completion, readSerializedActivity())
-  })
-
-  const runActivityQueue = Effect.fn('workingSet.drainActivityQueue')(function*() {
-    while (Queue.sizeUnsafe(activityTasks) > 0) {
-      const tasks = yield* Queue.takeAll(activityTasks)
-      for (const task of tasks) yield* completeActivityTask(task)
-    }
-  })
-
-  function startActivityDrain(): void {
-    if (activityDrainRunning || Queue.sizeUnsafe(activityTasks) === 0) return
-    activityDrainRunning = true
-    const finish = () => {
-      activityDrainRunning = false
-      if (Queue.sizeUnsafe(activityTasks) > 0) startActivityDrain()
-    }
-    void Effect.runPromise(runActivityQueue()).then(finish, finish)
-  }
-
-  function offerActivityTask(task: ActivityTask): void {
-    Effect.runSync(Queue.offer(activityTasks, task))
-    startActivityDrain()
-  }
-
   function enqueueActivityMutation(mutator: ActivityMutator): Promise<void> {
-    const completion = Deferred.makeUnsafe<void, WorkingSetTaskError>()
-    offerActivityTask({ _tag: 'Mutation', mutator, completion })
-    return Effect.runPromise(
-      Deferred.await(completion).pipe(
+    return activityTasks.run(
+      runActivityMutation(mutator).pipe(
         Effect.catchTag('WorkingSetTaskError', (error) => Effect.fail(error.cause))
       )
     )
@@ -220,10 +175,8 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
   }
 
   function getWorkingSetActivity(): Promise<WorkingSetActivityStore> {
-    const completion = Deferred.makeUnsafe<WorkingSetActivityStore, WorkingSetTaskError>()
-    offerActivityTask({ _tag: 'Read', completion })
-    return Effect.runPromise(
-      Deferred.await(completion).pipe(
+    return activityTasks.run(
+      readSerializedActivity().pipe(
         Effect.catchTag('WorkingSetTaskError', (error) => Effect.fail(error.cause))
       )
     )

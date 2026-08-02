@@ -1354,6 +1354,60 @@ test('startup snapshot cache serializes writes in-context before requesting the 
   assert.equal((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).captureStartedAt, 200)
 })
 
+test('startup snapshot cache preserves a rejected lock failure and continues draining', async () => {
+  const sessionStore: Record<string, unknown> = {}
+  const durableStore: Record<string, unknown> = {}
+  const lockFailure = new Error('startup snapshot lock failed')
+  let lockAttempts = 0
+  const previousLocksDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'locks')
+  Object.defineProperty(globalThis.navigator, 'locks', {
+    configurable: true,
+    value: {
+      request: async (_name: string, mutation: () => Promise<unknown>) => {
+        lockAttempts += 1
+        if (lockAttempts === 1) throw lockFailure
+        return mutation()
+      }
+    }
+  })
+  const storageArea = (store: Record<string, unknown>) => ({
+    get: async () => store,
+    set: async (value: Record<string, unknown>) => { Object.assign(store, value) }
+  })
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: storageArea(sessionStore),
+      local: storageArea(durableStore)
+    }
+  }
+
+  try {
+    await assert.rejects(
+      saveCachedDashboardStartupSnapshot(startupCacheSnapshot('failed.example'), null, {
+        captureStartedAt: 100,
+        now: 150
+      }),
+      (error) => error === lockFailure
+    )
+    await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('recovered.example'), null, {
+      captureStartedAt: 200,
+      now: 250
+    })
+
+    assert.equal(lockAttempts, 2)
+    assert.equal(
+      (sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups[0]?.domain,
+      'recovered.example'
+    )
+  } finally {
+    if (previousLocksDescriptor) {
+      Object.defineProperty(globalThis.navigator, 'locks', previousLocksDescriptor)
+    } else {
+      delete (globalThis.navigator as { locks?: unknown }).locks
+    }
+  }
+})
+
 test('startup snapshot can include the current Tab Out page before live hydration', () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const oldTabOutPage = {

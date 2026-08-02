@@ -391,11 +391,29 @@ test('background Working Set serializes complete activity transactions with Effe
 
   assert.match(source, /const runActivityMutation = Effect\.fn/)
   assert.match(source, /const readSerializedActivity = Effect\.fn/)
-  assert.match(source, /Queue\.unbounded<ActivityTask>/)
-  assert.match(source, /const runActivityQueue = Effect\.fn/)
-  assert.match(source, /Deferred\.complete/)
+  assert.match(source, /createSerializedEffectQueue\(\)/)
   assert.match(source, /Effect\.tryPromise/)
   assert.doesNotMatch(source, /let activityQueue: Promise<void> = Promise\.resolve\(\)/)
+})
+
+test('shared Effect serializer drains FIFO tasks through per-call Deferred results', () => {
+  const source = readFileSync(new URL('../src/extension/serialized-effect-queue.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /Queue\.unbounded<Effect\.Effect<void>>/)
+  assert.match(source, /const drainTasks = Effect\.fn/)
+  assert.match(source, /Queue\.takeAll/)
+  assert.match(source, /Deferred\.complete/)
+  assert.doesNotMatch(source, /Promise\.resolve\(\)/)
+})
+
+test('startup snapshot cache serializes its complete shared-lock transaction with Effect', () => {
+  const source = readFileSync(new URL('../src/extension/startup-snapshot.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runStartupSnapshotCacheMutation = Effect\.fn/)
+  assert.match(source, /createSerializedEffectQueue\(\)/)
+  assert.match(source, /navigator\.locks\.request/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /let startupSnapshotCacheMutationQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 
 test('source switch indicator keeps transform-based transition', () => {

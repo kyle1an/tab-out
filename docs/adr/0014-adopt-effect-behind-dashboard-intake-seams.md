@@ -123,6 +123,16 @@ persistence, cache update, and in-memory signal commit. It adds 5,522 raw bytes
 the app entry remains unchanged. Persisted activity remains the recovery
 authority across MV3 worker termination.
 
+The tenth slice extracts that strict FIFO drain as a shared Effect serializer
+and adopts it for startup-snapshot cache mutations. A named operation now owns
+the complete cross-context Web Lock, session and durable reads, generation
+comparison, Working Set priority rebase, dual writes or promotion, checkpoint
+scheduling, and typed failure recovery. It adds 4,736 raw bytes (1,450
+deterministic gzip bytes), bringing the app entry to 841,481 bytes. Reusing the
+Working Set serializer adds 20 raw bytes (63 deterministic gzip bytes),
+bringing the worker entry to 283,437 bytes. Session and durable storage remain
+the recovery authorities across MV3 worker termination.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

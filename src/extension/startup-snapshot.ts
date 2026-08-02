@@ -1,3 +1,5 @@
+import { Data, Effect } from 'effect'
+
 import type { ClosedTabEntry } from './closed-tabs.js'
 import { domainGroupCardId } from './domain-card-id.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
@@ -11,6 +13,7 @@ import {
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { buildDashboardDataFromTabs } from './render.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
+import { createSerializedEffectQueue } from './serialized-effect-queue.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPageMetadataUpdates, SavedPagesStore } from './saved-pages.js'
@@ -71,7 +74,11 @@ export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000
 const DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK = 'tab-out:startup-snapshot-cache-write'
 
-let startupSnapshotCacheMutationQueue: Promise<void> = Promise.resolve()
+class StartupSnapshotCacheMutationError extends Data.TaggedError('StartupSnapshotCacheMutationError')<{
+  readonly cause: unknown
+}> {}
+
+const startupSnapshotCacheMutations = createSerializedEffectQueue()
 
 // performance.timeOrigin + performance.now() is comparable across extension pages and the
 // service worker while retaining more ordering precision than Date.now(). Callers capture it
@@ -548,13 +555,21 @@ function cachedCaptureStartedAt(cached: CachedDashboardStartupSnapshot | null): 
     : cached.savedAt
 }
 
-async function withStartupSnapshotCacheMutationLock<T>(mutation: () => Promise<T>): Promise<T> {
-  const previousMutation = startupSnapshotCacheMutationQueue.catch(() => {})
-  const nextMutation = previousMutation.then(() => (
-    navigator.locks.request(DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK, mutation)
-  ))
-  startupSnapshotCacheMutationQueue = nextMutation.then(() => undefined, () => undefined)
-  return nextMutation
+const runStartupSnapshotCacheMutation = Effect.fn('startupSnapshotCache.mutate')(function*<Value>(
+  mutation: () => Promise<Value>
+) {
+  return yield* Effect.tryPromise({
+    try: () => navigator.locks.request(DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK, mutation),
+    catch: (cause) => new StartupSnapshotCacheMutationError({ cause })
+  })
+})
+
+function withStartupSnapshotCacheMutationLock<Value>(mutation: () => Promise<Value>): Promise<Value> {
+  return startupSnapshotCacheMutations.run(
+    runStartupSnapshotCacheMutation(mutation).pipe(
+      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause))
+    )
+  )
 }
 
 type HydratedCachedDashboardStartup = {
