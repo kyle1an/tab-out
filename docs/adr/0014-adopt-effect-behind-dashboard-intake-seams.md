@@ -179,6 +179,15 @@ It adds 565 raw bytes and 130 deterministic gzip bytes, bringing the app entry
 to 843,350 raw bytes and 265,897 deterministic gzip bytes; the worker entry
 remains unchanged.
 
+The sixteenth slice moves each native placement protocol request behind a
+named Effect operation and typed browser-operation failure. The workflow owns
+validation, profile-window inventory, placement, and normalized native-host
+responses. It adds 253 raw bytes and 92 deterministic gzip bytes, bringing the
+worker entry to 286,239 raw bytes and 95,355 deterministic gzip bytes; the app
+entry remains unchanged. Native-port reconnection keeps its callback and
+`setTimeout` backoff because Chrome owns the port lifetime and an MV3 worker
+may terminate between attempts.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

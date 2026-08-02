@@ -114,6 +114,50 @@ test('native placement bridge reports profile-owned normal window identities wit
   assert.deepEqual(createCalls, [])
 })
 
+test('native placement bridge turns a rejected profile-window read into a response', async () => {
+  const { chromeApi, createCalls } = createChromeApi()
+  Object.assign(chromeApi.windows, {
+    async getAll() {
+      throw new Error('Profile window inventory unavailable')
+    }
+  })
+
+  const result = await handleNativePlacementBridgeMessage(
+    createRequest({ type: 'list-profile-windows' }),
+    chromeApi,
+    nowMs
+  )
+
+  assert.deepEqual(result, {
+    version: NATIVE_PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: 'hs-1800000000000-1',
+    status: 'rejected',
+    reason: 'Profile window inventory unavailable'
+  })
+  assert.deepEqual(createCalls, [])
+})
+
+test('native placement bridge turns a rejected placement read into a response', async () => {
+  const { chromeApi, createCalls } = createChromeApi()
+  Object.assign(chromeApi.system.display, {
+    async getInfo() {
+      throw new Error('Display inventory unavailable')
+    }
+  })
+
+  const result = await handleNativePlacementBridgeMessage(createRequest(), chromeApi, nowMs)
+
+  assert.deepEqual(result, {
+    version: NATIVE_PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: 'hs-1800000000000-1',
+    status: 'rejected',
+    reason: 'Display inventory unavailable'
+  })
+  assert.deepEqual(createCalls, [])
+})
+
 test('native placement bridge rejects an expired request before mutation', async () => {
   const { chromeApi, createCalls } = createChromeApi()
 

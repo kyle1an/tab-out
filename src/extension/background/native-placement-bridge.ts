@@ -1,3 +1,5 @@
+import { Data, Effect, Result } from 'effect'
+
 import type { ChromeApi } from './chrome-api.js'
 import {
   createInactiveWindow,
@@ -46,6 +48,10 @@ export type NativePlacementBridgeResponse = {
   windowIds?: number[]
 }
 
+class NativePlacementOperationError extends Data.TaggedError('NativePlacementOperationError')<{
+  readonly cause: unknown
+}> {}
+
 function validRequestId(value: unknown): value is string {
   return typeof value === 'string'
     && value.length > 0
@@ -92,11 +98,11 @@ function errorMessage(error: unknown): string {
     : 'The native placement request failed'
 }
 
-export async function handleNativePlacementBridgeMessage(
+const runNativePlacementBridgeMessage = Effect.fn('nativePlacementBridge.handleMessage')(function*(
   message: unknown,
-  chromeApi: ChromeApi = chrome,
-  nowMs = Date.now()
-): Promise<NativePlacementBridgeResponse> {
+  chromeApi: ChromeApi,
+  nowMs: number
+) {
   if (!message || typeof message !== 'object') {
     return response('invalid', 'rejected', 'The native placement request is not an object')
   }
@@ -117,18 +123,20 @@ export async function handleNativePlacementBridgeMessage(
     return response(requestId, 'accepted')
   }
   if (candidate.type === 'list-profile-windows') {
-    try {
-      const windows = await chromeApi.windows.getAll({ windowTypes: ['normal'] })
-      const windowIds = windows
-        .filter((window) => window.type === 'normal' && window.state !== 'minimized')
-        .map((window) => window.id)
-        .filter((windowId): windowId is number => (
-          Number.isInteger(windowId) && (windowId ?? 0) > 0
-        ))
-      return response(requestId, 'accepted', undefined, windowIds)
-    } catch (error) {
-      return response(requestId, 'rejected', errorMessage(error))
+    const windowsResult = yield* Effect.result(Effect.tryPromise({
+      try: () => chromeApi.windows.getAll({ windowTypes: ['normal'] }),
+      catch: (cause) => new NativePlacementOperationError({ cause })
+    }))
+    if (Result.isFailure(windowsResult)) {
+      return response(requestId, 'rejected', errorMessage(windowsResult.failure.cause))
     }
+    const windowIds = windowsResult.success
+      .filter((window) => window.type === 'normal' && window.state !== 'minimized')
+      .map((window) => window.id)
+      .filter((windowId): windowId is number => (
+        Number.isInteger(windowId) && (windowId ?? 0) > 0
+      ))
+    return response(requestId, 'accepted', undefined, windowIds)
   }
   if (candidate.type !== 'create-window') {
     return response(requestId, 'rejected', 'The native placement request type is unsupported')
@@ -139,13 +147,25 @@ export async function handleNativePlacementBridgeMessage(
   if (!validTargetBounds(candidate.targetBounds)) {
     return response(requestId, 'rejected', 'The native placement target bounds are invalid')
   }
+  const operation = candidate.operation
+  const targetBounds = candidate.targetBounds
 
-  try {
-    await createInactiveWindow(candidate.operation, candidate.targetBounds, chromeApi)
-    return response(requestId, 'accepted')
-  } catch (error) {
-    return response(requestId, 'rejected', errorMessage(error))
+  const placementResult = yield* Effect.result(Effect.tryPromise({
+    try: () => createInactiveWindow(operation, targetBounds, chromeApi),
+    catch: (cause) => new NativePlacementOperationError({ cause })
+  }))
+  if (Result.isFailure(placementResult)) {
+    return response(requestId, 'rejected', errorMessage(placementResult.failure.cause))
   }
+  return response(requestId, 'accepted')
+})
+
+export function handleNativePlacementBridgeMessage(
+  message: unknown,
+  chromeApi: ChromeApi = chrome,
+  nowMs = Date.now()
+): Promise<NativePlacementBridgeResponse> {
+  return Effect.runPromise(runNativePlacementBridgeMessage(message, chromeApi, nowMs))
 }
 
 export function connectNativePlacementBridge(chromeApi: ChromeApi = chrome): void {

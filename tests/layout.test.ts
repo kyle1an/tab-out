@@ -468,6 +468,16 @@ test('Saved Page actions own mutation, refresh, and Undo failure branches behind
   assert.doesNotMatch(source, /async function savePageTarget\(/)
 })
 
+test('native placement requests own validation and browser operations behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/background/native-placement-bridge.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runNativePlacementBridgeMessage = Effect\.fn/)
+  assert.match(source, /Effect\.result\(Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runNativePlacementBridgeMessage\(/)
+  assert.doesNotMatch(source, /export async function handleNativePlacementBridgeMessage\(/)
+  assert.match(source, /reconnectTimer = setTimeout\(/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
