@@ -188,6 +188,14 @@ entry remains unchanged. Native-port reconnection keeps its callback and
 `setTimeout` backoff because Chrome owns the port lifetime and an MV3 worker
 may terminate between attempts.
 
+The seventeenth slice moves app bootstrap behind a named Effect operation and
+typed startup-read failures. Immediately-started child fibers preserve the
+eager history-preference and current-page reads while the parent retains cache
+then local-state ordering, joins both reads, rebases a cached snapshot, and
+publishes one atomic startup update. It adds 929 raw bytes and 264 deterministic
+gzip bytes, bringing the app entry to 844,279 raw bytes and 266,161
+deterministic gzip bytes; the worker entry remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

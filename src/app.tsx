@@ -1,3 +1,5 @@
+import { Data, Effect, Fiber, Result } from 'effect'
+
 import './styles/app.css'
 import { attachApp } from './components/App'
 import { applyAppStartup } from './app-startup.js'
@@ -13,19 +15,25 @@ import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
 import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
+class AppStartupReadError extends Data.TaggedError('AppStartupReadError')<{
+  readonly cause: unknown
+  readonly operation: 'cache' | 'current-tab' | 'history-range' | 'local-state'
+}> {}
+
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 
-async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null> {
-  try {
-    const tab = await chrome.tabs.getCurrent()
-    if (!tab) return null
-    const rawUrl = tab.url || window.location.href
-    if (!isTabOutPageUrl(rawUrl)) return null
-    return { ...tab, url: rawUrl }
-  } catch {
-    return null
-  }
-}
+const readCurrentTabOutPageForStartup = Effect.fn('app.readCurrentTabOutPageForStartup')(function*() {
+  const tabResult = yield* Effect.result(Effect.tryPromise({
+    try: () => chrome.tabs.getCurrent(),
+    catch: (cause) => new AppStartupReadError({ cause, operation: 'current-tab' })
+  }))
+  if (Result.isFailure(tabResult)) return null
+  const tab = tabResult.success
+  if (!tab) return null
+  const rawUrl = tab.url || window.location.href
+  if (!isTabOutPageUrl(rawUrl)) return null
+  return { ...tab, url: rawUrl }
+})
 
 const dashboardPageRefreshScheduler = createDashboardPageRefreshScheduler({
   isVisible: () => document.visibilityState === 'visible',
@@ -106,11 +114,17 @@ document.addEventListener('visibilitychange', () => {
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
 attachApp()
 
-async function initializeApp() {
+const runInitializeApp = Effect.fn('app.initialize')(function*() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
-  const historyRangePreferencePromise = loadHistoryRangePreference()
+  const historyRangeFiber = yield* Effect.tryPromise({
+    try: () => loadHistoryRangePreference(),
+    catch: (cause) => new AppStartupReadError({ cause, operation: 'history-range' })
+  }).pipe(Effect.forkChild({ startImmediately: true }))
   const cacheStartedAt = startupDebugNow()
-  const cachedStartup = await loadCachedDashboardStartup()
+  const cachedStartup = yield* Effect.tryPromise({
+    try: () => loadCachedDashboardStartup(),
+    catch: (cause) => new AppStartupReadError({ cause, operation: 'cache' })
+  })
   seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded', {
     startedAt: cacheStartedAt,
@@ -120,16 +134,22 @@ async function initializeApp() {
     }
   })
   const cachedStartupSnapshot = cachedStartup?.snapshot ?? null
-  const currentTabOutPagePromise = cachedStartupSnapshot ? getCurrentTabOutPageForStartup() : Promise.resolve(null)
+  const currentTabOutPageFiber = cachedStartupSnapshot
+    ? yield* readCurrentTabOutPageForStartup().pipe(Effect.forkChild({ startImmediately: true }))
+    : null
   const localStateStartedAt = startupDebugNow()
-  const localState = cachedStartup?.localState ?? await loadDashboardLocalState()
+  const localState = cachedStartup?.localState ?? (yield* Effect.tryPromise({
+    try: () => loadDashboardLocalState(),
+    catch: (cause) => new AppStartupReadError({ cause, operation: 'local-state' })
+  }))
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
     ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
     detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
   })
-  const historyRange = await historyRangePreferencePromise
-  // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- both promises started before cached/local startup work; these awaits only join the already-running reads.
-  const currentTabOutPage = await currentTabOutPagePromise
+  const historyRange = yield* Fiber.join(historyRangeFiber)
+  const currentTabOutPage = currentTabOutPageFiber
+    ? yield* Fiber.join(currentTabOutPageFiber)
+    : null
   const fallbackStartupSnapshot = cachedStartupSnapshot && currentTabOutPage
     ? addCurrentTabOutPageToStartupSnapshot(cachedStartupSnapshot, currentTabOutPage, localState)
     : cachedStartupSnapshot
@@ -141,6 +161,8 @@ async function initializeApp() {
     }
   })
   applyAppStartup({ historyRange, localState, snapshot: startupSnapshot })
-}
+})
 
-initializeApp()
+void Effect.runPromise(runInitializeApp().pipe(
+  Effect.catchTag('AppStartupReadError', (error) => Effect.fail(error.cause))
+))
