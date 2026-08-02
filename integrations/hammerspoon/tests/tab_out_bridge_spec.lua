@@ -57,6 +57,9 @@ local fakeHs = {
       if value == "rejected" then
         return response("rejected", { reason = "extension rejected request" })
       end
+      if value == "profile-windows" then
+        return response("accepted", { windowIds = { 71, 72 } })
+      end
       return response("accepted")
     end,
     encode = function(value)
@@ -131,6 +134,21 @@ assertEqual(encodedPayload.targetBounds.left, 1440, "native bridge should encode
 assertEqual(callbackAccepted, true, "accepted native bridge response should report semantic success")
 assertEqual(callbackError, nil, "accepted native bridge response should not return an error")
 assertEqual(bridge:status().connected, true, "accepted native bridge response should prove connectivity")
+
+nextStandardOutput = "profile-windows"
+local profileWindowIds
+local profileWindowError
+local inventoryStarted, inventoryStartError = bridge:listProfileWindows({ timeoutSeconds = 3 }, function(windowIds, requestError)
+  profileWindowIds = windowIds
+  profileWindowError = requestError
+end)
+assertEqual(inventoryStarted, true, "profile-window discovery should start its native bridge client")
+assertEqual(inventoryStartError, nil, "profile-window discovery should not return a start error")
+assertEqual(encodedPayload.type, "list-profile-windows", "profile-window discovery should own its wire request type")
+assertEqual(encodedPayload.expiresAtMs, 1800000003000, "profile-window discovery should derive its wire deadline")
+assertEqual(profileWindowIds[1], 71, "profile-window discovery should preserve the first browser window ID")
+assertEqual(profileWindowIds[2], 72, "profile-window discovery should preserve the second browser window ID")
+assertEqual(profileWindowError, nil, "accepted profile-window discovery should not return an error")
 
 nextStandardOutput = "rejected"
 callbackAccepted = nil

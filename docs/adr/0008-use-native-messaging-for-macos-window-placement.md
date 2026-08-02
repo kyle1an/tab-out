@@ -30,6 +30,10 @@ mode.
   refines the creation-to-focus handoff so the initial create call contains the
   final target bounds and a target-display snapshot covers the inactive-to-front
   transition until exact activation completes.
+- The same protocol exposes a read-only configured-profile inventory. Because
+  Chrome runs the extension separately in each profile, the response contains
+  only that profile's normal, non-minimized browser window IDs. The host merely
+  forwards the response; it does not inspect windows or browser data.
 - Hammerspoon continues to observe the created native window, validate its
   display, Space, profile, PID, and window ID, and perform Private Exact-Window
   Activation. A bridge failure remains a Safe Abort.
@@ -46,10 +50,10 @@ small host process and the extension service worker alive while the browser is
 running; closing Chrome ends the process. Extension or protocol upgrades may
 require rebuilding the host and reloading the unpacked extension.
 
-The host and extension connection cannot identify a Chrome profile separately
-when the same extension ID is active in multiple profiles. The supported setup
-therefore installs Tab Out only in the configured automation profile; a future
-profile-specific handshake would be a separate protocol decision.
+The host socket still has one active extension peer, so the supported setup
+installs Tab Out only in the configured automation profile. Hammerspoon uses the
+profile-scoped IDs for focus-independent native-window correlation as described
+by ADR 0012; the bridge does not transmit tab URLs or other matching data.
 
 ## Qualification
 

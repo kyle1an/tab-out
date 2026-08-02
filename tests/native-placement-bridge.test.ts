@@ -22,7 +22,7 @@ const targetDisplay = {
   dpiY: 110
 } as chrome.system.display.DisplayUnitInfo
 
-function createChromeApi() {
+function createChromeApi(windows: chrome.windows.Window[] = []) {
   const createCalls: chrome.windows.CreateData[] = []
   const chromeApi = {
     runtime: { id: 'tab-out' },
@@ -35,7 +35,7 @@ function createChromeApi() {
     },
     windows: {
       async getAll() {
-        return []
+        return windows
       },
       async create(createData: chrome.windows.CreateData) {
         createCalls.push(createData)
@@ -87,6 +87,30 @@ test('native placement bridge status handshake does not create a window', async 
   const result = await handleNativePlacementBridgeMessage(createRequest({ type: 'status' }), chromeApi, nowMs)
 
   assert.equal(result.status, 'accepted')
+  assert.deepEqual(createCalls, [])
+})
+
+test('native placement bridge reports profile-owned normal window identities without focusing them', async () => {
+  const { chromeApi, createCalls } = createChromeApi([
+    { id: 71, type: 'normal', focused: false, state: 'normal' },
+    { id: 72, type: 'popup', focused: false, state: 'normal' },
+    { id: 73, type: 'normal', focused: false, state: 'minimized' },
+    { type: 'normal', focused: false, state: 'normal' }
+  ] as chrome.windows.Window[])
+
+  const result = await handleNativePlacementBridgeMessage(
+    createRequest({ type: 'list-profile-windows' }),
+    chromeApi,
+    nowMs
+  )
+
+  assert.deepEqual(result, {
+    version: NATIVE_PLACEMENT_BRIDGE_VERSION,
+    type: 'response',
+    requestId: 'hs-1800000000000-1',
+    status: 'accepted',
+    windowIds: [71]
+  })
   assert.deepEqual(createCalls, [])
 })
 

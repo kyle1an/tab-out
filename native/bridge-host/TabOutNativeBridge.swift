@@ -189,6 +189,9 @@ private func validateRequest(_ object: [String: Any]) throws -> ValidatedRequest
   if type == "status" {
     return ValidatedRequest(expiresAtMs: expiresAtMs, requestId: requestId)
   }
+  if type == "list-profile-windows" {
+    return ValidatedRequest(expiresAtMs: expiresAtMs, requestId: requestId)
+  }
   guard type == "create-window" else {
     throw BridgeError.message("The native placement request type is unsupported")
   }

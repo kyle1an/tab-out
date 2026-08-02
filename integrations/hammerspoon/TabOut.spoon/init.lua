@@ -19,12 +19,17 @@ end
 
 local log = hs.logger.new("tab-out", "info")
 local LAST_USER_SPACES_KEY = "tabOut.lastUserSpaces.v1"
+local CHROME_LAUNCH_TIMEOUT_SECONDS = 20
+local CHROME_LAUNCH_RETRY_INTERVAL_SECONDS = 0.2
+local CHROME_OPEN_EXECUTABLE = "/usr/bin/open"
 local NEW_WINDOW_TIMEOUT_SECONDS = 12
 local NEW_WINDOW_POLL_INTERVAL_SECONDS = 0.005
 local CREATED_WINDOW_CLOSE_FOCUS_TIMEOUT_SECONDS = 0.5
+local CREATED_WINDOW_CLOSE_MONITOR_INTERVAL_SECONDS = 0.1
 local CREATED_WINDOW_CLOSE_RETRY_INTERVAL_SECONDS = 0.005
 local NEW_TAB_URL = "chrome://newtab/"
 local PROFILE_PROBE_TIMEOUT_SECONDS = 6
+local PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS = 3
 local DESTINATION_CONTROL_TIMEOUT_SECONDS = 6
 local TARGET_FOCUS_TIMEOUT_SECONDS = 2
 local WINDOW_FOCUS_DELAY_SECONDS = 0.15
@@ -33,6 +38,7 @@ local WINDOW_FOCUS_RETRY_INTERVAL_SECONDS = 0.05
 local state = {
   busy = false,
   closeGestureTap = nil,
+  chromeLaunchTask = nil,
   chromeWindowFilter = nil,
   config = nil,
   currentRequest = nil,
@@ -272,6 +278,23 @@ local function spaceBelongsToScreen(spaceId, screen)
   return spaces and containsValue(spaces, spaceId) or false
 end
 
+local function regularSpaceForScreen(request, screen)
+  local remembered = request.fallbackUserSpaceId
+  if remembered
+    and spaceBelongsToScreen(remembered, screen)
+    and hs.spaces.spaceType(remembered) == "user"
+  then
+    return remembered
+  end
+
+  for _, spaceId in ipairs(hs.spaces.spacesForScreen(screen) or {}) do
+    if hs.spaces.spaceType(spaceId) == "user" then
+      return spaceId
+    end
+  end
+  return nil
+end
+
 local function waitForSpace(request, screen, targetSpace, attempt)
   local activeSpace = hs.spaces.activeSpaceOnScreen(screen)
   if activeSpace == targetSpace then
@@ -302,7 +325,7 @@ local function ensureTargetUserSpace(request, callback)
   if request.capturedSpaceType == "user" then
     targetSpace = request.capturedSpaceId
   elseif request.capturedSpaceType == "fullscreen" then
-    targetSpace = request.fallbackUserSpaceId
+    targetSpace = regularSpaceForScreen(request, screen)
   end
 
   if not targetSpace then
@@ -474,7 +497,7 @@ local function destinationControl(kind, window)
   return chromeAddressBar(root)
 end
 
-local function topStandardWindowOnScreen(screen)
+local function topStandardWindowOnScreen(screen, excludedWindowId)
   local expectedScreenUuid = screenUuid(screen)
   local activeSpace = screen and hs.spaces.activeSpaceOnScreen(screen) or nil
   if not expectedScreenUuid or not activeSpace then
@@ -484,6 +507,7 @@ local function topStandardWindowOnScreen(screen)
   for _, window in ipairs(hs.window.orderedWindows()) do
     if window
       and window:id()
+      and window:id() ~= excludedWindowId
       and window:isStandard()
       and not window:isMinimized()
       and screenUuid(window:screen()) == expectedScreenUuid
@@ -497,7 +521,7 @@ local function topStandardWindowOnScreen(screen)
   return nil
 end
 
-local function recoveryWindow(recovery, requireTop)
+local function recoveryWindow(recovery, requireTop, excludedWindowId)
   local window = recovery and hs.window.get(recovery.windowId) or nil
   local application = window and window:application() or nil
   local screen = window and window:screen() or nil
@@ -521,7 +545,7 @@ local function recoveryWindow(recovery, requireTop)
   end
 
   if requireTop then
-    local topWindow = topStandardWindowOnScreen(screen)
+    local topWindow = topStandardWindowOnScreen(screen, excludedWindowId)
     if not topWindow or topWindow:id() ~= window:id() then
       return nil
     end
@@ -628,7 +652,8 @@ local function beginCreatedWindowClose(window, recovery)
     return true
   end
 
-  local restoreWindow = recoveryWindow(recovery, true)
+  local excludedWindowId = recovery.screenUuid == recovery.targetScreenUuid and window:id() or nil
+  local restoreWindow = recoveryWindow(recovery, true, excludedWindowId)
   if not restoreWindow then
     return false
   end
@@ -960,6 +985,160 @@ local function roundedCoordinate(value)
   return math.floor(value + 0.5)
 end
 
+local PROFILE_WINDOW_INVENTORY_SCRIPT = [[
+tell application "Google Chrome"
+  -- TAB_OUT_PROFILE_WINDOW_INVENTORY
+  set windowRecords to {}
+  repeat with browserWindow in windows
+    set documentUrl to ""
+    try
+      set documentUrl to URL of active tab of browserWindow
+    end try
+    set end of windowRecords to {id of browserWindow, bounds of browserWindow, documentUrl}
+  end repeat
+  return windowRecords
+end tell
+]]
+
+local function browserWindowFingerprint(bounds, documentUrl)
+  if type(bounds) ~= "table"
+    or type(bounds[1]) ~= "number"
+    or type(bounds[2]) ~= "number"
+    or type(bounds[3]) ~= "number"
+    or type(bounds[4]) ~= "number"
+    or type(documentUrl) ~= "string"
+    or documentUrl == ""
+  then
+    return nil
+  end
+
+  return table.concat({
+    roundedCoordinate(bounds[1]),
+    roundedCoordinate(bounds[2]),
+    roundedCoordinate(bounds[3]),
+    roundedCoordinate(bounds[4]),
+    documentUrl,
+  }, "\0")
+end
+
+local function nativeWindowFingerprint(window)
+  local frame = window and window:frame() or nil
+  local root = window and hs.axuielement.windowElement(window) or nil
+  local documentUrl = root and root:attributeValue("AXDocument") or nil
+  if not frame then
+    return nil
+  end
+
+  return browserWindowFingerprint({
+    frame.x,
+    frame.y,
+    frame.x + frame.w,
+    frame.y + frame.h,
+  }, documentUrl)
+end
+
+local function browserWindowInventory()
+  local succeeded, records, descriptor = hs.osascript.applescript(PROFILE_WINDOW_INVENTORY_SCRIPT)
+  if not succeeded or type(records) ~= "table" then
+    return nil, "Chrome's focus-independent window inventory is unavailable: " .. tostring(descriptor)
+  end
+
+  local descriptorsById = {}
+  local fingerprintCounts = {}
+  for _, record in ipairs(records) do
+    local browserWindowId = type(record) == "table" and tonumber(record[1]) or nil
+    local fingerprint = type(record) == "table"
+      and browserWindowFingerprint(record[2], record[3])
+      or nil
+    if browserWindowId
+      and browserWindowId > 0
+      and browserWindowId % 1 == 0
+      and fingerprint
+      and not descriptorsById[browserWindowId]
+    then
+      descriptorsById[browserWindowId] = fingerprint
+      fingerprintCounts[fingerprint] = (fingerprintCounts[fingerprint] or 0) + 1
+    end
+  end
+  return descriptorsById, fingerprintCounts
+end
+
+local function cacheFocusIndependentProfiles(candidates, profileWindowIds)
+  local descriptorsById, fingerprintCountsOrError = browserWindowInventory()
+  if not descriptorsById then
+    return false, fingerprintCountsOrError
+  end
+
+  local targetFingerprints = {}
+  for _, browserWindowId in ipairs(profileWindowIds or {}) do
+    local fingerprint = descriptorsById[browserWindowId]
+    if fingerprint and fingerprintCountsOrError[fingerprint] == 1 then
+      targetFingerprints[fingerprint] = true
+    end
+  end
+
+  local learned = false
+  for _, window in ipairs(candidates) do
+    local windowId = window and window:id() or nil
+    local fingerprint = windowId and nativeWindowFingerprint(window) or nil
+    if windowId and fingerprint and targetFingerprints[fingerprint] then
+      state.profileByWindow[windowId] = state.config.chromeProfileDirectory
+      learned = true
+    end
+  end
+  return learned
+end
+
+local function discoverCandidateProfiles(candidates, callback)
+  local needsInventory = false
+  for _, window in ipairs(candidates) do
+    local windowId = window:id()
+    local cachedProfile = windowId and state.profileByWindow[windowId] or nil
+    if cachedProfile == state.config.chromeProfileDirectory then
+      callback()
+      return
+    end
+    if windowId and not cachedProfile then
+      needsInventory = true
+    end
+  end
+  if not needsInventory
+    or not state.nativeBridge
+    or type(state.nativeBridge.listProfileWindows) ~= "function"
+  then
+    callback()
+    return
+  end
+
+  local completed = false
+  local function complete()
+    if completed then
+      return
+    end
+    completed = true
+    callback()
+  end
+
+  local started, startError = state.nativeBridge:listProfileWindows({
+    timeoutSeconds = PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS,
+  }, function(profileWindowIds, inventoryError)
+    if profileWindowIds then
+      local learned, discoveryError = cacheFocusIndependentProfiles(candidates, profileWindowIds)
+      if not learned and discoveryError then
+        log.wf("Could not identify Chrome profiles without focus: %s", discoveryError)
+      end
+    elseif inventoryError then
+      log.wf("Could not read configured-profile Chrome windows: %s", inventoryError)
+    end
+    complete()
+  end)
+
+  if not started then
+    log.wf("Could not start configured-profile window discovery: %s", startError or "unknown error")
+    complete()
+  end
+end
+
 local function openTabOutTabInFrontWindow(kind, window)
   local url = NEW_TAB_URL
   local urlError
@@ -1176,6 +1355,73 @@ local function activateExistingWindow(kind, window)
   end)
 end
 
+local function clearCreatedWindowCloseRecovery(windowId, expectedRecovery)
+  local recovery = state.createdWindowCloseRecovery[windowId]
+  if not recovery or (expectedRecovery and recovery ~= expectedRecovery) then
+    return nil
+  end
+
+  state.createdWindowCloseRecovery[windowId] = nil
+  if recovery.monitor then
+    recovery.monitor:stop()
+    recovery.monitor = nil
+  end
+  return recovery
+end
+
+local function repairCreatedWindowCloseFallback(recovery, closedWindowId, deadline)
+  local restoreWindow = recoveryWindow(recovery, false)
+  if not restoreWindow then
+    return
+  end
+
+  local focusedWindow = hs.window.focusedWindow()
+  local frontmostApplication = hs.application.frontmostApplication()
+  local focusedApplication = focusedWindow and focusedWindow:application() or nil
+  if focusedWindow and focusedWindow:id() == restoreWindow:id() then
+    return
+  end
+
+  if frontmostApplication
+    and frontmostApplication:bundleID() == state.config.chromeBundleId
+    and focusedApplication
+    and focusedApplication:bundleID() == state.config.chromeBundleId
+    and focusedWindow:id() ~= closedWindowId
+  then
+    restoreWindow:focus()
+    return
+  end
+
+  if frontmostApplication
+    and frontmostApplication:bundleID() ~= state.config.chromeBundleId
+  then
+    return
+  end
+
+  deadline = deadline
+    or (hs.timer.secondsSinceEpoch() + CREATED_WINDOW_CLOSE_FOCUS_TIMEOUT_SECONDS)
+  if hs.timer.secondsSinceEpoch() >= deadline then
+    return
+  end
+  later(CREATED_WINDOW_CLOSE_RETRY_INTERVAL_SECONDS, function()
+    repairCreatedWindowCloseFallback(recovery, closedWindowId, deadline)
+  end, false)
+end
+
+local function monitorCreatedWindowClose(windowId, recovery)
+  recovery.monitor = hs.timer.waitUntil(function()
+    return state.createdWindowCloseRecovery[windowId] ~= recovery
+      or hs.window.get(windowId) == nil
+  end, function()
+    if state.createdWindowCloseRecovery[windowId] ~= recovery then
+      return
+    end
+    recovery.monitor = nil
+    state.createdWindowCloseRecovery[windowId] = nil
+    repairCreatedWindowCloseFallback(recovery, windowId)
+  end, CREATED_WINDOW_CLOSE_MONITOR_INTERVAL_SECONDS)
+end
+
 local function registerCreatedWindowCloseRecovery(request, window)
   local windowId = window and window:id() or nil
   if not windowId
@@ -1183,7 +1429,6 @@ local function registerCreatedWindowCloseRecovery(request, window)
     or not request.focusedWindowBundleId
     or not request.focusedWindowScreenUuid
     or request.focusedWindowBundleId == state.config.chromeBundleId
-    or request.focusedWindowScreenUuid == request.screenUuid
   then
     return
   end
@@ -1195,27 +1440,10 @@ local function registerCreatedWindowCloseRecovery(request, window)
     targetScreenUuid = request.screenUuid,
     windowId = request.focusedWindowId,
   }
-  if recoveryWindow(recovery, true) then
+  local excludedWindowId = recovery.screenUuid == recovery.targetScreenUuid and windowId or nil
+  if recoveryWindow(recovery, true, excludedWindowId) then
     state.createdWindowCloseRecovery[windowId] = recovery
-  end
-end
-
-local function repairCreatedWindowCloseFallback(recovery)
-  local frontmostApplication = hs.application.frontmostApplication()
-  local focusedWindow = hs.window.focusedWindow()
-  local focusedApplication = focusedWindow and focusedWindow:application() or nil
-  if not frontmostApplication
-    or frontmostApplication:bundleID() ~= state.config.chromeBundleId
-    or not focusedApplication
-    or focusedApplication:bundleID() ~= state.config.chromeBundleId
-    or screenUuid(focusedWindow:screen()) == recovery.targetScreenUuid
-  then
-    return
-  end
-
-  local restoreWindow = recoveryWindow(recovery, false)
-  if restoreWindow then
-    restoreWindow:focus()
+    monitorCreatedWindowClose(windowId, recovery)
   end
 end
 
@@ -1399,12 +1627,116 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
   end
 end
 
+local function waitForColdChromeBridge(request, targetScreen, startedAt)
+  if state.currentRequest ~= request then
+    return
+  end
+
+  if hs.timer.secondsSinceEpoch() - startedAt >= CHROME_LAUNCH_TIMEOUT_SECONDS then
+    failCurrent(
+      "Google Chrome did not become ready for Tab Out",
+      "The background launch did not establish the Native Placement Bridge"
+    )
+    return
+  end
+
+  local bridge = state.nativeBridge
+  if not bridge or type(bridge.listProfileWindows) ~= "function" then
+    failCurrent(
+      "Tab Out's Native Placement Bridge is unavailable",
+      "The native bridge client cannot verify a cold Chrome launch"
+    )
+    return
+  end
+
+  local completed = false
+  local function retry(inventoryError)
+    if completed then
+      return
+    end
+    completed = true
+    if inventoryError then
+      log.df("Waiting for cold Chrome bridge readiness: %s", inventoryError)
+    end
+    later(CHROME_LAUNCH_RETRY_INTERVAL_SECONDS, function()
+      waitForColdChromeBridge(request, targetScreen, startedAt)
+    end, true)
+  end
+
+  local started, startError = bridge:listProfileWindows({
+    timeoutSeconds = PROFILE_WINDOW_INVENTORY_TIMEOUT_SECONDS,
+  }, function(profileWindowIds, inventoryError)
+    if state.currentRequest ~= request then
+      return
+    end
+    if profileWindowIds then
+      completed = true
+      requestInactiveTargetProfileWindow(request, targetScreen)
+      return
+    end
+    retry(inventoryError)
+  end)
+
+  if not started then
+    retry(startError)
+  end
+end
+
+local function launchChromeForNativePlacement(request, targetScreen)
+  local extensionId, extensionError = tabOutExtensionId()
+  if not extensionId then
+    failCurrent("Tab Out's Chrome profile is unavailable", extensionError)
+    return
+  end
+  if not state.nativeBridge or type(state.nativeBridge.listProfileWindows) ~= "function" then
+    failCurrent(
+      "Tab Out's Native Placement Bridge is unavailable",
+      state.nativeBridgeError or "The native bridge client cannot verify a cold Chrome launch"
+    )
+    return
+  end
+
+  local startedAt = hs.timer.secondsSinceEpoch()
+  local arguments = {
+    "-g",
+    "-b",
+    state.config.chromeBundleId,
+    "--args",
+    "--profile-directory=" .. state.config.chromeProfileDirectory,
+    "--no-startup-window",
+  }
+  local task
+  task = hs.task.new(CHROME_OPEN_EXECUTABLE, function(exitCode, _, standardError)
+    if state.chromeLaunchTask == task then
+      state.chromeLaunchTask = nil
+    end
+    if state.currentRequest ~= request then
+      return
+    end
+    if exitCode ~= 0 then
+      failCurrent(
+        "Google Chrome could not be launched in the background",
+        standardError ~= "" and standardError or "The macOS application launcher failed"
+      )
+      return
+    end
+    waitForColdChromeBridge(request, targetScreen, startedAt)
+  end, arguments)
+
+  if not task then
+    failCurrent("Google Chrome could not be launched in the background")
+    return
+  end
+  state.chromeLaunchTask = task
+  if not task:start() then
+    state.chromeLaunchTask = nil
+    failCurrent("Google Chrome could not be launched in the background")
+  end
+end
+
 local function createTargetProfileWindow(request, targetScreen)
   if not chromeApplication() then
-    failCurrent(
-      "Google Chrome is not running",
-      "The Native Placement Bridge cannot create a guaranteed inactive window until Chrome is running"
-    )
+    launchChromeForNativePlacement(request, targetScreen)
     return
   end
 
@@ -1414,6 +1746,12 @@ end
 local function tryCandidate(request, targetScreen, candidates, index)
   local window = candidates[index]
   if not window then
+    if request.routeOnRegularSpace then
+      local routeOnRegularSpace = request.routeOnRegularSpace
+      request.routeOnRegularSpace = nil
+      routeOnRegularSpace()
+      return
+    end
     createTargetProfileWindow(request, targetScreen)
     return
   end
@@ -1453,10 +1791,29 @@ end
 
 local function routeOnTargetSpace(request, targetScreen)
   local candidates = eligibleChromeWindows(targetScreen, request.targetSpaceId)
-  tryCandidate(request, targetScreen, candidates, 1)
+  discoverCandidateProfiles(candidates, function()
+    tryCandidate(request, targetScreen, candidates, 1)
+  end)
 end
 
 local function processRequest(request)
+  if request.capturedSpaceType == "fullscreen" then
+    local screen = screenForUuid(request.screenUuid)
+    if not screen then
+      failCurrent("The target display is no longer connected")
+      return
+    end
+
+    request.targetSpaceId = request.capturedSpaceId
+    request.routeOnRegularSpace = function()
+      ensureTargetUserSpace(request, function(targetScreen)
+        routeOnTargetSpace(request, targetScreen)
+      end)
+    end
+    routeOnTargetSpace(request, screen)
+    return
+  end
+
   ensureTargetUserSpace(request, function(targetScreen)
     routeOnTargetSpace(request, targetScreen)
   end)
@@ -1538,12 +1895,11 @@ local function configureChromeWindowCache()
   state.chromeWindowFilter:subscribe(hs.window.filter.windowDestroyed, function(window)
     local windowId = window and window:id() or nil
     if windowId then
-      local recovery = state.createdWindowCloseRecovery[windowId]
-      state.createdWindowCloseRecovery[windowId] = nil
+      local recovery = clearCreatedWindowCloseRecovery(windowId)
       state.profileByWindow[windowId] = nil
       state.profileProbes[windowId] = nil
       if recovery then
-        repairCreatedWindowCloseFallback(recovery)
+        repairCreatedWindowCloseFallback(recovery, windowId)
       end
     end
   end)

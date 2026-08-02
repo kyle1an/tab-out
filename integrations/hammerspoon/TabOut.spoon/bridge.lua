@@ -64,6 +64,17 @@ local function validateCreateOptions(options, callback)
   assert(type(callback) == "function", "native bridge callback is required")
 end
 
+local function validateTimeoutOptions(options, callback)
+  assert(type(options) == "table", "native bridge request options are required")
+  assert(
+    finiteNumber(options.timeoutSeconds)
+      and options.timeoutSeconds > 0
+      and options.timeoutSeconds <= MAXIMUM_REQUEST_TIMEOUT_SECONDS,
+    "native bridge timeoutSeconds must be between 0 and 60"
+  )
+  assert(type(callback) == "function", "native bridge callback is required")
+end
+
 local function startRequest(client, payload, callback)
   if not client:isReady() then
     client.connected = false
@@ -100,7 +111,7 @@ local function startRequest(client, payload, callback)
     end
 
     client.connected = true
-    callback(response.status == "accepted", response.reason)
+    callback(response.status == "accepted", response.reason, response)
   end, { "--request", encoded })
 
   if not task then
@@ -147,6 +158,49 @@ function M.new(config)
       operation = options.operation,
       targetBounds = options.targetBounds,
     }, callback)
+  end
+
+  function client:listProfileWindows(options, callback)
+    validateTimeoutOptions(options, callback)
+
+    self.nextRequestId = self.nextRequestId + 1
+    local timestampMs = math.floor(hs.timer.secondsSinceEpoch() * 1000)
+    local requestId = string.format("hs-%d-%d", timestampMs, self.nextRequestId)
+    return startRequest(self, {
+      version = BRIDGE_VERSION,
+      type = "list-profile-windows",
+      requestId = requestId,
+      expiresAtMs = timestampMs + math.floor(options.timeoutSeconds * 1000),
+    }, function(accepted, requestError, response)
+      if not accepted then
+        callback(nil, requestError)
+        return
+      end
+
+      local windowIds = response and response.windowIds or nil
+      if type(windowIds) ~= "table" then
+        self.connected = false
+        callback(nil, "The native bridge returned an invalid profile-window inventory")
+        return
+      end
+
+      local validated = {}
+      local seen = {}
+      for _, windowId in ipairs(windowIds) do
+        if not finiteNumber(windowId)
+          or windowId <= 0
+          or windowId % 1 ~= 0
+          or seen[windowId]
+        then
+          self.connected = false
+          callback(nil, "The native bridge returned an invalid profile-window identity")
+          return
+        end
+        seen[windowId] = true
+        table.insert(validated, windowId)
+      end
+      callback(validated)
+    end)
   end
 
   function client:status()

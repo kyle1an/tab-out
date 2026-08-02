@@ -25,7 +25,17 @@ type NativePlacementStatusRequest = {
   version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
 }
 
-type NativePlacementBridgeRequest = NativePlacementRequest | NativePlacementStatusRequest
+type NativePlacementProfileWindowsRequest = {
+  expiresAtMs: number
+  requestId: string
+  type: 'list-profile-windows'
+  version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
+}
+
+type NativePlacementBridgeRequest =
+  | NativePlacementRequest
+  | NativePlacementProfileWindowsRequest
+  | NativePlacementStatusRequest
 
 export type NativePlacementBridgeResponse = {
   reason?: string
@@ -33,6 +43,7 @@ export type NativePlacementBridgeResponse = {
   status: 'accepted' | 'rejected'
   type: 'response'
   version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
+  windowIds?: number[]
 }
 
 function validRequestId(value: unknown): value is string {
@@ -62,14 +73,16 @@ function validTargetBounds(value: unknown): value is TargetDisplayBounds {
 function response(
   requestId: string,
   status: NativePlacementBridgeResponse['status'],
-  reason?: string
+  reason?: string,
+  windowIds?: number[]
 ): NativePlacementBridgeResponse {
   return {
     version: NATIVE_PLACEMENT_BRIDGE_VERSION,
     type: 'response',
     requestId,
     status,
-    ...(reason ? { reason } : {})
+    ...(reason ? { reason } : {}),
+    ...(windowIds ? { windowIds } : {})
   }
 }
 
@@ -102,6 +115,20 @@ export async function handleNativePlacementBridgeMessage(
 
   if (candidate.type === 'status') {
     return response(requestId, 'accepted')
+  }
+  if (candidate.type === 'list-profile-windows') {
+    try {
+      const windows = await chromeApi.windows.getAll({ windowTypes: ['normal'] })
+      const windowIds = windows
+        .filter((window) => window.type === 'normal' && window.state !== 'minimized')
+        .map((window) => window.id)
+        .filter((windowId): windowId is number => (
+          Number.isInteger(windowId) && (windowId ?? 0) > 0
+        ))
+      return response(requestId, 'accepted', undefined, windowIds)
+    } catch (error) {
+      return response(requestId, 'rejected', errorMessage(error))
+    }
   }
   if (candidate.type !== 'create-window') {
     return response(requestId, 'rejected', 'The native placement request type is unsupported')

@@ -55,6 +55,18 @@ Placement Bridge for inactive creation. Tab Out creates the new Chrome window
 with `focused: false` and its final target-display bounds in the same call.
 Existing unverified or other-profile Chrome windows do not block that fallback
 and are never focused by it.
+An unfocused window can be verified without bringing Chrome forward: the
+profile-scoped extension reports its normal window IDs, and the Spoon correlates
+them to a unique native window using Chrome AppleScript and Accessibility data.
+If the correlation is unavailable or ambiguous, the existing safe creation
+fallback remains in effect.
+
+If Chrome is stopped, the Spoon starts the configured profile in the background
+without a startup window, waits for the Native Placement Bridge to connect, and
+then performs the same directly placed creation. On a fullscreen Space, it
+reuses a verified Chrome window in place; otherwise it switches to an available
+regular Desktop on that display before creating the destination.
+
 Before creation, the Spoon snapshots only the target display into a
 non-focusable transition shield. It validates the new native window ID,
 privately focuses that exact window, focuses the destination control, and then
@@ -69,9 +81,10 @@ When closing a bridge-created window would otherwise promote another Chrome
 window, the Spoon handles the red close button, Command-Shift-W, and a
 single-tab Command-W before Chrome. It first restores the eligible non-Chrome
 window that was focused when the shortcut ran, then closes the created window.
-Command-W remains Chrome-owned when multiple tabs are present. Unhandled close
-paths receive best-effort final focus repair but may still show a transient
-remote Chrome frame.
+The prior window may be on the target display or another display; on the target
+display it must still be directly beneath the created window. Command-W remains
+Chrome-owned when multiple tabs are present. Unhandled close paths receive
+best-effort final focus repair but may still show a transient Chrome frame.
 
 The private helper uses undocumented WindowServer calls and is allowlisted only
 for the qualified macOS build `25F84`. Do not update the allowlist until both
