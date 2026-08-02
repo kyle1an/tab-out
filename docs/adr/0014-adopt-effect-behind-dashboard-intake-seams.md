@@ -82,6 +82,13 @@ its serialized Promise boundary. It adds 553 raw bytes (227 deterministic gzip
 bytes), bringing the app entry to 834,012 bytes; the background worker remains
 unchanged.
 
+The fifth slice replaces the manual Promise tail for Domain Card, section, and
+Page Chip pin transactions with an Effect `Semaphore`. One named operation now
+owns normalization, the cross-page Web Lock, read-modify-write persistence, and
+typed failure recovery. It adds 1,570 raw bytes (429 deterministic gzip bytes),
+bringing the app entry to 835,582 bytes; the background worker remains
+unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

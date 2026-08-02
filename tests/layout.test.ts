@@ -342,6 +342,16 @@ test('native tab highlighting owns its serialized browser workflow behind Effect
   assert.doesNotMatch(source, /async function run\(\)/)
 })
 
+test('dashboard pin transactions serialize their complete storage workflow with Effect', () => {
+  const source = readFileSync(new URL('../src/extension/storage-list-mutations.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runStorageListMutation = Effect\.fn/)
+  assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
+  assert.match(source, /mutationSemaphore\.withPermit/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /let mutationQueue = Promise\.resolve\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

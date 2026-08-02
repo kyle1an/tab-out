@@ -302,3 +302,33 @@ test('a storage write failure exposes the freshly read rollback value and later 
   assert.equal(recovered.ok, true)
   assert.deepEqual(stored, ['alpha.test', 'charlie.test'])
 })
+
+test('a rejected exclusive lock releases the local serializer for the next mutation', async () => {
+  let stored: string[] = []
+  let lockAttempts = 0
+  const store = createStorageListMutationStore<PinnedDomainMutation>({
+    adapter: {
+      read: async () => [...stored],
+      write: async (value) => {
+        stored = [...value]
+      },
+      runExclusive: async (task) => {
+        lockAttempts += 1
+        if (lockAttempts === 1) throw new Error('lock unavailable')
+        return task()
+      }
+    },
+    applyOperation: applyPinnedDomainMutation,
+    normalize: normalizePinnedDomains
+  })
+
+  const failed = await store.mutate({ type: 'set-pinned', domain: 'alpha.test', pinned: true })
+  assert.equal(failed.ok, false)
+  if (failed.ok) return
+  assert.equal(failed.currentValue, null)
+  assert.match(String(failed.error), /lock unavailable/)
+
+  const recovered = await store.mutate({ type: 'set-pinned', domain: 'bravo.test', pinned: true })
+  assert.equal(recovered.ok, true)
+  assert.deepEqual(stored, ['bravo.test'])
+})
