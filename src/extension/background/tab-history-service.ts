@@ -1,3 +1,5 @@
+import { Data, Effect, Semaphore } from 'effect'
+
 import {
   MAX_TAB_HISTORY,
   canonicalizeGlobalHistory,
@@ -59,6 +61,11 @@ type FocusAction = {
   openerTabId?: number
 }
 type CapturedTab = Promise<chrome.tabs.Tab | null>
+
+class TabHistoryTaskError extends Data.TaggedError('TabHistoryTaskError')<{
+  readonly cause: unknown
+}> {}
+
 /**
  * The browser state and history view are produced inside one serialized history
  * operation. Required tab/window reads reject together so callers never receive
@@ -156,7 +163,7 @@ function historyEntryMatchesTab(entry: { tabId: number; url: string }, tab: chro
 
 export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHistoryService {
   let tabHistoryCache: GlobalTabHistory | null = null
-  let tabHistoryQueue: Promise<void> = Promise.resolve()
+  const taskSemaphore = Semaphore.makeUnsafe(1)
   let browserStartupResetPending = false
   const trustedTabIds = new Set<number>()
 
@@ -232,13 +239,21 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
     return map
   }
 
-  function enqueueTabHistoryTask<T>(run: () => Promise<T>): Promise<T> {
-    const task = tabHistoryQueue.catch(() => {}).then(run)
-    tabHistoryQueue = task.then(
-      () => {},
-      () => {}
+  const runTabHistoryTask = Effect.fn('tabHistory.runTask')(function*<Value>(
+    task: () => Promise<Value>
+  ) {
+    return yield* Effect.tryPromise({
+      try: task,
+      catch: (cause) => new TabHistoryTaskError({ cause })
+    })
+  })
+
+  function enqueueTabHistoryTask<Value>(task: () => Promise<Value>): Promise<Value> {
+    return Effect.runPromise(
+      taskSemaphore.withPermit(runTabHistoryTask(task)).pipe(
+        Effect.catchTag('TabHistoryTaskError', (error) => Effect.fail(error.cause))
+      )
     )
-    return task
   }
 
   async function applyPendingBrowserStartupReset(): Promise<void> {

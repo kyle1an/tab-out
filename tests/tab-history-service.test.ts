@@ -256,10 +256,11 @@ test('history mutation retries persisted state after a transient initial storage
   }
   let readAttempts = 0
   let writeAttempts = 0
+  const readFailure = new Error('storage temporarily unavailable')
   const chromeApi = makeChromeApi({ tabs })
   chromeApi.storage.local.get = (async (key: string) => {
     readAttempts += 1
-    if (readAttempts === 1) throw new Error('storage temporarily unavailable')
+    if (readAttempts === 1) throw readFailure
     return { [key]: persisted }
   }) as typeof chromeApi.storage.local.get
   chromeApi.storage.local.set = async (entries: Record<string, unknown>) => {
@@ -268,7 +269,7 @@ test('history mutation retries persisted state after a transient initial storage
   }
   const service = createTabHistoryService(chromeApi)
 
-  await assert.rejects(service.recordTabActivation(1, 2), /temporarily unavailable/)
+  await assert.rejects(service.recordTabActivation(1, 2), (error) => error === readFailure)
   assert.equal(writeAttempts, 0)
   assert.deepEqual(persisted.stack.map((entry: any) => entry.tabId), [1])
 

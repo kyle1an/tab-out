@@ -376,6 +376,16 @@ test('closed-history dismissals serialize their complete storage transaction wit
   assert.doesNotMatch(source, /let mutationQueue = Promise\.resolve\(\)/)
 })
 
+test('background Tab History serializes complete browser and persistence tasks with Effect', () => {
+  const source = readFileSync(new URL('../src/extension/background/tab-history-service.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runTabHistoryTask = Effect\.fn/)
+  assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
+  assert.match(source, /taskSemaphore\.withPermit/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /let tabHistoryQueue: Promise<void> = Promise\.resolve\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

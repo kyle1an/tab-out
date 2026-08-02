@@ -105,11 +105,20 @@ timestamp pruning, dismiss/Undo conflict checks, persistence, and typed failure
 recovery. It adds 472 raw bytes (165 deterministic gzip bytes), bringing the
 app entry to 836,745 bytes; the background worker remains unchanged.
 
+The eighth slice begins deliberate worker adoption at the Tab History service.
+An Effect `Semaphore` now owns each complete history critical section across
+startup reset barriers, browser reads and focus operations, canonicalization,
+persistence, cache commits, and typed failure recovery. It adds 36,157 raw
+bytes (12,344 deterministic gzip bytes), bringing the worker entry to 277,895
+bytes; the app entry remains unchanged. This is intentionally an in-memory
+ordering mechanism only: persisted history remains the recovery authority
+across MV3 worker termination.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
-modules. The background worker remains Effect-free until a separate workflow
-proves enough leverage to pay for a second bundled runtime.
+modules. The background worker paid for its separate Effect runtime only when
+the Tab History critical section provided enough concurrency leverage.
 
 ## References
 
