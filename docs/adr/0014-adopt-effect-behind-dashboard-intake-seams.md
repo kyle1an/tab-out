@@ -171,6 +171,14 @@ restored tab identity before activation. It adds 743 raw bytes and 177
 deterministic gzip bytes, bringing the app entry to 842,785 raw bytes and
 265,767 deterministic gzip bytes; the worker entry remains unchanged.
 
+The fifteenth slice moves the complete Saved Pages action workflows behind
+named Effect operations and typed mutation and refresh failures. Save, remove,
+and toast Undo still expose Promise callbacks to the UI, while each workflow
+owns persistence, dashboard refresh, and the existing user-feedback branches.
+It adds 565 raw bytes and 130 deterministic gzip bytes, bringing the app entry
+to 843,350 raw bytes and 265,897 deterministic gzip bytes; the worker entry
+remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

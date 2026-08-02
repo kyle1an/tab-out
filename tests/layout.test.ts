@@ -457,6 +457,17 @@ test('Undo owns sequential partial restore and restoring cleanup behind Effect',
   assert.doesNotMatch(source, /async function undoClosure\(/)
 })
 
+test('Saved Page actions own mutation, refresh, and Undo failure branches behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/saved-page-actions.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runSavePageTarget = Effect\.fn/)
+  assert.match(source, /const runRemoveSavedPageTarget = Effect\.fn/)
+  assert.match(source, /const runRestoreSavedPage = Effect\.fn/)
+  assert.match(source, /Effect\.result\(Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runSavePageTarget\(target\)\)/)
+  assert.doesNotMatch(source, /async function savePageTarget\(/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
