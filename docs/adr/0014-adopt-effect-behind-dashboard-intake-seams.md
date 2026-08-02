@@ -1,4 +1,4 @@
-# ADR 0014: Adopt Effect Behind Dashboard Intake Seams
+# ADR 0014: Adopt Effect Behind Async Ownership Seams
 
 - Status: Accepted
 - Date: 2026-08-02
@@ -35,6 +35,10 @@ matter to a frequently opened new-tab page.
 - Begin with Dashboard Intake source switching. One Effect fiber owns each
   source-switch attempt, context-change retry, and final dispatch; a newer
   source choice interrupts the previous fiber.
+- Continue outside Dashboard Intake only where one module already owns a
+  complete concurrency or resource lifecycle. The native-tab highlight
+  controller qualifies because it serializes and coalesces browser reads and
+  mutations while preserving user-owned native selections.
 - Keep that complete workflow in the app entry instead of introducing an
   asynchronous runtime-loader seam solely to satisfy a raw-byte threshold.
 - Remove fixed bundle-size assertions from the build test. Continue recording
@@ -71,6 +75,12 @@ Replacing or stopping that workflow now interrupts its owned delay/read fiber,
 cancels pending timers, and releases the Chrome subscription through scope
 finalization. It adds 5,321 raw bytes (1,767 deterministic gzip bytes), bringing
 the app entry to 833,459 bytes; the background worker remains unchanged.
+
+The fourth slice moves the complete native-tab highlight reconciliation flight
+behind named Effect operations and a typed browser-error channel while keeping
+its serialized Promise boundary. It adds 553 raw bytes (227 deterministic gzip
+bytes), bringing the app entry to 834,012 bytes; the background worker remains
+unchanged.
 
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is

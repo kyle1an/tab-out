@@ -332,6 +332,16 @@ test('recently closed rows do not fetch independently before initial dashboard r
   assert.match(closedTabsStarter[0], /Effect\.runCallback\(Effect\.scoped\(runClosedTabUpdates\(\)\)\)/)
 })
 
+test('native tab highlighting owns its serialized browser workflow behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/native-tab-highlight.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runNativeTabHighlightRequests = Effect\.fn/)
+  assert.match(source, /const reconcileNativeTabHighlight = Effect\.fn/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runNativeTabHighlightRequests\(\)\)/)
+  assert.doesNotMatch(source, /async function run\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

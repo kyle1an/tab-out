@@ -196,3 +196,28 @@ test('targets in windows without a normal tab rail are ignored', async () => {
   await controller.setTarget(21)
   assert.deepEqual(harness.calls, [])
 })
+
+test('a rejected browser read does not wedge later highlight requests', async () => {
+  const tabs = [
+    fakeTab(1, 1, 0, { active: true }),
+    fakeTab(2, 1, 1),
+    fakeTab(3, 1, 2)
+  ]
+  const harness = createHarness(tabs, [fakeWindow(1, 'normal', true)])
+  let rejectNextRead = true
+  const controller = createNativeTabHighlightController({
+    ...harness.dependencies,
+    getTab(tabId) {
+      if (rejectNextRead) {
+        rejectNextRead = false
+        return Promise.reject(new Error('transient tab read failure'))
+      }
+      return harness.dependencies.getTab(tabId)
+    }
+  })
+
+  await controller.setTarget(2)
+  await controller.setTarget(3)
+
+  assert.deepEqual(harness.calls, [{ windowId: 1, tabIndexes: [0, 2] }])
+})
