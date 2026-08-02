@@ -163,6 +163,14 @@ to 842,042 raw bytes and 265,590 deterministic gzip bytes. The shared module
 adds 1,137 raw bytes and 314 deterministic gzip bytes to the worker entry,
 bringing it to 285,986 raw bytes and 95,263 deterministic gzip bytes.
 
+The fourteenth slice moves the complete Undo restore state machine behind
+named Effect operations. A bracket now owns the `restoring` guard, tabs are
+recreated sequentially in tab-strip order, partial failures remain retryable,
+group restoration stays best-effort, and delayed Switch actions revalidate the
+restored tab identity before activation. It adds 743 raw bytes and 177
+deterministic gzip bytes, bringing the app entry to 842,785 raw bytes and
+265,767 deterministic gzip bytes; the worker entry remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

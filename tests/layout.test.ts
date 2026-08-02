@@ -446,6 +446,17 @@ test('closed-tab restore owns suppression cleanup through an Effect bracket', ()
   assert.doesNotMatch(source, /export async function restoreClosedTab/)
 })
 
+test('Undo owns sequential partial restore and restoring cleanup behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/undo.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runUndoClosure = Effect\.fn/)
+  assert.match(source, /const restoreSnapshotTab = Effect\.fn/)
+  assert.match(source, /Effect\.acquireUseRelease/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runUndoClosure\(closure\)/)
+  assert.doesNotMatch(source, /async function undoClosure\(/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

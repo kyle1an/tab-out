@@ -1476,6 +1476,36 @@ test('undoLastClose restores same-window tabs in their original tab-strip order'
   assert.equal(tabs.find((tab) => tab.url === 'https://delta.example/')?.index, 3)
 })
 
+test('undoLastClose ignores a second request while the same closure is restoring', async () => {
+  const { calls } = createChromeMock([
+    { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 }
+  ])
+  const createTab = (globalThis as any).chrome.tabs.create.bind((globalThis as any).chrome.tabs)
+  const { promise: restoreBlocked, resolve: releaseRestore } = Promise.withResolvers<void>()
+  const { promise: restoreStarted, resolve: markRestoreStarted } = Promise.withResolvers<void>()
+  ;(globalThis as any).chrome.tabs.create = async (createProperties: chrome.tabs.CreateProperties) => {
+    markRestoreStarted()
+    await restoreBlocked
+    return createTab(createProperties)
+  }
+  markClosure([{
+    url: 'https://restored.example.test/',
+    title: 'Restored',
+    pinned: false,
+    groupId: -1,
+    windowId: 1,
+    index: 1
+  }])
+
+  const firstUndo = undoLastClose()
+  await restoreStarted
+  await undoLastClose()
+  releaseRestore()
+  await firstUndo
+
+  assert.equal(calls.create.filter(({ url }) => url === 'https://restored.example.test/').length, 1)
+})
+
 test('undoLastClose retries without a stale window id when the original window is gone', async () => {
   const { calls, tabs } = createChromeMock([
     { id: 1, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true, pinned: false, groupId: -1, index: 0 }
