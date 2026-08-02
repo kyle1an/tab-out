@@ -133,6 +133,15 @@ Working Set serializer adds 20 raw bytes (63 deterministic gzip bytes),
 bringing the worker entry to 283,437 bytes. Session and durable storage remain
 the recovery authorities across MV3 worker termination.
 
+The eleventh slice moves the toolbar badge's complete latest-wins refresh loop
+behind named Effect operations and typed browser-read and presentation-write
+failures. Burst coalescing still exposes one shared Promise to Chrome event
+listeners, while the Effect workflow owns browser reads, supersession checks,
+write deduplication, and retryable partial failures. It adds 1,001 raw bytes
+while deterministic gzip size decreases by 145 bytes, bringing the worker
+entry to 284,438 raw bytes and 94,852 deterministic gzip bytes; the app entry
+remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

@@ -1,3 +1,5 @@
+import { Data, Effect, Result } from 'effect'
+
 import type { ChromeApi } from './chrome-api.js'
 import { buildOpenTabDedupePlan } from '../open-tab-dedupe-plan.js'
 
@@ -10,6 +12,14 @@ type BadgePresentation = {
 export type BadgeRefreshService = {
   refresh: () => Promise<void>
 }
+
+class BadgeBrowserReadError extends Data.TaggedError('BadgeBrowserReadError')<{
+  readonly cause: unknown
+}> {}
+
+class BadgePresentationWriteError extends Data.TaggedError('BadgePresentationWriteError')<{
+  readonly cause: unknown
+}> {}
 
 /**
  * Counts tabs that the global dedupe action can safely close and updates the
@@ -34,43 +44,62 @@ export function createBadgeRefreshService(chromeApi: ChromeApi = chrome): BadgeR
   let appliedColor: string | null = null
   let appliedTitle: string | null = null
 
-  async function applyPresentation(presentation: BadgePresentation, version: number): Promise<void> {
+  const readBadgePresentation = Effect.fn('badge.readPresentation')(function*() {
+    const [tabs, currentWindow] = yield* Effect.tryPromise({
+      try: () => Promise.all([
+        chromeApi.tabs.query({}),
+        chromeApi.windows.getCurrent()
+      ]),
+      catch: (cause) => new BadgeBrowserReadError({ cause })
+    })
+    if (currentWindow.id == null) {
+      return yield* Effect.fail(new BadgeBrowserReadError({
+        cause: new Error('Current window unavailable')
+      }))
+    }
+    return badgePresentationForTabs(tabs, currentWindow.id)
+  })
+
+  const applyBadgePresentation = Effect.fn('badge.applyPresentation')(function*(
+    presentation: BadgePresentation,
+    version: number
+  ) {
     if (presentation.text !== appliedText) {
-      try {
-        await chromeApi.action.setBadgeText({ text: presentation.text })
-        appliedText = presentation.text
-      } catch {
-        return
-      }
+      const writeResult = yield* Effect.result(Effect.tryPromise({
+        try: () => chromeApi.action.setBadgeText({ text: presentation.text }),
+        catch: (cause) => new BadgePresentationWriteError({ cause })
+      }))
+      if (Result.isFailure(writeResult)) return
+      appliedText = presentation.text
     }
 
     if (version !== requestedVersion) return
-    if (presentation.color != null && presentation.color !== appliedColor) {
-      try {
-        await chromeApi.action.setBadgeBackgroundColor({ color: presentation.color })
-        appliedColor = presentation.color
-      } catch {}
+    const color = presentation.color
+    if (color != null && color !== appliedColor) {
+      const writeResult = yield* Effect.result(Effect.tryPromise({
+        try: () => chromeApi.action.setBadgeBackgroundColor({ color }),
+        catch: (cause) => new BadgePresentationWriteError({ cause })
+      }))
+      if (Result.isSuccess(writeResult)) {
+        appliedColor = color
+      }
     }
 
     if (version !== requestedVersion || presentation.title === appliedTitle) return
-    try {
-      await chromeApi.action.setTitle({ title: presentation.title })
+    const writeResult = yield* Effect.result(Effect.tryPromise({
+      try: () => chromeApi.action.setTitle({ title: presentation.title }),
+      catch: (cause) => new BadgePresentationWriteError({ cause })
+    }))
+    if (Result.isSuccess(writeResult)) {
       appliedTitle = presentation.title
-    } catch {}
-  }
+    }
+  })
 
-  async function runRefreshLoop(): Promise<void> {
+  const runBadgeRefreshLoop = Effect.fn('badge.runRefreshLoop')(function*() {
     while (true) {
       const version = requestedVersion
-      let presentation: BadgePresentation
-      try {
-        const [tabs, currentWindow] = await Promise.all([
-          chromeApi.tabs.query({}),
-          chromeApi.windows.getCurrent()
-        ])
-        if (currentWindow.id == null) throw new Error('Current window unavailable')
-        presentation = badgePresentationForTabs(tabs, currentWindow.id)
-      } catch {
+      const readResult = yield* Effect.result(readBadgePresentation())
+      if (Result.isFailure(readResult)) {
         // A failed browser-state read is unknown, not a real zero-tab
         // snapshot. Preserve the last visible badge until a later event can
         // prove a replacement count.
@@ -79,22 +108,20 @@ export function createBadgeRefreshService(chromeApi: ChromeApi = chrome): BadgeR
       }
 
       if (version !== requestedVersion) continue
-      await applyPresentation(presentation, version)
+      yield* applyBadgePresentation(readResult.success, version)
       if (version === requestedVersion) return
     }
-  }
-
-  async function clearInFlightWhenSettled(run: Promise<void>): Promise<void> {
-    await run
-    if (inFlight === run) inFlight = null
-  }
+  })
 
   function refresh(): Promise<void> {
     requestedVersion += 1
     if (inFlight) return inFlight
-    const run = runRefreshLoop()
+    const run = Effect.runPromise(runBadgeRefreshLoop())
     inFlight = run
-    void clearInFlightWhenSettled(run)
+    const clearFlight = () => {
+      if (inFlight === run) inFlight = null
+    }
+    void run.then(clearFlight, clearFlight)
     return run
   }
 

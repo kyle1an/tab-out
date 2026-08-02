@@ -125,6 +125,39 @@ test('badge refresh preserves its last presentation when the tab read fails', as
   assert.deepEqual(badgeTitles, ['Dedupe 4 duplicate tabs'])
 })
 
+test('badge refresh retries a presentation whose text write failed', async () => {
+  const badgeText: string[] = []
+  const badgeColors: string[] = []
+  const badgeTitles: string[] = []
+  let textWriteCount = 0
+  const chromeApi = {
+    tabs: {
+      query: async () => duplicateTabs(5)
+    },
+    windows: {
+      getCurrent: async () => ({ id: 1 })
+    },
+    action: {
+      setBadgeText: async ({ text }: { text: string }) => {
+        textWriteCount += 1
+        if (textWriteCount === 1) throw new Error('Badge unavailable')
+        badgeText.push(text)
+      },
+      setBadgeBackgroundColor: async ({ color }: { color: string }) => { badgeColors.push(color) },
+      setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
+    }
+  } as unknown as ChromeApi
+  const service = createBadgeRefreshService(chromeApi)
+
+  await service.refresh()
+  await service.refresh()
+
+  assert.equal(textWriteCount, 2)
+  assert.deepEqual(badgeText, ['5'])
+  assert.deepEqual(badgeColors, ['#3d7a4a'])
+  assert.deepEqual(badgeTitles, ['Dedupe 5 duplicate tabs'])
+})
+
 test('badge hides at zero and explains that there is nothing to dedupe', async () => {
   const badgeText: string[] = []
   const badgeColors: string[] = []

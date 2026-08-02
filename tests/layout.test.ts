@@ -416,6 +416,16 @@ test('startup snapshot cache serializes its complete shared-lock transaction wit
   assert.doesNotMatch(source, /let startupSnapshotCacheMutationQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 
+test('background badge owns its latest-wins browser workflow behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/background/badge.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runBadgeRefreshLoop = Effect\.fn/)
+  assert.match(source, /const applyBadgePresentation = Effect\.fn/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runBadgeRefreshLoop\(\)\)/)
+  assert.doesNotMatch(source, /async function runRefreshLoop\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
