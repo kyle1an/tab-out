@@ -103,6 +103,10 @@ class DashboardClosedTabsFetchError extends Data.TaggedError('DashboardClosedTab
   readonly cause: unknown
 }> {}
 
+class DashboardStartupSnapshotFetchError extends Data.TaggedError('DashboardStartupSnapshotFetchError')<{
+  readonly cause: unknown
+}> {}
+
 export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
   let inFlight: Promise<void> | null = null
   let latestRequest: LatestRefreshRequest<T> | null = null
@@ -327,18 +331,26 @@ async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptio
   return snapshot
 }
 
-export async function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {
+const runDashboardStartupSnapshot = Effect.fn('dashboardIntake.fetchStartupSnapshot')(function*(
+  options: DashboardSnapshotOptions
+) {
+  return yield* Effect.tryPromise({
+    try: () => fetchDashboardStartupSnapshotOnce(options),
+    catch: (cause) => new DashboardStartupSnapshotFetchError({ cause })
+  })
+})
+
+export function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {
   const key = startupSnapshotFlightKey(options)
   if (startupSnapshotFlight?.key === key) return startupSnapshotFlight.promise
 
   const id = {}
-  const promise = (async () => {
-    try {
-      return await fetchDashboardStartupSnapshotOnce(options)
-    } finally {
+  const promise = Effect.runPromise(runDashboardStartupSnapshot(options).pipe(
+    Effect.ensuring(Effect.sync(() => {
       if (startupSnapshotFlight?.id === id) startupSnapshotFlight = null
-    }
-  })()
+    })),
+    Effect.catchTag('DashboardStartupSnapshotFetchError', (error) => Effect.fail(error.cause))
+  ))
   startupSnapshotFlight = { id, key, promise }
   return promise
 }

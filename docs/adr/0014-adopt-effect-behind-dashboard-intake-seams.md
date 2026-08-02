@@ -196,6 +196,13 @@ publishes one atomic startup update. It adds 929 raw bytes and 264 deterministic
 gzip bytes, bringing the app entry to 844,279 raw bytes and 266,161
 deterministic gzip bytes; the worker entry remains unchanged.
 
+The eighteenth slice moves the page-side startup snapshot coalescer behind a
+named Effect operation and typed fetch failure. Same-key callers still share
+one Promise, distinct keys may run concurrently, and an Effect finalizer now
+releases only the flight it owns after success or failure. It adds 250 raw
+bytes and 38 deterministic gzip bytes, bringing the app entry to 844,529 raw
+bytes and 266,199 deterministic gzip bytes; the worker entry remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

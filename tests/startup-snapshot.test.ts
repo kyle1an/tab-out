@@ -2486,6 +2486,9 @@ test('tabs refresh rejects unknown required state instead of committing an empty
   }
   await assert.rejects(fetchDashboardSnapshot(options), /current browser window/)
   await assert.rejects(fetchDashboardStartupSnapshot(options), /current browser window/)
+
+  ;(globalThis as any).chrome = baseChrome
+  await assert.doesNotReject(fetchDashboardStartupSnapshot(options))
 })
 
 test('bookmarks refresh does not wait on hidden Activation History or Working Set state', async () => {

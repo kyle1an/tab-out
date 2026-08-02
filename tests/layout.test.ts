@@ -182,7 +182,7 @@ test('startup snapshot updates dashboard and history rows atomically', () => {
   assert.match(intakeSource, /workingSet: snapshot\?\.workingSet \?\? null/)
   assert.doesNotMatch(intakeSource, /sourceFieldsUpdatedBeforeStartup/)
   assert.match(intakeSource, /case 'startupSnapshot': \{[\s\S]*const sourceSnapshotFields = appDashboardSnapshotFields\(action\.snapshot\)[\s\S]*state\.sourceRequestId !== state\.sourceAppliedRequestId[\s\S]*deferredStartupSourceFields: sourceSnapshotFields/)
-  assert.match(intakeSource, /export async function fetchDashboardStartupSnapshot/)
+  assert.match(intakeSource, /export function fetchDashboardStartupSnapshot/)
   assert.match(intakeSource, /fetchClosedTabs/)
   assert.match(intakeSource, /buildWorkingSetSnapshot/)
   assert.match(intakeSource, /fetchDashboardServiceState/)
@@ -470,6 +470,16 @@ test('Saved Page actions own mutation, refresh, and Undo failure branches behind
   assert.match(source, /Effect\.result\(Effect\.tryPromise/)
   assert.match(source, /Effect\.runPromise\(runSavePageTarget\(target\)\)/)
   assert.doesNotMatch(source, /async function savePageTarget\(/)
+})
+
+test('page startup snapshot coalesces its complete flight behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runDashboardStartupSnapshot = Effect\.fn/)
+  assert.match(source, /Effect\.ensuring\(/)
+  assert.match(source, /Effect\.runPromise\(runDashboardStartupSnapshot\(/)
+  assert.match(source, /startupSnapshotFlight = \{ id, key, promise \}/)
+  assert.doesNotMatch(source, /export async function fetchDashboardStartupSnapshot\(/)
 })
 
 test('native placement requests own validation and browser operations behind Effect', () => {
