@@ -352,6 +352,20 @@ test('dashboard pin transactions serialize their complete storage workflow with 
   assert.doesNotMatch(source, /let mutationQueue = Promise\.resolve\(\)/)
 })
 
+test('Saved Pages serializes each read-modify-write transaction with Effect', () => {
+  const source = readFileSync(new URL('../src/extension/saved-pages-mutations.ts', import.meta.url), 'utf8')
+  const sharedSource = readFileSync(new URL('../src/extension/saved-pages.ts', import.meta.url), 'utf8')
+  const sharedRenderSource = readFileSync(new URL('../src/extension/render.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runSavedPagesMutation = Effect\.fn/)
+  assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
+  assert.match(source, /mutationSemaphore\.withPermit/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /let mutationQueue = Promise\.resolve\(\)/)
+  assert.doesNotMatch(sharedSource, /from 'effect'/)
+  assert.doesNotMatch(sharedRenderSource, /saved-pages-mutations/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

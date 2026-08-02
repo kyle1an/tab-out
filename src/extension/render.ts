@@ -5,8 +5,6 @@
    view-model derivation, while the component tree mounts elsewhere.
 
    Exports:
-   • fetchDashboardData — refreshes chrome.tabs state and returns the
-                          current { realTabs, domainGroups } snapshot
    • buildDomainGroups — group tabs into domain cards
    • buildDashboardViewModel — one-pass derivation for header stats,
                                global actions, and prebuilt card VMs
@@ -15,9 +13,8 @@
    ================================================================ */
 
 import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
-import { fetchOpenTabsSnapshot, getDashboardTabsFromOpenTabs } from './tabs.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, persistSavedPageMetadataUpdates, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
@@ -57,7 +54,7 @@ type DashboardViewModelOptions = {
   pinnedSections?: ReadonlySet<string>
   pinnedPageChips?: PinnedPageChipIndex
 }
-type FetchDashboardDataOptions = {
+export type BuildDashboardDataOptions = {
   pinnedDomains?: string[]
   bookmarkPreviousOrder?: Map<string, number>
   historyPreviousOrder?: Map<string, number>
@@ -66,13 +63,10 @@ type FetchDashboardDataOptions = {
   searchQuery?: string
   historyRange?: string
   historySearchStatus?: HistorySearchStatus
-  dashboardTabs?: DashboardTab[]
   bookmarkTabs?: DashboardTab[]
   historyTabs?: DashboardTab[]
-  currentWindowId?: number | null
   savedPagesStore?: SavedPagesStore
 }
-
 export function buildDashboardViewModel({ realTabs, domainGroups: groups = [], filter = '', source = 'tabs', currentWindowId = null, chipOrder, chipPriority, pinnedSections, pinnedPageChips }: DashboardViewModelOptions): DashboardViewModel {
   const filterQuery = compileFilterQuery(filter)
   const filtering = filterQuery.active
@@ -175,16 +169,6 @@ export async function getCurrentWindowIdResult(): Promise<BrowserReadResult<numb
   return { ok: true, value: currentWindowId as number }
 }
 
-async function getCurrentWindowId(): Promise<number | null> {
-  return (await getCurrentWindowIdResult()).value
-}
-
-async function dashboardTabsForData(dashboardTabs?: DashboardTab[]): Promise<DashboardTab[]> {
-  if (dashboardTabs) return dashboardTabs
-  const openTabsSnapshot = await fetchOpenTabsSnapshot()
-  return getDashboardTabsFromOpenTabs(openTabsSnapshot)
-}
-
 function dashboardItemIdentityKey(tab: Pick<DashboardTab, 'url' | 'rawUrl'>): string {
   return savedPageKeyForUrl(unwrapSuspenderUrl(tab.url || tab.rawUrl || ''))
 }
@@ -245,7 +229,7 @@ export async function buildDashboardDataFromTabs(
     bookmarkTabs = [],
     historyTabs = [],
     savedPagesStore
-  }: FetchDashboardDataOptions = {}
+  }: BuildDashboardDataOptions = {}
 ): Promise<DashboardDataBuild> {
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
   const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
@@ -274,78 +258,4 @@ export async function buildDashboardDataFromTabs(
     },
     savedPageUpdates: { base: resolvedSavedPagesStore, merged: savedPagesMerge.store }
   }
-}
-
-/**
- * fetchDashboardData() — refresh chrome.tabs state and return the
- * current dashboard snapshot consumed by the React App root.
- *
- * @param {Map<string, number>} [previousOrder]
- * @param {DashboardSource} [source]
- * @param {{ pinnedDomains?: string[], bookmarkPreviousOrder?: Map<string, number>, historyPreviousOrder?: Map<string, number>, includeBookmarkMatches?: boolean, includeHistoryMatches?: boolean, searchQuery?: string, historyRange?: string }} [opts]
- * @returns {Promise<Required<DashboardData>>}
- */
-export async function fetchDashboardData(
-  previousOrder: Map<string, number> = new Map(),
-  source: DashboardSource = 'tabs',
-  {
-    pinnedDomains = [],
-    bookmarkPreviousOrder = new Map(),
-    historyPreviousOrder = new Map(),
-    includeBookmarkMatches = false,
-    includeHistoryMatches = false,
-    searchQuery = '',
-    historyRange = DEFAULT_HISTORY_RANGE,
-    historySearchStatus = 'ready',
-    dashboardTabs,
-    bookmarkTabs = [],
-    historyTabs = [],
-    currentWindowId,
-    savedPagesStore
-  }: FetchDashboardDataOptions = {}
-): Promise<Required<DashboardData>> {
-  if (source === 'bookmarks') {
-    const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
-    const realTabs = annotateSavedPageHints(bookmarkTabs, resolvedSavedPagesStore)
-    const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains })
-    return {
-      realTabs,
-      domainGroups,
-      currentWindowId: null,
-      bookmarkTabs: [],
-      bookmarkDomainGroups: [],
-      bookmarkSearchReady: false,
-      historyTabs: [],
-      historyDomainGroups: [],
-      historySearchQuery: '',
-      historyRange: DEFAULT_HISTORY_RANGE,
-      historySearchStatus: 'idle',
-      // savedKeys is sourced from the pre-merge store here; the history panel only
-      // renders in the 'tabs' source, and merging never changes the saved-page key
-      // set (it only updates record fields), so the keys match the tabs branch.
-      savedKeys: savedPageKeysFromStore(resolvedSavedPagesStore)
-    }
-  }
-
-  const [resolvedDashboardTabs, resolvedCurrentWindowId] = await Promise.all([
-    dashboardTabsForData(dashboardTabs),
-    currentWindowId === undefined ? getCurrentWindowId() : Promise.resolve(currentWindowId)
-  ])
-  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(resolvedDashboardTabs, resolvedCurrentWindowId, previousOrder, {
-    pinnedDomains,
-    bookmarkPreviousOrder,
-    historyPreviousOrder,
-    includeBookmarkMatches,
-    includeHistoryMatches,
-    searchQuery,
-    historyRange,
-    historySearchStatus,
-    bookmarkTabs,
-    historyTabs,
-    ...(savedPagesStore === undefined ? {} : { savedPagesStore })
-  })
-  // Page fetchers are the only Saved Pages metadata writers; builds stay pure
-  // and the worker discards its copy of these updates.
-  void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
-  return dashboard
 }

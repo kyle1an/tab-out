@@ -1,11 +1,11 @@
 import { requestDashboardRefresh } from './dashboard-intake.js'
 import {
   addSavedPageToStore,
-  mutateSavedPagesStore,
   removeSavedPageFromStore,
   restoreSavedPageToStore,
   type SavedPageRecord
 } from './saved-pages.js'
+import { mutateSavedPagesStore } from './saved-pages-mutations.js'
 import { showToast } from './toast.js'
 import type { DashboardTab } from './types'
 
