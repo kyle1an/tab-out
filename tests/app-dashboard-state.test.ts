@@ -369,6 +369,29 @@ test('a source switch retries with the latest intake context before applying', a
   assert.equal(store.read().dashboard, latestDashboard)
 })
 
+test('a failed source switch restores the active source and reports the failure', async () => {
+  const toasts: string[] = []
+  const store = createAppDashboardStore({
+    fetchDashboardSnapshot: () => Promise.reject(new Error('source unavailable')),
+    showToast: (message) => toasts.push(message)
+  })
+  store.setRefreshInputs({
+    filter: '',
+    localStateLoaded: true,
+    pinnedDomains: [],
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+  })
+
+  assert.equal(store.switchSource('bookmarks'), 1)
+  assert.equal(store.read().sourceSelection, 'bookmarks')
+
+  await flushAsyncWork()
+
+  assert.equal(store.read().source, 'tabs')
+  assert.equal(store.read().sourceSelection, 'tabs')
+  assert.deepEqual(toasts, ['Could not switch source'])
+})
+
 test('closed-tab intake waits for restore settlement and ignores an overtaken read', async () => {
   let suppressionRemainingMs = Number.POSITIVE_INFINITY
   let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null

@@ -8,6 +8,8 @@
    layer consumes it through the intake store's React adapter.
    ================================================================ */
 
+import { Data, Effect, Result } from 'effect'
+
 import {
   closedTabFetchSuppressionRemainingMs,
   fetchClosedTabsResult,
@@ -86,6 +88,10 @@ export type DashboardRefreshContext = {
   pinnedDomains: readonly string[]
   source: DashboardSource
 }
+
+class DashboardSourceFetchError extends Data.TaggedError('DashboardSourceFetchError')<{
+  readonly cause: unknown
+}> {}
 
 export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
   let inFlight: Promise<void> | null = null
@@ -666,6 +672,10 @@ export function createAppDashboardStore({
   let animatedRefreshPending = false
   let historySearchPendingRevision = 0
   let sourceSwitchSequence = 0
+  let activeSourceSwitch: {
+    readonly id: object
+    interrupt: () => void
+  } | null = null
   let closedTabsSequence = 0
   let closedTabsRetryTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -735,30 +745,47 @@ export function createAppDashboardStore({
     }
   }
 
-  async function runSourceSwitch(requestId: number, nextSource: DashboardSource): Promise<void> {
-    while (requestId === sourceSwitchSequence) {
-      const inputs = refreshInputs
-      if (!inputs) {
-        dispatch({ type: 'sourceRequestFailed', requestId })
-        showSourceSwitchToast('Could not switch source')
-        return
-      }
-      const requestContext: DashboardRefreshContext = {
-        ...refreshContextFromInputs(inputs, nextSource),
-        pinnedDomains: [...inputs.pinnedDomains]
-      }
-      try {
-        // react-doctor-disable-next-line react-doctor/async-defer-await, react-doctor/async-await-in-loop -- each retry supersedes stale page inputs, so the next fetch starts only after the previous result is rejected.
-        const snapshot = await fetchSourceSwitchSnapshot({
-          source: nextSource,
-          filter: requestContext.filter,
-          historyRange: requestContext.historyRange,
-          historyFilterEnabled: requestContext.historyFilterEnabled,
-          pinnedDomains: [...requestContext.pinnedDomains],
-          previousOrder: inputs.previousOrder
-        })
-        if (requestId !== sourceSwitchSequence) return
+  function failSourceSwitch(requestId: number): void {
+    dispatch({ type: 'sourceRequestFailed', requestId })
+    showSourceSwitchToast('Could not switch source')
+  }
+
+  function runSourceSwitch(requestId: number, nextSource: DashboardSource): Effect.Effect<void> {
+    return Effect.gen(function*() {
+      while (true) {
+        const inputs = refreshInputs
+        if (!inputs) {
+          failSourceSwitch(requestId)
+          return
+        }
+        const requestContext: DashboardRefreshContext = {
+          ...refreshContextFromInputs(inputs, nextSource),
+          pinnedDomains: [...inputs.pinnedDomains]
+        }
+        const result = yield* Effect.result(Effect.tryPromise({
+          try: () => fetchSourceSwitchSnapshot({
+            source: nextSource,
+            filter: requestContext.filter,
+            historyRange: requestContext.historyRange,
+            historyFilterEnabled: requestContext.historyFilterEnabled,
+            pinnedDomains: [...requestContext.pinnedDomains],
+            previousOrder: inputs.previousOrder
+          }),
+          catch: (cause) => new DashboardSourceFetchError({ cause })
+        }))
         const latestInputs = refreshInputs
+        if (Result.isFailure(result)) {
+          if (
+            latestInputs &&
+            !dashboardRefreshContextMatches(
+              requestContext,
+              refreshContextFromInputs(latestInputs, nextSource),
+              false
+            )
+          ) continue
+          failSourceSwitch(requestId)
+          return
+        }
         if (
           !latestInputs ||
           !dashboardRefreshContextMatches(
@@ -767,6 +794,7 @@ export function createAppDashboardStore({
             false
           )
         ) continue
+        const snapshot = result.success
         emitBeforeApply({ reason: 'source-switch', requestId })
         dispatch({
           type: 'sourceSnapshot',
@@ -777,36 +805,50 @@ export function createAppDashboardStore({
           ...(snapshot.workingSet === undefined ? {} : { workingSet: snapshot.workingSet })
         })
         return
-      } catch {
-        if (requestId !== sourceSwitchSequence) return
-        const latestInputs = refreshInputs
-        if (
-          latestInputs &&
-          !dashboardRefreshContextMatches(
-            requestContext,
-            refreshContextFromInputs(latestInputs, nextSource),
-            false
-          )
-        ) continue
-        dispatch({ type: 'sourceRequestFailed', requestId })
-        showSourceSwitchToast('Could not switch source')
-        return
       }
+    })
+  }
+
+  function interruptActiveSourceSwitch(): void {
+    const active = activeSourceSwitch
+    activeSourceSwitch = null
+    active?.interrupt()
+  }
+
+  function startSourceSwitch(requestId: number, nextSource: DashboardSource): void {
+    const id = {}
+    const active = {
+      id,
+      interrupt: () => {}
     }
+    activeSourceSwitch = active
+    active.interrupt = Effect.runCallback(runSourceSwitch(requestId, nextSource), {
+      onExit: () => {
+        if (activeSourceSwitch?.id === id) activeSourceSwitch = null
+      }
+    })
   }
 
   function switchSource(nextSource: DashboardSource): number | null {
     if (nextSource === state.sourceSelection) return null
     sourceSwitchSequence += 1
     const requestId = sourceSwitchSequence
+    interruptActiveSourceSwitch()
     if (nextSource === state.source) {
       dispatch({ type: 'sourceRequestCancelled' })
       return null
     }
     dispatch({ type: 'sourceRequest', requestId, source: nextSource })
-    void runSourceSwitch(requestId, nextSource)
+    startSourceSwitch(requestId, nextSource)
     return requestId
   }
+
+  /*
+   * Effect owns the source-switch lifecycle above: a later request interrupts
+   * the previous fiber, and only the surviving fiber may retry or dispatch.
+   * Keep the Promise-based browser adapters and the store interface at this
+   * seam so React callers do not need to understand Effect runtime types.
+   */
 
   async function refresh({
     animateCards = false,
