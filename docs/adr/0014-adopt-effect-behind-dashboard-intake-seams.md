@@ -99,6 +99,12 @@ bytes), bringing the app entry to 836,273 bytes. The cleaner entry boundary
 also removes 1,129 raw bytes (425 deterministic gzip bytes) of unused page code
 from the worker, bringing it to 241,738 bytes while keeping it Effect-free.
 
+The seventh slice replaces the closed-history dismissal Promise tail with an
+Effect `Semaphore`. Its named transaction owns the cross-page Web Lock,
+timestamp pruning, dismiss/Undo conflict checks, persistence, and typed failure
+recovery. It adds 472 raw bytes (165 deterministic gzip bytes), bringing the
+app entry to 836,745 bytes; the background worker remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

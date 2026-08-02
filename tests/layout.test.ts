@@ -366,6 +366,16 @@ test('Saved Pages serializes each read-modify-write transaction with Effect', ()
   assert.doesNotMatch(sharedRenderSource, /saved-pages-mutations/)
 })
 
+test('closed-history dismissals serialize their complete storage transaction with Effect', () => {
+  const source = readFileSync(new URL('../src/extension/closed-ghost-dismissals.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runClosedGhostDismissalMutation = Effect\.fn/)
+  assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
+  assert.match(source, /mutationSemaphore\.withPermit/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /let mutationQueue = Promise\.resolve\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

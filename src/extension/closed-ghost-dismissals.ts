@@ -11,6 +11,8 @@
    reappears, so forgetting is per-closure rather than permanent.
    ================================================================ */
 
+import { Data, Effect, Semaphore } from 'effect'
+
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
@@ -41,6 +43,10 @@ export type ClosedGhostDismissalMutationStore = {
     now?: number
   ) => Promise<Map<string, number>>
 }
+
+class ClosedGhostDismissalMutationError extends Data.TaggedError('ClosedGhostDismissalMutationError')<{
+  readonly cause: unknown
+}> {}
 
 export function closedGhostDismissalKey(entry: ClosedGhostIdentity): string {
   return pageIdentityForWorkingSet(entry.url) || entry.url
@@ -114,25 +120,64 @@ export function subscribeClosedGhostDismissals(
 export function createClosedGhostDismissalMutationStore(
   adapter: ClosedGhostDismissalStoreAdapter
 ): ClosedGhostDismissalMutationStore {
-  let mutationQueue = Promise.resolve()
+  const mutationSemaphore = Semaphore.makeUnsafe(1)
 
-  function enqueue<Value>(task: () => Promise<Value>): Promise<Value> {
-    const result = mutationQueue.then(() => (
-      adapter.runExclusive ? adapter.runExclusive(task) : task()
-    ))
-    mutationQueue = result.then(
-      () => undefined,
-      () => undefined
+  const runClosedGhostDismissalMutation = Effect.fn('closedGhostDismissals.runMutation')(function*(
+    now: number,
+    mutation: (map: Map<string, number>) => boolean
+  ) {
+    const transaction = Effect.gen(function*() {
+      const stored = yield* Effect.tryPromise({
+        try: adapter.read,
+        catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+      })
+      const map = yield* Effect.try({
+        try: () => normalizeClosedGhostDismissals(stored, now),
+        catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+      })
+      const changed = yield* Effect.try({
+        try: () => mutation(map),
+        catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+      })
+      if (changed) {
+        const value = yield* Effect.try({
+          try: () => Object.fromEntries(map),
+          catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+        })
+        yield* Effect.tryPromise({
+          try: () => adapter.write(value),
+          catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+        })
+      }
+      return map
+    })
+
+    const runExclusive = adapter.runExclusive
+    if (!runExclusive) return yield* transaction
+    return yield* Effect.tryPromise({
+      try: () => runExclusive(() => Effect.runPromise(transaction.pipe(
+        Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
+      ))),
+      catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+    })
+  })
+
+  function mutate(
+    now: number,
+    mutation: (map: Map<string, number>) => boolean
+  ): Promise<Map<string, number>> {
+    return Effect.runPromise(
+      mutationSemaphore.withPermit(runClosedGhostDismissalMutation(now, mutation)).pipe(
+        Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
+      )
     )
-    return result
   }
 
   function dismiss(
     entry: ClosedGhostDismissalTarget,
     now: number = Date.now()
   ): Promise<Map<string, number>> {
-    return enqueue(async () => {
-      const map = normalizeClosedGhostDismissals(await adapter.read(), now)
+    return mutate(now, (map) => {
       const key = closedGhostDismissalKey(entry)
       const previousDismissedAt = map.get(key)
       const dismissedAt = Math.max(
@@ -143,9 +188,9 @@ export function createClosedGhostDismissalMutationStore(
 
       if (previousDismissedAt !== dismissedAt) {
         map.set(key, dismissedAt)
-        await adapter.write(Object.fromEntries(map))
+        return true
       }
-      return map
+      return false
     })
   }
 
@@ -154,16 +199,15 @@ export function createClosedGhostDismissalMutationStore(
     expectedDismissedAt: number,
     now: number = Date.now()
   ): Promise<Map<string, number>> {
-    return enqueue(async () => {
-      const map = normalizeClosedGhostDismissals(await adapter.read(), now)
+    return mutate(now, (map) => {
       const key = closedGhostDismissalKey(entry)
       // Undo belongs to one exact dismissal. If another page/context forgot
       // the same URL later, that newer user intent must remain in storage.
       if (map.get(key) === expectedDismissedAt) {
         map.delete(key)
-        await adapter.write(Object.fromEntries(map))
+        return true
       }
-      return map
+      return false
     })
   }
 
