@@ -426,6 +426,16 @@ test('background badge owns its latest-wins browser workflow behind Effect', () 
   assert.doesNotMatch(source, /async function runRefreshLoop\(\)/)
 })
 
+test('startup snapshot service owns its complete rebuild flight behind Effect', () => {
+  const source = readFileSync(new URL('../src/extension/background/startup-snapshot-service.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const computeStartupSnapshot = Effect\.fn/)
+  assert.match(source, /const runStartupSnapshotRefresh = Effect\.fn/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runStartupSnapshotRefresh\(\)\)/)
+  assert.doesNotMatch(source, /async function compute\(\)/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 

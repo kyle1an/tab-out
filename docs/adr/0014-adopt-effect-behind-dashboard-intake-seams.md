@@ -142,6 +142,17 @@ while deterministic gzip size decreases by 145 bytes, bringing the worker
 entry to 284,438 raw bytes and 94,852 deterministic gzip bytes; the app entry
 remains unchanged.
 
+The twelfth slice moves the startup-snapshot service's complete rebuild flight
+behind named Effect operations and a typed refresh failure. The workflow owns
+cache seeding, concurrent service and storage reads, stale-session rejection,
+snapshot construction, persistence, and recovery after an unexpected failure;
+its event-facing shared Promise and trailing-debounce contract remain stable.
+It adds 411 raw bytes and 97 deterministic gzip bytes, bringing the worker
+entry to 284,849 raw bytes and 94,949 deterministic gzip bytes; the app entry
+remains unchanged. Short in-memory debounce and restore-settle timers remain
+plain event-registration state, while Chrome alarms remain the durable MV3
+schedule.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

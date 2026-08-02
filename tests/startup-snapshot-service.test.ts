@@ -836,6 +836,31 @@ test('startup snapshot service refreshes again after a completed refresh', async
   }
 })
 
+test('startup snapshot service recovers after an unexpected refresh failure', async () => {
+  const previousChrome = (globalThis as { chrome?: unknown }).chrome
+  let refreshAttempts = 0
+  installEmptyWorkerChrome()
+  const capture = captureDashboardServiceState()
+
+  try {
+    const service = createStartupSnapshotService({
+      getDashboardServiceState: async () => {
+        refreshAttempts += 1
+        if (refreshAttempts === 1) throw new Error('Browser capture unavailable')
+        return capture()
+      }
+    })
+
+    await service.refreshNow()
+    await service.refreshNow()
+
+    assert.equal(refreshAttempts, 2)
+  } finally {
+    if (previousChrome === undefined) delete (globalThis as { chrome?: unknown }).chrome
+    else (globalThis as { chrome?: unknown }).chrome = previousChrome
+  }
+})
+
 test('startup snapshot service runs a trailing refresh requested during an active build', async () => {
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const previousChrome = (globalThis as { chrome?: unknown }).chrome

@@ -1,3 +1,5 @@
+import { Data, Effect } from 'effect'
+
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult } from '../closed-tabs.js'
 import type { CapturedDashboardServiceState } from '../dashboard-service-messages.js'
 import { loadDashboardLocalStateResult } from '../dashboard-local-state.js'
@@ -50,6 +52,10 @@ export type StartupSnapshotService = {
   promoteDurableCheckpoint: () => Promise<void>
   refreshNow: () => Promise<void>
 }
+
+class StartupSnapshotRefreshError extends Data.TaggedError('StartupSnapshotRefreshError')<{
+  readonly cause: unknown
+}> {}
 
 export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): StartupSnapshotService {
   let quietTimer: ReturnType<typeof setTimeout> | null = null
@@ -122,14 +128,17 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
     return true
   }
 
-  async function compute(): Promise<void> {
+  const computeStartupSnapshot = Effect.fn('startupSnapshotService.compute')(function*() {
     // Chrome briefly reports an empty sessions list while a restore settles.
     // Preserve the warm cache and guarantee one trailing read after the window.
     if (pendingSessionRestoreIds.size > 0 || deferWhileClosedTabsSettle()) return
     const capturedSessionsRevision = sessionsRevision
     const captureStartedAt = captureDashboardStartupSnapshotStartedAt()
     if (!cachedOpenTabsSeeded) {
-      const cachedResult = await loadCachedDashboardStartupResult()
+      const cachedResult = yield* Effect.tryPromise({
+        try: () => loadCachedDashboardStartupResult(),
+        catch: (cause) => new StartupSnapshotRefreshError({ cause })
+      })
       if (!cachedResult.ok) {
         scheduleCacheSeedRetry()
         return
@@ -144,13 +153,19 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       savedPagesResult,
       localStateResult,
       closedTabsResult
-    ] = await Promise.all([
-      deps.getDashboardServiceState(),
-      loadSavedPagesStoreResult(),
-      loadDashboardLocalStateResult(),
-      fetchClosedTabsResult()
-    ])
-    const openTabsResult = await fetchOpenTabsSnapshotResult(dashboardServiceState.openTabsSnapshot)
+    ] = yield* Effect.tryPromise({
+      try: () => Promise.all([
+        deps.getDashboardServiceState(),
+        loadSavedPagesStoreResult(),
+        loadDashboardLocalStateResult(),
+        fetchClosedTabsResult()
+      ]),
+      catch: (cause) => new StartupSnapshotRefreshError({ cause })
+    })
+    const openTabsResult = yield* Effect.tryPromise({
+      try: () => fetchOpenTabsSnapshotResult(dashboardServiceState.openTabsSnapshot),
+      catch: (cause) => new StartupSnapshotRefreshError({ cause })
+    })
     if (
       !openTabsResult.ok ||
       !savedPagesResult.ok ||
@@ -170,27 +185,39 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       : null
     // The worker deliberately drops the build's savedPageUpdates: Saved Pages
     // metadata writes belong to page fetchers only.
-    const { snapshot } = await buildTabsDashboardStartupSnapshot({
-      dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
-      // The worker's `windows.getCurrent()` is another last-focused-window
-      // read. Reuse the window captured atomically with tabs + history instead
-      // of mixing two browser generations.
-      currentWindowId,
-      tabHistory: dashboardServiceState.tabHistory,
-      workingSetActivity: dashboardServiceState.workingSetActivity,
-      savedPagesStore,
-      closedTabs: closedTabsResult.value,
-      pinnedDomains,
-      tabPreviousOrder
+    const { snapshot } = yield* Effect.tryPromise({
+      try: () => buildTabsDashboardStartupSnapshot({
+        dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
+        // The worker's `windows.getCurrent()` is another last-focused-window
+        // read. Reuse the window captured atomically with tabs + history instead
+        // of mixing two browser generations.
+        currentWindowId,
+        tabHistory: dashboardServiceState.tabHistory,
+        workingSetActivity: dashboardServiceState.workingSetActivity,
+        savedPagesStore,
+        closedTabs: closedTabsResult.value,
+        pinnedDomains,
+        tabPreviousOrder
+      }),
+      catch: (cause) => new StartupSnapshotRefreshError({ cause })
     })
-    await saveCachedDashboardStartupSnapshot(snapshot, localState, {
-      buildStartupViewModel: buildDashboardStartupViewModel,
-      captureStartedAt,
-      durableCheckpointIntervalMs: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
-      ...(deps.alarms ? { scheduleDurableCheckpoint } : {})
+    yield* Effect.tryPromise({
+      try: () => saveCachedDashboardStartupSnapshot(snapshot, localState, {
+        buildStartupViewModel: buildDashboardStartupViewModel,
+        captureStartedAt,
+        durableCheckpointIntervalMs: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
+        ...(deps.alarms ? { scheduleDurableCheckpoint } : {})
+      }),
+      catch: (cause) => new StartupSnapshotRefreshError({ cause })
     })
     rememberTabOrder(snapshot)
-  }
+  })
+
+  const runStartupSnapshotRefresh = Effect.fn('startupSnapshotService.runRefresh')(function*() {
+    yield* computeStartupSnapshot().pipe(
+      Effect.catchTag('StartupSnapshotRefreshError', () => Effect.succeed(undefined))
+    )
+  })
 
   function refreshNow(): Promise<void> {
     clearScheduledRefresh()
@@ -198,15 +225,12 @@ export function createStartupSnapshotService(deps: StartupSnapshotServiceDeps): 
       scheduleRefresh()
       return inFlight
     }
-    const run = (async () => {
-      try {
-        await compute()
-      } catch {}
-    })()
+    const run = Effect.runPromise(runStartupSnapshotRefresh())
     inFlight = run
-    void run.finally(() => {
+    const clearFlight = () => {
       if (inFlight === run) inFlight = null
-    })
+    }
+    void run.then(clearFlight, clearFlight)
     return run
   }
 
