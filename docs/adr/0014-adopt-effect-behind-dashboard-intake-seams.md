@@ -209,6 +209,39 @@ an upgrade checkpoint, not automatic authority to expand Effect into other
 modules. The background worker paid for its separate Effect runtime only when
 the Tab History critical section provided enough concurrency leverage.
 
+## Audited Adoption Boundary
+
+A repository-wide audit of Promise construction, async entry points, shared
+in-flight state, queued work, timers, subscriptions, Web Locks, and MV3 event
+handlers found no further currently worthwhile Effect ownership seams. The
+remaining asynchronous code stays browser-native or Promise-based for these
+reasons:
+
+- Chrome, storage, dynamic-import, and snapshot-fetch modules are leaf adapters
+  consumed by complete Effect workflows. Wrapping them separately would add
+  nested runtimes without gaining ownership of concurrency or cleanup.
+- Tab focus, move, activation, close, and dedupe commands intentionally return
+  explicit complete, partial, failed, or unknown results and revalidate browser
+  identity immediately before mutation. They have no shared resource lifecycle
+  for Effect to own.
+- History-range and suspension writers must acquire Web Locks at the browser
+  observation boundary so page and worker contexts agree on ordering. An
+  in-memory Effect queue cannot replace that cross-context authority.
+- React optimistic revisions, storage subscriptions, DOM measurement,
+  animation frames, visual-duration waits, and interaction debounce timers are
+  UI lifecycle state. Effect types remain outside hooks, components, and layout
+  controllers.
+- Service-worker retry, restore-settle, native-port reconnect, and protocol
+  watchdog timers are registration or recovery state tied to Chrome's MV3
+  lifecycle. Durable recovery continues to use storage and Chrome alarms.
+- Build generators and the Node test harness are finite tooling boundaries;
+  adopting Effect or an Effect-specific test runner there would not exercise a
+  runtime ownership seam.
+
+Future adoption therefore requires a newly identified workflow that owns
+meaningful concurrency, interruption, resource cleanup, or typed recovery. The
+presence of an `async` function alone is not a migration reason.
+
 ## References
 
 - [ADR 0007](0007-one-dashboard-intake-seam-for-arriving-state.md) — the
