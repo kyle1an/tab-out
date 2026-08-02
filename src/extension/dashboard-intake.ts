@@ -8,7 +8,7 @@
    layer consumes it through the intake store's React adapter.
    ================================================================ */
 
-import { Data, Effect, Result } from 'effect'
+import { Data, Effect, FiberHandle, Result } from 'effect'
 
 import {
   closedTabFetchSuppressionRemainingMs,
@@ -94,6 +94,10 @@ class DashboardSourceFetchError extends Data.TaggedError('DashboardSourceFetchEr
 }> {}
 
 class DashboardRefreshRunError extends Data.TaggedError('DashboardRefreshRunError')<{
+  readonly cause: unknown
+}> {}
+
+class DashboardClosedTabsFetchError extends Data.TaggedError('DashboardClosedTabsFetchError')<{
   readonly cause: unknown
 }> {}
 
@@ -693,8 +697,6 @@ export function createAppDashboardStore({
     readonly id: object
     interrupt: () => void
   } | null = null
-  let closedTabsSequence = 0
-  let closedTabsRetryTimer: ReturnType<typeof setTimeout> | null = null
 
   function dispatch(action: AppDashboardAction): void {
     const nextState = appDashboardReducer(state, action)
@@ -707,46 +709,59 @@ export function createAppDashboardStore({
     for (const listener of [...beforeApplyListeners]) listener(event)
   }
 
-  function clearClosedTabsRetryTimer(): void {
-    if (closedTabsRetryTimer === null) return
-    cancelTimeout(closedTabsRetryTimer)
-    closedTabsRetryTimer = null
+  function waitForClosedTabsDelay(delayMs: number): Effect.Effect<void> {
+    return Effect.callback((resume) => {
+      const timer = scheduleTimeout(
+        () => resume(Effect.void),
+        Math.max(1, Math.ceil(delayMs))
+      )
+      return Effect.sync(() => cancelTimeout(timer))
+    })
   }
 
-  async function refreshClosedTabs(settleDelayMs = 0): Promise<void> {
-    const sequence = ++closedTabsSequence
-    const suppressionRemainingMs = readClosedTabFetchSuppressionRemainingMs()
-    const delayMs = Math.max(settleDelayMs, suppressionRemainingMs)
-    if (!Number.isFinite(delayMs)) {
-      // An unresolved sessions.restore has no safe deadline. Its settlement
-      // emits another change notification that arms the finite trailing read.
-      clearClosedTabsRetryTimer()
+  const refreshClosedTabs = Effect.fn('dashboardIntake.refreshClosedTabs')(function*(
+    settleDelayMs = 0
+  ) {
+    let minimumDelayMs = settleDelayMs
+    while (true) {
+      const suppressionRemainingMs = readClosedTabFetchSuppressionRemainingMs()
+      const delayMs = Math.max(minimumDelayMs, suppressionRemainingMs)
+      minimumDelayMs = 0
+      if (!Number.isFinite(delayMs)) {
+        // An unresolved sessions.restore has no safe deadline. Its settlement
+        // emits another change notification that starts the finite trailing fiber.
+        return
+      }
+      if (delayMs > 0) {
+        yield* waitForClosedTabsDelay(delayMs)
+        continue
+      }
+      const result = yield* Effect.tryPromise({
+        try: fetchLatestClosedTabsResult,
+        catch: (cause) => new DashboardClosedTabsFetchError({ cause })
+      })
+      if (result.ok) {
+        yield* Effect.sync(() => dispatch({ type: 'closedTabs', closedTabs: result.value }))
+      }
       return
     }
-    if (delayMs > 0) {
-      clearClosedTabsRetryTimer()
-      closedTabsRetryTimer = scheduleTimeout(() => {
-        closedTabsRetryTimer = null
-        void refreshClosedTabs()
-      }, Math.max(1, Math.ceil(delayMs)))
-      return
-    }
-    clearClosedTabsRetryTimer()
-    // react-doctor-disable-next-line react-doctor/async-defer-await -- the post-await sequence comparison is a stale-response race guard; it must run after the await.
-    const result = await fetchLatestClosedTabsResult()
-    if (sequence !== closedTabsSequence) return
-    if (result.ok) dispatch({ type: 'closedTabs', closedTabs: result.value })
-  }
+  })
+
+  const runClosedTabUpdates = Effect.fn('dashboardIntake.runClosedTabUpdates')(function*() {
+    const runRefresh = yield* FiberHandle.makeRuntime<never, never, void>()
+    yield* Effect.acquireRelease(
+      Effect.sync(() => subscribeToClosedTabChanges((settleDelayMs) => {
+        runRefresh(refreshClosedTabs(settleDelayMs).pipe(
+          Effect.catchTag('DashboardClosedTabsFetchError', () => Effect.void)
+        ))
+      })),
+      (unsubscribe) => Effect.sync(() => unsubscribe())
+    )
+    return yield* Effect.never
+  })
 
   function startClosedTabUpdates(): () => void {
-    const unsubscribe = subscribeToClosedTabChanges((settleDelayMs) => {
-      void refreshClosedTabs(settleDelayMs).catch(() => {})
-    })
-    return () => {
-      closedTabsSequence += 1
-      clearClosedTabsRetryTimer()
-      unsubscribe()
-    }
+    return Effect.runCallback(Effect.scoped(runClosedTabUpdates()))
   }
 
   function refreshContextFromInputs(

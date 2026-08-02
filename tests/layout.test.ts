@@ -319,12 +319,17 @@ test('service worker maintains the startup snapshot on browser startup and tab e
 test('recently closed rows do not fetch independently before initial dashboard readiness', () => {
   const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
   const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
-  const closedTabsLifecycle = intakeSource.match(/function startClosedTabUpdates\(\): \(\) => void \{[\s\S]*?\n  \}/)
+  const closedTabsLifecycle = intakeSource.match(/const runClosedTabUpdates = [\s\S]*?\n\n  function startClosedTabUpdates/)
+  const closedTabsStarter = intakeSource.match(/function startClosedTabUpdates\(\): \(\) => void \{[\s\S]*?\n  \}/)
 
   assert.match(appSource, /useEffect\(\(\) => appDashboardStore\.startClosedTabUpdates\(\), \[\]\)/)
   assert.ok(closedTabsLifecycle)
+  assert.ok(closedTabsStarter)
+  assert.match(closedTabsLifecycle[0], /FiberHandle\.makeRuntime/)
+  assert.match(closedTabsLifecycle[0], /Effect\.acquireRelease/)
   assert.match(closedTabsLifecycle[0], /subscribeToClosedTabChanges/)
   assert.doesNotMatch(closedTabsLifecycle[0], /void refreshClosedTabs\(\)\n\s*const unsubscribe/)
+  assert.match(closedTabsStarter[0], /Effect\.runCallback\(Effect\.scoped\(runClosedTabUpdates\(\)\)\)/)
 })
 
 test('source switch indicator keeps transform-based transition', () => {

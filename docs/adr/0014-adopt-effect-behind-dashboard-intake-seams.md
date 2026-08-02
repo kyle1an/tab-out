@@ -66,6 +66,12 @@ the app entry to 828,138 bytes; the background worker remains unchanged. The
 runner still exposes one shared Promise, allows only one fetch at a time, drops
 overtaken results and failures, and applies only the newest trailing request.
 
+The third slice moves recently-closed intake into a scoped `FiberHandle`.
+Replacing or stopping that workflow now interrupts its owned delay/read fiber,
+cancels pending timers, and releases the Chrome subscription through scope
+finalization. It adds 5,321 raw bytes (1,767 deterministic gzip bytes), bringing
+the app entry to 833,459 bytes; the background worker remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
