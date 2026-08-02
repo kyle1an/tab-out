@@ -1237,11 +1237,6 @@ local function acceptNativePlacementWindow(pending, window)
   finishExtensionWindowActivation(request.kind, window)
 end
 
-local function screenHasChromeWindowOnActiveSpace(targetScreen)
-  local activeSpace = targetScreen and hs.spaces.activeSpaceOnScreen(targetScreen) or nil
-  return activeSpace and screenHasChromeWindowOnSpace(targetScreen, activeSpace) or false
-end
-
 local function screenBoundsForBridge(targetScreen)
   local frame = targetScreen and targetScreen:fullFrame() or nil
   if not frame
@@ -1346,14 +1341,6 @@ local function requestInactiveTargetProfileWindow(request, targetScreen)
   local extensionId, extensionError = tabOutExtensionId()
   if not extensionId then
     failCurrent("Tab Out's Native Placement Bridge is unavailable", extensionError)
-    return
-  end
-
-  if screenHasChromeWindowOnActiveSpace(targetScreen) then
-    failCurrent(
-      "The target Desktop already has a normal Chrome window",
-      "Direct placement is reserved for a Chrome-empty active Space on the pointer display"
-    )
     return
   end
 

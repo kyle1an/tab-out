@@ -17,6 +17,7 @@ local function runShortcut(kind, options)
   local otherHasChromeWindow = options.otherHasChromeWindow ~= false
   local chromeIsRunning = options.chromeIsRunning ~= false
   local cacheTargetProfile = options.cacheTargetProfile ~= false
+  local targetProfileDirectory = options.targetProfileDirectory or "Profile 3"
   local targetHasInactiveSpaceChromeWindow = options.targetHasInactiveSpaceChromeWindow == true
   local targetDisplayPosition = options.targetDisplayPosition or 2
   local privateFocusAvailable = options.privateFocusAvailable ~= false
@@ -112,7 +113,7 @@ local function runShortcut(kind, options)
       callback({
         {
           AXMenuItemMarkChar = "check",
-          AXTitle = "Target Profile",
+          AXTitle = targetProfileDirectory == "Profile 8" and "Alternate Profile" or "Target Profile",
         },
       })
     end,
@@ -513,6 +514,7 @@ local function runShortcut(kind, options)
             profile = {
               info_cache = {
                 ["Profile 3"] = { name = "Target Profile" },
+                ["Profile 8"] = { name = "Alternate Profile" },
               },
             },
           }
@@ -964,6 +966,10 @@ local stoppedChromeNewPageResult = runShortcut("newPage", {
   targetHasChromeWindow = false,
 })
 local unknownTargetFilterResult = runShortcut("filter", { cacheTargetProfile = false })
+local unknownTargetNewPageResult = runShortcut("newPage", { cacheTargetProfile = false })
+local otherProfileTargetFilterResult = runShortcut("filter", {
+  targetProfileDirectory = "Profile 8",
+})
 local inactiveSpaceTargetFilterResult = runShortcut("filter", {
   targetHasChromeWindow = false,
   targetHasInactiveSpaceChromeWindow = true,
@@ -1102,12 +1108,28 @@ assertEqual(stoppedChromeNewPageResult.createdWindow, false, "a stopped Chrome s
 assertEqual(stoppedChromeNewPageResult.nativeBridgeRequest, nil, "stopped Chrome should not receive a Native Placement Bridge request")
 assertEqual(stoppedChromeNewPageResult.privateFocusCount, 0, "a stopped Chrome should not attempt private focus")
 assertEqual(stoppedChromeNewPageResult.failureAlert ~= nil, true, "a stopped Chrome should explain its Safe Abort")
-assertEqual(unknownTargetFilterResult.createdWindow, false, "an occupied target with no verified profile should abort before creating a window")
-assertEqual(unknownTargetFilterResult.existingTargetFocusCount, 0, "profile discovery should never focus an unverified Chrome window")
-assertEqual(unknownTargetFilterResult.extensionWindowFocusRequested, false, "safe abort should not request Chrome focus")
-assertEqual(unknownTargetFilterResult.privateFocusCount, 0, "safe abort should not invoke private focus")
-assertEqual(unknownTargetFilterResult.otherChromeReceivedFocus, false, "the unverified-window fallback should not focus remote Chrome")
-assertEqual(unknownTargetFilterResult.failureAlert ~= nil, true, "an ambiguous target should explain its safe abort")
+assertEqual(unknownTargetFilterResult.createdWindow, true, "filter routing should create a verified-profile window when the existing target Chrome profile is unknown")
+assertEqual(unknownTargetFilterResult.openedFilter, true, "the uncached target-window fallback should still open the filtered Tab Out page")
+assertEqual(unknownTargetFilterResult.targetFocused, true, "the uncached target-window fallback should focus its created destination")
+assertEqual(unknownTargetFilterResult.nativeBridgeRequest ~= nil, true, "the uncached target-window fallback should use the Native Placement Bridge")
+assertEqual(unknownTargetFilterResult.privateFocusCount, 1, "the uncached target-window fallback should privately focus only its created window")
+assertEqual(unknownTargetFilterResult.existingTargetFocusCount, 0, "the fallback should not focus an unverified existing Chrome window")
+assertEqual(unknownTargetFilterResult.otherChromeReceivedFocus, false, "the uncached target-window fallback should not focus remote Chrome")
+assertEqual(unknownTargetFilterResult.otherChromeRaised, false, "the uncached target-window fallback should preserve remote Chrome order")
+assertEqual(unknownTargetFilterResult.transitionShieldCreatedCount, 1, "the occupied-target fallback should retain the creation transition shield")
+assertEqual(unknownTargetFilterResult.failureAlert, nil, "an uncached target Chrome profile should not block the filter shortcut")
+assertEqual(unknownTargetNewPageResult.createdWindow, true, "new-page routing should create a verified-profile window when the existing target Chrome profile is unknown")
+assertEqual(unknownTargetNewPageResult.openedNewPage, true, "the uncached target-window fallback should still open the native new-tab page")
+assertEqual(unknownTargetNewPageResult.targetFocused, true, "the uncached new-page fallback should focus its created destination")
+assertEqual(unknownTargetNewPageResult.existingTargetFocusCount, 0, "the new-page fallback should not focus an unverified existing Chrome window")
+assertEqual(unknownTargetNewPageResult.otherChromeReceivedFocus, false, "the uncached new-page fallback should not focus remote Chrome")
+assertEqual(unknownTargetNewPageResult.failureAlert, nil, "an uncached target Chrome profile should not block the new-page shortcut")
+assertEqual(otherProfileTargetFilterResult.createdWindow, true, "a target Space occupied only by another Chrome profile should receive a configured-profile window")
+assertEqual(otherProfileTargetFilterResult.openedFilter, true, "another Chrome profile should not block the filter shortcut")
+assertEqual(otherProfileTargetFilterResult.privateFocusCount, 1, "the other-profile fallback should privately focus only its created window")
+assertEqual(otherProfileTargetFilterResult.existingTargetFocusCount, 0, "routing should not focus a known other-profile Chrome window")
+assertEqual(otherProfileTargetFilterResult.otherChromeReceivedFocus, false, "the other-profile fallback should not focus remote Chrome")
+assertEqual(otherProfileTargetFilterResult.failureAlert, nil, "another Chrome profile on the target Space should not cause a Safe Abort")
 assertEqual(inactiveSpaceTargetFilterResult.createdWindow, true, "a Chrome window on an inactive target Space must not make the active target Space occupied")
 assertEqual(inactiveSpaceTargetFilterResult.failureAlert, nil, "inactive-Space Chrome windows must not block the Native Placement Bridge")
 assertEqual(threeDisplayFilterResult.createdWindow, true, "three displays should use the same native bridge without extra shortcuts")

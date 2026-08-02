@@ -53,6 +53,8 @@ reuses only a verified window from the configured profile on that destination,
 or sends the destination kind and full display bounds through the Native
 Placement Bridge for inactive creation. Tab Out creates the new Chrome window
 with `focused: false` and its final target-display bounds in the same call.
+Existing unverified or other-profile Chrome windows do not block that fallback
+and are never focused by it.
 Before creation, the Spoon snapshots only the target display into a
 non-focusable transition shield. It validates the new native window ID,
 privately focuses that exact window, focuses the destination control, and then
