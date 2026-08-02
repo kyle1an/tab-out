@@ -154,6 +154,27 @@ test('restoreClosedTab returns false when chrome.sessions.restore throws', async
   assert.equal(ok, false)
 })
 
+test('restoreClosedTab broadcasts settlement when Chrome rejects the restore', async () => {
+  const restoreMessages: Array<{ phase: string; restored?: boolean }> = []
+  globalThis.chrome = {
+    sessions: {
+      restore: async () => { throw new Error('refused') }
+    },
+    runtime: {
+      id: 'tab-out-test',
+      sendMessage: async (message: unknown) => {
+        restoreMessages.push(message as { phase: string; restored?: boolean })
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+
+  const ok = await restoreClosedTab('session-xyz')
+
+  assert.equal(ok, false)
+  assert.deepEqual(restoreMessages.map(({ phase }) => phase), ['started', 'settled'])
+  assert.equal(restoreMessages[1]?.restored, false)
+})
+
 test('restoreClosedTab returns false when chrome.sessions is unavailable', async () => {
   globalThis.chrome = {} as unknown as typeof globalThis.chrome
   const ok = await restoreClosedTab('session-xyz')

@@ -153,6 +153,16 @@ remains unchanged. Short in-memory debounce and restore-settle timers remain
 plain event-registration state, while Chrome alarms remain the durable MV3
 schedule.
 
+The thirteenth slice brackets the complete recently-closed restore lifecycle
+with Effect acquire/use/release. Acquisition arms the page-local suppression
+marker and awaits the worker acknowledgement before Chrome can restore;
+release always clears that marker, publishes the finite settle window, notifies
+page consumers, and broadcasts settlement after success or failure. It adds
+561 raw bytes and 204 deterministic gzip bytes to the app entry, bringing it
+to 842,042 raw bytes and 265,590 deterministic gzip bytes. The shared module
+adds 1,137 raw bytes and 314 deterministic gzip bytes to the worker entry,
+bringing it to 285,986 raw bytes and 95,263 deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

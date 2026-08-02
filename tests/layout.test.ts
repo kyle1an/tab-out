@@ -436,6 +436,16 @@ test('startup snapshot service owns its complete rebuild flight behind Effect', 
   assert.doesNotMatch(source, /async function compute\(\)/)
 })
 
+test('closed-tab restore owns suppression cleanup through an Effect bracket', () => {
+  const source = readFileSync(new URL('../src/extension/closed-tabs.ts', import.meta.url), 'utf8')
+
+  assert.match(source, /const runClosedTabRestore = Effect\.fn/)
+  assert.match(source, /Effect\.acquireUseRelease/)
+  assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Effect\.runPromise\(runClosedTabRestore\(sessionId\)\)/)
+  assert.doesNotMatch(source, /export async function restoreClosedTab/)
+})
+
 test('source switch indicator keeps transform-based transition', () => {
   const source = readFileSync(new URL('../src/components/HeaderBar.tsx', import.meta.url), 'utf8')
 
