@@ -91,6 +91,26 @@ for the qualified macOS build `25F84`. Do not update the allowlist until both
 create and reuse routes have passed the live Remote Display Preservation oracle
 for both shortcuts on the new build.
 
+## Source layout
+
+The Spoon keeps its public interface in `init.lua` and delegates each invocation
+through a small set of deep modules:
+
+- `routing_session.lua` owns queueing, the active request, completion, and failure.
+- `window_router.lua` owns pointer-display and Space selection, existing-window
+  choice, cold Chrome launch, and Native Placement Bridge creation.
+- `chrome_catalog.lua` owns configured-profile discovery and its window cache.
+- `window_transition.lua` owns exact activation, the transition shield, destination
+  focus, and the bridge-created window close lifecycle.
+- `bridge.lua` owns the local Native Placement Bridge client protocol.
+- `platform/hammerspoon.lua` adapts Hammerspoon, AppleScript, and Accessibility
+  reads into the profile-oriented operations consumed by `chrome_catalog.lua`.
+
+Keep orchestration in `init.lua`; keep mutable lifecycle state inside the module
+that owns it. Tests exercise the focused module interfaces and the public Spoon
+interface. The reusable fake Hammerspoon runtime lives under `tests/support/`,
+separate from the scenario assertions.
+
 ## Verify and diagnose
 
 Run the isolated router, bridge, and installer regressions after changing the
