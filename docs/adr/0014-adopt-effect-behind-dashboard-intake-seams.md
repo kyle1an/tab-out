@@ -368,6 +368,14 @@ valid arrays still repair malformed individual identifiers as before. It adds
 881,843 raw bytes and 277,836 deterministic gzip bytes; the worker entry remains
 unchanged.
 
+The thirty-third slice extends Effect Schema to Chrome-support release tooling.
+The committed policy, generated manifest, Playwright browser metadata, Google
+VersionHistory response, and assembled cross-platform version map now cross
+explicit schemas instead of record guards and type assertions. The existing
+command-specific diagnostics and latest-two policy remain unchanged. This code
+runs only in Node build and release checks, so both shipped extension entries
+remain byte-for-byte unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
@@ -413,8 +421,9 @@ these reasons:
   watchdog timers are registration or recovery state tied to Chrome's MV3
   lifecycle. Durable recovery continues to use storage and Chrome alarms.
 - Build generators and the Node test harness are finite tooling boundaries;
-  adopting Effect or an Effect-specific test runner there would not exercise a
-  runtime ownership seam.
+  adopting an Effect workflow or an Effect-specific test runner there would not
+  exercise a runtime ownership seam. Schema remains appropriate for external
+  metadata when it replaces unchecked parsing without entering shipped code.
 
 The remaining manual value checks also stay outside Effect Schema:
 
@@ -430,10 +439,10 @@ The remaining manual value checks also stay outside Effect Schema:
 - The external suspender acknowledgment has only one contractual failure form,
   an `Error:` string; accepting every other response preserves compatibility
   with independently versioned extensions.
-- Chrome-support metadata, commit-policy configuration, language-server
-  JSON-RPC, build generators, and test fixtures are finite Node tooling with
-  focused parsers and tailored diagnostics. They do not justify widening
-  production adoption or replacing the Node test runner.
+- Commit-policy configuration, language-server JSON-RPC, build generators, and
+  test fixtures are finite Node tooling with focused parsers and tailored
+  diagnostics. They do not justify widening production adoption or replacing
+  the Node test runner.
 
 Future adoption therefore requires either a newly identified workflow that
 owns meaningful concurrency, interruption, resource cleanup, or typed recovery,

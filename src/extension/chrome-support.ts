@@ -1,3 +1,4 @@
+import { Schema } from 'effect'
 import rawChromeSupportPolicy from '../../chrome-support.json' with { type: 'json' }
 
 export const CHROME_PLATFORMS = [
@@ -11,12 +12,19 @@ export const CHROME_PLATFORMS = [
 
 export type ChromePlatform = (typeof CHROME_PLATFORMS)[number]
 
-export type ChromeStableVersions = Readonly<Record<ChromePlatform, string>>
+const chromeStableVersionsSchema = Schema.Record(
+  Schema.Literals(CHROME_PLATFORMS),
+  Schema.String
+)
 
-export type ChromeSupportPolicy = {
-  minimumMajor: number
-  lastBumpedAt: string
-}
+export type ChromeStableVersions = typeof chromeStableVersionsSchema.Type
+
+const chromeSupportPolicySchema = Schema.Struct({
+  minimumMajor: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+  lastBumpedAt: Schema.String
+})
+
+export type ChromeSupportPolicy = typeof chromeSupportPolicySchema.Type
 
 export type ChromeSupportAssessment = {
   status: 'current' | 'behind' | 'unsupported'
@@ -25,6 +33,19 @@ export type ChromeSupportAssessment = {
 }
 
 const CHROME_VERSION_PATTERN = /^(\d+)\./
+
+const chromeVersionHistoryEnvelopeSchema = Schema.Struct({
+  versions: Schema.Array(Schema.Unknown)
+})
+
+const chromeVersionCandidateSchema = Schema.Struct({
+  version: Schema.String
+})
+
+const isChromeStableVersionsSchema = Schema.is(chromeStableVersionsSchema)
+const isChromeSupportPolicy = Schema.is(chromeSupportPolicySchema)
+const isChromeVersionHistoryEnvelope = Schema.is(chromeVersionHistoryEnvelopeSchema)
+const isChromeVersionCandidate = Schema.is(chromeVersionCandidateSchema)
 
 function chromeMajor(version: string): number {
   const match = CHROME_VERSION_PATTERN.exec(version)
@@ -36,16 +57,16 @@ export function deriveMinimumChromeMajor(versions: ChromeStableVersions): number
   return Math.min(...CHROME_PLATFORMS.map((platform) => chromeMajor(versions[platform]))) - 1
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+export function isChromeStableVersions(value: unknown): value is ChromeStableVersions {
+  return isChromeStableVersionsSchema(value)
 }
 
 export function parseLatestStableVersion(value: unknown, platform: string): string {
-  if (!isRecord(value) || !Array.isArray(value.versions)) {
+  if (!isChromeVersionHistoryEnvelope(value)) {
     throw new TypeError(`Chrome VersionHistory returned no Stable version for ${platform}`)
   }
   const first = value.versions[0]
-  if (!isRecord(first) || typeof first.version !== 'string') {
+  if (!isChromeVersionCandidate(first)) {
     throw new TypeError(`Chrome VersionHistory returned no Stable version for ${platform}`)
   }
   chromeMajor(first.version)
@@ -88,9 +109,7 @@ export function createBumpedChromeSupportPolicy(
   }
 }
 
-if (!Number.isInteger(rawChromeSupportPolicy.minimumMajor) ||
-    rawChromeSupportPolicy.minimumMajor < 1 ||
-    typeof rawChromeSupportPolicy.lastBumpedAt !== 'string') {
+if (!isChromeSupportPolicy(rawChromeSupportPolicy)) {
   throw new TypeError('chrome-support.json must contain minimumMajor and lastBumpedAt')
 }
 

@@ -2,12 +2,14 @@ import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join, resolve } from 'node:path'
+import { Schema } from 'effect'
 
 import {
   CHROME_PLATFORMS,
   assessChromeSupport,
   chromeSupportPolicy,
   createBumpedChromeSupportPolicy,
+  isChromeStableVersions,
   parseLatestStableVersion,
   type ChromePlatform,
   type ChromeStableVersions,
@@ -23,9 +25,23 @@ const require = createRequire(import.meta.url)
 
 type ChromeSupportCommand = 'check' | 'bump' | 'release-check'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const generatedManifestSchema = Schema.Struct({
+  minimum_chrome_version: Schema.String
+})
+
+const playwrightBrowsersMetadataSchema = Schema.Struct({
+  browsers: Schema.Array(Schema.Unknown)
+})
+
+const defaultPlaywrightChromiumSchema = Schema.Struct({
+  name: Schema.Literals(['chromium']),
+  installByDefault: Schema.Literals([true]),
+  browserVersion: Schema.optionalKey(Schema.Unknown)
+})
+
+const isGeneratedManifest = Schema.is(generatedManifestSchema)
+const isPlaywrightBrowsersMetadata = Schema.is(playwrightBrowsersMetadataSchema)
+const isDefaultPlaywrightChromium = Schema.is(defaultPlaywrightChromiumSchema)
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -36,7 +52,7 @@ export function assertGeneratedManifestMatchesPolicy(
   policy: ChromeSupportPolicy
 ): void {
   const expected = String(policy.minimumMajor)
-  if (!isRecord(value) || value.minimum_chrome_version !== expected) {
+  if (!isGeneratedManifest(value) || value.minimum_chrome_version !== expected) {
     throw new Error(
       `extension/manifest.json must set minimum_chrome_version to ${expected}; run pnpm build`
     )
@@ -59,6 +75,12 @@ export function assertBrowserTestFloorMatchesPolicy(
   }
 }
 
+export function parsePlaywrightChromiumVersion(value: unknown): unknown {
+  if (!isPlaywrightBrowsersMetadata(value)) return null
+  const chromium = value.browsers.find(isDefaultPlaywrightChromium)
+  return chromium ? chromium.browserVersion : null
+}
+
 function playwrightChromiumVersion(): unknown {
   const playwrightTestPackage = require.resolve('@playwright/test/package.json')
   const playwrightRequire = createRequire(playwrightTestPackage)
@@ -66,12 +88,8 @@ function playwrightChromiumVersion(): unknown {
   const playwrightCoreRequire = createRequire(playwrightPackage)
   const playwrightCorePackage = playwrightCoreRequire.resolve('playwright-core/package.json')
   const browsersFile = join(dirname(playwrightCorePackage), 'browsers.json')
-  const metadata = JSON.parse(readFileSync(browsersFile, 'utf8')) as unknown
-  if (!isRecord(metadata) || !Array.isArray(metadata.browsers)) return null
-  const chromium = metadata.browsers.find((browser) => (
-    isRecord(browser) && browser.name === 'chromium' && browser.installByDefault === true
-  ))
-  return isRecord(chromium) ? chromium.browserVersion : null
+  const metadata: unknown = JSON.parse(readFileSync(browsersFile, 'utf8'))
+  return parsePlaywrightChromiumVersion(metadata)
 }
 
 export function chromeVersionHistoryUrl(platform: ChromePlatform): string {
@@ -87,17 +105,24 @@ async function fetchVersionHistory(platform: ChromePlatform): Promise<unknown> {
   if (!response.ok) {
     throw new Error(`VersionHistory ${platform} request failed with HTTP ${response.status}`)
   }
-  return response.json() as Promise<unknown>
+  const value: unknown = await response.json()
+  return value
 }
 
 async function observeChromeStable(): Promise<ChromeStableVersions> {
   const entries = await Promise.all(
-    CHROME_PLATFORMS.map(async (platform) => [
+    CHROME_PLATFORMS.map(async (
+      platform
+    ): Promise<readonly [ChromePlatform, string]> => [
       platform,
       parseLatestStableVersion(await fetchVersionHistory(platform), platform)
-    ] as const)
+    ])
   )
-  return Object.fromEntries(entries) as Record<ChromePlatform, string>
+  const versions = Object.fromEntries(entries)
+  if (!isChromeStableVersions(versions)) {
+    throw new TypeError('Chrome Stable observation is missing a supported platform')
+  }
+  return versions
 }
 
 function formatStableVersions(versions: ChromeStableVersions): string {
@@ -105,7 +130,8 @@ function formatStableVersions(versions: ChromeStableVersions): string {
 }
 
 async function readJsonFile(path: string): Promise<unknown> {
-  return JSON.parse(await readFile(path, 'utf8')) as unknown
+  const value: unknown = JSON.parse(await readFile(path, 'utf8'))
+  return value
 }
 
 async function assertManifestIsCurrent(): Promise<void> {
