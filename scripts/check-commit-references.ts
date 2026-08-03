@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { Schema } from 'effect'
 import rawCommitReferencePolicy from '../.github/commit-reference-policy.json' with { type: 'json' }
 
 const ZERO_OBJECT_ID = /^(?:0{40}|0{64})$/
@@ -41,9 +42,18 @@ export interface PrePushUpdate {
 
 export type GitRunner = (args: readonly string[]) => string
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const commitReferencePolicyEnvelopeSchema = Schema.Struct({
+  customAutolinks: Schema.Array(Schema.Unknown),
+  customAutolinksAudited: Schema.Boolean
+})
+
+const customAutolinkSchema = Schema.Struct({
+  isAlphanumeric: Schema.Boolean,
+  keyPrefix: Schema.String.check(Schema.isMinLength(1))
+})
+
+const isCommitReferencePolicyEnvelope = Schema.is(commitReferencePolicyEnvelopeSchema)
+const isCustomAutolink = Schema.is(customAutolinkSchema)
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -85,22 +95,17 @@ function appendMatches(
 }
 
 export function parseCommitReferencePolicy(value: unknown): CommitReferencePolicy {
-  if (!isRecord(value) || typeof value.customAutolinksAudited !== 'boolean' ||
-      !Array.isArray(value.customAutolinks)) {
+  if (!isCommitReferencePolicyEnvelope(value)) {
     throw new Error(
       'commit-reference policy must define customAutolinksAudited and customAutolinks'
     )
   }
 
   const customAutolinks = value.customAutolinks.map((item, index) => {
-    if (!isRecord(item) || typeof item.keyPrefix !== 'string' || item.keyPrefix.length === 0 ||
-        typeof item.isAlphanumeric !== 'boolean') {
+    if (!isCustomAutolink(item)) {
       throw new Error(`customAutolinks[${index}] must define keyPrefix and isAlphanumeric`)
     }
-    return {
-      keyPrefix: item.keyPrefix,
-      isAlphanumeric: item.isAlphanumeric
-    }
+    return item
   })
 
   return {

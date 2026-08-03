@@ -385,6 +385,13 @@ assertions, while the real language-server integration still reports zero
 diagnostics. This code runs only in Node verification tooling, so both shipped
 extension entries remain byte-for-byte unchanged.
 
+The thirty-fifth slice validates the repository's commit-reference policy with
+Effect Schema. The policy envelope and each custom-autolink entry now cross
+layered schemas while preserving the existing top-level and indexed error
+messages. Loading Schema adds roughly 0.2 seconds to the commit-message and
+pre-push checks, an accepted tooling cost beside the commit hook's full
+verification gate. This code does not enter either shipped extension entry.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
@@ -450,9 +457,9 @@ The remaining manual value checks also stay outside Effect Schema:
 - The external suspender acknowledgment has only one contractual failure form,
   an `Error:` string; accepting every other response preserves compatibility
   with independently versioned extensions.
-- Commit-policy configuration, build generators, and test fixtures are finite
-  Node tooling with focused parsers and tailored diagnostics. They do not
-  justify widening production adoption or replacing the Node test runner.
+- Build generators and test fixtures are finite Node tooling with focused
+  parsers and tailored diagnostics. They do not justify widening production
+  adoption or replacing the Node test runner.
 
 Future adoption therefore requires either a newly identified workflow that
 owns meaningful concurrency, interruption, resource cleanup, or typed recovery,
