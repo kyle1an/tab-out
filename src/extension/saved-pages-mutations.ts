@@ -19,16 +19,23 @@ export type SavedPagesStoreAdapter = {
 }
 
 export type SavedPagesMutationStore = {
+  mutateEffect: <Value>(
+    mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
+  ) => Effect.Effect<Value, SavedPagesMutationError>
   mutate: <Value>(
     mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
   ) => Promise<Value>
+  persistMetadataUpdatesEffect: (
+    baseStore: Partial<SavedPagesStore> | null | undefined,
+    mergedStore: Partial<SavedPagesStore> | null | undefined
+  ) => Effect.Effect<void, SavedPagesMutationError>
   persistMetadataUpdates: (
     baseStore: Partial<SavedPagesStore> | null | undefined,
     mergedStore: Partial<SavedPagesStore> | null | undefined
   ) => Promise<void>
 }
 
-class SavedPagesMutationError extends Schema.TaggedErrorClass<SavedPagesMutationError>()(
+export class SavedPagesMutationError extends Schema.TaggedErrorClass<SavedPagesMutationError>()(
   'SavedPagesMutationError',
   { cause: Schema.Defect() }
 ) {}
@@ -90,22 +97,33 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
     )
   })
 
+  function mutateEffect<Value>(
+    mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
+  ): Effect.Effect<Value, SavedPagesMutationError> {
+    return mutationSemaphore.withPermit(runSavedPagesMutation(mutation))
+  }
+
   function mutate<Value>(
     mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
   ): Promise<Value> {
-    return getAppRuntime().runPromise(
-      mutationSemaphore.withPermit(runSavedPagesMutation(mutation)).pipe(
-        Effect.catchTag('SavedPagesMutationError', (error) => Effect.fail(error.cause))
-      )
-    )
+    return getAppRuntime().runPromise(mutateEffect(mutation).pipe(
+      Effect.catchTag('SavedPagesMutationError', (error) => Effect.fail(error.cause))
+    ))
   }
 
-  function persistMetadataUpdates(
+  const persistMetadataUpdatesEffect = Effect.fn(
+    'savedPages.persistMetadataUpdates'
+  )(function*(
     baseStore: Partial<SavedPagesStore> | null | undefined,
     mergedStore: Partial<SavedPagesStore> | null | undefined
-  ): Promise<void> {
-    const base = normalizeSavedPagesStore(baseStore)
-    const merged = normalizeSavedPagesStore(mergedStore)
+  ) {
+    const [base, merged] = yield* Effect.try({
+      try: () => [
+        normalizeSavedPagesStore(baseStore),
+        normalizeSavedPagesStore(mergedStore)
+      ] as const,
+      catch: (cause) => SavedPagesMutationError.make({ cause })
+    })
     const updates = Object.keys(base.pages).flatMap((key) => {
       const before = base.pages[key]
       const after = merged.pages[key]
@@ -113,9 +131,9 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
         ? [{ key, before, after }]
         : []
     })
-    if (updates.length === 0) return Promise.resolve()
+    if (updates.length === 0) return
 
-    return mutate((latestStore) => {
+    return yield* mutateEffect((latestStore) => {
       const nextStore = normalizeSavedPagesStore(latestStore)
       for (const { key, before, after } of updates) {
         const latestRecord = latestStore.pages[key]
@@ -127,9 +145,25 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
       }
       return { store: nextStore, value: undefined }
     })
+  })
+
+  function persistMetadataUpdates(
+    baseStore: Partial<SavedPagesStore> | null | undefined,
+    mergedStore: Partial<SavedPagesStore> | null | undefined
+  ): Promise<void> {
+    return getAppRuntime().runPromise(
+      persistMetadataUpdatesEffect(baseStore, mergedStore).pipe(
+        Effect.catchTag('SavedPagesMutationError', (error) => Effect.fail(error.cause))
+      )
+    )
   }
 
-  return { mutate, persistMetadataUpdates }
+  return {
+    mutateEffect,
+    mutate,
+    persistMetadataUpdatesEffect,
+    persistMetadataUpdates
+  }
 }
 
 const SAVED_PAGES_MUTATION_LOCK = 'tab-out:saved-pages-mutation'
@@ -162,9 +196,22 @@ export function mutateSavedPagesStore<Value>(
   return savedPagesMutationStore.mutate(mutation)
 }
 
+export function mutateSavedPagesStoreEffect<Value>(
+  mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
+): Effect.Effect<Value, SavedPagesMutationError> {
+  return savedPagesMutationStore.mutateEffect(mutation)
+}
+
 export function persistSavedPageMetadataUpdates(
   baseStore: Partial<SavedPagesStore> | null | undefined,
   mergedStore: Partial<SavedPagesStore> | null | undefined
 ): Promise<void> {
   return savedPagesMutationStore.persistMetadataUpdates(baseStore, mergedStore)
+}
+
+export function persistSavedPageMetadataUpdatesEffect(
+  baseStore: Partial<SavedPagesStore> | null | undefined,
+  mergedStore: Partial<SavedPagesStore> | null | undefined
+): Effect.Effect<void, SavedPagesMutationError> {
+  return savedPagesMutationStore.persistMetadataUpdatesEffect(baseStore, mergedStore)
 }

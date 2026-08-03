@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { Effect } from 'effect'
+
 import {
   addSavedPageToStore,
   emptySavedPagesStore,
@@ -204,6 +206,24 @@ test('a rejected Saved Pages lock preserves the failure and releases local seria
 
   await assert.rejects(mutations.mutate(save), (error) => error === lockFailure)
   await mutations.mutate(save)
+
+  assert.equal(stored.pages[url]?.title, 'Article')
+})
+
+test('the Saved Pages Effect API composes the complete mutation transaction', async () => {
+  const url = 'https://example.test/article'
+  let stored = emptySavedPagesStore()
+  const mutations = createSavedPagesMutationStore({
+    read: async () => cloneStore(stored),
+    write: async (nextStore) => {
+      stored = cloneStore(nextStore)
+    }
+  })
+
+  await Effect.runPromise(mutations.mutateEffect((store) => ({
+    store: addSavedPageToStore(store, savedPage(url, 'Article'), 100),
+    value: undefined
+  })))
 
   assert.equal(stored.pages[url]?.title, 'Article')
 })

@@ -28,7 +28,7 @@ import { fetchOpenTabsSnapshotEffect, getDashboardTabsFromOpenTabs } from './tab
 import { buildWorkingSetSnapshot } from './working-set.js'
 import type { SavedPagesStore } from './saved-pages.js'
 import { loadSavedPagesStoreResultEffect } from './saved-pages-storage.js'
-import { persistSavedPageMetadataUpdates } from './saved-pages-mutations.js'
+import { persistSavedPageMetadataUpdatesEffect } from './saved-pages-mutations.js'
 import { buildTabsDashboardStartupSnapshotEffect, type DashboardStartupSnapshot } from './startup-snapshot.js'
 import { showToast } from './toast.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from './types'
@@ -304,9 +304,13 @@ const fetchTabsDashboardSnapshotEffect = Effect.fn(
     Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
   )
   // Page fetchers are the Saved Pages metadata writers; the build stays pure.
-  yield* Effect.sync(() => {
-    void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
-  })
+  yield* persistSavedPageMetadataUpdatesEffect(
+    savedPageUpdates.base,
+    savedPageUpdates.merged
+  ).pipe(
+    Effect.catchTag('SavedPagesMutationError', () => Effect.void),
+    Effect.forkDetach({ startImmediately: true })
+  )
   const workingSet = buildWorkingSetSnapshot({
     tabs: dashboardTabs,
     activity: serviceState.workingSetActivity,
@@ -388,9 +392,13 @@ const fetchDashboardStartupSnapshotOnceEffect = Effect.fn(
     Effect.mapError((error) => DashboardStartupSnapshotFetchError.make({ cause: error.cause }))
   )
   // Page fetchers are the Saved Pages metadata writers; the build stays pure.
-  yield* Effect.sync(() => {
-    void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
-  })
+  yield* persistSavedPageMetadataUpdatesEffect(
+    savedPageUpdates.base,
+    savedPageUpdates.merged
+  ).pipe(
+    Effect.catchTag('SavedPagesMutationError', () => Effect.void),
+    Effect.forkDetach({ startImmediately: true })
+  )
   return snapshot
 })
 

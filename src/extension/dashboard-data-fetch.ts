@@ -17,7 +17,7 @@ import {
 } from './render.js'
 import { annotateSavedPageHints, savedPageKeysFromStore } from './saved-pages.js'
 import { loadSavedPagesStoreEffect } from './saved-pages-storage.js'
-import { persistSavedPageMetadataUpdates } from './saved-pages-mutations.js'
+import { persistSavedPageMetadataUpdatesEffect } from './saved-pages-mutations.js'
 import { fetchOpenTabsSnapshotEffect, getDashboardTabsFromOpenTabs } from './tabs.js'
 import type { DashboardData, DashboardSource, DashboardTab } from './types'
 
@@ -98,9 +98,13 @@ export const fetchDashboardDataEffect = Effect.fn(
   })
   // Page fetchers are the only Saved Pages metadata writers; builds stay pure
   // and the worker discards its copy of these updates.
-  yield* Effect.sync(() => {
-    void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
-  })
+  yield* persistSavedPageMetadataUpdatesEffect(
+    savedPageUpdates.base,
+    savedPageUpdates.merged
+  ).pipe(
+    Effect.catchTag('SavedPagesMutationError', () => Effect.void),
+    Effect.forkDetach({ startImmediately: true })
+  )
   return dashboard
 })
 

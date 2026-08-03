@@ -379,6 +379,9 @@ test('Saved Pages serializes each read-modify-write transaction with Effect', ()
   const sharedRenderSource = readFileSync(new URL('../src/extension/render.ts', import.meta.url), 'utf8')
 
   assert.match(source, /const runSavedPagesMutation = Effect\.fn/)
+  assert.match(source, /const persistMetadataUpdatesEffect = Effect\.fn/)
+  assert.match(source, /export function mutateSavedPagesStoreEffect/)
+  assert.match(source, /export function persistSavedPageMetadataUpdatesEffect/)
   assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
   assert.match(source, /mutationSemaphore\.withPermit/)
   assert.match(source, /Effect\.tryPromise/)
@@ -643,15 +646,24 @@ test('Undo owns sequential partial restore and restoring cleanup behind Effect',
 
 test('Saved Page actions own mutation, refresh, and Undo failure branches behind Effect', () => {
   const source = readFileSync(new URL('../src/extension/saved-page-actions.ts', import.meta.url), 'utf8')
+  const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
+  const dataFetchSource = readFileSync(new URL('../src/extension/dashboard-data-fetch.ts', import.meta.url), 'utf8')
 
   assert.match(source, /const runSavePageTarget = Effect\.fn/)
   assert.match(source, /const runRemoveSavedPageTarget = Effect\.fn/)
   assert.match(source, /const runRestoreSavedPage = Effect\.fn/)
+  assert.match(source, /mutateEffect: mutateSavedPagesStoreEffect/)
+  assert.match(source, /return mutateEffect\(mutation\)\.pipe/)
   assert.match(source, /Effect\.result\(Effect\.tryPromise/)
   assert.match(source, /Schema\.TaggedErrorClass/)
   assert.match(source, /getAppRuntime\(\)\.runPromise\(runSavePageTarget\(target\)\)/)
   assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /async function savePageTarget\(/)
+  for (const fetchSource of [intakeSource, dataFetchSource]) {
+    assert.match(fetchSource, /persistSavedPageMetadataUpdatesEffect\(/)
+    assert.match(fetchSource, /Effect\.forkDetach\(\{ startImmediately: true \}\)/)
+    assert.doesNotMatch(fetchSource, /void persistSavedPageMetadataUpdates\(/)
+  }
 })
 
 test('page startup snapshot coalesces its complete flight behind Effect', () => {
