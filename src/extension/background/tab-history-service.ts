@@ -1,4 +1,4 @@
-import { Data, Effect, Semaphore } from 'effect'
+import { Data, Effect, Schema, Semaphore } from 'effect'
 
 import {
   MAX_TAB_HISTORY,
@@ -36,6 +36,28 @@ const TAB_HISTORY_STORAGE_VERSION = 2
 type StoredGlobalTabHistoryV2 = GlobalTabHistory & {
   version: typeof TAB_HISTORY_STORAGE_VERSION
 }
+
+const storedTabHistoryEntrySchema = Schema.Struct({
+  windowId: Schema.Int,
+  tabId: Schema.Int,
+  url: Schema.String
+})
+
+const storedPendingTabHistoryEntrySchema = Schema.Struct({
+  windowId: Schema.Int,
+  tabId: Schema.Int,
+  url: Schema.String,
+  createdAt: Schema.Finite
+})
+
+const storedGlobalTabHistoryV2Schema = Schema.Struct({
+  version: Schema.Literals([TAB_HISTORY_STORAGE_VERSION]),
+  stack: Schema.mutable(Schema.Array(storedTabHistoryEntrySchema)),
+  index: Schema.Int,
+  pending: Schema.mutable(Schema.Array(storedPendingTabHistoryEntrySchema))
+}) satisfies Schema.Schema<StoredGlobalTabHistoryV2>
+
+const isStoredGlobalTabHistoryV2 = Schema.is(storedGlobalTabHistoryV2Schema)
 
 type FocusedWindowLookup = {
   id: number | null
@@ -109,36 +131,6 @@ function emptyGlobalTabHistory(): GlobalTabHistory {
   return { stack: [], index: -1, pending: [] }
 }
 
-function isStoredHistoryEntry(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false
-  const entry = value as Record<string, unknown>
-  return (
-    typeof entry.windowId === 'number' &&
-    Number.isInteger(entry.windowId) &&
-    typeof entry.tabId === 'number' &&
-    Number.isInteger(entry.tabId) &&
-    typeof entry.url === 'string'
-  )
-}
-
-function isStoredGlobalTabHistoryV2(value: unknown): value is StoredGlobalTabHistoryV2 {
-  if (!value || typeof value !== 'object') return false
-  const history = value as Record<string, unknown>
-  return (
-    history.version === TAB_HISTORY_STORAGE_VERSION &&
-    Array.isArray(history.stack) &&
-    history.stack.every(isStoredHistoryEntry) &&
-    typeof history.index === 'number' &&
-    Number.isInteger(history.index) &&
-    Array.isArray(history.pending) &&
-    history.pending.every((entry) => (
-      isStoredHistoryEntry(entry) &&
-      typeof (entry as Record<string, unknown>).createdAt === 'number' &&
-      Number.isFinite((entry as Record<string, unknown>).createdAt)
-    ))
-  )
-}
-
 function storedGlobalTabHistory(history: GlobalTabHistoryInput): StoredGlobalTabHistoryV2 {
   const cleanHistory = canonicalizeGlobalHistory(history).history
   return {
@@ -189,14 +181,19 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
     // browser restart whose onStartup event was missed while Tab Out was
     // disabled. Reset it once rather than allowing Chrome's reused IDs to point
     // at unrelated pages.
-    if (storedHistory != null && !isStoredGlobalTabHistoryV2(storedHistory)) {
+    let storedHistoryInput: GlobalTabHistoryInput
+    if (storedHistory == null) {
+      storedHistoryInput = storedHistory
+    } else if (isStoredGlobalTabHistoryV2(storedHistory)) {
+      storedHistoryInput = storedHistory
+    } else {
       const emptyHistory = emptyGlobalTabHistory()
       await writeChromeStorageValue(storage, TAB_HISTORY_KEY, storedGlobalTabHistory(emptyHistory))
       tabHistoryCache = emptyHistory
       return tabHistoryCache
     }
 
-    const canonical = canonicalizeGlobalHistory(storedHistory as GlobalTabHistoryInput)
+    const canonical = canonicalizeGlobalHistory(storedHistoryInput)
     if (canonical.changed || migratedFromSession) {
       await writeChromeStorageValue(storage, TAB_HISTORY_KEY, storedGlobalTabHistory(canonical.history))
     }
@@ -216,7 +213,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
     if (!storage) return new Map()
     try {
       const stored = await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
-      const activity = normalizeWorkingSetActivity(stored as Parameters<typeof normalizeWorkingSetActivity>[0])
+      const activity = normalizeWorkingSetActivity(stored)
       const map = new Map<string, number>()
       for (const [key, record] of Object.entries(activity.records)) {
         const ts = Math.max(record.lastActivatedAt || 0, record.lastNavigatedAt || 0)

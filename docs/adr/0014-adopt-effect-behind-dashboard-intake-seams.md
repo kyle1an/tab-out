@@ -280,6 +280,17 @@ dismissals. It adds 17 raw bytes and 48 deterministic gzip bytes to the app
 entry, bringing it to 880,726 raw bytes and 277,470 deterministic gzip bytes;
 the worker entry remains unchanged.
 
+The twenty-fifth slice replaces Activation History v2's manual persisted-entry
+and envelope guards with a concrete Effect Schema. Stack identities require
+integer window and tab IDs plus a URL, pending identities additionally require
+a finite creation timestamp, and the cursor remains an integer. Missing state
+is still a valid first run, while the former ID-only format and malformed v2
+records still reset before Chrome can reuse stale tab IDs. The validated value
+now reaches canonicalization without a cast. The app entry remains unchanged;
+removing the larger manual validator reduces the worker entry by 312 raw bytes
+and 31 deterministic gzip bytes, bringing it to 322,929 raw bytes and 107,085
+deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

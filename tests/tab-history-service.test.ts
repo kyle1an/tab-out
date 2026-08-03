@@ -356,6 +356,34 @@ test('legacy ID-only persisted history resets once into the identity-bearing sch
   assert.equal(writes, 2)
 })
 
+test('malformed versioned history resets instead of retaining a partial store', async () => {
+  const tabs = [
+    { id: 10, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true } as chrome.tabs.Tab,
+    { id: 20, windowId: 1, url: 'https://previous.example.test/', title: 'Previous', active: false } as chrome.tabs.Tab
+  ]
+  let persisted: unknown = {
+    version: 2,
+    stack: [{ windowId: 1, tabId: 20, url: 'https://previous.example.test/' }],
+    index: 0,
+    pending: [{ windowId: 1, tabId: 30, url: 'https://pending.example.test/', createdAt: Number.POSITIVE_INFINITY }]
+  }
+  const chromeApi = makeChromeApi({ tabs })
+  chromeApi.storage.local.get = async () => ({ globalTabHistory: persisted })
+  chromeApi.storage.local.set = async (entries: Record<string, unknown>) => {
+    persisted = entries.globalTabHistory
+  }
+
+  const snapshot = await createTabHistoryService(chromeApi).getTabHistorySnapshot(emptyWorkingSetActivity())
+
+  assert.deepEqual(snapshot.entries.map((entry) => entry.tabId), [10])
+  assert.deepEqual(persisted, {
+    version: 2,
+    stack: [{ windowId: 1, tabId: 10, url: 'https://current.example.test/' }],
+    index: 0,
+    pending: []
+  })
+})
+
 test('missed browser startup prunes reused tab IDs whose effective URLs changed', async () => {
   const chromeApi = makeChromeApi({
     history: {
