@@ -213,7 +213,7 @@ test('app bootstrap paints filter shell before cached startup content and live r
   const startupOrderDebugHeavySource = readFileSync(new URL('../src/components/startup-order-debug-heavy.ts', import.meta.url), 'utf8')
   const viewModelSource = readFileSync(new URL('../src/hooks/useDashboardViewModels.ts', import.meta.url), 'utf8')
 
-  assert.match(appEntrySource, /loadCachedDashboardStartup/)
+  assert.match(appEntrySource, /const cachedStartup = yield\* loadCachedDashboardStartupEffect\(\)/)
   assert.match(appEntrySource, /loadDashboardLocalState/)
   assert.match(appEntrySource, /loadHistoryRangePreference/)
   assert.match(appEntrySource, /recordStartupTiming\(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded'/)
@@ -316,9 +316,9 @@ test('service worker maintains the startup snapshot on browser startup and tab e
   assert.match(backgroundSource, /changeInfo\.status !== undefined/)
   assert.match(backgroundSource, /chromeApi\.tabGroups\.onUpdated/)
   assert.match(serviceSource, /buildTabsDashboardStartupSnapshot/)
-  assert.match(serviceSource, /saveCachedDashboardStartupSnapshot/)
+  assert.match(serviceSource, /yield\* saveCachedDashboardStartupSnapshotEffect/)
   assert.match(serviceSource, /scheduleDurableCheckpoint/)
-  assert.match(serviceSource, /loadCachedDashboardStartupResult/)
+  assert.match(serviceSource, /yield\* loadCachedDashboardStartupResultEffect\(\)/)
   assert.match(serviceSource, /seedOpenTabsTitleHistory\(/)
   assert.match(appEntrySource, /seedOpenTabsTitleHistory\(cachedStartup\?\.snapshot\.dashboard\.realTabs \?\? \[\]\)/)
   assert.match(appEntrySource, /changeInfo\.status !== undefined/)
@@ -446,23 +446,20 @@ test('background Working Set serializes complete activity transactions with Effe
   assert.doesNotMatch(source, /let activityQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 
-test('shared Effect serializer drains FIFO tasks through per-call Deferred results', () => {
-  const source = readFileSync(new URL('../src/extension/serialized-effect-queue.ts', import.meta.url), 'utf8')
-
-  assert.match(source, /Queue\.unbounded<Effect\.Effect<void>>/)
-  assert.match(source, /const drainTasks = Effect\.fn/)
-  assert.match(source, /Queue\.takeAll/)
-  assert.match(source, /Deferred\.complete/)
-  assert.doesNotMatch(source, /Promise\.resolve\(\)/)
-})
-
 test('startup snapshot cache serializes its complete shared-lock transaction with Effect', () => {
   const source = readFileSync(new URL('../src/extension/startup-snapshot.ts', import.meta.url), 'utf8')
 
   assert.match(source, /const runStartupSnapshotCacheMutation = Effect\.fn/)
-  assert.match(source, /createSerializedEffectQueue\(\)/)
+  assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
+  assert.match(source, /startupSnapshotCacheMutationSemaphore\.withPermit/)
+  assert.match(source, /runPromiseExclusiveEffect/)
   assert.match(source, /navigator\.locks\.request/)
+  assert.match(source, /loadCachedDashboardStartupResultEffect = Effect\.fn/)
+  assert.match(source, /saveCachedDashboardStartupSnapshotEffect = Effect\.fn/)
+  assert.match(source, /promoteCachedDashboardStartupSnapshotEffect = Effect\.fn/)
   assert.match(source, /Effect\.tryPromise/)
+  assert.doesNotMatch(source, /createSerializedEffectQueue/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /let startupSnapshotCacheMutationQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 

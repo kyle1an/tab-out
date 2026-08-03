@@ -1,5 +1,6 @@
-import { Data, Effect } from 'effect'
+import { Effect, Result, Schema, Semaphore } from 'effect'
 
+import { getAppRuntime } from './app-runtime.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
@@ -12,7 +13,7 @@ import {
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { buildDashboardDataFromTabs } from './render.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
-import { createSerializedEffectQueue } from './serialized-effect-queue.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 import {
   parseCachedDashboardLocalState,
   parseCachedDashboardStartupBoundary,
@@ -68,11 +69,12 @@ export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000
 const DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK = 'tab-out:startup-snapshot-cache-write'
 
-class StartupSnapshotCacheMutationError extends Data.TaggedError('StartupSnapshotCacheMutationError')<{
-  readonly cause: unknown
-}> {}
+export class StartupSnapshotCacheMutationError extends Schema.TaggedErrorClass<StartupSnapshotCacheMutationError>()(
+  'StartupSnapshotCacheMutationError',
+  { cause: Schema.Defect() }
+) {}
 
-const startupSnapshotCacheMutations = createSerializedEffectQueue()
+const startupSnapshotCacheMutationSemaphore = Semaphore.makeUnsafe(1)
 
 // performance.timeOrigin + performance.now() is comparable across extension pages and the
 // service worker while retaining more ordering precision than Date.now(). Callers capture it
@@ -150,17 +152,30 @@ type StartupSnapshotCacheRead =
   | { ok: true; cached: CachedDashboardStartupSnapshot | null }
   | { ok: false; cached: null }
 
-async function readStartupSnapshotCacheForMutation(storage: chrome.storage.StorageArea | null): Promise<StartupSnapshotCacheRead> {
-  if (!storage) return { ok: true, cached: null }
-  try {
-    const stored = await storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const cached = parseCachedDashboardStartupBoundary(stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
-    return { ok: true, cached }
-  } catch {
-    // A failed read makes the generation of the existing cache unknown. Do not risk replacing
-    // a newer value whose comparison could not be performed.
-    return { ok: false, cached: null }
-  }
+function readStartupSnapshotCacheForMutationEffect(
+  storage: chrome.storage.StorageArea | null
+): Effect.Effect<StartupSnapshotCacheRead> {
+  if (!storage) return Effect.succeed({ ok: true, cached: null })
+  return Effect.tryPromise({
+    try: () => storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY),
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+  }).pipe(
+    Effect.flatMap((stored) => Effect.try({
+      try: (): StartupSnapshotCacheRead => ({
+        ok: true,
+        cached: parseCachedDashboardStartupBoundary(
+          stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+        )
+      }),
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    })),
+    // A failed read makes the generation of the existing cache unknown. Do not
+    // risk replacing a newer value whose comparison could not be performed.
+    Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.succeed({
+      ok: false,
+      cached: null
+    }))
+  )
 }
 
 function cachedStartupWorkingSetForSave(cached: CachedDashboardStartupSnapshot | null, now: number): { workingSet: WorkingSetSnapshot; savedAt: number } | null {
@@ -180,22 +195,29 @@ function cachedCaptureStartedAt(cached: CachedDashboardStartupSnapshot | null): 
     : cached.savedAt
 }
 
-const runStartupSnapshotCacheMutation = Effect.fn('startupSnapshotCache.mutate')(function*<Value>(
-  mutation: () => Promise<Value>
+const runStartupSnapshotCacheMutation = Effect.fn('startupSnapshotCache.mutate')(function*<
+  Value,
+  Failure,
+  Requirements
+>(
+  mutation: Effect.Effect<Value, Failure, Requirements>
 ) {
-  return yield* Effect.tryPromise({
-    try: () => navigator.locks.request(DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK, mutation),
-    catch: (cause) => new StartupSnapshotCacheMutationError({ cause })
-  })
-})
-
-function withStartupSnapshotCacheMutationLock<Value>(mutation: () => Promise<Value>): Promise<Value> {
-  return startupSnapshotCacheMutations.run(
-    runStartupSnapshotCacheMutation(mutation).pipe(
-      Effect.catchTag('StartupSnapshotCacheMutationError', (error) => Effect.fail(error.cause))
+  const guardedMutation = mutation.pipe(
+    Effect.catchDefect((cause) => Effect.fail(
+      StartupSnapshotCacheMutationError.make({ cause })
+    ))
+  )
+  return yield* startupSnapshotCacheMutationSemaphore.withPermit(
+    runPromiseExclusiveEffect(
+      (task) => navigator.locks.request(
+        DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK,
+        task
+      ),
+      guardedMutation,
+      (cause) => StartupSnapshotCacheMutationError.make({ cause })
     )
   )
-}
+})
 
 type HydratedCachedDashboardStartup = {
   cached: CachedDashboardStartupSnapshot
@@ -208,51 +230,65 @@ type CachedDashboardStartupStorageRead = {
   liveLocalState: DashboardLocalState | null
 }
 
-async function readCachedDashboardStartup(
+function readCachedDashboardStartupEffect(
   storage: chrome.storage.StorageArea | null,
   maxAgeMs: number | null,
   now: number,
   includeLocalStateKeys = false
-): Promise<CachedDashboardStartupStorageRead> {
-  if (!storage) return { ok: true, startup: null, liveLocalState: null }
-  try {
-    const stored = await storage.get(includeLocalStateKeys
+): Effect.Effect<CachedDashboardStartupStorageRead> {
+  if (!storage) return Effect.succeed({ ok: true, startup: null, liveLocalState: null })
+  return Effect.tryPromise({
+    try: () => storage.get(includeLocalStateKeys
       ? [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, ...DASHBOARD_LOCAL_STORAGE_KEYS]
-      : DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const liveLocalState = includeLocalStateKeys
-      ? validDashboardLocalStateFromStorage(stored)
-      : null
-    const cached = parseCachedDashboardStartupBoundary(stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
-    if (!cached) return { ok: true, startup: null, liveLocalState }
-    if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) return { ok: true, startup: null, liveLocalState }
-    const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
-    const cachedLocalState = parseCachedDashboardLocalState(cached.localState)
-    const startupViewModel = parseCachedDashboardStartupViewModel(rawStartupViewModel)
-    const dashboard = snapshot.dashboard
-    const workingSet = filterCachedWorkingSetToOpenDashboardTabs(
-      normalizeWorkingSetSnapshot(snapshot.workingSet),
-      dashboard
-    )
-    return {
-      ok: true,
-      startup: {
-        cached,
-        startup: {
-          snapshot: {
-            ...snapshot,
-            dashboard,
-            tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
-            workingSet,
-            ...(startupViewModel ? { startupViewModel } : {})
+      : DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY),
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+  }).pipe(
+    Effect.flatMap((stored) => Effect.try({
+      try: (): CachedDashboardStartupStorageRead => {
+        const liveLocalState = includeLocalStateKeys
+          ? validDashboardLocalStateFromStorage(stored)
+          : null
+        const cached = parseCachedDashboardStartupBoundary(
+          stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+        )
+        if (!cached) return { ok: true, startup: null, liveLocalState }
+        if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) {
+          return { ok: true, startup: null, liveLocalState }
+        }
+        const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
+        const cachedLocalState = parseCachedDashboardLocalState(cached.localState)
+        const startupViewModel = parseCachedDashboardStartupViewModel(rawStartupViewModel)
+        const dashboard = snapshot.dashboard
+        const workingSet = filterCachedWorkingSetToOpenDashboardTabs(
+          normalizeWorkingSetSnapshot(snapshot.workingSet),
+          dashboard
+        )
+        return {
+          ok: true,
+          startup: {
+            cached,
+            startup: {
+              snapshot: {
+                ...snapshot,
+                dashboard,
+                tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
+                workingSet,
+                ...(startupViewModel ? { startupViewModel } : {})
+              },
+              localState: cachedLocalState
+            }
           },
-          localState: cachedLocalState
-        },
+          liveLocalState
+        }
       },
-      liveLocalState
-    }
-  } catch {
-    return { ok: false, startup: null, liveLocalState: null }
-  }
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    })),
+    Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.succeed({
+      ok: false,
+      startup: null,
+      liveLocalState: null
+    }))
+  )
 }
 
 function applyLiveDashboardLocalState(
@@ -281,14 +317,21 @@ function applyLiveDashboardLocalState(
   }
 }
 
-export async function loadCachedDashboardStartupResult(now = Date.now()): Promise<CachedDashboardStartupLoadResult> {
+export const loadCachedDashboardStartupResultEffect = Effect.fn(
+  'startupSnapshotCache.load'
+)(function*(now = Date.now()) {
   // Read and validate both representations so an older render-ready Warm Snapshot cannot mask
   // a newer source-only Durable Checkpoint. For an equal generation, prefer whichever copy has
   // a valid derived view model, then prefer session because it is the normal render-ready tier.
-  const [sessionRead, durableRead] = await Promise.all([
-    readCachedDashboardStartup(startupSnapshotCacheStorage(), null, now),
-    readCachedDashboardStartup(startupSnapshotDurableStorage(), DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, now, true)
-  ])
+  const [sessionRead, durableRead] = yield* Effect.all([
+    readCachedDashboardStartupEffect(startupSnapshotCacheStorage(), null, now),
+    readCachedDashboardStartupEffect(
+      startupSnapshotDurableStorage(),
+      DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS,
+      now,
+      true
+    )
+  ], { concurrency: 'unbounded' })
   const sessionStartup = sessionRead.startup
   const durableStartup = durableRead.startup
   const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionStartup?.cached ?? null) ?? Number.NEGATIVE_INFINITY
@@ -311,32 +354,51 @@ export async function loadCachedDashboardStartupResult(now = Date.now()): Promis
     ok: sessionRead.ok && durableRead.ok,
     value: selected ? applyLiveDashboardLocalState(selected, durableRead.liveLocalState) : null
   }
+})
+
+export function loadCachedDashboardStartupResult(
+  now = Date.now()
+): Promise<CachedDashboardStartupLoadResult> {
+  return getAppRuntime().runPromise(loadCachedDashboardStartupResultEffect(now))
 }
 
-export async function loadCachedDashboardStartup(now = Date.now()): Promise<CachedDashboardStartup | null> {
-  return (await loadCachedDashboardStartupResult(now)).value
+export const loadCachedDashboardStartupEffect = Effect.fn(
+  'startupSnapshotCache.loadValue'
+)(function*(now = Date.now()) {
+  return (yield* loadCachedDashboardStartupResultEffect(now)).value
+})
+
+export function loadCachedDashboardStartup(
+  now = Date.now()
+): Promise<CachedDashboardStartup | null> {
+  return getAppRuntime().runPromise(loadCachedDashboardStartupEffect(now))
 }
 
-async function writeStartupSnapshotCache(storage: chrome.storage.StorageArea | null, payload: CachedDashboardStartupSnapshot): Promise<boolean> {
-  if (!storage) return true
-  let fallbackPayload = payload
-  try {
-    await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: payload })
-    return true
-  } catch {
-    if (payload.snapshot.startupViewModel) {
-      const { startupViewModel: _startupViewModel, ...snapshot } = payload.snapshot
-      fallbackPayload = { ...payload, snapshot }
+function writeStartupSnapshotCacheEffect(
+  storage: chrome.storage.StorageArea | null,
+  payload: CachedDashboardStartupSnapshot
+): Effect.Effect<boolean> {
+  if (!storage) return Effect.succeed(true)
+  return Effect.gen(function*() {
+    let fallbackPayload = payload
+    const initialWrite = yield* Effect.result(Effect.tryPromise({
+      try: () => storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: payload }),
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    }))
+    if (Result.isSuccess(initialWrite)) return true
+    if (Result.isFailure(initialWrite)) {
+      if (payload.snapshot.startupViewModel) {
+        const { startupViewModel: _startupViewModel, ...snapshot } = payload.snapshot
+        fallbackPayload = { ...payload, snapshot }
+      }
     }
-  }
-  // The compact retry handles both quota pressure from the render-ready view model and a
-  // one-shot storage transport failure. If it also fails, the prior valid value stays intact.
-  try {
-    await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: fallbackPayload })
-    return true
-  } catch {
-    return false
-  }
+    // The compact retry handles both quota pressure from the render-ready view model and a
+    // one-shot storage transport failure. If it also fails, the prior valid value stays intact.
+    return Result.isSuccess(yield* Effect.result(Effect.tryPromise({
+      try: () => storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: fallbackPayload }),
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    })))
+  })
 }
 
 function compactStartupSnapshotPayload(payload: CachedDashboardStartupSnapshot): CachedDashboardStartupSnapshot {
@@ -427,11 +489,13 @@ function cachedDashboardStartupContentFingerprint(cached: CachedDashboardStartup
   )
 }
 
-export async function saveCachedDashboardStartupSnapshot(
+export const saveCachedDashboardStartupSnapshotEffect = Effect.fn(
+  'startupSnapshotCache.save'
+)(function*(
   snapshot: DashboardStartupSnapshot,
   localState: DashboardLocalState | null,
   options: SaveCachedDashboardStartupOptions = {}
-): Promise<void> {
+) {
   const now = options.now ?? Date.now()
   const requestedCaptureStartedAt = options.captureStartedAt ?? now
   const captureStartedAt = Number.isFinite(requestedCaptureStartedAt)
@@ -442,13 +506,13 @@ export async function saveCachedDashboardStartupSnapshot(
     ? Math.max(0, requestedDurableCheckpointIntervalMs)
     : 0
 
-  await withStartupSnapshotCacheMutationLock(async () => {
+  yield* runStartupSnapshotCacheMutation(Effect.gen(function*() {
     const sessionStorage = startupSnapshotCacheStorage()
     const durableStorage = startupSnapshotDurableStorage()
-    const [sessionCacheRead, durableCacheRead] = await Promise.all([
-      readStartupSnapshotCacheForMutation(sessionStorage),
-      readStartupSnapshotCacheForMutation(durableStorage)
-    ])
+    const [sessionCacheRead, durableCacheRead] = yield* Effect.all([
+      readStartupSnapshotCacheForMutationEffect(sessionStorage),
+      readStartupSnapshotCacheForMutationEffect(durableStorage)
+    ], { concurrency: 'unbounded' })
     if (!sessionCacheRead.ok || !durableCacheRead.ok) return
 
     const existingCaptureStartedAt = Math.max(
@@ -502,7 +566,7 @@ export async function saveCachedDashboardStartupSnapshot(
       : sessionCacheRead.cached
 
     if (sessionWriteRequired) {
-      const sessionWritten = await writeStartupSnapshotCache(sessionStorage, payload)
+      const sessionWritten = yield* writeStartupSnapshotCacheEffect(sessionStorage, payload)
       if (sessionWritten) sessionSourceForCheckpoint = compactPayload
     }
 
@@ -515,7 +579,10 @@ export async function saveCachedDashboardStartupSnapshot(
       const checkpointSource = !sessionWriteRequired && sessionSourceForCheckpoint
         ? compactStartupSnapshotPayload(sessionSourceForCheckpoint)
         : compactPayload
-      await writeStartupSnapshotCache(durableStorage, { ...checkpointSource, savedAt: now })
+      yield* writeStartupSnapshotCacheEffect(
+        durableStorage,
+        { ...checkpointSource, savedAt: now }
+      )
       return
     }
 
@@ -533,21 +600,43 @@ export async function saveCachedDashboardStartupSnapshot(
     if (checkpointNeeded) {
       // Scheduling while holding the cache lock prevents an alarm promotion racing with this
       // save from leaving behind a clean-state alarm. The scheduler preserves an existing alarm.
-      await options.scheduleDurableCheckpoint(
-        durableCheckpointDueAt(durableCacheRead.cached, now, durableCheckpointIntervalMs)
-      )
+      yield* Effect.tryPromise({
+        try: async () => {
+          await options.scheduleDurableCheckpoint?.(
+            durableCheckpointDueAt(durableCacheRead.cached, now, durableCheckpointIntervalMs)
+          )
+        },
+        catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+      })
     }
-  })
+  }))
+})
+
+export function saveCachedDashboardStartupSnapshot(
+  snapshot: DashboardStartupSnapshot,
+  localState: DashboardLocalState | null,
+  options: SaveCachedDashboardStartupOptions = {}
+): Promise<void> {
+  return getAppRuntime().runPromise(
+    saveCachedDashboardStartupSnapshotEffect(snapshot, localState, options).pipe(
+      Effect.catchTag(
+        'StartupSnapshotCacheMutationError',
+        (error) => Effect.fail(error.cause)
+      )
+    )
+  )
 }
 
-export async function promoteCachedDashboardStartupSnapshot(now = Date.now()): Promise<boolean> {
-  return withStartupSnapshotCacheMutationLock(async () => {
+export const promoteCachedDashboardStartupSnapshotEffect = Effect.fn(
+  'startupSnapshotCache.promote'
+)(function*(now = Date.now()) {
+  return yield* runStartupSnapshotCacheMutation(Effect.gen(function*() {
     const sessionStorage = startupSnapshotCacheStorage()
     const durableStorage = startupSnapshotDurableStorage()
-    const [sessionCacheRead, durableCacheRead] = await Promise.all([
-      readStartupSnapshotCacheForMutation(sessionStorage),
-      readStartupSnapshotCacheForMutation(durableStorage)
-    ])
+    const [sessionCacheRead, durableCacheRead] = yield* Effect.all([
+      readStartupSnapshotCacheForMutationEffect(sessionStorage),
+      readStartupSnapshotCacheForMutationEffect(durableStorage)
+    ], { concurrency: 'unbounded' })
     if (!sessionCacheRead.ok || !durableCacheRead.ok || !sessionCacheRead.cached) return false
 
     const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionCacheRead.cached) ?? Number.NEGATIVE_INFINITY
@@ -561,12 +650,25 @@ export async function promoteCachedDashboardStartupSnapshot(now = Date.now()): P
       durableCacheRead.cached.snapshot.startupViewModel === undefined
     if (durableCurrent) return true
 
-    return writeStartupSnapshotCache(durableStorage, {
+    return yield* writeStartupSnapshotCacheEffect(durableStorage, {
       ...compactSessionPayload,
       savedAt: now,
       contentFingerprint: sessionContentFingerprint
     })
-  })
+  }))
+})
+
+export function promoteCachedDashboardStartupSnapshot(
+  now = Date.now()
+): Promise<boolean> {
+  return getAppRuntime().runPromise(
+    promoteCachedDashboardStartupSnapshotEffect(now).pipe(
+      Effect.catchTag(
+        'StartupSnapshotCacheMutationError',
+        (error) => Effect.fail(error.cause)
+      )
+    )
+  )
 }
 
 export type TabsStartupSnapshotInputs = {

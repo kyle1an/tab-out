@@ -24,9 +24,9 @@ import { SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
 import {
   buildTabsDashboardStartupSnapshot,
   captureDashboardStartupSnapshotStartedAt,
-  loadCachedDashboardStartupResult,
-  promoteCachedDashboardStartupSnapshot,
-  saveCachedDashboardStartupSnapshot,
+  loadCachedDashboardStartupResultEffect,
+  promoteCachedDashboardStartupSnapshotEffect,
+  saveCachedDashboardStartupSnapshotEffect,
   type DashboardStartupSnapshot
 } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
@@ -209,10 +209,7 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       const capturedSessionsRevision = sessionsRevision
       const captureStartedAt = captureDashboardStartupSnapshotStartedAt()
       if (!cachedOpenTabsSeeded) {
-        const cachedResult = yield* Effect.tryPromise({
-          try: () => loadCachedDashboardStartupResult(),
-          catch: (cause) => StartupSnapshotRefreshError.make({ cause })
-        })
+        const cachedResult = yield* loadCachedDashboardStartupResultEffect()
         if (!cachedResult.ok) {
           scheduleCacheSeedRetry()
           return
@@ -276,15 +273,14 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
         }),
         catch: (cause) => StartupSnapshotRefreshError.make({ cause })
       })
-      yield* Effect.tryPromise({
-        try: () => saveCachedDashboardStartupSnapshot(snapshot, localState, {
-          buildStartupViewModel: buildDashboardStartupViewModel,
-          captureStartedAt,
-          durableCheckpointIntervalMs: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
-          ...(deps.alarms ? { scheduleDurableCheckpoint } : {})
-        }),
-        catch: (cause) => StartupSnapshotRefreshError.make({ cause })
-      })
+      yield* saveCachedDashboardStartupSnapshotEffect(snapshot, localState, {
+        buildStartupViewModel: buildDashboardStartupViewModel,
+        captureStartedAt,
+        durableCheckpointIntervalMs: STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
+        ...(deps.alarms ? { scheduleDurableCheckpoint } : {})
+      }).pipe(
+        Effect.mapError((error) => StartupSnapshotRefreshError.make({ cause: error.cause }))
+      )
       rememberTabOrder(snapshot)
     })
 
@@ -336,10 +332,8 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       function*() {
         if (durablePromotionInFlight) return
         durablePromotionInFlight = true
-        yield* Effect.tryPromise({
-          try: () => promoteCachedDashboardStartupSnapshot(),
-          catch: (cause) => StartupSnapshotRefreshError.make({ cause })
-        }).pipe(
+        yield* promoteCachedDashboardStartupSnapshotEffect().pipe(
+          Effect.mapError((error) => StartupSnapshotRefreshError.make({ cause: error.cause })),
           Effect.catchTag('StartupSnapshotRefreshError', () => Effect.void),
           Effect.ensuring(Effect.sync(() => {
             durablePromotionInFlight = false

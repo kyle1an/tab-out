@@ -9,7 +9,7 @@ import { requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshO
 import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-refresh.js'
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
-import { loadCachedDashboardStartup } from './extension/startup-snapshot.js'
+import { loadCachedDashboardStartupEffect } from './extension/startup-snapshot.js'
 import { loadHistoryRangePreferenceEffect } from './extension/history-range-storage.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
@@ -21,7 +21,7 @@ class AppStartupReadError extends Schema.TaggedErrorClass<AppStartupReadError>()
   'AppStartupReadError',
   {
     cause: Schema.Defect(),
-    operation: Schema.Literals(['cache', 'local-state'])
+    operation: Schema.Literals(['local-state'])
   }
 ) {}
 
@@ -122,10 +122,7 @@ const runInitializeApp = Effect.fn('app.initialize')(function*() {
     Effect.forkChild({ startImmediately: true })
   )
   const cacheStartedAt = startupDebugNow()
-  const cachedStartup = yield* Effect.tryPromise({
-    try: () => loadCachedDashboardStartup(),
-    catch: (cause) => AppStartupReadError.make({ cause, operation: 'cache' })
-  })
+  const cachedStartup = yield* loadCachedDashboardStartupEffect()
   seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded', {
     startedAt: cacheStartedAt,
