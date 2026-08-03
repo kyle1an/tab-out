@@ -14,6 +14,7 @@
 import { Effect, Schema, Semaphore } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
@@ -163,12 +164,11 @@ export function createClosedGhostDismissalMutationStore(
 
     const runExclusive = adapter.runExclusive
     if (!runExclusive) return yield* transaction
-    return yield* Effect.tryPromise({
-      try: () => runExclusive(() => getAppRuntime().runPromise(transaction.pipe(
-        Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
-      ))),
-      catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
-    })
+    return yield* runPromiseExclusiveEffect(
+      runExclusive,
+      transaction,
+      (cause) => ClosedGhostDismissalMutationError.make({ cause })
+    )
   })
 
   function mutate(

@@ -1,6 +1,7 @@
 import { Effect, Schema, Semaphore } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 import {
   normalizeSavedPagesStore,
   SAVED_PAGES_STORAGE_KEY,
@@ -82,12 +83,11 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
 
     const runExclusive = adapter.runExclusive
     if (!runExclusive) return yield* transaction
-    return yield* Effect.tryPromise({
-      try: () => runExclusive(() => getAppRuntime().runPromise(transaction.pipe(
-        Effect.catchTag('SavedPagesMutationError', (error) => Effect.fail(error.cause))
-      ))),
-      catch: (cause) => SavedPagesMutationError.make({ cause })
-    })
+    return yield* runPromiseExclusiveEffect(
+      runExclusive,
+      transaction,
+      (cause) => SavedPagesMutationError.make({ cause })
+    )
   })
 
   function mutate<Value>(

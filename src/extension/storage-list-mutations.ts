@@ -1,6 +1,7 @@
 import { Effect, Schema, Semaphore } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 
 export type StorageListMutationAttempt =
   | {
@@ -107,10 +108,11 @@ export function createStorageListMutationStore<Operation>({
 
     const runExclusive = adapter.runExclusive
     if (!runExclusive) return yield* transaction
-    return yield* Effect.tryPromise({
-      try: () => runExclusive(() => getAppRuntime().runPromise(transaction)),
-      catch: (cause) => StorageListMutationError.make({ cause })
-    }).pipe(
+    return yield* runPromiseExclusiveEffect(
+      runExclusive,
+      transaction,
+      (cause) => StorageListMutationError.make({ cause })
+    ).pipe(
       Effect.catchTag('StorageListMutationError', (error) => (
         Effect.succeed(failedMutationAttempt(currentValue, error.cause))
       ))
