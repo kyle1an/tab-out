@@ -1,5 +1,6 @@
-import { Data, Effect, Result } from 'effect'
+import { Effect, Result, Schema } from 'effect'
 
+import { getAppRuntime } from './app-runtime.js'
 import { requestDashboardRefresh } from './dashboard-intake.js'
 import {
   addSavedPageToStore,
@@ -19,13 +20,15 @@ type SavedPageActionDependencies = {
   notify: typeof showToast
 }
 
-class SavedPageMutationError extends Data.TaggedError('SavedPageMutationError')<{
-  readonly cause: unknown
-}> {}
+class SavedPageMutationError extends Schema.TaggedErrorClass<SavedPageMutationError>()(
+  'SavedPageMutationError',
+  { cause: Schema.Defect() }
+) {}
 
-class SavedPageRefreshError extends Data.TaggedError('SavedPageRefreshError')<{
-  readonly cause: unknown
-}> {}
+class SavedPageRefreshError extends Schema.TaggedErrorClass<SavedPageRefreshError>()(
+  'SavedPageRefreshError',
+  { cause: Schema.Defect() }
+) {}
 
 /**
  * Own the failure boundary for user-triggered Saved Page actions. Context-menu
@@ -41,7 +44,7 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
         store: addSavedPageToStore(store, target),
         value: undefined
       })),
-      catch: (cause) => new SavedPageMutationError({ cause })
+      catch: (cause) => SavedPageMutationError.make({ cause })
     }))
     if (Result.isFailure(mutationResult)) {
       notify("Couldn't save the page")
@@ -50,7 +53,7 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => new SavedPageRefreshError({ cause })
+      catch: (cause) => SavedPageRefreshError.make({ cause })
     }))
     if (Result.isFailure(refreshResult)) {
       notify("Page saved, but couldn't refresh the dashboard")
@@ -68,7 +71,7 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
         store: restoreSavedPageToStore(store, removed),
         value: undefined
       })),
-      catch: (cause) => new SavedPageMutationError({ cause })
+      catch: (cause) => SavedPageMutationError.make({ cause })
     }))
     if (Result.isFailure(mutationResult)) {
       notify("Couldn't restore the saved page")
@@ -77,7 +80,7 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => new SavedPageRefreshError({ cause })
+      catch: (cause) => SavedPageRefreshError.make({ cause })
     }))
     if (Result.isFailure(refreshResult)) {
       notify("Saved page restored, but couldn't refresh the dashboard")
@@ -92,7 +95,7 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
         const result = removeSavedPageFromStore(store, keyOrUrl)
         return { store: result.store, value: result.removed }
       }),
-      catch: (cause) => new SavedPageMutationError({ cause })
+      catch: (cause) => SavedPageMutationError.make({ cause })
     }))
     if (Result.isFailure(mutationResult)) {
       notify("Couldn't remove the saved page")
@@ -104,13 +107,13 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
       ? {
           label: 'Undo',
           description: 'Restore this saved page.',
-          onClick: () => Effect.runPromise(runRestoreSavedPage(removed))
+          onClick: () => getAppRuntime().runPromise(runRestoreSavedPage(removed))
         }
       : null
 
     const refreshResult = yield* Effect.result(Effect.tryPromise({
       try: () => refresh({ animateCards: true }),
-      catch: (cause) => new SavedPageRefreshError({ cause })
+      catch: (cause) => SavedPageRefreshError.make({ cause })
     }))
     if (Result.isFailure(refreshResult)) {
       if (undoAction) {
@@ -125,11 +128,11 @@ export function createSavedPageActions({ mutate, refresh, notify }: SavedPageAct
   })
 
   function savePageTarget(target: SavedPageActionTarget): Promise<void> {
-    return Effect.runPromise(runSavePageTarget(target))
+    return getAppRuntime().runPromise(runSavePageTarget(target))
   }
 
   function removeSavedPageTarget(keyOrUrl: string): Promise<void> {
-    return Effect.runPromise(runRemoveSavedPageTarget(keyOrUrl))
+    return getAppRuntime().runPromise(runRemoveSavedPageTarget(keyOrUrl))
   }
 
   return { savePageTarget, removeSavedPageTarget }

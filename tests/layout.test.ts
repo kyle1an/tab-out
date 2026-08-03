@@ -544,7 +544,9 @@ test('Saved Page actions own mutation, refresh, and Undo failure branches behind
   assert.match(source, /const runRemoveSavedPageTarget = Effect\.fn/)
   assert.match(source, /const runRestoreSavedPage = Effect\.fn/)
   assert.match(source, /Effect\.result\(Effect\.tryPromise/)
-  assert.match(source, /Effect\.runPromise\(runSavePageTarget\(target\)\)/)
+  assert.match(source, /Schema\.TaggedErrorClass/)
+  assert.match(source, /getAppRuntime\(\)\.runPromise\(runSavePageTarget\(target\)\)/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /async function savePageTarget\(/)
 })
 
