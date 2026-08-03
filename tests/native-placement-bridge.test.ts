@@ -6,11 +6,20 @@ import { Effect, ManagedRuntime } from 'effect'
 import {
   NativePlacementBridge,
   NATIVE_PLACEMENT_BRIDGE_VERSION,
-  handleNativePlacementBridgeMessage
+  handleNativePlacementBridgeMessageEffect
 } from '../src/extension/background/native-placement-bridge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 
 const nowMs = 1_800_000_000_000
+
+function handleNativePlacementBridgeMessage(
+  message: unknown,
+  chromeApi: ChromeApi,
+  at: number
+) {
+  return Effect.runPromise(handleNativePlacementBridgeMessageEffect(message, chromeApi, at))
+}
+
 const targetDisplay = {
   id: 'target-display',
   isPrimary: false,

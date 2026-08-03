@@ -640,11 +640,13 @@ test('page startup snapshot coalesces its complete flight behind Effect', () => 
 test('native placement requests own validation and browser operations behind Effect', () => {
   const source = readFileSync(new URL('../src/extension/background/native-placement-bridge.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /const runNativePlacementBridgeMessage = Effect\.fn/)
+  assert.match(source, /export const handleNativePlacementBridgeMessageEffect = Effect\.fn/)
   assert.match(source, /Effect\.result\(Effect\.tryPromise/)
-  assert.match(source, /Effect\.runPromise\(runNativePlacementBridgeMessage\(/)
-  assert.doesNotMatch(source, /export async function handleNativePlacementBridgeMessage\(/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
+  assert.doesNotMatch(source, /Effect\.runSync/)
   assert.match(source, /Layer\.effect\(NativePlacementBridge/)
+  assert.match(source, /Queue\.unbounded<unknown>/)
+  assert.match(source, /Queue\.offerUnsafe\(messages, message\)/)
   assert.match(source, /Effect\.callback<void>/)
   assert.match(source, /Effect\.sleep\(delay\)/)
   assert.match(source, /Effect\.forkIn\(scope, \{ startImmediately: true \}\)/)

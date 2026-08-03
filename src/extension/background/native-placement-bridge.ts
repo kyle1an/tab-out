@@ -2,6 +2,7 @@ import {
   Context,
   Effect,
   Layer,
+  Queue,
   Result,
   Schema
 } from 'effect'
@@ -81,7 +82,7 @@ function errorMessage(error: unknown): string {
     : 'The native placement request failed'
 }
 
-const runNativePlacementBridgeMessage = Effect.fn('nativePlacementBridge.handleMessage')(function*(
+export const handleNativePlacementBridgeMessageEffect = Effect.fn('nativePlacementBridge.handleMessage')(function*(
   message: unknown,
   chromeApi: ChromeApi,
   nowMs: number
@@ -143,14 +144,6 @@ const runNativePlacementBridgeMessage = Effect.fn('nativePlacementBridge.handleM
   return response(requestId, 'accepted')
 })
 
-export function handleNativePlacementBridgeMessage(
-  message: unknown,
-  chromeApi: ChromeApi = chrome,
-  nowMs = Date.now()
-): Promise<NativePlacementBridgeResponse> {
-  return Effect.runPromise(runNativePlacementBridgeMessage(message, chromeApi, nowMs))
-}
-
 export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {
   readonly version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
 }>()('@tab-out/background/NativePlacementBridge') {
@@ -169,18 +162,11 @@ function makeNativePlacementBridgeLayer(
     if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') return service
     let reconnectAttempt = 0
 
-    function runInLayer(effect: Effect.Effect<void>): void {
-      Effect.runSync(effect.pipe(
-        Effect.forkIn(scope, { startImmediately: true }),
-        Effect.asVoid
-      ))
-    }
-
     const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function*(
       port: chrome.runtime.Port,
       message: unknown
     ) {
-      const result = yield* runNativePlacementBridgeMessage(message, chromeApi, Date.now())
+      const result = yield* handleNativePlacementBridgeMessageEffect(message, chromeApi, Date.now())
       yield* Effect.try({
         try: () => port.postMessage(result),
         catch: (cause) => NativePlacementOperationError.make({ cause })
@@ -199,13 +185,21 @@ function makeNativePlacementBridgeLayer(
         try: () => runtimeApi.connectNative(NATIVE_PLACEMENT_HOST_NAME),
         catch: (cause) => NativePlacementConnectionError.make({ cause })
       })
+      const messages = yield* Queue.unbounded<unknown>()
+      yield* Queue.take(messages).pipe(
+        Effect.flatMap((message) => replyToNativeMessage(port, message).pipe(
+          Effect.forkChild({ startImmediately: true })
+        )),
+        Effect.forever,
+        Effect.forkChild({ startImmediately: true })
+      )
 
       yield* Effect.callback<void>((resume) => {
         let disconnected = false
 
         const onMessage = (message: unknown) => {
           reconnectAttempt = 0
-          runInLayer(replyToNativeMessage(port, message))
+          Queue.offerUnsafe(messages, message)
         }
         const removeListeners = () => {
           port.onMessage.removeListener(onMessage)
