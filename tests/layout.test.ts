@@ -436,8 +436,22 @@ test('background badge owns its latest-wins browser workflow behind Effect', () 
   assert.match(source, /const runBadgeRefreshLoop = Effect\.fn/)
   assert.match(source, /const applyBadgePresentation = Effect\.fn/)
   assert.match(source, /Effect\.tryPromise/)
-  assert.match(source, /Effect\.runPromise\(runBadgeRefreshLoop\(\)\)/)
+  assert.match(source, /Layer\.effect\(Badge/)
+  assert.match(source, /Effect\.forkIn\(scope, \{ startImmediately: true \}\)/)
+  assert.match(source, /Ref\.modify\(state/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /async function runRefreshLoop\(\)/)
+})
+
+test('background entrypoints share one ManagedRuntime for Effect services', () => {
+  const runtimeSource = readFileSync(new URL('../src/extension/background/runtime.ts', import.meta.url), 'utf8')
+  const backgroundSource = readFileSync(new URL('../src/extension/background.ts', import.meta.url), 'utf8')
+
+  assert.match(runtimeSource, /ManagedRuntime\.make/)
+  assert.match(runtimeSource, /Badge\.layer\(chromeApi\)/)
+  assert.match(runtimeSource, /runtime\.runSync\(Effect\.void\)/)
+  assert.match(backgroundSource, /const backgroundRuntime = createBackgroundRuntime\(chromeApi\)/)
+  assert.match(backgroundSource, /backgroundRuntime\.runPromise\(refreshBadgeEffect\)/)
 })
 
 test('startup snapshot service owns its complete rebuild flight behind Effect', () => {

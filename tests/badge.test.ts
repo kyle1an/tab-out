@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import { setImmediate } from 'node:timers/promises'
+import test, { type TestContext } from 'node:test'
 
-import { createBadgeRefreshService } from '../src/extension/background/badge.js'
+import { refreshBadge } from '../src/extension/background/badge.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
+import { createBackgroundRuntime } from '../src/extension/background/runtime.js'
 
 function duplicateTabs(closableCount: number): chrome.tabs.Tab[] {
   return Array.from({ length: closableCount + 1 }, (_, index) => ({
@@ -15,9 +15,18 @@ function duplicateTabs(closableCount: number): chrome.tabs.Tab[] {
   })) as chrome.tabs.Tab[]
 }
 
-test('badge refresh coalesces an event burst and never applies an overtaken count', async () => {
+async function createBadgeRefresher(t: TestContext, chromeApi: ChromeApi): Promise<() => Promise<void>> {
+  const runtime = createBackgroundRuntime(chromeApi)
+  t.after(() => runtime.dispose())
+  await runtime.context()
+  return () => runtime.runPromise(refreshBadge)
+}
+
+test('badge refresh coalesces an event burst and never applies an overtaken count', async (t) => {
   const firstQuery = Promise.withResolvers<chrome.tabs.Tab[]>()
   const latestQuery = Promise.withResolvers<chrome.tabs.Tab[]>()
+  const firstQueryStarted = Promise.withResolvers<void>()
+  const latestQueryStarted = Promise.withResolvers<void>()
   const queries = [firstQuery, latestQuery]
   const badgeText: string[] = []
   const badgeColors: string[] = []
@@ -26,7 +35,10 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
   const chromeApi = {
     tabs: {
       query: async () => {
-        const query = queries[queryCount++]
+        queryCount += 1
+        if (queryCount === 1) firstQueryStarted.resolve()
+        if (queryCount === 2) latestQueryStarted.resolve()
+        const query = queries[queryCount - 1]
         assert.ok(query, 'unexpected badge tab query')
         return query.promise
       }
@@ -40,15 +52,16 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
       setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
     }
   } as unknown as ChromeApi
-  const service = createBadgeRefreshService(chromeApi)
+  const refresh = await createBadgeRefresher(t, chromeApi)
 
-  const firstRefresh = service.refresh()
-  const secondRefresh = service.refresh()
-  const thirdRefresh = service.refresh()
+  const firstRefresh = refresh()
+  await firstQueryStarted.promise
+  const secondRefresh = refresh()
+  const thirdRefresh = refresh()
   assert.equal(queryCount, 1)
 
   firstQuery.resolve(duplicateTabs(1))
-  await setImmediate()
+  await latestQueryStarted.promise
 
   assert.equal(queryCount, 2)
   assert.deepEqual(badgeText, [])
@@ -61,7 +74,7 @@ test('badge refresh coalesces an event burst and never applies an overtaken coun
   assert.deepEqual(badgeTitles, ['Dedupe 3 duplicate tabs'])
 })
 
-test('badge refresh skips redundant writes when the visible count and color are unchanged', async () => {
+test('badge refresh skips redundant writes when the visible count and color are unchanged', async (t) => {
   const badgeText: string[] = []
   const badgeColors: string[] = []
   const badgeTitles: string[] = []
@@ -82,10 +95,10 @@ test('badge refresh skips redundant writes when the visible count and color are 
       setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
     }
   } as unknown as ChromeApi
-  const service = createBadgeRefreshService(chromeApi)
+  const refresh = await createBadgeRefresher(t, chromeApi)
 
-  await service.refresh()
-  await service.refresh()
+  await refresh()
+  await refresh()
 
   assert.equal(queryCount, 2)
   assert.deepEqual(badgeText, ['2'])
@@ -93,7 +106,7 @@ test('badge refresh skips redundant writes when the visible count and color are 
   assert.deepEqual(badgeTitles, ['Dedupe 2 duplicate tabs'])
 })
 
-test('badge refresh preserves its last presentation when the tab read fails', async () => {
+test('badge refresh preserves its last presentation when the tab read fails', async (t) => {
   const badgeText: string[] = []
   const badgeColors: string[] = []
   const badgeTitles: string[] = []
@@ -114,18 +127,18 @@ test('badge refresh preserves its last presentation when the tab read fails', as
       setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
     }
   } as unknown as ChromeApi
-  const service = createBadgeRefreshService(chromeApi)
+  const refresh = await createBadgeRefresher(t, chromeApi)
 
-  await service.refresh()
+  await refresh()
   shouldFail = true
-  await service.refresh()
+  await refresh()
 
   assert.deepEqual(badgeText, ['4'])
   assert.deepEqual(badgeColors, ['#3d7a4a'])
   assert.deepEqual(badgeTitles, ['Dedupe 4 duplicate tabs'])
 })
 
-test('badge refresh retries a presentation whose text write failed', async () => {
+test('badge refresh retries a presentation whose text write failed', async (t) => {
   const badgeText: string[] = []
   const badgeColors: string[] = []
   const badgeTitles: string[] = []
@@ -147,10 +160,10 @@ test('badge refresh retries a presentation whose text write failed', async () =>
       setTitle: async ({ title }: { title: string }) => { badgeTitles.push(title) }
     }
   } as unknown as ChromeApi
-  const service = createBadgeRefreshService(chromeApi)
+  const refresh = await createBadgeRefresher(t, chromeApi)
 
-  await service.refresh()
-  await service.refresh()
+  await refresh()
+  await refresh()
 
   assert.equal(textWriteCount, 2)
   assert.deepEqual(badgeText, ['5'])
@@ -158,7 +171,7 @@ test('badge refresh retries a presentation whose text write failed', async () =>
   assert.deepEqual(badgeTitles, ['Dedupe 5 duplicate tabs'])
 })
 
-test('badge hides at zero and explains that there is nothing to dedupe', async () => {
+test('badge hides at zero and explains that there is nothing to dedupe', async (t) => {
   const badgeText: string[] = []
   const badgeColors: string[] = []
   const badgeTitles: string[] = []
@@ -179,7 +192,8 @@ test('badge hides at zero and explains that there is nothing to dedupe', async (
     }
   } as unknown as ChromeApi
 
-  await createBadgeRefreshService(chromeApi).refresh()
+  const refresh = await createBadgeRefresher(t, chromeApi)
+  await refresh()
 
   assert.deepEqual(badgeText, [''])
   assert.deepEqual(badgeColors, [])

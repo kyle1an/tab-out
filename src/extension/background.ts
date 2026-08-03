@@ -14,7 +14,7 @@
  *   Red    (#b35a5a) → 21+ duplicate extras
  */
 
-import { createBadgeRefreshService } from './background/badge.js'
+import { refreshBadge as refreshBadgeEffect } from './background/badge.js'
 import { settleBackgroundTask } from './background/background-task.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
 import { connectNativePlacementBridge } from './background/native-placement-bridge.js'
@@ -25,6 +25,7 @@ import { closeDuplicateTabsResult } from './tabs.js'
 import { groupColorChanged } from './groups.js'
 import { createTabHistoryService } from './background/tab-history-service.js'
 import { createWorkingSetService } from './background/working-set-service.js'
+import { createBackgroundRuntime } from './background/runtime.js'
 import { STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
 import {
   isClosedTabRestoreMessage,
@@ -35,7 +36,7 @@ import {
 } from './runtime-messages.js'
 
 const chromeApi = chrome
-const badgeRefreshService = createBadgeRefreshService(chromeApi)
+const backgroundRuntime = createBackgroundRuntime(chromeApi)
 const tabHistoryService = createTabHistoryService(chromeApi)
 const workingSetService = createWorkingSetService(chromeApi)
 connectNativePlacementBridge(chromeApi)
@@ -54,7 +55,7 @@ const startupSnapshotService = createStartupSnapshotService({
 })
 
 function refreshBadge() {
-  void badgeRefreshService.refresh()
+  void settleBackgroundTask(() => backgroundRuntime.runPromise(refreshBadgeEffect))
 }
 
 function scheduleStartupSnapshotRefresh() {
@@ -214,7 +215,7 @@ chromeApi.action.onClicked.addListener((tab) => {
     try {
       tabs = await chromeApi.tabs.query({})
     } catch {
-      await badgeRefreshService.refresh()
+      await backgroundRuntime.runPromise(refreshBadgeEffect)
       return
     }
 
@@ -225,7 +226,7 @@ chromeApi.action.onClicked.addListener((tab) => {
         preservePinnedTabOut: true
       })
     }
-    await badgeRefreshService.refresh()
+    await backgroundRuntime.runPromise(refreshBadgeEffect)
   })
 })
 
