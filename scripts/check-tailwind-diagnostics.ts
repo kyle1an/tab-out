@@ -1,11 +1,24 @@
 #!/usr/bin/env node
 
-import { spawn, execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import process from 'node:process'
-import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+
+import * as NodeRuntime from '@effect/platform-node/NodeRuntime'
+import * as NodeServices from '@effect/platform-node/NodeServices'
+import {
+  Console,
+  Deferred,
+  Effect,
+  Fiber,
+  FileSystem,
+  Queue,
+  Ref,
+  Schema,
+  Stream
+} from 'effect'
+import * as ChildProcess from 'effect/unstable/process/ChildProcess'
+import * as ChildProcessSpawner from 'effect/unstable/process/ChildProcessSpawner'
 
 import {
   isUnknownRecord,
@@ -16,9 +29,28 @@ import {
   type JsonRpcMessage
 } from './tailwind-language-server-protocol.ts'
 
-type PendingRequest = {
-  resolve(value: unknown): void
-  reject(reason?: unknown): void
+class TailwindDiagnosticsError extends Schema.TaggedErrorClass<TailwindDiagnosticsError>()(
+  'TailwindDiagnosticsError',
+  {
+    operation: Schema.String,
+    cause: Schema.Defect()
+  }
+) {
+  override get message(): string {
+    const detail = this.cause instanceof Error ? this.cause.message : String(this.cause)
+    return `${this.operation}: ${detail}`
+  }
+}
+
+type PendingRequest = Deferred.Deferred<unknown, TailwindDiagnosticsError>
+
+type LanguageServerState = {
+  diagnosticsByUri: Map<string, readonly Diagnostic[]>
+  publishedUris: Set<string>
+  pendingRequests: Map<number, PendingRequest>
+  nextRequestId: number
+  outputBuffer: Buffer
+  lastDiagnosticsAt: number
 }
 
 const workspaceRoot = process.cwd()
@@ -26,13 +58,6 @@ const workspaceUri = pathToFileURL(`${workspaceRoot}${path.sep}`).href
 const serverPackagePath = fileURLToPath(import.meta.resolve('@tailwindcss/language-server/package.json'))
 const serverScript = path.join(path.dirname(serverPackagePath), 'bin', 'tailwindcss-language-server')
 const supportedExtensions = new Set(['.css', '.html', '.js', '.jsx', '.ts', '.tsx'])
-const diagnosticsByUri = new Map<string, readonly Diagnostic[]>()
-const publishedUris = new Set<string>()
-const pendingRequests = new Map<number, PendingRequest>()
-const serverErrors: string[] = []
-let nextRequestId = 1
-let outputBuffer = Buffer.alloc(0)
-let lastDiagnosticsAt = 0
 
 const tailwindSettings = {
   validate: true,
@@ -72,18 +97,25 @@ const tailwindSettings = {
   }
 }
 
-function sourceFiles(): string[] {
-  const output = execFileSync(
+function diagnosticsError(operation: string, cause: unknown): TailwindDiagnosticsError {
+  return TailwindDiagnosticsError.make({ operation, cause })
+}
+
+const sourceFiles = Effect.fn('tailwindDiagnostics.sourceFiles')(function*() {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+  const output = yield* spawner.string(ChildProcess.make(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'extension/base.css'],
-    { cwd: workspaceRoot, encoding: 'utf8' }
+    { cwd: workspaceRoot }
+  )).pipe(
+    Effect.mapError((cause) => diagnosticsError('list source files', cause))
   )
 
   return [...new Set(output.split('\n'))]
     .filter((file) => file.length > 0)
     .filter((file) => supportedExtensions.has(path.extname(file)))
     .sort()
-}
+})
 
 function languageIdFor(file: string): string {
   if (file === 'src/styles/app.css') return 'tailwindcss'
@@ -106,26 +138,50 @@ function languageIdFor(file: string): string {
   }
 }
 
-function send(message: unknown): void {
-  const body = JSON.stringify(message)
-  server.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`)
+function send(input: Queue.Queue<Uint8Array>, message: unknown): Effect.Effect<void, TailwindDiagnosticsError> {
+  return Effect.try({
+    try: () => {
+      const body = JSON.stringify(message)
+      return Buffer.from(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`)
+    },
+    catch: (cause) => diagnosticsError('encode JSON-RPC message', cause)
+  }).pipe(
+    Effect.flatMap((chunk) => Queue.offer(input, chunk)),
+    Effect.asVoid
+  )
 }
 
-function respond(id: number | string, result: unknown): void {
-  send({ jsonrpc: '2.0', id, result })
+function respond(
+  input: Queue.Queue<Uint8Array>,
+  id: number | string,
+  result: unknown
+): Effect.Effect<void, TailwindDiagnosticsError> {
+  return send(input, { jsonrpc: '2.0', id, result })
 }
 
-function request(method: string, params: unknown): Promise<unknown> {
-  const id = nextRequestId++
-  send({ jsonrpc: '2.0', id, method, params })
-
-  const { promise, resolve, reject } = Promise.withResolvers<unknown>()
-  pendingRequests.set(id, { resolve, reject })
-  return promise
+function request(
+  state: LanguageServerState,
+  input: Queue.Queue<Uint8Array>,
+  method: string,
+  params: unknown
+): Effect.Effect<unknown, TailwindDiagnosticsError> {
+  return Effect.gen(function*() {
+    const id = state.nextRequestId++
+    const pending = yield* Deferred.make<unknown, TailwindDiagnosticsError>()
+    state.pendingRequests.set(id, pending)
+    yield* send(input, { jsonrpc: '2.0', id, method, params })
+    return yield* Deferred.await(pending).pipe(
+      Effect.ensuring(Effect.sync(() => state.pendingRequests.delete(id)))
+    )
+  })
 }
 
-function notify(method: string, params?: unknown): void {
-  send({ jsonrpc: '2.0', method, params })
+function notify(
+  input: Queue.Queue<Uint8Array>,
+  method: string,
+  params?: unknown
+): Effect.Effect<void, TailwindDiagnosticsError> {
+  return send(input, { jsonrpc: '2.0', method, params })
 }
 
 function configurationFor(section: string | undefined): unknown {
@@ -142,96 +198,125 @@ function configurationFor(section: string | undefined): unknown {
   return null
 }
 
-function handleServerRequest(message: JsonRpcMessage): void {
-  if (message.id === undefined || !message.method) return
+function handleServerRequest(
+  input: Queue.Queue<Uint8Array>,
+  message: JsonRpcMessage
+): Effect.Effect<void, TailwindDiagnosticsError> {
+  if (message.id === undefined || !message.method) return Effect.void
+  const messageId = message.id
+
+  if (message.method === 'workspace/configuration') {
+    return Effect.try({
+      try: () => requireConfigurationParams(message.params),
+      catch: (cause) => diagnosticsError('validate workspace configuration request', cause)
+    }).pipe(
+      Effect.flatMap(({ items }) => respond(
+        input,
+        messageId,
+        items.map((item) => configurationFor(item.section))
+      ))
+    )
+  }
 
   switch (message.method) {
-    case 'workspace/configuration': {
-      const { items } = requireConfigurationParams(message.params)
-      respond(message.id, items.map((item) => configurationFor(item.section)))
-      break
-    }
     case 'workspace/workspaceFolders':
-      respond(message.id, [{ uri: workspaceUri, name: path.basename(workspaceRoot) }])
-      break
+      return respond(input, messageId, [{ uri: workspaceUri, name: path.basename(workspaceRoot) }])
     case 'client/registerCapability':
     case 'client/unregisterCapability':
     case 'window/workDoneProgress/create':
-      respond(message.id, null)
-      break
+      return respond(input, messageId, null)
     case 'workspace/applyEdit':
-      respond(message.id, { applied: false })
-      break
+      return respond(input, messageId, { applied: false })
     case 'window/showMessageRequest':
     case '@/tailwindCSS/getDocumentSymbols':
-      respond(message.id, null)
-      break
+      return respond(input, messageId, null)
     default:
-      respond(message.id, null)
+      return respond(input, messageId, null)
   }
 }
 
-function handleMessage(message: JsonRpcMessage): void {
+function handleMessage(
+  state: LanguageServerState,
+  input: Queue.Queue<Uint8Array>,
+  message: JsonRpcMessage
+): Effect.Effect<void, TailwindDiagnosticsError> {
   if (message.method && message.id !== undefined) {
-    handleServerRequest(message)
-    return
+    return handleServerRequest(input, message)
   }
 
   if (typeof message.id === 'number') {
-    const pending = pendingRequests.get(message.id)
-    if (!pending) return
-    pendingRequests.delete(message.id)
-    if (message.error) pending.reject(new Error(message.error.message))
-    else pending.resolve(message.result)
-    return
+    const pending = state.pendingRequests.get(message.id)
+    if (!pending) return Effect.void
+    state.pendingRequests.delete(message.id)
+    return message.error
+      ? Deferred.fail(pending, diagnosticsError(`JSON-RPC request ${message.id}`, new Error(message.error.message))).pipe(
+        Effect.asVoid
+      )
+      : Deferred.succeed(pending, message.result).pipe(Effect.asVoid)
   }
 
   if (message.method === 'textDocument/publishDiagnostics') {
-    const { uri, diagnostics } = requirePublishedDiagnosticsParams(message.params)
-    diagnosticsByUri.set(uri, diagnostics)
-    publishedUris.add(uri)
-    lastDiagnosticsAt = Date.now()
+    return Effect.try({
+      try: () => requirePublishedDiagnosticsParams(message.params),
+      catch: (cause) => diagnosticsError('validate published diagnostics', cause)
+    }).pipe(
+      Effect.tap(({ uri, diagnostics }) => Effect.sync(() => {
+        state.diagnosticsByUri.set(uri, diagnostics)
+        state.publishedUris.add(uri)
+        state.lastDiagnosticsAt = Date.now()
+      })),
+      Effect.asVoid
+    )
   }
+
+  return Effect.void
 }
 
-function parseServerOutput(chunk: Buffer): void {
-  outputBuffer = Buffer.concat([outputBuffer, chunk])
+function parseServerOutput(state: LanguageServerState, chunk: Uint8Array): JsonRpcMessage[] {
+  state.outputBuffer = Buffer.concat([state.outputBuffer, Buffer.from(chunk)])
+  const messages: JsonRpcMessage[] = []
 
   while (true) {
-    const headerEnd = outputBuffer.indexOf('\r\n\r\n')
-    if (headerEnd < 0) return
+    const headerEnd = state.outputBuffer.indexOf('\r\n\r\n')
+    if (headerEnd < 0) return messages
 
-    const header = outputBuffer.subarray(0, headerEnd).toString('utf8')
+    const header = state.outputBuffer.subarray(0, headerEnd).toString('utf8')
     const contentLengthMatch = header.match(/Content-Length: (\d+)/i)
     if (!contentLengthMatch) throw new Error(`Invalid language-server header: ${header}`)
 
     const contentLength = Number(contentLengthMatch[1])
     const bodyStart = headerEnd + 4
     const bodyEnd = bodyStart + contentLength
-    if (outputBuffer.length < bodyEnd) return
+    if (state.outputBuffer.length < bodyEnd) return messages
 
-    const body = outputBuffer.subarray(bodyStart, bodyEnd).toString('utf8')
-    outputBuffer = outputBuffer.subarray(bodyEnd)
-    handleMessage(parseJsonRpcMessage(body))
+    const body = state.outputBuffer.subarray(bodyStart, bodyEnd).toString('utf8')
+    state.outputBuffer = state.outputBuffer.subarray(bodyEnd)
+    messages.push(parseJsonRpcMessage(body))
   }
 }
 
-async function waitForDiagnostics(expectedUris: readonly string[]): Promise<void> {
+const waitForDiagnostics = Effect.fn('tailwindDiagnostics.waitForDiagnostics')(function*(
+  state: LanguageServerState,
+  expectedUris: readonly string[]
+) {
   const timeoutAt = Date.now() + 30_000
   const expectedUriSet = new Set(expectedUris)
 
   while (Date.now() < timeoutAt) {
-    const allPublished = expectedUriSet.isSubsetOf(publishedUris)
-    const settled = allPublished && Date.now() - lastDiagnosticsAt >= 500
+    const allPublished = expectedUriSet.isSubsetOf(state.publishedUris)
+    const settled = allPublished && Date.now() - state.lastDiagnosticsAt >= 500
     if (settled) return
-    await delay(100)
+    yield* Effect.sleep('100 millis')
   }
 
-  const missingCount = expectedUriSet.difference(publishedUris).size
-  throw new Error(
-    `Timed out waiting for Tailwind diagnostics (${publishedUris.size}/${expectedUris.length} documents; missing ${missingCount})`
-  )
-}
+  const missingCount = expectedUriSet.difference(state.publishedUris).size
+  return yield* Effect.fail(diagnosticsError(
+    'wait for diagnostics',
+    new Error(
+      `Timed out waiting for Tailwind diagnostics (${state.publishedUris.size}/${expectedUris.length} documents; missing ${missingCount})`
+    )
+  ))
+})
 
 function severityName(severity: number | undefined): string {
   if (severity === undefined) return 'unknown'
@@ -242,70 +327,131 @@ function relativeFileForUri(uri: string): string {
   return path.relative(workspaceRoot, fileURLToPath(uri))
 }
 
-const files = sourceFiles()
-const documents = await Promise.all(
-  files.map(async (file) => {
+const runTailwindDiagnostics = Effect.fn('tailwindDiagnostics.run')(function*() {
+  const fileSystem = yield* FileSystem.FileSystem
+  const files = yield* sourceFiles()
+  const documents = yield* Effect.forEach(files, (file) => {
     const absolutePath = path.join(workspaceRoot, file)
-    return {
-      file,
-      uri: pathToFileURL(absolutePath).href,
-      languageId: languageIdFor(file),
-      text: await readFile(absolutePath, 'utf8')
-    }
-  })
-)
+    return fileSystem.readFileString(absolutePath).pipe(
+      Effect.mapError((cause) => diagnosticsError(`read ${file}`, cause)),
+      Effect.map((text) => ({
+        file,
+        uri: pathToFileURL(absolutePath).href,
+        languageId: languageIdFor(file),
+        text
+      }))
+    )
+  }, { concurrency: 'unbounded' })
 
-const server = spawn(process.execPath, [serverScript, '--stdio'], {
-  cwd: workspaceRoot,
-  env: process.env,
-  stdio: ['pipe', 'pipe', 'pipe']
-})
-
-server.stdout.on('data', parseServerOutput)
-server.stderr.setEncoding('utf8')
-server.stderr.on('data', (chunk: string) => serverErrors.push(chunk))
-
-try {
-  await request('initialize', {
-    processId: process.pid,
-    clientInfo: { name: 'tab-out-tailwind-check' },
-    rootPath: workspaceRoot,
-    rootUri: workspaceUri,
-    workspaceFolders: [{ uri: workspaceUri, name: path.basename(workspaceRoot) }],
-    capabilities: {
-      workspace: {
-        configuration: true,
-        workspaceFolders: true,
-        didChangeConfiguration: { dynamicRegistration: false }
-      },
-      textDocument: {
-        publishDiagnostics: {
-          relatedInformation: true,
-          versionSupport: true
-        }
-      },
-      window: { workDoneProgress: true }
+  const state: LanguageServerState = {
+    diagnosticsByUri: new Map(),
+    publishedUris: new Set(),
+    pendingRequests: new Map(),
+    nextRequestId: 1,
+    outputBuffer: Buffer.alloc(0),
+    lastDiagnosticsAt: 0
+  }
+  const serverInput = yield* Queue.unbounded<Uint8Array>()
+  const serverErrors = yield* Ref.make('')
+  const server = yield* ChildProcess.make(process.execPath, [serverScript, '--stdio'], {
+    cwd: workspaceRoot,
+    env: process.env,
+    stdin: {
+      stream: Stream.fromQueue(serverInput),
+      endOnDone: true
     },
-    initializationOptions: {}
-  })
+    stdout: 'pipe',
+    stderr: 'pipe'
+  }).pipe(
+    Effect.mapError((cause) => diagnosticsError('start Tailwind language server', cause))
+  )
 
-  notify('initialized', {})
-  notify('workspace/didChangeConfiguration', { settings: { tailwindCSS: tailwindSettings } })
+  const stdoutFiber = yield* server.stdout.pipe(
+    Stream.runForEach((chunk) => Effect.try({
+      try: () => parseServerOutput(state, chunk),
+      catch: (cause) => diagnosticsError('parse Tailwind language-server output', cause)
+    }).pipe(
+      Effect.flatMap((messages) => Effect.forEach(
+        messages,
+        (message) => handleMessage(state, serverInput, message),
+        { discard: true }
+      ))
+    )),
+    Effect.forkScoped
+  )
+  yield* server.stderr.pipe(
+    Stream.decodeText(),
+    Stream.runForEach((chunk) => Ref.update(serverErrors, (current) => current + chunk)),
+    Effect.catchCause((cause) => Ref.update(serverErrors, (current) => `${current}${String(cause)}`)),
+    Effect.forkScoped
+  )
 
-  for (const document of documents) {
-    notify('textDocument/didOpen', {
+  const gracefulShutdown = request(state, serverInput, 'shutdown', null).pipe(
+    Effect.andThen(notify(serverInput, 'exit')),
+    Effect.andThen(server.exitCode),
+    Effect.asVoid,
+    Effect.timeoutOrElse({
+      duration: '2 seconds',
+      orElse: () => server.kill()
+    }),
+    Effect.ignoreCause
+  )
+  yield* Effect.addFinalizer(() => gracefulShutdown)
+
+  const protocol = Effect.gen(function*() {
+    yield* request(state, serverInput, 'initialize', {
+      processId: process.pid,
+      clientInfo: { name: 'tab-out-tailwind-check' },
+      rootPath: workspaceRoot,
+      rootUri: workspaceUri,
+      workspaceFolders: [{ uri: workspaceUri, name: path.basename(workspaceRoot) }],
+      capabilities: {
+        workspace: {
+          configuration: true,
+          workspaceFolders: true,
+          didChangeConfiguration: { dynamicRegistration: false }
+        },
+        textDocument: {
+          publishDiagnostics: {
+            relatedInformation: true,
+            versionSupport: true
+          }
+        },
+        window: { workDoneProgress: true }
+      },
+      initializationOptions: {}
+    })
+
+    yield* notify(serverInput, 'initialized', {})
+    yield* notify(serverInput, 'workspace/didChangeConfiguration', {
+      settings: { tailwindCSS: tailwindSettings }
+    })
+
+    yield* Effect.forEach(documents, (document) => notify(serverInput, 'textDocument/didOpen', {
       textDocument: {
         uri: document.uri,
         languageId: document.languageId,
         version: 1,
         text: document.text
       }
-    })
-  }
+    }), { discard: true })
 
-  await waitForDiagnostics(documents.map((document) => document.uri))
+    yield* waitForDiagnostics(state, documents.map((document) => document.uri))
+  })
+  const unexpectedServerExit = Fiber.join(stdoutFiber).pipe(
+    Effect.flatMap(() => Effect.fail(diagnosticsError(
+      'read Tailwind language-server output',
+      new Error('Tailwind language server closed stdout before diagnostics completed')
+    )))
+  )
+  yield* protocol.pipe(
+    Effect.raceFirst(unexpectedServerExit),
+    Effect.tapError(() => Ref.get(serverErrors).pipe(
+      Effect.flatMap((errors) => errors.trim() ? Console.error(errors.trim()) : Effect.void)
+    ))
+  )
 
-  const diagnostics = [...diagnosticsByUri]
+  const diagnostics = [...state.diagnosticsByUri]
     .flatMap(([uri, entries]) => entries.map((diagnostic) => ({ uri, ...diagnostic })))
     .sort((left, right) => {
       const fileOrder = relativeFileForUri(left.uri).localeCompare(relativeFileForUri(right.uri))
@@ -319,30 +465,25 @@ try {
     const line = diagnostic.range.start.line + 1
     const column = diagnostic.range.start.character + 1
     const code = diagnostic.code ? ` ${diagnostic.code}` : ''
-    console.error(`${file}:${line}:${column} ${severityName(diagnostic.severity)}${code}: ${diagnostic.message}`)
+    yield* Console.error(
+      `${file}:${line}:${column} ${severityName(diagnostic.severity)}${code}: ${diagnostic.message}`
+    )
   }
 
   if (diagnostics.length > 0) {
-    console.error(`\nTailwind diagnostics: ${diagnostics.length} across ${documents.length} documents.`)
-    process.exitCode = 1
+    yield* Console.error(`\nTailwind diagnostics: ${diagnostics.length} across ${documents.length} documents.`)
+    const errors = yield* Ref.get(serverErrors)
+    if (errors.trim()) yield* Console.error(errors.trim())
+    yield* Effect.sync(() => {
+      process.exitCode = 1
+    })
   } else {
-    console.log(`Tailwind diagnostics: 0 across ${documents.length} documents.`)
+    yield* Console.log(`Tailwind diagnostics: 0 across ${documents.length} documents.`)
   }
-} finally {
-  try {
-    await request('shutdown', null)
-    notify('exit')
-  } catch {
-    server.kill()
-  }
+})
 
-  await Promise.race([
-    new Promise<void>((resolve) => server.once('exit', () => resolve())),
-    delay(2_000)
-  ])
-  if (server.exitCode === null) server.kill()
-
-  if (serverErrors.length > 0 && process.exitCode) {
-    console.error(serverErrors.join('').trim())
-  }
-}
+runTailwindDiagnostics().pipe(
+  Effect.scoped,
+  Effect.provide(NodeServices.layer),
+  NodeRuntime.runMain
+)
