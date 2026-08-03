@@ -14,6 +14,7 @@ import {
   savedPageKeysFromStore,
   savedPagesStoresEqual
 } from '../src/extension/saved-pages.js'
+import { parseSavedPagesStoreValue } from '../src/extension/saved-pages-storage.js'
 import type { DashboardTab } from '../src/extension/types'
 
 function makeTab(overrides: Partial<DashboardTab> & { url: string }): DashboardTab {
@@ -81,6 +82,25 @@ test('normalizeSavedPagesStore keeps valid records and drops invalid ones', () =
   const normalizedPage = normalized.pages['https://example.test/docs']
   assert.ok(normalizedPage)
   assert.equal(normalizedPage.url, 'https://example.test/docs')
+})
+
+test('Saved Pages schema accepts a valid envelope while dropping malformed records', () => {
+  const parsed = parseSavedPagesStoreValue({
+    version: 1,
+    pages: {
+      'https://example.test/docs': {
+        key: 'https://example.test/docs',
+        url: 'https://example.test/docs',
+        title: 'Docs',
+        savedAt: 10,
+        updatedAt: 11
+      },
+      malformed: 'not-a-record'
+    }
+  })
+
+  assert.equal(parsed.ok, true)
+  assert.deepEqual(Object.keys(parsed.value.pages), ['https://example.test/docs'])
 })
 
 test('mergeSavedPagesWithTabs annotates matching open tabs and emits closed saved page items', () => {

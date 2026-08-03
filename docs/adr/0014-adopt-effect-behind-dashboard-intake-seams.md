@@ -259,6 +259,19 @@ bytes. It adds 375 raw bytes while deterministic gzip size decreases by 21
 bytes, bringing the worker entry to 322,668 raw bytes and 106,960 deterministic
 gzip bytes.
 
+The twenty-third slice validates the versioned Saved Pages storage envelope
+and candidate records with Effect Schema. A missing key remains a valid empty
+first-run store, an invalid version or pages container still fails the read,
+and a valid envelope continues to repair compatible legacy metadata while
+dropping malformed individual records. The storage owner no longer reaches
+unknown data through `Partial` casts. Schema and Chrome I/O live in a dedicated
+storage-boundary module so the shared Saved Pages model remains Effect-free.
+It adds 582 raw bytes and 172 deterministic gzip bytes to the app entry,
+bringing it to 880,709 raw bytes and 277,422 deterministic gzip bytes. Because
+the worker also reads Saved Pages for startup snapshot composition, it adds 573
+raw bytes and 156 deterministic gzip bytes to the worker entry, bringing it to
+323,241 raw bytes and 107,116 deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

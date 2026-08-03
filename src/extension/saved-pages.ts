@@ -44,24 +44,6 @@ export function emptySavedPagesStore(): SavedPagesStore {
   return { version: SAVED_PAGES_VERSION, pages: {} }
 }
 
-export function parseSavedPagesStoreValue(stored: unknown): SavedPagesStoreLoadResult {
-  if (stored === undefined) return { ok: true, value: emptySavedPagesStore() }
-  if (
-    !stored ||
-    typeof stored !== 'object' ||
-    (stored as Partial<SavedPagesStore>).version !== SAVED_PAGES_VERSION ||
-    !(stored as Partial<SavedPagesStore>).pages ||
-    typeof (stored as Partial<SavedPagesStore>).pages !== 'object' ||
-    Array.isArray((stored as Partial<SavedPagesStore>).pages)
-  ) {
-    return { ok: false, value: emptySavedPagesStore() }
-  }
-  return {
-    ok: true,
-    value: normalizeSavedPagesStore(stored as Partial<SavedPagesStore>)
-  }
-}
-
 export function savedPageKeyForUrl(url = ''): string {
   if (!url) return ''
   const parsed = URL.parse(url)
@@ -281,29 +263,4 @@ function displayUrlForSavedPage(url = ''): string {
   if (!parsed) return url
   if (parsed.protocol === 'file:') return parsed.pathname
   return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
-}
-
-export async function loadSavedPagesStoreResult(): Promise<SavedPagesStoreLoadResult> {
-  try {
-    return parseSavedPagesStoreValue(await readSavedPagesStoreValue())
-  } catch {
-    return { ok: false, value: emptySavedPagesStore() }
-  }
-}
-
-/** Compatibility loader for optional consumers that intentionally accept empty fallback state. */
-export async function loadSavedPagesStore(): Promise<SavedPagesStore> {
-  return (await loadSavedPagesStoreResult()).value
-}
-
-function savedPagesStorageArea(): chrome.storage.StorageArea {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    throw new Error('Saved Pages storage is unavailable')
-  }
-  return chrome.storage.local
-}
-
-async function readSavedPagesStoreValue(): Promise<unknown> {
-  const stored = await savedPagesStorageArea().get(SAVED_PAGES_STORAGE_KEY)
-  return stored[SAVED_PAGES_STORAGE_KEY]
 }

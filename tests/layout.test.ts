@@ -359,6 +359,7 @@ test('dashboard pin transactions serialize their complete storage workflow with 
 test('Saved Pages serializes each read-modify-write transaction with Effect', () => {
   const source = readFileSync(new URL('../src/extension/saved-pages-mutations.ts', import.meta.url), 'utf8')
   const sharedSource = readFileSync(new URL('../src/extension/saved-pages.ts', import.meta.url), 'utf8')
+  const storageSource = readFileSync(new URL('../src/extension/saved-pages-storage.ts', import.meta.url), 'utf8')
   const sharedRenderSource = readFileSync(new URL('../src/extension/render.ts', import.meta.url), 'utf8')
 
   assert.match(source, /const runSavedPagesMutation = Effect\.fn/)
@@ -367,6 +368,7 @@ test('Saved Pages serializes each read-modify-write transaction with Effect', ()
   assert.match(source, /Effect\.tryPromise/)
   assert.doesNotMatch(source, /let mutationQueue = Promise\.resolve\(\)/)
   assert.doesNotMatch(sharedSource, /from 'effect'/)
+  assert.match(storageSource, /Schema\.Struct/)
   assert.doesNotMatch(sharedRenderSource, /saved-pages-mutations/)
 })
 

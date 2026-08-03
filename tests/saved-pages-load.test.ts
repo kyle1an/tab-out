@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import {
-  SAVED_PAGES_STORAGE_KEY,
-  loadSavedPagesStoreResult
-} from '../src/extension/saved-pages.js'
+import { SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
+import { loadSavedPagesStoreResult } from '../src/extension/saved-pages-storage.js'
 
 test('Saved Pages loading distinguishes a rejected read from a valid empty first-run store', async () => {
   globalThis.chrome = {

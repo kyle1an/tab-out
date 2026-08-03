@@ -14,7 +14,8 @@
 
 import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { annotateSavedPageHints, loadSavedPagesStore, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
+import { annotateSavedPageHints, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
+import { loadSavedPagesStore } from './saved-pages-storage.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'

@@ -2,13 +2,13 @@ import { Data, Effect, Semaphore } from 'effect'
 
 import {
   normalizeSavedPagesStore,
-  parseSavedPagesStoreValue,
   SAVED_PAGES_STORAGE_KEY,
   savedPageRecordsEqual,
   savedPagesStoresEqual,
   type SavedPagesStore,
   type SavedPagesStoreMutation
 } from './saved-pages.js'
+import { parseSavedPagesStoreValue } from './saved-pages-storage.js'
 
 export type SavedPagesStoreAdapter = {
   read: () => Promise<unknown>
