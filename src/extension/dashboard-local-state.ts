@@ -22,15 +22,22 @@ export const DASHBOARD_LOCAL_STORAGE_KEYS = [
   PAGE_CHIP_PIN_STORAGE_KEY
 ] as const
 
+const dashboardLocalStoragePinValueSchema = Schema.UndefinedOr(Schema.Array(Schema.Unknown))
+
 const storedDashboardLocalStateSchema = Schema.Struct({
-  [DOMAIN_PIN_STORAGE_KEY]: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(Schema.Unknown))),
-  [SECTION_PIN_STORAGE_KEY]: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(Schema.Unknown))),
-  [PAGE_CHIP_PIN_STORAGE_KEY]: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(Schema.Unknown)))
+  [DOMAIN_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
+  [SECTION_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
+  [PAGE_CHIP_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema)
 })
 
 type StoredDashboardLocalState = typeof storedDashboardLocalStateSchema.Type
 
 const isStoredDashboardLocalState = Schema.is(storedDashboardLocalStateSchema)
+const isStoredDashboardLocalStoragePinValue = Schema.is(dashboardLocalStoragePinValueSchema)
+
+export function isDashboardLocalStoragePinValue(value: unknown): boolean {
+  return isStoredDashboardLocalStoragePinValue(value)
+}
 
 export function emptyDashboardLocalState(loaded = false): DashboardLocalState {
   return {

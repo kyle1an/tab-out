@@ -349,6 +349,16 @@ module reachability adds 543 raw bytes and 141 deterministic gzip bytes to the
 worker entry, bringing it to 323,674 raw bytes and 107,383 deterministic gzip
 bytes.
 
+The thirty-first slice shares the Dashboard local-pin value schema with live
+`chrome.storage.onChanged` reconciliation. Initial reads and cross-page updates
+now accept the same absent-or-array shape before the existing pin normalizers
+apply domain-specific repair, while malformed event values continue to leave
+known UI state untouched. Consolidating the guard reduces the app entry by 13
+raw bytes and 30 deterministic gzip bytes, bringing it to 881,637 raw bytes and
+277,784 deterministic gzip bytes. Shared-module minification reduces the worker
+entry by 1 raw byte while adding 13 deterministic gzip bytes, bringing it to
+323,673 raw bytes and 107,396 deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
