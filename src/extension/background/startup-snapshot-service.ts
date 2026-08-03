@@ -22,7 +22,7 @@ import { SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
 import { loadSavedPagesStoreResultEffect } from '../saved-pages-storage.js'
 import { SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
 import {
-  buildTabsDashboardStartupSnapshot,
+  buildTabsDashboardStartupSnapshotEffect,
   captureDashboardStartupSnapshotStartedAt,
   loadCachedDashboardStartupResultEffect,
   promoteCachedDashboardStartupSnapshotEffect,
@@ -252,22 +252,21 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
         : null
       // The worker deliberately drops the build's savedPageUpdates: Saved Pages
       // metadata writes belong to page fetchers only.
-      const { snapshot } = yield* Effect.tryPromise({
-        try: () => buildTabsDashboardStartupSnapshot({
-          dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
-          // The worker's `windows.getCurrent()` is another last-focused-window
-          // read. Reuse the window captured atomically with tabs + history instead
-          // of mixing two browser generations.
-          currentWindowId,
-          tabHistory: dashboardServiceState.tabHistory,
-          workingSetActivity: dashboardServiceState.workingSetActivity,
-          savedPagesStore,
-          closedTabs: closedTabsResult.value,
-          pinnedDomains,
-          tabPreviousOrder
-        }),
-        catch: (cause) => StartupSnapshotRefreshError.make({ cause })
-      })
+      const { snapshot } = yield* buildTabsDashboardStartupSnapshotEffect({
+        dashboardTabs: getDashboardTabsFromOpenTabs(openTabs),
+        // The worker's `windows.getCurrent()` is another last-focused-window
+        // read. Reuse the window captured atomically with tabs + history instead
+        // of mixing two browser generations.
+        currentWindowId,
+        tabHistory: dashboardServiceState.tabHistory,
+        workingSetActivity: dashboardServiceState.workingSetActivity,
+        savedPagesStore,
+        closedTabs: closedTabsResult.value,
+        pinnedDomains,
+        tabPreviousOrder
+      }).pipe(
+        Effect.mapError((error) => StartupSnapshotRefreshError.make({ cause: error.cause }))
+      )
       yield* saveCachedDashboardStartupSnapshotEffect(snapshot, localState, {
         buildStartupViewModel: buildDashboardStartupViewModel,
         captureStartedAt,

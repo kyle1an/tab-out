@@ -12,10 +12,13 @@
                                   and returns match-scoped fields
    ================================================================ */
 
+import { Effect, Schema } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
 import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { annotateSavedPageHints, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
-import { loadSavedPagesStore } from './saved-pages-storage.js'
+import { loadSavedPagesStoreEffect } from './saved-pages-storage.js'
 import { buildDomainGroups } from './domain-groups.js'
 import { computeDomainCardViewModel } from './domain-card-view-model.js'
 import { domainGroupCardId } from './domain-card-id.js'
@@ -214,7 +217,14 @@ export type DashboardDataBuild = {
   savedPageUpdates: SavedPageMetadataUpdates
 }
 
-export async function buildDashboardDataFromTabs(
+export class DashboardDataBuildError extends Schema.TaggedErrorClass<DashboardDataBuildError>()(
+  'DashboardDataBuildError',
+  { cause: Schema.Defect() }
+) {}
+
+export const buildDashboardDataFromTabsEffect = Effect.fn(
+  'dashboard.buildDataFromTabs'
+)(function*(
   dashboardTabs: DashboardTab[],
   currentWindowId: number | null,
   previousOrder: Map<string, number> = new Map(),
@@ -231,32 +241,55 @@ export async function buildDashboardDataFromTabs(
     historyTabs = [],
     savedPagesStore
   }: BuildDashboardDataOptions = {}
-): Promise<DashboardDataBuild> {
+) {
   const historyQuery = includeHistoryMatches ? searchQuery.trim() : ''
-  const resolvedSavedPagesStore = savedPagesStore ?? await loadSavedPagesStore()
-  const companionBookmarkTabs = includeBookmarkMatches ? bookmarkTabs : []
-  const companionHistoryTabs = includeHistoryMatches ? historyTabs : []
-  const savedPagesMerge = mergeSavedPagesWithTabs(dashboardTabs, resolvedSavedPagesStore)
-  const realTabs = savedPagesMerge.tabs
-  const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)
-  const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains })
-  const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains })
-  const historyDomainGroups = buildDomainGroups(companionHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains })
-  return {
-    dashboard: {
-      realTabs,
-      domainGroups,
-      currentWindowId,
-      bookmarkTabs: annotatedBookmarkTabs,
-      bookmarkDomainGroups,
-      bookmarkSearchReady: includeBookmarkMatches,
-      historyTabs: companionHistoryTabs,
-      historyDomainGroups,
-      historySearchQuery: historyQuery,
-      historyRange,
-      historySearchStatus: includeHistoryMatches ? historySearchStatus : 'idle',
-      savedKeys: savedPageKeysFromStore(savedPagesMerge.store)
+  const resolvedSavedPagesStore = savedPagesStore ?? (yield* loadSavedPagesStoreEffect())
+  return yield* Effect.try({
+    try: (): DashboardDataBuild => {
+      const companionBookmarkTabs = includeBookmarkMatches ? bookmarkTabs : []
+      const companionHistoryTabs = includeHistoryMatches ? historyTabs : []
+      const savedPagesMerge = mergeSavedPagesWithTabs(dashboardTabs, resolvedSavedPagesStore)
+      const realTabs = savedPagesMerge.tabs
+      const annotatedBookmarkTabs = annotateSavedPageHints(companionBookmarkTabs, savedPagesMerge.store)
+      const domainGroups = buildDomainGroups(realTabs, { previousOrder, pinnedDomains })
+      const bookmarkDomainGroups = buildDomainGroups(annotatedBookmarkTabs, { previousOrder: bookmarkPreviousOrder, pinnedDomains })
+      const historyDomainGroups = buildDomainGroups(companionHistoryTabs, { previousOrder: historyPreviousOrder, pinnedDomains })
+      return {
+        dashboard: {
+          realTabs,
+          domainGroups,
+          currentWindowId,
+          bookmarkTabs: annotatedBookmarkTabs,
+          bookmarkDomainGroups,
+          bookmarkSearchReady: includeBookmarkMatches,
+          historyTabs: companionHistoryTabs,
+          historyDomainGroups,
+          historySearchQuery: historyQuery,
+          historyRange,
+          historySearchStatus: includeHistoryMatches ? historySearchStatus : 'idle',
+          savedKeys: savedPageKeysFromStore(savedPagesMerge.store)
+        },
+        savedPageUpdates: { base: resolvedSavedPagesStore, merged: savedPagesMerge.store }
+      }
     },
-    savedPageUpdates: { base: resolvedSavedPagesStore, merged: savedPagesMerge.store }
-  }
+    catch: (cause) => DashboardDataBuildError.make({ cause })
+  })
+})
+
+export function buildDashboardDataFromTabs(
+  dashboardTabs: DashboardTab[],
+  currentWindowId: number | null,
+  previousOrder: Map<string, number> = new Map(),
+  options: BuildDashboardDataOptions = {}
+): Promise<DashboardDataBuild> {
+  return getAppRuntime().runPromise(
+    buildDashboardDataFromTabsEffect(
+      dashboardTabs,
+      currentWindowId,
+      previousOrder,
+      options
+    ).pipe(
+      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause))
+    )
+  )
 }

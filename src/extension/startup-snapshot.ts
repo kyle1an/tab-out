@@ -11,7 +11,10 @@ import {
   type DashboardLocalState
 } from './dashboard-local-state.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { buildDashboardDataFromTabs } from './render.js'
+import {
+  DashboardDataBuildError,
+  buildDashboardDataFromTabsEffect
+} from './render.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 import {
@@ -691,8 +694,10 @@ export type TabsStartupSnapshotBuild = {
 // page (which gathers via chrome.* fetchers / service messaging) and the service worker (which
 // has the same data directly), so both produce an identical snapshot and hydration cannot shift.
 // The build is pure: only page-side callers persist the returned savedPageUpdates.
-export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnapshotInputs): Promise<TabsStartupSnapshotBuild> {
-  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(inputs.dashboardTabs, inputs.currentWindowId, inputs.tabPreviousOrder ?? new Map(), {
+export const buildTabsDashboardStartupSnapshotEffect = Effect.fn(
+  'startupSnapshot.buildFromTabs'
+)(function*(inputs: TabsStartupSnapshotInputs) {
+  const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(inputs.dashboardTabs, inputs.currentWindowId, inputs.tabPreviousOrder ?? new Map(), {
     pinnedDomains: inputs.pinnedDomains,
     bookmarkPreviousOrder: new Map(),
     historyPreviousOrder: new Map(),
@@ -702,13 +707,28 @@ export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnaps
     historyRange: DEFAULT_HISTORY_RANGE,
     savedPagesStore: inputs.savedPagesStore
   })
-  const workingSet = buildWorkingSetSnapshot({
-    tabs: inputs.dashboardTabs,
-    activity: inputs.workingSetActivity,
-    currentWindowId: inputs.currentWindowId
+  return yield* Effect.try({
+    try: (): TabsStartupSnapshotBuild => {
+      const workingSet = buildWorkingSetSnapshot({
+        tabs: inputs.dashboardTabs,
+        activity: inputs.workingSetActivity,
+        currentWindowId: inputs.currentWindowId
+      })
+      return {
+        snapshot: { dashboard, tabHistory: inputs.tabHistory, workingSet, closedTabs: inputs.closedTabs },
+        savedPageUpdates
+      }
+    },
+    catch: (cause) => DashboardDataBuildError.make({ cause })
   })
-  return {
-    snapshot: { dashboard, tabHistory: inputs.tabHistory, workingSet, closedTabs: inputs.closedTabs },
-    savedPageUpdates
-  }
+})
+
+export function buildTabsDashboardStartupSnapshot(
+  inputs: TabsStartupSnapshotInputs
+): Promise<TabsStartupSnapshotBuild> {
+  return getAppRuntime().runPromise(
+    buildTabsDashboardStartupSnapshotEffect(inputs).pipe(
+      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause))
+    )
+  )
 }
