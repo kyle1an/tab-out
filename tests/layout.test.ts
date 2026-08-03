@@ -499,6 +499,29 @@ test('app entrypoints share one ManagedRuntime for browser services', () => {
   assert.doesNotMatch(appSource, /Effect\.runPromise\(/)
 })
 
+test('tab activation composes focus, move, and open workflows in the shared Effect runtimes', () => {
+  const focusSource = readFileSync(new URL('../src/extension/tab-focus.ts', import.meta.url), 'utf8')
+  const moveSource = readFileSync(new URL('../src/extension/tab-move.ts', import.meta.url), 'utf8')
+  const activationSource = readFileSync(new URL('../src/extension/tab-activation.ts', import.meta.url), 'utf8')
+  const tabsSource = readFileSync(new URL('../src/extension/tabs.ts', import.meta.url), 'utf8')
+  const historyServiceSource = readFileSync(
+    new URL('../src/extension/background/tab-history-service.ts', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(focusSource, /focusExistingTabTargetEffect = Effect\.fn/)
+  assert.match(moveSource, /moveTabToCurrentWindowEffect = Effect\.fn/)
+  assert.match(moveSource, /yield\* focusResolvedTabTargetEffect/)
+  assert.match(activationSource, /performDashboardItemActivationEffect = Effect\.fn/)
+  assert.match(tabsSource, /focusExactTabOrOpenEffect = Effect\.fn/)
+  assert.match(tabsSource, /openTabUrlEffect = Effect\.fn/)
+  assert.match(historyServiceSource, /Effect\.provideService\(BrowserTabs, browserTabs\)/)
+  assert.match(historyServiceSource, /serialize\(switchTabHistory\(direction\)\)/)
+  for (const source of [focusSource, moveSource, activationSource, tabsSource]) {
+    assert.doesNotMatch(source, /Effect\.runPromise\(/)
+  }
+})
+
 test('startup snapshot service owns its complete rebuild flight behind Effect', () => {
   const source = readFileSync(new URL('../src/extension/background/startup-snapshot-service.ts', import.meta.url), 'utf8')
 

@@ -10,15 +10,12 @@
    the Browser Tabs Gateway.
    ================================================================ */
 
-import {
-  createWindow,
-  getTab,
-  getCurrentWindowResult,
-  moveTab,
-  queryAllTabsResult
-} from './browser-tabs-gateway.js'
+import { Effect } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { unwrapSuspenderUrl } from './suspension.js'
-import { focusResolvedTabTargetResult, unsuspendExistingTab } from './tab-focus.js'
+import { focusResolvedTabTargetEffect, unsuspendExistingTabEffect } from './tab-focus.js'
 import { liveTabByValidatedId, liveTabUrlForIdentity } from './live-tab-matching.js'
 
 export type MoveTabTarget = {
@@ -34,15 +31,19 @@ export type MoveTabTarget = {
 
 export type MoveTabResult = 'handled' | 'not-found' | 'failed'
 
-async function focusLatestResolvedTarget(tabId: number, target: MoveTabTarget) {
-  const liveTab = await getTab(tabId)
+const focusLatestResolvedTarget = Effect.fn('tabMove.focusLatestResolvedTarget')(function*(
+  tabId: number,
+  target: MoveTabTarget
+) {
+  const browserTabs = yield* BrowserTabs
+  const liveTab = yield* browserTabs.getTab(tabId)
   if (!liveTab) return { status: 'not-found' as const }
-  return focusResolvedTabTargetResult(liveTab, {
+  return yield* focusResolvedTabTargetEffect(liveTab, {
     tabId,
     ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
     ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
   })
-}
+})
 
 function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, currentWindowId: number): chrome.tabs.Tab | null {
   if (typeof target.tabId === 'number') {
@@ -69,15 +70,19 @@ function findTabForTarget(tabs: chrome.tabs.Tab[], target: MoveTabTarget, curren
  * @returns {Promise<MoveTabResult>} whether the target was handled, confirmed
  * missing, or could not be resolved/moved because a browser operation failed
  */
-export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { activate?: boolean } = {}): Promise<MoveTabResult> {
+export const moveTabToCurrentWindowEffect = Effect.fn('tabMove.toCurrentWindow')(function*(
+  target: MoveTabTarget,
+  opts: { activate?: boolean } = {}
+) {
   const { activate = false } = opts
 
-  const currentWindowResult = await getCurrentWindowResult()
+  const browserTabs = yield* BrowserTabs
+  const currentWindowResult = yield* browserTabs.getCurrentWindowResult()
   const currentWindowId = currentWindowResult.value?.id
   if (!currentWindowResult.ok || typeof currentWindowId !== 'number') return 'failed'
   // The inventory is deliberately the final awaited read before moving. A
   // slow window lookup must not leave a stale URL identity behind.
-  const tabsResult = await queryAllTabsResult()
+  const tabsResult = yield* browserTabs.queryAllTabsResult()
   if (!tabsResult.ok) return 'failed'
 
   const match = findTabForTarget(tabsResult.value, target, currentWindowId)
@@ -85,7 +90,7 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
 
   const movedToCurrentWindow = match.windowId !== currentWindowId
   if (movedToCurrentWindow) {
-    const moved = await moveTab(match.id, { windowId: currentWindowId, index: -1 })
+    const moved = yield* browserTabs.moveTab(match.id, { windowId: currentWindowId, index: -1 })
     if (!moved) return 'failed'
   }
 
@@ -94,7 +99,7 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
     // no-ops, because falling back would open a duplicate. With no preceding
     // move, however, activation itself is the primary effect and must be
     // confirmed before callers refresh or report the gesture as handled.
-    const focusResult = await focusLatestResolvedTarget(match.id, target)
+    const focusResult = yield* focusLatestResolvedTarget(match.id, target)
     if (
       !movedToCurrentWindow &&
       focusResult.status !== 'focused' &&
@@ -103,13 +108,20 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
       return 'failed'
     }
   } else {
-    await unsuspendExistingTab(match, {
+    yield* unsuspendExistingTabEffect(match, {
       ...(target.tabUrl === undefined ? {} : { url: target.tabUrl }),
       ...(target.rawUrl === undefined ? {} : { rawUrl: target.rawUrl })
     })
   }
 
   return 'handled'
+})
+
+export function moveTabToCurrentWindow(
+  target: MoveTabTarget,
+  opts: { activate?: boolean } = {}
+): Promise<MoveTabResult> {
+  return getAppRuntime().runPromise(moveTabToCurrentWindowEffect(target, opts))
 }
 
 /**
@@ -120,20 +132,27 @@ export async function moveTabToCurrentWindow(target: MoveTabTarget, opts: { acti
  * @returns {Promise<MoveTabResult>} whether the target was handled, confirmed
  * missing, or could not be resolved/moved because a browser operation failed
  */
-export async function moveTabToNewWindow(target: MoveTabTarget): Promise<MoveTabResult> {
-  const currentWindowResult = await getCurrentWindowResult()
+export const moveTabToNewWindowEffect = Effect.fn('tabMove.toNewWindow')(function*(
+  target: MoveTabTarget
+) {
+  const browserTabs = yield* BrowserTabs
+  const currentWindowResult = yield* browserTabs.getCurrentWindowResult()
   const currentWindowId = currentWindowResult.ok && typeof currentWindowResult.value?.id === 'number'
     ? currentWindowResult.value.id
     : -1
-  const tabsResult = await queryAllTabsResult()
+  const tabsResult = yield* browserTabs.queryAllTabsResult()
   if (!tabsResult.ok) return 'failed'
 
   const match = findTabForTarget(tabsResult.value, target, currentWindowId)
   if (!match || typeof match.id !== 'number') return 'not-found'
 
-  const created = await createWindow({ tabId: match.id, focused: true, type: 'normal' })
+  const created = yield* browserTabs.createWindow({ tabId: match.id, focused: true, type: 'normal' })
   if (!created) return 'failed'
 
-  await focusLatestResolvedTarget(match.id, target)
+  yield* focusLatestResolvedTarget(match.id, target)
   return 'handled'
+})
+
+export function moveTabToNewWindow(target: MoveTabTarget): Promise<MoveTabResult> {
+  return getAppRuntime().runPromise(moveTabToNewWindowEffect(target))
 }

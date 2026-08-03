@@ -8,14 +8,18 @@
    reading this cache.
    ================================================================ */
 
-import { createTab, createWindow, getAllWindowsResult, getCurrentWindowResult, getTab, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
+import { Effect } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { getAllWindowsResult, getCurrentWindowResult, getTab, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
 import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
 import { isGroupedTab, fetchTabGroupColors } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
 import { isTabOutPageUrl } from './tab-out-url.js'
-import { focusExactTabTargetResult, focusTabTarget } from './tab-focus.js'
+import { focusExactTabTargetEffect, focusTabTargetEffect } from './tab-focus.js'
 import { isBrowserInternalUrl } from './browser-url-policy.js'
 import { liveTabByValidatedId, liveTabUrlForIdentity } from './live-tab-matching.js'
 import type { DashboardTab, DashboardTabMutationTarget, TabSnapshot } from './types'
@@ -305,21 +309,33 @@ export async function closeTabsByTargetsResult(
  * @param {string} url
  * @returns {Promise<boolean>}
  */
-export async function focusTab(url: string): Promise<boolean> {
-  return focusTabTarget(url)
+export function focusTab(url: string): Promise<boolean> {
+  return getAppRuntime().runPromise(focusTabTargetEffect(url))
 }
 
 export type ExactTabFocusOrOpenResult =
   | { status: 'focused' | 'activated' | 'failed' | 'unknown' }
   | { status: 'opened' | 'open-failed' }
 
+function exactTabFocusOrOpenResult(
+  status: ExactTabFocusOrOpenResult['status']
+): ExactTabFocusOrOpenResult {
+  return { status }
+}
+
 /** Open only when a successful browser read proves no matching tab exists. */
-export async function focusExactTabOrOpenResult(url: string): Promise<ExactTabFocusOrOpenResult> {
-  const result = await focusExactTabTargetResult(url)
+export const focusExactTabOrOpenEffect = Effect.fn('tabs.focusExactOrOpen')(function*(url: string) {
+  const result = yield* focusExactTabTargetEffect(url)
   if (result.status === 'not-found') {
-    return { status: await openTabUrl(url) ? 'opened' : 'open-failed' }
+    return exactTabFocusOrOpenResult(
+      (yield* openTabUrlEffect(url)) ? 'opened' : 'open-failed'
+    )
   }
-  return { status: result.status }
+  return exactTabFocusOrOpenResult(result.status)
+})
+
+export function focusExactTabOrOpenResult(url: string): Promise<ExactTabFocusOrOpenResult> {
+  return getAppRuntime().runPromise(focusExactTabOrOpenEffect(url))
 }
 
 /**
@@ -331,10 +347,18 @@ export async function focusExactTabOrOpenResult(url: string): Promise<ExactTabFo
  * @param {{ active?: boolean }} [opts]
  * @returns {Promise<boolean>} whether Chrome created the tab
  */
-export async function openTabUrl(url: string, opts: { active?: boolean } = {}): Promise<boolean> {
+export const openTabUrlEffect = Effect.fn('tabs.openUrl')(function*(
+  url: string,
+  opts: { active?: boolean } = {}
+) {
   if (!url) return false
   const { active = true } = opts
-  return !!(await createTab({ url, active }))
+  const browserTabs = yield* BrowserTabs
+  return !!(yield* browserTabs.createTab({ url, active }))
+})
+
+export function openTabUrl(url: string, opts: { active?: boolean } = {}): Promise<boolean> {
+  return getAppRuntime().runPromise(openTabUrlEffect(url, opts))
 }
 
 /**
@@ -343,9 +367,14 @@ export async function openTabUrl(url: string, opts: { active?: boolean } = {}): 
  * @param {string} url
  * @returns {Promise<boolean>} whether Chrome created the window
  */
-export async function openTabUrlInNewWindow(url: string): Promise<boolean> {
+export const openTabUrlInNewWindowEffect = Effect.fn('tabs.openUrlInNewWindow')(function*(url: string) {
   if (!url) return false
-  return !!(await createWindow({ url, focused: true, type: 'normal' }))
+  const browserTabs = yield* BrowserTabs
+  return !!(yield* browserTabs.createWindow({ url, focused: true, type: 'normal' }))
+})
+
+export function openTabUrlInNewWindow(url: string): Promise<boolean> {
+  return getAppRuntime().runPromise(openTabUrlInNewWindowEffect(url))
 }
 
 /**

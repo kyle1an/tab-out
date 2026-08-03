@@ -29,7 +29,11 @@ import { normalizeWorkingSetActivity, pageIdentityForWorkingSet } from '../worki
 import { WORKING_SET_ACTIVITY_KEY } from './working-set-service.js'
 import type { ChromeApi } from './chrome-api.js'
 import { readChromeStorageValue, writeChromeStorageValue } from './chrome-storage.js'
-import { focusExistingTabTargetResult, type ExistingTabFocusResult } from '../tab-focus.js'
+import {
+  focusExistingTabTargetEffect,
+  type ExistingTabFocusResult
+} from '../tab-focus.js'
+import { BrowserTabs } from '../browser-tabs-service.js'
 import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspension.js'
 import type { ChromeOpenTabsSnapshot } from '../tabs.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
@@ -87,6 +91,12 @@ type FocusAction = {
   tab: chrome.tabs.Tab
   openerTabId?: number
 }
+type TabHistorySwitchPlan = {
+  storedHistory: GlobalTabHistory
+  baseHistory: GlobalTabHistory
+  nextHistory: GlobalTabHistory
+  focusAction: FocusAction
+}
 type CapturedTab = Promise<chrome.tabs.Tab | null>
 
 export class TabHistoryTaskError extends Schema.TaggedErrorClass<TabHistoryTaskError>()(
@@ -113,8 +123,15 @@ type TabHistoryPromiseService = {
   removeTabFromHistory: (tabId: number) => Promise<void>
   replaceTabId: (addedTabId: number, removedTabId: number) => Promise<void>
   resetForBrowserStartup: () => Promise<void>
-  restorePreviousTabAfterClose: (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) => Promise<void>
-  switchTabHistory: (direction: number) => Promise<void>
+  preparePreviousTabAfterClose: (
+    tabId: number,
+    removeInfo: chrome.tabs.OnRemovedInfo
+  ) => Promise<chrome.tabs.Tab | null>
+  prepareTabHistorySwitch: (direction: number) => Promise<TabHistorySwitchPlan | null>
+  completeTabHistorySwitch: (
+    plan: TabHistorySwitchPlan,
+    focusResult: ExistingTabFocusResult
+  ) => Promise<void>
 }
 
 export class TabHistory extends Context.Service<TabHistory, {
@@ -152,7 +169,7 @@ export class TabHistory extends Context.Service<TabHistory, {
   readonly switchTabHistory: (direction: number) => Effect.Effect<void, TabHistoryTaskError>
 }>()('@tab-out/background/TabHistory') {
   static layer(chromeApi: ChromeApi): Layer.Layer<TabHistory> {
-    return makeTabHistoryLayer(chromeApi)
+    return makeTabHistoryLayer(chromeApi).pipe(Layer.provide(BrowserTabs.layer()))
   }
 }
 
@@ -455,24 +472,6 @@ function makeTabHistoryPromiseService(chromeApi: ChromeApi): TabHistoryPromiseSe
     return { tab: capturedTab, chromeFocused: false, known: true }
   }
 
-  async function focusExistingTabResult(tab: chrome.tabs.Tab | null): Promise<ExistingTabFocusResult> {
-    if (typeof tab?.id !== 'number') return { status: 'not-found' }
-    return focusExistingTabTargetResult({
-      tabId: tab.id,
-      windowId: tab.windowId,
-      url: unwrapSuspenderUrl(tab.url || ''),
-      rawUrl: tab.url || ''
-    })
-  }
-
-  async function focusExistingTab(tab: chrome.tabs.Tab | null): Promise<boolean> {
-    const result = await focusExistingTabResult(tab)
-    if (result.status === 'not-found') {
-      if (typeof tab?.id === 'number') await removeTabFromHistory(tab.id)
-    }
-    return result.status === 'focused'
-  }
-
   async function findPreviousSurvivingTabInWindow(
     history: GlobalTabHistoryInput,
     windowId: number,
@@ -577,9 +576,12 @@ function makeTabHistoryPromiseService(chromeApi: ChromeApi): TabHistoryPromiseSe
     await applyPendingBrowserStartupReset()
   }
 
-  async function restorePreviousTabAfterClose(tabId: number, removeInfo: chrome.tabs.OnRemovedInfo): Promise<void> {
+  async function preparePreviousTabAfterClose(
+    tabId: number,
+    removeInfo: chrome.tabs.OnRemovedInfo
+  ): Promise<chrome.tabs.Tab | null> {
     trustedTabIds.delete(tabId)
-    if (!removeInfo) return
+    if (!removeInfo) return null
 
     const { value: restoreTarget } = await runTabHistoryMutation<chrome.tabs.Tab | null>(async (history) => {
       const nextHistory = removeTabEntriesFromHistory(history, tabId)
@@ -639,11 +641,10 @@ function makeTabHistoryPromiseService(chromeApi: ChromeApi): TabHistoryPromiseSe
       }
     })
 
-    if (!restoreTarget) return
-    await focusExistingTab(restoreTarget)
+    return restoreTarget ?? null
   }
 
-  async function switchTabHistory(direction: number): Promise<void> {
+  async function prepareTabHistorySwitch(direction: number): Promise<TabHistorySwitchPlan | null> {
     // Keep Chrome activation inside the serialized task. Its onActivated event
     // queues behind this operation, so a confirmed switch commits the cursor
     // first and the event becomes idempotent instead of truncating forward
@@ -728,23 +729,30 @@ function makeTabHistoryPromiseService(chromeApi: ChromeApi): TabHistoryPromiseSe
       if (!focusAction) {
         const cleanHistory = canonicalizeGlobalHistory(nextHistory).history
         if (historyChanged(storedHistory, cleanHistory)) await writeTabHistory(cleanHistory)
-        return
+        return null
       }
 
-      const focusResult = await focusExistingTabResult(focusAction.tab)
-      const activationConfirmed = focusResult.status === 'focused' || focusResult.status === 'activated'
-      if (activationConfirmed && focusAction.openerTabId && typeof focusAction.tab.id === 'number') {
-        try {
-          await chromeApi.tabs.update(focusAction.tab.id, { openerTabId: focusAction.openerTabId })
-        } catch {}
-      }
-      let committedHistory = activationConfirmed ? nextHistory : baseHistory
-      if (focusResult.status === 'not-found' && typeof focusAction.tab.id === 'number') {
-        committedHistory = removeTabEntriesFromHistory(committedHistory, focusAction.tab.id)
-      }
-      const cleanHistory = canonicalizeGlobalHistory(committedHistory).history
-      if (historyChanged(storedHistory, cleanHistory)) await writeTabHistory(cleanHistory)
-      if (!activationConfirmed) throw new Error('Could not activate tab history target')
+      return { storedHistory, baseHistory, nextHistory, focusAction }
+  }
+
+  async function completeTabHistorySwitch(
+    plan: TabHistorySwitchPlan,
+    focusResult: ExistingTabFocusResult
+  ): Promise<void> {
+    const { storedHistory, baseHistory, nextHistory, focusAction } = plan
+    const activationConfirmed = focusResult.status === 'focused' || focusResult.status === 'activated'
+    if (activationConfirmed && focusAction.openerTabId && typeof focusAction.tab.id === 'number') {
+      try {
+        await chromeApi.tabs.update(focusAction.tab.id, { openerTabId: focusAction.openerTabId })
+      } catch {}
+    }
+    let committedHistory = activationConfirmed ? nextHistory : baseHistory
+    if (focusResult.status === 'not-found' && typeof focusAction.tab.id === 'number') {
+      committedHistory = removeTabEntriesFromHistory(committedHistory, focusAction.tab.id)
+    }
+    const cleanHistory = canonicalizeGlobalHistory(committedHistory).history
+    if (historyChanged(storedHistory, cleanHistory)) await writeTabHistory(cleanHistory)
+    if (!activationConfirmed) throw new Error('Could not activate tab history target')
   }
 
   async function getTabHistorySnapshotCapture(activity?: WorkingSetActivityStore | null): Promise<TabHistorySnapshotCapture> {
@@ -869,13 +877,15 @@ function makeTabHistoryPromiseService(chromeApi: ChromeApi): TabHistoryPromiseSe
     removeTabFromHistory,
     replaceTabId,
     resetForBrowserStartup,
-    restorePreviousTabAfterClose,
-    switchTabHistory
+    preparePreviousTabAfterClose,
+    prepareTabHistorySwitch,
+    completeTabHistorySwitch
   }
 }
 
-function makeTabHistoryLayer(chromeApi: ChromeApi): Layer.Layer<TabHistory> {
-  return Layer.effect(TabHistory, Effect.sync(() => {
+function makeTabHistoryLayer(chromeApi: ChromeApi) {
+  return Layer.effect(TabHistory, Effect.gen(function*() {
+    const browserTabs = yield* BrowserTabs
     let taskTail = Deferred.makeUnsafe<void>()
     Deferred.doneUnsafe(taskTail, Effect.void)
 
@@ -892,37 +902,67 @@ function makeTabHistoryLayer(chromeApi: ChromeApi): Layer.Layer<TabHistory> {
     // Runtime fibers may start in a different order, so each task awaits the
     // previous invocation's Deferred before touching browser or storage state.
     function serialize<Value>(
-      run: () => Promise<Value>
+      task: Effect.Effect<Value, TabHistoryTaskError>
     ): Effect.Effect<Value, TabHistoryTaskError> {
       const previous = taskTail
       const completion = Deferred.makeUnsafe<void>()
       taskTail = completion
       return Deferred.await(previous).pipe(
-        Effect.andThen(runTask(run)),
+        Effect.andThen(task),
         Effect.ensuring(Deferred.succeed(completion, undefined))
       )
     }
 
     const service = makeTabHistoryPromiseService(chromeApi)
+    const focusExistingTab = Effect.fn('TabHistory.focusExistingTab')(function*(
+      tab: chrome.tabs.Tab | null
+    ) {
+      if (typeof tab?.id !== 'number') return { status: 'not-found' } as const
+      return yield* focusExistingTabTargetEffect({
+        tabId: tab.id,
+        windowId: tab.windowId,
+        url: unwrapSuspenderUrl(tab.url || ''),
+        rawUrl: tab.url || ''
+      }).pipe(Effect.provideService(BrowserTabs, browserTabs))
+    })
+    const restorePreviousTabAfterClose = Effect.fn('TabHistory.restorePreviousAfterClose')(
+      function*(tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) {
+        const restoreTarget = yield* runTask(
+          () => service.preparePreviousTabAfterClose(tabId, removeInfo)
+        )
+        if (!restoreTarget) return
+        const focusResult = yield* focusExistingTab(restoreTarget)
+        const restoreTargetId = restoreTarget.id
+        if (focusResult.status === 'not-found' && typeof restoreTargetId === 'number') {
+          yield* runTask(() => service.removeTabFromHistory(restoreTargetId))
+        }
+      }
+    )
+    const switchTabHistory = Effect.fn('TabHistory.switch')(function*(direction: number) {
+      const plan = yield* runTask(() => service.prepareTabHistorySwitch(direction))
+      if (!plan) return
+      const focusResult = yield* focusExistingTab(plan.focusAction.tab)
+      yield* runTask(() => service.completeTabHistorySwitch(plan, focusResult))
+    })
     return TabHistory.of({
       getTabHistorySnapshot: (activity) =>
-        serialize(() => service.getTabHistorySnapshot(activity)),
+        serialize(runTask(() => service.getTabHistorySnapshot(activity))),
       getTabHistorySnapshotCapture: (activity) =>
-        serialize(() => service.getTabHistorySnapshotCapture(activity)),
+        serialize(runTask(() => service.getTabHistorySnapshotCapture(activity))),
       recordFocusedWindowActiveTab: (windowId, capturedActiveTab) =>
-        serialize(() => service.recordFocusedWindowActiveTab(windowId, capturedActiveTab)),
-      recordTabCreation: (tab) => serialize(() => service.recordTabCreation(tab)),
+        serialize(runTask(() => service.recordFocusedWindowActiveTab(windowId, capturedActiveTab))),
+      recordTabCreation: (tab) => serialize(runTask(() => service.recordTabCreation(tab))),
       recordTabNavigation: (tabId, changeInfo, tab) =>
-        serialize(() => service.recordTabNavigation(tabId, changeInfo, tab)),
+        serialize(runTask(() => service.recordTabNavigation(tabId, changeInfo, tab))),
       recordTabActivation: (windowId, tabId, capturedTab) =>
-        serialize(() => service.recordTabActivation(windowId, tabId, capturedTab)),
-      removeTabFromHistory: (tabId) => serialize(() => service.removeTabFromHistory(tabId)),
+        serialize(runTask(() => service.recordTabActivation(windowId, tabId, capturedTab))),
+      removeTabFromHistory: (tabId) => serialize(runTask(() => service.removeTabFromHistory(tabId))),
       replaceTabId: (addedTabId, removedTabId) =>
-        serialize(() => service.replaceTabId(addedTabId, removedTabId)),
-      resetForBrowserStartup: () => serialize(service.resetForBrowserStartup),
+        serialize(runTask(() => service.replaceTabId(addedTabId, removedTabId))),
+      resetForBrowserStartup: () => serialize(runTask(service.resetForBrowserStartup)),
       restorePreviousTabAfterClose: (tabId, removeInfo) =>
-        serialize(() => service.restorePreviousTabAfterClose(tabId, removeInfo)),
-      switchTabHistory: (direction) => serialize(() => service.switchTabHistory(direction))
+        serialize(restorePreviousTabAfterClose(tabId, removeInfo)),
+      switchTabHistory: (direction) => serialize(switchTabHistory(direction))
     })
   }))
 }
