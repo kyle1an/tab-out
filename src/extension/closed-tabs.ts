@@ -3,6 +3,7 @@ import { Effect, Exit, Schema } from 'effect'
 import { getAppRuntime } from './app-runtime.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import { BrowserTabs } from './browser-tabs-service.js'
+import { ClosedTabRestoreWatchdogs } from './closed-tab-restore-watchdogs.js'
 import {
   CLOSED_TAB_RESTORE_STATE_MESSAGE,
   parseClosedTabRestoreStateMessage,
@@ -16,7 +17,6 @@ export { CLOSED_TAB_RESTORE_STATE_MESSAGE } from './runtime-messages.js'
 let closedTabFetchSuppressUntilMs = 0
 let successfulRestoreSuppressUntilMs = 0
 const pendingRestoreSuppressions = new Set<string>()
-const remoteRestoreWatchdogTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const closedTabChangeHandlers = new Set<(settleDelayMs: number) => void>()
 
 export const CLOSED_TAB_SESSION_SETTLE_MS = 150
@@ -50,26 +50,25 @@ function notifyClosedTabChangeHandlers(settleDelayMs: number): void {
   }
 }
 
-function clearRemoteRestoreWatchdog(restoreId: string): void {
-  const timer = remoteRestoreWatchdogTimers.get(restoreId)
-  if (timer) clearTimeout(timer)
-  remoteRestoreWatchdogTimers.delete(restoreId)
-}
-
-function applyRemoteRestoreState(message: ClosedTabRestoreStateMessage): number {
+const applyRemoteRestoreStateEffect = Effect.fn(
+  'closedTabs.applyRemoteRestoreState'
+)(function*(message: ClosedTabRestoreStateMessage) {
+  const watchdogs = yield* ClosedTabRestoreWatchdogs
   if (message.phase === 'started') {
     pendingRestoreSuppressions.add(message.restoreId)
-    clearRemoteRestoreWatchdog(message.restoreId)
-    remoteRestoreWatchdogTimers.set(message.restoreId, setTimeout(() => {
-      remoteRestoreWatchdogTimers.delete(message.restoreId)
-      if (!pendingRestoreSuppressions.delete(message.restoreId)) return
-      recomputeClosedTabFetchSuppression()
-      notifyClosedTabChangeHandlers(CLOSED_TAB_SESSION_SETTLE_MS)
-    }, CLOSED_TAB_RESTORE_WATCHDOG_MS))
+    yield* watchdogs.schedule(
+      message.restoreId,
+      CLOSED_TAB_RESTORE_WATCHDOG_MS,
+      () => {
+        if (!pendingRestoreSuppressions.delete(message.restoreId)) return
+        recomputeClosedTabFetchSuppression()
+        notifyClosedTabChangeHandlers(CLOSED_TAB_SESSION_SETTLE_MS)
+      }
+    )
     return 0
   }
 
-  clearRemoteRestoreWatchdog(message.restoreId)
+  yield* watchdogs.cancel(message.restoreId)
   pendingRestoreSuppressions.delete(message.restoreId)
   if (message.restored) {
     successfulRestoreSuppressUntilMs = Math.max(
@@ -79,6 +78,10 @@ function applyRemoteRestoreState(message: ClosedTabRestoreStateMessage): number 
   }
   recomputeClosedTabFetchSuppression()
   return message.restored ? CLOSED_TAB_SESSION_SETTLE_MS : 0
+})
+
+function applyRemoteRestoreState(message: ClosedTabRestoreStateMessage): number {
+  return getAppRuntime().runSync(applyRemoteRestoreStateEffect(message))
 }
 
 const broadcastClosedTabRestoreState = Effect.fn('closedTabs.broadcastRestoreState')(function*(

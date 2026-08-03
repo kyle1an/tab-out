@@ -563,13 +563,26 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
 test('app entrypoints share one ManagedRuntime for browser services', () => {
   const runtimeSource = readFileSync(new URL('../src/extension/app-runtime.ts', import.meta.url), 'utf8')
   const browserTabsSource = readFileSync(new URL('../src/extension/browser-tabs-service.ts', import.meta.url), 'utf8')
+  const watchdogSource = readFileSync(
+    new URL('../src/extension/closed-tab-restore-watchdogs.ts', import.meta.url),
+    'utf8'
+  )
+  const closedTabsSource = readFileSync(new URL('../src/extension/closed-tabs.ts', import.meta.url), 'utf8')
   const appSource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
 
-  assert.match(runtimeSource, /ManagedRuntime\.make\(Layer\.mergeAll\(BrowserTabs\.layer\(\)\)\)/)
+  assert.match(runtimeSource, /ManagedRuntime\.make\(Layer\.mergeAll\(/)
+  assert.match(runtimeSource, /BrowserTabs\.layer\(\)/)
+  assert.match(runtimeSource, /ClosedTabRestoreWatchdogs\.layer/)
   assert.match(runtimeSource, /sharedAppRuntime \?\?= createAppRuntime\(\)/)
   assert.match(runtimeSource, /runtime\.runSync\(Effect\.void\)/)
   assert.match(browserTabsSource, /Context\.Service<BrowserTabs/)
   assert.match(browserTabsSource, /Layer\.succeed\(BrowserTabs/)
+  assert.match(watchdogSource, /FiberMap\.make<string, void, never>\(\)/)
+  assert.match(watchdogSource, /Effect\.sleep\(delayMs\)/)
+  assert.match(closedTabsSource, /getAppRuntime\(\)\.runSync\(applyRemoteRestoreStateEffect\(message\)\)/)
+  assert.doesNotMatch(closedTabsSource, /remoteRestoreWatchdogTimers/)
+  assert.doesNotMatch(closedTabsSource, /setTimeout/)
+  assert.doesNotMatch(closedTabsSource, /clearTimeout/)
   assert.match(appSource, /appRuntime\.runPromise\(/)
   assert.doesNotMatch(appSource, /Effect\.runPromise\(/)
 })
