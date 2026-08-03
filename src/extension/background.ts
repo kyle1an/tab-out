@@ -24,7 +24,7 @@ import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
 import { closeDuplicateTabsResult } from './tabs.js'
 import { groupColorChanged } from './groups.js'
 import { createTabHistoryService } from './background/tab-history-service.js'
-import { createWorkingSetService } from './background/working-set-service.js'
+import * as WorkingSet from './background/working-set-service.js'
 import { createBackgroundRuntime } from './background/runtime.js'
 import { STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
 import {
@@ -37,12 +37,14 @@ import {
 
 const chromeApi = chrome
 const backgroundRuntime = createBackgroundRuntime(chromeApi)
+const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet)
 const tabHistoryService = createTabHistoryService(chromeApi)
-const workingSetService = createWorkingSetService(chromeApi)
 connectNativePlacementBridge(chromeApi)
 
 async function captureDashboardServiceState(): Promise<CapturedDashboardServiceState> {
-  const workingSetActivity = await workingSetService.getWorkingSetActivity()
+  const workingSetActivity = await backgroundRuntime.runPromise(
+    workingSetService.getWorkingSetActivity()
+  )
   const { tabHistory, openTabsSnapshot } = await tabHistoryService.getTabHistorySnapshotCapture(workingSetActivity)
   return { tabHistory, workingSetActivity, openTabsSnapshot }
 }
@@ -110,7 +112,9 @@ chromeApi.tabs.onActivated.addListener(({ tabId, windowId }) => {
   const capturedTab = captureTab(tabId)
   void settleBackgroundTask(() => Promise.all([
     tabHistoryService.recordTabActivation(windowId, tabId, capturedTab),
-    workingSetService.recordTabActivation(windowId, tabId, capturedTab)
+    backgroundRuntime.runPromise(
+      workingSetService.recordTabActivation(windowId, tabId, capturedTab)
+    )
   ]))
   scheduleStartupSnapshotRefresh()
 })
@@ -121,7 +125,9 @@ chromeApi.windows.onFocusChanged.addListener((windowId) => {
     const capturedActiveTab = captureActiveTab(windowId)
     void settleBackgroundTask(() => Promise.all([
       tabHistoryService.recordFocusedWindowActiveTab(windowId, capturedActiveTab),
-      workingSetService.recordFocusedWindowActiveTab(windowId, capturedActiveTab)
+      backgroundRuntime.runPromise(
+        workingSetService.recordFocusedWindowActiveTab(windowId, capturedActiveTab)
+      )
     ]))
     scheduleStartupSnapshotRefresh()
   }
@@ -136,7 +142,7 @@ chromeApi.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
   return settleBackgroundTask(async () => {
     await Promise.all([
       tabHistoryService.replaceTabId(addedTabId, removedTabId),
-      workingSetService.replaceTabId(addedTabId, removedTabId)
+      backgroundRuntime.runPromise(workingSetService.replaceTabId(addedTabId, removedTabId))
     ])
     startupSnapshotService.scheduleRefresh()
   })
@@ -158,7 +164,7 @@ chromeApi.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   ) refreshBadge()
   void settleBackgroundTask(() => Promise.all([
     tabHistoryService.recordTabNavigation(tabId, changeInfo, tab),
-    workingSetService.recordTabNavigation(tabId, changeInfo, tab)
+    backgroundRuntime.runPromise(workingSetService.recordTabNavigation(tabId, changeInfo, tab))
   ]))
   if (
     changeInfo.title !== undefined ||

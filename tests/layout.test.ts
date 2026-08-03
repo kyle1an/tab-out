@@ -404,9 +404,14 @@ test('background Working Set serializes complete activity transactions with Effe
   const source = readFileSync(new URL('../src/extension/background/working-set-service.ts', import.meta.url), 'utf8')
 
   assert.match(source, /const runActivityMutation = Effect\.fn/)
-  assert.match(source, /const readSerializedActivity = Effect\.fn/)
-  assert.match(source, /createSerializedEffectQueue\(\)/)
+  assert.match(source, /Layer\.effect\(WorkingSet/)
+  assert.match(source, /Queue\.unbounded<Effect\.Effect<void>>/)
+  assert.match(source, /const drainActivityTasks = Effect\.fn/)
+  assert.match(source, /Queue\.offerUnsafe/)
+  assert.match(source, /Deferred\.complete/)
   assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Schema\.TaggedErrorClass/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /let activityQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 
@@ -449,9 +454,12 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
 
   assert.match(runtimeSource, /ManagedRuntime\.make/)
   assert.match(runtimeSource, /Badge\.layer\(chromeApi\)/)
+  assert.match(runtimeSource, /WorkingSet\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /runtime\.runSync\(Effect\.void\)/)
   assert.match(backgroundSource, /const backgroundRuntime = createBackgroundRuntime\(chromeApi\)/)
   assert.match(backgroundSource, /backgroundRuntime\.runPromise\(refreshBadgeEffect\)/)
+  assert.match(backgroundSource, /const workingSetService = backgroundRuntime\.runSync\(WorkingSet\.WorkingSet\)/)
+  assert.match(backgroundSource, /workingSetService\.getWorkingSetActivity\(\)/)
 })
 
 test('startup snapshot service owns its complete rebuild flight behind Effect', () => {
