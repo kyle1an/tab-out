@@ -1,6 +1,8 @@
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
+import { getAppRuntime } from './app-runtime.js'
 import { DEFAULT_HISTORY_RANGE, HISTORY_FILTER_OFF } from './history-range.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 
 export const HISTORY_RANGE_STORAGE_KEY = 'tabOutHistoryRangeV1'
 const HISTORY_RANGE_STORAGE_WRITE_LOCK = 'tab-out:history-range-write'
@@ -25,7 +27,13 @@ type HistoryRangePreferenceWriterAdapter = {
 
 type HistoryRangePreferenceWriter = {
   save: (historyRange: unknown) => Promise<void>
+  saveEffect: (historyRange: unknown) => Effect.Effect<void, HistoryRangePreferenceError>
 }
+
+class HistoryRangePreferenceError extends Schema.TaggedErrorClass<HistoryRangePreferenceError>()(
+  'HistoryRangePreferenceError',
+  { cause: Schema.Defect() }
+) {}
 
 /**
  * Keep writes in invocation order. Production requests one origin-wide Web
@@ -35,15 +43,28 @@ type HistoryRangePreferenceWriter = {
 export function createHistoryRangePreferenceWriter(
   adapter: HistoryRangePreferenceWriterAdapter
 ): HistoryRangePreferenceWriter {
-  async function save(historyRange: unknown): Promise<void> {
+  const saveEffect = Effect.fn('historyRange.save')(function*(historyRange: unknown) {
     const value = isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
     // Calling runExclusive before the first await enqueues this request with
     // the shared lock manager at invocation time, preserving cross-context
     // ordering even while an earlier storage write is still pending.
-    await adapter.runExclusive(() => adapter.write(value))
+    yield* runPromiseExclusiveEffect(
+      adapter.runExclusive,
+      Effect.tryPromise({
+        try: () => adapter.write(value),
+        catch: (cause) => HistoryRangePreferenceError.make({ cause })
+      }),
+      (cause) => HistoryRangePreferenceError.make({ cause })
+    )
+  })
+
+  function save(historyRange: unknown): Promise<void> {
+    return getAppRuntime().runPromise(saveEffect(historyRange).pipe(
+      Effect.catchTag('HistoryRangePreferenceError', (error) => Effect.fail(error.cause))
+    ))
   }
 
-  return { save }
+  return { save, saveEffect }
 }
 
 const historyRangePreferenceWriter = createHistoryRangePreferenceWriter({
@@ -55,15 +76,23 @@ const historyRangePreferenceWriter = createHistoryRangePreferenceWriter({
   )
 })
 
-export async function loadHistoryRangePreference(): Promise<string> {
+export const loadHistoryRangePreferenceEffect = Effect.fn('historyRange.load')(function*() {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) return DEFAULT_HISTORY_RANGE
-  try {
-    const stored = await chrome.storage.local.get(HISTORY_RANGE_STORAGE_KEY)
+  const stored = yield* Effect.tryPromise({
+    try: () => chrome.storage.local.get(HISTORY_RANGE_STORAGE_KEY),
+    catch: (cause) => HistoryRangePreferenceError.make({ cause })
+  }).pipe(
+    Effect.catchTag('HistoryRangePreferenceError', () => Effect.succeed(null))
+  )
+  if (stored) {
     const historyRange = stored[HISTORY_RANGE_STORAGE_KEY]
     return isHistoryRangePreference(historyRange) ? historyRange : DEFAULT_HISTORY_RANGE
-  } catch {
-    return DEFAULT_HISTORY_RANGE
   }
+  return DEFAULT_HISTORY_RANGE
+})
+
+export function loadHistoryRangePreference(): Promise<string> {
+  return getAppRuntime().runPromise(loadHistoryRangePreferenceEffect())
 }
 
 export async function saveHistoryRangePreference(historyRange: unknown): Promise<void> {

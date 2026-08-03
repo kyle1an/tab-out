@@ -10,7 +10,7 @@ import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
 import { loadCachedDashboardStartup } from './extension/startup-snapshot.js'
-import { loadHistoryRangePreference } from './extension/history-range-storage.js'
+import { loadHistoryRangePreferenceEffect } from './extension/history-range-storage.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
@@ -21,7 +21,7 @@ class AppStartupReadError extends Schema.TaggedErrorClass<AppStartupReadError>()
   'AppStartupReadError',
   {
     cause: Schema.Defect(),
-    operation: Schema.Literals(['cache', 'history-range', 'local-state'])
+    operation: Schema.Literals(['cache', 'local-state'])
   }
 ) {}
 
@@ -118,10 +118,9 @@ attachApp()
 
 const runInitializeApp = Effect.fn('app.initialize')(function*() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
-  const historyRangeFiber = yield* Effect.tryPromise({
-    try: () => loadHistoryRangePreference(),
-    catch: (cause) => AppStartupReadError.make({ cause, operation: 'history-range' })
-  }).pipe(Effect.forkChild({ startImmediately: true }))
+  const historyRangeFiber = yield* loadHistoryRangePreferenceEffect().pipe(
+    Effect.forkChild({ startImmediately: true })
+  )
   const cacheStartedAt = startupDebugNow()
   const cachedStartup = yield* Effect.tryPromise({
     try: () => loadCachedDashboardStartup(),

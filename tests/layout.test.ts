@@ -391,9 +391,15 @@ test('Saved Pages serializes each read-modify-write transaction with Effect', ()
 test('History range keeps Effect Schema behind its storage boundary', () => {
   const sharedSource = readFileSync(new URL('../src/extension/history-range.ts', import.meta.url), 'utf8')
   const storageSource = readFileSync(new URL('../src/extension/history-range-storage.ts', import.meta.url), 'utf8')
+  const appSource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
 
   assert.doesNotMatch(sharedSource, /from 'effect'/)
   assert.match(storageSource, /Schema\.Literals/)
+  assert.match(storageSource, /HistoryRangePreferenceError extends Schema\.TaggedErrorClass/)
+  assert.match(storageSource, /runPromiseExclusiveEffect/)
+  assert.match(storageSource, /loadHistoryRangePreferenceEffect = Effect\.fn/)
+  assert.match(appSource, /yield\* loadHistoryRangePreferenceEffect\(\)/)
+  assert.doesNotMatch(appSource, /try: \(\) => loadHistoryRangePreference\(\)/)
 })
 
 test('closed-history dismissals serialize their complete storage transaction with Effect', () => {
