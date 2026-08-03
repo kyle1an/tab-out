@@ -4,4 +4,4 @@ set -euo pipefail
 
 script_directory=${0:A:h}
 built_host=$($script_directory/build)
-node "$script_directory/test-round-trip.mjs" "$built_host"
+node "$script_directory/test-round-trip.ts" "$built_host"
