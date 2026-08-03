@@ -19,19 +19,20 @@ import { settleBackgroundTask } from './background/background-task.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
 import { connectNativePlacementBridge } from './background/native-placement-bridge.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
-import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
 import type { CapturedDashboardServiceState } from './dashboard-service-messages.js'
-import { CLOSED_TAB_RESTORE_STATE_MESSAGE } from './closed-tabs.js'
 import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
 import { closeDuplicateTabsResult } from './tabs.js'
 import { groupColorChanged } from './groups.js'
-import {
-  TAB_HISTORY_GET_MESSAGE,
-  TAB_HISTORY_SWITCH_MESSAGE,
-  createTabHistoryService
-} from './background/tab-history-service.js'
+import { createTabHistoryService } from './background/tab-history-service.js'
 import { createWorkingSetService } from './background/working-set-service.js'
 import { STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
+import {
+  isClosedTabRestoreMessage,
+  isDashboardServiceStateGetMessage,
+  isTabHistoryGetMessage,
+  parseClosedTabRestoreStateMessage,
+  parseTabHistorySwitchDirection
+} from './runtime-messages.js'
 
 const chromeApi = chrome
 const badgeRefreshService = createBadgeRefreshService(chromeApi)
@@ -229,24 +230,22 @@ chromeApi.action.onClicked.addListener((tab) => {
 })
 
 chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (
-    message?.type === CLOSED_TAB_RESTORE_STATE_MESSAGE &&
-    typeof message.restoreId === 'string' &&
-    message.restoreId
-  ) {
-    if (message.phase === 'started') {
-      startupSnapshotService.sessionRestoreStarted(message.restoreId)
-    } else if (message.phase === 'settled') {
-      startupSnapshotService.sessionRestoreSettled(message.restoreId)
-    } else {
+  if (isClosedTabRestoreMessage(message)) {
+    const restoreState = parseClosedTabRestoreStateMessage(message)
+    if (!restoreState) {
       sendResponse({ ok: false })
       return true
+    }
+    if (restoreState.phase === 'started') {
+      startupSnapshotService.sessionRestoreStarted(restoreState.restoreId)
+    } else {
+      startupSnapshotService.sessionRestoreSettled(restoreState.restoreId)
     }
     sendResponse({ ok: true })
     return true
   }
 
-  if (message?.type === TAB_HISTORY_GET_MESSAGE) {
+  if (isTabHistoryGetMessage(message)) {
     void (async () => {
       try {
         const snapshot = await tabHistoryService.getTabHistorySnapshot()
@@ -258,11 +257,11 @@ chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true
   }
 
-  if (message?.type === TAB_HISTORY_SWITCH_MESSAGE) {
-    const direction = message.direction === 1 ? 1 : -1
+  const historyDirection = parseTabHistorySwitchDirection(message)
+  if (historyDirection !== null) {
     void (async () => {
       try {
-        await tabHistoryService.switchTabHistory(direction)
+        await tabHistoryService.switchTabHistory(historyDirection)
         const snapshot = await tabHistoryService.getTabHistorySnapshot()
         sendResponse({ ok: true, snapshot })
       } catch {
@@ -272,7 +271,7 @@ chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true
   }
 
-  if (message?.type === DASHBOARD_SERVICE_STATE_GET_MESSAGE) {
+  if (isDashboardServiceStateGetMessage(message)) {
     void (async () => {
       try {
         const { tabHistory, workingSetActivity, openTabsSnapshot } = await captureDashboardServiceState()

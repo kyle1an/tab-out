@@ -2366,6 +2366,16 @@ test('background restore messages hold an early sessions change until the restor
   )
 })
 
+test('background rejects malformed restore message envelopes', async () => {
+  const mock = await loadBackground([])
+
+  assert.deepEqual(await sendRuntimeMessage(mock, {
+    type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
+    restoreId: '',
+    phase: 'started'
+  }), { ok: false })
+})
+
 test('tab history survives extension reload through persistent storage', async () => {
   const mock = await loadBackground([
     {

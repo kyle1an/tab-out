@@ -4,10 +4,9 @@ import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isSuspended } from './suspension.js'
 import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab-focus.js'
 import { liveTabByValidatedId } from './live-tab-matching.js'
+import { parseTabHistorySuccessResponse, TAB_HISTORY_GET_MESSAGE } from './runtime-messages.js'
 import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot, WorkingSetItem } from './types'
 import type { ClosedTabEntry } from './closed-tabs.js'
-
-const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
 
 export type TabHistoryFetchResult =
   | { ok: true; value: TabHistorySnapshot }
@@ -180,10 +179,10 @@ async function sendHistoryMessageResult(message: Record<string, unknown>): Promi
   if (!globalThis.chrome?.runtime?.sendMessage) return { ok: false, value: emptySnapshot() }
   try {
     const response = await chrome.runtime.sendMessage(message)
-    if (!response?.ok || !response.snapshot || !Array.isArray(response.snapshot.entries)) {
-      return { ok: false, value: emptySnapshot() }
-    }
-    return { ok: true, value: normalizeTabHistorySnapshot(response.snapshot) }
+    const snapshot = parseTabHistorySuccessResponse(response)
+    return snapshot === null
+      ? { ok: false, value: emptySnapshot() }
+      : { ok: true, value: normalizeTabHistorySnapshot(snapshot) }
   } catch {
     return { ok: false, value: emptySnapshot() }
   }

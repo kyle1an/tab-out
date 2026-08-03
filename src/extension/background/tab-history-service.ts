@@ -28,15 +28,14 @@ import { isSuspended, unwrapSuspenderTitle, unwrapSuspenderUrl } from '../suspen
 import type { ChromeOpenTabsSnapshot } from '../tabs.js'
 import type { TabHistorySnapshot, WorkingSetActivityStore } from '../types'
 
+export { TAB_HISTORY_GET_MESSAGE, TAB_HISTORY_SWITCH_MESSAGE } from '../runtime-messages.js'
+
 const TAB_HISTORY_KEY = 'globalTabHistory'
 const TAB_HISTORY_STORAGE_VERSION = 2
 
 type StoredGlobalTabHistoryV2 = GlobalTabHistory & {
   version: typeof TAB_HISTORY_STORAGE_VERSION
 }
-
-export const TAB_HISTORY_GET_MESSAGE = 'tab-out:get-tab-history'
-export const TAB_HISTORY_SWITCH_MESSAGE = 'tab-out:switch-tab-history'
 
 type FocusedWindowLookup = {
   id: number | null

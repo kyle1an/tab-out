@@ -245,6 +245,20 @@ only a fully validated bounds value. The app entry remains unchanged. It adds
 2,476 raw bytes and 687 deterministic gzip bytes to the worker entry, bringing
 it to 322,293 raw bytes and 106,981 deterministic gzip bytes.
 
+The twenty-second slice centralizes the internal runtime-message protocol and
+validates it with Effect Schema in both extension contexts. Closed-restore
+state now requires a non-empty identifier, a known phase, and a boolean
+settlement result when present; malformed claimed restore messages retain the
+worker's explicit rejection response. Activation History keeps its legacy
+missing-or-invalid direction fallback while successful worker responses must
+carry a real boolean success marker and an entries array before normalization.
+This removes the remaining casts and ad hoc guards from those message owners.
+It adds 565 raw bytes while deterministic gzip size decreases by 489 bytes,
+bringing the app entry to 880,127 raw bytes and 277,250 deterministic gzip
+bytes. It adds 375 raw bytes while deterministic gzip size decreases by 21
+bytes, bringing the worker entry to 322,668 raw bytes and 106,960 deterministic
+gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

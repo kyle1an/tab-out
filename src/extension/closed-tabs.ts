@@ -1,8 +1,15 @@
 import { Data, Effect, Exit } from 'effect'
 
 import { getRecentlyClosedResult, restoreSession, type BrowserReadResult } from './browser-tabs-gateway.js'
+import {
+  CLOSED_TAB_RESTORE_STATE_MESSAGE,
+  parseClosedTabRestoreStateMessage,
+  type ClosedTabRestoreStateMessage
+} from './runtime-messages.js'
 import { unwrapSuspenderTitle, unwrapSuspenderUrl } from './suspension.js'
 import { isBrowserInternalUrl } from './browser-url-policy.js'
+
+export { CLOSED_TAB_RESTORE_STATE_MESSAGE } from './runtime-messages.js'
 
 let closedTabFetchSuppressUntilMs = 0
 let successfulRestoreSuppressUntilMs = 0
@@ -12,14 +19,6 @@ const closedTabChangeHandlers = new Set<(settleDelayMs: number) => void>()
 
 export const CLOSED_TAB_SESSION_SETTLE_MS = 150
 export const CLOSED_TAB_RESTORE_WATCHDOG_MS = 30_000
-export const CLOSED_TAB_RESTORE_STATE_MESSAGE = 'tab-out:closed-tab-restore-state'
-
-type ClosedTabRestoreStateMessage = {
-  type: typeof CLOSED_TAB_RESTORE_STATE_MESSAGE
-  restoreId: string
-  phase: 'started' | 'settled'
-  restored?: boolean
-}
 
 class ClosedTabRestoreError extends Data.TaggedError('ClosedTabRestoreError')<{
   readonly cause: unknown
@@ -46,15 +45,6 @@ function notifyClosedTabChangeHandlers(settleDelayMs: number): void {
       // One mounted consumer must not prevent the others from invalidating.
     }
   }
-}
-
-function isClosedTabRestoreStateMessage(message: unknown): message is ClosedTabRestoreStateMessage {
-  if (!message || typeof message !== 'object') return false
-  const candidate = message as Partial<ClosedTabRestoreStateMessage>
-  return candidate.type === CLOSED_TAB_RESTORE_STATE_MESSAGE &&
-    typeof candidate.restoreId === 'string' &&
-    candidate.restoreId.length > 0 &&
-    (candidate.phase === 'started' || candidate.phase === 'settled')
 }
 
 function clearRemoteRestoreWatchdog(restoreId: string): void {
@@ -223,8 +213,9 @@ export function subscribeClosedTabChanges(handler: (settleDelayMs: number) => vo
   const onSessionsChanged = () => handler(CLOSED_TAB_SESSION_SETTLE_MS)
   const onTabRemoved = () => handler(0)
   const onRuntimeMessage = (message: unknown) => {
-    if (!isClosedTabRestoreStateMessage(message)) return
-    const settleDelayMs = applyRemoteRestoreState(message)
+    const restoreState = parseClosedTabRestoreStateMessage(message)
+    if (!restoreState) return
+    const settleDelayMs = applyRemoteRestoreState(restoreState)
     handler(settleDelayMs)
   }
   closedTabChangeHandlers.add(handler)

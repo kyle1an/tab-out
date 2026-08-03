@@ -321,6 +321,38 @@ test('a second page suppresses reads for a restore broadcast by another page', (
   }
 })
 
+test('a second page ignores malformed restore-state messages', () => {
+  const runtimeListeners: Array<(message: unknown) => void> = []
+  const settleDelays: number[] = []
+  globalThis.chrome = {
+    sessions: {
+      onChanged: { addListener: () => {}, removeListener: () => {} }
+    },
+    tabs: {
+      onRemoved: { addListener: () => {}, removeListener: () => {} }
+    },
+    runtime: {
+      onMessage: {
+        addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
+        removeListener: () => {}
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+  const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
+
+  try {
+    valueAt(runtimeListeners, 0)({
+      type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
+      restoreId: 'malformed-restore',
+      phase: 'settled',
+      restored: 'yes'
+    })
+    assert.deepEqual(settleDelays, [])
+  } finally {
+    unsubscribe()
+  }
+})
+
 test('a second page releases an orphaned restore broadcast through its watchdog', async () => {
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const runtimeListeners: Array<(message: unknown) => void> = []
