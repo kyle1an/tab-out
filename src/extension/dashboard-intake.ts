@@ -13,26 +13,25 @@ import { Effect, FiberHandle, Result, Schema } from 'effect'
 import { getAppRuntime } from './app-runtime.js'
 import {
   closedTabFetchSuppressionRemainingMs,
+  fetchClosedTabsResultEffect,
   fetchClosedTabsResult,
   isClosedTabFetchSuppressed,
   subscribeClosedTabChanges,
   type ClosedTabEntry
 } from './closed-tabs.js'
 import { DEFAULT_HISTORY_RANGE, isHistoryFilterEnabled } from './history-range.js'
-import type { BrowserReadResult } from './browser-tabs-gateway.js'
-import { fetchDashboardServiceStateResult } from './dashboard-service-state.js'
-import { fetchDashboardData } from './dashboard-data-fetch.js'
+import { fetchDashboardServiceStateResultEffect } from './dashboard-service-state.js'
+import { fetchDashboardDataEffect } from './dashboard-data-fetch.js'
 import { buildFilterSearchRequest } from './filter-search.js'
-import { buildDashboardDataFromTabs, getCurrentWindowIdResult } from './render.js'
-import { fetchOpenTabsSnapshotResult, getDashboardTabsFromOpenTabs } from './tabs.js'
+import { buildDashboardDataFromTabsEffect, getCurrentWindowIdResultEffect } from './render.js'
+import { fetchOpenTabsSnapshotEffect, getDashboardTabsFromOpenTabs } from './tabs.js'
 import { buildWorkingSetSnapshot } from './working-set.js'
 import type { SavedPagesStore } from './saved-pages.js'
-import { loadSavedPagesStoreResult } from './saved-pages-storage.js'
+import { loadSavedPagesStoreResultEffect } from './saved-pages-storage.js'
 import { persistSavedPageMetadataUpdates } from './saved-pages-mutations.js'
-import { buildTabsDashboardStartupSnapshot, type DashboardStartupSnapshot } from './startup-snapshot.js'
+import { buildTabsDashboardStartupSnapshotEffect, type DashboardStartupSnapshot } from './startup-snapshot.js'
 import { showToast } from './toast.js'
 import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from './types'
-import type { HistorySourceSearchResult } from './history-source.js'
 
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
 
@@ -110,6 +109,11 @@ class DashboardClosedTabsFetchError extends Schema.TaggedErrorClass<DashboardClo
 
 class DashboardStartupSnapshotFetchError extends Schema.TaggedErrorClass<DashboardStartupSnapshotFetchError>()(
   'DashboardStartupSnapshotFetchError',
+  { cause: Schema.Defect() }
+) {}
+
+class DashboardSnapshotFetchError extends Schema.TaggedErrorClass<DashboardSnapshotFetchError>()(
+  'DashboardSnapshotFetchError',
   { cause: Schema.Defect() }
 ) {}
 
@@ -209,15 +213,31 @@ let startupSnapshotFlight: {
   promise: Promise<DashboardStartupSnapshot>
 } | null = null
 
-async function fetchBookmarksSourceItemsLazy(): Promise<BrowserReadResult<DashboardData['realTabs']>> {
-  const { fetchBookmarksSourceItemsResult } = await import('../extension/bookmarks.js')
-  return fetchBookmarksSourceItemsResult()
-}
+const fetchBookmarksSourceItemsLazyEffect = Effect.fn(
+  'dashboardIntake.fetchBookmarks'
+)(function*() {
+  const bookmarks = yield* Effect.tryPromise({
+    try: () => import('../extension/bookmarks.js'),
+    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+  })
+  return yield* Effect.tryPromise({
+    try: () => bookmarks.fetchBookmarksSourceItemsResult(),
+    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+  })
+})
 
-async function fetchHistorySourceItemsLazy(query: string, range: string): Promise<HistorySourceSearchResult> {
-  const { fetchHistorySourceSearch } = await import('../extension/history-source.js')
-  return fetchHistorySourceSearch(query, range)
-}
+const fetchHistorySourceItemsLazyEffect = Effect.fn(
+  'dashboardIntake.fetchHistory'
+)(function*(query: string, range: string) {
+  const history = yield* Effect.tryPromise({
+    try: () => import('../extension/history-source.js'),
+    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+  })
+  return yield* Effect.tryPromise({
+    try: () => history.fetchHistorySourceSearch(query, range),
+    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+  })
+})
 
 function startupSnapshotFlightKey({ pinnedDomains, previousOrder, savedPagesStore }: DashboardSnapshotOptions): string {
   return JSON.stringify({
@@ -227,47 +247,66 @@ function startupSnapshotFlightKey({ pinnedDomains, previousOrder, savedPagesStor
   })
 }
 
-async function fetchTabsDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, savedPagesStore, previousOrder }: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
+function dashboardSnapshotReadError(message: string): DashboardSnapshotFetchError {
+  return DashboardSnapshotFetchError.make({ cause: new Error(message) })
+}
+
+function dashboardStartupSnapshotReadError(message: string): DashboardStartupSnapshotFetchError {
+  return DashboardStartupSnapshotFetchError.make({ cause: new Error(message) })
+}
+
+const fetchTabsDashboardSnapshotEffect = Effect.fn(
+  'dashboardIntake.fetchTabsSnapshot'
+)(function*({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, savedPagesStore, previousOrder }: DashboardSnapshotOptions) {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
-  const [currentWindowResult, serviceStateResult, savedPagesResult, bookmarkTabsResult, historySearch] = await Promise.all([
-    getCurrentWindowIdResult(),
-    fetchDashboardServiceStateResult(),
+  const [currentWindowResult, serviceStateResult, savedPagesResult, bookmarkTabsResult, historySearch] = yield* Effect.all([
+    getCurrentWindowIdResultEffect(),
+    fetchDashboardServiceStateResultEffect(),
     savedPagesStore
-      ? Promise.resolve({ ok: true as const, value: savedPagesStore })
-      : loadSavedPagesStoreResult(),
+      ? Effect.succeed({ ok: true as const, value: savedPagesStore })
+      : loadSavedPagesStoreResultEffect(),
     filterSearch.includeBookmarkMatches
-      ? fetchBookmarksSourceItemsLazy()
-      : Promise.resolve({ ok: true as const, value: [] }),
+      ? fetchBookmarksSourceItemsLazyEffect()
+      : Effect.succeed({ ok: true as const, value: [] }),
     filterSearch.includeHistoryMatches
-      ? fetchHistorySourceItemsLazy(filterSearch.query, filterSearch.historyRange)
-      : Promise.resolve({ status: 'ready' as const, tabs: [] })
-  ])
-  if (!serviceStateResult.ok) throw new Error('Could not read dashboard service state')
-  if (!currentWindowResult.ok) throw new Error('Could not read current browser window')
-  if (!savedPagesResult.ok) throw new Error('Could not read Saved Pages')
-  if (!bookmarkTabsResult.ok) throw new Error('Could not read bookmarks')
+      ? fetchHistorySourceItemsLazyEffect(filterSearch.query, filterSearch.historyRange)
+      : Effect.succeed({ status: 'ready' as const, tabs: [] })
+  ] as const, { concurrency: 'unbounded' })
+  if (!serviceStateResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read dashboard service state'))
+  if (!currentWindowResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read current browser window'))
+  if (!savedPagesResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read Saved Pages'))
+  if (!bookmarkTabsResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read bookmarks'))
   const serviceState = serviceStateResult.value
   const currentWindowId = currentWindowResult.value
-  const openTabsResult = await fetchOpenTabsSnapshotResult(serviceState.openTabsSnapshot)
-  if (!openTabsResult.ok) throw new Error('Could not read open tabs')
+  const openTabsResult = yield* fetchOpenTabsSnapshotEffect(serviceState.openTabsSnapshot)
+  if (!openTabsResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read open tabs'))
   const openTabs = openTabsResult.tabs
   const resolvedSavedPagesStore = savedPagesResult.value
   const dashboardTabs = getDashboardTabsFromOpenTabs(openTabs)
-  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(dashboardTabs, currentWindowId, previousOrder[source] || new Map(), {
-    pinnedDomains,
-    bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
-    historyPreviousOrder: previousOrder.history || new Map(),
-    includeBookmarkMatches: filterSearch.includeBookmarkMatches,
-    includeHistoryMatches: filterSearch.includeHistoryMatches,
-    searchQuery: filterSearch.query,
-    historyRange: filterSearch.historyRange,
-    historySearchStatus: historySearch.status,
-    bookmarkTabs: bookmarkTabsResult.value,
-    historyTabs: historySearch.tabs,
-    savedPagesStore: resolvedSavedPagesStore
-  })
+  const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(
+    dashboardTabs,
+    currentWindowId,
+    previousOrder[source] || new Map(),
+    {
+      pinnedDomains,
+      bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
+      historyPreviousOrder: previousOrder.history || new Map(),
+      includeBookmarkMatches: filterSearch.includeBookmarkMatches,
+      includeHistoryMatches: filterSearch.includeHistoryMatches,
+      searchQuery: filterSearch.query,
+      historyRange: filterSearch.historyRange,
+      historySearchStatus: historySearch.status,
+      bookmarkTabs: bookmarkTabsResult.value,
+      historyTabs: historySearch.tabs,
+      savedPagesStore: resolvedSavedPagesStore
+    }
+  ).pipe(
+    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
+  )
   // Page fetchers are the Saved Pages metadata writers; the build stays pure.
-  void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
+  yield* Effect.sync(() => {
+    void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
+  })
   const workingSet = buildWorkingSetSnapshot({
     tabs: dashboardTabs,
     activity: serviceState.workingSetActivity,
@@ -275,23 +314,25 @@ async function fetchTabsDashboardSnapshot({ source, filter, historyRange, histor
   })
 
   return { dashboard, tabHistory: serviceState.tabHistory, workingSet }
-}
+})
 
-export async function fetchDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
+export const fetchDashboardSnapshotEffect = Effect.fn(
+  'dashboardIntake.fetchSnapshot'
+)(function*({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder }: DashboardSnapshotOptions) {
   if (source === 'tabs') {
-    return fetchTabsDashboardSnapshot({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder })
+    return yield* fetchTabsDashboardSnapshotEffect({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, previousOrder })
   }
 
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
-  const [bookmarkTabsResult, savedPagesResult] = await Promise.all([
+  const [bookmarkTabsResult, savedPagesResult] = yield* Effect.all([
     source === 'bookmarks'
-      ? fetchBookmarksSourceItemsLazy()
-      : Promise.resolve({ ok: true as const, value: [] }),
-    loadSavedPagesStoreResult()
-  ])
-  if (!savedPagesResult.ok) throw new Error('Could not read Saved Pages')
-  if (!bookmarkTabsResult.ok) throw new Error('Could not read bookmarks')
-  const dashboard = await fetchDashboardData(previousOrder[source] || new Map(), source, {
+      ? fetchBookmarksSourceItemsLazyEffect()
+      : Effect.succeed({ ok: true as const, value: [] }),
+    loadSavedPagesStoreResultEffect()
+  ] as const, { concurrency: 'unbounded' })
+  if (!savedPagesResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read Saved Pages'))
+  if (!bookmarkTabsResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read bookmarks'))
+  const dashboard = yield* fetchDashboardDataEffect(previousOrder[source] || new Map(), source, {
       pinnedDomains,
       bookmarkPreviousOrder: previousOrder.bookmarks || new Map(),
       historyPreviousOrder: previousOrder.history || new Map(),
@@ -301,28 +342,40 @@ export async function fetchDashboardSnapshot({ source, filter, historyRange, his
       historyRange: filterSearch.historyRange,
       bookmarkTabs: bookmarkTabsResult.value,
       savedPagesStore: savedPagesResult.value
-    })
+    }).pipe(
+      Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
+    )
 
   return { dashboard }
+})
+
+export function fetchDashboardSnapshot(options: DashboardSnapshotOptions): Promise<DashboardRefreshSnapshot> {
+  return getAppRuntime().runPromise(fetchDashboardSnapshotEffect(options).pipe(
+    Effect.catchTag('DashboardSnapshotFetchError', (error) => Effect.fail(error.cause))
+  ))
 }
 
-async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {
-  if (isClosedTabFetchSuppressed()) throw new Error('Recently closed is settling after restore')
-  const [currentWindowResult, serviceStateResult, savedPagesResult, closedTabsResult] = await Promise.all([
-    getCurrentWindowIdResult(),
-    fetchDashboardServiceStateResult(),
+const fetchDashboardStartupSnapshotOnceEffect = Effect.fn(
+  'dashboardIntake.fetchStartupSnapshotOnce'
+)(function*(options: DashboardSnapshotOptions) {
+  if (isClosedTabFetchSuppressed()) {
+    return yield* Effect.fail(dashboardStartupSnapshotReadError('Recently closed is settling after restore'))
+  }
+  const [currentWindowResult, serviceStateResult, savedPagesResult, closedTabsResult] = yield* Effect.all([
+    getCurrentWindowIdResultEffect(),
+    fetchDashboardServiceStateResultEffect(),
     options.savedPagesStore
-      ? Promise.resolve({ ok: true as const, value: options.savedPagesStore })
-      : loadSavedPagesStoreResult(),
-    fetchClosedTabsResult()
-  ])
-  if (!serviceStateResult.ok) throw new Error('Could not read dashboard service state')
-  if (!currentWindowResult.ok) throw new Error('Could not read current browser window')
-  if (!savedPagesResult.ok) throw new Error('Could not read Saved Pages')
-  if (!closedTabsResult.ok) throw new Error('Could not read recently closed tabs')
-  const openTabsResult = await fetchOpenTabsSnapshotResult(serviceStateResult.value.openTabsSnapshot)
-  if (!openTabsResult.ok) throw new Error('Could not read open tabs')
-  const { snapshot, savedPageUpdates } = await buildTabsDashboardStartupSnapshot({
+      ? Effect.succeed({ ok: true as const, value: options.savedPagesStore })
+      : loadSavedPagesStoreResultEffect(),
+    fetchClosedTabsResultEffect()
+  ] as const, { concurrency: 'unbounded' })
+  if (!serviceStateResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read dashboard service state'))
+  if (!currentWindowResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read current browser window'))
+  if (!savedPagesResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read Saved Pages'))
+  if (!closedTabsResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read recently closed tabs'))
+  const openTabsResult = yield* fetchOpenTabsSnapshotEffect(serviceStateResult.value.openTabsSnapshot)
+  if (!openTabsResult.ok) return yield* Effect.fail(dashboardStartupSnapshotReadError('Could not read open tabs'))
+  const { snapshot, savedPageUpdates } = yield* buildTabsDashboardStartupSnapshotEffect({
     dashboardTabs: getDashboardTabsFromOpenTabs(openTabsResult.tabs),
     currentWindowId: currentWindowResult.value,
     tabHistory: serviceStateResult.value.tabHistory,
@@ -331,19 +384,20 @@ async function fetchDashboardStartupSnapshotOnce(options: DashboardSnapshotOptio
     closedTabs: closedTabsResult.value,
     pinnedDomains: options.pinnedDomains,
     tabPreviousOrder: options.previousOrder.tabs || new Map()
-  })
+  }).pipe(
+    Effect.mapError((error) => DashboardStartupSnapshotFetchError.make({ cause: error.cause }))
+  )
   // Page fetchers are the Saved Pages metadata writers; the build stays pure.
-  void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
+  yield* Effect.sync(() => {
+    void persistSavedPageMetadataUpdates(savedPageUpdates.base, savedPageUpdates.merged).catch(() => {})
+  })
   return snapshot
-}
+})
 
 const runDashboardStartupSnapshot = Effect.fn('dashboardIntake.fetchStartupSnapshot')(function*(
   options: DashboardSnapshotOptions
 ) {
-  return yield* Effect.tryPromise({
-    try: () => fetchDashboardStartupSnapshotOnce(options),
-    catch: (cause) => DashboardStartupSnapshotFetchError.make({ cause })
-  })
+  return yield* fetchDashboardStartupSnapshotOnceEffect(options)
 })
 
 export function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions): Promise<DashboardStartupSnapshot> {

@@ -280,7 +280,7 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(intakeSource, /startupRefreshPending/)
   assert.match(intakeSource, /await refreshRunner\.request/)
   assert.match(intakeSource, /animatedRefreshPending/)
-  assert.match(intakeSource, /buildTabsDashboardStartupSnapshot\(/)
+  assert.match(intakeSource, /buildTabsDashboardStartupSnapshotEffect\(/)
   assert.match(viewModelSource, /useLayoutEffect\(\(\) => \{[\s\S]*previousOrderRef\.current\[source\]/)
   // The cache layer + snapshot builder live in the non-React startup-snapshot module (shared with
   // the service worker): any valid session snapshot paints, with a durable chrome.storage.local fallback.
@@ -663,6 +663,28 @@ test('page startup snapshot coalesces its complete flight behind Effect', () => 
   assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.match(source, /startupSnapshotFlight = \{ id, key, promise \}/)
   assert.doesNotMatch(source, /export async function fetchDashboardStartupSnapshot\(/)
+})
+
+test('dashboard intake collects browser and source state in one Effect workflow', () => {
+  const intakeSource = readFileSync(new URL('../src/extension/dashboard-intake.ts', import.meta.url), 'utf8')
+  const dataFetchSource = readFileSync(new URL('../src/extension/dashboard-data-fetch.ts', import.meta.url), 'utf8')
+  const serviceStateSource = readFileSync(new URL('../src/extension/dashboard-service-state.ts', import.meta.url), 'utf8')
+  const renderSource = readFileSync(new URL('../src/extension/render.ts', import.meta.url), 'utf8')
+
+  assert.match(intakeSource, /export const fetchDashboardSnapshotEffect = Effect\.fn/)
+  assert.match(intakeSource, /const fetchDashboardStartupSnapshotOnceEffect = Effect\.fn/)
+  assert.match(intakeSource, /yield\* Effect\.all\(\[/)
+  assert.match(intakeSource, /fetchDashboardServiceStateResultEffect\(\)/)
+  assert.match(intakeSource, /getCurrentWindowIdResultEffect\(\)/)
+  assert.match(intakeSource, /fetchOpenTabsSnapshotEffect\(/)
+  assert.match(intakeSource, /loadSavedPagesStoreResultEffect\(\)/)
+  assert.match(intakeSource, /fetchClosedTabsResultEffect\(\)/)
+  assert.doesNotMatch(intakeSource, /async function fetchTabsDashboardSnapshot/)
+  assert.doesNotMatch(intakeSource, /export async function fetchDashboardSnapshot/)
+  assert.doesNotMatch(intakeSource, /Promise\.all\(/)
+  assert.match(dataFetchSource, /export const fetchDashboardDataEffect = Effect\.fn/)
+  assert.match(serviceStateSource, /export const fetchDashboardServiceStateResultEffect = Effect\.fn/)
+  assert.match(renderSource, /export const getCurrentWindowIdResultEffect = Effect\.fn/)
 })
 
 test('native placement requests own validation and browser operations behind Effect', () => {

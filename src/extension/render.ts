@@ -15,7 +15,8 @@
 import { Effect, Schema } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
-import { getCurrentWindowResult, type BrowserReadResult } from './browser-tabs-gateway.js'
+import type { BrowserReadResult } from './browser-tabs-gateway.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { annotateSavedPageHints, mergeSavedPagesWithTabs, savedPageKeyForUrl, savedPageKeysFromStore, type SavedPageMetadataUpdates, type SavedPagesStore } from './saved-pages.js'
 import { loadSavedPagesStoreEffect } from './saved-pages-storage.js'
@@ -164,13 +165,20 @@ export function dashboardChipPriorityFromWorkingSet(workingSet: WorkingSetSnapsh
   return priority
 }
 
-export async function getCurrentWindowIdResult(): Promise<BrowserReadResult<number | null>> {
-  const currentWindowResult = await getCurrentWindowResult()
+export const getCurrentWindowIdResultEffect = Effect.fn(
+  'dashboard.currentWindowId'
+)(function*() {
+  const browserTabs = yield* BrowserTabs
+  const currentWindowResult = yield* browserTabs.getCurrentWindowResult()
   const currentWindowId = currentWindowResult.value?.id
   if (!currentWindowResult.ok || !Number.isInteger(currentWindowId) || (currentWindowId as number) < 0) {
-    return { ok: false, value: null }
+    return { ok: false as const, value: null }
   }
-  return { ok: true, value: currentWindowId as number }
+  return { ok: true as const, value: currentWindowId as number }
+})
+
+export function getCurrentWindowIdResult(): Promise<BrowserReadResult<number | null>> {
+  return getAppRuntime().runPromise(getCurrentWindowIdResultEffect())
 }
 
 function dashboardItemIdentityKey(tab: Pick<DashboardTab, 'url' | 'rawUrl'>): string {

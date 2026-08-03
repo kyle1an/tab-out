@@ -1,3 +1,6 @@
+import { Effect, Result } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
 import { DASHBOARD_SERVICE_STATE_GET_MESSAGE } from './dashboard-service-messages.js'
 import type { CapturedDashboardServiceState } from './dashboard-service-messages.js'
 import { parseDashboardServiceStateResponse } from './dashboard-service-state-schema.js'
@@ -19,18 +22,21 @@ function emptyDashboardServiceState(): DashboardServiceState {
   }
 }
 
-export async function fetchDashboardServiceStateResult(): Promise<DashboardServiceStateResult> {
+export const fetchDashboardServiceStateResultEffect = Effect.fn(
+  'dashboardServiceState.fetch'
+)(function*() {
   if (!globalThis.chrome?.runtime?.sendMessage) {
     return { ok: false, value: emptyDashboardServiceState() }
   }
 
-  let response: unknown
-  try {
-    response = await chrome.runtime.sendMessage({ type: DASHBOARD_SERVICE_STATE_GET_MESSAGE })
-  } catch {
+  const response = yield* Effect.result(Effect.tryPromise({
+    try: () => chrome.runtime.sendMessage({ type: DASHBOARD_SERVICE_STATE_GET_MESSAGE }),
+    catch: (cause) => cause
+  }))
+  if (Result.isFailure(response)) {
     return { ok: false, value: emptyDashboardServiceState() }
   }
-  const parsed = parseDashboardServiceStateResponse(response)
+  const parsed = parseDashboardServiceStateResponse(response.success)
   if (!parsed) {
     return { ok: false, value: emptyDashboardServiceState() }
   }
@@ -43,4 +49,8 @@ export async function fetchDashboardServiceStateResult(): Promise<DashboardServi
       openTabsSnapshot: parsed.openTabsSnapshot
     }
   }
+})
+
+export function fetchDashboardServiceStateResult(): Promise<DashboardServiceStateResult> {
+  return getAppRuntime().runPromise(fetchDashboardServiceStateResultEffect())
 }
