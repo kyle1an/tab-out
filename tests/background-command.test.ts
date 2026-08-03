@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { Effect } from 'effect'
 
-import { openFilterTab } from '../src/extension/background/filter-command.js'
-import { openNewTab } from '../src/extension/background/new-tab-command.js'
+import { openFilterTabEffect } from '../src/extension/background/filter-command.js'
+import { openNewTabEffect } from '../src/extension/background/new-tab-command.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 
 type CommandApiCalls = {
@@ -53,7 +54,7 @@ function createStaleWindowCommandApi() {
 test('open-filter retries a fresh normal-window selection when the selected window closes', async () => {
   const { calls, chromeApi } = createStaleWindowCommandApi()
 
-  await openFilterTab(chromeApi)
+  await Effect.runPromise(openFilterTabEffect(chromeApi))
 
   assert.deepEqual(calls.tabCreate, [
     {
@@ -91,7 +92,7 @@ test('open-filter retries window activation when Chrome leaves the target unfocu
     }
   } as unknown as ChromeApi
 
-  await openFilterTab(chromeApi)
+  await Effect.runPromise(openFilterTabEffect(chromeApi))
 
   assert.deepEqual(windowUpdates, [
     { windowId: 2, updateInfo: { focused: true } },
@@ -102,7 +103,7 @@ test('open-filter retries window activation when Chrome leaves the target unfocu
 test('open-new-tab retries a fresh normal-window selection when the selected window closes', async () => {
   const { calls, chromeApi } = createStaleWindowCommandApi()
 
-  await openNewTab(chromeApi)
+  await Effect.runPromise(openNewTabEffect(chromeApi))
 
   assert.deepEqual(calls.tabCreate, [
     { windowId: 1, active: true },
@@ -135,7 +136,7 @@ test('open-new-tab tries every existing normal window before creating another', 
     }
   } as unknown as ChromeApi
 
-  await openNewTab(chromeApi)
+  await Effect.runPromise(openNewTabEffect(chromeApi))
 
   assert.deepEqual(attempts, [1, 2, 3])
 })

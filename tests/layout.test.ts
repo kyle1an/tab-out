@@ -514,6 +514,18 @@ test('background badge owns its latest-wins browser workflow behind Effect', () 
 test('background entrypoints share one ManagedRuntime for Effect services', () => {
   const runtimeSource = readFileSync(new URL('../src/extension/background/runtime.ts', import.meta.url), 'utf8')
   const backgroundSource = readFileSync(new URL('../src/extension/background.ts', import.meta.url), 'utf8')
+  const browserWindowSource = readFileSync(
+    new URL('../src/extension/background/browser-window.ts', import.meta.url),
+    'utf8'
+  )
+  const filterCommandSource = readFileSync(
+    new URL('../src/extension/background/filter-command.ts', import.meta.url),
+    'utf8'
+  )
+  const newTabCommandSource = readFileSync(
+    new URL('../src/extension/background/new-tab-command.ts', import.meta.url),
+    'utf8'
+  )
 
   assert.match(runtimeSource, /ManagedRuntime\.make/)
   assert.match(runtimeSource, /BrowserTabs\.layer\(\)/)
@@ -533,9 +545,19 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
   assert.match(backgroundSource, /sendEffectResponse\(/)
   assert.match(backgroundSource, /Effect\.all\(\[/)
   assert.match(backgroundSource, /const workingSetService = backgroundRuntime\.runSync\(WorkingSet\.WorkingSet\)/)
+  assert.match(browserWindowSource, /createActiveTabInNormalWindowEffect = Effect\.fn/)
+  assert.match(filterCommandSource, /openFilterTabEffect = Effect\.fn/)
+  assert.match(newTabCommandSource, /openNewTabEffect = Effect\.fn/)
+  assert.match(backgroundSource, /settleBackgroundEffect\(openFilterTabEffect\(chromeApi\)\)/)
+  assert.match(backgroundSource, /settleBackgroundEffect\(openNewTabEffect\(chromeApi\)\)/)
   assert.doesNotMatch(backgroundSource, /settleBackgroundTask/)
+  assert.doesNotMatch(backgroundSource, /Effect\.promise/)
   assert.doesNotMatch(backgroundSource, /Promise\.all/)
   assert.doesNotMatch(backgroundSource, /void \(async \(\) =>/)
+  for (const source of [browserWindowSource, filterCommandSource, newTabCommandSource]) {
+    assert.doesNotMatch(source, /async function/)
+    assert.doesNotMatch(source, /Effect\.runPromise/)
+  }
 })
 
 test('app entrypoints share one ManagedRuntime for browser services', () => {

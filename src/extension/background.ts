@@ -17,8 +17,8 @@
 import { Effect, Exit } from 'effect'
 
 import { refreshBadge as refreshBadgeEffect } from './background/badge.js'
-import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
-import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
+import { OPEN_FILTER_TAB_COMMAND, openFilterTabEffect } from './background/filter-command.js'
+import { OPEN_NEW_TAB_COMMAND, openNewTabEffect } from './background/new-tab-command.js'
 import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
 import { closeDuplicateTabsEffect } from './tabs.js'
 import { groupColorChanged } from './groups.js'
@@ -252,11 +252,11 @@ chromeApi.commands.onCommand.addListener((command) => {
     )
   } else if (command === OPEN_FILTER_TAB_COMMAND) {
     return backgroundRuntime.runPromise(
-      settleBackgroundEffect(Effect.promise(() => openFilterTab(chromeApi)))
+      settleBackgroundEffect(openFilterTabEffect(chromeApi))
     )
   } else if (command === OPEN_NEW_TAB_COMMAND) {
     return backgroundRuntime.runPromise(
-      settleBackgroundEffect(Effect.promise(() => openNewTab(chromeApi)))
+      settleBackgroundEffect(openNewTabEffect(chromeApi))
     )
   }
   return undefined
