@@ -88,3 +88,12 @@ test('normalizeTabHistorySnapshot: preserves pending background-tab state', () =
   assert.equal(snapshot.entries[0]?.pending, true)
   assert.equal(snapshot.entries[0]?.createdAt, 1234)
 })
+
+test('normalizeTabHistorySnapshot: rejects a malformed entries container and repairs malformed rows', () => {
+  assert.deepEqual(normalizeTabHistorySnapshot({ entries: {} }).entries, [])
+
+  const snapshot = normalizeTabHistorySnapshot({ entries: [null] })
+  assert.equal(snapshot.entries.length, 1)
+  assert.equal(snapshot.entries[0]?.title, 'Unknown tab')
+  assert.equal(snapshot.entries[0]?.tabId, -1)
+})

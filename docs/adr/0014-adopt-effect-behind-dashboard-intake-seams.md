@@ -336,6 +336,19 @@ stable. It adds 65 raw bytes and 25 deterministic gzip bytes to the app entry,
 bringing it to 881,026 raw bytes and 277,578 deterministic gzip bytes; the
 worker entry remains unchanged.
 
+The thirtieth slice replaces the page-side Activation History and Working Set
+snapshot record guards with Effect Schema predicates. Both snapshot containers
+must carry an items array before normalization; Activation History preserves
+its legacy field-by-field defaults, while Working Set continues to drop only
+rows without integer tab and window identities or usable keys and URLs. This
+removes the remaining ad hoc object guards from the nested worker-payload
+normalizers without making one malformed optional field discard a repairable
+row. It adds 624 raw bytes and 236 deterministic gzip bytes to the app entry,
+bringing it to 881,650 raw bytes and 277,814 deterministic gzip bytes. Shared
+module reachability adds 543 raw bytes and 141 deterministic gzip bytes to the
+worker entry, bringing it to 323,674 raw bytes and 107,383 deterministic gzip
+bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

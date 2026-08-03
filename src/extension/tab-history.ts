@@ -1,3 +1,5 @@
+import { Schema } from 'effect'
+
 import { queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
 import { snapshotChromeTabs } from './tabs.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
@@ -11,6 +13,51 @@ import type { ClosedTabEntry } from './closed-tabs.js'
 export type TabHistoryFetchResult =
   | { ok: true; value: TabHistorySnapshot }
   | { ok: false; value: TabHistorySnapshot }
+
+const tabHistoryEntryCandidateSchema = Schema.Struct({
+  index: Schema.optionalKey(Schema.Unknown),
+  tabId: Schema.optionalKey(Schema.Unknown),
+  windowId: Schema.optionalKey(Schema.Unknown),
+  exists: Schema.optionalKey(Schema.Unknown),
+  active: Schema.optionalKey(Schema.Unknown),
+  activeInOtherWindow: Schema.optionalKey(Schema.Unknown),
+  isApp: Schema.optionalKey(Schema.Unknown),
+  pinned: Schema.optionalKey(Schema.Unknown),
+  discarded: Schema.optionalKey(Schema.Unknown),
+  suspended: Schema.optionalKey(Schema.Unknown),
+  loading: Schema.optionalKey(Schema.Unknown),
+  audible: Schema.optionalKey(Schema.Unknown),
+  muted: Schema.optionalKey(Schema.Unknown),
+  pending: Schema.optionalKey(Schema.Unknown),
+  createdAt: Schema.optionalKey(Schema.Unknown),
+  cursor: Schema.optionalKey(Schema.Unknown),
+  current: Schema.optionalKey(Schema.Unknown),
+  previousTarget: Schema.optionalKey(Schema.Unknown),
+  nextTarget: Schema.optionalKey(Schema.Unknown),
+  title: Schema.optionalKey(Schema.Unknown),
+  url: Schema.optionalKey(Schema.Unknown),
+  rawUrl: Schema.optionalKey(Schema.Unknown),
+  displayUrl: Schema.optionalKey(Schema.Unknown),
+  favIconUrl: Schema.optionalKey(Schema.Unknown),
+  lastActivatedAt: Schema.optionalKey(Schema.Unknown)
+})
+
+const tabHistorySnapshotCandidateSchema = Schema.Struct({
+  stackSize: Schema.optionalKey(Schema.Unknown),
+  pendingSize: Schema.optionalKey(Schema.Unknown),
+  maxSize: Schema.optionalKey(Schema.Unknown),
+  cursorIndex: Schema.optionalKey(Schema.Unknown),
+  currentIndex: Schema.optionalKey(Schema.Unknown),
+  previousIndex: Schema.optionalKey(Schema.Unknown),
+  nextIndex: Schema.optionalKey(Schema.Unknown),
+  activeTabId: Schema.optionalKey(Schema.Unknown),
+  activeWindowId: Schema.optionalKey(Schema.Unknown),
+  activeWasInserted: Schema.optionalKey(Schema.Unknown),
+  entries: Schema.Array(Schema.Unknown)
+})
+
+const isTabHistoryEntryCandidate = Schema.is(tabHistoryEntryCandidateSchema)
+const isTabHistorySnapshotCandidate = Schema.is(tabHistorySnapshotCandidateSchema)
 
 function emptySnapshot(): TabHistorySnapshot {
   return {
@@ -36,12 +83,8 @@ function integerOrNull(value: unknown): number | null {
   return Number.isInteger(value) ? Number(value) : null
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function normalizeEntry(value: unknown, index: number): TabHistoryEntry {
-  const entry = isRecord(value) ? value : {}
+  const entry = isTabHistoryEntryCandidate(value) ? value : {}
   const tabId = integerOr(entry.tabId, -1)
   const windowId = integerOr(entry.windowId, -1)
   const url = String(entry.url || '')
@@ -155,22 +198,19 @@ export function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEnt
 }
 
 export function normalizeTabHistorySnapshot(value: unknown): TabHistorySnapshot {
-  if (!isRecord(value)) return emptySnapshot()
-  const rawEntries = value.entries
-  if (!Array.isArray(rawEntries)) return emptySnapshot()
-  const snapshot = value
-  const entries = rawEntries.map(normalizeEntry)
+  if (!isTabHistorySnapshotCandidate(value)) return emptySnapshot()
+  const entries = value.entries.map(normalizeEntry)
   return {
-    stackSize: integerOr(snapshot.stackSize, entries.length),
-    pendingSize: integerOr(snapshot.pendingSize, entries.filter((entry) => entry.pending).length),
-    maxSize: integerOr(snapshot.maxSize, 0),
-    cursorIndex: integerOr(snapshot.cursorIndex, -1),
-    currentIndex: integerOr(snapshot.currentIndex, -1),
-    previousIndex: integerOr(snapshot.previousIndex, -1),
-    nextIndex: integerOr(snapshot.nextIndex, -1),
-    activeTabId: integerOrNull(snapshot.activeTabId),
-    activeWindowId: integerOrNull(snapshot.activeWindowId),
-    activeWasInserted: !!snapshot.activeWasInserted,
+    stackSize: integerOr(value.stackSize, entries.length),
+    pendingSize: integerOr(value.pendingSize, entries.filter((entry) => entry.pending).length),
+    maxSize: integerOr(value.maxSize, 0),
+    cursorIndex: integerOr(value.cursorIndex, -1),
+    currentIndex: integerOr(value.currentIndex, -1),
+    previousIndex: integerOr(value.previousIndex, -1),
+    nextIndex: integerOr(value.nextIndex, -1),
+    activeTabId: integerOrNull(value.activeTabId),
+    activeWindowId: integerOrNull(value.activeWindowId),
+    activeWasInserted: !!value.activeWasInserted,
     entries
   }
 }

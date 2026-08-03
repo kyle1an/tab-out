@@ -250,6 +250,16 @@ test('normalizeWorkingSetSnapshot preserves loading state from the background sn
   assert.equal(snapshot.items[0]?.loading, true)
 })
 
+test('normalizeWorkingSetSnapshot rejects malformed containers and drops invalid item identities', () => {
+  assert.deepEqual(normalizeWorkingSetSnapshot({ items: {} }).items, [])
+
+  const validItem = makeWorkingSetItem(1)
+  const snapshot = normalizeWorkingSetSnapshot({
+    items: [validItem, null, { ...validItem, tabId: 1.5 }, { ...validItem, windowId: '1' }]
+  })
+  assert.deepEqual(snapshot.items.map((item) => item.tabId), [1])
+})
+
 test('buildWorkingSetSnapshot excludes Google Search result pages from working set items', () => {
   const now = Date.UTC(2026, 4, 17, 12)
   const tabs = [

@@ -1,9 +1,37 @@
+import { Schema } from 'effect'
+
 import {
   WORKING_SET_DEFAULT_LIMIT,
   WORKING_SET_EXPANDED_LIMIT
 } from './working-set.js'
 import type { WorkingSetItem, WorkingSetSnapshot } from './types'
 import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab-focus.js'
+
+const workingSetSnapshotCandidateSchema = Schema.Struct({
+  defaultLimit: Schema.optionalKey(Schema.Unknown),
+  expandedLimit: Schema.optionalKey(Schema.Unknown),
+  items: Schema.Array(Schema.Unknown)
+})
+
+const workingSetItemCandidateSchema = Schema.Struct({
+  key: Schema.optionalKey(Schema.Unknown),
+  tabId: Schema.Int,
+  windowId: Schema.Int,
+  tabUrl: Schema.optionalKey(Schema.Unknown),
+  rawUrl: Schema.optionalKey(Schema.Unknown),
+  title: Schema.optionalKey(Schema.Unknown),
+  displayUrl: Schema.optionalKey(Schema.Unknown),
+  faviconUrl: Schema.optionalKey(Schema.Unknown),
+  dupeCount: Schema.optionalKey(Schema.Unknown),
+  active: Schema.optionalKey(Schema.Unknown),
+  activeInOtherWindow: Schema.optionalKey(Schema.Unknown),
+  loading: Schema.optionalKey(Schema.Unknown),
+  score: Schema.optionalKey(Schema.Unknown),
+  lastActivatedAt: Schema.optionalKey(Schema.Unknown)
+})
+
+const isWorkingSetSnapshotCandidate = Schema.is(workingSetSnapshotCandidateSchema)
+const isWorkingSetItemCandidate = Schema.is(workingSetItemCandidateSchema)
 
 function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
   return {
@@ -13,27 +41,20 @@ function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function normalizeWorkingSetSnapshot(value: unknown): WorkingSetSnapshot {
-  if (!isRecord(value)) return emptyWorkingSetSnapshot()
-  const rawItems = value.items
-  if (!Array.isArray(rawItems)) return emptyWorkingSetSnapshot()
-  const snapshot = value
-  const defaultLimit = Number.isInteger(snapshot.defaultLimit) ? Number(snapshot.defaultLimit) : WORKING_SET_DEFAULT_LIMIT
-  const expandedLimit = Number.isInteger(snapshot.expandedLimit) ? Number(snapshot.expandedLimit) : WORKING_SET_EXPANDED_LIMIT
-  const items = rawItems
+  if (!isWorkingSetSnapshotCandidate(value)) return emptyWorkingSetSnapshot()
+  const defaultLimit = Number.isInteger(value.defaultLimit) ? Number(value.defaultLimit) : WORKING_SET_DEFAULT_LIMIT
+  const expandedLimit = Number.isInteger(value.expandedLimit) ? Number(value.expandedLimit) : WORKING_SET_EXPANDED_LIMIT
+  const items = value.items
     .map((item): WorkingSetItem | null => {
-      if (!isRecord(item) || !Number.isInteger(item.tabId) || !Number.isInteger(item.windowId)) return null
+      if (!isWorkingSetItemCandidate(item)) return null
       const tabUrl = String(item.tabUrl || '')
       const key = String(item.key || tabUrl)
       if (!key || !tabUrl) return null
       return {
         key,
-        tabId: Number(item.tabId),
-        windowId: Number(item.windowId),
+        tabId: item.tabId,
+        windowId: item.windowId,
         tabUrl,
         rawUrl: String(item.rawUrl || tabUrl),
         title: String(item.title || item.displayUrl || tabUrl),
