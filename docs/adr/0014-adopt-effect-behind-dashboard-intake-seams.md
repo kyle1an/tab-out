@@ -302,6 +302,18 @@ entry, bringing it to 880,764 raw bytes and 277,480 deterministic gzip bytes.
 It adds 17 raw bytes and 69 deterministic gzip bytes to the worker entry,
 bringing it to 322,946 raw bytes and 107,154 deterministic gzip bytes.
 
+The twenty-seventh slice validates the persisted suspender target and its
+cross-context observation generation with Effect Schema. Non-empty extension
+identifiers and URL templates remain readable without generation metadata for
+legacy compatibility, while only a complete target with a finite `observedAt`
+may suppress a newer write. Live tab discovery, cache revision protection, and
+the origin-wide Web Lock continue to own ordering. Removing the manual object
+casts reduces the app entry by 63 raw bytes while deterministic gzip size adds
+27 bytes, bringing it to 880,701 raw bytes and 277,507 deterministic gzip
+bytes. It reduces the worker entry by 70 raw bytes while deterministic gzip
+size adds 26 bytes, bringing it to 322,876 raw bytes and 107,180 deterministic
+gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

@@ -27,6 +27,8 @@
      unwrapSuspenderTitle.
    ================================================================ */
 
+import { Schema } from 'effect'
+
 const SUSPEND_TARGET_STORAGE_KEY = 'tabOutSuspendTargetV1'
 const SUSPEND_TARGET_STORAGE_WRITE_LOCK = 'tab-out:suspend-target-write'
 const SUSPENDED_PATH_SUFFIX = '/suspended.html'
@@ -97,6 +99,20 @@ interface StoredSuspendTarget extends SuspendTarget {
   observedAt: number
 }
 
+const suspendTargetSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  template: Schema.NonEmptyString
+}) satisfies Schema.Schema<SuspendTarget>
+
+const storedSuspendTargetSchema = Schema.Struct({
+  id: Schema.NonEmptyString,
+  template: Schema.NonEmptyString,
+  observedAt: Schema.Finite
+}) satisfies Schema.Schema<StoredSuspendTarget>
+
+const isSuspendTarget = Schema.is(suspendTargetSchema)
+const isStoredSuspendTarget = Schema.is(storedSuspendTargetSchema)
+
 interface PendingSuspendTargetSave {
   target: SuspendTarget
   observedAt: number
@@ -152,17 +168,8 @@ export function buildSuspendUrl(target: SuspendTarget, opts: { url: string; titl
   return `${base}#${titledHead}&uri=${url}`
 }
 
-function isSuspendTarget(value: unknown): value is SuspendTarget {
-  if (!value || typeof value !== 'object') return false
-  const candidate = value as Partial<SuspendTarget>
-  return typeof candidate.id === 'string' && candidate.id !== ''
-    && typeof candidate.template === 'string' && candidate.template !== ''
-}
-
 function storedSuspendTargetObservedAt(value: unknown): number | null {
-  if (!isSuspendTarget(value)) return null
-  const observedAt = (value as Partial<StoredSuspendTarget>).observedAt
-  return typeof observedAt === 'number' && Number.isFinite(observedAt) ? observedAt : null
+  return isStoredSuspendTarget(value) ? value.observedAt : null
 }
 
 function nextSuspendTargetObservationAt(): number {
