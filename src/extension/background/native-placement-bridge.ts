@@ -1,4 +1,10 @@
-import { Data, Effect, Result, Schema } from 'effect'
+import {
+  Context,
+  Effect,
+  Layer,
+  Result,
+  Schema
+} from 'effect'
 
 import type { ChromeApi } from './chrome-api.js'
 import {
@@ -19,9 +25,15 @@ export type NativePlacementBridgeResponse = {
   windowIds?: number[]
 }
 
-class NativePlacementOperationError extends Data.TaggedError('NativePlacementOperationError')<{
-  readonly cause: unknown
-}> {}
+class NativePlacementOperationError extends Schema.TaggedErrorClass<NativePlacementOperationError>()(
+  'NativePlacementOperationError',
+  { cause: Schema.Defect() }
+) {}
+
+class NativePlacementConnectionError extends Schema.TaggedErrorClass<NativePlacementConnectionError>()(
+  'NativePlacementConnectionError',
+  { cause: Schema.Defect() }
+) {}
 
 const nativePlacementRequestRecordSchema = Schema.Record(Schema.String, Schema.Unknown)
 const nativePlacementRequestIdSchema = Schema.String.check(
@@ -139,60 +151,119 @@ export function handleNativePlacementBridgeMessage(
   return Effect.runPromise(runNativePlacementBridgeMessage(message, chromeApi, nowMs))
 }
 
-export function connectNativePlacementBridge(chromeApi: ChromeApi = chrome): void {
-  let activePort: chrome.runtime.Port | null = null
-  let reconnectAttempt = 0
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-
-  function scheduleReconnect(): void {
-    if (reconnectTimer !== null) return
-    const delayIndex = Math.min(reconnectAttempt, NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.length - 1)
-    const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.at(delayIndex) ?? 15_000
-    reconnectAttempt += 1
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null
-      connect()
-    }, delay)
+export class NativePlacementBridge extends Context.Service<NativePlacementBridge, {
+  readonly version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
+}>()('@tab-out/background/NativePlacementBridge') {
+  static layer(chromeApi: ChromeApi): Layer.Layer<NativePlacementBridge> {
+    return makeNativePlacementBridgeLayer(chromeApi)
   }
+}
 
-  async function replyToNativeMessage(
-    port: chrome.runtime.Port,
-    message: unknown
-  ): Promise<void> {
-    try {
-      const result = await handleNativePlacementBridgeMessage(message, chromeApi)
-      port.postMessage(result)
-    } catch (error) {
-      console.warn('Tab Out native placement bridge could not reply:', errorMessage(error))
+function makeNativePlacementBridgeLayer(
+  chromeApi: ChromeApi
+): Layer.Layer<NativePlacementBridge> {
+  return Layer.effect(NativePlacementBridge, Effect.gen(function*() {
+    const scope = yield* Effect.scope
+    const runtimeApi = chromeApi.runtime
+    const service = NativePlacementBridge.of({ version: NATIVE_PLACEMENT_BRIDGE_VERSION })
+    if (!runtimeApi || typeof runtimeApi.connectNative !== 'function') return service
+    let reconnectAttempt = 0
+
+    function runInLayer(effect: Effect.Effect<void>): void {
+      Effect.runSync(effect.pipe(
+        Effect.forkIn(scope, { startImmediately: true }),
+        Effect.asVoid
+      ))
     }
-  }
 
-  function connect(): void {
-    let port: chrome.runtime.Port
-    try {
-      port = chromeApi.runtime.connectNative(NATIVE_PLACEMENT_HOST_NAME)
-    } catch (error) {
-      console.warn('Tab Out native placement bridge could not connect:', errorMessage(error))
-      scheduleReconnect()
-      return
-    }
-    activePort = port
-
-    port.onMessage.addListener((message: unknown) => {
-      reconnectAttempt = 0
-      void replyToNativeMessage(port, message)
+    const replyToNativeMessage = Effect.fn('NativePlacementBridge.reply')(function*(
+      port: chrome.runtime.Port,
+      message: unknown
+    ) {
+      const result = yield* runNativePlacementBridgeMessage(message, chromeApi, Date.now())
+      yield* Effect.try({
+        try: () => port.postMessage(result),
+        catch: (cause) => NativePlacementOperationError.make({ cause })
+      }).pipe(
+        Effect.catchTag('NativePlacementOperationError', (error) => Effect.sync(() => {
+          console.warn(
+            'Tab Out native placement bridge could not reply:',
+            errorMessage(error.cause)
+          )
+        }))
+      )
     })
 
-    port.onDisconnect.addListener(() => {
-      if (activePort !== port) return
-      activePort = null
-      const disconnectError = chromeApi.runtime.lastError
-      if (disconnectError?.message) {
-        console.info('Tab Out native placement bridge disconnected:', disconnectError.message)
+    const connectUntilDisconnected = Effect.fn('NativePlacementBridge.connect')(function*() {
+      const port = yield* Effect.try({
+        try: () => runtimeApi.connectNative(NATIVE_PLACEMENT_HOST_NAME),
+        catch: (cause) => NativePlacementConnectionError.make({ cause })
+      })
+
+      yield* Effect.callback<void>((resume) => {
+        let disconnected = false
+
+        const onMessage = (message: unknown) => {
+          reconnectAttempt = 0
+          runInLayer(replyToNativeMessage(port, message))
+        }
+        const removeListeners = () => {
+          port.onMessage.removeListener(onMessage)
+          port.onDisconnect.removeListener(onDisconnect)
+        }
+        const onDisconnect = () => {
+          if (disconnected) return
+          disconnected = true
+          removeListeners()
+          const disconnectError = runtimeApi.lastError
+          if (disconnectError?.message) {
+            console.info(
+              'Tab Out native placement bridge disconnected:',
+              disconnectError.message
+            )
+          }
+          resume(Effect.void)
+        }
+
+        port.onMessage.addListener(onMessage)
+        port.onDisconnect.addListener(onDisconnect)
+
+        return Effect.sync(() => {
+          if (disconnected) return
+          disconnected = true
+          removeListeners()
+          try {
+            port.disconnect()
+          } catch {}
+        })
+      })
+    })
+
+    const reconnect = Effect.fn('NativePlacementBridge.reconnect')(function*() {
+      const connection = yield* Effect.result(connectUntilDisconnected())
+      if (Result.isFailure(connection)) {
+        yield* Effect.sync(() => {
+          console.warn(
+            'Tab Out native placement bridge could not connect:',
+            errorMessage(connection.failure.cause)
+          )
+        })
       }
-      scheduleReconnect()
-    })
-  }
 
-  connect()
+      const delayIndex = Math.min(
+        reconnectAttempt,
+        NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.length - 1
+      )
+      const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.at(delayIndex) ?? 15_000
+      reconnectAttempt += 1
+      yield* Effect.sleep(delay)
+    })
+
+    yield* reconnect().pipe(
+      Effect.forever,
+      Effect.forkIn(scope, { startImmediately: true })
+    )
+
+    return service
+  }))
 }

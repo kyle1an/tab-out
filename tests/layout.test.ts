@@ -458,6 +458,7 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
 
   assert.match(runtimeSource, /ManagedRuntime\.make/)
   assert.match(runtimeSource, /Badge\.layer\(chromeApi\)/)
+  assert.match(runtimeSource, /NativePlacementBridge\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /TabHistory\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /WorkingSet\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /StartupSnapshot\.layer\(/)
@@ -531,7 +532,11 @@ test('native placement requests own validation and browser operations behind Eff
   assert.match(source, /Effect\.result\(Effect\.tryPromise/)
   assert.match(source, /Effect\.runPromise\(runNativePlacementBridgeMessage\(/)
   assert.doesNotMatch(source, /export async function handleNativePlacementBridgeMessage\(/)
-  assert.match(source, /reconnectTimer = setTimeout\(/)
+  assert.match(source, /Layer\.effect\(NativePlacementBridge/)
+  assert.match(source, /Effect\.callback<void>/)
+  assert.match(source, /Effect\.sleep\(delay\)/)
+  assert.match(source, /Effect\.forkIn\(scope, \{ startImmediately: true \}\)/)
+  assert.doesNotMatch(source, /setTimeout\(/)
 })
 
 test('source switch indicator keeps transform-based transition', () => {

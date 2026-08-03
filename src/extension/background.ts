@@ -17,7 +17,6 @@
 import { refreshBadge as refreshBadgeEffect } from './background/badge.js'
 import { settleBackgroundTask } from './background/background-task.js'
 import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-command.js'
-import { connectNativePlacementBridge } from './background/native-placement-bridge.js'
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
 import type { CapturedDashboardServiceState } from './dashboard-service-messages.js'
 import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
@@ -44,7 +43,6 @@ const backgroundRuntime = createBackgroundRuntime(chromeApi)
 const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet)
 const tabHistoryService = backgroundRuntime.runSync(TabHistory.TabHistory)
 const startupSnapshotService = backgroundRuntime.runSync(StartupSnapshot)
-connectNativePlacementBridge(chromeApi)
 
 async function captureDashboardServiceState(): Promise<CapturedDashboardServiceState> {
   const workingSetActivity = await backgroundRuntime.runPromise(

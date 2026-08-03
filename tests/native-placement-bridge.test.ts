@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
+import { Effect, ManagedRuntime } from 'effect'
 
 import {
-  connectNativePlacementBridge,
+  NativePlacementBridge,
   NATIVE_PLACEMENT_BRIDGE_VERSION,
   handleNativePlacementBridgeMessage
 } from '../src/extension/background/native-placement-bridge.js'
@@ -232,16 +233,22 @@ test('native placement bridge reconnects after the host port disconnects', async
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const disconnectListeners: Array<() => void> = []
   let connectionCount = 0
+  const noOp = () => {}
   const chromeApi = {
     runtime: {
       connectNative() {
         connectionCount += 1
         return {
-          onMessage: { addListener() {} },
+          disconnect() {},
+          onMessage: {
+            addListener() {},
+            removeListener() {}
+          },
           onDisconnect: {
             addListener(listener: () => void) {
               disconnectListeners.push(listener)
-            }
+            },
+            removeListener: noOp
           },
           postMessage() {}
         }
@@ -250,13 +257,147 @@ test('native placement bridge reconnects after the host port disconnects', async
   } as unknown as ChromeApi
 
   try {
-    connectNativePlacementBridge(chromeApi)
+    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    runtime.runSync(Effect.void)
     assert.equal(connectionCount, 1)
 
     disconnectListeners[0]!()
     await clock.tickAsync(250)
 
     assert.equal(connectionCount, 2)
+    await runtime.dispose()
+  } finally {
+    clock.uninstall()
+  }
+})
+
+test('native placement bridge escalates delays across connection failures', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const previousWarn = console.warn
+  let connectionCount = 0
+  let disposeRuntime = async () => {}
+  console.warn = () => {}
+  const chromeApi = {
+    runtime: {
+      connectNative() {
+        connectionCount += 1
+        if (connectionCount < 3) throw new Error('Native host unavailable')
+        return {
+          disconnect() {},
+          onMessage: { addListener() {}, removeListener() {} },
+          onDisconnect: { addListener() {}, removeListener() {} },
+          postMessage() {}
+        }
+      }
+    }
+  } as unknown as ChromeApi
+
+  try {
+    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    disposeRuntime = () => runtime.dispose()
+    runtime.runSync(Effect.void)
+    assert.equal(connectionCount, 1)
+
+    await clock.tickAsync(249)
+    assert.equal(connectionCount, 1)
+    await clock.tickAsync(1)
+    assert.equal(connectionCount, 2)
+
+    await clock.tickAsync(999)
+    assert.equal(connectionCount, 2)
+    await clock.tickAsync(1)
+    assert.equal(connectionCount, 3)
+  } finally {
+    await disposeRuntime()
+    console.warn = previousWarn
+    clock.uninstall()
+  }
+})
+
+test('native placement bridge resets backoff after a native message', async () => {
+  const clock = FakeTimers.install({
+    now: nowMs,
+    toFake: ['Date', 'setTimeout', 'clearTimeout']
+  })
+  const messageListeners: Array<(message: unknown) => void> = []
+  const disconnectListeners: Array<() => void> = []
+  let connectionCount = 0
+  let disposeRuntime = async () => {}
+  const chromeApi = {
+    runtime: {
+      connectNative() {
+        connectionCount += 1
+        return {
+          disconnect() {},
+          onMessage: {
+            addListener(listener: (message: unknown) => void) {
+              messageListeners.push(listener)
+            },
+            removeListener() {}
+          },
+          onDisconnect: {
+            addListener(listener: () => void) {
+              disconnectListeners.push(listener)
+            },
+            removeListener() {}
+          },
+          postMessage() {}
+        }
+      }
+    }
+  } as unknown as ChromeApi
+
+  try {
+    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    disposeRuntime = () => runtime.dispose()
+    runtime.runSync(Effect.void)
+    disconnectListeners[0]!()
+    await clock.tickAsync(250)
+    assert.equal(connectionCount, 2)
+
+    messageListeners[1]!(createRequest({ type: 'status' }))
+    disconnectListeners[1]!()
+    await clock.tickAsync(249)
+    assert.equal(connectionCount, 2)
+    await clock.tickAsync(1)
+    assert.equal(connectionCount, 3)
+  } finally {
+    await disposeRuntime()
+    clock.uninstall()
+  }
+})
+
+test('disposing the native placement bridge cancels reconnect sleep', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const disconnectListeners: Array<() => void> = []
+  let connectionCount = 0
+  const chromeApi = {
+    runtime: {
+      connectNative() {
+        connectionCount += 1
+        return {
+          disconnect() {},
+          onMessage: { addListener() {}, removeListener() {} },
+          onDisconnect: {
+            addListener(listener: () => void) {
+              disconnectListeners.push(listener)
+            },
+            removeListener() {}
+          },
+          postMessage() {}
+        }
+      }
+    }
+  } as unknown as ChromeApi
+
+  try {
+    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    runtime.runSync(Effect.void)
+    disconnectListeners[0]!()
+    await runtime.dispose()
+
+    await clock.tickAsync(15_000)
+    assert.equal(connectionCount, 1)
   } finally {
     clock.uninstall()
   }
