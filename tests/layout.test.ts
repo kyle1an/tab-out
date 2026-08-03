@@ -337,7 +337,7 @@ test('recently closed rows do not fetch independently before initial dashboard r
   assert.match(closedTabsLifecycle[0], /Effect\.acquireRelease/)
   assert.match(closedTabsLifecycle[0], /subscribeToClosedTabChanges/)
   assert.doesNotMatch(closedTabsLifecycle[0], /void refreshClosedTabs\(\)\n\s*const unsubscribe/)
-  assert.match(closedTabsStarter[0], /Effect\.runCallback\(Effect\.scoped\(runClosedTabUpdates\(\)\)\)/)
+  assert.match(closedTabsStarter[0], /getAppRuntime\(\)\.runCallback\(Effect\.scoped\(runClosedTabUpdates\(\)\)\)/)
 })
 
 test('native tab highlighting owns its serialized browser workflow behind Effect', () => {
@@ -346,7 +346,9 @@ test('native tab highlighting owns its serialized browser workflow behind Effect
   assert.match(source, /const runNativeTabHighlightRequests = Effect\.fn/)
   assert.match(source, /const reconcileNativeTabHighlight = Effect\.fn/)
   assert.match(source, /Effect\.tryPromise/)
-  assert.match(source, /Effect\.runPromise\(runNativeTabHighlightRequests\(\)\)/)
+  assert.match(source, /yield\* BrowserTabs/)
+  assert.match(source, /getAppRuntime\(\)\.runPromise\(runNativeTabHighlightRequests\(\)\)/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /async function run\(\)/)
 })
 
@@ -551,7 +553,8 @@ test('page startup snapshot coalesces its complete flight behind Effect', () => 
 
   assert.match(source, /const runDashboardStartupSnapshot = Effect\.fn/)
   assert.match(source, /Effect\.ensuring\(/)
-  assert.match(source, /Effect\.runPromise\(runDashboardStartupSnapshot\(/)
+  assert.match(source, /getAppRuntime\(\)\.runPromise\(runDashboardStartupSnapshot\(/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.match(source, /startupSnapshotFlight = \{ id, key, promise \}/)
   assert.doesNotMatch(source, /export async function fetchDashboardStartupSnapshot\(/)
 })

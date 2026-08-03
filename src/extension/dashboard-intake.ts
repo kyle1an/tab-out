@@ -8,8 +8,9 @@
    layer consumes it through the intake store's React adapter.
    ================================================================ */
 
-import { Data, Effect, FiberHandle, Result } from 'effect'
+import { Effect, FiberHandle, Result, Schema } from 'effect'
 
+import { getAppRuntime } from './app-runtime.js'
 import {
   closedTabFetchSuppressionRemainingMs,
   fetchClosedTabsResult,
@@ -92,21 +93,25 @@ export type DashboardRefreshContext = {
   source: DashboardSource
 }
 
-class DashboardSourceFetchError extends Data.TaggedError('DashboardSourceFetchError')<{
-  readonly cause: unknown
-}> {}
+class DashboardSourceFetchError extends Schema.TaggedErrorClass<DashboardSourceFetchError>()(
+  'DashboardSourceFetchError',
+  { cause: Schema.Defect() }
+) {}
 
-class DashboardRefreshRunError extends Data.TaggedError('DashboardRefreshRunError')<{
-  readonly cause: unknown
-}> {}
+class DashboardRefreshRunError extends Schema.TaggedErrorClass<DashboardRefreshRunError>()(
+  'DashboardRefreshRunError',
+  { cause: Schema.Defect() }
+) {}
 
-class DashboardClosedTabsFetchError extends Data.TaggedError('DashboardClosedTabsFetchError')<{
-  readonly cause: unknown
-}> {}
+class DashboardClosedTabsFetchError extends Schema.TaggedErrorClass<DashboardClosedTabsFetchError>()(
+  'DashboardClosedTabsFetchError',
+  { cause: Schema.Defect() }
+) {}
 
-class DashboardStartupSnapshotFetchError extends Data.TaggedError('DashboardStartupSnapshotFetchError')<{
-  readonly cause: unknown
-}> {}
+class DashboardStartupSnapshotFetchError extends Schema.TaggedErrorClass<DashboardStartupSnapshotFetchError>()(
+  'DashboardStartupSnapshotFetchError',
+  { cause: Schema.Defect() }
+) {}
 
 export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
   let inFlight: Promise<void> | null = null
@@ -119,7 +124,7 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
       const currentRequest = latestRequest
       const runResult = yield* Effect.result(Effect.tryPromise({
         try: currentRequest.run,
-        catch: (cause) => new DashboardRefreshRunError({ cause })
+        catch: (cause) => DashboardRefreshRunError.make({ cause })
       }))
       if (Result.isFailure(runResult)) {
         if (requestRevision !== revision) continue
@@ -128,7 +133,7 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
       if (requestRevision !== revision) continue
       const applyResult = yield* Effect.result(Effect.try({
         try: () => currentRequest.apply(runResult.success),
-        catch: (cause) => new DashboardRefreshRunError({ cause })
+        catch: (cause) => DashboardRefreshRunError.make({ cause })
       }))
       if (Result.isFailure(applyResult)) {
         if (requestRevision !== revision) continue
@@ -145,7 +150,7 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
     revision += 1
     if (inFlight) return inFlight
 
-    const flight = Effect.runPromise(runLatestRefreshFlight().pipe(
+    const flight = getAppRuntime().runPromise(runLatestRefreshFlight().pipe(
       Effect.catchTag('DashboardRefreshRunError', (error) => Effect.fail(error.cause))
     ))
     inFlight = flight
@@ -337,7 +342,7 @@ const runDashboardStartupSnapshot = Effect.fn('dashboardIntake.fetchStartupSnaps
 ) {
   return yield* Effect.tryPromise({
     try: () => fetchDashboardStartupSnapshotOnce(options),
-    catch: (cause) => new DashboardStartupSnapshotFetchError({ cause })
+    catch: (cause) => DashboardStartupSnapshotFetchError.make({ cause })
   })
 })
 
@@ -346,7 +351,7 @@ export function fetchDashboardStartupSnapshot(options: DashboardSnapshotOptions)
   if (startupSnapshotFlight?.key === key) return startupSnapshotFlight.promise
 
   const id = {}
-  const promise = Effect.runPromise(runDashboardStartupSnapshot(options).pipe(
+  const promise = getAppRuntime().runPromise(runDashboardStartupSnapshot(options).pipe(
     Effect.ensuring(Effect.sync(() => {
       if (startupSnapshotFlight?.id === id) startupSnapshotFlight = null
     })),
@@ -753,7 +758,7 @@ export function createAppDashboardStore({
       }
       const result = yield* Effect.tryPromise({
         try: fetchLatestClosedTabsResult,
-        catch: (cause) => new DashboardClosedTabsFetchError({ cause })
+        catch: (cause) => DashboardClosedTabsFetchError.make({ cause })
       })
       if (result.ok) {
         yield* Effect.sync(() => dispatch({ type: 'closedTabs', closedTabs: result.value }))
@@ -776,7 +781,7 @@ export function createAppDashboardStore({
   })
 
   function startClosedTabUpdates(): () => void {
-    return Effect.runCallback(Effect.scoped(runClosedTabUpdates()))
+    return getAppRuntime().runCallback(Effect.scoped(runClosedTabUpdates()))
   }
 
   function refreshContextFromInputs(
@@ -820,7 +825,7 @@ export function createAppDashboardStore({
           pinnedDomains: [...requestContext.pinnedDomains],
           previousOrder: inputs.previousOrder
         }),
-        catch: (cause) => new DashboardSourceFetchError({ cause })
+        catch: (cause) => DashboardSourceFetchError.make({ cause })
       }))
       const latestInputs = refreshInputs
       if (Result.isFailure(result)) {
@@ -870,7 +875,7 @@ export function createAppDashboardStore({
       interrupt: () => {}
     }
     activeSourceSwitch = active
-    active.interrupt = Effect.runCallback(runSourceSwitch(requestId, nextSource), {
+    active.interrupt = getAppRuntime().runCallback(runSourceSwitch(requestId, nextSource), {
       onExit: () => {
         if (activeSourceSwitch?.id === id) activeSourceSwitch = null
       }

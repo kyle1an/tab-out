@@ -5,6 +5,7 @@ import {
   createNativeTabHighlightController,
   type NativeTabHighlightDependencies
 } from '../src/extension/native-tab-highlight.js'
+import { setChromeTabsApi } from '../src/extension/browser-tabs-gateway.js'
 
 type HighlightCall = {
   tabIndexes: number[]
@@ -71,6 +72,46 @@ function highlightedIds(tabs: chrome.tabs.Tab[], windowId: number): number[] {
     .filter((tab) => tab.windowId === windowId && tab.highlighted)
     .map((tab) => tab.id as number)
 }
+
+test('the default controller resolves live browser operations through BrowserTabs', async (t) => {
+  const tabs = [fakeTab(1, 1, 0, { active: true }), fakeTab(2, 1, 1)]
+  const window = fakeWindow(1, 'normal', true)
+  const calls: HighlightCall[] = []
+  setChromeTabsApi({
+    tabs: {
+      async get(tabId) {
+        const tab = tabs.find((candidate) => candidate.id === tabId)
+        if (!tab) throw new Error('tab not found')
+        return tab
+      },
+      async highlight({ windowId = 1, tabs: tabIndexes }) {
+        const indexes = Array.isArray(tabIndexes) ? tabIndexes : [tabIndexes]
+        calls.push({ windowId, tabIndexes: indexes })
+        const selected = new Set(indexes)
+        for (const tab of tabs) {
+          tab.active = tab.windowId === windowId && tab.index === indexes[0]
+          tab.highlighted = tab.windowId === windowId && selected.has(tab.index)
+        }
+        return window
+      },
+      async query({ windowId }) {
+        return tabs.filter((tab) => windowId === undefined || tab.windowId === windowId)
+      }
+    },
+    windows: {
+      async get(windowId) {
+        if (windowId !== window.id) throw new Error('window not found')
+        return window
+      }
+    }
+  })
+  t.after(() => setChromeTabsApi(null))
+
+  const controller = createNativeTabHighlightController()
+  await controller.setTarget(2)
+
+  assert.deepEqual(calls, [{ windowId: 1, tabIndexes: [0, 1] }])
+})
 
 test('native preview preserves the active tab and an existing multi-selection', async () => {
   const tabs = [

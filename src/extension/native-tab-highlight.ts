@@ -1,12 +1,8 @@
-import { Data, Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 
-import {
-  getTab,
-  getWindow,
-  highlightTabs,
-  queryTabsInWindowResult,
-  type BrowserReadResult
-} from './browser-tabs-gateway.js'
+import { getAppRuntime } from './app-runtime.js'
+import type { BrowserReadResult } from './browser-tabs-gateway.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 
 export type NativeTabHighlightDependencies = {
   getTab(tabId: number): Promise<chrome.tabs.Tab | null>
@@ -40,16 +36,10 @@ function readyTargetResolution(tabId: number, windowId: number): TargetResolutio
   return { status: 'ready', target: { tabId, windowId } }
 }
 
-class NativeTabHighlightBrowserError extends Data.TaggedError('NativeTabHighlightBrowserError')<{
-  readonly cause: unknown
-}> {}
-
-const defaultDependencies: NativeTabHighlightDependencies = {
-  getTab,
-  getWindow,
-  highlightTabs,
-  queryTabsInWindowResult
-}
+class NativeTabHighlightBrowserError extends Schema.TaggedErrorClass<NativeTabHighlightBrowserError>()(
+  'NativeTabHighlightBrowserError',
+  { cause: Schema.Defect() }
+) {}
 
 function normalizedTabId(tabId: number | null | undefined): number | null {
   return typeof tabId === 'number' && Number.isInteger(tabId) && tabId >= 0 ? tabId : null
@@ -75,7 +65,7 @@ function sameIndexSelection(left: readonly number[], right: readonly number[]): 
  * cannot leave a previously hovered tab selected.
  */
 export function createNativeTabHighlightController(
-  dependencies: NativeTabHighlightDependencies = defaultDependencies
+  dependencies?: NativeTabHighlightDependencies
 ): NativeTabHighlightController {
   let desiredTabId: number | null = null
   let displayedTarget: DisplayedTarget | null = null
@@ -86,23 +76,66 @@ export function createNativeTabHighlightController(
     return revision === requestRevision
   }
 
+  const getTabEffect = Effect.fn('nativeTabHighlight.getTab')(function*(tabId: number) {
+    if (dependencies) {
+      return yield* Effect.tryPromise({
+        try: () => dependencies.getTab(tabId),
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+      })
+    }
+    const browserTabs = yield* BrowserTabs
+    return yield* browserTabs.getTab(tabId)
+  })
+
+  const getWindowEffect = Effect.fn('nativeTabHighlight.getWindow')(function*(windowId: number) {
+    if (dependencies) {
+      return yield* Effect.tryPromise({
+        try: () => dependencies.getWindow(windowId),
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+      })
+    }
+    const browserTabs = yield* BrowserTabs
+    return yield* browserTabs.getWindow(windowId)
+  })
+
+  const highlightTabsEffect = Effect.fn('nativeTabHighlight.highlightTabs')(function*(
+    windowId: number,
+    tabIndexes: number[]
+  ) {
+    if (dependencies) {
+      return yield* Effect.tryPromise({
+        try: () => dependencies.highlightTabs(windowId, tabIndexes),
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+      })
+    }
+    const browserTabs = yield* BrowserTabs
+    return yield* browserTabs.highlightTabs(windowId, tabIndexes)
+  })
+
+  const queryTabsInWindowEffect = Effect.fn('nativeTabHighlight.queryTabsInWindow')(function*(
+    windowId: number
+  ) {
+    if (dependencies) {
+      return yield* Effect.tryPromise({
+        try: () => dependencies.queryTabsInWindowResult(windowId),
+        catch: (cause) => NativeTabHighlightBrowserError.make({ cause })
+      })
+    }
+    const browserTabs = yield* BrowserTabs
+    return yield* browserTabs.queryTabsInWindowResult(windowId)
+  })
+
   const resolveTarget = Effect.fn('nativeTabHighlight.resolveTarget')(function*(
     tabId: number,
     revision: number
   ) {
-    const tab = yield* Effect.tryPromise({
-      try: () => dependencies.getTab(tabId),
-      catch: (cause) => new NativeTabHighlightBrowserError({ cause })
-    })
+    const tab = yield* getTabEffect(tabId)
     if (!requestIsCurrent(revision)) return STALE_TARGET_RESOLUTION
     if (numericTabId(tab ?? undefined) !== tabId || typeof tab?.windowId !== 'number') {
       return INVALID_TARGET_RESOLUTION
     }
 
-    const targetWindow = yield* Effect.tryPromise({
-      try: () => dependencies.getWindow(tab.windowId),
-      catch: (cause) => new NativeTabHighlightBrowserError({ cause })
-    })
+    const targetWindow = yield* getWindowEffect(tab.windowId)
     if (!requestIsCurrent(revision)) return STALE_TARGET_RESOLUTION
     // Standalone app/PWA and popup windows do not expose the normal tab rail
     // this preview is intended to annotate.
@@ -127,10 +160,7 @@ export function createNativeTabHighlightController(
       return true
     }
 
-    const result = yield* Effect.tryPromise({
-      try: () => dependencies.queryTabsInWindowResult(windowId),
-      catch: (cause) => new NativeTabHighlightBrowserError({ cause })
-    })
+    const result = yield* queryTabsInWindowEffect(windowId)
     if (!requestIsCurrent(revision)) return false
     if (!result.ok) return false
 
@@ -185,10 +215,7 @@ export function createNativeTabHighlightController(
     const nextIndexes = [activeTabIndex, ...additionalIndexes]
 
     if (!sameIndexSelection(currentIndexes, nextIndexes)) {
-      const highlighted = yield* Effect.tryPromise({
-        try: () => dependencies.highlightTabs(windowId, nextIndexes),
-        catch: (cause) => new NativeTabHighlightBrowserError({ cause })
-      })
+      const highlighted = yield* highlightTabsEffect(windowId, nextIndexes)
       if (!highlighted) return false
     }
 
@@ -260,7 +287,7 @@ export function createNativeTabHighlightController(
     desiredTabId = nextTabId
     requestRevision += 1
     if (runner) return runner
-    runner = Effect.runPromise(runNativeTabHighlightRequests())
+    runner = getAppRuntime().runPromise(runNativeTabHighlightRequests())
     return runner
   }
 
