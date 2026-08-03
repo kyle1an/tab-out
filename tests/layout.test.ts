@@ -228,7 +228,11 @@ test('app bootstrap paints filter shell before cached startup content and live r
   assert.match(appEntrySource, /const currentTabOutPageFiber = cachedStartupSnapshot/)
   assert.match(appEntrySource, /const startupSnapshot = fallbackStartupSnapshot/)
   assert.match(appEntrySource, /applyAppStartup\(\{ historyRange, localState, snapshot: startupSnapshot \}\)/)
-  assert.match(appEntrySource, /Effect\.runPromise\(runInitializeApp\(\)\.pipe/)
+  assert.match(appEntrySource, /const appRuntime = getAppRuntime\(\)/)
+  assert.match(appEntrySource, /const browserTabs = yield\* BrowserTabs/)
+  assert.match(appEntrySource, /appRuntime\.runPromise\(runInitializeApp\(\)\.pipe/)
+  assert.match(appEntrySource, /appRuntime\.dispose\(\)/)
+  assert.doesNotMatch(appEntrySource, /Effect\.runPromise\(/)
   assert.doesNotMatch(appEntrySource, /async function initializeApp\(/)
   assert.match(appStartupSource, /appDashboardStore\.applyStartup\(\{[\s\S]*historyRange: nextState\.historyRange,[\s\S]*snapshot: nextState\.snapshot/)
   assert.doesNotMatch(appEntrySource, /mountApp\(/)
@@ -468,6 +472,20 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
   assert.match(backgroundSource, /backgroundRuntime\.runPromise\(refreshBadgeEffect\)/)
   assert.match(backgroundSource, /const workingSetService = backgroundRuntime\.runSync\(WorkingSet\.WorkingSet\)/)
   assert.match(backgroundSource, /workingSetService\.getWorkingSetActivity\(\)/)
+})
+
+test('app entrypoints share one ManagedRuntime for browser services', () => {
+  const runtimeSource = readFileSync(new URL('../src/extension/app-runtime.ts', import.meta.url), 'utf8')
+  const browserTabsSource = readFileSync(new URL('../src/extension/browser-tabs-service.ts', import.meta.url), 'utf8')
+  const appSource = readFileSync(new URL('../src/app.tsx', import.meta.url), 'utf8')
+
+  assert.match(runtimeSource, /ManagedRuntime\.make\(Layer\.mergeAll\(BrowserTabs\.layer\(\)\)\)/)
+  assert.match(runtimeSource, /sharedAppRuntime \?\?= createAppRuntime\(\)/)
+  assert.match(runtimeSource, /runtime\.runSync\(Effect\.void\)/)
+  assert.match(browserTabsSource, /Context\.Service<BrowserTabs/)
+  assert.match(browserTabsSource, /Layer\.succeed\(BrowserTabs/)
+  assert.match(appSource, /appRuntime\.runPromise\(/)
+  assert.doesNotMatch(appSource, /Effect\.runPromise\(/)
 })
 
 test('startup snapshot service owns its complete rebuild flight behind Effect', () => {

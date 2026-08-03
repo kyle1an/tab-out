@@ -7,6 +7,7 @@ import {
   duplicateTab,
   focusWindow,
   getAllWindowsResult,
+  getCurrentTab,
   getCurrentWindow,
   getCurrentWindowResult,
   getRecentlyClosedResult,
@@ -77,6 +78,7 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
 
   assert.deepEqual(await queryAllTabsResult(), { ok: false, value: [] })
   assert.equal(await getTab(1), null)
+  assert.equal(await getCurrentTab(), null)
   assert.deepEqual(await removeTabs([1, 2]), [])
   assert.equal(await updateTab(1, { muted: true }), null)
   assert.equal(await createTab({ url: 'https://a.test/' }), null)
@@ -106,6 +108,28 @@ test('gateway never throws: missing global and rejecting apis normalize to empty
   setChromeTabsApi(rejecting)
   assert.deepEqual(await queryAllTabsResult(), { ok: false, value: [] })
   assert.equal(await getTab(1), null)
+})
+
+test('getCurrentTab normalizes current-page lookup availability and rejection', async (t) => {
+  t.after(() => setChromeTabsApi(null))
+  const currentTab = fakeTab(7, 'chrome-extension://tab-out/index.html')
+  setChromeTabsApi({
+    tabs: {
+      query: async () => [],
+      getCurrent: async () => currentTab
+    }
+  })
+  assert.equal(await getCurrentTab(), currentTab)
+
+  setChromeTabsApi({
+    tabs: {
+      query: async () => [],
+      getCurrent: async () => {
+        throw new Error('Current page unavailable')
+      }
+    }
+  })
+  assert.equal(await getCurrentTab(), null)
 })
 
 test('window tab reads and native highlighting stay scoped to the requested window', async (t) => {
