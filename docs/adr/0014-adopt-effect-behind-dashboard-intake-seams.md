@@ -50,6 +50,9 @@ matter to a frequently opened new-tab page.
 - Keep browser and Chrome dependencies as Promise-based adapters at the seam.
   MV3 work that must survive service-worker termination continues to use
   persisted state and Chrome alarms rather than in-memory Effect schedules.
+- Use Effect Schema at valuable persisted-data and cross-context boundaries.
+  Decode or validate unknown data once at the owner, preserve deliberate
+  backward-compatible normalization, and keep Schema types out of UI code.
 - Treat generated app and worker bundle changes as adoption evidence. Each
   additional Effect slice must pass the existing interface tests and justify
   its measured bundle cost before it is retained.
@@ -203,6 +206,22 @@ releases only the flight it owns after success or failure. It adds 250 raw
 bytes and 38 deterministic gzip bytes, bringing the app entry to 844,529 raw
 bytes and 266,199 deterministic gzip bytes; the worker entry remains unchanged.
 
+The nineteenth slice begins a separate Effect Schema boundary track at the
+versioned startup cache. Declarative schemas now validate the cache envelope,
+Dashboard data, local state, and render-ready view model in both extension
+contexts. The hot cache check preserves the original Dashboard object for
+first paint, legacy partial Activation History and Working Set records still
+flow through their normalizers, legacy recently-closed rows receive explicit
+defaults, malformed optional Dashboard fields are rejected, and derived Domain
+Card IDs are still repaired. This removes the duplicated hand-written shape
+guards and their unsafe view-model casts. Loading Schema adds 32,941 raw bytes
+and 10,927 deterministic gzip bytes to the app entry, bringing it to 877,470
+raw bytes and 277,126 deterministic gzip bytes. Because startup cache ownership
+is shared, it also adds 33,484 raw bytes and 10,912 deterministic gzip bytes to
+the worker entry, bringing it to 319,723 raw bytes and 106,267 deterministic
+gzip bytes. The focused first-paint cache test remains in the low-single-digit
+millisecond range.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
@@ -213,9 +232,10 @@ the Tab History critical section provided enough concurrency leverage.
 
 A repository-wide audit of Promise construction, async entry points, shared
 in-flight state, queued work, timers, subscriptions, Web Locks, and MV3 event
-handlers found no further currently worthwhile Effect ownership seams. The
-remaining asynchronous code stays browser-native or Promise-based for these
-reasons:
+handlers found no further currently worthwhile Effect workflow ownership
+seams. That conclusion does not cover Effect Schema at persisted-data or
+cross-context boundaries. The remaining asynchronous code stays browser-native
+or Promise-based for these reasons:
 
 - Chrome, storage, dynamic-import, and snapshot-fetch modules are leaf adapters
   consumed by complete Effect workflows. Wrapping them separately would add

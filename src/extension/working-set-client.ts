@@ -13,13 +13,20 @@ function emptyWorkingSetSnapshot(): WorkingSetSnapshot {
   }
 }
 
-export function normalizeWorkingSetSnapshot(snapshot: Partial<WorkingSetSnapshot> | null | undefined): WorkingSetSnapshot {
-  if (!snapshot || !Array.isArray(snapshot.items)) return emptyWorkingSetSnapshot()
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function normalizeWorkingSetSnapshot(value: unknown): WorkingSetSnapshot {
+  if (!isRecord(value)) return emptyWorkingSetSnapshot()
+  const rawItems = value.items
+  if (!Array.isArray(rawItems)) return emptyWorkingSetSnapshot()
+  const snapshot = value
   const defaultLimit = Number.isInteger(snapshot.defaultLimit) ? Number(snapshot.defaultLimit) : WORKING_SET_DEFAULT_LIMIT
   const expandedLimit = Number.isInteger(snapshot.expandedLimit) ? Number(snapshot.expandedLimit) : WORKING_SET_EXPANDED_LIMIT
-  const items = snapshot.items
+  const items = rawItems
     .map((item): WorkingSetItem | null => {
-      if (!item || typeof item !== 'object' || !Number.isInteger(item.tabId) || !Number.isInteger(item.windowId)) return null
+      if (!isRecord(item) || !Number.isInteger(item.tabId) || !Number.isInteger(item.windowId)) return null
       const tabUrl = String(item.tabUrl || '')
       const key = String(item.key || tabUrl)
       if (!key || !tabUrl) return null

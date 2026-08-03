@@ -594,6 +594,65 @@ test('startup snapshot cache rejects malformed cached dashboard tabs before firs
   assert.equal(await loadCachedDashboardStartup(now), null)
 })
 
+test('startup snapshot cache rejects malformed optional dashboard state at the schema boundary', async () => {
+  const malformedCached = {
+    savedAt: now,
+    snapshot: {
+      dashboard: {
+        realTabs: [],
+        domainGroups: [],
+        historySearchStatus: 'unexpected'
+      },
+      tabHistory: { entries: [] },
+      workingSet: { items: [] },
+      closedTabs: []
+    }
+  }
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: malformedCached }) },
+      local: { get: async () => ({}) }
+    }
+  }
+
+  assert.equal(await loadCachedDashboardStartup(now), null)
+})
+
+test('startup snapshot cache normalizes legacy recently closed rows at the schema boundary', async () => {
+  const url = 'https://example.test/closed'
+  const cached = {
+    savedAt: now,
+    snapshot: {
+      dashboard: { realTabs: [], domainGroups: [] },
+      tabHistory: { entries: [] },
+      workingSet: { items: [] },
+      closedTabs: [{
+        sessionId: 'session-alpha',
+        url,
+        title: 'Closed page',
+        lastClosedAt: now - 1_000
+      }]
+    }
+  }
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: cached }) },
+      local: { get: async () => ({}) }
+    }
+  }
+
+  assert.deepEqual((await loadCachedDashboardStartup(now))?.snapshot.closedTabs, [{
+    sessionId: 'session-alpha',
+    tabId: -1,
+    url,
+    rawUrl: url,
+    displayUrl: url,
+    title: 'Closed page',
+    favIconUrl: '',
+    lastClosedAt: now - 1_000
+  }])
+})
+
 test('startup snapshot cache drops malformed nested startup view-model sections', async () => {
   const cached = {
     savedAt: now,

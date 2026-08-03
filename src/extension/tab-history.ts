@@ -37,44 +37,51 @@ function integerOrNull(value: unknown): number | null {
   return Number.isInteger(value) ? Number(value) : null
 }
 
-function normalizeEntry(entry: Partial<TabHistoryEntry> | null | undefined, index: number): TabHistoryEntry {
-  const tabId = integerOr(entry?.tabId, -1)
-  const windowId = integerOr(entry?.windowId, -1)
-  const url = String(entry?.url || '')
-  const rawUrl = String(entry?.rawUrl || url)
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function normalizeEntry(value: unknown, index: number): TabHistoryEntry {
+  const entry = isRecord(value) ? value : {}
+  const tabId = integerOr(entry.tabId, -1)
+  const windowId = integerOr(entry.windowId, -1)
+  const url = String(entry.url || '')
+  const rawUrl = String(entry.rawUrl || url)
   // A suspended row's favIconUrl is the suspender page's faded data: icon —
   // recover the real favicon by the unwrapped url instead of keeping that
   // copy. Older snapshots lack the explicit flag, so fall back to deriving
   // it from the URL pair.
-  const suspended = entry?.suspended ?? isSuspended(rawUrl, url)
-  const exists = !!entry?.exists
-  const favIconUrl = String(entry?.favIconUrl || '')
+  const suspended = typeof entry.suspended === 'boolean'
+    ? entry.suspended
+    : isSuspended(rawUrl, url)
+  const exists = !!entry.exists
+  const favIconUrl = String(entry.favIconUrl || '')
   return {
-    index: integerOr(entry?.index, index),
+    index: integerOr(entry.index, index),
     tabId,
     windowId,
     exists,
-    active: !!entry?.active,
-    activeInOtherWindow: !!entry?.activeInOtherWindow,
-    isApp: !!entry?.isApp,
-    pinned: !!entry?.pinned,
-    discarded: !!entry?.discarded,
+    active: !!entry.active,
+    activeInOtherWindow: !!entry.activeInOtherWindow,
+    isApp: !!entry.isApp,
+    pinned: !!entry.pinned,
+    discarded: !!entry.discarded,
     suspended,
-    loading: exists && !suspended && !!entry?.loading,
-    audible: !!entry?.audible,
-    muted: !!entry?.muted,
-    pending: !!entry?.pending,
-    createdAt: integerOrNull(entry?.createdAt),
-    cursor: !!entry?.cursor,
-    current: !!entry?.current,
-    previousTarget: !!entry?.previousTarget,
-    nextTarget: !!entry?.nextTarget,
-    title: String(entry?.title || (tabId === -1 ? 'Unknown tab' : `Tab ${tabId}`)),
+    loading: exists && !suspended && !!entry.loading,
+    audible: !!entry.audible,
+    muted: !!entry.muted,
+    pending: !!entry.pending,
+    createdAt: integerOrNull(entry.createdAt),
+    cursor: !!entry.cursor,
+    current: !!entry.current,
+    previousTarget: !!entry.previousTarget,
+    nextTarget: !!entry.nextTarget,
+    title: String(entry.title || (tabId === -1 ? 'Unknown tab' : `Tab ${tabId}`)),
     url,
     rawUrl,
-    displayUrl: String(entry?.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
+    displayUrl: String(entry.displayUrl || url || (tabId === -1 ? '' : `tab ${tabId}`)),
     favIconUrl: pickTabFavicon({ favIconUrl, url, suspended }) || pickFavicon({ favIconUrl, url }),
-    lastActivatedAt: integerOrNull(entry?.lastActivatedAt)
+    lastActivatedAt: integerOrNull(entry.lastActivatedAt)
   }
 }
 
@@ -148,9 +155,12 @@ export function historyEntryFromClosedTab(closed: ClosedTabEntry): TabHistoryEnt
   })
 }
 
-export function normalizeTabHistorySnapshot(snapshot: Partial<TabHistorySnapshot> | null | undefined): TabHistorySnapshot {
-  if (!snapshot || !Array.isArray(snapshot.entries)) return emptySnapshot()
-  const entries = snapshot.entries.map(normalizeEntry)
+export function normalizeTabHistorySnapshot(value: unknown): TabHistorySnapshot {
+  if (!isRecord(value)) return emptySnapshot()
+  const rawEntries = value.entries
+  if (!Array.isArray(rawEntries)) return emptySnapshot()
+  const snapshot = value
+  const entries = rawEntries.map(normalizeEntry)
   return {
     stackSize: integerOr(snapshot.stackSize, entries.length),
     pendingSize: integerOr(snapshot.pendingSize, entries.filter((entry) => entry.pending).length),

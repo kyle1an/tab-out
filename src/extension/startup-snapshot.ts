@@ -1,7 +1,6 @@
 import { Data, Effect } from 'effect'
 
 import type { ClosedTabEntry } from './closed-tabs.js'
-import { domainGroupCardId } from './domain-card-id.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 import {
@@ -14,17 +13,19 @@ import { DEFAULT_HISTORY_RANGE } from './history-range.js'
 import { buildDashboardDataFromTabs } from './render.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
 import { createSerializedEffectQueue } from './serialized-effect-queue.js'
+import {
+  parseCachedDashboardLocalState,
+  parseCachedDashboardStartupBoundary,
+  parseCachedDashboardStartupViewModel,
+  type CachedDashboardStartupBoundary,
+  type DashboardStartupViewModel
+} from './startup-snapshot-schema.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPageMetadataUpdates, SavedPagesStore } from './saved-pages.js'
-import type { DashboardData, DashboardTab, DashboardViewModel, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
+import type { DashboardData, DashboardTab, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
 
-export type DashboardStartupViewModel = {
-  pinnedDomains: readonly string[]
-  pinnedPageChipIds: readonly string[]
-  pinnedSectionIds: readonly string[]
-  viewModel: DashboardViewModel
-}
+export type { DashboardStartupViewModel } from './startup-snapshot-schema.js'
 export type DashboardStartupSnapshot = {
   dashboard: DashboardData
   tabHistory: TabHistorySnapshot
@@ -40,14 +41,7 @@ export type CachedDashboardStartupLoadResult = {
   ok: boolean
   value: CachedDashboardStartup | null
 }
-type CachedDashboardStartupSnapshot = {
-  savedAt: number
-  captureStartedAt?: number
-  contentFingerprint?: string
-  workingSetSavedAt?: number
-  snapshot: DashboardStartupSnapshot
-  localState?: DashboardLocalState
-}
+type CachedDashboardStartupSnapshot = CachedDashboardStartupBoundary
 type SaveCachedDashboardStartupOptions = {
   buildStartupViewModel?: (snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null) => DashboardStartupViewModel
   captureStartedAt?: number
@@ -96,375 +90,6 @@ function startupSnapshotCacheStorage(): chrome.storage.StorageArea | null {
 
 function startupSnapshotDurableStorage(): chrome.storage.StorageArea | null {
   return typeof chrome === 'undefined' ? null : chrome.storage?.local || null
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object'
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
-function isOptionalBoolean(value: unknown): boolean {
-  return value === undefined || typeof value === 'boolean'
-}
-
-function isOptionalString(value: unknown): boolean {
-  return value === undefined || typeof value === 'string'
-}
-
-function isOptionalFiniteNumber(value: unknown): boolean {
-  return value === undefined || isFiniteNumber(value)
-}
-
-function isCachedTabId(value: unknown): boolean {
-  return value === undefined || typeof value === 'string' || isFiniteNumber(value)
-}
-
-function isCachedDashboardSourceType(value: unknown): boolean {
-  return value === undefined || value === 'tab' || value === 'bookmark' || value === 'history' || value === 'saved-page'
-}
-
-function isCachedDashboardTab(value: unknown): value is DashboardTab {
-  return isObject(value) &&
-    isCachedTabId(value.id) &&
-    typeof value.url === 'string' &&
-    typeof value.rawUrl === 'string' &&
-    typeof value.suspended === 'boolean' &&
-    typeof value.title === 'string' &&
-    (value.status === undefined || value.status === 'unloaded' || value.status === 'loading' || value.status === 'complete') &&
-    isOptionalBoolean(value.retainedSuspendedTitle) &&
-    typeof value.favIconUrl === 'string' &&
-    isFiniteNumber(value.windowId) &&
-    typeof value.active === 'boolean' &&
-    typeof value.pinned === 'boolean' &&
-    isFiniteNumber(value.groupId) &&
-    typeof value.isTabOut === 'boolean' &&
-    typeof value.isApp === 'boolean' &&
-    isOptionalBoolean(value.audible) &&
-    isOptionalBoolean(value.muted) &&
-    isCachedDashboardSourceType(value.sourceType) &&
-    isOptionalBoolean(value.saved) &&
-    isOptionalBoolean(value.closedSaved) &&
-    isOptionalString(value.savedPageKey) &&
-    isOptionalFiniteNumber(value.index)
-}
-
-function isCachedDomainGroup(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.domain === 'string' &&
-    Array.isArray(value.tabs) &&
-    value.tabs.every(isCachedDashboardTab) &&
-    isOptionalString(value.label) &&
-    isOptionalBoolean(value.pinned)
-}
-
-function isCachedClosedTab(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.sessionId === 'string' &&
-    typeof value.url === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.lastClosedAt === 'number'
-}
-
-function isDashboardStartupSnapshot(value: unknown): value is DashboardStartupSnapshot {
-  if (!isObject(value) || !isObject(value.dashboard)) return false
-  return (
-    Array.isArray(value.dashboard.realTabs) && value.dashboard.realTabs.every(isCachedDashboardTab) &&
-    Array.isArray(value.dashboard.domainGroups) && value.dashboard.domainGroups.every(isCachedDomainGroup) &&
-    (value.dashboard.bookmarkDomainGroups === undefined || (
-      Array.isArray(value.dashboard.bookmarkDomainGroups) && value.dashboard.bookmarkDomainGroups.every(isCachedDomainGroup)
-    )) &&
-    (value.dashboard.historyDomainGroups === undefined || (
-      Array.isArray(value.dashboard.historyDomainGroups) && value.dashboard.historyDomainGroups.every(isCachedDomainGroup)
-    )) &&
-    (value.tabHistory == null || isObject(value.tabHistory)) &&
-    (value.workingSet == null || isObject(value.workingSet)) &&
-    Array.isArray(value.closedTabs) && value.closedTabs.every(isCachedClosedTab)
-  )
-}
-
-function stringArray(value: unknown): string[] | null {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? [...value] : null
-}
-
-function cachedDashboardLocalState(value: unknown): DashboardLocalState | null {
-  if (!isObject(value) || value.loaded !== true) return null
-  const pinnedDomains = stringArray(value.pinnedDomains)
-  const pinnedSectionIds = stringArray(value.pinnedSectionIds)
-  const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
-  if (!pinnedDomains || !pinnedSectionIds || !pinnedPageChipIds) return null
-  return {
-    loaded: true,
-    pinnedDomains,
-    pinnedSectionIds,
-    pinnedPageChipIds
-  }
-}
-
-function isArrayOf(value: unknown, predicate: (item: unknown) => boolean): boolean {
-  return Array.isArray(value) && value.every(predicate)
-}
-
-function isStringArray(value: unknown): boolean {
-  return isArrayOf(value, (item) => typeof item === 'string')
-}
-
-function isOptionalStringArray(value: unknown): boolean {
-  return value === undefined || isStringArray(value)
-}
-
-function isOptionalObjectArray(value: unknown, predicate: (item: unknown) => boolean): boolean {
-  return value === undefined || isArrayOf(value, predicate)
-}
-
-function isRecordOf(value: unknown, predicate: (item: unknown) => boolean): boolean {
-  return isObject(value) && !Array.isArray(value) && Object.values(value).every(predicate)
-}
-
-function isCachedDashboardTitleSuppression(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.text === 'string' &&
-    isFiniteNumber(value.count) &&
-    isOptionalBoolean(value.spansRenderedChildGroups)
-}
-
-function isCachedTitleSuppressionTone(value: unknown): boolean {
-  return value === '' || value === 'amber' || value === 'teal' || value === 'sky' || value === 'rose'
-}
-
-function isCachedTitleSuppressionToneScope(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.useSuppressionTokenTones === 'boolean' &&
-    isRecordOf(value.suppressedTitleToneIndexByText, isFiniteNumber) &&
-    isRecordOf(value.suppressedTitleToneByText, isCachedTitleSuppressionTone) &&
-    isFiniteNumber(value.usedToneCount)
-}
-
-function isOptionalTitleSuppressionToneScope(value: unknown): boolean {
-  return value === undefined || isCachedTitleSuppressionToneScope(value)
-}
-
-function isOptionalTitleSuppressionToneRecord(value: unknown): boolean {
-  return value === undefined || isRecordOf(value, isCachedTitleSuppressionTone)
-}
-
-function isOptionalDashboardTitleSuppressions(value: unknown): boolean {
-  return value === undefined || isArrayOf(value, isCachedDashboardTitleSuppression)
-}
-
-function isCachedDashboardSegment(value: unknown): boolean {
-  if (typeof value === 'string') return true
-  if (!isObject(value)) return false
-  if (value.placeholder === true) return isOptionalString(value.label)
-  return typeof value.titleSuppression === 'string'
-}
-
-function isCachedDashboardChipEnv(value: unknown): boolean {
-  return isObject(value) &&
-    isCachedTabId(value.tabId) &&
-    typeof value.prefix === 'string' &&
-    typeof value.tabUrl === 'string' &&
-    typeof value.rawUrl === 'string' &&
-    isCachedDashboardSourceType(value.sourceType) &&
-    isOptionalBoolean(value.saved) &&
-    isOptionalBoolean(value.closedSaved) &&
-    isOptionalString(value.savedPageKey) &&
-    isOptionalString(value.title) &&
-    isOptionalString(value.faviconUrl) &&
-    isOptionalBoolean(value.isApp) &&
-    isOptionalBoolean(value.activeInOtherWindow)
-}
-
-function isCachedDashboardChip(value: unknown): boolean {
-  return isObject(value) &&
-    isCachedTabId(value.tabId) &&
-    typeof value.tabUrl === 'string' &&
-    typeof value.rawUrl === 'string' &&
-    isCachedDashboardSourceType(value.sourceType) &&
-    isOptionalBoolean(value.saved) &&
-    isOptionalBoolean(value.closedSaved) &&
-    isOptionalBoolean(value.suspended) &&
-    isOptionalBoolean(value.loading) &&
-    isOptionalString(value.savedPageKey) &&
-    isOptionalString(value.pagePinId) &&
-    isOptionalBoolean(value.pagePinned) &&
-    isOptionalBoolean(value.pagePinDisabled) &&
-    typeof value.leadPrefix === 'string' &&
-    typeof value.pathGroupLabel === 'string' &&
-    isOptionalString(value.title) &&
-    isArrayOf(value.displaySegments, isCachedDashboardSegment) &&
-    isStringArray(value.suppressedTitleParts) &&
-    typeof value.pathSuffix === 'string' &&
-    typeof value.tooltip === 'string' &&
-    isFiniteNumber(value.dupeCount) &&
-    typeof value.faviconUrl === 'string' &&
-    typeof value.isGrouped === 'boolean' &&
-    (value.groupDotColor === null || typeof value.groupDotColor === 'string') &&
-    typeof value.isApp === 'boolean' &&
-    (value.audioState === undefined || value.audioState === null || value.audioState === 'playing' || value.audioState === 'muted') &&
-    isOptionalBoolean(value.activeInOtherWindow) &&
-    isOptionalBoolean(value.activeChipFrame) &&
-    isOptionalBoolean(value.isCurrentTabOut) &&
-    isOptionalBoolean(value.chromePinned) &&
-    isOptionalFiniteNumber(value.chromeGroupId) &&
-    isOptionalBoolean(value.iconOnly) &&
-    (value.envs === null || isArrayOf(value.envs, isCachedDashboardChipEnv)) &&
-    isOptionalObjectArray(value.titleVariantChips, isCachedDashboardChip)
-}
-
-function isCachedDashboardCluster(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.key === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.isPR === 'boolean' &&
-    isFiniteNumber(value.count) &&
-    isStringArray(value.closableUrls) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalTitleSuppressionToneScope(value.titleSuppressionToneScope) &&
-    isOptionalTitleSuppressionToneRecord(value.suppressedTitleToneByText) &&
-    isArrayOf(value.visibleChips, isCachedDashboardChip) &&
-    isArrayOf(value.hiddenChips, isCachedDashboardChip) &&
-    isFiniteNumber(value.hiddenCount) &&
-    isOptionalBoolean(value.isPinned)
-}
-
-function isCachedDashboardWebsitePathSection(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.key === 'string' &&
-    typeof value.label === 'string' &&
-    isFiniteNumber(value.sectionCount) &&
-    isStringArray(value.sectionClosableUrls) &&
-    typeof value.hasFlat === 'boolean' &&
-    isArrayOf(value.flatVisibleChips, isCachedDashboardChip) &&
-    isArrayOf(value.flatHiddenChips, isCachedDashboardChip) &&
-    isFiniteNumber(value.flatHiddenCount) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalTitleSuppressionToneScope(value.titleSuppressionToneScope) &&
-    isOptionalTitleSuppressionToneRecord(value.suppressedTitleToneByText) &&
-    isArrayOf(value.clusters, isCachedDashboardCluster) &&
-    isOptionalBoolean(value.isPinned)
-}
-
-function isCachedDashboardSection(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.key === 'string' &&
-    isFiniteNumber(value.sectionCount) &&
-    isStringArray(value.sectionClosableUrls) &&
-    typeof value.showHeader === 'boolean' &&
-    typeof value.isShared === 'boolean' &&
-    isOptionalBoolean(value.isPort) &&
-    typeof value.hasFlat === 'boolean' &&
-    isArrayOf(value.flatVisibleChips, isCachedDashboardChip) &&
-    isArrayOf(value.flatHiddenChips, isCachedDashboardChip) &&
-    isFiniteNumber(value.flatHiddenCount) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalTitleSuppressionToneScope(value.titleSuppressionToneScope) &&
-    isOptionalTitleSuppressionToneRecord(value.suppressedTitleToneByText) &&
-    isArrayOf(value.clusters, isCachedDashboardCluster) &&
-    isArrayOf(value.websitePathSections, isCachedDashboardWebsitePathSection) &&
-    isOptionalBoolean(value.isPinned)
-}
-
-function isCachedMutationTarget(value: unknown): boolean {
-  return isObject(value) && Number.isInteger(value.tabId) && typeof value.tabUrl === 'string'
-}
-
-function isOptionalMutationTargetsByText(value: unknown): boolean {
-  return value === undefined || isRecordOf(value, (targets) => isArrayOf(targets, isCachedMutationTarget))
-}
-
-function isCachedDashboardCard(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.stableId === 'string' &&
-    typeof value.isHidden === 'boolean' &&
-    (value.displayMode === 'normal' || value.displayMode === 'unmatched') &&
-    typeof value.filtering === 'boolean' &&
-    isOptionalFiniteNumber(value.tabCount) &&
-    isOptionalFiniteNumber(value.totalTabCount) &&
-    isOptionalString(value.tabCountLabel) &&
-    isOptionalString(value.tabCountTitle) &&
-    isOptionalFiniteNumber(value.closableCount) &&
-    isOptionalString(value.closableCountLabel) &&
-    isOptionalFiniteNumber(value.suspendableCount) &&
-    isOptionalString(value.suspendableCountLabel) &&
-    isOptionalFiniteNumber(value.closableSuspendedCount) &&
-    isOptionalString(value.closableSuspendedCountLabel) &&
-    isOptionalStringArray(value.closableDupeUrls) &&
-    isOptionalFiniteNumber(value.closableExtras) &&
-    isOptionalString(value.singleSubdomainKey) &&
-    isOptionalBoolean(value.singleSubdomainIsPort) &&
-    isOptionalString(value.displayName) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalDashboardTitleSuppressions(value.allSuppressedTitleParts) &&
-    isOptionalMutationTargetsByText(value.suppressionCloseTargetsByText) &&
-    isOptionalMutationTargetsByText(value.suppressionSuspendTargetsByText) &&
-    isOptionalTitleSuppressionToneScope(value.cardSuppressionToneScope) &&
-    isArrayOf(value.sections, isCachedDashboardSection)
-}
-
-function isCachedDashboardStats(value: unknown): boolean {
-  return isObject(value) &&
-    isFiniteNumber(value.totalTabs) &&
-    isFiniteNumber(value.activeTabs) &&
-    isFiniteNumber(value.visibleTabs) &&
-    isFiniteNumber(value.totalWindows) &&
-    isFiniteNumber(value.visibleWindows) &&
-    isFiniteNumber(value.totalDomains) &&
-    isFiniteNumber(value.visibleDomains) &&
-    isFiniteNumber(value.dedupCount) &&
-    isFiniteNumber(value.filteredCloseCount) &&
-    typeof value.hasCards === 'boolean' &&
-    typeof value.filtering === 'boolean'
-}
-
-function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashboardStartupSnapshot {
-  return isObject(value) &&
-    typeof value.savedAt === 'number' &&
-    isOptionalString(value.contentFingerprint) &&
-    isDashboardStartupSnapshot(value.snapshot)
-}
-
-function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | undefined {
-  if (!isObject(value) || !isObject(value.viewModel)) return undefined
-  const pinnedDomains = stringArray(value.pinnedDomains)
-  const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
-  const pinnedSectionIds = stringArray(value.pinnedSectionIds)
-  if (!pinnedDomains || !pinnedPageChipIds || !pinnedSectionIds) return undefined
-  const viewModel = value.viewModel as Partial<DashboardViewModel>
-  const isCardEntry = (entry: unknown) => isObject(entry) &&
-    isCachedDomainGroup(entry.group) &&
-    isCachedDashboardCard(entry.vm)
-  if (
-    viewModel.source !== 'tabs' ||
-    !isCachedDashboardStats(viewModel.stats) ||
-    !Array.isArray(viewModel.matchedCards) || !viewModel.matchedCards.every(isCardEntry) ||
-    !Array.isArray(viewModel.unmatchedCards) || !viewModel.unmatchedCards.every(isCardEntry) ||
-    typeof viewModel.showOtherTabs !== 'boolean' ||
-    !isStringArray(viewModel.globalDedupeUrls) ||
-    !isStringArray(viewModel.filteredCloseUrls) ||
-    !Array.isArray(viewModel.filteredCloseTargets) || !viewModel.filteredCloseTargets.every(isCachedMutationTarget)
-  ) return undefined
-  const normalizeCardId = (entry: DashboardViewModel['matchedCards'][number]) => ({
-    ...entry,
-    vm: {
-      ...entry.vm,
-      // Stable IDs are a derived identity, not persisted product state. Repair
-      // warm caches written before the collision-safe ID encoding changed.
-      stableId: domainGroupCardId(entry.group)
-    }
-  })
-  return {
-    pinnedDomains,
-    pinnedPageChipIds,
-    pinnedSectionIds,
-    viewModel: {
-      ...(viewModel as DashboardViewModel),
-      matchedCards: (viewModel.matchedCards as DashboardViewModel['matchedCards']).map(normalizeCardId),
-      unmatchedCards: (viewModel.unmatchedCards as DashboardViewModel['unmatchedCards']).map(normalizeCardId)
-    }
-  }
 }
 
 export function applyPinnedDomainsToDashboardGroups(
@@ -529,8 +154,8 @@ async function readStartupSnapshotCacheForMutation(storage: chrome.storage.Stora
   if (!storage) return { ok: true, cached: null }
   try {
     const stored = await storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-    return { ok: true, cached: isCachedDashboardStartupSnapshot(cached) ? cached : null }
+    const cached = parseCachedDashboardStartupBoundary(stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+    return { ok: true, cached }
   } catch {
     // A failed read makes the generation of the existing cache unknown. Do not risk replacing
     // a newer value whose comparison could not be performed.
@@ -597,12 +222,12 @@ async function readCachedDashboardStartup(
     const liveLocalState = includeLocalStateKeys
       ? validDashboardLocalStateFromStorage(stored)
       : null
-    const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-    if (!isCachedDashboardStartupSnapshot(cached)) return { ok: true, startup: null, liveLocalState }
+    const cached = parseCachedDashboardStartupBoundary(stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY])
+    if (!cached) return { ok: true, startup: null, liveLocalState }
     if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) return { ok: true, startup: null, liveLocalState }
     const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
-    const cachedLocalState = cachedDashboardLocalState(cached.localState)
-    const startupViewModel = cachedStartupViewModel(rawStartupViewModel)
+    const cachedLocalState = parseCachedDashboardLocalState(cached.localState)
+    const startupViewModel = parseCachedDashboardStartupViewModel(rawStartupViewModel)
     const dashboard = snapshot.dashboard
     const workingSet = filterCachedWorkingSetToOpenDashboardTabs(
       normalizeWorkingSetSnapshot(snapshot.workingSet),
@@ -791,13 +416,14 @@ function dashboardStartupContentFingerprint(
 }
 
 function cachedDashboardStartupContentFingerprint(cached: CachedDashboardStartupSnapshot): string {
+  const { startupViewModel: _startupViewModel, ...snapshot } = cached.snapshot
   return cached.contentFingerprint ?? dashboardStartupContentFingerprint(
     {
-      ...cached.snapshot,
-      tabHistory: normalizeTabHistorySnapshot(cached.snapshot.tabHistory),
-      workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet)
+      ...snapshot,
+      tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
+      workingSet: normalizeWorkingSetSnapshot(snapshot.workingSet)
     },
-    cachedDashboardLocalState(cached.localState)
+    parseCachedDashboardLocalState(cached.localState)
   )
 }
 
@@ -844,7 +470,7 @@ export async function saveCachedDashboardStartupSnapshot(
     const sessionRenderReady = sessionStorage === null || (
       sessionContentCurrent &&
       (options.buildStartupViewModel === undefined ||
-        cachedStartupViewModel(sessionCacheRead.cached?.snapshot.startupViewModel) !== undefined)
+        parseCachedDashboardStartupViewModel(sessionCacheRead.cached?.snapshot.startupViewModel) !== undefined)
     )
     const sessionWriteRequired = !sessionContentCurrent || !sessionRenderReady
     const durableContentCurrent = durableStorage === null || (
