@@ -392,6 +392,16 @@ messages. Loading Schema adds roughly 0.2 seconds to the commit-message and
 pre-push checks, an accepted tooling cost beside the commit hook's full
 verification gate. This code does not enter either shipped extension entry.
 
+The thirty-sixth slice moves the long-lived development build watcher behind
+one scoped Effect workflow. A replaceable fiber owns debounce cancellation, a
+sliding one-item queue preserves the existing single trailing build, and the
+scope owns every native filesystem subscription plus the active `pnpm build`
+child process. `SIGINT` and `SIGTERM` now close that scope, while typed watcher
+and child-process failures remain recoverable at the workflow boundary. The
+watched paths, native filesystem events, build reasons, and console reporting
+remain unchanged. This code runs only through `pnpm dev`, so both shipped
+extension entries remain byte-for-byte unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
@@ -406,7 +416,9 @@ handlers, persisted values, runtime messages, native-host messages, JSON
 parsing, and other unknown-data entry points found no further currently
 worthwhile production Effect adoption seams. A follow-up tooling audit added
 schemas where external release metadata and language-server messages justified
-the boundary without entering shipped code.
+the boundary without entering shipped code, then identified the development
+build watcher as the one long-lived tooling workflow with meaningful resource
+and interruption ownership.
 
 Effect Schema now validates every extension-owned persisted-data envelope:
 startup snapshots, Saved Pages, closed-history dismissals, Tab History,
@@ -440,8 +452,11 @@ these reasons:
   lifecycle. Durable recovery continues to use storage and Chrome alarms.
 - Build generators and the Node test harness are finite tooling boundaries;
   adopting an Effect workflow or an Effect-specific test runner there would not
-  exercise a runtime ownership seam. Schema remains appropriate for external
-  metadata when it replaces unchecked parsing without entering shipped code.
+  exercise a runtime ownership seam. The development build watcher is the
+  explicit exception because it remains active across builds and owns native
+  subscriptions, debounce interruption, serialized child processes, and signal
+  cleanup. Schema remains appropriate for external metadata when it replaces
+  unchecked parsing without entering shipped code.
 
 The remaining manual value checks also stay outside Effect Schema:
 
