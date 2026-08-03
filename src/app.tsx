@@ -8,7 +8,7 @@ import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-
 import { groupColorChanged } from './extension/groups.js'
 import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
 import { loadCachedDashboardStartup } from './extension/startup-snapshot.js'
-import { loadHistoryRangePreference } from './extension/history-range.js'
+import { loadHistoryRangePreference } from './extension/history-range-storage.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'

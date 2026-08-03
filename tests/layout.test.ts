@@ -372,6 +372,14 @@ test('Saved Pages serializes each read-modify-write transaction with Effect', ()
   assert.doesNotMatch(sharedRenderSource, /saved-pages-mutations/)
 })
 
+test('History range keeps Effect Schema behind its storage boundary', () => {
+  const sharedSource = readFileSync(new URL('../src/extension/history-range.ts', import.meta.url), 'utf8')
+  const storageSource = readFileSync(new URL('../src/extension/history-range-storage.ts', import.meta.url), 'utf8')
+
+  assert.doesNotMatch(sharedSource, /from 'effect'/)
+  assert.match(storageSource, /Schema\.Literals/)
+})
+
 test('closed-history dismissals serialize their complete storage transaction with Effect', () => {
   const source = readFileSync(new URL('../src/extension/closed-ghost-dismissals.ts', import.meta.url), 'utf8')
 

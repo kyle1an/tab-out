@@ -326,6 +326,16 @@ shared startup-snapshot reader adds 255 raw bytes and 62 deterministic gzip
 bytes to the worker entry, bringing it to 323,131 raw bytes and 107,242
 deterministic gzip bytes.
 
+The twenty-ninth slice validates the persisted history-range preference with
+an Effect Schema literal set on both reads and writes. Unknown strings and
+non-string storage values retain the one-day fallback, and the existing Web
+Lock continues to preserve cross-page write order. The schema and Chrome I/O
+live in a dedicated storage-boundary module so the options module shared with
+the lazy selector stays Effect-free and the established chunk graph remains
+stable. It adds 65 raw bytes and 25 deterministic gzip bytes to the app entry,
+bringing it to 881,026 raw bytes and 277,578 deterministic gzip bytes; the
+worker entry remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
