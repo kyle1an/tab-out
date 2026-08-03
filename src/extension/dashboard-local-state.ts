@@ -1,3 +1,5 @@
+import { Schema } from 'effect'
+
 import { DOMAIN_PIN_STORAGE_KEY, normalizePinnedDomains } from './domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, normalizePinnedPageChips } from './page-chip-pins.js'
 import { normalizePinnedSections, SECTION_PIN_STORAGE_KEY } from './section-pins.js'
@@ -20,6 +22,16 @@ export const DASHBOARD_LOCAL_STORAGE_KEYS = [
   PAGE_CHIP_PIN_STORAGE_KEY
 ] as const
 
+const storedDashboardLocalStateSchema = Schema.Struct({
+  [DOMAIN_PIN_STORAGE_KEY]: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(Schema.Unknown))),
+  [SECTION_PIN_STORAGE_KEY]: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(Schema.Unknown))),
+  [PAGE_CHIP_PIN_STORAGE_KEY]: Schema.optionalKey(Schema.UndefinedOr(Schema.Array(Schema.Unknown)))
+})
+
+type StoredDashboardLocalState = typeof storedDashboardLocalStateSchema.Type
+
+const isStoredDashboardLocalState = Schema.is(storedDashboardLocalStateSchema)
+
 export function emptyDashboardLocalState(loaded = false): DashboardLocalState {
   return {
     loaded,
@@ -29,7 +41,7 @@ export function emptyDashboardLocalState(loaded = false): DashboardLocalState {
   }
 }
 
-function dashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState {
+function dashboardLocalStateFromStorage(stored: StoredDashboardLocalState): DashboardLocalState {
   return {
     loaded: true,
     pinnedDomains: normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY]),
@@ -38,11 +50,10 @@ function dashboardLocalStateFromStorage(stored: Record<string, unknown>): Dashbo
   }
 }
 
-export function validDashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState | null {
-  if (DASHBOARD_LOCAL_STORAGE_KEYS.some((key) => stored[key] !== undefined && !Array.isArray(stored[key]))) {
-    return null
-  }
-  return dashboardLocalStateFromStorage(stored)
+export function validDashboardLocalStateFromStorage(stored: unknown): DashboardLocalState | null {
+  return isStoredDashboardLocalState(stored)
+    ? dashboardLocalStateFromStorage(stored)
+    : null
 }
 
 export async function loadDashboardLocalStateResult(): Promise<DashboardLocalStateLoadResult> {

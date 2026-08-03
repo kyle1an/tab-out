@@ -34,19 +34,30 @@ test('dashboard local state distinguishes a storage read failure from an empty s
   })
 })
 
-test('dashboard local state rejects malformed pin storage instead of clearing warm state', async () => {
-  ;(globalThis as any).chrome = {
-    storage: {
-      local: {
-        get: async () => ({ [DOMAIN_PIN_STORAGE_KEY]: {} })
+test('dashboard local state rejects every malformed pin container instead of clearing warm state', async () => {
+  for (const storageKey of [
+    DOMAIN_PIN_STORAGE_KEY,
+    SECTION_PIN_STORAGE_KEY,
+    PAGE_CHIP_PIN_STORAGE_KEY
+  ]) {
+    ;(globalThis as any).chrome = {
+      storage: {
+        local: {
+          get: async () => ({ [storageKey]: {} })
+        }
       }
     }
+
+    const result = await loadDashboardLocalStateResult()
+
+    assert.equal(result.ok, false)
+    assert.deepEqual(result.state, {
+      loaded: true,
+      pinnedDomains: [],
+      pinnedSectionIds: [],
+      pinnedPageChipIds: []
+    })
   }
-
-  const result = await loadDashboardLocalStateResult()
-
-  assert.equal(result.ok, false)
-  assert.deepEqual(result.state.pinnedDomains, [])
 })
 
 test('dashboard local state loads and normalizes every pin kind atomically', async () => {
@@ -75,6 +86,30 @@ test('dashboard local state loads and normalizes every pin kind atomically', asy
       pinnedDomains: ['example.test'],
       pinnedSectionIds: [sectionId],
       pinnedPageChipIds: [pageChipId]
+    }
+  })
+})
+
+test('dashboard local state accepts storage adapters that return explicit undefined keys', async () => {
+  ;(globalThis as any).chrome = {
+    storage: {
+      local: {
+        get: async () => ({
+          [DOMAIN_PIN_STORAGE_KEY]: undefined,
+          [SECTION_PIN_STORAGE_KEY]: undefined,
+          [PAGE_CHIP_PIN_STORAGE_KEY]: undefined
+        })
+      }
+    }
+  }
+
+  assert.deepEqual(await loadDashboardLocalStateResult(), {
+    ok: true,
+    state: {
+      loaded: true,
+      pinnedDomains: [],
+      pinnedSectionIds: [],
+      pinnedPageChipIds: []
     }
   })
 })

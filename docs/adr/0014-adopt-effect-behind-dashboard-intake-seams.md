@@ -314,6 +314,18 @@ bytes. It reduces the worker entry by 70 raw bytes while deterministic gzip
 size adds 26 bytes, bringing it to 322,876 raw bytes and 107,180 deterministic
 gzip bytes.
 
+The twenty-eighth slice validates the Dashboard's three-key local pin snapshot
+with one Effect Schema before it can replace warm UI state. Each key may still
+be absent on first run, and valid arrays continue through the existing domain,
+section, and Page Chip repair functions; a non-array value for any key still
+fails the atomic read instead of clearing known pins. Explicit `undefined`
+properties from compatible storage adapters remain equivalent to absent keys.
+It adds 260 raw bytes and 46 deterministic gzip bytes to the app entry,
+bringing it to 880,961 raw bytes and 277,553 deterministic gzip bytes. The
+shared startup-snapshot reader adds 255 raw bytes and 62 deterministic gzip
+bytes to the worker entry, bringing it to 323,131 raw bytes and 107,242
+deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
