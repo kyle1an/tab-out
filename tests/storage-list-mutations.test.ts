@@ -6,6 +6,7 @@ import {
   normalizePinnedDomains,
   type PinnedDomainMutation
 } from '../src/extension/domain-pins.js'
+import { isDashboardLocalStoragePinValue } from '../src/extension/dashboard-local-state.js'
 import {
   applyPinnedPageChipMutation,
   normalizePinnedPageChips,
@@ -95,11 +96,13 @@ async function assertIndependentContextsPreservePins<Operation>({
   const firstContext = createStorageListMutationStore({
     adapter: createAdapter(),
     applyOperation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize
   })
   const secondContext = createStorageListMutationStore({
     adapter: createAdapter(),
     applyOperation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize
   })
 
@@ -149,6 +152,7 @@ test('one context serializes overlapping mutations without a Web Lock', async ()
       }
     },
     applyOperation: applyPinnedDomainMutation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize: normalizePinnedDomains
   })
 
@@ -223,11 +227,13 @@ test('a Domain Card reorder replays against the latest cross-context order', asy
   const firstContext = createStorageListMutationStore<PinnedDomainMutation>({
     adapter: createAdapter(),
     applyOperation: applyPinnedDomainMutation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize: normalizePinnedDomains
   })
   const secondContext = createStorageListMutationStore<PinnedDomainMutation>({
     adapter: createAdapter(),
     applyOperation: applyPinnedDomainMutation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize: normalizePinnedDomains
   })
 
@@ -261,6 +267,7 @@ test('a storage read failure aborts before write and does not poison the local q
       }
     },
     applyOperation: applyPinnedDomainMutation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize: normalizePinnedDomains
   })
 
@@ -289,6 +296,7 @@ test('a storage write failure exposes the freshly read rollback value and later 
       }
     },
     applyOperation: applyPinnedDomainMutation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize: normalizePinnedDomains
   })
 
@@ -319,6 +327,7 @@ test('a rejected exclusive lock releases the local serializer for the next mutat
       }
     },
     applyOperation: applyPinnedDomainMutation,
+    isStoredValue: isDashboardLocalStoragePinValue,
     normalize: normalizePinnedDomains
   })
 
@@ -331,4 +340,39 @@ test('a rejected exclusive lock releases the local serializer for the next mutat
   const recovered = await store.mutate({ type: 'set-pinned', domain: 'bravo.test', pinned: true })
   assert.equal(recovered.ok, true)
   assert.deepEqual(stored, ['bravo.test'])
+})
+
+test('a schema-invalid stored list aborts before mutation or write', async () => {
+  let stored: unknown = { domain: 'malformed.test' }
+  let operationCalls = 0
+  let writes = 0
+  const store = createStorageListMutationStore<PinnedDomainMutation>({
+    adapter: {
+      read: async () => stored,
+      write: async (value) => {
+        writes += 1
+        stored = [...value]
+      }
+    },
+    applyOperation: (value, operation) => {
+      operationCalls += 1
+      return applyPinnedDomainMutation(value, operation)
+    },
+    isStoredValue: isDashboardLocalStoragePinValue,
+    normalize: normalizePinnedDomains
+  })
+
+  const failed = await store.mutate({ type: 'set-pinned', domain: 'alpha.test', pinned: true })
+  assert.equal(failed.ok, false)
+  if (failed.ok) return
+  assert.equal(failed.currentValue, null)
+  assert.match(String(failed.error), /malformed/)
+  assert.equal(operationCalls, 0)
+  assert.equal(writes, 0)
+  assert.deepEqual(stored, { domain: 'malformed.test' })
+
+  stored = ['remote.test']
+  const recovered = await store.mutate({ type: 'set-pinned', domain: 'bravo.test', pinned: true })
+  assert.equal(recovered.ok, true)
+  assert.deepEqual(stored, ['remote.test', 'bravo.test'])
 })

@@ -21,6 +21,7 @@ export type StorageListMutationAdapter = {
 type StorageListMutationStoreOptions<Operation> = {
   adapter: StorageListMutationAdapter
   applyOperation: (value: unknown, operation: Operation) => string[]
+  isStoredValue: (value: unknown) => boolean
   normalize: (value: unknown) => string[]
 }
 
@@ -58,6 +59,7 @@ function failedMutationAttempt(
 export function createStorageListMutationStore<Operation>({
   adapter,
   applyOperation,
+  isStoredValue,
   normalize
 }: StorageListMutationStoreOptions<Operation>): StorageListMutationStore<Operation> {
   const mutationSemaphore = Semaphore.makeUnsafe(1)
@@ -69,6 +71,15 @@ export function createStorageListMutationStore<Operation>({
         try: adapter.read,
         catch: (cause) => new StorageListMutationError({ cause })
       })
+      const storedValueIsValid = yield* Effect.try({
+        try: () => isStoredValue(stored),
+        catch: (cause) => new StorageListMutationError({ cause })
+      })
+      if (!storedValueIsValid) {
+        return yield* Effect.fail(new StorageListMutationError({
+          cause: new TypeError('Stored list value is malformed')
+        }))
+      }
       const previousValue = yield* Effect.try({
         try: () => normalize(stored),
         catch: (cause) => new StorageListMutationError({ cause })

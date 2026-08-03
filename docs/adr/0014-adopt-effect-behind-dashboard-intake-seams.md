@@ -359,6 +359,15 @@ raw bytes and 30 deterministic gzip bytes, bringing it to 881,637 raw bytes and
 entry by 1 raw byte while adding 13 deterministic gzip bytes, bringing it to
 323,673 raw bytes and 107,396 deterministic gzip bytes.
 
+The thirty-second slice applies that same Effect Schema predicate inside each
+pin mutation's locked read-modify-write transaction. A malformed outer storage
+container now aborts before semantic normalization, mutation, or persistence,
+so a user action cannot silently replace unknown stored data with a new list;
+valid arrays still repair malformed individual identifiers as before. It adds
+206 raw bytes and 52 deterministic gzip bytes to the app entry, bringing it to
+881,843 raw bytes and 277,836 deterministic gzip bytes; the worker entry remains
+unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
