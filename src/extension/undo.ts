@@ -14,9 +14,10 @@
    place, so we use it exclusively.
    ================================================================ */
 
-import { Data, Effect } from 'effect'
+import { Effect } from 'effect'
 
-import { createTabWithFallbackUrl, focusWindow, getTab, groupTabs, updateTab } from './browser-tabs-gateway.js'
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { showToast } from './toast.js'
 import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-intake.js'
 import { unwrapSuspenderUrl } from './suspension.js'
@@ -33,10 +34,6 @@ export type RestoredTabTarget = {
   tabId: number
   snapshot: TabSnapshot
 }
-
-class UndoBrowserOperationError extends Data.TaggedError('UndoBrowserOperationError')<{
-  readonly cause: unknown
-}> {}
 
 let lastClosure: ClosureSnapshot | null = null
 
@@ -55,6 +52,7 @@ let lastClosure: ClosureSnapshot | null = null
  * undo so the user can jump to the restored tab if they want.
  */
 const restoreSnapshotTab = Effect.fn('undo.restoreSnapshotTab')(function*(tab: TabSnapshot) {
+  const browserTabs = yield* BrowserTabs
   const restoreUrl = tab.rawUrl || tab.url
   const sharedCreateProperties: chrome.tabs.CreateProperties = {
     url: restoreUrl,
@@ -62,24 +60,19 @@ const restoreSnapshotTab = Effect.fn('undo.restoreSnapshotTab')(function*(tab: T
     pinned: tab.pinned,
     active: false
   }
-  const createdInOriginalWindow = yield* Effect.tryPromise({
-    try: () => createTabWithFallbackUrl({
-      ...sharedCreateProperties,
-      windowId: tab.windowId
-    }, tab.url),
-    catch: (cause) => new UndoBrowserOperationError({ cause })
-  })
+  const createdInOriginalWindow = yield* browserTabs.createTabWithFallbackUrl({
+    ...sharedCreateProperties,
+    windowId: tab.windowId
+  }, tab.url)
   if (createdInOriginalWindow) return createdInOriginalWindow
 
-  return yield* Effect.tryPromise({
-    try: () => createTabWithFallbackUrl(sharedCreateProperties, tab.url),
-    catch: (cause) => new UndoBrowserOperationError({ cause })
-  })
+  return yield* browserTabs.createTabWithFallbackUrl(sharedCreateProperties, tab.url)
 })
 
 const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function*(
   closure: ClosureSnapshot
 ) {
+  const browserTabs = yield* BrowserTabs
   const restoredTargets: RestoredTabTarget[] = []
   const failedTabs: TabSnapshot[] = []
   const attemptedTabs = tabsInRestoreOrder(closure.tabs)
@@ -98,10 +91,7 @@ const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function*(
     if (groupId !== undefined && groupId !== -1) {
       // The group may have been dissolved. The gateway reports false, which is
       // still a successfully completed grouping attempt for this restore.
-      yield* Effect.tryPromise({
-        try: () => groupTabs([createdTabId], groupId),
-        catch: (cause) => new UndoBrowserOperationError({ cause })
-      })
+      yield* browserTabs.groupTabs([createdTabId], groupId)
     }
   }
   return { attemptedTabs, failedTabs, restoredTargets }
@@ -150,9 +140,7 @@ const runUndoClosure = Effect.fn('undo.runClosure')(function*(closure: ClosureSn
 })
 
 function undoClosure(closure: ClosureSnapshot): Promise<void> {
-  return Effect.runPromise(runUndoClosure(closure).pipe(
-    Effect.catchTag('UndoBrowserOperationError', (error) => Effect.fail(error.cause))
-  ))
+  return getAppRuntime().runPromise(runUndoClosure(closure))
 }
 
 export function undoLastClose(): Promise<void> {
@@ -168,28 +156,18 @@ function restoredTargetMatchesLiveTab(target: RestoredTabTarget, tab: chrome.tab
 }
 
 const runSwitchToRestoredTab = Effect.fn('undo.switchToRestoredTab')(function*(target: RestoredTabTarget) {
-  const tab = yield* Effect.tryPromise({
-    try: () => getTab(target.tabId),
-    catch: (cause) => new UndoBrowserOperationError({ cause })
-  })
+  const browserTabs = yield* BrowserTabs
+  const tab = yield* browserTabs.getTab(target.tabId)
   if (!restoredTargetMatchesLiveTab(target, tab)) return
 
-  const updatedTab = yield* Effect.tryPromise({
-    try: () => updateTab(target.tabId, { active: true }),
-    catch: (cause) => new UndoBrowserOperationError({ cause })
-  })
+  const updatedTab = yield* browserTabs.updateTab(target.tabId, { active: true })
   if (!restoredTargetMatchesLiveTab(target, updatedTab)) return
-  yield* Effect.tryPromise({
-    try: () => focusWindow(updatedTab.windowId),
-    catch: (cause) => new UndoBrowserOperationError({ cause })
-  })
+  yield* browserTabs.focusWindow(updatedTab.windowId)
 })
 
 /** Activate the exact tab created by Undo only while its snapshot identity still matches. */
 export function switchToRestoredTab(target: RestoredTabTarget): Promise<void> {
-  return Effect.runPromise(runSwitchToRestoredTab(target).pipe(
-    Effect.catchTag('UndoBrowserOperationError', (error) => Effect.fail(error.cause))
-  ))
+  return getAppRuntime().runPromise(runSwitchToRestoredTab(target))
 }
 
 function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {

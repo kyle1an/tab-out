@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 
-import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, isClosedTabFetchSuppressed, restoreClosedTab, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
+import { restoreClosedTab } from '../src/extension/closed-tab-actions.js'
+import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, isClosedTabFetchSuppressed, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
 
 type Session = chrome.sessions.Session
 type SessionTab = chrome.tabs.Tab

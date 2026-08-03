@@ -503,12 +503,14 @@ test('startup snapshot service owns its complete rebuild flight behind Effect', 
 
 test('closed-tab restore owns suppression cleanup through an Effect bracket', () => {
   const source = readFileSync(new URL('../src/extension/closed-tabs.ts', import.meta.url), 'utf8')
+  const actionSource = readFileSync(new URL('../src/extension/closed-tab-actions.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /const runClosedTabRestore = Effect\.fn/)
+  assert.match(source, /export function restoreClosedTabEffect/)
   assert.match(source, /Effect\.acquireUseRelease/)
-  assert.match(source, /Effect\.tryPromise/)
-  assert.match(source, /Effect\.runPromise\(runClosedTabRestore\(sessionId\)\)/)
-  assert.doesNotMatch(source, /export async function restoreClosedTab/)
+  assert.match(actionSource, /yield\* BrowserTabs/)
+  assert.match(actionSource, /getAppRuntime\(\)\.runPromise\(runRestoreClosedTab\(sessionId\)\)/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
+  assert.doesNotMatch(actionSource, /Effect\.runPromise/)
 })
 
 test('Undo owns sequential partial restore and restoring cleanup behind Effect', () => {
@@ -517,8 +519,10 @@ test('Undo owns sequential partial restore and restoring cleanup behind Effect',
   assert.match(source, /const runUndoClosure = Effect\.fn/)
   assert.match(source, /const restoreSnapshotTab = Effect\.fn/)
   assert.match(source, /Effect\.acquireUseRelease/)
-  assert.match(source, /Effect\.tryPromise/)
-  assert.match(source, /Effect\.runPromise\(runUndoClosure\(closure\)/)
+  assert.match(source, /yield\* BrowserTabs/)
+  assert.match(source, /getAppRuntime\(\)\.runPromise\(runUndoClosure\(closure\)\)/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
+  assert.doesNotMatch(source, /browser-tabs-gateway/)
   assert.doesNotMatch(source, /async function undoClosure\(/)
 })
 

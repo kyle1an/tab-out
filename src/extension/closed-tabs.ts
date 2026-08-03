@@ -1,6 +1,6 @@
-import { Data, Effect, Exit, Schema } from 'effect'
+import { Effect, Exit, Schema } from 'effect'
 
-import { getRecentlyClosedResult, restoreSession, type BrowserReadResult } from './browser-tabs-gateway.js'
+import { getRecentlyClosedResult, type BrowserReadResult } from './browser-tabs-gateway.js'
 import {
   CLOSED_TAB_RESTORE_STATE_MESSAGE,
   parseClosedTabRestoreStateMessage,
@@ -20,9 +20,10 @@ const closedTabChangeHandlers = new Set<(settleDelayMs: number) => void>()
 export const CLOSED_TAB_SESSION_SETTLE_MS = 150
 export const CLOSED_TAB_RESTORE_WATCHDOG_MS = 30_000
 
-class ClosedTabRestoreError extends Data.TaggedError('ClosedTabRestoreError')<{
-  readonly cause: unknown
-}> {}
+class ClosedTabRestoreError extends Schema.TaggedErrorClass<ClosedTabRestoreError>()(
+  'ClosedTabRestoreError',
+  { cause: Schema.Defect() }
+) {}
 
 export function isClosedTabFetchSuppressed(now: number = Date.now()): boolean {
   return pendingRestoreSuppressions.size > 0 || now < closedTabFetchSuppressUntilMs
@@ -88,7 +89,7 @@ const broadcastClosedTabRestoreState = Effect.fn('closedTabs.broadcastRestoreSta
   // restore guard already installed.
   yield* Effect.tryPromise({
     try: () => runtime.sendMessage(message),
-    catch: (cause) => new ClosedTabRestoreError({ cause })
+    catch: (cause) => ClosedTabRestoreError.make({ cause })
   }).pipe(
     // The page-local guard remains authoritative when the worker is absent.
     Effect.catchTag('ClosedTabRestoreError', () => Effect.void)
@@ -183,25 +184,17 @@ const releaseClosedTabRestore = Effect.fn('closedTabs.releaseRestoreSuppression'
   })
 })
 
-const runClosedTabRestore = Effect.fn('closedTabs.runRestore')(function*(sessionId: string) {
-  return yield* Effect.acquireUseRelease(
+export function restoreClosedTabEffect(
+  restore: Effect.Effect<boolean>
+): Effect.Effect<boolean> {
+  return Effect.acquireUseRelease(
     acquireClosedTabRestore(),
-    () => Effect.tryPromise({
-      try: () => restoreSession(sessionId),
-      catch: (cause) => new ClosedTabRestoreError({ cause })
-    }).pipe(
-      Effect.catchTag('ClosedTabRestoreError', () => Effect.succeed(false))
-    ),
+    () => restore,
     (restoreId, exit) => releaseClosedTabRestore(
       restoreId,
       Exit.isSuccess(exit) && exit.value
     )
   )
-})
-
-export function restoreClosedTab(sessionId: string): Promise<boolean> {
-  if (!sessionId) return Promise.resolve(false)
-  return Effect.runPromise(runClosedTabRestore(sessionId))
 }
 
 // Event subscriptions stay on the ambient global: the Browser Tabs Gateway
