@@ -1,4 +1,4 @@
-import { Effect, Fiber, Schema } from 'effect'
+import { Effect, Fiber } from 'effect'
 
 import './styles/app.css'
 import { attachApp } from './components/App'
@@ -8,7 +8,7 @@ import { BrowserTabs } from './extension/browser-tabs-service.js'
 import { requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshOptions } from './extension/dashboard-intake.js'
 import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-refresh.js'
 import { groupColorChanged } from './extension/groups.js'
-import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
+import { loadDashboardLocalStateEffect } from './extension/dashboard-local-state.js'
 import { loadCachedDashboardStartupEffect } from './extension/startup-snapshot.js'
 import { loadHistoryRangePreferenceEffect } from './extension/history-range-storage.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
@@ -16,14 +16,6 @@ import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
 import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.js'
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
-
-class AppStartupReadError extends Schema.TaggedErrorClass<AppStartupReadError>()(
-  'AppStartupReadError',
-  {
-    cause: Schema.Defect(),
-    operation: Schema.Literals(['local-state'])
-  }
-) {}
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
 const appRuntime = getAppRuntime()
@@ -136,10 +128,7 @@ const runInitializeApp = Effect.fn('app.initialize')(function*() {
     ? yield* readCurrentTabOutPageForStartup().pipe(Effect.forkChild({ startImmediately: true }))
     : null
   const localStateStartedAt = startupDebugNow()
-  const localState = cachedStartup?.localState ?? (yield* Effect.tryPromise({
-    try: () => loadDashboardLocalState(),
-    catch: (cause) => AppStartupReadError.make({ cause, operation: 'local-state' })
-  }))
+  const localState = cachedStartup?.localState ?? (yield* loadDashboardLocalStateEffect())
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
     ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
     detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
@@ -161,9 +150,7 @@ const runInitializeApp = Effect.fn('app.initialize')(function*() {
   applyAppStartup({ historyRange, localState, snapshot: startupSnapshot })
 })
 
-void appRuntime.runPromise(runInitializeApp().pipe(
-  Effect.catchTag('AppStartupReadError', (error) => Effect.fail(error.cause))
-))
+void appRuntime.runPromise(runInitializeApp())
 
 window.addEventListener('pagehide', (event) => {
   if (event.persisted) return

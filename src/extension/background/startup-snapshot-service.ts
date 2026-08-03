@@ -11,15 +11,15 @@ import {
   CLOSED_TAB_RESTORE_WATCHDOG_MS,
   CLOSED_TAB_SESSION_SETTLE_MS,
   closedTabFetchSuppressionRemainingMs,
-  fetchClosedTabsResult
+  fetchClosedTabsResultEffect
 } from '../closed-tabs.js'
 import type { CapturedDashboardServiceState } from '../dashboard-service-messages.js'
-import { loadDashboardLocalStateResult } from '../dashboard-local-state.js'
+import { loadDashboardLocalStateResultEffect } from '../dashboard-local-state.js'
 import { domainGroupCardId } from '../domain-card-id.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY } from '../page-chip-pins.js'
 import { SAVED_PAGES_STORAGE_KEY } from '../saved-pages.js'
-import { loadSavedPagesStoreResult } from '../saved-pages-storage.js'
+import { loadSavedPagesStoreResultEffect } from '../saved-pages-storage.js'
 import { SECTION_PIN_STORAGE_KEY } from '../section-pins.js'
 import {
   buildTabsDashboardStartupSnapshot,
@@ -223,18 +223,13 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       const dashboardServiceStateEffect = getDashboardServiceState.pipe(
         Effect.mapError((cause) => StartupSnapshotRefreshError.make({ cause }))
       )
-      const supplementalStateEffect = Effect.tryPromise({
-        try: () => Promise.all([
-          loadSavedPagesStoreResult(),
-          loadDashboardLocalStateResult(),
-          fetchClosedTabsResult()
-        ]),
-        catch: (cause) => StartupSnapshotRefreshError.make({ cause })
-      })
-      const [dashboardServiceState, [savedPagesResult, localStateResult, closedTabsResult]] =
-        yield* Effect.all([dashboardServiceStateEffect, supplementalStateEffect], {
-          concurrency: 'unbounded'
-        })
+      const [dashboardServiceState, savedPagesResult, localStateResult, closedTabsResult] =
+        yield* Effect.all([
+          dashboardServiceStateEffect,
+          loadSavedPagesStoreResultEffect(),
+          loadDashboardLocalStateResultEffect(),
+          fetchClosedTabsResultEffect().pipe(Effect.provideService(BrowserTabs, browserTabs))
+        ], { concurrency: 'unbounded' })
       const openTabsResult = yield* fetchOpenTabsSnapshotEffect(
         dashboardServiceState.openTabsSnapshot
       ).pipe(Effect.provideService(BrowserTabs, browserTabs))

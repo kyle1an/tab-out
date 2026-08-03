@@ -1,6 +1,8 @@
 import { Effect, Exit, Schema } from 'effect'
 
-import { getRecentlyClosedResult, type BrowserReadResult } from './browser-tabs-gateway.js'
+import { getAppRuntime } from './app-runtime.js'
+import type { BrowserReadResult } from './browser-tabs-gateway.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import {
   CLOSED_TAB_RESTORE_STATE_MESSAGE,
   parseClosedTabRestoreStateMessage,
@@ -226,8 +228,11 @@ export function subscribeClosedTabChanges(handler: (settleDelayMs: number) => vo
   }
 }
 
-export async function fetchClosedTabsResult(): Promise<BrowserReadResult<ClosedTabEntry[]>> {
-  const sessionsResult = await getRecentlyClosedResult()
+export const fetchClosedTabsResultEffect = Effect.fn(
+  'closedTabs.fetch'
+)(function*() {
+  const browserTabs = yield* BrowserTabs
+  const sessionsResult = yield* browserTabs.getRecentlyClosedResult()
   if (!sessionsResult.ok) return { ok: false, value: [] }
 
   const entries: ClosedTabEntry[] = []
@@ -246,4 +251,8 @@ export async function fetchClosedTabsResult(): Promise<BrowserReadResult<ClosedT
     }
   }
   return { ok: true, value: entries }
+})
+
+export function fetchClosedTabsResult(): Promise<BrowserReadResult<ClosedTabEntry[]>> {
+  return getAppRuntime().runPromise(fetchClosedTabsResultEffect())
 }

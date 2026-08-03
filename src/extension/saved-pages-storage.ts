@@ -1,4 +1,6 @@
-import { Schema } from 'effect'
+import { Effect, Result, Schema } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
 
 import {
   emptySavedPagesStore,
@@ -28,6 +30,11 @@ type SavedPagesStoreEnvelope = typeof savedPagesStoreEnvelopeSchema.Type
 
 const isSavedPagesStoreEnvelope = Schema.is(savedPagesStoreEnvelopeSchema)
 const isSavedPageRecordCandidate = Schema.is(savedPageRecordCandidateSchema)
+
+class SavedPagesStoreReadError extends Schema.TaggedErrorClass<SavedPagesStoreReadError>()(
+  'SavedPagesStoreReadError',
+  { cause: Schema.Defect() }
+) {}
 
 function finiteNumberOr(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
@@ -71,20 +78,30 @@ function savedPagesStorageArea(): chrome.storage.StorageArea {
   return chrome.storage.local
 }
 
-async function readSavedPagesStoreValue(): Promise<unknown> {
-  const stored = await savedPagesStorageArea().get(SAVED_PAGES_STORAGE_KEY)
-  return stored[SAVED_PAGES_STORAGE_KEY]
-}
-
-export async function loadSavedPagesStoreResult(): Promise<SavedPagesStoreLoadResult> {
-  try {
-    return parseSavedPagesStoreValue(await readSavedPagesStoreValue())
-  } catch {
+export const loadSavedPagesStoreResultEffect = Effect.fn(
+  'savedPages.loadStore'
+)(function*() {
+  const stored = yield* Effect.result(Effect.tryPromise({
+    try: () => savedPagesStorageArea().get(SAVED_PAGES_STORAGE_KEY),
+    catch: (cause) => SavedPagesStoreReadError.make({ cause })
+  }))
+  if (Result.isFailure(stored)) {
     return { ok: false, value: emptySavedPagesStore() }
   }
+  return parseSavedPagesStoreValue(stored.success[SAVED_PAGES_STORAGE_KEY])
+})
+
+export function loadSavedPagesStoreResult(): Promise<SavedPagesStoreLoadResult> {
+  return getAppRuntime().runPromise(loadSavedPagesStoreResultEffect())
 }
 
 /** Compatibility loader for optional consumers that intentionally accept empty fallback state. */
-export async function loadSavedPagesStore(): Promise<SavedPagesStore> {
-  return (await loadSavedPagesStoreResult()).value
+export const loadSavedPagesStoreEffect = Effect.fn(
+  'savedPages.loadStoreValue'
+)(function*() {
+  return (yield* loadSavedPagesStoreResultEffect()).value
+})
+
+export function loadSavedPagesStore(): Promise<SavedPagesStore> {
+  return getAppRuntime().runPromise(loadSavedPagesStoreEffect())
 }
