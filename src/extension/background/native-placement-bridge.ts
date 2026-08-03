@@ -147,7 +147,7 @@ export function connectNativePlacementBridge(chromeApi: ChromeApi = chrome): voi
   function scheduleReconnect(): void {
     if (reconnectTimer !== null) return
     const delayIndex = Math.min(reconnectAttempt, NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.length - 1)
-    const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS[delayIndex]!
+    const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.at(delayIndex) ?? 15_000
     reconnectAttempt += 1
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null

@@ -111,11 +111,19 @@ export type TabHistoryService = {
 }
 
 function mapTabsById(tabs: chrome.tabs.Tab[]): Map<number, chrome.tabs.Tab> {
-  return new Map(tabs.filter((tab) => typeof tab.id === 'number').map((tab) => [tab.id as number, tab]))
+  const tabsById = new Map<number, chrome.tabs.Tab>()
+  for (const tab of tabs) {
+    if (typeof tab.id === 'number') tabsById.set(tab.id, tab)
+  }
+  return tabsById
 }
 
 function mapWindowTypesById(windows: chrome.windows.Window[]): Map<number, string | undefined> {
-  return new Map(windows.filter((win) => typeof win.id === 'number').map((win) => [win.id as number, win.type]))
+  const windowTypesById = new Map<number, string | undefined>()
+  for (const window of windows) {
+    if (typeof window.id === 'number') windowTypesById.set(window.id, window.type)
+  }
+  return windowTypesById
 }
 
 function focusedWindowLookupFromWindows(windows: chrome.windows.Window[]): FocusedWindowLookup {
@@ -489,10 +497,11 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
         let activeTab = capturedActiveTab ? await capturedActiveTab : null
         activeTab ??= (await chromeApi.tabs.query({ windowId, active: true }))[0] ?? null
         if (typeof activeTab?.id !== 'number' || activeTab.windowId !== windowId || !activeTab.active) return { history }
+        const activeTabId = activeTab.id
         return {
           history: await historyAfterTabActivation(history, activeTab),
           commit: () => {
-            trustedTabIds.add(activeTab.id as number)
+            trustedTabIds.add(activeTabId)
           }
         }
       } catch {
@@ -711,7 +720,7 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
   }
 
   async function getTabHistorySnapshotCapture(activity?: WorkingSetActivityStore | null): Promise<TabHistorySnapshotCapture> {
-    const { value: capture } = await enqueueTabHistoryMutation(async (storedHistory) => {
+    const { value: capture } = await enqueueTabHistoryMutation<TabHistorySnapshotCapture>(async (storedHistory) => {
       const [tabs, windows] = await Promise.all([
         chromeApi.tabs.query({}),
         chromeApi.windows.getAll()
@@ -814,7 +823,8 @@ export function createTabHistoryService(chromeApi: ChromeApi = chrome): TabHisto
       }
     })
 
-    return capture as TabHistorySnapshotCapture
+    if (!capture) throw new Error('Tab history snapshot capture was not produced')
+    return capture
   }
 
   async function getTabHistorySnapshot(activity?: WorkingSetActivityStore | null): Promise<TabHistorySnapshot> {

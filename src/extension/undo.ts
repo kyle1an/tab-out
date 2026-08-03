@@ -193,6 +193,11 @@ export function switchToRestoredTab(target: RestoredTabTarget): Promise<void> {
 }
 
 function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
+  const restoreIndex = (index: number | undefined): number => (
+    typeof index === 'number' && Number.isInteger(index)
+      ? index
+      : Number.POSITIVE_INFINITY
+  )
   const windows = new Map<number, Array<{ tab: TabSnapshot; sequence: number }>>()
   tabs.forEach((tab, sequence) => {
     windows.getOrInsertComputed(tab.windowId, () => []).push({ tab, sequence })
@@ -201,8 +206,8 @@ function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
   return windows.values().flatMap((bucket) => {
     return bucket
       .toSorted((a, b) => {
-        const aIndex = Number.isInteger(a.tab.index) ? a.tab.index as number : Number.POSITIVE_INFINITY
-        const bIndex = Number.isInteger(b.tab.index) ? b.tab.index as number : Number.POSITIVE_INFINITY
+        const aIndex = restoreIndex(a.tab.index)
+        const bIndex = restoreIndex(b.tab.index)
         if (aIndex !== bIndex) return aIndex - bIndex
         return a.sequence - b.sequence
       })

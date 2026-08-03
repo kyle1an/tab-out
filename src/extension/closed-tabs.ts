@@ -1,4 +1,4 @@
-import { Data, Effect, Exit } from 'effect'
+import { Data, Effect, Exit, Schema } from 'effect'
 
 import { getRecentlyClosedResult, restoreSession, type BrowserReadResult } from './browser-tabs-gateway.js'
 import {
@@ -106,6 +106,10 @@ export interface ClosedTabEntry {
   lastClosedAt: number
 }
 
+const hasClosedTabSessionId = Schema.is(Schema.Struct({
+  sessionId: Schema.NonEmptyString
+}))
+
 function displayUrlForClosedTab(url: string): string {
   const parsed = URL.parse(url)
   if (!parsed) return url
@@ -120,9 +124,8 @@ function isJunkUrl(url: string): boolean {
 }
 
 function normalizeClosedTab(tab: chrome.tabs.Tab | undefined, lastModifiedMs: number): ClosedTabEntry | null {
-  if (!tab) return null
-  const sessionId = (tab as chrome.tabs.Tab & { sessionId?: string }).sessionId
-  if (!sessionId) return null
+  if (!tab || !hasClosedTabSessionId(tab)) return null
+  const { sessionId } = tab
   const rawUrl = tab.url || ''
   const url = unwrapSuspenderUrl(rawUrl)
   if (isJunkUrl(url)) return null

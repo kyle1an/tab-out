@@ -140,22 +140,23 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
     observedAt: number
   ): ActivityMutation {
     if (typeof tab.id !== 'number') return { activity }
+    const tabId = tab.id
     const previousSignal = lastActivationSignal
     const nextSignal = {
       source,
-      tabId: tab.id,
+      tabId,
       windowId: tab.windowId,
       observedAt
     }
     const pageIdentity = pageIdentityForTab(tab)
     const commitSignal = () => {
       lastActivationSignal = nextSignal
-      lastPageIdentityByTabId.set(tab.id as number, pageIdentity)
+      lastPageIdentityByTabId.set(tabId, pageIdentity)
     }
     if (
       previousSignal &&
       previousSignal.source !== source &&
-      previousSignal.tabId === tab.id &&
+      previousSignal.tabId === tabId &&
       previousSignal.windowId === tab.windowId &&
       Math.abs(observedAt - previousSignal.observedAt) <= ACTIVATION_SIGNAL_DEDUPE_MS
     ) {
