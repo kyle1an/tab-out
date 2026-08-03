@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { Effect } from 'effect'
+
 import { createLatestRefreshRunner, fetchDashboardSnapshot, fetchDashboardStartupSnapshot } from '../src/extension/dashboard-intake.js'
 import { loadDashboardLocalState, loadDashboardLocalStateResult } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
@@ -2183,6 +2185,19 @@ test('latest refresh runner executes a request queued synchronously while applyi
 
   assert.deepEqual(runs, ['first', 'trailing'])
   assert.deepEqual(applied, ['first', 'trailing'])
+  assert.equal(runner.active(), false)
+})
+
+test('latest refresh runner accepts an Effect without a nested Promise flight', async () => {
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  await runner.requestEffect(
+    Effect.succeed('effect result'),
+    (value) => applied.push(value)
+  )
+
+  assert.deepEqual(applied, ['effect result'])
   assert.equal(runner.active(), false)
 })
 

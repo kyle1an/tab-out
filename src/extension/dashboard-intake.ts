@@ -11,6 +11,7 @@
 import { Effect, FiberHandle, Result, Schema } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import {
   closedTabFetchSuppressionRemainingMs,
   fetchClosedTabsResultEffect,
@@ -76,11 +77,15 @@ export type DashboardRefreshSnapshot = {
 
 type LatestRefreshRequest<T> = {
   apply: (value: T) => void
-  run: () => Promise<T>
+  run: Effect.Effect<T, DashboardRefreshRunError, BrowserTabs>
 }
 export type LatestRefreshRunner<T> = {
   active: () => boolean
   request: (run: () => Promise<T>, apply: (value: T) => void) => Promise<void>
+  requestEffect: <Failure>(
+    run: Effect.Effect<T, Failure, BrowserTabs>,
+    apply: (value: T) => void
+  ) => Promise<void>
   wait: () => Promise<void>
 }
 
@@ -126,10 +131,7 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
     while (latestRequest) {
       const requestRevision = revision
       const currentRequest = latestRequest
-      const runResult = yield* Effect.result(Effect.tryPromise({
-        try: currentRequest.run,
-        catch: (cause) => DashboardRefreshRunError.make({ cause })
-      }))
+      const runResult = yield* Effect.result(currentRequest.run)
       if (Result.isFailure(runResult)) {
         if (requestRevision !== revision) continue
         return yield* Effect.fail(runResult.failure)
@@ -149,7 +151,10 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
     }
   })
 
-  function request(run: () => Promise<T>, apply: (value: T) => void): Promise<void> {
+  function schedule(
+    run: Effect.Effect<T, DashboardRefreshRunError, BrowserTabs>,
+    apply: (value: T) => void
+  ): Promise<void> {
     latestRequest = { apply, run }
     revision += 1
     if (inFlight) return inFlight
@@ -165,9 +170,26 @@ export function createLatestRefreshRunner<T>(): LatestRefreshRunner<T> {
     return flight
   }
 
+  function request(run: () => Promise<T>, apply: (value: T) => void): Promise<void> {
+    return schedule(Effect.tryPromise({
+      try: run,
+      catch: (cause) => DashboardRefreshRunError.make({ cause })
+    }), apply)
+  }
+
+  function requestEffect<Failure>(
+    run: Effect.Effect<T, Failure, BrowserTabs>,
+    apply: (value: T) => void
+  ): Promise<void> {
+    return schedule(run.pipe(
+      Effect.mapError((cause) => DashboardRefreshRunError.make({ cause }))
+    ), apply)
+  }
+
   return {
     active: () => inFlight !== null,
     request,
+    requestEffect,
     wait: () => inFlight ?? Promise.resolve()
   }
 }
@@ -721,7 +743,9 @@ export type AppDashboardStoreDependencies = {
   cancelTimeout?: (timer: ReturnType<typeof setTimeout>) => void
   closedTabFetchSuppressionRemainingMs?: typeof closedTabFetchSuppressionRemainingMs
   fetchDashboardSnapshot?: typeof fetchDashboardSnapshot
+  fetchDashboardSnapshotEffect?: typeof fetchDashboardSnapshotEffect
   fetchClosedTabsResult?: typeof fetchClosedTabsResult
+  fetchClosedTabsResultEffect?: typeof fetchClosedTabsResultEffect
   scheduleTimeout?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>
   showToast?: typeof showToast
   subscribeClosedTabChanges?: typeof subscribeClosedTabChanges
@@ -750,15 +774,24 @@ export type AppDashboardStore = {
  * synchronously just before an arrival's dispatches so the React layer can
  * capture pre-commit DOM geometry; the store itself stays DOM-free.
  */
-export function createAppDashboardStore({
-  cancelTimeout = clearTimeout,
-  closedTabFetchSuppressionRemainingMs: readClosedTabFetchSuppressionRemainingMs = closedTabFetchSuppressionRemainingMs,
-  fetchDashboardSnapshot: fetchSourceSwitchSnapshot = fetchDashboardSnapshot,
-  fetchClosedTabsResult: fetchLatestClosedTabsResult = fetchClosedTabsResult,
-  scheduleTimeout = setTimeout,
-  showToast: showSourceSwitchToast = showToast,
-  subscribeClosedTabChanges: subscribeToClosedTabChanges = subscribeClosedTabChanges
-}: AppDashboardStoreDependencies = {}): AppDashboardStore {
+export function createAppDashboardStore(
+  dependencies: AppDashboardStoreDependencies = {}
+): AppDashboardStore {
+  const {
+    cancelTimeout = (timer: ReturnType<typeof setTimeout>) => clearTimeout(timer),
+    closedTabFetchSuppressionRemainingMs: readClosedTabFetchSuppressionRemainingMs = closedTabFetchSuppressionRemainingMs,
+    fetchDashboardSnapshot: fetchSourceSwitchSnapshot = fetchDashboardSnapshot,
+    fetchClosedTabsResult: fetchLatestClosedTabsResult = fetchClosedTabsResult,
+    scheduleTimeout = (callback: () => void, delayMs: number) => setTimeout(callback, delayMs),
+    showToast: showSourceSwitchToast = showToast,
+    subscribeClosedTabChanges: subscribeToClosedTabChanges = subscribeClosedTabChanges
+  } = dependencies
+  const fetchSourceSwitchSnapshotEffect = dependencies.fetchDashboardSnapshotEffect ?? (
+    dependencies.fetchDashboardSnapshot ? null : fetchDashboardSnapshotEffect
+  )
+  const fetchLatestClosedTabsEffect = dependencies.fetchClosedTabsResultEffect ?? (
+    dependencies.fetchClosedTabsResult ? null : fetchClosedTabsResultEffect
+  )
   const buildTimeState = initialAppDashboardState({
     historyRange: DEFAULT_HISTORY_RANGE,
     snapshot: null
@@ -818,10 +851,12 @@ export function createAppDashboardStore({
         yield* waitForClosedTabsDelay(delayMs)
         continue
       }
-      const result = yield* Effect.tryPromise({
-        try: fetchLatestClosedTabsResult,
-        catch: (cause) => DashboardClosedTabsFetchError.make({ cause })
-      })
+      const result = yield* (fetchLatestClosedTabsEffect
+        ? fetchLatestClosedTabsEffect()
+        : Effect.tryPromise({
+            try: fetchLatestClosedTabsResult,
+            catch: (cause) => DashboardClosedTabsFetchError.make({ cause })
+          }))
       if (result.ok) {
         yield* Effect.sync(() => dispatch({ type: 'closedTabs', closedTabs: result.value }))
       }
@@ -830,7 +865,7 @@ export function createAppDashboardStore({
   })
 
   const runClosedTabUpdates = Effect.fn('dashboardIntake.runClosedTabUpdates')(function*() {
-    const runRefresh = yield* FiberHandle.makeRuntime<never, never, void>()
+    const runRefresh = yield* FiberHandle.makeRuntime<BrowserTabs, never, void>()
     yield* Effect.acquireRelease(
       Effect.sync(() => subscribeToClosedTabChanges((settleDelayMs) => {
         runRefresh(refreshClosedTabs(settleDelayMs).pipe(
@@ -878,17 +913,23 @@ export function createAppDashboardStore({
         ...refreshContextFromInputs(inputs, nextSource),
         pinnedDomains: [...inputs.pinnedDomains]
       }
-      const result = yield* Effect.result(Effect.tryPromise({
-        try: () => fetchSourceSwitchSnapshot({
-          source: nextSource,
-          filter: requestContext.filter,
-          historyRange: requestContext.historyRange,
-          historyFilterEnabled: requestContext.historyFilterEnabled,
-          pinnedDomains: [...requestContext.pinnedDomains],
-          previousOrder: inputs.previousOrder
-        }),
-        catch: (cause) => DashboardSourceFetchError.make({ cause })
-      }))
+      const snapshotOptions: DashboardSnapshotOptions = {
+        source: nextSource,
+        filter: requestContext.filter,
+        historyRange: requestContext.historyRange,
+        historyFilterEnabled: requestContext.historyFilterEnabled,
+        pinnedDomains: [...requestContext.pinnedDomains],
+        previousOrder: inputs.previousOrder
+      }
+      const sourceSnapshot = fetchSourceSwitchSnapshotEffect
+        ? fetchSourceSwitchSnapshotEffect(snapshotOptions).pipe(
+            Effect.mapError((error) => DashboardSourceFetchError.make({ cause: error.cause }))
+          )
+        : Effect.tryPromise({
+            try: () => fetchSourceSwitchSnapshot(snapshotOptions),
+            catch: (cause) => DashboardSourceFetchError.make({ cause })
+          })
+      const result = yield* Effect.result(sourceSnapshot)
       const latestInputs = refreshInputs
       if (Result.isFailure(result)) {
         if (
@@ -994,35 +1035,32 @@ export function createAppDashboardStore({
       historySearchPendingRevision = historySearchRevision
       dispatch({ type: 'historySearchPending', historySearchPending: true })
     }
+    const snapshotOptions: DashboardSnapshotOptions = {
+      source,
+      filter,
+      historyRange,
+      historyFilterEnabled,
+      pinnedDomains: [...pinnedDomains],
+      previousOrder
+    }
+    const fetchRefreshSnapshot = Effect.gen(function*() {
+      if (animatedRefreshPending) {
+        yield* Effect.sync(() => emitBeforeApply({ reason: 'animated-refresh' }))
+      }
+      if (useStartupSnapshot) {
+        const snapshot = yield* runDashboardStartupSnapshot(snapshotOptions).pipe(
+          Effect.catchTag('DashboardStartupSnapshotFetchError', (error) => Effect.fail(error.cause))
+        )
+        return { kind: 'startup' as const, snapshot }
+      }
+      const snapshot = yield* fetchDashboardSnapshotEffect(snapshotOptions).pipe(
+        Effect.catchTag('DashboardSnapshotFetchError', (error) => Effect.fail(error.cause))
+      )
+      return { kind: 'standard' as const, snapshot }
+    })
     try {
-      await refreshRunner.request(
-        async () => {
-          if (animatedRefreshPending) emitBeforeApply({ reason: 'animated-refresh' })
-          if (useStartupSnapshot) {
-            return {
-              kind: 'startup' as const,
-              snapshot: await fetchDashboardStartupSnapshot({
-                source,
-                filter,
-                historyRange,
-                historyFilterEnabled,
-                pinnedDomains: [...pinnedDomains],
-                previousOrder
-              })
-            }
-          }
-          return {
-            kind: 'standard' as const,
-            snapshot: await fetchDashboardSnapshot({
-              source,
-              filter,
-              historyRange,
-              historyFilterEnabled,
-              pinnedDomains: [...pinnedDomains],
-              previousOrder
-            })
-          }
-        },
+      await refreshRunner.requestEffect(
+        fetchRefreshSnapshot,
         (result) => {
           startupRefreshPending = false
           animatedRefreshPending = false
