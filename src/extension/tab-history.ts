@@ -1,10 +1,11 @@
-import { Schema } from 'effect'
+import { Effect, Schema } from 'effect'
 
-import { queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
-import { snapshotChromeTabs } from './tabs.js'
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
+import { closeResolvedTabsEffect } from './tabs.js'
 import { pickFavicon, pickTabFavicon } from './favicons.js'
 import { isSuspended } from './suspension.js'
-import { focusExistingTabTargetResult, type ExistingTabFocusResult } from './tab-focus.js'
+import { focusExistingTabTargetEffect, type ExistingTabFocusResult } from './tab-focus.js'
 import { liveTabByValidatedId } from './live-tab-matching.js'
 import { parseTabHistorySuccessResponse, TAB_HISTORY_GET_MESSAGE } from './runtime-messages.js'
 import type { TabHistoryEntry, TabHistorySnapshot, TabSnapshot, WorkingSetItem } from './types'
@@ -58,6 +59,7 @@ const tabHistorySnapshotCandidateSchema = Schema.Struct({
 
 const isTabHistoryEntryCandidate = Schema.is(tabHistoryEntryCandidateSchema)
 const isTabHistorySnapshotCandidate = Schema.is(tabHistorySnapshotCandidateSchema)
+const HISTORY_ENTRY_NOT_FOUND: ExistingTabFocusResult = { status: 'not-found' }
 
 function emptySnapshot(): TabHistorySnapshot {
   return {
@@ -236,14 +238,18 @@ export async function fetchTabHistorySnapshot(): Promise<TabHistorySnapshot> {
   return (await fetchTabHistorySnapshotResult()).value
 }
 
-export async function focusHistoryEntryResult(entry: TabHistoryEntry): Promise<ExistingTabFocusResult> {
-  if (!entry?.exists) return { status: 'not-found' }
-  return focusExistingTabTargetResult({
+const focusHistoryEntryEffect = Effect.fn('tabHistory.focusEntry')(function*(entry: TabHistoryEntry) {
+  if (!entry?.exists) return HISTORY_ENTRY_NOT_FOUND
+  return yield* focusExistingTabTargetEffect({
     tabId: entry.tabId,
     windowId: entry.windowId,
     url: entry.url,
     rawUrl: entry.rawUrl
   })
+})
+
+export function focusHistoryEntryResult(entry: TabHistoryEntry): Promise<ExistingTabFocusResult> {
+  return getAppRuntime().runPromise(focusHistoryEntryEffect(entry))
 }
 
 export type CloseHistoryEntryResult = {
@@ -252,26 +258,37 @@ export type CloseHistoryEntryResult = {
   snapshot: TabSnapshot[]
 }
 
-export async function closeHistoryEntry(entry: TabHistoryEntry): Promise<CloseHistoryEntryResult> {
+function closeHistoryEntryResult(
+  status: CloseHistoryEntryResult['status'],
+  snapshot: TabSnapshot[] = []
+): CloseHistoryEntryResult {
+  return { status, closed: status === 'closed', snapshot }
+}
+
+const closeHistoryEntryEffect = Effect.fn('tabHistory.closeEntry')(function*(entry: TabHistoryEntry) {
   const tabId = entry?.tabId
   if (!entry?.exists || typeof tabId !== 'number' || !Number.isInteger(tabId)) {
-    return { status: 'not-found', closed: false, snapshot: [] }
+    return closeHistoryEntryResult('not-found')
   }
 
-  const allTabsResult = await queryAllTabsResult()
-  if (!allTabsResult.ok) return { status: 'unknown', closed: false, snapshot: [] }
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
+  if (!allTabsResult.ok) return closeHistoryEntryResult('unknown')
 
   const tab = liveTabByValidatedId(allTabsResult.value, {
     tabId,
     url: entry.url,
     rawUrl: entry.rawUrl
   })
-  if (!tab) return { status: 'not-found', closed: false, snapshot: [] }
+  if (!tab) return closeHistoryEntryResult('not-found')
 
   // Activation History can contain Tab Out/new-tab rows. Preserve those URLs
   // in the Undo snapshot just like ordinary web tabs.
-  const snapshot = snapshotChromeTabs([tab], { includeTabOutUrls: true })
-  const removed = await removeTabs([tabId])
-  if (removed.length === 0) return { status: 'failed', closed: false, snapshot: [] }
-  return { status: 'closed', closed: true, snapshot }
+  const closeResult = yield* closeResolvedTabsEffect([tab], { includeTabOutUrls: true })
+  if (closeResult.removedCount === 0) return closeHistoryEntryResult('failed')
+  return closeHistoryEntryResult('closed', closeResult.value)
+})
+
+export function closeHistoryEntry(entry: TabHistoryEntry): Promise<CloseHistoryEntryResult> {
+  return getAppRuntime().runPromise(closeHistoryEntryEffect(entry))
 }

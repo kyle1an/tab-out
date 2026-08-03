@@ -20,7 +20,7 @@ import { OPEN_FILTER_TAB_COMMAND, openFilterTab } from './background/filter-comm
 import { OPEN_NEW_TAB_COMMAND, openNewTab } from './background/new-tab-command.js'
 import type { CapturedDashboardServiceState } from './dashboard-service-messages.js'
 import { buildOpenTabDedupePlan } from './open-tab-dedupe-plan.js'
-import { closeDuplicateTabsResult } from './tabs.js'
+import { closeDuplicateTabsEffect } from './tabs.js'
 import { groupColorChanged } from './groups.js'
 import * as TabHistory from './background/tab-history-service.js'
 import * as WorkingSet from './background/working-set-service.js'
@@ -235,10 +235,12 @@ chromeApi.action.onClicked.addListener((tab) => {
 
     const plan = buildOpenTabDedupePlan(tabs, tab.windowId)
     if (plan.urls.length > 0) {
-      await closeDuplicateTabsResult(plan.urls, true, {
-        currentWindowId: tab.windowId,
-        preservePinnedTabOut: true
-      })
+      await backgroundRuntime.runPromise(
+        closeDuplicateTabsEffect(plan.urls, true, {
+          currentWindowId: tab.windowId,
+          preservePinnedTabOut: true
+        })
+      )
     }
     await backgroundRuntime.runPromise(refreshBadgeEffect)
   })

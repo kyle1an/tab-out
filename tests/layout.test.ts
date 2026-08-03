@@ -472,6 +472,7 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
   const backgroundSource = readFileSync(new URL('../src/extension/background.ts', import.meta.url), 'utf8')
 
   assert.match(runtimeSource, /ManagedRuntime\.make/)
+  assert.match(runtimeSource, /BrowserTabs\.layer\(\)/)
   assert.match(runtimeSource, /Badge\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /NativePlacementBridge\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /TabHistory\.layer\(chromeApi\)/)
@@ -481,6 +482,7 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
   assert.match(runtimeSource, /runtime\.runSync\(Effect\.void\)/)
   assert.match(backgroundSource, /const backgroundRuntime = createBackgroundRuntime\(chromeApi\)/)
   assert.match(backgroundSource, /backgroundRuntime\.runPromise\(refreshBadgeEffect\)/)
+  assert.match(backgroundSource, /backgroundRuntime\.runPromise\(\s*closeDuplicateTabsEffect/)
   assert.match(backgroundSource, /const workingSetService = backgroundRuntime\.runSync\(WorkingSet\.WorkingSet\)/)
   assert.match(backgroundSource, /workingSetService\.getWorkingSetActivity\(\)/)
 })
@@ -520,6 +522,28 @@ test('tab activation composes focus, move, and open workflows in the shared Effe
   for (const source of [focusSource, moveSource, activationSource, tabsSource]) {
     assert.doesNotMatch(source, /Effect\.runPromise\(/)
   }
+})
+
+test('tab mutation actions preserve revalidation and partial results inside Effect workflows', () => {
+  const tabsSource = readFileSync(new URL('../src/extension/tabs.ts', import.meta.url), 'utf8')
+  const actionsSource = readFileSync(new URL('../src/extension/tab-actions.ts', import.meta.url), 'utf8')
+  const historySource = readFileSync(new URL('../src/extension/tab-history.ts', import.meta.url), 'utf8')
+
+  assert.match(tabsSource, /closeResolvedTabsEffect = Effect\.fn/)
+  assert.match(tabsSource, /beforeSingleRemove: async/)
+  assert.match(tabsSource, /closeTabsByTargetsEffect = Effect\.fn/)
+  assert.match(tabsSource, /closeDuplicateTabsEffect = Effect\.fn/)
+  assert.match(actionsSource, /TabActionWorkflowError extends Schema\.TaggedErrorClass/)
+  assert.match(actionsSource, /const finishTabCloseAction = Effect\.fn/)
+  assert.match(actionsSource, /const runCloseChipTarget = Effect\.fn/)
+  assert.match(actionsSource, /const applySuspendToTabsEffect = Effect\.fn/)
+  assert.match(actionsSource, /const revalidateMutationTarget = Effect\.fn/)
+  assert.match(actionsSource, /getAppRuntime\(\)\.runPromise/)
+  assert.doesNotMatch(actionsSource, /browser-tabs-gateway/)
+  assert.doesNotMatch(actionsSource, /Effect\.runPromise\(/)
+  assert.match(historySource, /closeHistoryEntryEffect = Effect\.fn/)
+  assert.match(historySource, /yield\* closeResolvedTabsEffect/)
+  assert.doesNotMatch(historySource, /Effect\.runPromise\(/)
 })
 
 test('startup snapshot service owns its complete rebuild flight behind Effect', () => {

@@ -11,7 +11,7 @@
 import { Effect } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
-import { getAllWindowsResult, getCurrentWindowResult, getTab, queryAllTabsResult, removeTabs } from './browser-tabs-gateway.js'
+import { getAllWindowsResult, getTab, queryAllTabsResult } from './browser-tabs-gateway.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
 import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
@@ -191,10 +191,10 @@ function emptyTabCloseResult(status: 'complete' | 'unknown'): TabCloseResult {
  * Close an already-resolved physical-tab set and report the exact accepted and
  * rejected writes. `value` contains Undo snapshots for confirmed removals.
  */
-export async function closeResolvedTabsResult(
+export const closeResolvedTabsEffect = Effect.fn('tabs.closeResolved')(function*(
   tabs: readonly chrome.tabs.Tab[],
   { includeTabOutUrls = false }: SnapshotOptions = {}
-): Promise<TabCloseResult> {
+) {
   const seenIds = new Set<number>()
   const attemptedTabs = tabs.filter((tab) => {
     if (typeof tab.id !== 'number' || seenIds.has(tab.id)) return false
@@ -204,9 +204,10 @@ export async function closeResolvedTabsResult(
   if (attemptedTabs.length === 0) return emptyTabCloseResult('complete')
 
   const attemptedTabsById = new Map(
-    attemptedTabs.map((tab) => [tab.id as number, tab])
+    attemptedTabs.flatMap((tab) => typeof tab.id === 'number' ? [[tab.id, tab] as const] : [])
   )
-  const removedIds = new Set(await removeTabs(tabIds(attemptedTabs), {
+  const browserTabs = yield* BrowserTabs
+  const removedIds = new Set(yield* browserTabs.removeTabs(tabIds(attemptedTabs), {
     // A rejected batch introduces one await per retry. Revalidate the original
     // physical page immediately before each of those delayed single-ID writes
     // so a navigation or reused ID cannot turn a stale close into data loss.
@@ -235,6 +236,13 @@ export async function closeResolvedTabsResult(
     removedCount,
     failedCount
   }
+})
+
+export function closeResolvedTabsResult(
+  tabs: readonly chrome.tabs.Tab[],
+  options: SnapshotOptions = {}
+): Promise<TabCloseResult> {
+  return getAppRuntime().runPromise(closeResolvedTabsEffect(tabs, options))
 }
 
 /**
@@ -251,14 +259,15 @@ export async function closeResolvedTabsResult(
  * @returns {Promise<TabCloseResult>} confirmed snapshots plus mutation status
  * and attempted, removed, and failed counts
  */
-export async function closeTabsExactResult(
+export const closeTabsExactEffect = Effect.fn('tabs.closeExact')(function*(
   urls: string[],
   opts: CloseOptions = {}
-): Promise<TabCloseResult> {
+) {
   if (!urls || urls.length === 0) return emptyTabCloseResult('complete')
   const { preserveGroups = false, preservePinnedTabOut = true } = opts
   const urlSet = new Set(urls)
-  const allTabsResult = await queryAllTabsResult()
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
   const allTabs = allTabsResult.value
   const toCloseTabs = allTabs.filter((tab) => {
@@ -267,7 +276,14 @@ export async function closeTabsExactResult(
     if (preserveGroups && isGroupedTab(tab)) return false
     return !(preservePinnedTabOut && tab.pinned && isTabOutPageUrl(effectiveUrl))
   })
-  return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
+  return yield* closeResolvedTabsEffect(toCloseTabs, { includeTabOutUrls: true })
+})
+
+export function closeTabsExactResult(
+  urls: string[],
+  opts: CloseOptions = {}
+): Promise<TabCloseResult> {
+  return getAppRuntime().runPromise(closeTabsExactEffect(urls, opts))
 }
 
 /**
@@ -278,14 +294,15 @@ export async function closeTabsExactResult(
  * Returns confirmed snapshots plus mutation status and attempted/removed/failed
  * counts.
  */
-export async function closeTabsByTargetsResult(
+export const closeTabsByTargetsEffect = Effect.fn('tabs.closeByTargets')(function*(
   targets: readonly DashboardTabMutationTarget[],
   opts: TargetCloseOptions = {}
-): Promise<TabCloseResult> {
+) {
   if (targets.length === 0) return emptyTabCloseResult('complete')
   const { preserveGroups = false, preservePinnedTabOut = true, requireSuspended = false } = opts
   const expectedUrlById = new Map(targets.map((target) => [target.tabId, target.tabUrl]))
-  const allTabsResult = await queryAllTabsResult()
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
   const allTabs = allTabsResult.value
   const toCloseTabs = allTabs.filter((tab) => {
@@ -299,7 +316,14 @@ export async function closeTabsByTargetsResult(
     if (preserveGroups && isGroupedTab(tab)) return false
     return !(preservePinnedTabOut && tab.pinned && isTabOutPageUrl(effectiveUrl))
   })
-  return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
+  return yield* closeResolvedTabsEffect(toCloseTabs, { includeTabOutUrls: true })
+})
+
+export function closeTabsByTargetsResult(
+  targets: readonly DashboardTabMutationTarget[],
+  opts: TargetCloseOptions = {}
+): Promise<TabCloseResult> {
+  return getAppRuntime().runPromise(closeTabsByTargetsEffect(targets, opts))
 }
 
 /**
@@ -393,11 +417,11 @@ export function openTabUrlInNewWindow(url: string): Promise<boolean> {
  * @param {{ currentWindowId?: number, preservePinned?: boolean, preservePinnedTabOut?: boolean }} [opts]
  * @returns {Promise<TabCloseResult>}
  */
-export async function closeDuplicateTabsResult(
+export const closeDuplicateTabsEffect = Effect.fn('tabs.closeDuplicates')(function*(
   urls: string[],
   keepOne = true,
   opts: DedupeOptions = {}
-): Promise<TabCloseResult> {
+) {
   const requestedUrls = [...new Set(urls.map(canonicalDedupeKey).filter(Boolean))]
   if (requestedUrls.length === 0) return emptyTabCloseResult('complete')
   const { preservePinned = false, preservePinnedTabOut = false } = opts
@@ -410,8 +434,9 @@ export async function closeDuplicateTabsResult(
     ? suppliedCurrentWindowId
     : -1
   let currentWindowKnown = currentWindowId >= 0
+  const browserTabs = yield* BrowserTabs
   if (!currentWindowKnown) {
-    const currentWindowResult = await getCurrentWindowResult()
+    const currentWindowResult = yield* browserTabs.getCurrentWindowResult()
     currentWindowId = currentWindowResult.value?.id ?? -1
     currentWindowKnown = currentWindowResult.ok && currentWindowId >= 0
   }
@@ -421,7 +446,7 @@ export async function closeDuplicateTabsResult(
   // Keep the live-tab inventory as the final awaited read before selecting
   // removals. A slow current-window lookup must not leave a stale URL snapshot
   // that can close a tab which started navigating in the meantime.
-  const allTabsResult = await queryAllTabsResult()
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) return emptyTabCloseResult('unknown')
   const allTabs = allTabsResult.value
   const requestedUrlSet = new Set(requestedUrls)
@@ -446,5 +471,13 @@ export async function closeDuplicateTabsResult(
     )
   }
 
-  return closeResolvedTabsResult(toCloseTabs, { includeTabOutUrls: true })
+  return yield* closeResolvedTabsEffect(toCloseTabs, { includeTabOutUrls: true })
+})
+
+export function closeDuplicateTabsResult(
+  urls: string[],
+  keepOne = true,
+  opts: DedupeOptions = {}
+): Promise<TabCloseResult> {
+  return getAppRuntime().runPromise(closeDuplicateTabsEffect(urls, keepOne, opts))
 }

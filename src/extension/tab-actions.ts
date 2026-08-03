@@ -1,10 +1,19 @@
-import { duplicateTab, getTab, queryAllTabsResult, reloadTab, updateTab } from './browser-tabs-gateway.js'
+import { Effect, Schema } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-intake.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
 import { liveTabMatchesIdentity, liveTabsMatchingTarget, liveTabUrlForIdentity } from './live-tab-matching.js'
 import { buildSuspendUrl, getSuspendTarget, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
-import { closeDuplicateTabsResult, closeResolvedTabsResult, closeTabsByTargetsResult, closeTabsExactResult, type TabCloseResult } from './tabs.js'
+import {
+  closeDuplicateTabsEffect,
+  closeResolvedTabsEffect,
+  closeTabsByTargetsEffect,
+  closeTabsExactEffect,
+  type TabCloseResult
+} from './tabs.js'
 import { showToast } from './toast.js'
 import { tabMatchesSourceFilter } from './filter-match.js'
 import { markClosure } from './undo.js'
@@ -82,6 +91,54 @@ type ChromeMenuTabResolution =
 
 type ChromeMenuActionResult = boolean | 'unknown'
 
+const CHROME_MENU_TAB_NOT_FOUND: ChromeMenuTabResolution = {
+  status: 'not-found',
+  tab: null
+}
+const CHROME_MENU_TAB_UNKNOWN: ChromeMenuTabResolution = {
+  status: 'unknown',
+  tab: null
+}
+
+function matchedChromeMenuTab(tab: chrome.tabs.Tab): ChromeMenuTabResolution {
+  return { status: 'matched', tab }
+}
+
+function unknownChipCloseResult(): ChipCloseResult {
+  return {
+    ok: false,
+    status: 'unknown',
+    snapshot: [],
+    attemptedCount: 0,
+    removedCount: 0,
+    failedCount: 0,
+    shouldAnimateRemoval: false
+  }
+}
+
+class TabActionWorkflowError extends Schema.TaggedErrorClass<TabActionWorkflowError>()(
+  'TabActionWorkflowError',
+  { cause: Schema.Defect() }
+) {}
+
+function runTabAction<Value>(
+  workflow: Effect.Effect<Value, TabActionWorkflowError, BrowserTabs>
+): Promise<Value> {
+  return getAppRuntime().runPromise(workflow.pipe(
+    Effect.catchTag('TabActionWorkflowError', (error) => Effect.fail(error.cause))
+  ))
+}
+
+function runOptionalCallback(
+  callback: (() => void | Promise<void>) | undefined
+): Effect.Effect<void, TabActionWorkflowError> {
+  if (!callback) return Effect.void
+  return Effect.tryPromise({
+    try: async () => callback(),
+    catch: (cause) => TabActionWorkflowError.make({ cause })
+  })
+}
+
 function closedTabsLabel(count: number): string {
   return `Closed ${count} tab${count !== 1 ? 's' : ''}`
 }
@@ -138,7 +195,7 @@ function emptyTabActionResult(): TabActionResult {
   }
 }
 
-async function finishTabCloseAction({
+const finishTabCloseAction = Effect.fn('tabActions.finishClose')(function*({
   closeResult,
   kind = 'tabs',
   nothingMessage,
@@ -150,7 +207,7 @@ async function finishTabCloseAction({
   nothingMessage: string
   labelSuffix?: string
   onAfterClose?: (result: TabActionResult) => void | Promise<void>
-}): Promise<TabActionResult> {
+}) {
   const result = tabActionResult(closeResult)
   if (closeResult.status === 'unknown') {
     showOpenTabsReadError()
@@ -159,48 +216,66 @@ async function finishTabCloseAction({
 
   if (closeResult.attemptedCount === 0) {
     showToast(nothingMessage)
-    await onAfterClose?.(result)
+    yield* runOptionalCallback(onAfterClose ? () => onAfterClose(result) : undefined)
     return result
   }
 
   const label = `${tabCloseProgressLabel(closeResult.removedCount, closeResult.attemptedCount, kind)}${labelSuffix}`
   if (closeResult.removedCount === 0) {
     showToast(label)
-    await onAfterClose?.(result)
+    yield* runOptionalCallback(onAfterClose ? () => onAfterClose(result) : undefined)
     return result
   }
 
   if (result.snapshot.length > 0) markClosedTabs(result.snapshot, label)
   else showToast(label)
-  await onAfterClose?.(result)
+  yield* runOptionalCallback(onAfterClose ? () => onAfterClose(result) : undefined)
   refreshDashboardAfterTabAction()
   return result
-}
+})
 
 function markClosedTabs(snapshot: TabSnapshot[], label: string): void {
   if (snapshot.length === 0) return
   markClosure(snapshot, label)
 }
 
-export async function closeFilteredTabs(targets: DashboardTabMutationTarget[]): Promise<TabActionResult> {
+const runCloseFilteredTabs = Effect.fn('tabActions.closeFiltered')(function*(
+  targets: DashboardTabMutationTarget[]
+) {
   if (targets.length === 0) {
     showToast('Nothing to close')
     return emptyTabActionResult()
   }
 
-  const closeResult = await closeTabsByTargetsResult(targets, { preserveGroups: true })
-  return finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
+  const closeResult = yield* closeTabsByTargetsEffect(targets, { preserveGroups: true })
+  return yield* finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
+})
+
+export function closeFilteredTabs(targets: DashboardTabMutationTarget[]): Promise<TabActionResult> {
+  return runTabAction(runCloseFilteredTabs(targets))
 }
 
-export async function closeDomainTabs({ group, filter, displayName, onAfterClose }: CloseDomainTabsOptions): Promise<TabActionResult> {
+const runCloseDomainTabs = Effect.fn('tabActions.closeDomain')(function*({
+  group,
+  filter,
+  displayName,
+  onAfterClose
+}: CloseDomainTabsOptions) {
   const scopedTabs = domainMutationTabs({ group, filter })
-  const closeResult = await closeTabsByTargetsResult(tabMutationTargets(scopedTabs), { preserveGroups: true })
-  return finishTabCloseAction({
+  const closeResult = yield* closeTabsByTargetsEffect(
+    tabMutationTargets(scopedTabs),
+    { preserveGroups: true }
+  )
+  return yield* finishTabCloseAction({
     closeResult,
     nothingMessage: 'Nothing to close',
     labelSuffix: ` from ${displayName}`,
     ...(onAfterClose ? { onAfterClose } : {})
   })
+})
+
+export function closeDomainTabs(options: CloseDomainTabsOptions): Promise<TabActionResult> {
+  return runTabAction(runCloseDomainTabs(options))
 }
 
 function tabMutationTargets(tabs: readonly DashboardTab[]): DashboardTabMutationTarget[] {
@@ -221,42 +296,54 @@ function domainSuspendTargets(options: SuspendDomainTabsOptions): DashboardTabMu
   return tabMutationTargets(domainMutationTabs(options).filter((tab) => !tab.suspended))
 }
 
-export async function suspendDomainTabs(options: SuspendDomainTabsOptions): Promise<SuspendTabsResult> {
-  return suspendMutationTargets(domainSuspendTargets(options))
+export function suspendDomainTabs(options: SuspendDomainTabsOptions): Promise<SuspendTabsResult> {
+  return runTabAction(suspendMutationTargetsEffect(domainSuspendTargets(options)))
 }
 
-export async function closeSuspendedDomainTabs({
+const runCloseSuspendedDomainTabs = Effect.fn('tabActions.closeSuspendedDomain')(function*({
   group,
   filter,
   displayName,
   onAfterClose
-}: CloseDomainTabsOptions): Promise<TabActionResult> {
+}: CloseDomainTabsOptions) {
   const targets = tabMutationTargets(domainMutationTabs({ group, filter }).filter((tab) => tab.suspended))
-  const closeResult = await closeTabsByTargetsResult(targets, {
+  const closeResult = yield* closeTabsByTargetsEffect(targets, {
     preserveGroups: true,
     requireSuspended: true
   })
-  return finishTabCloseAction({
+  return yield* finishTabCloseAction({
     closeResult,
     nothingMessage: 'Nothing suspended to close',
     labelSuffix: ` from ${displayName}`,
     ...(onAfterClose ? { onAfterClose } : {})
   })
+})
+
+export function closeSuspendedDomainTabs(
+  options: CloseDomainTabsOptions
+): Promise<TabActionResult> {
+  return runTabAction(runCloseSuspendedDomainTabs(options))
 }
 
-async function suspendMutationTargets(targets: readonly DashboardTabMutationTarget[]): Promise<SuspendTabsResult> {
+const suspendMutationTargetsEffect = Effect.fn('tabActions.suspendMutationTargets')(function*(
+  targets: readonly DashboardTabMutationTarget[]
+) {
   if (targets.length === 0) {
     showToast('Nothing to suspend')
     return { ok: true, suspendedCount: 0 }
   }
 
-  const target = await getSuspendTarget()
+  const target = yield* Effect.tryPromise({
+    try: getSuspendTarget,
+    catch: (cause) => TabActionWorkflowError.make({ cause })
+  })
   if (!target) {
     showToast('No suspender detected')
     return { ok: true, suspendedCount: 0 }
   }
 
-  const allTabsResult = await queryAllTabsResult()
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) {
     showOpenTabsReadError()
     return { ok: false, suspendedCount: 0 }
@@ -264,54 +351,67 @@ async function suspendMutationTargets(targets: readonly DashboardTabMutationTarg
   const liveTargets = liveTabsForMutationTargets(allTabsResult.value, targets)
     .filter((tab) => !isGroupedTab(tab))
     .filter((tab) => !(tab.pinned && isTabOutPageUrl(unwrapSuspenderUrl(liveTabUrlForIdentity(tab)))))
-  const updateResult = await applySuspendToTabs(liveTargets, target)
-  const ok = await finishSuspendUpdates(updateResult)
+  const updateResult = yield* applySuspendToTabsEffect(liveTargets, target)
+  const ok = yield* finishSuspendUpdatesEffect(updateResult)
   return { ok, suspendedCount: updateResult.updatedCount }
+})
+
+const runCloseExactTabSection = Effect.fn('tabActions.closeExactSection')(function*(
+  { urls }: CloseExactTabSectionOptions
+) {
+  const closeResult = yield* closeTabsExactEffect(urls, { preserveGroups: true })
+  return yield* finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
+})
+
+export function closeExactTabSection(options: CloseExactTabSectionOptions): Promise<TabActionResult> {
+  return runTabAction(runCloseExactTabSection(options))
 }
 
-export async function closeExactTabSection({ urls }: CloseExactTabSectionOptions): Promise<TabActionResult> {
-  const closeResult = await closeTabsExactResult(urls, { preserveGroups: true })
-  return finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
+const runCloseExactTabTargets = Effect.fn('tabActions.closeExactTargets')(function*(
+  { targets }: ExactTabTargetsOptions
+) {
+  const closeResult = yield* closeTabsByTargetsEffect(targets, { preserveGroups: true })
+  return yield* finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
+})
+
+export function closeExactTabTargets(options: ExactTabTargetsOptions): Promise<TabActionResult> {
+  return runTabAction(runCloseExactTabTargets(options))
 }
 
-export async function closeExactTabTargets({ targets }: ExactTabTargetsOptions): Promise<TabActionResult> {
-  const closeResult = await closeTabsByTargetsResult(targets, { preserveGroups: true })
-  return finishTabCloseAction({ closeResult, nothingMessage: 'Nothing to close' })
-}
-
-export async function dedupeTabs({ urls, preservePinnedTabOut = false, onAfterClose }: DedupeTabsOptions): Promise<TabActionResult> {
+const runDedupeTabs = Effect.fn('tabActions.dedupe')(function*({
+  urls,
+  preservePinnedTabOut = false,
+  onAfterClose
+}: DedupeTabsOptions) {
   if (urls.length === 0) return emptyTabActionResult()
 
-  const closeResult = await closeDuplicateTabsResult(urls, true, { preservePinnedTabOut })
-  return finishTabCloseAction({
+  const closeResult = yield* closeDuplicateTabsEffect(urls, true, { preservePinnedTabOut })
+  return yield* finishTabCloseAction({
     closeResult,
     kind: 'duplicates',
     nothingMessage: 'Nothing to dedupe',
     ...(onAfterClose ? { onAfterClose } : {})
   })
+})
+
+export function dedupeTabs(options: DedupeTabsOptions): Promise<TabActionResult> {
+  return runTabAction(runDedupeTabs(options))
 }
 
-export async function closeChipTarget({
+const runCloseChipTarget = Effect.fn('tabActions.closeChipTarget')(function*({
   tabUrl,
   tabId,
   expectedPinned,
   expectedGroupId,
   envs = null,
   onAfterClose
-}: CloseChipTargetOptions): Promise<ChipCloseResult> {
+}: CloseChipTargetOptions) {
   const isFolded = Array.isArray(envs) && envs.length > 0
-  const allTabsResult = await queryAllTabsResult()
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) {
     showOpenTabsReadError()
-    return {
-      ok: false,
-      status: 'unknown',
-      snapshot: [],
-      attemptedCount: 0,
-      removedCount: 0,
-      failedCount: 0,
-      shouldAnimateRemoval: false
-    }
+    return unknownChipCloseResult()
   }
   const matches = liveTabsMatchingTarget(allTabsResult.value, { tabUrl, envs })
   const matchCount = matches.length
@@ -335,7 +435,7 @@ export async function closeChipTarget({
       : matches.slice(0, 1)
   }
 
-  const closeResult = await closeResolvedTabsResult(toCloseList, { includeTabOutUrls: true })
+  const closeResult = yield* closeResolvedTabsEffect(toCloseList, { includeTabOutUrls: true })
 
   const result = {
     ...tabActionResult(closeResult),
@@ -354,17 +454,34 @@ export async function closeChipTarget({
     showToast('Nothing to close')
   }
 
-  await onAfterClose?.(result)
+  yield* runOptionalCallback(onAfterClose ? () => onAfterClose(result) : undefined)
   if (closeResult.removedCount > 0) refreshDashboardAfterTabAction()
 
   return result
+})
+
+export function closeChipTarget(options: CloseChipTargetOptions): Promise<ChipCloseResult> {
+  return runTabAction(runCloseChipTarget(options))
 }
 
-export async function deleteHistoryUrls({ urls, onAfterDelete }: DeleteHistoryUrlsOptions): Promise<HistoryDeleteResult> {
+const runDeleteHistoryUrls = Effect.fn('tabActions.deleteHistoryUrls')(function*({
+  urls,
+  onAfterDelete
+}: DeleteHistoryUrlsOptions) {
   if (urls.length === 0) return { ok: true, deletedCount: 0 }
 
-  const { deleteHistorySourceUrl } = await import('./history-source.js')
-  const results = await Promise.all(urls.map((url) => deleteHistorySourceUrl(url)))
+  const { deleteHistorySourceUrl } = yield* Effect.tryPromise({
+    try: () => import('./history-source.js'),
+    catch: (cause) => TabActionWorkflowError.make({ cause })
+  })
+  const results = yield* Effect.forEach(
+    urls,
+    (url) => Effect.tryPromise({
+      try: () => deleteHistorySourceUrl(url),
+      catch: (cause) => TabActionWorkflowError.make({ cause })
+    }),
+    { concurrency: 'unbounded' }
+  )
   const deletedCount = results.filter(Boolean).length
   const result = { ok: deletedCount === urls.length, deletedCount }
 
@@ -373,34 +490,44 @@ export async function deleteHistoryUrls({ urls, onAfterDelete }: DeleteHistoryUr
     return result
   }
 
-  await onAfterDelete?.(result)
-  await refreshDashboardAfterTabAction()
+  yield* runOptionalCallback(onAfterDelete ? () => onAfterDelete(result) : undefined)
+  refreshDashboardAfterTabAction()
   showToast(historyDeleteToastMessage(deletedCount, urls.length))
   return result
+})
+
+export function deleteHistoryUrls(options: DeleteHistoryUrlsOptions): Promise<HistoryDeleteResult> {
+  return runTabAction(runDeleteHistoryUrls(options))
 }
 
-async function resolveChromeMenuTabTarget({ tabUrl, tabId, rawUrl }: ChromeMenuTabTarget): Promise<ChromeMenuTabResolution> {
+const resolveChromeMenuTabTarget = Effect.fn('tabActions.resolveChromeMenuTarget')(function*(
+  { tabUrl, tabId, rawUrl }: ChromeMenuTabTarget
+) {
+  const browserTabs = yield* BrowserTabs
   if (tabId !== undefined) {
-    if (typeof tabId !== 'number' || !Number.isInteger(tabId)) return { status: 'not-found', tab: null }
-    const tab = await getTab(tabId)
+    if (typeof tabId !== 'number' || !Number.isInteger(tabId)) return CHROME_MENU_TAB_NOT_FOUND
+    const tab = yield* browserTabs.getTab(tabId)
     return tab && liveTabMatchesIdentity(tab, { tabId, tabUrl, rawUrl })
-      ? { status: 'matched', tab }
-      : { status: 'not-found', tab: null }
+      ? matchedChromeMenuTab(tab)
+      : CHROME_MENU_TAB_NOT_FOUND
   }
-  const allTabsResult = await queryAllTabsResult()
-  if (!allTabsResult.ok) return { status: 'unknown', tab: null }
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
+  if (!allTabsResult.ok) return CHROME_MENU_TAB_UNKNOWN
   const [match] = liveTabsMatchingTarget(allTabsResult.value, { tabUrl })
-  return match ? { status: 'matched', tab: match } : { status: 'not-found', tab: null }
-}
+  return match ? matchedChromeMenuTab(match) : CHROME_MENU_TAB_NOT_FOUND
+})
 
-export async function reloadTabTarget(target: ChromeMenuTabTarget): Promise<ChromeMenuActionResult> {
-  const resolution = await resolveChromeMenuTabTarget(target)
+const runReloadTabTarget = Effect.fn('tabActions.reloadTarget')(function*(
+  target: ChromeMenuTabTarget
+) {
+  const resolution: ChromeMenuTabResolution = yield* resolveChromeMenuTabTarget(target)
   if (resolution.status === 'unknown') {
     showOpenTabsReadError()
     return 'unknown'
   }
   const tab = resolution.tab
-  if (typeof tab?.id !== 'number' || !(await reloadTab(tab.id))) {
+  const browserTabs = yield* BrowserTabs
+  if (typeof tab?.id !== 'number' || !(yield* browserTabs.reloadTab(tab.id))) {
     showToast('Could not reload tab')
     return false
   }
@@ -408,16 +535,23 @@ export async function reloadTabTarget(target: ChromeMenuTabTarget): Promise<Chro
   void settleDashboardRefresh(requestDashboardRefresh())
   showToast('Tab reloaded')
   return true
+})
+
+export function reloadTabTarget(target: ChromeMenuTabTarget): Promise<ChromeMenuActionResult> {
+  return runTabAction(runReloadTabTarget(target))
 }
 
-export async function duplicateTabTarget(target: ChromeMenuTabTarget): Promise<ChromeMenuActionResult> {
-  const resolution = await resolveChromeMenuTabTarget(target)
+const runDuplicateTabTarget = Effect.fn('tabActions.duplicateTarget')(function*(
+  target: ChromeMenuTabTarget
+) {
+  const resolution: ChromeMenuTabResolution = yield* resolveChromeMenuTabTarget(target)
   if (resolution.status === 'unknown') {
     showOpenTabsReadError()
     return 'unknown'
   }
   const tab = resolution.tab
-  if (typeof tab?.id !== 'number' || !(await duplicateTab(tab.id))) {
+  const browserTabs = yield* BrowserTabs
+  if (typeof tab?.id !== 'number' || !(yield* browserTabs.duplicateTab(tab.id))) {
     showToast('Could not duplicate tab')
     return false
   }
@@ -425,6 +559,10 @@ export async function duplicateTabTarget(target: ChromeMenuTabTarget): Promise<C
   void settleDashboardRefresh(requestDashboardRefresh())
   showToast('Tab duplicated')
   return true
+})
+
+export function duplicateTabTarget(target: ChromeMenuTabTarget): Promise<ChromeMenuActionResult> {
+  return runTabAction(runDuplicateTabTarget(target))
 }
 
 type SetChipMutedOptions = {
@@ -438,43 +576,55 @@ type TabUpdateSummary = {
   updatedCount: number
 }
 
-async function revalidateMutationTarget(snapshot: chrome.tabs.Tab): Promise<chrome.tabs.Tab | null> {
+const revalidateMutationTarget = Effect.fn('tabActions.revalidateMutationTarget')(function*(
+  snapshot: chrome.tabs.Tab
+) {
   if (typeof snapshot.id !== 'number') return null
-  const liveTab = await getTab(snapshot.id)
+  const browserTabs = yield* BrowserTabs
+  const liveTab = yield* browserTabs.getTab(snapshot.id)
   if (!liveTab || !liveTabMatchesIdentity(liveTab, {
     tabId: snapshot.id,
     rawUrl: liveTabUrlForIdentity(snapshot)
   })) return null
   return liveTab
-}
+})
 
-async function applyMutedToTabs(targets: chrome.tabs.Tab[], muted: boolean): Promise<TabUpdateSummary> {
+const applyMutedToTabs = Effect.fn('tabActions.applyMutedToTabs')(function*(
+  targets: chrome.tabs.Tab[],
+  muted: boolean
+) {
   let attemptedCount = 0
   let updatedCount = 0
+  const browserTabs = yield* BrowserTabs
   for (const snapshot of targets) {
     if (typeof snapshot.id !== 'number') continue
     attemptedCount += 1
-    const liveTab = await revalidateMutationTarget(snapshot)
+    const liveTab = yield* revalidateMutationTarget(snapshot)
     if (typeof liveTab?.id !== 'number') continue
-    if (await updateTab(liveTab.id, { muted })) updatedCount += 1
+    if (yield* browserTabs.updateTab(liveTab.id, { muted })) updatedCount += 1
   }
   return { attemptedCount, updatedCount }
-}
+})
 
 /**
  * setChipTargetMuted — mute/unmute every open tab a chip represents. Mirrors
  * closeChipTarget's URL matching (effective + raw URL, suspended-aware) but
  * acts on ALL matches so a noisy duplicate can't survive a mute.
  */
-export async function setChipTargetMuted({ tabUrl, envs = null, muted }: SetChipMutedOptions): Promise<boolean> {
-  const allTabsResult = await queryAllTabsResult()
+const runSetChipTargetMuted = Effect.fn('tabActions.setChipTargetMuted')(function*({
+  tabUrl,
+  envs = null,
+  muted
+}: SetChipMutedOptions) {
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) {
     showOpenTabsReadError()
     return false
   }
   const targets = liveTabsMatchingTarget(allTabsResult.value, { tabUrl, envs })
 
-  const updateResult = await applyMutedToTabs(targets, muted)
+  const updateResult = yield* applyMutedToTabs(targets, muted)
   if (updateResult.attemptedCount === 0) return true
   if (updateResult.updatedCount === 0) {
     showToast(muted ? 'Could not mute tabs' : 'Could not unmute tabs')
@@ -487,24 +637,39 @@ export async function setChipTargetMuted({ tabUrl, envs = null, muted }: SetChip
     return false
   }
   return true
+})
+
+export function setChipTargetMuted(options: SetChipMutedOptions): Promise<boolean> {
+  return runTabAction(runSetChipTargetMuted(options))
 }
 
 /** setHistoryEntryMuted — mute/unmute the single tab behind a history row. */
-export async function setHistoryEntryMuted(target: ChromeMenuTabTarget, muted: boolean): Promise<ChromeMenuActionResult> {
-  const resolution = await resolveChromeMenuTabTarget(target)
+const runSetHistoryEntryMuted = Effect.fn('tabActions.setHistoryEntryMuted')(function*(
+  target: ChromeMenuTabTarget,
+  muted: boolean
+) {
+  const resolution: ChromeMenuTabResolution = yield* resolveChromeMenuTabTarget(target)
   if (resolution.status === 'unknown') {
     showOpenTabsReadError()
     return 'unknown'
   }
   const tab = resolution.tab
   if (typeof tab?.id !== 'number') return false
-  if (!(await updateTab(tab.id, { muted }))) {
+  const browserTabs = yield* BrowserTabs
+  if (!(yield* browserTabs.updateTab(tab.id, { muted }))) {
     showToast(historyEntryMuteFailureToastMessage(muted))
     return false
   }
   // Passive refresh: muting doesn't reorganize cards, so repaint in place (no card animation).
   void settleDashboardRefresh(requestDashboardRefresh())
   return true
+})
+
+export function setHistoryEntryMuted(
+  target: ChromeMenuTabTarget,
+  muted: boolean
+): Promise<ChromeMenuActionResult> {
+  return runTabAction(runSetHistoryEntryMuted(target, muted))
 }
 
 type SuspendChipTargetOptions = {
@@ -512,25 +677,31 @@ type SuspendChipTargetOptions = {
   envs?: DashboardChipEnv[] | null
 }
 
-async function applySuspendToTabs(targets: chrome.tabs.Tab[], target: SuspendTarget): Promise<TabUpdateSummary> {
+const applySuspendToTabsEffect = Effect.fn('tabActions.applySuspendToTabs')(function*(
+  targets: chrome.tabs.Tab[],
+  target: SuspendTarget
+) {
   let attemptedCount = 0
   let updatedCount = 0
+  const browserTabs = yield* BrowserTabs
   for (const snapshot of targets) {
     if (typeof snapshot.id !== 'number') continue
     if (isSuspended(liveTabUrlForIdentity(snapshot))) continue
     attemptedCount += 1
-    const liveTab = await revalidateMutationTarget(snapshot)
+    const liveTab = yield* revalidateMutationTarget(snapshot)
     const liveUrl = liveTab ? liveTabUrlForIdentity(liveTab) : ''
     if (typeof liveTab?.id !== 'number' || isSuspended(liveUrl)) continue
-    const updated = await updateTab(liveTab.id, {
+    const updated = yield* browserTabs.updateTab(liveTab.id, {
       url: buildSuspendUrl(target, { url: liveUrl, title: liveTab.title || '' })
     })
     if (updated) updatedCount += 1
   }
   return { attemptedCount, updatedCount }
-}
+})
 
-async function finishSuspendUpdates({ attemptedCount, updatedCount }: TabUpdateSummary): Promise<boolean> {
+const finishSuspendUpdatesEffect = Effect.fn('tabActions.finishSuspendUpdates')(function*(
+  { attemptedCount, updatedCount }: TabUpdateSummary
+) {
   if (attemptedCount === 0) {
     showToast('Nothing to suspend')
     return true
@@ -547,7 +718,7 @@ async function finishSuspendUpdates({ attemptedCount, updatedCount }: TabUpdateS
   }
   showToast(updatedCount === 1 ? 'Tab suspended' : `Suspended ${updatedCount} tabs`)
   return true
-}
+})
 
 function liveTabsForMutationTargets(
   liveTabs: readonly chrome.tabs.Tab[],
@@ -558,8 +729,8 @@ function liveTabsForMutationTargets(
     expectedUrlById.get(tab.id) === unwrapSuspenderUrl(liveTabUrlForIdentity(tab)))
 }
 
-export async function suspendExactTabTargets({ targets }: ExactTabTargetsOptions): Promise<SuspendTabsResult> {
-  return suspendMutationTargets(targets)
+export function suspendExactTabTargets({ targets }: ExactTabTargetsOptions): Promise<SuspendTabsResult> {
+  return runTabAction(suspendMutationTargetsEffect(targets))
 }
 
 /**
@@ -567,31 +738,48 @@ export async function suspendExactTabTargets({ targets }: ExactTabTargetsOptions
  * represents into the detected suspender. Mirrors setChipTargetMuted's
  * suspender-aware URL matching (effective + raw URL, folded groups = all matches).
  */
-export async function suspendChipTarget({ tabUrl, envs = null }: SuspendChipTargetOptions): Promise<boolean> {
-  const target = await getSuspendTarget()
+const runSuspendChipTarget = Effect.fn('tabActions.suspendChipTarget')(function*({
+  tabUrl,
+  envs = null
+}: SuspendChipTargetOptions) {
+  const target = yield* Effect.tryPromise({
+    try: getSuspendTarget,
+    catch: (cause) => TabActionWorkflowError.make({ cause })
+  })
   if (!target) {
     showToast('No suspender detected')
     return false
   }
 
-  const allTabsResult = await queryAllTabsResult()
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
   if (!allTabsResult.ok) {
     showOpenTabsReadError()
     return false
   }
   const matches = liveTabsMatchingTarget(allTabsResult.value, { tabUrl, envs })
 
-  return finishSuspendUpdates(await applySuspendToTabs(matches, target))
+  const updateResult = yield* applySuspendToTabsEffect(matches, target)
+  return yield* finishSuspendUpdatesEffect(updateResult)
+})
+
+export function suspendChipTarget(options: SuspendChipTargetOptions): Promise<boolean> {
+  return runTabAction(runSuspendChipTarget(options))
 }
 
 /** suspendHistoryEntry — redirect the single tab behind a history row into the suspender. */
-export async function suspendHistoryEntry(entryTarget: ChromeMenuTabTarget): Promise<ChromeMenuActionResult> {
-  const suspendTarget = await getSuspendTarget()
+const runSuspendHistoryEntry = Effect.fn('tabActions.suspendHistoryEntry')(function*(
+  entryTarget: ChromeMenuTabTarget
+) {
+  const suspendTarget = yield* Effect.tryPromise({
+    try: getSuspendTarget,
+    catch: (cause) => TabActionWorkflowError.make({ cause })
+  })
   if (!suspendTarget) {
     showToast('No suspender detected')
     return false
   }
-  const resolution = await resolveChromeMenuTabTarget(entryTarget)
+  const resolution: ChromeMenuTabResolution = yield* resolveChromeMenuTabTarget(entryTarget)
   if (resolution.status === 'unknown') {
     showOpenTabsReadError()
     return 'unknown'
@@ -606,7 +794,8 @@ export async function suspendHistoryEntry(entryTarget: ChromeMenuTabTarget): Pro
     showToast('Already suspended')
     return false
   }
-  const updated = await updateTab(tab.id, {
+  const browserTabs = yield* BrowserTabs
+  const updated = yield* browserTabs.updateTab(tab.id, {
     url: buildSuspendUrl(suspendTarget, { url: liveUrl, title: tab.title || '' })
   })
   if (!updated) {
@@ -616,4 +805,10 @@ export async function suspendHistoryEntry(entryTarget: ChromeMenuTabTarget): Pro
   void settleDashboardRefresh(requestDashboardRefresh())
   showToast('Tab suspended')
   return true
+})
+
+export function suspendHistoryEntry(
+  entryTarget: ChromeMenuTabTarget
+): Promise<ChromeMenuActionResult> {
+  return runTabAction(runSuspendHistoryEntry(entryTarget))
 }

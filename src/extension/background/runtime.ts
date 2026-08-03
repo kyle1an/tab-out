@@ -1,5 +1,6 @@
 import { Effect, Layer, ManagedRuntime } from 'effect'
 
+import { BrowserTabs } from '../browser-tabs-service.js'
 import { Badge } from './badge.js'
 import type { ChromeApi } from './chrome-api.js'
 import { NativePlacementBridge } from './native-placement-bridge.js'
@@ -9,6 +10,7 @@ import { WorkingSet } from './working-set-service.js'
 
 export function createBackgroundRuntime(chromeApi: ChromeApi) {
   const coreServices = Layer.mergeAll(
+    BrowserTabs.layer(),
     Badge.layer(chromeApi),
     NativePlacementBridge.layer(chromeApi),
     TabHistory.layer(chromeApi),
