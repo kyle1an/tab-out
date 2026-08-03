@@ -291,6 +291,17 @@ removing the larger manual validator reduces the worker entry by 312 raw bytes
 and 31 deterministic gzip bytes, bringing it to 322,929 raw bytes and 107,085
 deterministic gzip bytes.
 
+The twenty-sixth slice replaces the Working Set activity envelope, record, and
+event guards with Effect Schema predicates shared by page and worker consumers.
+The version and records container now validate once, while malformed records,
+invalid events, and expired events are still removed independently; valid
+siblings retain URL canonicalization, dismissal repair, and bounded event
+history. The worker storage read no longer casts unknown data before this
+normalizer. It adds 38 raw bytes and 10 deterministic gzip bytes to the app
+entry, bringing it to 880,764 raw bytes and 277,480 deterministic gzip bytes.
+It adds 17 raw bytes and 69 deterministic gzip bytes to the worker entry,
+bringing it to 322,946 raw bytes and 107,154 deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

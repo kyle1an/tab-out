@@ -61,7 +61,7 @@ export function createWorkingSetService(chromeApi: ChromeApi = chrome): WorkingS
       return activityCache
     }
 
-    const storedActivity = await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY) as Partial<WorkingSetActivityStore> | null | undefined
+    const storedActivity = await readChromeStorageValue(storage, WORKING_SET_ACTIVITY_KEY)
     activityCache = normalizeWorkingSetActivity(storedActivity)
     return activityCache
   }
