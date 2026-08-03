@@ -1,5 +1,6 @@
-import { Data, Effect, Semaphore } from 'effect'
+import { Effect, Schema, Semaphore } from 'effect'
 
+import { getAppRuntime } from './app-runtime.js'
 import {
   normalizeSavedPagesStore,
   SAVED_PAGES_STORAGE_KEY,
@@ -26,9 +27,10 @@ export type SavedPagesMutationStore = {
   ) => Promise<void>
 }
 
-class SavedPagesMutationError extends Data.TaggedError('SavedPagesMutationError')<{
-  readonly cause: unknown
-}> {}
+class SavedPagesMutationError extends Schema.TaggedErrorClass<SavedPagesMutationError>()(
+  'SavedPagesMutationError',
+  { cause: Schema.Defect() }
+) {}
 
 /**
  * Serialize Saved Pages read-modify-write operations through one seam. The
@@ -45,34 +47,34 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
     const transaction = Effect.gen(function*() {
       const stored = yield* Effect.tryPromise({
         try: adapter.read,
-        catch: (cause) => new SavedPagesMutationError({ cause })
+        catch: (cause) => SavedPagesMutationError.make({ cause })
       })
       const parsed = yield* Effect.try({
         try: () => parseSavedPagesStoreValue(stored),
-        catch: (cause) => new SavedPagesMutationError({ cause })
+        catch: (cause) => SavedPagesMutationError.make({ cause })
       })
       if (!parsed.ok) {
-        return yield* Effect.fail(new SavedPagesMutationError({
+        return yield* Effect.fail(SavedPagesMutationError.make({
           cause: new Error('Saved Pages storage is malformed')
         }))
       }
       const currentStore = parsed.value
       const result = yield* Effect.try({
         try: () => mutation(currentStore),
-        catch: (cause) => new SavedPagesMutationError({ cause })
+        catch: (cause) => SavedPagesMutationError.make({ cause })
       })
       const nextStore = yield* Effect.try({
         try: () => normalizeSavedPagesStore(result.store),
-        catch: (cause) => new SavedPagesMutationError({ cause })
+        catch: (cause) => SavedPagesMutationError.make({ cause })
       })
       const storesEqual = yield* Effect.try({
         try: () => savedPagesStoresEqual(currentStore, nextStore),
-        catch: (cause) => new SavedPagesMutationError({ cause })
+        catch: (cause) => SavedPagesMutationError.make({ cause })
       })
       if (!storesEqual) {
         yield* Effect.tryPromise({
           try: () => adapter.write(nextStore),
-          catch: (cause) => new SavedPagesMutationError({ cause })
+          catch: (cause) => SavedPagesMutationError.make({ cause })
         })
       }
       return result.value
@@ -81,17 +83,17 @@ export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): 
     const runExclusive = adapter.runExclusive
     if (!runExclusive) return yield* transaction
     return yield* Effect.tryPromise({
-      try: () => runExclusive(() => Effect.runPromise(transaction.pipe(
+      try: () => runExclusive(() => getAppRuntime().runPromise(transaction.pipe(
         Effect.catchTag('SavedPagesMutationError', (error) => Effect.fail(error.cause))
       ))),
-      catch: (cause) => new SavedPagesMutationError({ cause })
+      catch: (cause) => SavedPagesMutationError.make({ cause })
     })
   })
 
   function mutate<Value>(
     mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
   ): Promise<Value> {
-    return Effect.runPromise(
+    return getAppRuntime().runPromise(
       mutationSemaphore.withPermit(runSavedPagesMutation(mutation)).pipe(
         Effect.catchTag('SavedPagesMutationError', (error) => Effect.fail(error.cause))
       )

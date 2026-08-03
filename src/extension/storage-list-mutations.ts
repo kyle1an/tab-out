@@ -1,4 +1,6 @@
-import { Data, Effect, Semaphore } from 'effect'
+import { Effect, Schema, Semaphore } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
 
 export type StorageListMutationAttempt =
   | {
@@ -33,9 +35,10 @@ function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index])
 }
 
-class StorageListMutationError extends Data.TaggedError('StorageListMutationError')<{
-  readonly cause: unknown
-}> {}
+class StorageListMutationError extends Schema.TaggedErrorClass<StorageListMutationError>()(
+  'StorageListMutationError',
+  { cause: Schema.Defect() }
+) {}
 
 function successfulMutationAttempt(
   previousValue: string[],
@@ -69,30 +72,30 @@ export function createStorageListMutationStore<Operation>({
     const transaction = Effect.gen(function*() {
       const stored = yield* Effect.tryPromise({
         try: adapter.read,
-        catch: (cause) => new StorageListMutationError({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause })
       })
       const storedValueIsValid = yield* Effect.try({
         try: () => isStoredValue(stored),
-        catch: (cause) => new StorageListMutationError({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause })
       })
       if (!storedValueIsValid) {
-        return yield* Effect.fail(new StorageListMutationError({
+        return yield* Effect.fail(StorageListMutationError.make({
           cause: new TypeError('Stored list value is malformed')
         }))
       }
       const previousValue = yield* Effect.try({
         try: () => normalize(stored),
-        catch: (cause) => new StorageListMutationError({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause })
       })
       currentValue = previousValue
       const value = yield* Effect.try({
         try: () => normalize(applyOperation(previousValue, operation)),
-        catch: (cause) => new StorageListMutationError({ cause })
+        catch: (cause) => StorageListMutationError.make({ cause })
       })
       if (!sameOrder(previousValue, value)) {
         yield* Effect.tryPromise({
           try: () => adapter.write(value),
-          catch: (cause) => new StorageListMutationError({ cause })
+          catch: (cause) => StorageListMutationError.make({ cause })
         })
       }
       return successfulMutationAttempt(previousValue, value)
@@ -105,8 +108,8 @@ export function createStorageListMutationStore<Operation>({
     const runExclusive = adapter.runExclusive
     if (!runExclusive) return yield* transaction
     return yield* Effect.tryPromise({
-      try: () => runExclusive(() => Effect.runPromise(transaction)),
-      catch: (cause) => new StorageListMutationError({ cause })
+      try: () => runExclusive(() => getAppRuntime().runPromise(transaction)),
+      catch: (cause) => StorageListMutationError.make({ cause })
     }).pipe(
       Effect.catchTag('StorageListMutationError', (error) => (
         Effect.succeed(failedMutationAttempt(currentValue, error.cause))
@@ -115,7 +118,7 @@ export function createStorageListMutationStore<Operation>({
   })
 
   function mutate(operation: Operation): Promise<StorageListMutationAttempt> {
-    return Effect.runPromise(
+    return getAppRuntime().runPromise(
       mutationSemaphore.withPermit(runStorageListMutation(operation))
     )
   }

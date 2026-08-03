@@ -11,8 +11,9 @@
    reappears, so forgetting is per-closure rather than permanent.
    ================================================================ */
 
-import { Data, Effect, Schema, Semaphore } from 'effect'
+import { Effect, Schema, Semaphore } from 'effect'
 
+import { getAppRuntime } from './app-runtime.js'
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
@@ -51,9 +52,10 @@ export type ClosedGhostDismissalMutationStore = {
   ) => Promise<Map<string, number>>
 }
 
-class ClosedGhostDismissalMutationError extends Data.TaggedError('ClosedGhostDismissalMutationError')<{
-  readonly cause: unknown
-}> {}
+class ClosedGhostDismissalMutationError extends Schema.TaggedErrorClass<ClosedGhostDismissalMutationError>()(
+  'ClosedGhostDismissalMutationError',
+  { cause: Schema.Defect() }
+) {}
 
 export function closedGhostDismissalKey(entry: ClosedGhostIdentity): string {
   return pageIdentityForWorkingSet(entry.url) || entry.url
@@ -136,24 +138,24 @@ export function createClosedGhostDismissalMutationStore(
     const transaction = Effect.gen(function*() {
       const stored = yield* Effect.tryPromise({
         try: adapter.read,
-        catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
       })
       const map = yield* Effect.try({
         try: () => normalizeClosedGhostDismissals(stored, now),
-        catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
       })
       const changed = yield* Effect.try({
         try: () => mutation(map),
-        catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
       })
       if (changed) {
         const value = yield* Effect.try({
           try: () => Object.fromEntries(map),
-          catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
         })
         yield* Effect.tryPromise({
           try: () => adapter.write(value),
-          catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
         })
       }
       return map
@@ -162,10 +164,10 @@ export function createClosedGhostDismissalMutationStore(
     const runExclusive = adapter.runExclusive
     if (!runExclusive) return yield* transaction
     return yield* Effect.tryPromise({
-      try: () => runExclusive(() => Effect.runPromise(transaction.pipe(
+      try: () => runExclusive(() => getAppRuntime().runPromise(transaction.pipe(
         Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
       ))),
-      catch: (cause) => new ClosedGhostDismissalMutationError({ cause })
+      catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
     })
   })
 
@@ -173,7 +175,7 @@ export function createClosedGhostDismissalMutationStore(
     now: number,
     mutation: (map: Map<string, number>) => boolean
   ): Promise<Map<string, number>> {
-    return Effect.runPromise(
+    return getAppRuntime().runPromise(
       mutationSemaphore.withPermit(runClosedGhostDismissalMutation(now, mutation)).pipe(
         Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
       )
