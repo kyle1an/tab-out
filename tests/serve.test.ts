@@ -62,6 +62,15 @@ test('debug server serves the dashboard fixture and closes with its scope', asyn
     const response = await fetch(url)
     assert.equal(response.status, 200)
     assert.match(await response.text(), /data-tabout="dashboard-shell"/)
+
+    const staticResponse = await fetch(`http://127.0.0.1:${port}/extension/manifest.json`)
+    assert.equal(staticResponse.status, 200)
+    assert.equal(staticResponse.headers.get('content-type'), 'application/json')
+    assert.equal((await staticResponse.json()).manifest_version, 3)
+
+    const missingResponse = await fetch(`http://127.0.0.1:${port}/missing`)
+    assert.equal(missingResponse.status, 404)
+    assert.equal(await missingResponse.text(), 'Not found')
   } finally {
     Effect.runSync(Deferred.succeed(shutdown, undefined))
     await running
