@@ -2,12 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import FakeTimers from '@sinonjs/fake-timers'
+import { Effect, ManagedRuntime } from 'effect'
 
 import {
   STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS,
   STARTUP_SNAPSHOT_DEBOUNCE_MS,
   STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_INTERVAL_MS,
-  createStartupSnapshotService,
+  StartupSnapshot,
   startupSnapshotStorageChangesRequireRefresh
 } from '../src/extension/background/startup-snapshot-service.js'
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS } from '../src/extension/closed-tabs.js'
@@ -18,6 +19,43 @@ import { SECTION_PIN_STORAGE_KEY, subdomainPinId } from '../src/extension/sectio
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 import { makeChromeTab } from './helpers/chrome-tab.js'
 import { installWebLocksStub } from './helpers/web-locks.js'
+
+type TestStartupSnapshotDeps = {
+  alarms?: {
+    create: (name: string, alarmInfo: chrome.alarms.AlarmCreateInfo) => Promise<void>
+    get: (name: string) => Promise<chrome.alarms.Alarm | undefined>
+  }
+  getDashboardServiceState: () => Promise<any>
+}
+
+const disposeStartupSnapshotRuntimes: Array<() => Promise<void>> = []
+
+test.after(async () => {
+  for (const dispose of disposeStartupSnapshotRuntimes) await dispose()
+})
+
+function createStartupSnapshotService(deps: TestStartupSnapshotDeps) {
+  const runtime = ManagedRuntime.make(StartupSnapshot.layer({
+    ...(deps.alarms ? { alarms: deps.alarms } : {}),
+    getDashboardServiceState: Effect.tryPromise({
+      try: deps.getDashboardServiceState,
+      catch: (cause) => cause
+    })
+  }))
+  runtime.runSync(Effect.void)
+  const service = runtime.runSync(StartupSnapshot)
+  disposeStartupSnapshotRuntimes.push(() => runtime.dispose())
+  return {
+    scheduleRefresh: () => runtime.runSync(service.scheduleRefresh()),
+    sessionsChanged: () => runtime.runSync(service.sessionsChanged()),
+    sessionRestoreStarted: (restoreId: string) =>
+      runtime.runSync(service.sessionRestoreStarted(restoreId)),
+    sessionRestoreSettled: (restoreId: string) =>
+      runtime.runSync(service.sessionRestoreSettled(restoreId)),
+    promoteDurableCheckpoint: () => runtime.runPromise(service.promoteDurableCheckpoint()),
+    refreshNow: () => runtime.runPromise(service.refreshNow())
+  }
+}
 
 const emptyTabHistory = {
   stackSize: 0,

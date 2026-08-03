@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import test, { type TestContext } from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
+import { Effect, ManagedRuntime } from 'effect'
 
-import { STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS, createStartupSnapshotService } from '../src/extension/background/startup-snapshot-service.js'
+import { STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS, StartupSnapshot } from '../src/extension/background/startup-snapshot-service.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 import { makeCachedSuspendedTab } from './helpers/suspended-tab.js'
 
@@ -20,6 +21,24 @@ const emptyTabHistory = {
   entries: []
 }
 const emptyActivity = { version: 1, records: {} }
+
+function createStartupSnapshotService(
+  t: TestContext,
+  getDashboardServiceState: () => Promise<any>
+) {
+  const runtime = ManagedRuntime.make(StartupSnapshot.layer({
+    getDashboardServiceState: Effect.tryPromise({
+      try: getDashboardServiceState,
+      catch: (cause) => cause
+    })
+  }))
+  runtime.runSync(Effect.void)
+  const service = runtime.runSync(StartupSnapshot)
+  t.after(() => runtime.dispose())
+  return {
+    refreshNow: () => runtime.runPromise(service.refreshNow())
+  }
+}
 
 test('background startup snapshots retain the cached title of a waking suspended tab', async (t) => {
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -89,16 +108,14 @@ test('background startup snapshots retain the cached title of a waking suspended
     else (globalThis as { chrome?: unknown }).chrome = previousChrome
   })
 
-  const service = createStartupSnapshotService({
-    getDashboardServiceState: async () => ({
+  const service = createStartupSnapshotService(t, async () => ({
       tabHistory: emptyTabHistory as any,
       workingSetActivity: emptyActivity as any,
       openTabsSnapshot: {
         tabs: await chrome.tabs.query({}),
         windows: await chrome.windows.getAll()
       }
-    })
-  })
+    }))
   await service.refreshNow()
   assert.equal(tabsQueryCount, 0, 'an unknown cache read must preserve the cache and retry seeding')
 

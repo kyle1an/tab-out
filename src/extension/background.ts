@@ -26,7 +26,11 @@ import { groupColorChanged } from './groups.js'
 import * as TabHistory from './background/tab-history-service.js'
 import * as WorkingSet from './background/working-set-service.js'
 import { createBackgroundRuntime } from './background/runtime.js'
-import { STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM, createStartupSnapshotService, startupSnapshotStorageChangesRequireRefresh } from './background/startup-snapshot-service.js'
+import {
+  STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM,
+  StartupSnapshot,
+  startupSnapshotStorageChangesRequireRefresh
+} from './background/startup-snapshot-service.js'
 import {
   isClosedTabRestoreMessage,
   isDashboardServiceStateGetMessage,
@@ -39,6 +43,7 @@ const chromeApi = chrome
 const backgroundRuntime = createBackgroundRuntime(chromeApi)
 const workingSetService = backgroundRuntime.runSync(WorkingSet.WorkingSet)
 const tabHistoryService = backgroundRuntime.runSync(TabHistory.TabHistory)
+const startupSnapshotService = backgroundRuntime.runSync(StartupSnapshot)
 connectNativePlacementBridge(chromeApi)
 
 async function captureDashboardServiceState(): Promise<CapturedDashboardServiceState> {
@@ -51,19 +56,12 @@ async function captureDashboardServiceState(): Promise<CapturedDashboardServiceS
   return { tabHistory, workingSetActivity, openTabsSnapshot }
 }
 
-// Keep the cached dashboard startup snapshot warm so the next Tab Out open (even the first
-// after a browser restart, before any page has run) paints populated instead of empty.
-const startupSnapshotService = createStartupSnapshotService({
-  alarms: chromeApi.alarms,
-  getDashboardServiceState: captureDashboardServiceState
-})
-
 function refreshBadge() {
   void settleBackgroundTask(() => backgroundRuntime.runPromise(refreshBadgeEffect))
 }
 
 function scheduleStartupSnapshotRefresh() {
-  startupSnapshotService.scheduleRefresh()
+  backgroundRuntime.runSync(startupSnapshotService.scheduleRefresh())
 }
 
 async function captureTab(tabId: number): Promise<chrome.tabs.Tab | null> {
@@ -87,7 +85,7 @@ async function captureActiveTab(windowId: number): Promise<chrome.tabs.Tab | nul
 // Update badge when the extension is first installed
 chromeApi.runtime.onInstalled.addListener(() => {
   refreshBadge()
-  void startupSnapshotService.refreshNow()
+  void backgroundRuntime.runPromise(startupSnapshotService.refreshNow())
 })
 
 // Update badge when Chrome starts up
@@ -95,7 +93,7 @@ chromeApi.runtime.onStartup.addListener(() => {
   refreshBadge()
   return settleBackgroundTask(async () => {
     await backgroundRuntime.runPromise(tabHistoryService.resetForBrowserStartup())
-    await startupSnapshotService.refreshNow()
+    await backgroundRuntime.runPromise(startupSnapshotService.refreshNow())
   })
 })
 
@@ -151,7 +149,7 @@ chromeApi.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
       backgroundRuntime.runPromise(tabHistoryService.replaceTabId(addedTabId, removedTabId)),
       backgroundRuntime.runPromise(workingSetService.replaceTabId(addedTabId, removedTabId))
     ])
-    startupSnapshotService.scheduleRefresh()
+    scheduleStartupSnapshotRefresh()
   })
 })
 
@@ -197,17 +195,18 @@ chromeApi.tabGroups.onRemoved.addListener(scheduleStartupSnapshotRefresh)
 chromeApi.tabGroups.onMoved.addListener(scheduleStartupSnapshotRefresh)
 
 chromeApi.sessions.onChanged.addListener(() => {
-  startupSnapshotService.sessionsChanged()
+  backgroundRuntime.runSync(startupSnapshotService.sessionsChanged())
 })
 
 chromeApi.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== STARTUP_SNAPSHOT_DURABLE_CHECKPOINT_ALARM) return
-  void settleBackgroundTask(() => startupSnapshotService.promoteDurableCheckpoint())
+  void settleBackgroundTask(() =>
+    backgroundRuntime.runPromise(startupSnapshotService.promoteDurableCheckpoint()))
 })
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (startupSnapshotStorageChangesRequireRefresh(changes, areaName)) {
-    void startupSnapshotService.refreshNow()
+    void backgroundRuntime.runPromise(startupSnapshotService.refreshNow())
   }
 })
 
@@ -255,9 +254,13 @@ chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true
     }
     if (restoreState.phase === 'started') {
-      startupSnapshotService.sessionRestoreStarted(restoreState.restoreId)
+      backgroundRuntime.runSync(
+        startupSnapshotService.sessionRestoreStarted(restoreState.restoreId)
+      )
     } else {
-      startupSnapshotService.sessionRestoreSettled(restoreState.restoreId)
+      backgroundRuntime.runSync(
+        startupSnapshotService.sessionRestoreSettled(restoreState.restoreId)
+      )
     }
     sendResponse({ ok: true })
     return true
