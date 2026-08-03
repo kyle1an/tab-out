@@ -393,10 +393,14 @@ test('closed-history dismissals serialize their complete storage transaction wit
 test('background Tab History serializes complete browser and persistence tasks with Effect', () => {
   const source = readFileSync(new URL('../src/extension/background/tab-history-service.ts', import.meta.url), 'utf8')
 
-  assert.match(source, /const runTabHistoryTask = Effect\.fn/)
-  assert.match(source, /Semaphore\.makeUnsafe\(1\)/)
-  assert.match(source, /taskSemaphore\.withPermit/)
+  assert.match(source, /Layer\.effect\(TabHistory/)
+  assert.match(source, /const runTask = Effect\.fn/)
+  assert.match(source, /Deferred\.makeUnsafe<void>\(\)/)
+  assert.match(source, /Deferred\.await\(previous\)/)
+  assert.match(source, /Effect\.ensuring\(Deferred\.succeed/)
   assert.match(source, /Effect\.tryPromise/)
+  assert.match(source, /Schema\.TaggedErrorClass/)
+  assert.doesNotMatch(source, /Effect\.runPromise/)
   assert.doesNotMatch(source, /let tabHistoryQueue: Promise<void> = Promise\.resolve\(\)/)
 })
 
@@ -454,6 +458,7 @@ test('background entrypoints share one ManagedRuntime for Effect services', () =
 
   assert.match(runtimeSource, /ManagedRuntime\.make/)
   assert.match(runtimeSource, /Badge\.layer\(chromeApi\)/)
+  assert.match(runtimeSource, /TabHistory\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /WorkingSet\.layer\(chromeApi\)/)
   assert.match(runtimeSource, /runtime\.runSync\(Effect\.void\)/)
   assert.match(backgroundSource, /const backgroundRuntime = createBackgroundRuntime\(chromeApi\)/)

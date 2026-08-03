@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
-import { createTabHistoryService } from '../src/extension/background/tab-history-service.js'
+import { Effect, ManagedRuntime } from 'effect'
+import * as TabHistoryService from '../src/extension/background/tab-history-service.js'
 import {
   effectiveUrlForHistoryIdentity,
   historyChanged,
@@ -11,6 +12,52 @@ import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extension/working-set.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
+
+const disposeTabHistoryRuntimes: Array<() => Promise<void>> = []
+
+test.after(async () => {
+  for (const dispose of disposeTabHistoryRuntimes) await dispose()
+})
+
+function createTabHistoryService(chromeApi: ChromeApi) {
+  const runtime = ManagedRuntime.make(TabHistoryService.TabHistory.layer(chromeApi))
+  runtime.runSync(Effect.void)
+  const service = runtime.runSync(TabHistoryService.TabHistory)
+  disposeTabHistoryRuntimes.push(() => runtime.dispose())
+  const run = <Value>(
+    effect: Effect.Effect<Value, TabHistoryService.TabHistoryTaskError>
+  ) => runtime.runPromise(effect.pipe(
+    Effect.catchTag('TabHistoryTaskError', (error) => Effect.fail(error.cause))
+  ))
+  return {
+    getTabHistorySnapshot: (activity?: WorkingSetActivityStore | null) =>
+      run(service.getTabHistorySnapshot(activity)),
+    getTabHistorySnapshotCapture: (activity?: WorkingSetActivityStore | null) =>
+      run(service.getTabHistorySnapshotCapture(activity)),
+    recordFocusedWindowActiveTab: (
+      windowId: number,
+      capturedActiveTab?: Promise<chrome.tabs.Tab | null>
+    ) => run(service.recordFocusedWindowActiveTab(windowId, capturedActiveTab)),
+    recordTabCreation: (tab: chrome.tabs.Tab) => run(service.recordTabCreation(tab)),
+    recordTabNavigation: (
+      tabId: number,
+      changeInfo: { url?: string },
+      tab: chrome.tabs.Tab
+    ) => run(service.recordTabNavigation(tabId, changeInfo, tab)),
+    recordTabActivation: (
+      windowId: number,
+      tabId: number,
+      capturedTab?: Promise<chrome.tabs.Tab | null>
+    ) => run(service.recordTabActivation(windowId, tabId, capturedTab)),
+    removeTabFromHistory: (tabId: number) => run(service.removeTabFromHistory(tabId)),
+    replaceTabId: (addedTabId: number, removedTabId: number) =>
+      run(service.replaceTabId(addedTabId, removedTabId)),
+    resetForBrowserStartup: () => run(service.resetForBrowserStartup()),
+    restorePreviousTabAfterClose: (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) =>
+      run(service.restorePreviousTabAfterClose(tabId, removeInfo)),
+    switchTabHistory: (direction: number) => run(service.switchTabHistory(direction))
+  }
+}
 
 function valueAt<T>(values: readonly T[], index: number): T {
   const value = values[index]

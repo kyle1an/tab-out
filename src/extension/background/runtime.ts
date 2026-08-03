@@ -2,11 +2,13 @@ import { Effect, Layer, ManagedRuntime } from 'effect'
 
 import { Badge } from './badge.js'
 import type { ChromeApi } from './chrome-api.js'
+import { TabHistory } from './tab-history-service.js'
 import { WorkingSet } from './working-set-service.js'
 
 export function createBackgroundRuntime(chromeApi: ChromeApi) {
   const runtime = ManagedRuntime.make(Layer.mergeAll(
     Badge.layer(chromeApi),
+    TabHistory.layer(chromeApi),
     WorkingSet.layer(chromeApi)
   ))
   // Every worker service layer is synchronously constructed. Build it during
