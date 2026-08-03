@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-08-02
+- Last reviewed: 2026-08-03
 
 ## Context
 
@@ -32,6 +33,9 @@ matter to a frequently opened new-tab page.
   range that can silently advance the beta during an install.
 - Adopt Effect inside existing deep modules, one complete workflow at a time.
   Do not add Effect wrappers around isolated Promise calls.
+- Use exactly one `ManagedRuntime` for the dashboard page and one for the MV3
+  worker. Services compose inside those graphs; production modules do not call
+  global Effect runners or create private runtimes.
 - Begin with Dashboard Intake source switching. One Effect fiber owns each
   source-switch attempt, context-change retry, and final dispatch; a newer
   source choice interrupts the previous fiber.
@@ -50,6 +54,9 @@ matter to a frequently opened new-tab page.
 - Keep browser and Chrome dependencies as Promise-based adapters at the seam.
   MV3 work that must survive service-worker termination continues to use
   persisted state and Chrome alarms rather than in-memory Effect schedules.
+- Put replaceable timers, retry fibers, queues, native subscriptions, and other
+  long-lived resources in scoped services. Disposing an entry runtime must
+  interrupt and finalize everything it owns.
 - Use Effect Schema at valuable persisted-data and cross-context boundaries.
   Decode or validate unknown data once at the owner, preserve deliberate
   backward-compatible normalization, and keep Schema types out of UI code.
@@ -410,84 +417,165 @@ fixture composition and static-file streaming remain native Node operations.
 This server is developer and Playwright tooling only, so neither shipped
 extension entry changes.
 
+### Continued adoption after the first saturation audit
+
+The first audit correctly identified the kinds of boundaries worth adopting,
+but it treated the already-adopted modules as isolated Effect islands. A second
+pass found additional leverage in joining those islands into one runtime per
+extension entry, composing adjacent workflows without Promise round trips, and
+letting scopes own the timers and subscriptions that belong to those services.
+The continuation retained the same rule: a slice was kept only when it improved
+workflow, resource, concurrency, validation, or recovery ownership.
+
+| Slice | Commit | Retained boundary |
+| --- | --- | --- |
+| 38 | `ca8afec5` | Removed unchecked runtime assertions from existing Effect services and their page/worker consumers. |
+| 39 | `2bb4958e` | Ran the Tailwind diagnostics subprocess through one typed, scoped Effect workflow. |
+| 40 | `f5a13776` | Moved Chrome-support command dispatch and exit handling into a named Effect CLI workflow. |
+| 41 | `209e12a6` | Made extension generation and the two Vite builds one ordered Effect build workflow. |
+| 42 | `a351f609` | Moved the native-host round-trip harness to typed Effect process and protocol handling. |
+| 43 | `f7f88b83` | Converged the watcher and debug server on the same tooling runtime boundary instead of ad hoc runners. |
+| 44 | `a46c04a0` | Established the worker `ManagedRuntime` and moved Badge ownership into its service graph. |
+| 45 | `1a8882a1` | Moved Working Set queue state and finalization into the shared worker runtime. |
+| 46 | `a7ac2e83` | Moved Tab History serialization and service state into the shared worker runtime. |
+| 47 | `d7d261ea` | Moved startup-snapshot cache and rebuild ownership into the shared worker runtime. |
+| 48 | `cd93f308` | Scoped native-placement port messages and reconnect backoff to the worker runtime. |
+| 49 | `761d9a05` | Established the page `ManagedRuntime` and its live `BrowserTabs` service. |
+| 50 | `af1550e7` | Composed closed-tab restore and Undo browser operations inside the page runtime. |
+| 51 | `b0456575` | Reused the page runtime for Saved Pages, pin, and dismissal storage transactions. |
+| 52 | `0620246f` | Reused the page runtime for Dashboard Intake and native-tab highlight flights. |
+| 53 | `7db3669e` | Composed Saved Page action, refresh, toast Undo, and metadata-healing workflows in that runtime. |
+| 54 | `33aa527f` | Composed tab focus, move, open, and activation fallbacks as browser-service Effects. |
+| 55 | `b444c60e` | Moved close, dedupe, suspend, reload, duplicate, mute, and history mutation actions into complete Effects. |
+| 56 | `a935b97a` | Added an interruption-aware bridge from Effect transactions to browser Web Locks. |
+| 57 | `5b561add` | Composed open-tab, group-color, and suspend-target snapshot reads without Promise re-entry. |
+| 58 | `68413ae6` | Ran history-range read and locked write workflows in the page runtime. |
+| 59 | `b6111ce6` | Ran startup-cache transactions through a shared Effect serializer in both extension contexts. |
+| 60 | `b517a431` | Kept native-placement bridge message validation and handling inside the worker Effect graph. |
+| 61 | `624ebd3b` | Exposed closed tabs, local state, Saved Pages, and service-state reads as composable Effects. |
+| 62 | `d68b5b53` | Built page and worker startup snapshots as named concurrent Effect workflows. |
+| 63 | `9dbdf4d3` | Collected complete Dashboard refresh and source-switch state inside Dashboard Intake Effects. |
+| 64 | `f045d491` | Composed Saved Pages mutations, action recovery, and metadata transactions without nested runs. |
+| 65 | `c33c7341` | Ran latest-wins refresh flights inside the page runtime while preserving the shared Promise adapter. |
+| 66 | `82925d4a` | Kept Tab History browser and persistence sub-workflows inside its worker service. |
+| 67 | `ee0c5a47` | Composed worker listener tasks, captured event state, and response settlement as named Effects. |
+| 68 | `457c5b27` | Replaced startup debounce, retry, settle, and restore watchdog timers with scoped Effect fibers. |
+| 69 | `9f59e911` | Composed filter and new-tab browser fallback commands directly in the worker runtime. |
+| 70 | `5681b822` | Replaced page-side closed-restore watchdog timers with a scoped keyed-fiber service. |
+| 71 | `df45f1eb` | Enforced that production code creates only the page and worker `ManagedRuntime`s and never uses a global Effect runner. |
+
+After slice 70, the generated app entry is 904,252 raw bytes and the worker
+entry is 359,878 raw bytes. The build reports 288.51 kB and 119.58 kB gzip
+respectively. Slice 71 is test-only. These figures are observations, not caps;
+the retained build assertion protects the established eight-JavaScript-asset
+startup graph rather than imposing a byte threshold.
+
+A trial conversion of the lazy Bookmarks and History source adapters was
+reverted. Although each adapter could return an Effect, doing so created three
+additional eager shared chunks and failed the eight-asset startup-graph check.
+The conversion did not acquire concurrency, interruption, cleanup, or recovery
+ownership, so weakening the graph check would have paid a startup cost for an
+isolated wrapper. The Promise leaves and the graph assertion were both kept.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
-modules. The background worker paid for its separate Effect runtime only when
-the Tab History critical section provided enough concurrency leverage.
+modules. The background worker first justified its separate Effect runtime
+through Tab History serialization; that runtime now hosts every retained
+worker service rather than a collection of isolated Effect islands.
 
 ## Audited Adoption Boundary
 
-A repository-wide audit of Promise construction, async entry points, shared
-in-flight state, queued work, timers, subscriptions, Web Locks, MV3 event
-handlers, persisted values, runtime messages, native-host messages, JSON
-parsing, and other unknown-data entry points found no further currently
-worthwhile production Effect adoption seams. A follow-up tooling audit added
-schemas where external release metadata and language-server messages justified
-the boundary without entering shipped code, then identified the development
-build watcher and local debug server as the two long-lived tooling workflows
-with meaningful resource and interruption ownership.
+A second repository-wide audit covered Promise construction, async entry
+points, shared in-flight state, queues, semaphores, timers, subscriptions,
+Web Locks, MV3 listeners, persisted values, runtime and native-host messages,
+JSON and subprocess protocols, and every production use of an Effect runner.
+The retained architecture is now saturated under the ownership rule in this
+ADR:
 
-Effect Schema now validates every extension-owned persisted-data envelope:
-startup snapshots, Saved Pages, closed-history dismissals, Tab History,
-Working Set activity, suspend targets, Dashboard pin snapshots and mutations,
-and the history-range preference. It also validates every internal
-cross-context protocol: runtime requests and responses, nested Activation
-History and Working Set snapshots, and native placement host messages.
-Validation remains intentionally layered: schemas establish the serialized
-shape, while existing normalizers apply backward-compatible repair and product
-semantics.
+- The dashboard page has one lazily constructed `ManagedRuntime`. It owns the
+  live Browser Tabs service and page-scoped restore watchdogs and is disposed
+  on a non-BFCache `pagehide`.
+- The MV3 service worker has one eagerly constructed `ManagedRuntime`. Badge,
+  Working Set, Tab History, startup snapshots, and native placement are layers
+  in that graph. Chrome listeners capture event-time state immediately, then
+  submit named workflows to this runtime.
+- Node commands run a complete Effect once at the CLI edge. They may own
+  subprocesses, signals, sockets, or filesystem subscriptions, but they do not
+  manufacture nested runtimes inside their workflows.
+- Promise-returning exports remain compatibility adapters for React handlers,
+  Chrome callbacks, tests, and lazy browser-source modules. They enter the
+  appropriate shared runtime only at that outer edge.
+- [`tests/effect-runtime-boundary.test.ts`](../../tests/effect-runtime-boundary.test.ts)
+  prevents new production global runners or additional `ManagedRuntime`
+  owners.
+
+Effect Schema validates every extension-owned persisted-data envelope: startup
+snapshots, Saved Pages, closed-history dismissals, Tab History, Working Set
+activity, suspend targets, Dashboard pin snapshots and mutations, and the
+history-range preference. It also validates every internal cross-context
+protocol: runtime requests and responses, nested Activation History and
+Working Set snapshots, closed-restore messages, and native placement host
+messages. Validation remains layered: schemas establish serialized shape,
+while normalizers retain backward-compatible repair and product semantics.
+
+### Intentionally native seams
 
 The remaining asynchronous code stays browser-native or Promise-based for
-these reasons:
+specific ownership reasons:
 
-- Chrome, storage, dynamic-import, and snapshot-fetch modules are leaf adapters
-  consumed by complete Effect workflows. Wrapping them separately would add
-  nested runtimes without gaining ownership of concurrency or cleanup.
-- Tab focus, move, activation, close, and dedupe commands intentionally return
-  explicit complete, partial, failed, or unknown results and revalidate browser
-  identity immediately before mutation. They have no shared resource lifecycle
-  for Effect to own.
-- History-range and suspension writers must acquire Web Locks at the browser
-  observation boundary so page and worker contexts agree on ordering. An
-  in-memory Effect queue cannot replace that cross-context authority.
-- React optimistic revisions, storage subscriptions, DOM measurement,
-  animation frames, visual-duration waits, and interaction debounce timers are
-  UI lifecycle state. Effect types remain outside hooks, components, and layout
-  controllers.
-- Service-worker retry, restore-settle, native-port reconnect, and protocol
-  watchdog timers are registration or recovery state tied to Chrome's MV3
-  lifecycle. Durable recovery continues to use storage and Chrome alarms.
-- Build generators and the Node test harness are finite tooling boundaries;
-  adopting an Effect workflow or an Effect-specific test runner there would not
-  exercise a runtime ownership seam. The development build watcher and local
-  debug server are explicit exceptions: they remain active across work, own
-  native subscriptions or a listening socket, and need interruption-safe signal
-  cleanup. Schema remains appropriate for external metadata when it replaces
-  unchecked parsing without entering shipped code.
+- `chrome.*`, storage, Web Locks, native messaging, and dynamic imports are
+  platform leaf adapters. Complete parent workflows consume them through
+  `Effect.tryPromise`, the Browser Tabs service, or the interruption-aware Web
+  Lock bridge. Rewriting a leaf's return type alone does not add ownership.
+- Bookmarks and History stay Promise-based lazy sources. The attempted Effect
+  conversion changed the startup chunk graph without acquiring a lifecycle;
+  the measured rejection is recorded above.
+- The native-tab highlight controller's shared Promise is its UI-facing
+  coalescing result. The serialized reconciliation loop, browser failures, and
+  mutations already live inside one named Effect, so replacing that Promise
+  with another fiber handle would change cancellation semantics rather than
+  complete a missing migration.
+- Dashboard page refresh debounce and optimistic pin-write revisions are page
+  and React state. Their lifetime already follows the realm or component, and
+  their counters express visible latest-intent semantics. A timer service or
+  Effect `Ref` would add indirection without stronger cleanup or interruption.
+- DOM measurement, animation frames, visual-duration waits, pointer and wheel
+  listeners, tooltip timers, filter URL debounce, and dynamic UI-module
+  readiness belong to React or browser rendering lifecycles. Effect types stay
+  outside components, hooks, reducers, view models, and layout controllers.
+- Chrome alarms and persisted storage remain the durable MV3 recovery
+  authorities. Effect fibers own in-worker debounce, retry, settle, reconnect,
+  and watchdog lifetimes, but cannot promise work after Chrome terminates the
+  worker.
+- Event-time tab/window captures and browser gateway methods stay Promise
+  leaves because Chrome event ordering is observable. Their parent service
+  Effects own serialization, error recovery, and persistence after capture.
+- The prerender generator, request-level static-file streaming, focused
+  parsers, fixtures, and the Node test runner are finite tooling boundaries.
+  The surrounding build/server/test commands use Effect where they own a
+  process or resource; replacing these leaves or the test runner adds no such
+  ownership.
 
 The remaining manual value checks also stay outside Effect Schema:
 
 - Domain, section, and Page Chip identifier parsing performs product-specific
   decoding, deduplication, and compatibility repair after the storage
-  container has already crossed a schema boundary.
+  container has crossed a schema boundary.
 - Chrome tab, window, bookmark, session, resize-observer, and DOM values arrive
-  through typed browser interfaces and are checked only where optional browser
-  capabilities or overload shapes require a runtime branch.
+  through typed browser interfaces and are checked where optional capabilities
+  or overload shapes require a runtime branch.
 - Source-select values, animation targets, layout hooks, and debug samples are
-  local UI inputs. Moving their predicates to Schema would spread Effect into
-  components or lazy UI chunks without strengthening a serialized boundary.
-- The external suspender acknowledgment has only one contractual failure form,
-  an `Error:` string; accepting every other response preserves compatibility
-  with independently versioned extensions.
-- Build generators and test fixtures are finite Node tooling with focused
-  parsers and tailored diagnostics. They do not justify widening production
-  adoption or replacing the Node test runner.
+  local UI inputs. Schema would spread Effect into lazy or rendering chunks
+  without strengthening a serialized boundary.
+- The external suspender acknowledgment has one contractual failure form, an
+  `Error:` string; accepting every other response preserves compatibility with
+  independently versioned extensions.
 
-Future adoption therefore requires either a newly identified workflow that
-owns meaningful concurrency, interruption, resource cleanup, or typed recovery,
-or a new persisted or cross-context protocol. The presence of an `async`
-function, `unknown` error cause, or local type guard alone is not a migration
+Future adoption requires a new workflow with meaningful concurrency,
+interruption, resource cleanup, or typed recovery, or a new persisted or
+cross-context protocol. An `async` function, Promise return type, timer, unknown
+error cause, or local guard is inventory evidence, not by itself a migration
 reason.
 
 ## References
