@@ -101,6 +101,7 @@ test('normalizeClosedGhostDismissals drops invalid and expired records', () => {
   assert.equal(normalized.get('keep'), now - 1000)
   assert.equal(normalized.has('expired'), false)
   assert.equal(normalized.has('bad'), false)
+  assert.deepEqual(normalizeClosedGhostDismissals([now], now), new Map())
 })
 
 test('loadClosedGhostDismissalsResult distinguishes a rejected read from confirmed dismissals', async () => {

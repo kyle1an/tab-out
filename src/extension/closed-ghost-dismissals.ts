@@ -11,7 +11,7 @@
    reappears, so forgetting is per-closure rather than permanent.
    ================================================================ */
 
-import { Data, Effect, Semaphore } from 'effect'
+import { Data, Effect, Schema, Semaphore } from 'effect'
 
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
@@ -23,6 +23,13 @@ const CLOSED_GHOST_DISMISSAL_MUTATION_LOCK = 'tab-out:closed-ghost-dismissal-mut
 // Chrome's recently-closed list itself ages out, so long-lived dismissal
 // records serve no purpose; prune anything older than this on load/save.
 const CLOSED_GHOST_DISMISSAL_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+const closedGhostDismissalRecordSchema = Schema.Record(Schema.String, Schema.Unknown)
+const closedGhostDismissalKeySchema = Schema.String.check(Schema.isMinLength(1))
+
+const isClosedGhostDismissalRecord = Schema.is(closedGhostDismissalRecordSchema)
+const isClosedGhostDismissalKey = Schema.is(closedGhostDismissalKeySchema)
+const isClosedGhostDismissalTime = Schema.is(Schema.Finite)
 
 export type ClosedGhostDismissals = ReadonlyMap<string, number>
 
@@ -70,9 +77,9 @@ function pruneExpired(map: Map<string, number>, now: number): Map<string, number
 
 export function normalizeClosedGhostDismissals(value: unknown, now: number = Date.now()): Map<string, number> {
   const map = new Map<string, number>()
-  if (value && typeof value === 'object') {
-    for (const [key, at] of Object.entries(value as Record<string, unknown>)) {
-      if (key && typeof at === 'number' && Number.isFinite(at)) map.set(key, at)
+  if (isClosedGhostDismissalRecord(value)) {
+    for (const [key, at] of Object.entries(value)) {
+      if (isClosedGhostDismissalKey(key) && isClosedGhostDismissalTime(at)) map.set(key, at)
     }
   }
   return pruneExpired(map, now)

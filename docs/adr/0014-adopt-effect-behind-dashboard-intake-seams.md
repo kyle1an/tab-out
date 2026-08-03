@@ -272,6 +272,14 @@ the worker also reads Saved Pages for startup snapshot composition, it adds 573
 raw bytes and 156 deterministic gzip bytes to the worker entry, bringing it to
 323,241 raw bytes and 107,116 deterministic gzip bytes.
 
+The twenty-fourth slice validates the page-owned closed-history dismissal map
+with Effect Schema. The boundary now rejects non-record containers without a
+cast, accepts only non-empty keys and finite timestamps, and still prunes
+invalid or expired entries independently so one bad value cannot hide valid
+dismissals. It adds 17 raw bytes and 48 deterministic gzip bytes to the app
+entry, bringing it to 880,726 raw bytes and 277,470 deterministic gzip bytes;
+the worker entry remains unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
