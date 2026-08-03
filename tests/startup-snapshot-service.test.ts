@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setTimeout as delay } from 'node:timers/promises'
 import FakeTimers from '@sinonjs/fake-timers'
-import { Effect, ManagedRuntime } from 'effect'
+import { Effect, Layer, ManagedRuntime } from 'effect'
 
 import {
   STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS,
@@ -12,6 +12,7 @@ import {
   startupSnapshotStorageChangesRequireRefresh
 } from '../src/extension/background/startup-snapshot-service.js'
 import { CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS } from '../src/extension/closed-tabs.js'
+import { BrowserTabs } from '../src/extension/browser-tabs-service.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, pageChipPinId, pageChipPinKeyForUrl, pageChipPinScopeId } from '../src/extension/page-chip-pins.js'
 import { addSavedPageToStore, emptySavedPagesStore, SAVED_PAGES_STORAGE_KEY } from '../src/extension/saved-pages.js'
@@ -41,7 +42,7 @@ function createStartupSnapshotService(deps: TestStartupSnapshotDeps) {
       try: deps.getDashboardServiceState,
       catch: (cause) => cause
     })
-  }))
+  }).pipe(Layer.provideMerge(BrowserTabs.layer())))
   runtime.runSync(Effect.void)
   const service = runtime.runSync(StartupSnapshot)
   disposeStartupSnapshotRuntimes.push(() => runtime.dispose())

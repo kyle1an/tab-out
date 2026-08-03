@@ -31,10 +31,11 @@ import {
 } from '../startup-snapshot.js'
 import { buildDashboardStartupViewModel } from '../startup-view-model.js'
 import {
-  fetchOpenTabsSnapshotResult,
+  fetchOpenTabsSnapshotEffect,
   getDashboardTabsFromOpenTabs,
   seedOpenTabsTitleHistory
 } from '../tabs.js'
+import { BrowserTabs } from '../browser-tabs-service.js'
 
 // Coalesce bursts of tab events into a single recompute. The maintained snapshot only needs to
 // be reasonably fresh whenever a Tab Out page next opens; live hydration corrects any drift.
@@ -82,7 +83,7 @@ export class StartupSnapshot extends Context.Service<StartupSnapshot, {
 }>()('@tab-out/background/StartupSnapshot') {
   static layer<Failure, Requirements>(
     deps: StartupSnapshotLayerDeps<Failure, Requirements>
-  ): Layer.Layer<StartupSnapshot, never, Requirements> {
+  ): Layer.Layer<StartupSnapshot, never, Requirements | BrowserTabs> {
     return makeStartupSnapshotLayer(deps)
   }
 }
@@ -99,9 +100,10 @@ type RefreshFlight = {
 
 function makeStartupSnapshotLayer<Failure, Requirements>(
   deps: StartupSnapshotLayerDeps<Failure, Requirements>
-): Layer.Layer<StartupSnapshot, never, Requirements> {
+): Layer.Layer<StartupSnapshot, never, Requirements | BrowserTabs> {
   return Layer.effect(StartupSnapshot, Effect.gen(function*() {
     const scope = yield* Effect.scope
+    const browserTabs = yield* BrowserTabs
     const services = yield* Effect.context<Requirements>()
     const getDashboardServiceState = deps.getDashboardServiceState.pipe(
       Effect.provide(services)
@@ -236,10 +238,9 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
         yield* Effect.all([dashboardServiceStateEffect, supplementalStateEffect], {
           concurrency: 'unbounded'
         })
-      const openTabsResult = yield* Effect.tryPromise({
-        try: () => fetchOpenTabsSnapshotResult(dashboardServiceState.openTabsSnapshot),
-        catch: (cause) => StartupSnapshotRefreshError.make({ cause })
-      })
+      const openTabsResult = yield* fetchOpenTabsSnapshotEffect(
+        dashboardServiceState.openTabsSnapshot
+      ).pipe(Effect.provideService(BrowserTabs, browserTabs))
       if (
         !openTabsResult.ok ||
         !savedPagesResult.ok ||

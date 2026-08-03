@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test, { type TestContext } from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
-import { Effect, ManagedRuntime } from 'effect'
+import { Effect, Layer, ManagedRuntime } from 'effect'
 
 import { STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS, StartupSnapshot } from '../src/extension/background/startup-snapshot-service.js'
+import { BrowserTabs } from '../src/extension/browser-tabs-service.js'
 import { DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY } from '../src/extension/startup-snapshot.js'
 import { makeCachedSuspendedTab } from './helpers/suspended-tab.js'
 
@@ -31,7 +32,7 @@ function createStartupSnapshotService(
       try: getDashboardServiceState,
       catch: (cause) => cause
     })
-  }))
+  }).pipe(Layer.provideMerge(BrowserTabs.layer())))
   runtime.runSync(Effect.void)
   const service = runtime.runSync(StartupSnapshot)
   t.after(() => runtime.dispose())

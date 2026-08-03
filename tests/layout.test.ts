@@ -552,6 +552,26 @@ test('tab mutation actions preserve revalidation and partial results inside Effe
   assert.doesNotMatch(historySource, /Effect\.runPromise\(/)
 })
 
+test('open-tab snapshots compose browser reads and suspender persistence in Effect', () => {
+  const tabsSource = readFileSync(new URL('../src/extension/tabs.ts', import.meta.url), 'utf8')
+  const groupsSource = readFileSync(new URL('../src/extension/groups.ts', import.meta.url), 'utf8')
+  const suspensionSource = readFileSync(new URL('../src/extension/suspension.ts', import.meta.url), 'utf8')
+  const startupSource = readFileSync(
+    new URL('../src/extension/background/startup-snapshot-service.ts', import.meta.url),
+    'utf8'
+  )
+
+  assert.match(tabsSource, /fetchOpenTabsSnapshotEffect = Effect\.fn/)
+  assert.match(tabsSource, /yield\* rememberSuspendTargetFromTabsEffect/)
+  assert.doesNotMatch(tabsSource, /queryAllTabsResult, getAllWindowsResult/)
+  assert.match(groupsSource, /fetchTabGroupColorsEffect = Effect\.fn/)
+  assert.match(suspensionSource, /SuspendTargetStoreError extends Schema\.TaggedErrorClass/)
+  assert.match(suspensionSource, /runPromiseExclusiveEffect/)
+  assert.match(suspensionSource, /getSuspendTargetEffect = Effect\.fn/)
+  assert.match(startupSource, /yield\* fetchOpenTabsSnapshotEffect/)
+  assert.doesNotMatch(startupSource, /try: \(\) => fetchOpenTabsSnapshotResult/)
+})
+
 test('startup snapshot service owns its complete rebuild flight behind Effect', () => {
   const source = readFileSync(new URL('../src/extension/background/startup-snapshot-service.ts', import.meta.url), 'utf8')
 

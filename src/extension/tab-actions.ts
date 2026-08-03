@@ -6,7 +6,7 @@ import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-int
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isGroupedTab } from './groups.js'
 import { liveTabMatchesIdentity, liveTabsMatchingTarget, liveTabUrlForIdentity } from './live-tab-matching.js'
-import { buildSuspendUrl, getSuspendTarget, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
+import { buildSuspendUrl, getSuspendTargetEffect, isSuspended, unwrapSuspenderUrl, type SuspendTarget } from './suspension.js'
 import {
   closeDuplicateTabsEffect,
   closeResolvedTabsEffect,
@@ -333,10 +333,7 @@ const suspendMutationTargetsEffect = Effect.fn('tabActions.suspendMutationTarget
     return { ok: true, suspendedCount: 0 }
   }
 
-  const target = yield* Effect.tryPromise({
-    try: getSuspendTarget,
-    catch: (cause) => TabActionWorkflowError.make({ cause })
-  })
+  const target = yield* getSuspendTargetEffect()
   if (!target) {
     showToast('No suspender detected')
     return { ok: true, suspendedCount: 0 }
@@ -742,10 +739,7 @@ const runSuspendChipTarget = Effect.fn('tabActions.suspendChipTarget')(function*
   tabUrl,
   envs = null
 }: SuspendChipTargetOptions) {
-  const target = yield* Effect.tryPromise({
-    try: getSuspendTarget,
-    catch: (cause) => TabActionWorkflowError.make({ cause })
-  })
+  const target = yield* getSuspendTargetEffect()
   if (!target) {
     showToast('No suspender detected')
     return false
@@ -771,10 +765,7 @@ export function suspendChipTarget(options: SuspendChipTargetOptions): Promise<bo
 const runSuspendHistoryEntry = Effect.fn('tabActions.suspendHistoryEntry')(function*(
   entryTarget: ChromeMenuTabTarget
 ) {
-  const suspendTarget = yield* Effect.tryPromise({
-    try: getSuspendTarget,
-    catch: (cause) => TabActionWorkflowError.make({ cause })
-  })
+  const suspendTarget = yield* getSuspendTargetEffect()
   if (!suspendTarget) {
     showToast('No suspender detected')
     return false

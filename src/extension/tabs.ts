@@ -11,11 +11,11 @@
 import { Effect } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
-import { getAllWindowsResult, getTab, queryAllTabsResult } from './browser-tabs-gateway.js'
+import { getTab } from './browser-tabs-gateway.js'
 import { BrowserTabs } from './browser-tabs-service.js'
 import { normalizeChromeTabToDashboardItem } from './dashboard-tab-normalization.js'
-import { isSuspended, rememberSuspendTargetFromTabs, unwrapSuspenderUrl } from './suspension.js'
-import { isGroupedTab, fetchTabGroupColors } from './groups.js'
+import { isSuspended, rememberSuspendTargetFromTabsEffect, unwrapSuspenderUrl } from './suspension.js'
+import { isGroupedTab, fetchTabGroupColorsEffect } from './groups.js'
 import { pickDuplicateTabsToClose } from './tab-dedupe-policy.js'
 import { canonicalDedupeKey } from './url-canonical.js'
 import { isTabOutPageUrl } from './tab-out-url.js'
@@ -101,17 +101,18 @@ export function snapshotChromeTabs(chromeTabs: SnapshotTab[], opts: SnapshotOpti
     })
 }
 
-async function fetchChromeOpenTabsSnapshot(): Promise<{ ok: boolean; snapshot: ChromeOpenTabsSnapshot }> {
-  const [tabsResult, windowsResult] = await Promise.all([
-    queryAllTabsResult(),
-    getAllWindowsResult(),
-    fetchTabGroupColors()
-  ])
+const fetchChromeOpenTabsSnapshotEffect = Effect.fn('tabs.fetchChromeSnapshot')(function*() {
+  const browserTabs = yield* BrowserTabs
+  const [tabsResult, windowsResult] = yield* Effect.all([
+    browserTabs.queryAllTabsResult(),
+    browserTabs.getAllWindowsResult(),
+    fetchTabGroupColorsEffect()
+  ], { concurrency: 'unbounded' })
   return {
     ok: tabsResult.ok && windowsResult.ok,
     snapshot: { tabs: tabsResult.value, windows: windowsResult.value }
   }
-}
+})
 
 export function normalizeChromeOpenTabs({ tabs, windows }: ChromeOpenTabsSnapshot, previousTabs: readonly DashboardTab[] = []): DashboardTab[] {
   const windowTypeById = new Map(windows.filter((w) => typeof w.id === 'number').map((w) => [w.id, w.type]))
@@ -141,32 +142,40 @@ export function seedOpenTabsTitleHistory(tabs: readonly DashboardTab[]): void {
   seededOpenTabsTitleHistory = tabs.filter((tab) => typeof tab.id === 'number')
 }
 
-export async function fetchOpenTabsSnapshotResult(
+export const fetchOpenTabsSnapshotEffect = Effect.fn('tabs.fetchOpenSnapshot')(function*(
   capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null
-): Promise<OpenTabsFetchResult> {
+) {
   const fallbackTabs = openTabs.length > 0 ? openTabs : seededOpenTabsTitleHistory
-  try {
+  return yield* Effect.gen(function*() {
     let result: { ok: boolean; snapshot: ChromeOpenTabsSnapshot }
     if (capturedBrowserSnapshot) {
-      await fetchTabGroupColors()
+      yield* fetchTabGroupColorsEffect()
       result = { ok: true, snapshot: capturedBrowserSnapshot }
     } else {
-      result = await fetchChromeOpenTabsSnapshot()
+      result = yield* fetchChromeOpenTabsSnapshotEffect()
     }
     if (!result.ok) return { ok: false, tabs: fallbackTabs }
     const previousTabs = openTabs.length > 0 ? openTabs : seededOpenTabsTitleHistory
     const nextOpenTabs = normalizeChromeOpenTabs(result.snapshot, previousTabs)
     seededOpenTabsTitleHistory = []
     replaceOpenTabs(nextOpenTabs)
-    rememberSuspendTargetFromTabs(nextOpenTabs)
+    yield* rememberSuspendTargetFromTabsEffect(nextOpenTabs)
     return { ok: true, tabs: nextOpenTabs }
-  } catch {
-    return { ok: false, tabs: fallbackTabs }
-  }
+  }).pipe(
+    Effect.catchDefect(() => Effect.succeed({ ok: false, tabs: fallbackTabs }))
+  )
+})
+
+export function fetchOpenTabsSnapshotResult(
+  capturedBrowserSnapshot: ChromeOpenTabsSnapshot | null = null
+): Promise<OpenTabsFetchResult> {
+  return getAppRuntime().runPromise(fetchOpenTabsSnapshotEffect(capturedBrowserSnapshot))
 }
 
-export async function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
-  return (await fetchOpenTabsSnapshotResult()).tabs
+export function fetchOpenTabsSnapshot(): Promise<DashboardTab[]> {
+  return getAppRuntime().runPromise(fetchOpenTabsSnapshotEffect().pipe(
+    Effect.map((result) => result.tabs)
+  ))
 }
 
 export function getDashboardTabsFromOpenTabs(tabs: readonly DashboardTab[]): DashboardTab[] {

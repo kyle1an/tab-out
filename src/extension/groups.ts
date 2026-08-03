@@ -10,7 +10,10 @@
                        canonical copy of a duplicated URL
    ================================================================ */
 
-import { queryTabGroupsResult } from './browser-tabs-gateway.js'
+import { Effect } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 
 type GroupedTabLike = {
@@ -65,8 +68,9 @@ let groupColorCache: Record<number, string> = {} // { groupId: '#hex' } from chr
  * cache so dots use the deterministic palette. A transient rejection keeps
  * the last known colors instead of turning every group into a fallback color.
  */
-export async function fetchTabGroupColors(): Promise<boolean> {
-  const result = await queryTabGroupsResult()
+export const fetchTabGroupColorsEffect = Effect.fn('groups.fetchColors')(function*() {
+  const browserTabs = yield* BrowserTabs
+  const result = yield* browserTabs.queryTabGroupsResult()
   if (!result.ok) return false
   const next: Record<number, string> = {}
   for (const g of result.value) {
@@ -74,6 +78,10 @@ export async function fetchTabGroupColors(): Promise<boolean> {
   }
   groupColorCache = next
   return true
+})
+
+export function fetchTabGroupColors(): Promise<boolean> {
+  return getAppRuntime().runPromise(fetchTabGroupColorsEffect())
 }
 
 /**
