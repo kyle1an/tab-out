@@ -2,6 +2,9 @@ import {
   Context,
   Deferred,
   Effect,
+  FiberHandle,
+  FiberMap,
+  FiberSet,
   Layer,
   Ref,
   Schema
@@ -109,15 +112,16 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       Effect.provide(services)
     )
     const inFlight = yield* Ref.make<Deferred.Deferred<void> | null>(null)
-    let quietTimer: ReturnType<typeof setTimeout> | null = null
-    let maxWaitTimer: ReturnType<typeof setTimeout> | null = null
-    let cacheSeedRetryTimer: ReturnType<typeof setTimeout> | null = null
+    const quietRefresh = yield* FiberHandle.make<void, never>()
+    const maxWaitRefresh = yield* FiberHandle.make<void, never>()
+    const cacheSeedRetry = yield* FiberHandle.make<void, never>()
+    const closedTabsRetry = yield* FiberHandle.make<void, never>()
+    const sessionsSettle = yield* FiberHandle.make<void, never>()
+    const sessionRestoreWatchdogs = yield* FiberMap.make<string, void, never>()
+    const runInLayer = yield* FiberSet.makeRuntime<never, void, never>()
     let cacheSeedRetryAttempted = false
-    let closedTabsRetryTimer: ReturnType<typeof setTimeout> | null = null
-    let sessionsSettleTimer: ReturnType<typeof setTimeout> | null = null
     let sessionsRevision = 0
     const pendingSessionRestoreIds = new Set<string>()
-    const sessionRestoreWatchdogs = new Map<string, ReturnType<typeof setTimeout>>()
     // Same-worker concurrency guard only; the Chrome alarm remains the persisted schedule.
     let durablePromotionInFlight = false
     let cachedOpenTabsSeeded = false
@@ -138,83 +142,66 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       )
     }
 
-    function clearScheduledRefresh(): void {
-      if (quietTimer !== null) clearTimeout(quietTimer)
-      if (maxWaitTimer !== null) clearTimeout(maxWaitTimer)
-      quietTimer = null
-      maxWaitTimer = null
-    }
+    const clearScheduledRefresh = Effect.fn('StartupSnapshot.clearScheduledRefresh')(function*() {
+      yield* FiberHandle.clear(quietRefresh)
+      yield* FiberHandle.clear(maxWaitRefresh)
+    })
 
-    function clearCacheSeedRetry(): void {
-      if (cacheSeedRetryTimer !== null) clearTimeout(cacheSeedRetryTimer)
-      cacheSeedRetryTimer = null
-    }
-
-    function disposeTimers(): void {
-      clearScheduledRefresh()
-      clearCacheSeedRetry()
-      if (closedTabsRetryTimer !== null) clearTimeout(closedTabsRetryTimer)
-      if (sessionsSettleTimer !== null) clearTimeout(sessionsSettleTimer)
-      closedTabsRetryTimer = null
-      sessionsSettleTimer = null
-      for (const watchdog of sessionRestoreWatchdogs.values()) clearTimeout(watchdog)
-      sessionRestoreWatchdogs.clear()
-    }
-
-    yield* Effect.addFinalizer(() => Effect.sync(disposeTimers))
-
-    function runInLayer(effect: Effect.Effect<void>): void {
-      Effect.runSync(effect.pipe(
-        Effect.forkIn(scope, { startImmediately: true }),
-        Effect.asVoid
-      ))
-    }
+    const clearCacheSeedRetry = () => FiberHandle.clear(cacheSeedRetry)
 
     function refreshNow(): Effect.Effect<void> {
       return runRefreshNow()
     }
 
-    function scheduleCacheSeedRetry(): void {
-      if (cachedOpenTabsSeeded || cacheSeedRetryAttempted || cacheSeedRetryTimer !== null) return
-      cacheSeedRetryTimer = setTimeout(() => {
-        cacheSeedRetryTimer = null
-        cacheSeedRetryAttempted = true
-        runInLayer(refreshNow())
-      }, STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS)
-    }
+    const scheduleCacheSeedRetry = Effect.fn('StartupSnapshot.scheduleCacheSeedRetry')(function*() {
+      if (cachedOpenTabsSeeded || cacheSeedRetryAttempted) return
+      yield* FiberHandle.run(
+        cacheSeedRetry,
+        Effect.sleep(STARTUP_SNAPSHOT_CACHE_SEED_RETRY_MS).pipe(
+          Effect.andThen(Effect.sync(() => {
+            cacheSeedRetryAttempted = true
+            runInLayer(refreshNow())
+          }))
+        ),
+        { onlyIfMissing: true }
+      )
+    })
 
-    function deferWhileClosedTabsSettle(): boolean {
+    const deferWhileClosedTabsSettle = Effect.fn('StartupSnapshot.deferClosedTabs')(function*() {
       const remainingMs = closedTabFetchSuppressionRemainingMs()
       if (remainingMs <= 0) {
-        if (closedTabsRetryTimer) clearTimeout(closedTabsRetryTimer)
-        closedTabsRetryTimer = null
+        yield* FiberHandle.clear(closedTabsRetry)
         return false
       }
       if (!Number.isFinite(remainingMs)) {
-        if (closedTabsRetryTimer) clearTimeout(closedTabsRetryTimer)
-        closedTabsRetryTimer = null
+        yield* FiberHandle.clear(closedTabsRetry)
         return true
       }
-      closedTabsRetryTimer ||= setTimeout(() => {
-        closedTabsRetryTimer = null
-        runInLayer(refreshNow())
-      }, Math.max(1, Math.ceil(remainingMs)))
+      yield* FiberHandle.run(
+        closedTabsRetry,
+        Effect.sleep(Math.max(1, Math.ceil(remainingMs))).pipe(
+          Effect.andThen(Effect.sync(() => {
+            runInLayer(refreshNow())
+          }))
+        ),
+        { onlyIfMissing: true }
+      )
       return true
-    }
+    })
 
     const computeStartupSnapshot = Effect.fn('StartupSnapshot.compute')(function*() {
       // Chrome briefly reports an empty sessions list while a restore settles.
       // Preserve the warm cache and guarantee one trailing read after the window.
-      if (pendingSessionRestoreIds.size > 0 || deferWhileClosedTabsSettle()) return
+      if (pendingSessionRestoreIds.size > 0 || (yield* deferWhileClosedTabsSettle())) return
       const capturedSessionsRevision = sessionsRevision
       const captureStartedAt = captureDashboardStartupSnapshotStartedAt()
       if (!cachedOpenTabsSeeded) {
         const cachedResult = yield* loadCachedDashboardStartupResultEffect()
         if (!cachedResult.ok) {
-          scheduleCacheSeedRetry()
+          yield* scheduleCacheSeedRetry()
           return
         }
-        clearCacheSeedRetry()
+        yield* clearCacheSeedRetry()
         seedOpenTabsTitleHistory(cachedResult.value?.snapshot.dashboard.realTabs ?? [])
         if (cachedResult.value) rememberTabOrder(cachedResult.value.snapshot)
         cachedOpenTabsSeeded = true
@@ -284,18 +271,27 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       )
     })
 
-    function scheduleRefreshState(): void {
-      if (quietTimer !== null) clearTimeout(quietTimer)
-      const runScheduledRefresh = () => {
-        clearScheduledRefresh()
+    const scheduleRefreshState = Effect.fn('StartupSnapshot.scheduleRefresh')(function*() {
+      const runScheduledRefresh = Effect.sync(() => {
         runInLayer(refreshNow())
-      }
-      quietTimer = setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_DEBOUNCE_MS)
-      maxWaitTimer ??= setTimeout(runScheduledRefresh, STARTUP_SNAPSHOT_MAX_WAIT_MS)
-    }
+      })
+      yield* FiberHandle.run(
+        quietRefresh,
+        Effect.sleep(STARTUP_SNAPSHOT_DEBOUNCE_MS).pipe(
+          Effect.andThen(runScheduledRefresh)
+        )
+      )
+      yield* FiberHandle.run(
+        maxWaitRefresh,
+        Effect.sleep(STARTUP_SNAPSHOT_MAX_WAIT_MS).pipe(
+          Effect.andThen(runScheduledRefresh)
+        ),
+        { onlyIfMissing: true }
+      )
+    })
 
     const runRefreshNow = Effect.fn('StartupSnapshot.refreshNow')(function*() {
-      clearScheduledRefresh()
+      yield* clearScheduledRefresh()
       return yield* Effect.uninterruptibleMask((restore) => Effect.gen(function*() {
         const candidate = yield* Deferred.make<void>()
         const flight = yield* Ref.modify(
@@ -305,7 +301,7 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
             : [{ completion: candidate, shouldStart: true }, candidate]
         )
         if (!flight.shouldStart) {
-          scheduleRefreshState()
+          yield* scheduleRefreshState()
           return yield* restore(Deferred.await(flight.completion))
         }
 
@@ -336,58 +332,67 @@ function makeStartupSnapshotLayer<Failure, Requirements>(
       }
     )
 
-    function scheduleSessionsSettleRefresh(): void {
-      sessionsSettleTimer = setTimeout(() => {
-        sessionsSettleTimer = null
-        scheduleRefreshState()
-      }, CLOSED_TAB_SESSION_SETTLE_MS)
-    }
+    const scheduleSessionsSettleRefresh = Effect.fn(
+      'StartupSnapshot.scheduleSessionsSettleRefresh'
+    )(function*() {
+      yield* FiberHandle.run(
+        sessionsSettle,
+        Effect.sleep(CLOSED_TAB_SESSION_SETTLE_MS).pipe(
+          Effect.andThen(scheduleRefreshState())
+        )
+      )
+    })
 
-    function sessionsChangedState(): void {
+    const sessionsChangedState = Effect.fn('StartupSnapshot.sessionsChanged')(function*() {
       // Invalidate a getRecentlyClosed already in flight before waiting out the
       // cross-context restore settle window and taking one authoritative read.
       sessionsRevision += 1
-      if (sessionsSettleTimer) clearTimeout(sessionsSettleTimer)
-      sessionsSettleTimer = null
+      yield* FiberHandle.clear(sessionsSettle)
       if (pendingSessionRestoreIds.size > 0) return
-      scheduleSessionsSettleRefresh()
-    }
+      yield* scheduleSessionsSettleRefresh()
+    })
 
-    function sessionRestoreStartedState(restoreId: string): void {
+    const sessionRestoreStartedState = Effect.fn(
+      'StartupSnapshot.sessionRestoreStarted'
+    )(function*(restoreId: string) {
       if (!restoreId || pendingSessionRestoreIds.has(restoreId)) return
       pendingSessionRestoreIds.add(restoreId)
       sessionsRevision += 1
-      if (sessionsSettleTimer) clearTimeout(sessionsSettleTimer)
-      sessionsSettleTimer = null
-      const watchdog = setTimeout(() => {
-        sessionRestoreWatchdogs.delete(restoreId)
-        if (!pendingSessionRestoreIds.delete(restoreId)) return
-        sessionsRevision += 1
-        if (pendingSessionRestoreIds.size === 0) scheduleSessionsSettleRefresh()
-      }, CLOSED_TAB_RESTORE_WATCHDOG_MS)
-      sessionRestoreWatchdogs.set(restoreId, watchdog)
-    }
+      yield* FiberHandle.clear(sessionsSettle)
+      yield* FiberMap.run(
+        sessionRestoreWatchdogs,
+        restoreId,
+        Effect.sleep(CLOSED_TAB_RESTORE_WATCHDOG_MS).pipe(
+          Effect.andThen(Effect.gen(function*() {
+            if (!pendingSessionRestoreIds.delete(restoreId)) return
+            sessionsRevision += 1
+            if (pendingSessionRestoreIds.size === 0) {
+              yield* scheduleSessionsSettleRefresh()
+            }
+          }))
+        )
+      )
+    })
 
-    function sessionRestoreSettledState(restoreId: string): void {
+    const sessionRestoreSettledState = Effect.fn(
+      'StartupSnapshot.sessionRestoreSettled'
+    )(function*(restoreId: string) {
       if (!restoreId) return
-      const watchdog = sessionRestoreWatchdogs.get(restoreId)
-      if (watchdog) clearTimeout(watchdog)
-      sessionRestoreWatchdogs.delete(restoreId)
+      yield* FiberMap.remove(sessionRestoreWatchdogs, restoreId)
       pendingSessionRestoreIds.delete(restoreId)
       // Invalidate any read started during a missing/late start notification too.
       sessionsRevision += 1
-      if (sessionsSettleTimer) clearTimeout(sessionsSettleTimer)
-      sessionsSettleTimer = null
-      if (pendingSessionRestoreIds.size === 0) scheduleSessionsSettleRefresh()
-    }
+      yield* FiberHandle.clear(sessionsSettle)
+      if (pendingSessionRestoreIds.size === 0) {
+        yield* scheduleSessionsSettleRefresh()
+      }
+    })
 
     return StartupSnapshot.of({
-      scheduleRefresh: () => Effect.sync(scheduleRefreshState),
-      sessionsChanged: () => Effect.sync(sessionsChangedState),
-      sessionRestoreStarted: (restoreId) => Effect.sync(() =>
-        sessionRestoreStartedState(restoreId)),
-      sessionRestoreSettled: (restoreId) => Effect.sync(() =>
-        sessionRestoreSettledState(restoreId)),
+      scheduleRefresh: scheduleRefreshState,
+      sessionsChanged: sessionsChangedState,
+      sessionRestoreStarted: sessionRestoreStartedState,
+      sessionRestoreSettled: sessionRestoreSettledState,
       promoteDurableCheckpoint,
       refreshNow
     })

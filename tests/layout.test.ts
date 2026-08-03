@@ -617,7 +617,7 @@ test('open-tab snapshots compose browser reads and suspender persistence in Effe
   assert.doesNotMatch(startupSource, /try: \(\) => fetchOpenTabsSnapshotResult/)
 })
 
-test('startup snapshot service owns its complete rebuild flight behind Effect', () => {
+test('startup snapshot service owns its rebuild flight and scheduler behind Effect', () => {
   const source = readFileSync(new URL('../src/extension/background/startup-snapshot-service.ts', import.meta.url), 'utf8')
 
   assert.match(source, /const computeStartupSnapshot = Effect\.fn/)
@@ -626,8 +626,15 @@ test('startup snapshot service owns its complete rebuild flight behind Effect', 
   assert.match(source, /yield\* buildTabsDashboardStartupSnapshotEffect/)
   assert.match(source, /Layer\.effect\(StartupSnapshot/)
   assert.match(source, /Ref\.make<Deferred\.Deferred<void> \| null>/)
+  assert.match(source, /FiberHandle\.make<void, never>\(\)/)
+  assert.match(source, /FiberMap\.make<string, void, never>\(\)/)
+  assert.match(source, /FiberSet\.makeRuntime<never, void, never>\(\)/)
+  assert.match(source, /Effect\.sleep\(STARTUP_SNAPSHOT_DEBOUNCE_MS\)/)
   assert.match(source, /Effect\.forkIn\(scope, \{ startImmediately: true \}\)/)
   assert.doesNotMatch(source, /Effect\.runPromise/)
+  assert.doesNotMatch(source, /Effect\.runSync/)
+  assert.doesNotMatch(source, /setTimeout/)
+  assert.doesNotMatch(source, /clearTimeout/)
   assert.doesNotMatch(source, /async function compute\(\)/)
 })
 
