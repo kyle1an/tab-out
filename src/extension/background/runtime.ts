@@ -8,6 +8,15 @@ import { StartupSnapshot } from './startup-snapshot-service.js'
 import { TabHistory } from './tab-history-service.js'
 import { WorkingSet } from './working-set-service.js'
 
+export const captureDashboardServiceStateEffect = Effect.gen(function*() {
+  const workingSet = yield* WorkingSet
+  const tabHistoryService = yield* TabHistory
+  const workingSetActivity = yield* workingSet.getWorkingSetActivity()
+  const { tabHistory, openTabsSnapshot } = yield*
+    tabHistoryService.getTabHistorySnapshotCapture(workingSetActivity)
+  return { tabHistory, workingSetActivity, openTabsSnapshot }
+})
+
 export function createBackgroundRuntime(chromeApi: ChromeApi) {
   const coreServices = Layer.mergeAll(
     BrowserTabs.layer(),
@@ -16,17 +25,9 @@ export function createBackgroundRuntime(chromeApi: ChromeApi) {
     TabHistory.layer(chromeApi),
     WorkingSet.layer(chromeApi)
   )
-  const getDashboardServiceState = Effect.gen(function*() {
-    const workingSet = yield* WorkingSet
-    const tabHistoryService = yield* TabHistory
-    const workingSetActivity = yield* workingSet.getWorkingSetActivity()
-    const { tabHistory, openTabsSnapshot } = yield*
-      tabHistoryService.getTabHistorySnapshotCapture(workingSetActivity)
-    return { tabHistory, workingSetActivity, openTabsSnapshot }
-  })
   const runtimeLayer = StartupSnapshot.layer({
     alarms: chromeApi.alarms,
-    getDashboardServiceState
+    getDashboardServiceState: captureDashboardServiceStateEffect
   }).pipe(Layer.provideMerge(coreServices))
   const runtime = ManagedRuntime.make(runtimeLayer)
   // Every worker service layer is synchronously constructed. Build it during

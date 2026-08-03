@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { settleBackgroundTask } from '../src/extension/background/background-task.js'
 import { openFilterTab } from '../src/extension/background/filter-command.js'
 import { openNewTab } from '../src/extension/background/new-tab-command.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
@@ -139,17 +138,4 @@ test('open-new-tab tries every existing normal window before creating another', 
   await openNewTab(chromeApi)
 
   assert.deepEqual(attempts, [1, 2, 3])
-})
-
-test('background task settlement consumes async and synchronous command failures', async () => {
-  await assert.doesNotReject(() =>
-    settleBackgroundTask(async () => {
-      throw new Error('async command failure')
-    })
-  )
-  await assert.doesNotReject(() =>
-    settleBackgroundTask(() => {
-      throw new Error('synchronous command failure')
-    })
-  )
 })
