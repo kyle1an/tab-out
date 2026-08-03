@@ -7,39 +7,18 @@ import process from 'node:process'
 import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-type JsonRpcMessage = {
-  id?: number
-  method?: string
-  params?: unknown
-  result?: unknown
-  error?: { message: string }
-}
+import {
+  isUnknownRecord,
+  parseJsonRpcMessage,
+  requireConfigurationParams,
+  requirePublishedDiagnosticsParams,
+  type Diagnostic,
+  type JsonRpcMessage
+} from './tailwind-language-server-protocol.ts'
 
 type PendingRequest = {
   resolve(value: unknown): void
   reject(reason?: unknown): void
-}
-
-type Diagnostic = {
-  range: {
-    start: {
-      line: number
-      character: number
-    }
-  }
-  severity?: number
-  code?: string | number
-  message: string
-  [key: string]: unknown
-}
-
-type PublishedDiagnosticsParams = {
-  uri: string
-  diagnostics: Diagnostic[]
-}
-
-type ConfigurationParams = {
-  items: Array<{ section?: string }>
 }
 
 const workspaceRoot = process.cwd()
@@ -47,7 +26,7 @@ const workspaceUri = pathToFileURL(`${workspaceRoot}${path.sep}`).href
 const serverPackagePath = fileURLToPath(import.meta.resolve('@tailwindcss/language-server/package.json'))
 const serverScript = path.join(path.dirname(serverPackagePath), 'bin', 'tailwindcss-language-server')
 const supportedExtensions = new Set(['.css', '.html', '.js', '.jsx', '.ts', '.tsx'])
-const diagnosticsByUri = new Map<string, Diagnostic[]>()
+const diagnosticsByUri = new Map<string, readonly Diagnostic[]>()
 const publishedUris = new Set<string>()
 const pendingRequests = new Map<number, PendingRequest>()
 const serverErrors: string[] = []
@@ -132,7 +111,7 @@ function send(message: unknown): void {
   server.stdin.write(`Content-Length: ${Buffer.byteLength(body)}\r\n\r\n${body}`)
 }
 
-function respond(id: number, result: unknown): void {
+function respond(id: number | string, result: unknown): void {
   send({ jsonrpc: '2.0', id, result })
 }
 
@@ -152,13 +131,12 @@ function notify(method: string, params?: unknown): void {
 function configurationFor(section: string | undefined): unknown {
   if (section === 'tailwindCSS') return tailwindSettings
   if (section?.startsWith('tailwindCSS.')) {
-    return section
-      .slice('tailwindCSS.'.length)
-      .split('.')
-      .reduce<unknown>(
-        (value, key) => (value as Record<string, unknown> | null | undefined)?.[key],
-        tailwindSettings
-      )
+    let value: unknown = tailwindSettings
+    for (const key of section.slice('tailwindCSS.'.length).split('.')) {
+      if (!isUnknownRecord(value)) return undefined
+      value = value[key]
+    }
+    return value
   }
   if (section === 'editor') return { tabSize: 2 }
   return null
@@ -169,7 +147,7 @@ function handleServerRequest(message: JsonRpcMessage): void {
 
   switch (message.method) {
     case 'workspace/configuration': {
-      const { items } = message.params as ConfigurationParams
+      const { items } = requireConfigurationParams(message.params)
       respond(message.id, items.map((item) => configurationFor(item.section)))
       break
     }
@@ -199,7 +177,7 @@ function handleMessage(message: JsonRpcMessage): void {
     return
   }
 
-  if (message.id !== undefined) {
+  if (typeof message.id === 'number') {
     const pending = pendingRequests.get(message.id)
     if (!pending) return
     pendingRequests.delete(message.id)
@@ -209,7 +187,7 @@ function handleMessage(message: JsonRpcMessage): void {
   }
 
   if (message.method === 'textDocument/publishDiagnostics') {
-    const { uri, diagnostics } = message.params as PublishedDiagnosticsParams
+    const { uri, diagnostics } = requirePublishedDiagnosticsParams(message.params)
     diagnosticsByUri.set(uri, diagnostics)
     publishedUris.add(uri)
     lastDiagnosticsAt = Date.now()
@@ -234,7 +212,7 @@ function parseServerOutput(chunk: Buffer): void {
 
     const body = outputBuffer.subarray(bodyStart, bodyEnd).toString('utf8')
     outputBuffer = outputBuffer.subarray(bodyEnd)
-    handleMessage(JSON.parse(body) as JsonRpcMessage)
+    handleMessage(parseJsonRpcMessage(body))
   }
 }
 

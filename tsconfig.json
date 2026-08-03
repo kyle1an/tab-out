@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowArbitraryExtensions": true,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "jsx": "react-jsx",

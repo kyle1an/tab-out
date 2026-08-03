@@ -376,6 +376,15 @@ command-specific diagnostics and latest-two policy remain unchanged. This code
 runs only in Node build and release checks, so both shipped extension entries
 remain byte-for-byte unchanged.
 
+The thirty-fourth slice validates the Tailwind language-server subprocess
+protocol with Effect Schema. JSON-RPC envelopes, workspace-configuration
+requests, published diagnostic locations, and nested settings records now
+cross explicit schemas before the diagnostics client reads them. Malformed
+messages fail with boundary-specific errors instead of reaching unchecked type
+assertions, while the real language-server integration still reports zero
+diagnostics. This code runs only in Node verification tooling, so both shipped
+extension entries remain byte-for-byte unchanged.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
@@ -388,7 +397,9 @@ A repository-wide audit of Promise construction, async entry points, shared
 in-flight state, queued work, timers, subscriptions, Web Locks, MV3 event
 handlers, persisted values, runtime messages, native-host messages, JSON
 parsing, and other unknown-data entry points found no further currently
-worthwhile Effect adoption seams.
+worthwhile production Effect adoption seams. A follow-up tooling audit added
+schemas where external release metadata and language-server messages justified
+the boundary without entering shipped code.
 
 Effect Schema now validates every extension-owned persisted-data envelope:
 startup snapshots, Saved Pages, closed-history dismissals, Tab History,
@@ -439,10 +450,9 @@ The remaining manual value checks also stay outside Effect Schema:
 - The external suspender acknowledgment has only one contractual failure form,
   an `Error:` string; accepting every other response preserves compatibility
   with independently versioned extensions.
-- Commit-policy configuration, language-server JSON-RPC, build generators, and
-  test fixtures are finite Node tooling with focused parsers and tailored
-  diagnostics. They do not justify widening production adoption or replacing
-  the Node test runner.
+- Commit-policy configuration, build generators, and test fixtures are finite
+  Node tooling with focused parsers and tailored diagnostics. They do not
+  justify widening production adoption or replacing the Node test runner.
 
 Future adoption therefore requires either a newly identified workflow that
 owns meaningful concurrency, interruption, resource cleanup, or typed recovery,
