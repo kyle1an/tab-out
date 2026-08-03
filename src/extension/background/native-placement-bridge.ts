@@ -1,43 +1,14 @@
-import { Data, Effect, Result } from 'effect'
+import { Data, Effect, Result, Schema } from 'effect'
 
 import type { ChromeApi } from './chrome-api.js'
 import {
   createInactiveWindow,
-  type InactiveWindowKind,
   type TargetDisplayBounds
 } from './native-window-placement.js'
 
 export const NATIVE_PLACEMENT_BRIDGE_VERSION = 1
 const NATIVE_PLACEMENT_RECONNECT_DELAYS_MS = [250, 1_000, 5_000, 15_000] as const
 const NATIVE_PLACEMENT_HOST_NAME = 'com.tabout.native_bridge'
-
-type NativePlacementRequest = {
-  expiresAtMs: number
-  operation: InactiveWindowKind
-  requestId: string
-  targetBounds: TargetDisplayBounds
-  type: 'create-window'
-  version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
-}
-
-type NativePlacementStatusRequest = {
-  expiresAtMs: number
-  requestId: string
-  type: 'status'
-  version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
-}
-
-type NativePlacementProfileWindowsRequest = {
-  expiresAtMs: number
-  requestId: string
-  type: 'list-profile-windows'
-  version: typeof NATIVE_PLACEMENT_BRIDGE_VERSION
-}
-
-type NativePlacementBridgeRequest =
-  | NativePlacementRequest
-  | NativePlacementProfileWindowsRequest
-  | NativePlacementStatusRequest
 
 export type NativePlacementBridgeResponse = {
   reason?: string
@@ -52,29 +23,29 @@ class NativePlacementOperationError extends Data.TaggedError('NativePlacementOpe
   readonly cause: unknown
 }> {}
 
-function validRequestId(value: unknown): value is string {
-  return typeof value === 'string'
-    && value.length > 0
-    && value.length <= 128
-    && /^[A-Za-z0-9._:-]+$/.test(value)
-}
+const nativePlacementRequestRecordSchema = Schema.Record(Schema.String, Schema.Unknown)
+const nativePlacementRequestIdSchema = Schema.String.check(
+  Schema.isMinLength(1),
+  Schema.isMaxLength(128),
+  Schema.isPattern(/^[A-Za-z0-9._:-]+$/)
+)
+const nativePlacementCoordinateSchema = Schema.Finite.check(
+  Schema.isBetween({ minimum: -100_000, maximum: 100_000 })
+)
+const nativePlacementDimensionSchema = nativePlacementCoordinateSchema.check(
+  Schema.isGreaterThan(0)
+)
+const nativePlacementTargetBoundsSchema = Schema.Struct({
+  left: nativePlacementCoordinateSchema,
+  top: nativePlacementCoordinateSchema,
+  width: nativePlacementDimensionSchema,
+  height: nativePlacementDimensionSchema
+}) satisfies Schema.Schema<TargetDisplayBounds>
 
-function validCoordinate(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 100_000
-}
-
-function validDimension(value: unknown): value is number {
-  return validCoordinate(value) && value > 0
-}
-
-function validTargetBounds(value: unknown): value is TargetDisplayBounds {
-  if (!value || typeof value !== 'object') return false
-  const bounds = value as Partial<TargetDisplayBounds>
-  return validCoordinate(bounds.left)
-    && validCoordinate(bounds.top)
-    && validDimension(bounds.width)
-    && validDimension(bounds.height)
-}
+const isNativePlacementRequestRecord = Schema.is(nativePlacementRequestRecordSchema)
+const isNativePlacementRequestId = Schema.is(nativePlacementRequestIdSchema)
+const isNativePlacementRequestTime = Schema.is(Schema.Finite)
+const isNativePlacementTargetBounds = Schema.is(nativePlacementTargetBoundsSchema)
 
 function response(
   requestId: string,
@@ -103,19 +74,19 @@ const runNativePlacementBridgeMessage = Effect.fn('nativePlacementBridge.handleM
   chromeApi: ChromeApi,
   nowMs: number
 ) {
-  if (!message || typeof message !== 'object') {
+  if (!isNativePlacementRequestRecord(message)) {
     return response('invalid', 'rejected', 'The native placement request is not an object')
   }
 
-  const candidate = message as Partial<NativePlacementBridgeRequest>
-  const requestId = validRequestId(candidate.requestId) ? candidate.requestId : 'invalid'
+  const candidate = message
+  const requestId = isNativePlacementRequestId(candidate.requestId) ? candidate.requestId : 'invalid'
   if (candidate.version !== NATIVE_PLACEMENT_BRIDGE_VERSION) {
     return response(requestId, 'rejected', 'The native placement protocol version is unsupported')
   }
-  if (!validRequestId(candidate.requestId)) {
+  if (!isNativePlacementRequestId(candidate.requestId)) {
     return response(requestId, 'rejected', 'The native placement request ID is invalid')
   }
-  if (!Number.isFinite(candidate.expiresAtMs) || (candidate.expiresAtMs ?? 0) < nowMs) {
+  if (!isNativePlacementRequestTime(candidate.expiresAtMs) || candidate.expiresAtMs < nowMs) {
     return response(requestId, 'rejected', 'The native placement request expired')
   }
 
@@ -144,7 +115,7 @@ const runNativePlacementBridgeMessage = Effect.fn('nativePlacementBridge.handleM
   if (candidate.operation !== 'filter' && candidate.operation !== 'newPage') {
     return response(requestId, 'rejected', 'The native placement operation is invalid')
   }
-  if (!validTargetBounds(candidate.targetBounds)) {
+  if (!isNativePlacementTargetBounds(candidate.targetBounds)) {
     return response(requestId, 'rejected', 'The native placement target bounds are invalid')
   }
   const operation = candidate.operation

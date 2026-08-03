@@ -186,6 +186,48 @@ test('native placement bridge rejects malformed target bounds before mutation', 
   assert.deepEqual(createCalls, [])
 })
 
+test('native placement bridge schema preserves envelope rejection reasons', async () => {
+  const { chromeApi, createCalls } = createChromeApi()
+  const cases: ReadonlyArray<{ message: unknown; reason: RegExp; requestId: string }> = [
+    { message: null, reason: /not an object/, requestId: 'invalid' },
+    {
+      message: createRequest({ version: NATIVE_PLACEMENT_BRIDGE_VERSION + 1 }),
+      reason: /version is unsupported/,
+      requestId: 'hs-1800000000000-1'
+    },
+    {
+      message: createRequest({ requestId: 'contains spaces' }),
+      reason: /request ID is invalid/,
+      requestId: 'invalid'
+    },
+    {
+      message: createRequest({ type: 'unknown' }),
+      reason: /request type is unsupported/,
+      requestId: 'hs-1800000000000-1'
+    },
+    {
+      message: createRequest({ operation: 'unknown' }),
+      reason: /operation is invalid/,
+      requestId: 'hs-1800000000000-1'
+    },
+    {
+      message: createRequest({
+        targetBounds: { left: 100_001, top: 0, width: 900, height: 700 }
+      }),
+      reason: /target bounds are invalid/,
+      requestId: 'hs-1800000000000-1'
+    }
+  ]
+
+  for (const entry of cases) {
+    const result = await handleNativePlacementBridgeMessage(entry.message, chromeApi, nowMs)
+    assert.equal(result.status, 'rejected')
+    assert.equal(result.requestId, entry.requestId)
+    assert.match(result.reason ?? '', entry.reason)
+  }
+  assert.deepEqual(createCalls, [])
+})
+
 test('native placement bridge reconnects after the host port disconnects', async () => {
   const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
   const disconnectListeners: Array<() => void> = []

@@ -235,6 +235,16 @@ bytes. The shared normalizer cleanup adds 94 raw bytes and 27 deterministic
 gzip bytes to the worker entry, bringing it to 319,817 raw bytes and 106,294
 deterministic gzip bytes.
 
+The twenty-first slice replaces the native placement host protocol's manual
+record, identifier, timestamp, coordinate, dimension, and bounds guards with
+Effect Schema checks. Validation remains staged so callers keep the existing
+specific rejection reasons for non-object messages, unsupported versions,
+invalid request IDs, expired requests, unsupported request types, invalid
+operations, and invalid target bounds. The placement operation still receives
+only a fully validated bounds value. The app entry remains unchanged. It adds
+2,476 raw bytes and 687 deterministic gzip bytes to the worker entry, bringing
+it to 322,293 raw bytes and 106,981 deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other
