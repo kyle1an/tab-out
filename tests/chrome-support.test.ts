@@ -55,6 +55,17 @@ test('check CLI runs the deterministic offline consistency check', () => {
   )
 })
 
+test('CLI rejects an unknown command with the usage exit code', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', 'scripts/chrome-support.ts', 'unknown'],
+    { encoding: 'utf8' }
+  )
+
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /Usage: chrome-support\.ts <check\|bump\|release-check>/)
+})
+
 test('offline verification rejects generated manifest drift', () => {
   assert.doesNotThrow(() => assertGeneratedManifestMatchesPolicy(
     { minimum_chrome_version: '149' },
