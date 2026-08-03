@@ -377,11 +377,23 @@ the Tab History critical section provided enough concurrency leverage.
 ## Audited Adoption Boundary
 
 A repository-wide audit of Promise construction, async entry points, shared
-in-flight state, queued work, timers, subscriptions, Web Locks, and MV3 event
-handlers found no further currently worthwhile Effect workflow ownership
-seams. That conclusion does not cover Effect Schema at persisted-data or
-cross-context boundaries. The remaining asynchronous code stays browser-native
-or Promise-based for these reasons:
+in-flight state, queued work, timers, subscriptions, Web Locks, MV3 event
+handlers, persisted values, runtime messages, native-host messages, JSON
+parsing, and other unknown-data entry points found no further currently
+worthwhile Effect adoption seams.
+
+Effect Schema now validates every extension-owned persisted-data envelope:
+startup snapshots, Saved Pages, closed-history dismissals, Tab History,
+Working Set activity, suspend targets, Dashboard pin snapshots and mutations,
+and the history-range preference. It also validates every internal
+cross-context protocol: runtime requests and responses, nested Activation
+History and Working Set snapshots, and native placement host messages.
+Validation remains intentionally layered: schemas establish the serialized
+shape, while existing normalizers apply backward-compatible repair and product
+semantics.
+
+The remaining asynchronous code stays browser-native or Promise-based for
+these reasons:
 
 - Chrome, storage, dynamic-import, and snapshot-fetch modules are leaf adapters
   consumed by complete Effect workflows. Wrapping them separately would add
@@ -404,9 +416,30 @@ or Promise-based for these reasons:
   adopting Effect or an Effect-specific test runner there would not exercise a
   runtime ownership seam.
 
-Future adoption therefore requires a newly identified workflow that owns
-meaningful concurrency, interruption, resource cleanup, or typed recovery. The
-presence of an `async` function alone is not a migration reason.
+The remaining manual value checks also stay outside Effect Schema:
+
+- Domain, section, and Page Chip identifier parsing performs product-specific
+  decoding, deduplication, and compatibility repair after the storage
+  container has already crossed a schema boundary.
+- Chrome tab, window, bookmark, session, resize-observer, and DOM values arrive
+  through typed browser interfaces and are checked only where optional browser
+  capabilities or overload shapes require a runtime branch.
+- Source-select values, animation targets, layout hooks, and debug samples are
+  local UI inputs. Moving their predicates to Schema would spread Effect into
+  components or lazy UI chunks without strengthening a serialized boundary.
+- The external suspender acknowledgment has only one contractual failure form,
+  an `Error:` string; accepting every other response preserves compatibility
+  with independently versioned extensions.
+- Chrome-support metadata, commit-policy configuration, language-server
+  JSON-RPC, build generators, and test fixtures are finite Node tooling with
+  focused parsers and tailored diagnostics. They do not justify widening
+  production adoption or replacing the Node test runner.
+
+Future adoption therefore requires either a newly identified workflow that
+owns meaningful concurrency, interruption, resource cleanup, or typed recovery,
+or a new persisted or cross-context protocol. The presence of an `async`
+function, `unknown` error cause, or local type guard alone is not a migration
+reason.
 
 ## References
 
