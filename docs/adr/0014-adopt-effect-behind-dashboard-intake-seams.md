@@ -222,6 +222,19 @@ the worker entry, bringing it to 319,723 raw bytes and 106,267 deterministic
 gzip bytes. The focused first-paint cache test remains in the low-single-digit
 millisecond range.
 
+The twentieth slice validates the worker-to-page Dashboard service-state
+response with Effect Schema before it can replace known page state. The schema
+requires a successful atomic response, compatible Activation History and
+Working Set envelopes, and structurally valid serialized Chrome tab and window
+rows. Those browser rows are normalized into complete internal inputs at the
+boundary, while the existing history and activity normalizers retain their
+repair and pruning policies. This removes the response guards and casts from
+the consumer. It adds 2,092 raw bytes and 613 deterministic gzip bytes to the
+app entry, bringing it to 879,562 raw bytes and 277,739 deterministic gzip
+bytes. The shared normalizer cleanup adds 94 raw bytes and 27 deterministic
+gzip bytes to the worker entry, bringing it to 319,817 raw bytes and 106,294
+deterministic gzip bytes.
+
 Beta upgrades are deliberate dependency changes requiring focused review,
 full verification, and fresh bundle measurements. Reaching Effect 4 stable is
 an upgrade checkpoint, not automatic authority to expand Effect into other

@@ -66,21 +66,27 @@ export function emptyWorkingSetActivity(): WorkingSetActivityStore {
   return { version: WORKING_SET_ACTIVITY_VERSION, records: {} }
 }
 
-export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivityStore> | null | undefined, now = Date.now()): WorkingSetActivityStore {
-  if (!store || store.version !== WORKING_SET_ACTIVITY_VERSION || !store.records || typeof store.records !== 'object') {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function normalizeWorkingSetActivity(value: unknown, now = Date.now()): WorkingSetActivityStore {
+  if (!isRecord(value) || value.version !== WORKING_SET_ACTIVITY_VERSION || !isRecord(value.records)) {
     return emptyWorkingSetActivity()
   }
 
   const minAt = now - ACTIVITY_RETENTION_MS
   const records: Record<string, WorkingSetActivityRecord> = {}
-  for (const [key, record] of Object.entries(store.records)) {
-    if (!record || typeof record !== 'object') continue
-    const normalizedKey = pageIdentityForWorkingSet(record.url || key)
+  for (const [key, record] of Object.entries(value.records)) {
+    if (!isRecord(record)) continue
+    const normalizedKey = pageIdentityForWorkingSet(
+      typeof record.url === 'string' ? record.url : key
+    )
     if (!normalizedKey || normalizedKey !== key) continue
     const events = Array.isArray(record.events)
       ? record.events
           .filter((event): event is WorkingSetActivityEvent => (
-            !!event &&
+            isRecord(event) &&
             (event.kind === 'activation' || event.kind === 'navigation') &&
             typeof event.at === 'number' &&
             Number.isFinite(event.at) &&
@@ -104,7 +110,9 @@ export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivitySto
       key,
       url: normalizedKey,
       title: String(record.title || ''),
-      domain: record.domain || domainForPageIdentity(normalizedKey),
+      domain: typeof record.domain === 'string' && record.domain
+        ? record.domain
+        : domainForPageIdentity(normalizedKey),
       lastSeenAt: latestEvent,
       ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
       ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),
