@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { Effect } from 'effect'
+
 import { createLatestRefreshRunner, fetchDashboardSnapshot, fetchDashboardStartupSnapshot } from '../src/extension/dashboard-intake.js'
 import { loadDashboardLocalState, loadDashboardLocalStateResult } from '../src/hooks/useDashboardLocalState.js'
 import { DOMAIN_PIN_STORAGE_KEY } from '../src/extension/domain-pins.js'
@@ -34,19 +36,30 @@ test('dashboard local state distinguishes a storage read failure from an empty s
   })
 })
 
-test('dashboard local state rejects malformed pin storage instead of clearing warm state', async () => {
-  ;(globalThis as any).chrome = {
-    storage: {
-      local: {
-        get: async () => ({ [DOMAIN_PIN_STORAGE_KEY]: {} })
+test('dashboard local state rejects every malformed pin container instead of clearing warm state', async () => {
+  for (const storageKey of [
+    DOMAIN_PIN_STORAGE_KEY,
+    SECTION_PIN_STORAGE_KEY,
+    PAGE_CHIP_PIN_STORAGE_KEY
+  ]) {
+    ;(globalThis as any).chrome = {
+      storage: {
+        local: {
+          get: async () => ({ [storageKey]: {} })
+        }
       }
     }
+
+    const result = await loadDashboardLocalStateResult()
+
+    assert.equal(result.ok, false)
+    assert.deepEqual(result.state, {
+      loaded: true,
+      pinnedDomains: [],
+      pinnedSectionIds: [],
+      pinnedPageChipIds: []
+    })
   }
-
-  const result = await loadDashboardLocalStateResult()
-
-  assert.equal(result.ok, false)
-  assert.deepEqual(result.state.pinnedDomains, [])
 })
 
 test('dashboard local state loads and normalizes every pin kind atomically', async () => {
@@ -75,6 +88,30 @@ test('dashboard local state loads and normalizes every pin kind atomically', asy
       pinnedDomains: ['example.test'],
       pinnedSectionIds: [sectionId],
       pinnedPageChipIds: [pageChipId]
+    }
+  })
+})
+
+test('dashboard local state accepts storage adapters that return explicit undefined keys', async () => {
+  ;(globalThis as any).chrome = {
+    storage: {
+      local: {
+        get: async () => ({
+          [DOMAIN_PIN_STORAGE_KEY]: undefined,
+          [SECTION_PIN_STORAGE_KEY]: undefined,
+          [PAGE_CHIP_PIN_STORAGE_KEY]: undefined
+        })
+      }
+    }
+  }
+
+  assert.deepEqual(await loadDashboardLocalStateResult(), {
+    ok: true,
+    state: {
+      loaded: true,
+      pinnedDomains: [],
+      pinnedSectionIds: [],
+      pinnedPageChipIds: []
     }
   })
 })
@@ -592,6 +629,65 @@ test('startup snapshot cache rejects malformed cached dashboard tabs before firs
   }
 
   assert.equal(await loadCachedDashboardStartup(now), null)
+})
+
+test('startup snapshot cache rejects malformed optional dashboard state at the schema boundary', async () => {
+  const malformedCached = {
+    savedAt: now,
+    snapshot: {
+      dashboard: {
+        realTabs: [],
+        domainGroups: [],
+        historySearchStatus: 'unexpected'
+      },
+      tabHistory: { entries: [] },
+      workingSet: { items: [] },
+      closedTabs: []
+    }
+  }
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: malformedCached }) },
+      local: { get: async () => ({}) }
+    }
+  }
+
+  assert.equal(await loadCachedDashboardStartup(now), null)
+})
+
+test('startup snapshot cache normalizes legacy recently closed rows at the schema boundary', async () => {
+  const url = 'https://example.test/closed'
+  const cached = {
+    savedAt: now,
+    snapshot: {
+      dashboard: { realTabs: [], domainGroups: [] },
+      tabHistory: { entries: [] },
+      workingSet: { items: [] },
+      closedTabs: [{
+        sessionId: 'session-alpha',
+        url,
+        title: 'Closed page',
+        lastClosedAt: now - 1_000
+      }]
+    }
+  }
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: { get: async () => ({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: cached }) },
+      local: { get: async () => ({}) }
+    }
+  }
+
+  assert.deepEqual((await loadCachedDashboardStartup(now))?.snapshot.closedTabs, [{
+    sessionId: 'session-alpha',
+    tabId: -1,
+    url,
+    rawUrl: url,
+    displayUrl: url,
+    title: 'Closed page',
+    favIconUrl: '',
+    lastClosedAt: now - 1_000
+  }])
 })
 
 test('startup snapshot cache drops malformed nested startup view-model sections', async () => {
@@ -1354,6 +1450,60 @@ test('startup snapshot cache serializes writes in-context before requesting the 
   assert.equal((durableStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).captureStartedAt, 200)
 })
 
+test('startup snapshot cache preserves a rejected lock failure and continues draining', async () => {
+  const sessionStore: Record<string, unknown> = {}
+  const durableStore: Record<string, unknown> = {}
+  const lockFailure = new Error('startup snapshot lock failed')
+  let lockAttempts = 0
+  const previousLocksDescriptor = Object.getOwnPropertyDescriptor(globalThis.navigator, 'locks')
+  Object.defineProperty(globalThis.navigator, 'locks', {
+    configurable: true,
+    value: {
+      request: async (_name: string, mutation: () => Promise<unknown>) => {
+        lockAttempts += 1
+        if (lockAttempts === 1) throw lockFailure
+        return mutation()
+      }
+    }
+  })
+  const storageArea = (store: Record<string, unknown>) => ({
+    get: async () => store,
+    set: async (value: Record<string, unknown>) => { Object.assign(store, value) }
+  })
+  ;(globalThis as any).chrome = {
+    storage: {
+      session: storageArea(sessionStore),
+      local: storageArea(durableStore)
+    }
+  }
+
+  try {
+    await assert.rejects(
+      saveCachedDashboardStartupSnapshot(startupCacheSnapshot('failed.example'), null, {
+        captureStartedAt: 100,
+        now: 150
+      }),
+      (error) => error === lockFailure
+    )
+    await saveCachedDashboardStartupSnapshot(startupCacheSnapshot('recovered.example'), null, {
+      captureStartedAt: 200,
+      now: 250
+    })
+
+    assert.equal(lockAttempts, 2)
+    assert.equal(
+      (sessionStore[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY] as any).snapshot.dashboard.domainGroups[0]?.domain,
+      'recovered.example'
+    )
+  } finally {
+    if (previousLocksDescriptor) {
+      Object.defineProperty(globalThis.navigator, 'locks', previousLocksDescriptor)
+    } else {
+      delete (globalThis.navigator as { locks?: unknown }).locks
+    }
+  }
+})
+
 test('startup snapshot can include the current Tab Out page before live hydration', () => {
   const tabOutUrl = 'chrome-extension://tab-out/index.html'
   const oldTabOutPage = {
@@ -1944,6 +2094,113 @@ test('latest refresh runner discards an overtaken result and applies one trailin
   assert.equal(runner.active(), false)
 })
 
+test('latest refresh runner ignores an overtaken failure and applies the latest request', async () => {
+  const { promise: firstRunBlocked, resolve: releaseFirstRun } = Promise.withResolvers<void>()
+  const { promise: firstRunStarted, resolve: markFirstRunStarted } = Promise.withResolvers<void>()
+  const staleFailure = new Error('stale refresh failed')
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  const firstRequest = runner.request(
+    async () => {
+      markFirstRunStarted()
+      await firstRunBlocked
+      throw staleFailure
+    },
+    (value) => applied.push(value)
+  )
+  await firstRunStarted
+  const latestRequest = runner.request(
+    async () => 'latest',
+    (value) => applied.push(value)
+  )
+  releaseFirstRun()
+  await Promise.all([firstRequest, latestRequest])
+
+  assert.deepEqual(applied, ['latest'])
+  assert.equal(runner.active(), false)
+})
+
+test('latest refresh runner preserves the current failure and accepts a later request', async () => {
+  const expectedFailure = new Error('refresh failed')
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  await assert.rejects(
+    runner.request(
+      async () => { throw expectedFailure },
+      (value) => applied.push(value)
+    ),
+    (error) => error === expectedFailure
+  )
+  assert.equal(runner.active(), false)
+
+  await runner.request(
+    async () => 'recovered',
+    (value) => applied.push(value)
+  )
+
+  assert.deepEqual(applied, ['recovered'])
+})
+
+test('latest refresh runner preserves a failure thrown while applying', async () => {
+  const expectedFailure = new Error('apply failed')
+  const runner = createLatestRefreshRunner<string>()
+
+  await assert.rejects(
+    runner.request(
+      async () => 'value',
+      () => { throw expectedFailure }
+    ),
+    (error) => error === expectedFailure
+  )
+
+  assert.equal(runner.active(), false)
+})
+
+test('latest refresh runner executes a request queued synchronously while applying', async () => {
+  const runs: string[] = []
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+  let trailingRequest: Promise<void> | null = null
+
+  const firstRequest = runner.request(
+    async () => {
+      runs.push('first')
+      return 'first'
+    },
+    (value) => {
+      applied.push(value)
+      trailingRequest = runner.request(
+        async () => {
+          runs.push('trailing')
+          return 'trailing'
+        },
+        (trailingValue) => applied.push(trailingValue)
+      )
+    }
+  )
+  await firstRequest
+  await trailingRequest
+
+  assert.deepEqual(runs, ['first', 'trailing'])
+  assert.deepEqual(applied, ['first', 'trailing'])
+  assert.equal(runner.active(), false)
+})
+
+test('latest refresh runner accepts an Effect without a nested Promise flight', async () => {
+  const applied: string[] = []
+  const runner = createLatestRefreshRunner<string>()
+
+  await runner.requestEffect(
+    Effect.succeed('effect result'),
+    (value) => applied.push(value)
+  )
+
+  assert.deepEqual(applied, ['effect result'])
+  assert.equal(runner.active(), false)
+})
+
 test('startup snapshot cache preserves fresh cached working set priority when saving live startup data', async () => {
   let cachedStartupSnapshot: Record<string, unknown> | null = null
   const cachedWorkingSet = {
@@ -2338,6 +2595,9 @@ test('tabs refresh rejects unknown required state instead of committing an empty
   }
   await assert.rejects(fetchDashboardSnapshot(options), /current browser window/)
   await assert.rejects(fetchDashboardStartupSnapshot(options), /current browser window/)
+
+  ;(globalThis as any).chrome = baseChrome
+  await assert.doesNotReject(fetchDashboardStartupSnapshot(options))
 })
 
 test('bookmarks refresh does not wait on hidden Activation History or Working Set state', async () => {

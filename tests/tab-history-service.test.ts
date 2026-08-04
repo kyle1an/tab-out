@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { setImmediate } from 'node:timers/promises'
-import { createTabHistoryService } from '../src/extension/background/tab-history-service.js'
+import { Effect, ManagedRuntime } from 'effect'
+import * as TabHistoryService from '../src/extension/background/tab-history-service.js'
 import {
   effectiveUrlForHistoryIdentity,
   historyChanged,
@@ -11,6 +12,52 @@ import { normalizeTabHistorySnapshot } from '../src/extension/tab-history.js'
 import { emptyWorkingSetActivity, recordWorkingSetActivity } from '../src/extension/working-set.js'
 import type { ChromeApi } from '../src/extension/background/chrome-api.js'
 import type { WorkingSetActivityStore } from '../src/extension/types'
+
+const disposeTabHistoryRuntimes: Array<() => Promise<void>> = []
+
+test.after(async () => {
+  for (const dispose of disposeTabHistoryRuntimes) await dispose()
+})
+
+function createTabHistoryService(chromeApi: ChromeApi) {
+  const runtime = ManagedRuntime.make(TabHistoryService.TabHistory.layer(chromeApi))
+  runtime.runSync(Effect.void)
+  const service = runtime.runSync(TabHistoryService.TabHistory)
+  disposeTabHistoryRuntimes.push(() => runtime.dispose())
+  const run = <Value>(
+    effect: Effect.Effect<Value, TabHistoryService.TabHistoryTaskError>
+  ) => runtime.runPromise(effect.pipe(
+    Effect.catchTag('TabHistoryTaskError', (error) => Effect.fail(error.cause))
+  ))
+  return {
+    getTabHistorySnapshot: (activity?: WorkingSetActivityStore | null) =>
+      run(service.getTabHistorySnapshot(activity)),
+    getTabHistorySnapshotCapture: (activity?: WorkingSetActivityStore | null) =>
+      run(service.getTabHistorySnapshotCapture(activity)),
+    recordFocusedWindowActiveTab: (
+      windowId: number,
+      capturedActiveTab?: Promise<chrome.tabs.Tab | null>
+    ) => run(service.recordFocusedWindowActiveTab(windowId, capturedActiveTab)),
+    recordTabCreation: (tab: chrome.tabs.Tab) => run(service.recordTabCreation(tab)),
+    recordTabNavigation: (
+      tabId: number,
+      changeInfo: { url?: string },
+      tab: chrome.tabs.Tab
+    ) => run(service.recordTabNavigation(tabId, changeInfo, tab)),
+    recordTabActivation: (
+      windowId: number,
+      tabId: number,
+      capturedTab?: Promise<chrome.tabs.Tab | null>
+    ) => run(service.recordTabActivation(windowId, tabId, capturedTab)),
+    removeTabFromHistory: (tabId: number) => run(service.removeTabFromHistory(tabId)),
+    replaceTabId: (addedTabId: number, removedTabId: number) =>
+      run(service.replaceTabId(addedTabId, removedTabId)),
+    resetForBrowserStartup: () => run(service.resetForBrowserStartup()),
+    restorePreviousTabAfterClose: (tabId: number, removeInfo: chrome.tabs.OnRemovedInfo) =>
+      run(service.restorePreviousTabAfterClose(tabId, removeInfo)),
+    switchTabHistory: (direction: number) => run(service.switchTabHistory(direction))
+  }
+}
 
 function valueAt<T>(values: readonly T[], index: number): T {
   const value = values[index]
@@ -256,10 +303,11 @@ test('history mutation retries persisted state after a transient initial storage
   }
   let readAttempts = 0
   let writeAttempts = 0
+  const readFailure = new Error('storage temporarily unavailable')
   const chromeApi = makeChromeApi({ tabs })
   chromeApi.storage.local.get = (async (key: string) => {
     readAttempts += 1
-    if (readAttempts === 1) throw new Error('storage temporarily unavailable')
+    if (readAttempts === 1) throw readFailure
     return { [key]: persisted }
   }) as typeof chromeApi.storage.local.get
   chromeApi.storage.local.set = async (entries: Record<string, unknown>) => {
@@ -268,7 +316,7 @@ test('history mutation retries persisted state after a transient initial storage
   }
   const service = createTabHistoryService(chromeApi)
 
-  await assert.rejects(service.recordTabActivation(1, 2), /temporarily unavailable/)
+  await assert.rejects(service.recordTabActivation(1, 2), (error) => error === readFailure)
   assert.equal(writeAttempts, 0)
   assert.deepEqual(persisted.stack.map((entry: any) => entry.tabId), [1])
 
@@ -353,6 +401,34 @@ test('legacy ID-only persisted history resets once into the identity-bearing sch
 
   assert.deepEqual(secondSnapshot.entries.map((entry) => entry.tabId), [10])
   assert.equal(writes, 2)
+})
+
+test('malformed versioned history resets instead of retaining a partial store', async () => {
+  const tabs = [
+    { id: 10, windowId: 1, url: 'https://current.example.test/', title: 'Current', active: true } as chrome.tabs.Tab,
+    { id: 20, windowId: 1, url: 'https://previous.example.test/', title: 'Previous', active: false } as chrome.tabs.Tab
+  ]
+  let persisted: unknown = {
+    version: 2,
+    stack: [{ windowId: 1, tabId: 20, url: 'https://previous.example.test/' }],
+    index: 0,
+    pending: [{ windowId: 1, tabId: 30, url: 'https://pending.example.test/', createdAt: Number.POSITIVE_INFINITY }]
+  }
+  const chromeApi = makeChromeApi({ tabs })
+  chromeApi.storage.local.get = async () => ({ globalTabHistory: persisted })
+  chromeApi.storage.local.set = async (entries: Record<string, unknown>) => {
+    persisted = entries.globalTabHistory
+  }
+
+  const snapshot = await createTabHistoryService(chromeApi).getTabHistorySnapshot(emptyWorkingSetActivity())
+
+  assert.deepEqual(snapshot.entries.map((entry) => entry.tabId), [10])
+  assert.deepEqual(persisted, {
+    version: 2,
+    stack: [{ windowId: 1, tabId: 10, url: 'https://current.example.test/' }],
+    index: 0,
+    pending: []
+  })
 })
 
 test('missed browser startup prunes reused tab IDs whose effective URLs changed', async () => {

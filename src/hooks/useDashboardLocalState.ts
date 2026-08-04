@@ -12,6 +12,7 @@ import { createSerializedStateWriter } from '../extension/serialized-state-write
 import { applyPinnedSectionMutation, normalizePinnedSections, SECTION_PIN_STORAGE_KEY, type PinnedSectionMutation } from '../extension/section-pins.js'
 import {
   emptyDashboardLocalState,
+  isDashboardLocalStoragePinValue,
   loadDashboardLocalStateResult,
   sameDashboardLocalState,
   sameStringOrder,
@@ -67,7 +68,7 @@ export function reconcileDashboardLocalStateStorageChanges(
     const nextValue = changes[storageKey]?.newValue
     // Match the initial-load failure contract: malformed persisted pin state is
     // unknown, not an intentional empty list. A removed key is intentionally [].
-    if (nextValue !== undefined && !Array.isArray(nextValue)) return
+    if (!isDashboardLocalStoragePinValue(nextValue)) return
     recognizedChange = true
     const normalizedValue = normalize(nextValue)
     persistedValues[stateKey] = normalizedValue

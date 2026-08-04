@@ -5,6 +5,7 @@ import { normalizeWorkingSetSnapshot } from '../src/extension/working-set-client
 import {
   buildWorkingSetSnapshot,
   emptyWorkingSetActivity,
+  normalizeWorkingSetActivity,
   pageIdentityForWorkingSet,
   recordWorkingSetActivity
 } from '../src/extension/working-set.js'
@@ -71,6 +72,31 @@ test('pageIdentityForWorkingSet distinguishes meaningful paths and ignores noisy
   assert.equal(pageIdentityForWorkingSet('chrome-search://local-ntp/local-ntp.html'), '')
   assert.equal(pageIdentityForWorkingSet('chrome-untrusted://new-tab-page/'), '')
   assert.equal(pageIdentityForWorkingSet('https://www.google.com/search?q=example'), '')
+})
+
+test('Working Set schema repairs valid records independently from malformed events', () => {
+  const now = Date.UTC(2026, 4, 17, 12)
+  const key = 'https://example.test/docs'
+  const normalized = normalizeWorkingSetActivity({
+    version: 1,
+    records: {
+      [key]: {
+        url: key,
+        title: 'Docs',
+        events: [
+          { kind: 'activation', at: now - 1000 },
+          { kind: 'navigation', at: 'invalid' },
+          null
+        ]
+      },
+      malformed: 'not-a-record'
+    }
+  }, now)
+
+  assert.deepEqual(normalized.records[key]?.events, [
+    { kind: 'activation', at: now - 1000 }
+  ])
+  assert.deepEqual(normalizeWorkingSetActivity({ version: 1, records: [] }, now), emptyWorkingSetActivity())
 })
 
 test('buildWorkingSetSnapshot ranks open tabs by recency-dominant activity and folds duplicates', () => {
@@ -222,6 +248,16 @@ test('normalizeWorkingSetSnapshot preserves loading state from the background sn
   })
 
   assert.equal(snapshot.items[0]?.loading, true)
+})
+
+test('normalizeWorkingSetSnapshot rejects malformed containers and drops invalid item identities', () => {
+  assert.deepEqual(normalizeWorkingSetSnapshot({ items: {} }).items, [])
+
+  const validItem = makeWorkingSetItem(1)
+  const snapshot = normalizeWorkingSetSnapshot({
+    items: [validItem, null, { ...validItem, tabId: 1.5 }, { ...validItem, windowId: '1' }]
+  })
+  assert.deepEqual(snapshot.items.map((item) => item.tabId), [1])
 })
 
 test('buildWorkingSetSnapshot excludes Google Search result pages from working set items', () => {

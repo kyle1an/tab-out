@@ -4,7 +4,8 @@ import { readAppStartup, readBuildTimeAppStartup, subscribeAppStartup, type AppS
 import type { ClosedTabEntry } from '../extension/closed-tabs.js'
 import { useMissionsMasonry } from '../extension/layout.js'
 import { showToast } from '../extension/toast.js'
-import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled, saveHistoryRangePreference } from '../extension/history-range.js'
+import { HISTORY_RANGE_OPTIONS, isHistoryFilterEnabled } from '../extension/history-range.js'
+import { saveHistoryRangePreference } from '../extension/history-range-storage.js'
 import { animateDomainCardMoves, cancelDomainCardMoves, hasActiveDomainCardMoves, prepareDomainCardMoveAnimation } from '../extension/card-move-animation'
 import {
   animateIntraCardMoves,

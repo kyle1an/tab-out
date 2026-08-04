@@ -110,6 +110,26 @@ test('uses configured custom-autolink prefixes without claiming an admin audit',
   )
 })
 
+test('validates commit-reference policy containers and indexed custom autolinks', () => {
+  assert.throws(
+    () => parseCommitReferencePolicy({
+      customAutolinksAudited: 'no',
+      customAutolinks: []
+    }),
+    /must define customAutolinksAudited and customAutolinks/
+  )
+  assert.throws(
+    () => parseCommitReferencePolicy({
+      customAutolinksAudited: false,
+      customAutolinks: [
+        { keyPrefix: 'ABC-', isAlphanumeric: false },
+        { keyPrefix: '', isAlphanumeric: true }
+      ]
+    }),
+    /customAutolinks\[1\] must define keyPrefix and isAlphanumeric/
+  )
+})
+
 test('reports stable one-based line and column positions', () => {
   const [finding] = findCommitReferenceFindings('safe line\nImage #11')
   assert.deepEqual(

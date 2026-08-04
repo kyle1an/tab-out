@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import FakeTimers from '@sinonjs/fake-timers'
 
-import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, isClosedTabFetchSuppressed, restoreClosedTab, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
+import { restoreClosedTab } from '../src/extension/closed-tab-actions.js'
+import { CLOSED_TAB_RESTORE_STATE_MESSAGE, CLOSED_TAB_RESTORE_WATCHDOG_MS, CLOSED_TAB_SESSION_SETTLE_MS, closedTabFetchSuppressionRemainingMs, fetchClosedTabsResult, isClosedTabFetchSuppressed, subscribeClosedTabChanges } from '../src/extension/closed-tabs.js'
 
 type Session = chrome.sessions.Session
 type SessionTab = chrome.tabs.Tab
@@ -154,6 +155,27 @@ test('restoreClosedTab returns false when chrome.sessions.restore throws', async
   assert.equal(ok, false)
 })
 
+test('restoreClosedTab broadcasts settlement when Chrome rejects the restore', async () => {
+  const restoreMessages: Array<{ phase: string; restored?: boolean }> = []
+  globalThis.chrome = {
+    sessions: {
+      restore: async () => { throw new Error('refused') }
+    },
+    runtime: {
+      id: 'tab-out-test',
+      sendMessage: async (message: unknown) => {
+        restoreMessages.push(message as { phase: string; restored?: boolean })
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+
+  const ok = await restoreClosedTab('session-xyz')
+
+  assert.equal(ok, false)
+  assert.deepEqual(restoreMessages.map(({ phase }) => phase), ['started', 'settled'])
+  assert.equal(restoreMessages[1]?.restored, false)
+})
+
 test('restoreClosedTab returns false when chrome.sessions is unavailable', async () => {
   globalThis.chrome = {} as unknown as typeof globalThis.chrome
   const ok = await restoreClosedTab('session-xyz')
@@ -295,6 +317,38 @@ test('a second page suppresses reads for a restore broadcast by another page', (
     })
     assert.notEqual(closedTabFetchSuppressionRemainingMs(), Number.POSITIVE_INFINITY)
     assert.deepEqual(settleDelays, [0, CLOSED_TAB_SESSION_SETTLE_MS])
+  } finally {
+    unsubscribe()
+  }
+})
+
+test('a second page ignores malformed restore-state messages', () => {
+  const runtimeListeners: Array<(message: unknown) => void> = []
+  const settleDelays: number[] = []
+  globalThis.chrome = {
+    sessions: {
+      onChanged: { addListener: () => {}, removeListener: () => {} }
+    },
+    tabs: {
+      onRemoved: { addListener: () => {}, removeListener: () => {} }
+    },
+    runtime: {
+      onMessage: {
+        addListener: (handler: (message: unknown) => void) => runtimeListeners.push(handler),
+        removeListener: () => {}
+      }
+    }
+  } as unknown as typeof globalThis.chrome
+  const unsubscribe = subscribeClosedTabChanges((settleDelayMs) => { settleDelays.push(settleDelayMs) })
+
+  try {
+    valueAt(runtimeListeners, 0)({
+      type: CLOSED_TAB_RESTORE_STATE_MESSAGE,
+      restoreId: 'malformed-restore',
+      phase: 'settled',
+      restored: 'yes'
+    })
+    assert.deepEqual(settleDelays, [])
   } finally {
     unsubscribe()
   }

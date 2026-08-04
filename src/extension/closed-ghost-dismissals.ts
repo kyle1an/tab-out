@@ -11,6 +11,10 @@
    reappears, so forgetting is per-closure rather than permanent.
    ================================================================ */
 
+import { Effect, Schema, Semaphore } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
 import { pageIdentityForWorkingSet } from './working-set.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
 import type { BrowserReadResult } from './browser-tabs-gateway.js'
@@ -21,6 +25,13 @@ const CLOSED_GHOST_DISMISSAL_MUTATION_LOCK = 'tab-out:closed-ghost-dismissal-mut
 // Chrome's recently-closed list itself ages out, so long-lived dismissal
 // records serve no purpose; prune anything older than this on load/save.
 const CLOSED_GHOST_DISMISSAL_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+const closedGhostDismissalRecordSchema = Schema.Record(Schema.String, Schema.Unknown)
+const closedGhostDismissalKeySchema = Schema.String.check(Schema.isMinLength(1))
+
+const isClosedGhostDismissalRecord = Schema.is(closedGhostDismissalRecordSchema)
+const isClosedGhostDismissalKey = Schema.is(closedGhostDismissalKeySchema)
+const isClosedGhostDismissalTime = Schema.is(Schema.Finite)
 
 export type ClosedGhostDismissals = ReadonlyMap<string, number>
 
@@ -41,6 +52,11 @@ export type ClosedGhostDismissalMutationStore = {
     now?: number
   ) => Promise<Map<string, number>>
 }
+
+class ClosedGhostDismissalMutationError extends Schema.TaggedErrorClass<ClosedGhostDismissalMutationError>()(
+  'ClosedGhostDismissalMutationError',
+  { cause: Schema.Defect() }
+) {}
 
 export function closedGhostDismissalKey(entry: ClosedGhostIdentity): string {
   return pageIdentityForWorkingSet(entry.url) || entry.url
@@ -64,9 +80,9 @@ function pruneExpired(map: Map<string, number>, now: number): Map<string, number
 
 export function normalizeClosedGhostDismissals(value: unknown, now: number = Date.now()): Map<string, number> {
   const map = new Map<string, number>()
-  if (value && typeof value === 'object') {
-    for (const [key, at] of Object.entries(value as Record<string, unknown>)) {
-      if (key && typeof at === 'number' && Number.isFinite(at)) map.set(key, at)
+  if (isClosedGhostDismissalRecord(value)) {
+    for (const [key, at] of Object.entries(value)) {
+      if (isClosedGhostDismissalKey(key) && isClosedGhostDismissalTime(at)) map.set(key, at)
     }
   }
   return pruneExpired(map, now)
@@ -114,25 +130,63 @@ export function subscribeClosedGhostDismissals(
 export function createClosedGhostDismissalMutationStore(
   adapter: ClosedGhostDismissalStoreAdapter
 ): ClosedGhostDismissalMutationStore {
-  let mutationQueue = Promise.resolve()
+  const mutationSemaphore = Semaphore.makeUnsafe(1)
 
-  function enqueue<Value>(task: () => Promise<Value>): Promise<Value> {
-    const result = mutationQueue.then(() => (
-      adapter.runExclusive ? adapter.runExclusive(task) : task()
-    ))
-    mutationQueue = result.then(
-      () => undefined,
-      () => undefined
+  const runClosedGhostDismissalMutation = Effect.fn('closedGhostDismissals.runMutation')(function*(
+    now: number,
+    mutation: (map: Map<string, number>) => boolean
+  ) {
+    const transaction = Effect.gen(function*() {
+      const stored = yield* Effect.tryPromise({
+        try: adapter.read,
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+      })
+      const map = yield* Effect.try({
+        try: () => normalizeClosedGhostDismissals(stored, now),
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+      })
+      const changed = yield* Effect.try({
+        try: () => mutation(map),
+        catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+      })
+      if (changed) {
+        const value = yield* Effect.try({
+          try: () => Object.fromEntries(map),
+          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+        })
+        yield* Effect.tryPromise({
+          try: () => adapter.write(value),
+          catch: (cause) => ClosedGhostDismissalMutationError.make({ cause })
+        })
+      }
+      return map
+    })
+
+    const runExclusive = adapter.runExclusive
+    if (!runExclusive) return yield* transaction
+    return yield* runPromiseExclusiveEffect(
+      runExclusive,
+      transaction,
+      (cause) => ClosedGhostDismissalMutationError.make({ cause })
     )
-    return result
+  })
+
+  function mutate(
+    now: number,
+    mutation: (map: Map<string, number>) => boolean
+  ): Promise<Map<string, number>> {
+    return getAppRuntime().runPromise(
+      mutationSemaphore.withPermit(runClosedGhostDismissalMutation(now, mutation)).pipe(
+        Effect.catchTag('ClosedGhostDismissalMutationError', (error) => Effect.fail(error.cause))
+      )
+    )
   }
 
   function dismiss(
     entry: ClosedGhostDismissalTarget,
     now: number = Date.now()
   ): Promise<Map<string, number>> {
-    return enqueue(async () => {
-      const map = normalizeClosedGhostDismissals(await adapter.read(), now)
+    return mutate(now, (map) => {
       const key = closedGhostDismissalKey(entry)
       const previousDismissedAt = map.get(key)
       const dismissedAt = Math.max(
@@ -143,9 +197,9 @@ export function createClosedGhostDismissalMutationStore(
 
       if (previousDismissedAt !== dismissedAt) {
         map.set(key, dismissedAt)
-        await adapter.write(Object.fromEntries(map))
+        return true
       }
-      return map
+      return false
     })
   }
 
@@ -154,16 +208,15 @@ export function createClosedGhostDismissalMutationStore(
     expectedDismissedAt: number,
     now: number = Date.now()
   ): Promise<Map<string, number>> {
-    return enqueue(async () => {
-      const map = normalizeClosedGhostDismissals(await adapter.read(), now)
+    return mutate(now, (map) => {
       const key = closedGhostDismissalKey(entry)
       // Undo belongs to one exact dismissal. If another page/context forgot
       // the same URL later, that newer user intent must remain in storage.
       if (map.get(key) === expectedDismissedAt) {
         map.delete(key)
-        await adapter.write(Object.fromEntries(map))
+        return true
       }
-      return map
+      return false
     })
   }
 

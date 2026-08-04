@@ -21,22 +21,26 @@ import {
   createStorageListMutationStore,
   type StorageListMutationAttempt
 } from './storage-list-mutations.js'
+import { isDashboardLocalStoragePinValue } from './dashboard-local-state.js'
 
 const pinnedDomainMutations = createStorageListMutationStore({
   adapter: createChromeStorageListMutationAdapter(DOMAIN_PIN_STORAGE_KEY),
   applyOperation: applyPinnedDomainMutation,
+  isStoredValue: isDashboardLocalStoragePinValue,
   normalize: normalizePinnedDomains
 })
 
 const pinnedSectionMutations = createStorageListMutationStore({
   adapter: createChromeStorageListMutationAdapter(SECTION_PIN_STORAGE_KEY),
   applyOperation: applyPinnedSectionMutation,
+  isStoredValue: isDashboardLocalStoragePinValue,
   normalize: normalizePinnedSections
 })
 
 const pinnedPageChipMutations = createStorageListMutationStore({
   adapter: createChromeStorageListMutationAdapter(PAGE_CHIP_PIN_STORAGE_KEY),
   applyOperation: applyPinnedPageChipMutation,
+  isStoredValue: isDashboardLocalStoragePinValue,
   normalize: normalizePinnedPageChips
 })
 

@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { Effect } from 'effect'
+
 import {
   addSavedPageToStore,
-  createSavedPagesMutationStore,
   emptySavedPagesStore,
   mergeSavedPagesWithTabs,
   removeSavedPageFromStore,
   type SavedPageCandidate,
   type SavedPagesStore
 } from '../src/extension/saved-pages.js'
+import { createSavedPagesMutationStore } from '../src/extension/saved-pages-mutations.js'
 import type { DashboardTab } from '../src/extension/types'
 
 function cloneStore(store: SavedPagesStore): SavedPagesStore {
@@ -179,6 +181,51 @@ test('a Saved Pages storage read failure aborts before write and does not poison
 
   assert.equal(writes, 1)
   assert.deepEqual(Object.keys(stored.pages).sort(), [existingUrl, nextUrl])
+})
+
+test('a rejected Saved Pages lock preserves the failure and releases local serialization', async () => {
+  const url = 'https://example.test/article'
+  let stored = emptySavedPagesStore()
+  let lockAttempts = 0
+  const lockFailure = new Error('lock unavailable')
+  const mutations = createSavedPagesMutationStore({
+    read: async () => cloneStore(stored),
+    write: async (nextStore) => {
+      stored = cloneStore(nextStore)
+    },
+    runExclusive: async (task) => {
+      lockAttempts += 1
+      if (lockAttempts === 1) throw lockFailure
+      return task()
+    }
+  })
+  const save = (store: SavedPagesStore) => ({
+    store: addSavedPageToStore(store, savedPage(url, 'Article'), 100),
+    value: undefined
+  })
+
+  await assert.rejects(mutations.mutate(save), (error) => error === lockFailure)
+  await mutations.mutate(save)
+
+  assert.equal(stored.pages[url]?.title, 'Article')
+})
+
+test('the Saved Pages Effect API composes the complete mutation transaction', async () => {
+  const url = 'https://example.test/article'
+  let stored = emptySavedPagesStore()
+  const mutations = createSavedPagesMutationStore({
+    read: async () => cloneStore(stored),
+    write: async (nextStore) => {
+      stored = cloneStore(nextStore)
+    }
+  })
+
+  await Effect.runPromise(mutations.mutateEffect((store) => ({
+    store: addSavedPageToStore(store, savedPage(url, 'Article'), 100),
+    value: undefined
+  })))
+
+  assert.equal(stored.pages[url]?.title, 'Article')
 })
 
 test('persistMetadataUpdates with an unchanged merged store performs no reads or writes', async () => {

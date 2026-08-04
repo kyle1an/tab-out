@@ -7,7 +7,7 @@ import {
   HISTORY_RANGE_STORAGE_KEY,
   loadHistoryRangePreference,
   saveHistoryRangePreference
-} from '../src/extension/history-range.js'
+} from '../src/extension/history-range-storage.js'
 import { createFakeChromeApi } from './helpers/fake-chrome.mjs'
 
 function createExclusiveRunner() {
@@ -42,6 +42,21 @@ test('history range preference falls back to Last day for an invalid saved scope
   globalThis.chrome = createFakeChromeApi({
     storageSeed: {
       [HISTORY_RANGE_STORAGE_KEY]: '14d'
+    }
+  }) as unknown as typeof chrome
+
+  try {
+    assert.equal(await loadHistoryRangePreference(), '1d')
+  } finally {
+    globalThis.chrome = previousChrome
+  }
+})
+
+test('history range preference rejects non-string stored values', async () => {
+  const previousChrome = globalThis.chrome
+  globalThis.chrome = createFakeChromeApi({
+    storageSeed: {
+      [HISTORY_RANGE_STORAGE_KEY]: { value: '90d' }
     }
   }) as unknown as typeof chrome
 

@@ -1,5 +1,7 @@
+import { Effect, Result, Schema, Semaphore } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
 import type { ClosedTabEntry } from './closed-tabs.js'
-import { domainGroupCardId } from './domain-card-id.js'
 import { isClosedSavedDashboardTab } from './dashboard-source.js'
 import { isPinnableDomain, normalizePinnedDomains } from './domain-pins.js'
 import {
@@ -9,19 +11,25 @@ import {
   type DashboardLocalState
 } from './dashboard-local-state.js'
 import { DEFAULT_HISTORY_RANGE } from './history-range.js'
-import { buildDashboardDataFromTabs } from './render.js'
+import {
+  DashboardDataBuildError,
+  buildDashboardDataFromTabsEffect
+} from './render.js'
 import { normalizeTabHistorySnapshot } from './tab-history.js'
+import { runPromiseExclusiveEffect } from './promise-exclusive-effect.js'
+import {
+  parseCachedDashboardLocalState,
+  parseCachedDashboardStartupBoundary,
+  parseCachedDashboardStartupViewModel,
+  type CachedDashboardStartupBoundary,
+  type DashboardStartupViewModel
+} from './startup-snapshot-schema.js'
 import { buildWorkingSetSnapshot, pageIdentityForWorkingSet } from './working-set.js'
 import { normalizeWorkingSetSnapshot } from './working-set-client.js'
 import type { SavedPageMetadataUpdates, SavedPagesStore } from './saved-pages.js'
-import type { DashboardData, DashboardTab, DashboardViewModel, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
+import type { DashboardData, DashboardTab, DomainGroup, TabHistorySnapshot, WorkingSetActivityStore, WorkingSetSnapshot } from './types'
 
-export type DashboardStartupViewModel = {
-  pinnedDomains: readonly string[]
-  pinnedPageChipIds: readonly string[]
-  pinnedSectionIds: readonly string[]
-  viewModel: DashboardViewModel
-}
+export type { DashboardStartupViewModel } from './startup-snapshot-schema.js'
 export type DashboardStartupSnapshot = {
   dashboard: DashboardData
   tabHistory: TabHistorySnapshot
@@ -37,14 +45,7 @@ export type CachedDashboardStartupLoadResult = {
   ok: boolean
   value: CachedDashboardStartup | null
 }
-type CachedDashboardStartupSnapshot = {
-  savedAt: number
-  captureStartedAt?: number
-  contentFingerprint?: string
-  workingSetSavedAt?: number
-  snapshot: DashboardStartupSnapshot
-  localState?: DashboardLocalState
-}
+type CachedDashboardStartupSnapshot = CachedDashboardStartupBoundary
 type SaveCachedDashboardStartupOptions = {
   buildStartupViewModel?: (snapshot: DashboardStartupSnapshot, localState: DashboardLocalState | null) => DashboardStartupViewModel
   captureStartedAt?: number
@@ -71,7 +72,12 @@ export const DASHBOARD_STARTUP_WORKING_SET_FREEZE_TTL_MS = 30 * 60_000
 export const DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS = 7 * 24 * 60 * 60_000
 const DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK = 'tab-out:startup-snapshot-cache-write'
 
-let startupSnapshotCacheMutationQueue: Promise<void> = Promise.resolve()
+export class StartupSnapshotCacheMutationError extends Schema.TaggedErrorClass<StartupSnapshotCacheMutationError>()(
+  'StartupSnapshotCacheMutationError',
+  { cause: Schema.Defect() }
+) {}
+
+const startupSnapshotCacheMutationSemaphore = Semaphore.makeUnsafe(1)
 
 // performance.timeOrigin + performance.now() is comparable across extension pages and the
 // service worker while retaining more ordering precision than Date.now(). Callers capture it
@@ -89,375 +95,6 @@ function startupSnapshotCacheStorage(): chrome.storage.StorageArea | null {
 
 function startupSnapshotDurableStorage(): chrome.storage.StorageArea | null {
   return typeof chrome === 'undefined' ? null : chrome.storage?.local || null
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object'
-}
-
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value)
-}
-
-function isOptionalBoolean(value: unknown): boolean {
-  return value === undefined || typeof value === 'boolean'
-}
-
-function isOptionalString(value: unknown): boolean {
-  return value === undefined || typeof value === 'string'
-}
-
-function isOptionalFiniteNumber(value: unknown): boolean {
-  return value === undefined || isFiniteNumber(value)
-}
-
-function isCachedTabId(value: unknown): boolean {
-  return value === undefined || typeof value === 'string' || isFiniteNumber(value)
-}
-
-function isCachedDashboardSourceType(value: unknown): boolean {
-  return value === undefined || value === 'tab' || value === 'bookmark' || value === 'history' || value === 'saved-page'
-}
-
-function isCachedDashboardTab(value: unknown): value is DashboardTab {
-  return isObject(value) &&
-    isCachedTabId(value.id) &&
-    typeof value.url === 'string' &&
-    typeof value.rawUrl === 'string' &&
-    typeof value.suspended === 'boolean' &&
-    typeof value.title === 'string' &&
-    (value.status === undefined || value.status === 'unloaded' || value.status === 'loading' || value.status === 'complete') &&
-    isOptionalBoolean(value.retainedSuspendedTitle) &&
-    typeof value.favIconUrl === 'string' &&
-    isFiniteNumber(value.windowId) &&
-    typeof value.active === 'boolean' &&
-    typeof value.pinned === 'boolean' &&
-    isFiniteNumber(value.groupId) &&
-    typeof value.isTabOut === 'boolean' &&
-    typeof value.isApp === 'boolean' &&
-    isOptionalBoolean(value.audible) &&
-    isOptionalBoolean(value.muted) &&
-    isCachedDashboardSourceType(value.sourceType) &&
-    isOptionalBoolean(value.saved) &&
-    isOptionalBoolean(value.closedSaved) &&
-    isOptionalString(value.savedPageKey) &&
-    isOptionalFiniteNumber(value.index)
-}
-
-function isCachedDomainGroup(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.domain === 'string' &&
-    Array.isArray(value.tabs) &&
-    value.tabs.every(isCachedDashboardTab) &&
-    isOptionalString(value.label) &&
-    isOptionalBoolean(value.pinned)
-}
-
-function isCachedClosedTab(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.sessionId === 'string' &&
-    typeof value.url === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.lastClosedAt === 'number'
-}
-
-function isDashboardStartupSnapshot(value: unknown): value is DashboardStartupSnapshot {
-  if (!isObject(value) || !isObject(value.dashboard)) return false
-  return (
-    Array.isArray(value.dashboard.realTabs) && value.dashboard.realTabs.every(isCachedDashboardTab) &&
-    Array.isArray(value.dashboard.domainGroups) && value.dashboard.domainGroups.every(isCachedDomainGroup) &&
-    (value.dashboard.bookmarkDomainGroups === undefined || (
-      Array.isArray(value.dashboard.bookmarkDomainGroups) && value.dashboard.bookmarkDomainGroups.every(isCachedDomainGroup)
-    )) &&
-    (value.dashboard.historyDomainGroups === undefined || (
-      Array.isArray(value.dashboard.historyDomainGroups) && value.dashboard.historyDomainGroups.every(isCachedDomainGroup)
-    )) &&
-    (value.tabHistory == null || isObject(value.tabHistory)) &&
-    (value.workingSet == null || isObject(value.workingSet)) &&
-    Array.isArray(value.closedTabs) && value.closedTabs.every(isCachedClosedTab)
-  )
-}
-
-function stringArray(value: unknown): string[] | null {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string') ? [...value] : null
-}
-
-function cachedDashboardLocalState(value: unknown): DashboardLocalState | null {
-  if (!isObject(value) || value.loaded !== true) return null
-  const pinnedDomains = stringArray(value.pinnedDomains)
-  const pinnedSectionIds = stringArray(value.pinnedSectionIds)
-  const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
-  if (!pinnedDomains || !pinnedSectionIds || !pinnedPageChipIds) return null
-  return {
-    loaded: true,
-    pinnedDomains,
-    pinnedSectionIds,
-    pinnedPageChipIds
-  }
-}
-
-function isArrayOf(value: unknown, predicate: (item: unknown) => boolean): boolean {
-  return Array.isArray(value) && value.every(predicate)
-}
-
-function isStringArray(value: unknown): boolean {
-  return isArrayOf(value, (item) => typeof item === 'string')
-}
-
-function isOptionalStringArray(value: unknown): boolean {
-  return value === undefined || isStringArray(value)
-}
-
-function isOptionalObjectArray(value: unknown, predicate: (item: unknown) => boolean): boolean {
-  return value === undefined || isArrayOf(value, predicate)
-}
-
-function isRecordOf(value: unknown, predicate: (item: unknown) => boolean): boolean {
-  return isObject(value) && !Array.isArray(value) && Object.values(value).every(predicate)
-}
-
-function isCachedDashboardTitleSuppression(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.text === 'string' &&
-    isFiniteNumber(value.count) &&
-    isOptionalBoolean(value.spansRenderedChildGroups)
-}
-
-function isCachedTitleSuppressionTone(value: unknown): boolean {
-  return value === '' || value === 'amber' || value === 'teal' || value === 'sky' || value === 'rose'
-}
-
-function isCachedTitleSuppressionToneScope(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.useSuppressionTokenTones === 'boolean' &&
-    isRecordOf(value.suppressedTitleToneIndexByText, isFiniteNumber) &&
-    isRecordOf(value.suppressedTitleToneByText, isCachedTitleSuppressionTone) &&
-    isFiniteNumber(value.usedToneCount)
-}
-
-function isOptionalTitleSuppressionToneScope(value: unknown): boolean {
-  return value === undefined || isCachedTitleSuppressionToneScope(value)
-}
-
-function isOptionalTitleSuppressionToneRecord(value: unknown): boolean {
-  return value === undefined || isRecordOf(value, isCachedTitleSuppressionTone)
-}
-
-function isOptionalDashboardTitleSuppressions(value: unknown): boolean {
-  return value === undefined || isArrayOf(value, isCachedDashboardTitleSuppression)
-}
-
-function isCachedDashboardSegment(value: unknown): boolean {
-  if (typeof value === 'string') return true
-  if (!isObject(value)) return false
-  if (value.placeholder === true) return isOptionalString(value.label)
-  return typeof value.titleSuppression === 'string'
-}
-
-function isCachedDashboardChipEnv(value: unknown): boolean {
-  return isObject(value) &&
-    isCachedTabId(value.tabId) &&
-    typeof value.prefix === 'string' &&
-    typeof value.tabUrl === 'string' &&
-    typeof value.rawUrl === 'string' &&
-    isCachedDashboardSourceType(value.sourceType) &&
-    isOptionalBoolean(value.saved) &&
-    isOptionalBoolean(value.closedSaved) &&
-    isOptionalString(value.savedPageKey) &&
-    isOptionalString(value.title) &&
-    isOptionalString(value.faviconUrl) &&
-    isOptionalBoolean(value.isApp) &&
-    isOptionalBoolean(value.activeInOtherWindow)
-}
-
-function isCachedDashboardChip(value: unknown): boolean {
-  return isObject(value) &&
-    isCachedTabId(value.tabId) &&
-    typeof value.tabUrl === 'string' &&
-    typeof value.rawUrl === 'string' &&
-    isCachedDashboardSourceType(value.sourceType) &&
-    isOptionalBoolean(value.saved) &&
-    isOptionalBoolean(value.closedSaved) &&
-    isOptionalBoolean(value.suspended) &&
-    isOptionalBoolean(value.loading) &&
-    isOptionalString(value.savedPageKey) &&
-    isOptionalString(value.pagePinId) &&
-    isOptionalBoolean(value.pagePinned) &&
-    isOptionalBoolean(value.pagePinDisabled) &&
-    typeof value.leadPrefix === 'string' &&
-    typeof value.pathGroupLabel === 'string' &&
-    isOptionalString(value.title) &&
-    isArrayOf(value.displaySegments, isCachedDashboardSegment) &&
-    isStringArray(value.suppressedTitleParts) &&
-    typeof value.pathSuffix === 'string' &&
-    typeof value.tooltip === 'string' &&
-    isFiniteNumber(value.dupeCount) &&
-    typeof value.faviconUrl === 'string' &&
-    typeof value.isGrouped === 'boolean' &&
-    (value.groupDotColor === null || typeof value.groupDotColor === 'string') &&
-    typeof value.isApp === 'boolean' &&
-    (value.audioState === undefined || value.audioState === null || value.audioState === 'playing' || value.audioState === 'muted') &&
-    isOptionalBoolean(value.activeInOtherWindow) &&
-    isOptionalBoolean(value.activeChipFrame) &&
-    isOptionalBoolean(value.isCurrentTabOut) &&
-    isOptionalBoolean(value.chromePinned) &&
-    isOptionalFiniteNumber(value.chromeGroupId) &&
-    isOptionalBoolean(value.iconOnly) &&
-    (value.envs === null || isArrayOf(value.envs, isCachedDashboardChipEnv)) &&
-    isOptionalObjectArray(value.titleVariantChips, isCachedDashboardChip)
-}
-
-function isCachedDashboardCluster(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.key === 'string' &&
-    typeof value.label === 'string' &&
-    typeof value.isPR === 'boolean' &&
-    isFiniteNumber(value.count) &&
-    isStringArray(value.closableUrls) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalTitleSuppressionToneScope(value.titleSuppressionToneScope) &&
-    isOptionalTitleSuppressionToneRecord(value.suppressedTitleToneByText) &&
-    isArrayOf(value.visibleChips, isCachedDashboardChip) &&
-    isArrayOf(value.hiddenChips, isCachedDashboardChip) &&
-    isFiniteNumber(value.hiddenCount) &&
-    isOptionalBoolean(value.isPinned)
-}
-
-function isCachedDashboardWebsitePathSection(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.key === 'string' &&
-    typeof value.label === 'string' &&
-    isFiniteNumber(value.sectionCount) &&
-    isStringArray(value.sectionClosableUrls) &&
-    typeof value.hasFlat === 'boolean' &&
-    isArrayOf(value.flatVisibleChips, isCachedDashboardChip) &&
-    isArrayOf(value.flatHiddenChips, isCachedDashboardChip) &&
-    isFiniteNumber(value.flatHiddenCount) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalTitleSuppressionToneScope(value.titleSuppressionToneScope) &&
-    isOptionalTitleSuppressionToneRecord(value.suppressedTitleToneByText) &&
-    isArrayOf(value.clusters, isCachedDashboardCluster) &&
-    isOptionalBoolean(value.isPinned)
-}
-
-function isCachedDashboardSection(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.key === 'string' &&
-    isFiniteNumber(value.sectionCount) &&
-    isStringArray(value.sectionClosableUrls) &&
-    typeof value.showHeader === 'boolean' &&
-    typeof value.isShared === 'boolean' &&
-    isOptionalBoolean(value.isPort) &&
-    typeof value.hasFlat === 'boolean' &&
-    isArrayOf(value.flatVisibleChips, isCachedDashboardChip) &&
-    isArrayOf(value.flatHiddenChips, isCachedDashboardChip) &&
-    isFiniteNumber(value.flatHiddenCount) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalTitleSuppressionToneScope(value.titleSuppressionToneScope) &&
-    isOptionalTitleSuppressionToneRecord(value.suppressedTitleToneByText) &&
-    isArrayOf(value.clusters, isCachedDashboardCluster) &&
-    isArrayOf(value.websitePathSections, isCachedDashboardWebsitePathSection) &&
-    isOptionalBoolean(value.isPinned)
-}
-
-function isCachedMutationTarget(value: unknown): boolean {
-  return isObject(value) && Number.isInteger(value.tabId) && typeof value.tabUrl === 'string'
-}
-
-function isOptionalMutationTargetsByText(value: unknown): boolean {
-  return value === undefined || isRecordOf(value, (targets) => isArrayOf(targets, isCachedMutationTarget))
-}
-
-function isCachedDashboardCard(value: unknown): boolean {
-  return isObject(value) &&
-    typeof value.stableId === 'string' &&
-    typeof value.isHidden === 'boolean' &&
-    (value.displayMode === 'normal' || value.displayMode === 'unmatched') &&
-    typeof value.filtering === 'boolean' &&
-    isOptionalFiniteNumber(value.tabCount) &&
-    isOptionalFiniteNumber(value.totalTabCount) &&
-    isOptionalString(value.tabCountLabel) &&
-    isOptionalString(value.tabCountTitle) &&
-    isOptionalFiniteNumber(value.closableCount) &&
-    isOptionalString(value.closableCountLabel) &&
-    isOptionalFiniteNumber(value.suspendableCount) &&
-    isOptionalString(value.suspendableCountLabel) &&
-    isOptionalFiniteNumber(value.closableSuspendedCount) &&
-    isOptionalString(value.closableSuspendedCountLabel) &&
-    isOptionalStringArray(value.closableDupeUrls) &&
-    isOptionalFiniteNumber(value.closableExtras) &&
-    isOptionalString(value.singleSubdomainKey) &&
-    isOptionalBoolean(value.singleSubdomainIsPort) &&
-    isOptionalString(value.displayName) &&
-    isOptionalDashboardTitleSuppressions(value.suppressedTitleParts) &&
-    isOptionalDashboardTitleSuppressions(value.allSuppressedTitleParts) &&
-    isOptionalMutationTargetsByText(value.suppressionCloseTargetsByText) &&
-    isOptionalMutationTargetsByText(value.suppressionSuspendTargetsByText) &&
-    isOptionalTitleSuppressionToneScope(value.cardSuppressionToneScope) &&
-    isArrayOf(value.sections, isCachedDashboardSection)
-}
-
-function isCachedDashboardStats(value: unknown): boolean {
-  return isObject(value) &&
-    isFiniteNumber(value.totalTabs) &&
-    isFiniteNumber(value.activeTabs) &&
-    isFiniteNumber(value.visibleTabs) &&
-    isFiniteNumber(value.totalWindows) &&
-    isFiniteNumber(value.visibleWindows) &&
-    isFiniteNumber(value.totalDomains) &&
-    isFiniteNumber(value.visibleDomains) &&
-    isFiniteNumber(value.dedupCount) &&
-    isFiniteNumber(value.filteredCloseCount) &&
-    typeof value.hasCards === 'boolean' &&
-    typeof value.filtering === 'boolean'
-}
-
-function isCachedDashboardStartupSnapshot(value: unknown): value is CachedDashboardStartupSnapshot {
-  return isObject(value) &&
-    typeof value.savedAt === 'number' &&
-    isOptionalString(value.contentFingerprint) &&
-    isDashboardStartupSnapshot(value.snapshot)
-}
-
-function cachedStartupViewModel(value: unknown): DashboardStartupViewModel | undefined {
-  if (!isObject(value) || !isObject(value.viewModel)) return undefined
-  const pinnedDomains = stringArray(value.pinnedDomains)
-  const pinnedPageChipIds = stringArray(value.pinnedPageChipIds)
-  const pinnedSectionIds = stringArray(value.pinnedSectionIds)
-  if (!pinnedDomains || !pinnedPageChipIds || !pinnedSectionIds) return undefined
-  const viewModel = value.viewModel as Partial<DashboardViewModel>
-  const isCardEntry = (entry: unknown) => isObject(entry) &&
-    isCachedDomainGroup(entry.group) &&
-    isCachedDashboardCard(entry.vm)
-  if (
-    viewModel.source !== 'tabs' ||
-    !isCachedDashboardStats(viewModel.stats) ||
-    !Array.isArray(viewModel.matchedCards) || !viewModel.matchedCards.every(isCardEntry) ||
-    !Array.isArray(viewModel.unmatchedCards) || !viewModel.unmatchedCards.every(isCardEntry) ||
-    typeof viewModel.showOtherTabs !== 'boolean' ||
-    !isStringArray(viewModel.globalDedupeUrls) ||
-    !isStringArray(viewModel.filteredCloseUrls) ||
-    !Array.isArray(viewModel.filteredCloseTargets) || !viewModel.filteredCloseTargets.every(isCachedMutationTarget)
-  ) return undefined
-  const normalizeCardId = (entry: DashboardViewModel['matchedCards'][number]) => ({
-    ...entry,
-    vm: {
-      ...entry.vm,
-      // Stable IDs are a derived identity, not persisted product state. Repair
-      // warm caches written before the collision-safe ID encoding changed.
-      stableId: domainGroupCardId(entry.group)
-    }
-  })
-  return {
-    pinnedDomains,
-    pinnedPageChipIds,
-    pinnedSectionIds,
-    viewModel: {
-      ...(viewModel as DashboardViewModel),
-      matchedCards: (viewModel.matchedCards as DashboardViewModel['matchedCards']).map(normalizeCardId),
-      unmatchedCards: (viewModel.unmatchedCards as DashboardViewModel['unmatchedCards']).map(normalizeCardId)
-    }
-  }
 }
 
 export function applyPinnedDomainsToDashboardGroups(
@@ -518,17 +155,30 @@ type StartupSnapshotCacheRead =
   | { ok: true; cached: CachedDashboardStartupSnapshot | null }
   | { ok: false; cached: null }
 
-async function readStartupSnapshotCacheForMutation(storage: chrome.storage.StorageArea | null): Promise<StartupSnapshotCacheRead> {
-  if (!storage) return { ok: true, cached: null }
-  try {
-    const stored = await storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-    return { ok: true, cached: isCachedDashboardStartupSnapshot(cached) ? cached : null }
-  } catch {
-    // A failed read makes the generation of the existing cache unknown. Do not risk replacing
-    // a newer value whose comparison could not be performed.
-    return { ok: false, cached: null }
-  }
+function readStartupSnapshotCacheForMutationEffect(
+  storage: chrome.storage.StorageArea | null
+): Effect.Effect<StartupSnapshotCacheRead> {
+  if (!storage) return Effect.succeed({ ok: true, cached: null })
+  return Effect.tryPromise({
+    try: () => storage.get(DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY),
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+  }).pipe(
+    Effect.flatMap((stored) => Effect.try({
+      try: (): StartupSnapshotCacheRead => ({
+        ok: true,
+        cached: parseCachedDashboardStartupBoundary(
+          stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+        )
+      }),
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    })),
+    // A failed read makes the generation of the existing cache unknown. Do not
+    // risk replacing a newer value whose comparison could not be performed.
+    Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.succeed({
+      ok: false,
+      cached: null
+    }))
+  )
 }
 
 function cachedStartupWorkingSetForSave(cached: CachedDashboardStartupSnapshot | null, now: number): { workingSet: WorkingSetSnapshot; savedAt: number } | null {
@@ -548,14 +198,29 @@ function cachedCaptureStartedAt(cached: CachedDashboardStartupSnapshot | null): 
     : cached.savedAt
 }
 
-async function withStartupSnapshotCacheMutationLock<T>(mutation: () => Promise<T>): Promise<T> {
-  const previousMutation = startupSnapshotCacheMutationQueue.catch(() => {})
-  const nextMutation = previousMutation.then(() => (
-    navigator.locks.request(DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK, mutation)
-  ))
-  startupSnapshotCacheMutationQueue = nextMutation.then(() => undefined, () => undefined)
-  return nextMutation
-}
+const runStartupSnapshotCacheMutation = Effect.fn('startupSnapshotCache.mutate')(function*<
+  Value,
+  Failure,
+  Requirements
+>(
+  mutation: Effect.Effect<Value, Failure, Requirements>
+) {
+  const guardedMutation = mutation.pipe(
+    Effect.catchDefect((cause) => Effect.fail(
+      StartupSnapshotCacheMutationError.make({ cause })
+    ))
+  )
+  return yield* startupSnapshotCacheMutationSemaphore.withPermit(
+    runPromiseExclusiveEffect(
+      (task) => navigator.locks.request(
+        DASHBOARD_STARTUP_SNAPSHOT_CACHE_WRITE_LOCK,
+        task
+      ),
+      guardedMutation,
+      (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    )
+  )
+})
 
 type HydratedCachedDashboardStartup = {
   cached: CachedDashboardStartupSnapshot
@@ -568,51 +233,65 @@ type CachedDashboardStartupStorageRead = {
   liveLocalState: DashboardLocalState | null
 }
 
-async function readCachedDashboardStartup(
+function readCachedDashboardStartupEffect(
   storage: chrome.storage.StorageArea | null,
   maxAgeMs: number | null,
   now: number,
   includeLocalStateKeys = false
-): Promise<CachedDashboardStartupStorageRead> {
-  if (!storage) return { ok: true, startup: null, liveLocalState: null }
-  try {
-    const stored = await storage.get(includeLocalStateKeys
+): Effect.Effect<CachedDashboardStartupStorageRead> {
+  if (!storage) return Effect.succeed({ ok: true, startup: null, liveLocalState: null })
+  return Effect.tryPromise({
+    try: () => storage.get(includeLocalStateKeys
       ? [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY, ...DASHBOARD_LOCAL_STORAGE_KEYS]
-      : DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY)
-    const liveLocalState = includeLocalStateKeys
-      ? validDashboardLocalStateFromStorage(stored)
-      : null
-    const cached = stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
-    if (!isCachedDashboardStartupSnapshot(cached)) return { ok: true, startup: null, liveLocalState }
-    if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) return { ok: true, startup: null, liveLocalState }
-    const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
-    const cachedLocalState = cachedDashboardLocalState(cached.localState)
-    const startupViewModel = cachedStartupViewModel(rawStartupViewModel)
-    const dashboard = snapshot.dashboard
-    const workingSet = filterCachedWorkingSetToOpenDashboardTabs(
-      normalizeWorkingSetSnapshot(snapshot.workingSet),
-      dashboard
-    )
-    return {
-      ok: true,
-      startup: {
-        cached,
-        startup: {
-          snapshot: {
-            ...snapshot,
-            dashboard,
-            tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
-            workingSet,
-            ...(startupViewModel ? { startupViewModel } : {})
+      : DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY),
+    catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+  }).pipe(
+    Effect.flatMap((stored) => Effect.try({
+      try: (): CachedDashboardStartupStorageRead => {
+        const liveLocalState = includeLocalStateKeys
+          ? validDashboardLocalStateFromStorage(stored)
+          : null
+        const cached = parseCachedDashboardStartupBoundary(
+          stored[DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]
+        )
+        if (!cached) return { ok: true, startup: null, liveLocalState }
+        if (maxAgeMs != null && now - cached.savedAt > maxAgeMs) {
+          return { ok: true, startup: null, liveLocalState }
+        }
+        const { startupViewModel: rawStartupViewModel, ...snapshot } = cached.snapshot
+        const cachedLocalState = parseCachedDashboardLocalState(cached.localState)
+        const startupViewModel = parseCachedDashboardStartupViewModel(rawStartupViewModel)
+        const dashboard = snapshot.dashboard
+        const workingSet = filterCachedWorkingSetToOpenDashboardTabs(
+          normalizeWorkingSetSnapshot(snapshot.workingSet),
+          dashboard
+        )
+        return {
+          ok: true,
+          startup: {
+            cached,
+            startup: {
+              snapshot: {
+                ...snapshot,
+                dashboard,
+                tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
+                workingSet,
+                ...(startupViewModel ? { startupViewModel } : {})
+              },
+              localState: cachedLocalState
+            }
           },
-          localState: cachedLocalState
-        },
+          liveLocalState
+        }
       },
-      liveLocalState
-    }
-  } catch {
-    return { ok: false, startup: null, liveLocalState: null }
-  }
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    })),
+    Effect.catchTag('StartupSnapshotCacheMutationError', () => Effect.succeed({
+      ok: false,
+      startup: null,
+      liveLocalState: null
+    }))
+  )
 }
 
 function applyLiveDashboardLocalState(
@@ -641,14 +320,21 @@ function applyLiveDashboardLocalState(
   }
 }
 
-export async function loadCachedDashboardStartupResult(now = Date.now()): Promise<CachedDashboardStartupLoadResult> {
+export const loadCachedDashboardStartupResultEffect = Effect.fn(
+  'startupSnapshotCache.load'
+)(function*(now = Date.now()) {
   // Read and validate both representations so an older render-ready Warm Snapshot cannot mask
   // a newer source-only Durable Checkpoint. For an equal generation, prefer whichever copy has
   // a valid derived view model, then prefer session because it is the normal render-ready tier.
-  const [sessionRead, durableRead] = await Promise.all([
-    readCachedDashboardStartup(startupSnapshotCacheStorage(), null, now),
-    readCachedDashboardStartup(startupSnapshotDurableStorage(), DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS, now, true)
-  ])
+  const [sessionRead, durableRead] = yield* Effect.all([
+    readCachedDashboardStartupEffect(startupSnapshotCacheStorage(), null, now),
+    readCachedDashboardStartupEffect(
+      startupSnapshotDurableStorage(),
+      DASHBOARD_STARTUP_DURABLE_CACHE_TTL_MS,
+      now,
+      true
+    )
+  ], { concurrency: 'unbounded' })
   const sessionStartup = sessionRead.startup
   const durableStartup = durableRead.startup
   const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionStartup?.cached ?? null) ?? Number.NEGATIVE_INFINITY
@@ -671,32 +357,51 @@ export async function loadCachedDashboardStartupResult(now = Date.now()): Promis
     ok: sessionRead.ok && durableRead.ok,
     value: selected ? applyLiveDashboardLocalState(selected, durableRead.liveLocalState) : null
   }
+})
+
+export function loadCachedDashboardStartupResult(
+  now = Date.now()
+): Promise<CachedDashboardStartupLoadResult> {
+  return getAppRuntime().runPromise(loadCachedDashboardStartupResultEffect(now))
 }
 
-export async function loadCachedDashboardStartup(now = Date.now()): Promise<CachedDashboardStartup | null> {
-  return (await loadCachedDashboardStartupResult(now)).value
+export const loadCachedDashboardStartupEffect = Effect.fn(
+  'startupSnapshotCache.loadValue'
+)(function*(now = Date.now()) {
+  return (yield* loadCachedDashboardStartupResultEffect(now)).value
+})
+
+export function loadCachedDashboardStartup(
+  now = Date.now()
+): Promise<CachedDashboardStartup | null> {
+  return getAppRuntime().runPromise(loadCachedDashboardStartupEffect(now))
 }
 
-async function writeStartupSnapshotCache(storage: chrome.storage.StorageArea | null, payload: CachedDashboardStartupSnapshot): Promise<boolean> {
-  if (!storage) return true
-  let fallbackPayload = payload
-  try {
-    await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: payload })
-    return true
-  } catch {
-    if (payload.snapshot.startupViewModel) {
-      const { startupViewModel: _startupViewModel, ...snapshot } = payload.snapshot
-      fallbackPayload = { ...payload, snapshot }
+function writeStartupSnapshotCacheEffect(
+  storage: chrome.storage.StorageArea | null,
+  payload: CachedDashboardStartupSnapshot
+): Effect.Effect<boolean> {
+  if (!storage) return Effect.succeed(true)
+  return Effect.gen(function*() {
+    let fallbackPayload = payload
+    const initialWrite = yield* Effect.result(Effect.tryPromise({
+      try: () => storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: payload }),
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    }))
+    if (Result.isSuccess(initialWrite)) return true
+    if (Result.isFailure(initialWrite)) {
+      if (payload.snapshot.startupViewModel) {
+        const { startupViewModel: _startupViewModel, ...snapshot } = payload.snapshot
+        fallbackPayload = { ...payload, snapshot }
+      }
     }
-  }
-  // The compact retry handles both quota pressure from the render-ready view model and a
-  // one-shot storage transport failure. If it also fails, the prior valid value stays intact.
-  try {
-    await storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: fallbackPayload })
-    return true
-  } catch {
-    return false
-  }
+    // The compact retry handles both quota pressure from the render-ready view model and a
+    // one-shot storage transport failure. If it also fails, the prior valid value stays intact.
+    return Result.isSuccess(yield* Effect.result(Effect.tryPromise({
+      try: () => storage.set({ [DASHBOARD_STARTUP_SNAPSHOT_CACHE_KEY]: fallbackPayload }),
+      catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+    })))
+  })
 }
 
 function compactStartupSnapshotPayload(payload: CachedDashboardStartupSnapshot): CachedDashboardStartupSnapshot {
@@ -776,21 +481,24 @@ function dashboardStartupContentFingerprint(
 }
 
 function cachedDashboardStartupContentFingerprint(cached: CachedDashboardStartupSnapshot): string {
+  const { startupViewModel: _startupViewModel, ...snapshot } = cached.snapshot
   return cached.contentFingerprint ?? dashboardStartupContentFingerprint(
     {
-      ...cached.snapshot,
-      tabHistory: normalizeTabHistorySnapshot(cached.snapshot.tabHistory),
-      workingSet: normalizeWorkingSetSnapshot(cached.snapshot.workingSet)
+      ...snapshot,
+      tabHistory: normalizeTabHistorySnapshot(snapshot.tabHistory),
+      workingSet: normalizeWorkingSetSnapshot(snapshot.workingSet)
     },
-    cachedDashboardLocalState(cached.localState)
+    parseCachedDashboardLocalState(cached.localState)
   )
 }
 
-export async function saveCachedDashboardStartupSnapshot(
+export const saveCachedDashboardStartupSnapshotEffect = Effect.fn(
+  'startupSnapshotCache.save'
+)(function*(
   snapshot: DashboardStartupSnapshot,
   localState: DashboardLocalState | null,
   options: SaveCachedDashboardStartupOptions = {}
-): Promise<void> {
+) {
   const now = options.now ?? Date.now()
   const requestedCaptureStartedAt = options.captureStartedAt ?? now
   const captureStartedAt = Number.isFinite(requestedCaptureStartedAt)
@@ -801,13 +509,13 @@ export async function saveCachedDashboardStartupSnapshot(
     ? Math.max(0, requestedDurableCheckpointIntervalMs)
     : 0
 
-  await withStartupSnapshotCacheMutationLock(async () => {
+  yield* runStartupSnapshotCacheMutation(Effect.gen(function*() {
     const sessionStorage = startupSnapshotCacheStorage()
     const durableStorage = startupSnapshotDurableStorage()
-    const [sessionCacheRead, durableCacheRead] = await Promise.all([
-      readStartupSnapshotCacheForMutation(sessionStorage),
-      readStartupSnapshotCacheForMutation(durableStorage)
-    ])
+    const [sessionCacheRead, durableCacheRead] = yield* Effect.all([
+      readStartupSnapshotCacheForMutationEffect(sessionStorage),
+      readStartupSnapshotCacheForMutationEffect(durableStorage)
+    ], { concurrency: 'unbounded' })
     if (!sessionCacheRead.ok || !durableCacheRead.ok) return
 
     const existingCaptureStartedAt = Math.max(
@@ -829,7 +537,7 @@ export async function saveCachedDashboardStartupSnapshot(
     const sessionRenderReady = sessionStorage === null || (
       sessionContentCurrent &&
       (options.buildStartupViewModel === undefined ||
-        cachedStartupViewModel(sessionCacheRead.cached?.snapshot.startupViewModel) !== undefined)
+        parseCachedDashboardStartupViewModel(sessionCacheRead.cached?.snapshot.startupViewModel) !== undefined)
     )
     const sessionWriteRequired = !sessionContentCurrent || !sessionRenderReady
     const durableContentCurrent = durableStorage === null || (
@@ -861,7 +569,7 @@ export async function saveCachedDashboardStartupSnapshot(
       : sessionCacheRead.cached
 
     if (sessionWriteRequired) {
-      const sessionWritten = await writeStartupSnapshotCache(sessionStorage, payload)
+      const sessionWritten = yield* writeStartupSnapshotCacheEffect(sessionStorage, payload)
       if (sessionWritten) sessionSourceForCheckpoint = compactPayload
     }
 
@@ -874,7 +582,10 @@ export async function saveCachedDashboardStartupSnapshot(
       const checkpointSource = !sessionWriteRequired && sessionSourceForCheckpoint
         ? compactStartupSnapshotPayload(sessionSourceForCheckpoint)
         : compactPayload
-      await writeStartupSnapshotCache(durableStorage, { ...checkpointSource, savedAt: now })
+      yield* writeStartupSnapshotCacheEffect(
+        durableStorage,
+        { ...checkpointSource, savedAt: now }
+      )
       return
     }
 
@@ -892,21 +603,43 @@ export async function saveCachedDashboardStartupSnapshot(
     if (checkpointNeeded) {
       // Scheduling while holding the cache lock prevents an alarm promotion racing with this
       // save from leaving behind a clean-state alarm. The scheduler preserves an existing alarm.
-      await options.scheduleDurableCheckpoint(
-        durableCheckpointDueAt(durableCacheRead.cached, now, durableCheckpointIntervalMs)
-      )
+      yield* Effect.tryPromise({
+        try: async () => {
+          await options.scheduleDurableCheckpoint?.(
+            durableCheckpointDueAt(durableCacheRead.cached, now, durableCheckpointIntervalMs)
+          )
+        },
+        catch: (cause) => StartupSnapshotCacheMutationError.make({ cause })
+      })
     }
-  })
+  }))
+})
+
+export function saveCachedDashboardStartupSnapshot(
+  snapshot: DashboardStartupSnapshot,
+  localState: DashboardLocalState | null,
+  options: SaveCachedDashboardStartupOptions = {}
+): Promise<void> {
+  return getAppRuntime().runPromise(
+    saveCachedDashboardStartupSnapshotEffect(snapshot, localState, options).pipe(
+      Effect.catchTag(
+        'StartupSnapshotCacheMutationError',
+        (error) => Effect.fail(error.cause)
+      )
+    )
+  )
 }
 
-export async function promoteCachedDashboardStartupSnapshot(now = Date.now()): Promise<boolean> {
-  return withStartupSnapshotCacheMutationLock(async () => {
+export const promoteCachedDashboardStartupSnapshotEffect = Effect.fn(
+  'startupSnapshotCache.promote'
+)(function*(now = Date.now()) {
+  return yield* runStartupSnapshotCacheMutation(Effect.gen(function*() {
     const sessionStorage = startupSnapshotCacheStorage()
     const durableStorage = startupSnapshotDurableStorage()
-    const [sessionCacheRead, durableCacheRead] = await Promise.all([
-      readStartupSnapshotCacheForMutation(sessionStorage),
-      readStartupSnapshotCacheForMutation(durableStorage)
-    ])
+    const [sessionCacheRead, durableCacheRead] = yield* Effect.all([
+      readStartupSnapshotCacheForMutationEffect(sessionStorage),
+      readStartupSnapshotCacheForMutationEffect(durableStorage)
+    ], { concurrency: 'unbounded' })
     if (!sessionCacheRead.ok || !durableCacheRead.ok || !sessionCacheRead.cached) return false
 
     const sessionCaptureStartedAt = cachedCaptureStartedAt(sessionCacheRead.cached) ?? Number.NEGATIVE_INFINITY
@@ -920,12 +653,25 @@ export async function promoteCachedDashboardStartupSnapshot(now = Date.now()): P
       durableCacheRead.cached.snapshot.startupViewModel === undefined
     if (durableCurrent) return true
 
-    return writeStartupSnapshotCache(durableStorage, {
+    return yield* writeStartupSnapshotCacheEffect(durableStorage, {
       ...compactSessionPayload,
       savedAt: now,
       contentFingerprint: sessionContentFingerprint
     })
-  })
+  }))
+})
+
+export function promoteCachedDashboardStartupSnapshot(
+  now = Date.now()
+): Promise<boolean> {
+  return getAppRuntime().runPromise(
+    promoteCachedDashboardStartupSnapshotEffect(now).pipe(
+      Effect.catchTag(
+        'StartupSnapshotCacheMutationError',
+        (error) => Effect.fail(error.cause)
+      )
+    )
+  )
 }
 
 export type TabsStartupSnapshotInputs = {
@@ -948,8 +694,10 @@ export type TabsStartupSnapshotBuild = {
 // page (which gathers via chrome.* fetchers / service messaging) and the service worker (which
 // has the same data directly), so both produce an identical snapshot and hydration cannot shift.
 // The build is pure: only page-side callers persist the returned savedPageUpdates.
-export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnapshotInputs): Promise<TabsStartupSnapshotBuild> {
-  const { dashboard, savedPageUpdates } = await buildDashboardDataFromTabs(inputs.dashboardTabs, inputs.currentWindowId, inputs.tabPreviousOrder ?? new Map(), {
+export const buildTabsDashboardStartupSnapshotEffect = Effect.fn(
+  'startupSnapshot.buildFromTabs'
+)(function*(inputs: TabsStartupSnapshotInputs) {
+  const { dashboard, savedPageUpdates } = yield* buildDashboardDataFromTabsEffect(inputs.dashboardTabs, inputs.currentWindowId, inputs.tabPreviousOrder ?? new Map(), {
     pinnedDomains: inputs.pinnedDomains,
     bookmarkPreviousOrder: new Map(),
     historyPreviousOrder: new Map(),
@@ -959,13 +707,28 @@ export async function buildTabsDashboardStartupSnapshot(inputs: TabsStartupSnaps
     historyRange: DEFAULT_HISTORY_RANGE,
     savedPagesStore: inputs.savedPagesStore
   })
-  const workingSet = buildWorkingSetSnapshot({
-    tabs: inputs.dashboardTabs,
-    activity: inputs.workingSetActivity,
-    currentWindowId: inputs.currentWindowId
+  return yield* Effect.try({
+    try: (): TabsStartupSnapshotBuild => {
+      const workingSet = buildWorkingSetSnapshot({
+        tabs: inputs.dashboardTabs,
+        activity: inputs.workingSetActivity,
+        currentWindowId: inputs.currentWindowId
+      })
+      return {
+        snapshot: { dashboard, tabHistory: inputs.tabHistory, workingSet, closedTabs: inputs.closedTabs },
+        savedPageUpdates
+      }
+    },
+    catch: (cause) => DashboardDataBuildError.make({ cause })
   })
-  return {
-    snapshot: { dashboard, tabHistory: inputs.tabHistory, workingSet, closedTabs: inputs.closedTabs },
-    savedPageUpdates
-  }
+})
+
+export function buildTabsDashboardStartupSnapshot(
+  inputs: TabsStartupSnapshotInputs
+): Promise<TabsStartupSnapshotBuild> {
+  return getAppRuntime().runPromise(
+    buildTabsDashboardStartupSnapshotEffect(inputs).pipe(
+      Effect.catchTag('DashboardDataBuildError', (error) => Effect.fail(error.cause))
+    )
+  )
 }

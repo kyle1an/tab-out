@@ -1,3 +1,5 @@
+import { Schema } from 'effect'
+
 import type {
   DashboardTab,
   WorkingSetActivityEvent,
@@ -21,6 +23,30 @@ const ACTIVITY_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 const SAME_DAY_MS = 24 * 60 * 60 * 1000
 const CURRENT_WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_EVENTS_PER_RECORD = 80
+
+const workingSetActivityEnvelopeSchema = Schema.Struct({
+  version: Schema.Literals([WORKING_SET_ACTIVITY_VERSION]),
+  records: Schema.Record(Schema.String, Schema.Unknown)
+})
+
+const workingSetActivityRecordCandidateSchema = Schema.Struct({
+  url: Schema.optionalKey(Schema.Unknown),
+  title: Schema.optionalKey(Schema.Unknown),
+  domain: Schema.optionalKey(Schema.Unknown),
+  dismissedAt: Schema.optionalKey(Schema.Unknown),
+  dismissedUntil: Schema.optionalKey(Schema.Unknown),
+  events: Schema.optionalKey(Schema.Unknown)
+})
+
+const workingSetActivityEventSchema = Schema.Struct({
+  kind: Schema.Literals(['activation', 'navigation']),
+  at: Schema.Finite
+}) satisfies Schema.Schema<WorkingSetActivityEvent>
+
+const isWorkingSetActivityEnvelope = Schema.is(workingSetActivityEnvelopeSchema)
+const isWorkingSetActivityRecordCandidate = Schema.is(workingSetActivityRecordCandidateSchema)
+const isWorkingSetActivityEvent = Schema.is(workingSetActivityEventSchema)
+const isUnknownArray = Schema.is(Schema.Array(Schema.Unknown))
 
 const NOISY_QUERY_PARAMS = new Set([
   'fbclid',
@@ -66,26 +92,23 @@ export function emptyWorkingSetActivity(): WorkingSetActivityStore {
   return { version: WORKING_SET_ACTIVITY_VERSION, records: {} }
 }
 
-export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivityStore> | null | undefined, now = Date.now()): WorkingSetActivityStore {
-  if (!store || store.version !== WORKING_SET_ACTIVITY_VERSION || !store.records || typeof store.records !== 'object') {
+export function normalizeWorkingSetActivity(value: unknown, now = Date.now()): WorkingSetActivityStore {
+  if (!isWorkingSetActivityEnvelope(value)) {
     return emptyWorkingSetActivity()
   }
 
   const minAt = now - ACTIVITY_RETENTION_MS
   const records: Record<string, WorkingSetActivityRecord> = {}
-  for (const [key, record] of Object.entries(store.records)) {
-    if (!record || typeof record !== 'object') continue
-    const normalizedKey = pageIdentityForWorkingSet(record.url || key)
+  for (const [key, record] of Object.entries(value.records)) {
+    if (!isWorkingSetActivityRecordCandidate(record)) continue
+    const normalizedKey = pageIdentityForWorkingSet(
+      typeof record.url === 'string' ? record.url : key
+    )
     if (!normalizedKey || normalizedKey !== key) continue
-    const events = Array.isArray(record.events)
+    const events = isUnknownArray(record.events)
       ? record.events
-          .filter((event): event is WorkingSetActivityEvent => (
-            !!event &&
-            (event.kind === 'activation' || event.kind === 'navigation') &&
-            typeof event.at === 'number' &&
-            Number.isFinite(event.at) &&
-            event.at >= minAt
-          ))
+          .filter(isWorkingSetActivityEvent)
+          .filter((event) => event.at >= minAt)
           .slice(-MAX_EVENTS_PER_RECORD)
       : []
     if (events.length === 0) continue
@@ -104,7 +127,9 @@ export function normalizeWorkingSetActivity(store: Partial<WorkingSetActivitySto
       key,
       url: normalizedKey,
       title: String(record.title || ''),
-      domain: record.domain || domainForPageIdentity(normalizedKey),
+      domain: typeof record.domain === 'string' && record.domain
+        ? record.domain
+        : domainForPageIdentity(normalizedKey),
       lastSeenAt: latestEvent,
       ...(lastActivatedAt === undefined ? {} : { lastActivatedAt }),
       ...(lastNavigatedAt === undefined ? {} : { lastNavigatedAt }),

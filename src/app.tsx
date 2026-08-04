@@ -1,12 +1,16 @@
+import { Effect, Fiber } from 'effect'
+
 import './styles/app.css'
 import { attachApp } from './components/App'
 import { applyAppStartup } from './app-startup.js'
+import { getAppRuntime } from './extension/app-runtime.js'
+import { BrowserTabs } from './extension/browser-tabs-service.js'
 import { requestDashboardRefresh, settleDashboardRefresh, type DashboardRefreshOptions } from './extension/dashboard-intake.js'
 import { createDashboardPageRefreshScheduler } from './extension/dashboard-page-refresh.js'
 import { groupColorChanged } from './extension/groups.js'
-import { loadDashboardLocalState } from './extension/dashboard-local-state.js'
-import { loadCachedDashboardStartup } from './extension/startup-snapshot.js'
-import { loadHistoryRangePreference } from './extension/history-range.js'
+import { loadDashboardLocalStateEffect } from './extension/dashboard-local-state.js'
+import { loadCachedDashboardStartupEffect } from './extension/startup-snapshot.js'
+import { loadHistoryRangePreferenceEffect } from './extension/history-range-storage.js'
 import { addCurrentTabOutPageToStartupSnapshot } from './extension/startup-view-model.js'
 import { seedOpenTabsTitleHistory } from './extension/tabs.js'
 import { SAVED_PAGES_STORAGE_KEY } from './extension/saved-pages.js'
@@ -14,18 +18,16 @@ import { isTabOutDashboardUrl, isTabOutPageUrl } from './extension/tab-out-url.j
 import { STARTUP_ORDER_DEBUG_CAPTURE, recordStartupTiming, startupDebugNow } from './components/startup-order-debug'
 
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'app-module-evaluated')
+const appRuntime = getAppRuntime()
 
-async function getCurrentTabOutPageForStartup(): Promise<chrome.tabs.Tab | null> {
-  try {
-    const tab = await chrome.tabs.getCurrent()
-    if (!tab) return null
-    const rawUrl = tab.url || window.location.href
-    if (!isTabOutPageUrl(rawUrl)) return null
-    return { ...tab, url: rawUrl }
-  } catch {
-    return null
-  }
-}
+const readCurrentTabOutPageForStartup = Effect.fn('app.readCurrentTabOutPageForStartup')(function*() {
+  const browserTabs = yield* BrowserTabs
+  const tab = yield* browserTabs.getCurrentTab()
+  if (!tab) return null
+  const rawUrl = tab.url || window.location.href
+  if (!isTabOutPageUrl(rawUrl)) return null
+  return { ...tab, url: rawUrl }
+})
 
 const dashboardPageRefreshScheduler = createDashboardPageRefreshScheduler({
   isVisible: () => document.visibilityState === 'visible',
@@ -106,11 +108,13 @@ document.addEventListener('visibilitychange', () => {
 recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'attach-app')
 attachApp()
 
-async function initializeApp() {
+const runInitializeApp = Effect.fn('app.initialize')(function*() {
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'initialize-start')
-  const historyRangePreferencePromise = loadHistoryRangePreference()
+  const historyRangeFiber = yield* loadHistoryRangePreferenceEffect().pipe(
+    Effect.forkChild({ startImmediately: true })
+  )
   const cacheStartedAt = startupDebugNow()
-  const cachedStartup = await loadCachedDashboardStartup()
+  const cachedStartup = yield* loadCachedDashboardStartupEffect()
   seedOpenTabsTitleHistory(cachedStartup?.snapshot.dashboard.realTabs ?? [])
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'startup-cache-loaded', {
     startedAt: cacheStartedAt,
@@ -120,16 +124,19 @@ async function initializeApp() {
     }
   })
   const cachedStartupSnapshot = cachedStartup?.snapshot ?? null
-  const currentTabOutPagePromise = cachedStartupSnapshot ? getCurrentTabOutPageForStartup() : Promise.resolve(null)
+  const currentTabOutPageFiber = cachedStartupSnapshot
+    ? yield* readCurrentTabOutPageForStartup().pipe(Effect.forkChild({ startImmediately: true }))
+    : null
   const localStateStartedAt = startupDebugNow()
-  const localState = cachedStartup?.localState ?? await loadDashboardLocalState()
+  const localState = cachedStartup?.localState ?? (yield* loadDashboardLocalStateEffect())
   recordStartupTiming(STARTUP_ORDER_DEBUG_CAPTURE, 'local-state-ready', {
     ...(cachedStartup?.localState ? {} : { startedAt: localStateStartedAt }),
     detail: { source: cachedStartup?.localState ? 'startup-cache' : 'chrome-storage' }
   })
-  const historyRange = await historyRangePreferencePromise
-  // react-doctor-disable-next-line react-doctor/server-sequential-independent-await -- both promises started before cached/local startup work; these awaits only join the already-running reads.
-  const currentTabOutPage = await currentTabOutPagePromise
+  const historyRange = yield* Fiber.join(historyRangeFiber)
+  const currentTabOutPage = currentTabOutPageFiber
+    ? yield* Fiber.join(currentTabOutPageFiber)
+    : null
   const fallbackStartupSnapshot = cachedStartupSnapshot && currentTabOutPage
     ? addCurrentTabOutPageToStartupSnapshot(cachedStartupSnapshot, currentTabOutPage, localState)
     : cachedStartupSnapshot
@@ -141,6 +148,11 @@ async function initializeApp() {
     }
   })
   applyAppStartup({ historyRange, localState, snapshot: startupSnapshot })
-}
+})
 
-initializeApp()
+void appRuntime.runPromise(runInitializeApp())
+
+window.addEventListener('pagehide', (event) => {
+  if (event.persisted) return
+  void appRuntime.dispose()
+})

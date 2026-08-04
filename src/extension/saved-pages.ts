@@ -38,44 +38,10 @@ export type SavedPagesStoreMutation<Value> = {
   value: Value
 }
 
-export type SavedPagesStoreAdapter = {
-  read: () => Promise<unknown>
-  write: (store: SavedPagesStore) => Promise<void>
-  runExclusive?: <Value>(task: () => Promise<Value>) => Promise<Value>
-}
-
-export type SavedPagesMutationStore = {
-  mutate: <Value>(
-    mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
-  ) => Promise<Value>
-  persistMetadataUpdates: (
-    baseStore: Partial<SavedPagesStore> | null | undefined,
-    mergedStore: Partial<SavedPagesStore> | null | undefined
-  ) => Promise<void>
-}
-
 export type SavedPageCandidate = Pick<DashboardTab, 'url' | 'rawUrl' | 'title' | 'favIconUrl' | 'isTabOut' | 'isApp'>
 
 export function emptySavedPagesStore(): SavedPagesStore {
   return { version: SAVED_PAGES_VERSION, pages: {} }
-}
-
-function parseSavedPagesStoreValue(stored: unknown): SavedPagesStoreLoadResult {
-  if (stored === undefined) return { ok: true, value: emptySavedPagesStore() }
-  if (
-    !stored ||
-    typeof stored !== 'object' ||
-    (stored as Partial<SavedPagesStore>).version !== SAVED_PAGES_VERSION ||
-    !(stored as Partial<SavedPagesStore>).pages ||
-    typeof (stored as Partial<SavedPagesStore>).pages !== 'object' ||
-    Array.isArray((stored as Partial<SavedPagesStore>).pages)
-  ) {
-    return { ok: false, value: emptySavedPagesStore() }
-  }
-  return {
-    ok: true,
-    value: normalizeSavedPagesStore(stored as Partial<SavedPagesStore>)
-  }
 }
 
 export function savedPageKeyForUrl(url = ''): string {
@@ -266,7 +232,7 @@ export function savedPagesStoresEqual(a: Partial<SavedPagesStore> | null | undef
   return true
 }
 
-function savedPageRecordsEqual(a: SavedPageRecord, b: SavedPageRecord): boolean {
+export function savedPageRecordsEqual(a: SavedPageRecord, b: SavedPageRecord): boolean {
   return (
     a.key === b.key &&
     a.url === b.url &&
@@ -276,74 +242,6 @@ function savedPageRecordsEqual(a: SavedPageRecord, b: SavedPageRecord): boolean 
     a.updatedAt === b.updatedAt &&
     (a.lastSeenOpenAt || 0) === (b.lastSeenOpenAt || 0)
   )
-}
-
-/**
- * Serialize Saved Pages read-modify-write operations through one seam. The
- * production adapter also supplies a Web Lock, so separate Tab Out pages for
- * the same extension origin cannot both read an old store and overwrite each
- * other's user intent. A rejected read aborts the mutation before any write.
- */
-export function createSavedPagesMutationStore(adapter: SavedPagesStoreAdapter): SavedPagesMutationStore {
-  let mutationQueue = Promise.resolve()
-
-  function enqueue<Value>(task: () => Promise<Value>): Promise<Value> {
-    const result = mutationQueue.then(() => (
-      adapter.runExclusive ? adapter.runExclusive(task) : task()
-    ))
-    mutationQueue = result.then(
-      () => undefined,
-      () => undefined
-    )
-    return result
-  }
-
-  function mutate<Value>(
-    mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
-  ): Promise<Value> {
-    return enqueue(async () => {
-      const parsed = parseSavedPagesStoreValue(await adapter.read())
-      if (!parsed.ok) throw new Error('Saved Pages storage is malformed')
-      const currentStore = parsed.value
-      const result = mutation(currentStore)
-      const nextStore = normalizeSavedPagesStore(result.store)
-      if (!savedPagesStoresEqual(currentStore, nextStore)) {
-        await adapter.write(nextStore)
-      }
-      return result.value
-    })
-  }
-
-  function persistMetadataUpdates(
-    baseStore: Partial<SavedPagesStore> | null | undefined,
-    mergedStore: Partial<SavedPagesStore> | null | undefined
-  ): Promise<void> {
-    const base = normalizeSavedPagesStore(baseStore)
-    const merged = normalizeSavedPagesStore(mergedStore)
-    const updates = Object.keys(base.pages).flatMap((key) => {
-      const before = base.pages[key]
-      const after = merged.pages[key]
-      return before && after && !savedPageRecordsEqual(before, after)
-        ? [{ key, before, after }]
-        : []
-    })
-    if (updates.length === 0) return Promise.resolve()
-
-    return mutate((latestStore) => {
-      const nextStore = normalizeSavedPagesStore(latestStore)
-      for (const { key, before, after } of updates) {
-        const latestRecord = latestStore.pages[key]
-        // The render snapshot is advisory. Apply it only while the stored
-        // record is still exactly the version that produced the snapshot;
-        // a remove, re-save, or newer metadata refresh always wins.
-        if (!latestRecord || !savedPageRecordsEqual(latestRecord, before)) continue
-        nextStore.pages[key] = after
-      }
-      return { store: nextStore, value: undefined }
-    })
-  }
-
-  return { mutate, persistMetadataUpdates }
 }
 
 function savedPageRecordToDashboardTab(record: SavedPageRecord): DashboardTab {
@@ -365,54 +263,4 @@ function displayUrlForSavedPage(url = ''): string {
   if (!parsed) return url
   if (parsed.protocol === 'file:') return parsed.pathname
   return `${parsed.hostname}${parsed.pathname === '/' ? '' : parsed.pathname}`
-}
-
-export async function loadSavedPagesStoreResult(): Promise<SavedPagesStoreLoadResult> {
-  try {
-    return parseSavedPagesStoreValue(await readSavedPagesStoreValue())
-  } catch {
-    return { ok: false, value: emptySavedPagesStore() }
-  }
-}
-
-/** Compatibility loader for optional consumers that intentionally accept empty fallback state. */
-export async function loadSavedPagesStore(): Promise<SavedPagesStore> {
-  return (await loadSavedPagesStoreResult()).value
-}
-
-const SAVED_PAGES_MUTATION_LOCK = 'tab-out:saved-pages-mutation'
-
-function savedPagesStorageArea(): chrome.storage.StorageArea {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    throw new Error('Saved Pages storage is unavailable')
-  }
-  return chrome.storage.local
-}
-
-async function readSavedPagesStoreValue(): Promise<unknown> {
-  const stored = await savedPagesStorageArea().get(SAVED_PAGES_STORAGE_KEY)
-  return stored[SAVED_PAGES_STORAGE_KEY]
-}
-
-async function writeSavedPagesStoreValue(store: SavedPagesStore): Promise<void> {
-  await savedPagesStorageArea().set({ [SAVED_PAGES_STORAGE_KEY]: store })
-}
-
-const savedPagesMutationStore = createSavedPagesMutationStore({
-  read: readSavedPagesStoreValue,
-  write: writeSavedPagesStoreValue,
-  runExclusive: (task) => navigator.locks.request(SAVED_PAGES_MUTATION_LOCK, task)
-})
-
-export function mutateSavedPagesStore<Value>(
-  mutation: (store: SavedPagesStore) => SavedPagesStoreMutation<Value>
-): Promise<Value> {
-  return savedPagesMutationStore.mutate(mutation)
-}
-
-export function persistSavedPageMetadataUpdates(
-  baseStore: Partial<SavedPagesStore> | null | undefined,
-  mergedStore: Partial<SavedPagesStore> | null | undefined
-): Promise<void> {
-  return savedPagesMutationStore.persistMetadataUpdates(baseStore, mergedStore)
 }

@@ -10,6 +10,7 @@ keeps a concise index without replacing the full local tracker history.
 | Architecture audit (005–008) | Added the Browser Tabs Gateway, shared FLIP move module, and suppression-tone view-model data. The proposed shared title-expansion measurer was rejected; [ADR-0002](adr/0002-title-expansion-measurement-stays-per-surface.md) records why the per-surface engines remain separate. | `3db7cb6`, `e62cbeb`, `73f71a0`, `cd460ef`, `31fc77c` |
 | React audit (009–012) | Stabilized App seams, restored compiler coverage for chip and history hot paths, and surfaced source-switch failures. | `8350a33`, `b0ba829`, `60b8ee8`, `7361a3c` |
 | Activation History reorder follow-up | Replaced pointer-only gating with visibility-first survivor FLIP behavior, including one deferred move after hidden commits while preserving immediate tab focus and existing removal motion. | `0a1f9dab`, `ae54a53c` |
+| Effect 4 adoption continuation (038–071) | Established one shared runtime per extension entry, composed complete browser, storage, startup, command, and tooling workflows, scoped owned timers and reconnects, and enforced the saturated boundary. [ADR-0014](adr/0014-adopt-effect-behind-dashboard-intake-seams.md) records retained and rejected opportunities, including the lazy-source chunk-graph rejection. | 34 phase commits, `ca8afec5` through `df45f1eb` |
 
 The React Compiler baseline is enforced by
 [`scripts/react-compiler-check.ts`](../scripts/react-compiler-check.ts).

@@ -369,6 +369,29 @@ test('a source switch retries with the latest intake context before applying', a
   assert.equal(store.read().dashboard, latestDashboard)
 })
 
+test('a failed source switch restores the active source and reports the failure', async () => {
+  const toasts: string[] = []
+  const store = createAppDashboardStore({
+    fetchDashboardSnapshot: () => Promise.reject(new Error('source unavailable')),
+    showToast: (message) => toasts.push(message)
+  })
+  store.setRefreshInputs({
+    filter: '',
+    localStateLoaded: true,
+    pinnedDomains: [],
+    previousOrder: { tabs: new Map(), bookmarks: new Map(), history: new Map() }
+  })
+
+  assert.equal(store.switchSource('bookmarks'), 1)
+  assert.equal(store.read().sourceSelection, 'bookmarks')
+
+  await flushAsyncWork()
+
+  assert.equal(store.read().source, 'tabs')
+  assert.equal(store.read().sourceSelection, 'tabs')
+  assert.deepEqual(toasts, ['Could not switch source'])
+})
+
 test('closed-tab intake waits for restore settlement and ignores an overtaken read', async () => {
   let suppressionRemainingMs = Number.POSITIVE_INFINITY
   let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null
@@ -426,6 +449,91 @@ test('closed-tab intake waits for restore settlement and ignores an overtaken re
 
   stopClosedTabUpdates()
   assert.equal(unsubscribed, true)
+})
+
+test('stopping closed-tab intake cancels its pending refresh timer', () => {
+  let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null
+  let unsubscribed = false
+  const timerId = 17 as never
+  const cancelledTimers: Array<ReturnType<typeof setTimeout>> = []
+  const store = createAppDashboardStore({
+    cancelTimeout: (timer) => cancelledTimers.push(timer),
+    closedTabFetchSuppressionRemainingMs: () => 25,
+    fetchClosedTabsResult: () => assert.fail('a suppressed refresh must not read recently closed tabs'),
+    scheduleTimeout: () => timerId,
+    subscribeClosedTabChanges: (handler) => {
+      closedTabChangeHandler = handler
+      return () => { unsubscribed = true }
+    }
+  })
+
+  const stopClosedTabUpdates = store.startClosedTabUpdates()
+  closedTabChangeHandler!(0)
+  stopClosedTabUpdates()
+
+  assert.deepEqual(cancelledTimers, [timerId])
+  assert.equal(unsubscribed, true)
+})
+
+test('stopping closed-tab intake prevents an in-flight result from applying', async () => {
+  let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null
+  const flight = deferred<BrowserReadResult<ClosedTabEntry[]>>()
+  const store = createAppDashboardStore({
+    closedTabFetchSuppressionRemainingMs: () => 0,
+    fetchClosedTabsResult: () => flight.promise,
+    subscribeClosedTabChanges: (handler) => {
+      closedTabChangeHandler = handler
+      return () => {}
+    }
+  })
+  store.dispatch({
+    type: 'startup',
+    historyRange: '24h',
+    snapshot: startupSnapshot(historySnapshot(1))
+  })
+
+  const stopClosedTabUpdates = store.startClosedTabUpdates()
+  closedTabChangeHandler!(0)
+  stopClosedTabUpdates()
+  flight.resolve({ ok: true, value: [closedTabEntry('late')] })
+  await flushAsyncWork()
+
+  assert.deepEqual(store.read().closedTabs, [])
+})
+
+test('closed-tab intake recovers after a rejected read', async () => {
+  let closedTabChangeHandler: ((settleDelayMs: number) => void) | null = null
+  const flights: ReturnType<typeof deferred<BrowserReadResult<ClosedTabEntry[]>>>[] = []
+  const store = createAppDashboardStore({
+    closedTabFetchSuppressionRemainingMs: () => 0,
+    fetchClosedTabsResult: () => {
+      const flight = deferred<BrowserReadResult<ClosedTabEntry[]>>()
+      flights.push(flight)
+      return flight.promise
+    },
+    subscribeClosedTabChanges: (handler) => {
+      closedTabChangeHandler = handler
+      return () => {}
+    }
+  })
+  store.dispatch({
+    type: 'startup',
+    historyRange: '24h',
+    snapshot: startupSnapshot(historySnapshot(1))
+  })
+
+  const stopClosedTabUpdates = store.startClosedTabUpdates()
+  closedTabChangeHandler!(0)
+  flights[0]!.reject(new Error('sessions unavailable'))
+  await flushAsyncWork()
+
+  closedTabChangeHandler!(0)
+  const recoveredClosedTab = closedTabEntry('recovered')
+  flights[1]!.resolve({ ok: true, value: [recoveredClosedTab] })
+  await flushAsyncWork()
+
+  assert.deepEqual(store.read().closedTabs, [recoveredClosedTab])
+  stopClosedTabUpdates()
 })
 
 function closedTabEntry(id: string): ClosedTabEntry {

@@ -8,8 +8,11 @@
    app-url.ts) so it is unit-testable without a real `navigator`.
    ================================================================ */
 
-import { moveTabToCurrentWindow, moveTabToNewWindow } from './tab-move.js'
-import { openTabUrl, openTabUrlInNewWindow } from './tabs.js'
+import { Effect } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { moveTabToCurrentWindowEffect, moveTabToNewWindowEffect } from './tab-move.js'
+import { openTabUrlEffect, openTabUrlInNewWindowEffect } from './tabs.js'
 import { showToast } from './toast.js'
 
 export type ChipActivationMode = 'focus' | 'open-window' | 'bring-background' | 'bring-foreground'
@@ -89,29 +92,43 @@ function reportOpenFailure(): DashboardItemActivationResult {
  * with its local focus path. A failed modifier action remains terminal: falling
  * through could activate or open a different target than the user's gesture.
  */
-export async function performDashboardItemActivation(
+export const performDashboardItemActivationEffect = Effect.fn('tabActivation.perform')(function*(
   mode: ChipActivationMode,
   target: DashboardItemActivationTarget,
   { moveExisting = true }: DashboardItemActivationOptions = {}
-): Promise<DashboardItemActivationResult> {
+) {
   if (mode === 'focus' || !target.tabUrl) return 'unhandled'
 
   if (mode === 'open-window') {
     if (!moveExisting) {
-      return await openTabUrlInNewWindow(target.tabUrl) ? 'handled' : reportOpenFailure()
+      return (yield* openTabUrlInNewWindowEffect(target.tabUrl)) ? 'handled' : reportOpenFailure()
     }
-    const result = await moveTabToNewWindow(target)
+    const result = yield* moveTabToNewWindowEffect(target)
     if (result === 'failed') return reportOpenFailure()
-    if (result === 'not-found' && !(await openTabUrlInNewWindow(target.tabUrl))) return reportOpenFailure()
+    if (result === 'not-found' && !(yield* openTabUrlInNewWindowEffect(target.tabUrl))) {
+      return reportOpenFailure()
+    }
     return 'handled'
   }
 
   const activate = mode === 'bring-foreground'
   if (!moveExisting) {
-    return await openTabUrl(target.tabUrl, { active: activate }) ? 'handled' : reportOpenFailure()
+    return (yield* openTabUrlEffect(target.tabUrl, { active: activate }))
+      ? 'handled'
+      : reportOpenFailure()
   }
-  const result = await moveTabToCurrentWindow(target, { activate })
+  const result = yield* moveTabToCurrentWindowEffect(target, { activate })
   if (result === 'failed') return reportOpenFailure()
-  if (result === 'not-found' && !(await openTabUrl(target.tabUrl, { active: activate }))) return reportOpenFailure()
+  if (result === 'not-found' && !(yield* openTabUrlEffect(target.tabUrl, { active: activate }))) {
+    return reportOpenFailure()
+  }
   return 'handled'
+})
+
+export function performDashboardItemActivation(
+  mode: ChipActivationMode,
+  target: DashboardItemActivationTarget,
+  options: DashboardItemActivationOptions = {}
+): Promise<DashboardItemActivationResult> {
+  return getAppRuntime().runPromise(performDashboardItemActivationEffect(mode, target, options))
 }

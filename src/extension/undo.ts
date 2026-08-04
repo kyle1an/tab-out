@@ -14,7 +14,10 @@
    place, so we use it exclusively.
    ================================================================ */
 
-import { createTabWithFallbackUrl, focusWindow, getTab, groupTabs, updateTab } from './browser-tabs-gateway.js'
+import { Effect } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { showToast } from './toast.js'
 import { requestDashboardRefresh, settleDashboardRefresh } from './dashboard-intake.js'
 import { unwrapSuspenderUrl } from './suspension.js'
@@ -48,38 +51,64 @@ let lastClosure: ClosureSnapshot | null = null
  * After restoring, the toast offers a "Switch" button for single-tab
  * undo so the user can jump to the restored tab if they want.
  */
-export async function undoLastClose(): Promise<void> {
-  const closure = lastClosure
-  if (!closure) return
-  await undoClosure(closure)
-}
+const restoreSnapshotTab = Effect.fn('undo.restoreSnapshotTab')(function*(tab: TabSnapshot) {
+  const browserTabs = yield* BrowserTabs
+  const restoreUrl = tab.rawUrl || tab.url
+  const sharedCreateProperties: chrome.tabs.CreateProperties = {
+    url: restoreUrl,
+    ...(Number.isInteger(tab.index) ? { index: tab.index } : {}),
+    pinned: tab.pinned,
+    active: false
+  }
+  const createdInOriginalWindow = yield* browserTabs.createTabWithFallbackUrl({
+    ...sharedCreateProperties,
+    windowId: tab.windowId
+  }, tab.url)
+  if (createdInOriginalWindow) return createdInOriginalWindow
 
-async function undoClosure(closure: ClosureSnapshot): Promise<void> {
-  if (closure.undone || closure.restoring || !closure.tabs || closure.tabs.length === 0) return
-  closure.restoring = true
+  return yield* browserTabs.createTabWithFallbackUrl(sharedCreateProperties, tab.url)
+})
 
+const restoreClosureTabs = Effect.fn('undo.restoreClosureTabs')(function*(
+  closure: ClosureSnapshot
+) {
+  const browserTabs = yield* BrowserTabs
   const restoredTargets: RestoredTabTarget[] = []
   const failedTabs: TabSnapshot[] = []
   const attemptedTabs = tabsInRestoreOrder(closure.tabs)
-  try {
-    for (const tab of attemptedTabs) {
-      const created = await restoreSnapshotTab(tab)
-      if (!created || created.id == null) {
-        failedTabs.push(tab)
-        continue
-      }
-      restoredTargets.push({
-        tabId: created.id,
-        snapshot: { ...tab }
-      })
-      if (tab.groupId !== undefined && tab.groupId !== -1) {
-        // group may have been dissolved — the gateway reports false; ignore
-        await groupTabs([created.id], tab.groupId)
-      }
+  for (const tab of attemptedTabs) {
+    const created = yield* restoreSnapshotTab(tab)
+    if (!created || created.id == null) {
+      failedTabs.push(tab)
+      continue
     }
-  } finally {
-    closure.restoring = false
+    const createdTabId = created.id
+    restoredTargets.push({
+      tabId: createdTabId,
+      snapshot: { ...tab }
+    })
+    const groupId = tab.groupId
+    if (groupId !== undefined && groupId !== -1) {
+      // The group may have been dissolved. The gateway reports false, which is
+      // still a successfully completed grouping attempt for this restore.
+      yield* browserTabs.groupTabs([createdTabId], groupId)
+    }
   }
+  return { attemptedTabs, failedTabs, restoredTargets }
+})
+
+const runUndoClosure = Effect.fn('undo.runClosure')(function*(closure: ClosureSnapshot) {
+  if (closure.undone || closure.restoring || !closure.tabs || closure.tabs.length === 0) return
+  const { attemptedTabs, failedTabs, restoredTargets } = yield* Effect.acquireUseRelease(
+    Effect.sync(() => {
+      closure.restoring = true
+      return closure
+    }),
+    () => restoreClosureTabs(closure),
+    () => Effect.sync(() => {
+      closure.restoring = false
+    })
+  )
 
   closure.tabs = failedTabs
   closure.undone = failedTabs.length === 0
@@ -108,6 +137,15 @@ async function undoClosure(closure: ClosureSnapshot): Promise<void> {
   } else {
     showToast(`Restored ${n} tabs`)
   }
+})
+
+function undoClosure(closure: ClosureSnapshot): Promise<void> {
+  return getAppRuntime().runPromise(runUndoClosure(closure))
+}
+
+export function undoLastClose(): Promise<void> {
+  const closure = lastClosure
+  return closure ? undoClosure(closure) : Promise.resolve()
 }
 
 function restoredTargetMatchesLiveTab(target: RestoredTabTarget, tab: chrome.tabs.Tab | null): tab is chrome.tabs.Tab {
@@ -117,34 +155,27 @@ function restoredTargetMatchesLiveTab(target: RestoredTabTarget, tab: chrome.tab
   return !!expectedUrl && liveUrl === expectedUrl
 }
 
-/** Activate the exact tab created by Undo only while its snapshot identity still matches. */
-export async function switchToRestoredTab(target: RestoredTabTarget): Promise<void> {
-  const tab = await getTab(target.tabId)
+const runSwitchToRestoredTab = Effect.fn('undo.switchToRestoredTab')(function*(target: RestoredTabTarget) {
+  const browserTabs = yield* BrowserTabs
+  const tab = yield* browserTabs.getTab(target.tabId)
   if (!restoredTargetMatchesLiveTab(target, tab)) return
 
-  const updatedTab = await updateTab(target.tabId, { active: true })
+  const updatedTab = yield* browserTabs.updateTab(target.tabId, { active: true })
   if (!restoredTargetMatchesLiveTab(target, updatedTab)) return
-  await focusWindow(updatedTab.windowId)
-}
+  yield* browserTabs.focusWindow(updatedTab.windowId)
+})
 
-async function restoreSnapshotTab(tab: TabSnapshot): Promise<chrome.tabs.Tab | null> {
-  const restoreUrl = tab.rawUrl || tab.url
-  const sharedCreateProperties: chrome.tabs.CreateProperties = {
-    url: restoreUrl,
-    ...(Number.isInteger(tab.index) ? { index: tab.index } : {}),
-    pinned: tab.pinned,
-    active: false
-  }
-  const createdInOriginalWindow = await createTabWithFallbackUrl({
-    ...sharedCreateProperties,
-    windowId: tab.windowId
-  }, tab.url)
-  if (createdInOriginalWindow) return createdInOriginalWindow
-
-  return createTabWithFallbackUrl(sharedCreateProperties, tab.url)
+/** Activate the exact tab created by Undo only while its snapshot identity still matches. */
+export function switchToRestoredTab(target: RestoredTabTarget): Promise<void> {
+  return getAppRuntime().runPromise(runSwitchToRestoredTab(target))
 }
 
 function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
+  const restoreIndex = (index: number | undefined): number => (
+    typeof index === 'number' && Number.isInteger(index)
+      ? index
+      : Number.POSITIVE_INFINITY
+  )
   const windows = new Map<number, Array<{ tab: TabSnapshot; sequence: number }>>()
   tabs.forEach((tab, sequence) => {
     windows.getOrInsertComputed(tab.windowId, () => []).push({ tab, sequence })
@@ -153,8 +184,8 @@ function tabsInRestoreOrder(tabs: TabSnapshot[]): TabSnapshot[] {
   return windows.values().flatMap((bucket) => {
     return bucket
       .toSorted((a, b) => {
-        const aIndex = Number.isInteger(a.tab.index) ? a.tab.index as number : Number.POSITIVE_INFINITY
-        const bIndex = Number.isInteger(b.tab.index) ? b.tab.index as number : Number.POSITIVE_INFINITY
+        const aIndex = restoreIndex(a.tab.index)
+        const bIndex = restoreIndex(b.tab.index)
         if (aIndex !== bIndex) return aIndex - bIndex
         return a.sequence - b.sequence
       })

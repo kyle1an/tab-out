@@ -9,6 +9,7 @@
   },
   "files": [
     "scripts/check-tailwind-diagnostics.ts",
+    "scripts/native-host/test-round-trip.ts",
     "scripts/react-compiler-check.ts",
     "scripts/serve.ts",
     "scripts/watch-build.ts"

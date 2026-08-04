@@ -1,4 +1,7 @@
-import { focusWindow, getCurrentWindow, getTab, queryAllTabsResult, requestExternalUnsuspend, updateTab } from './browser-tabs-gateway.js'
+import { Effect } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
+import { BrowserTabs } from './browser-tabs-service.js'
 import { liveTabByValidatedId, liveTabsMatchingTarget, liveTabUrlForIdentity } from './live-tab-matching.js'
 import { unwrapSuspenderUrl } from './suspension.js'
 import type { PageTarget } from './page-target.js'
@@ -37,11 +40,9 @@ export function tabFocusResultToastMessage(status: ExistingTabFocusResult['statu
   }
 }
 
-type MatchedTabFocusResult = {
-  status: 'focused' | 'activated' | 'failed' | 'not-found'
+function focusResult(status: ExistingTabFocusResult['status']): ExistingTabFocusResult {
+  return { status }
 }
-
-type ApplyUnsuspendResult = 'not-suspended' | 'ready' | 'failed' | 'not-found'
 
 function tabTargetEffectiveUrl(target: PageTarget | null | undefined, fallbackUrl = ''): string {
   return unwrapSuspenderUrl(target?.url || target?.tabUrl || target?.rawUrl || fallbackUrl || '')
@@ -59,19 +60,28 @@ function isSuspendedUrlForTarget(tabUrl: string | undefined, targetEffective: st
   return unwrapSuspenderUrl(tabUrl) === targetEffective
 }
 
-async function requestSuspenderUnsuspend(tab: chrome.tabs.Tab, targetEffective: string): Promise<boolean> {
+const requestSuspenderUnsuspend = Effect.fn('tabFocus.requestSuspenderUnsuspend')(function*(
+  tab: chrome.tabs.Tab,
+  targetEffective: string
+) {
   if (typeof tab.id !== 'number') return false
   if (!isSuspendedUrlForTarget(tab.url, targetEffective)) return false
   const extensionId = suspenderExtensionId(tab.url)
   if (!extensionId) return false
-  return requestExternalUnsuspend(extensionId, tab.id)
-}
+  const browserTabs = yield* BrowserTabs
+  return yield* browserTabs.requestExternalUnsuspend(extensionId, tab.id)
+})
 
-async function applyUnsuspend(tab: chrome.tabs.Tab, targetEffective: string, updateProperties?: chrome.tabs.UpdateProperties): Promise<ApplyUnsuspendResult> {
+const applyUnsuspend = Effect.fn('tabFocus.applyUnsuspend')(function*(
+  tab: chrome.tabs.Tab,
+  targetEffective: string,
+  updateProperties?: chrome.tabs.UpdateProperties
+) {
   if (typeof tab.id !== 'number') return 'failed'
   if (!isSuspendedUrlForTarget(tab.url, targetEffective)) return 'not-suspended'
-  const didRequestUnsuspend = await requestSuspenderUnsuspend(tab, targetEffective)
-  const liveTab = await getTab(tab.id)
+  const browserTabs = yield* BrowserTabs
+  const didRequestUnsuspend = yield* requestSuspenderUnsuspend(tab, targetEffective)
+  const liveTab = yield* browserTabs.getTab(tab.id)
   if (!liveTab || !liveTabByValidatedId([liveTab], {
     tabId: tab.id,
     url: targetEffective,
@@ -83,29 +93,39 @@ async function applyUnsuspend(tab: chrome.tabs.Tab, targetEffective: string, upd
   if (updateProperties) {
     updateProperties.url = targetEffective
   } else {
-    const updatedTab = await updateTab(tab.id, { url: targetEffective })
+    const updatedTab = yield* browserTabs.updateTab(tab.id, { url: targetEffective })
     if (!updatedTab) return 'failed'
   }
   return 'ready'
-}
+})
 
-async function focusMatchedTabResult(
+const focusMatchedTabResult = Effect.fn('tabFocus.focusMatchedTab')(function*(
   match: chrome.tabs.Tab,
   targetEffective: string
-): Promise<MatchedTabFocusResult> {
-  if (typeof match.id !== 'number') return { status: 'failed' }
+) {
+  if (typeof match.id !== 'number') return focusResult('failed')
+  const browserTabs = yield* BrowserTabs
   const updateProperties: chrome.tabs.UpdateProperties = { active: true }
-  const unsuspendResult = await applyUnsuspend(match, targetEffective, updateProperties)
-  if (unsuspendResult === 'not-found') return { status: 'not-found' }
-  if (unsuspendResult === 'failed') return { status: 'failed' }
-  const updatedTab = await updateTab(match.id, updateProperties)
-  if (!updatedTab) return { status: 'failed' }
-  return { status: await focusWindow(updatedTab.windowId) ? 'focused' : 'activated' }
-}
+  const unsuspendResult = yield* applyUnsuspend(match, targetEffective, updateProperties)
+  if (unsuspendResult === 'not-found') return focusResult('not-found')
+  if (unsuspendResult === 'failed') return focusResult('failed')
+  const updatedTab = yield* browserTabs.updateTab(match.id, updateProperties)
+  if (!updatedTab) return focusResult('failed')
+  return focusResult(
+    (yield* browserTabs.focusWindow(updatedTab.windowId)) ? 'focused' : 'activated'
+  )
+})
 
-export async function unsuspendExistingTab(tab: chrome.tabs.Tab, target: PageTarget): Promise<boolean> {
+export const unsuspendExistingTabEffect = Effect.fn('tabFocus.unsuspendExistingTab')(function*(
+  tab: chrome.tabs.Tab,
+  target: PageTarget
+) {
   if (typeof tab.id !== 'number') return false
-  return (await applyUnsuspend(tab, tabTargetEffectiveUrl(target, tab.url || ''))) === 'ready'
+  return (yield* applyUnsuspend(tab, tabTargetEffectiveUrl(target, tab.url || ''))) === 'ready'
+})
+
+export function unsuspendExistingTab(tab: chrome.tabs.Tab, target: PageTarget): Promise<boolean> {
+  return getAppRuntime().runPromise(unsuspendExistingTabEffect(tab, target))
 }
 
 /**
@@ -113,48 +133,68 @@ export async function unsuspendExistingTab(tab: chrome.tabs.Tab, target: PageTar
  * read or move. The identity guard stays at this seam, but the caller does not
  * pay for a second whole-browser inventory read.
  */
-export async function focusResolvedTabTargetResult(
+export const focusResolvedTabTargetEffect = Effect.fn('tabFocus.focusResolvedTarget')(function*(
+  tab: chrome.tabs.Tab,
+  target: ExistingTabTarget
+) {
+  const match = liveTabByValidatedId([tab], target)
+  if (!match) return focusResult('not-found')
+  return yield* focusMatchedTabResult(match, tabTargetEffectiveUrl(target, match.url || ''))
+})
+
+export function focusResolvedTabTargetResult(
   tab: chrome.tabs.Tab,
   target: ExistingTabTarget
 ): Promise<ExistingTabFocusResult> {
-  const match = liveTabByValidatedId([tab], target)
-  if (!match) return { status: 'not-found' }
-  return focusMatchedTabResult(match, tabTargetEffectiveUrl(target, match.url || ''))
+  return getAppRuntime().runPromise(focusResolvedTabTargetEffect(tab, target))
 }
 
-export async function focusExistingTabTargetResult(target: ExistingTabTarget): Promise<ExistingTabFocusResult> {
-  if (!Number.isInteger(target.tabId)) return { status: 'not-found' }
+export const focusExistingTabTargetEffect = Effect.fn('tabFocus.focusExistingTarget')(function*(
+  target: ExistingTabTarget
+) {
+  if (!Number.isInteger(target.tabId)) return focusResult('not-found')
 
-  const allTabsResult = await queryAllTabsResult()
-  if (!allTabsResult.ok) return { status: 'unknown' }
+  const browserTabs = yield* BrowserTabs
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
+  if (!allTabsResult.ok) return focusResult('unknown')
   const match = liveTabByValidatedId(allTabsResult.value, target)
-  if (!match) return { status: 'not-found' }
-  return focusResolvedTabTargetResult(match, target)
+  if (!match) return focusResult('not-found')
+  return yield* focusResolvedTabTargetEffect(match, target)
+})
+
+export function focusExistingTabTargetResult(target: ExistingTabTarget): Promise<ExistingTabFocusResult> {
+  return getAppRuntime().runPromise(focusExistingTabTargetEffect(target))
 }
 
-export async function focusExactTabTargetResult(url: string): Promise<ExactTabFocusResult> {
-  if (!url) return { status: 'not-found' }
+export const focusExactTabTargetEffect = Effect.fn('tabFocus.focusExactTarget')(function*(url: string) {
+  if (!url) return focusResult('not-found')
 
-  const currentWindowId = (await getCurrentWindow())?.id ?? -1
+  const browserTabs = yield* BrowserTabs
+  const currentWindowId = (yield* browserTabs.getCurrentWindow())?.id ?? -1
   // Keep tab identity as the last awaited read before activation. Chrome may
   // expose a navigation through pendingUrl while the window lookup settles.
-  const allTabsResult = await queryAllTabsResult()
-  if (!allTabsResult.ok) return { status: 'unknown' }
+  const allTabsResult = yield* browserTabs.queryAllTabsResult()
+  if (!allTabsResult.ok) return focusResult('unknown')
   const allTabs = allTabsResult.value
   const targetEffective = unwrapSuspenderUrl(url)
   const matches = liveTabsMatchingTarget(allTabs, { tabUrl: url })
-  if (matches.length === 0) return { status: 'not-found' }
+  if (matches.length === 0) return focusResult('not-found')
 
   const match = matches.find((tab) => tab.windowId === currentWindowId) || matches[0]
-  if (!match) return { status: 'not-found' }
-  return focusMatchedTabResult(match, targetEffective)
+  if (!match) return focusResult('not-found')
+  return yield* focusMatchedTabResult(match, targetEffective)
+})
+
+export function focusExactTabTargetResult(url: string): Promise<ExactTabFocusResult> {
+  return getAppRuntime().runPromise(focusExactTabTargetEffect(url))
 }
 
-export async function focusTabTarget(url: string): Promise<boolean> {
+export const focusTabTargetEffect = Effect.fn('tabFocus.focusTarget')(function*(url: string) {
   if (!url) return false
 
-  const currentWindowId = (await getCurrentWindow())?.id ?? null
-  const allTabs = (await queryAllTabsResult()).value
+  const browserTabs = yield* BrowserTabs
+  const currentWindowId = (yield* browserTabs.getCurrentWindow())?.id ?? null
+  const allTabs = (yield* browserTabs.queryAllTabsResult()).value
   const targetEffective = unwrapSuspenderUrl(url)
 
   let matches = liveTabsMatchingTarget(allTabs, { tabUrl: url })
@@ -173,5 +213,9 @@ export async function focusTabTarget(url: string): Promise<boolean> {
 
   const match = matches.find((tab) => tab.windowId !== currentWindowId) || matches[0]
   if (!match) return false
-  return (await focusMatchedTabResult(match, targetEffective)).status === 'focused'
+  return (yield* focusMatchedTabResult(match, targetEffective)).status === 'focused'
+})
+
+export function focusTabTarget(url: string): Promise<boolean> {
+  return getAppRuntime().runPromise(focusTabTargetEffect(url))
 }

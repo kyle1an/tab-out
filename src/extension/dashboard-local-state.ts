@@ -1,3 +1,6 @@
+import { Effect, Result, Schema } from 'effect'
+
+import { getAppRuntime } from './app-runtime.js'
 import { DOMAIN_PIN_STORAGE_KEY, normalizePinnedDomains } from './domain-pins.js'
 import { PAGE_CHIP_PIN_STORAGE_KEY, normalizePinnedPageChips } from './page-chip-pins.js'
 import { normalizePinnedSections, SECTION_PIN_STORAGE_KEY } from './section-pins.js'
@@ -20,6 +23,28 @@ export const DASHBOARD_LOCAL_STORAGE_KEYS = [
   PAGE_CHIP_PIN_STORAGE_KEY
 ] as const
 
+const dashboardLocalStoragePinValueSchema = Schema.UndefinedOr(Schema.Array(Schema.Unknown))
+
+const storedDashboardLocalStateSchema = Schema.Struct({
+  [DOMAIN_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
+  [SECTION_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema),
+  [PAGE_CHIP_PIN_STORAGE_KEY]: Schema.optionalKey(dashboardLocalStoragePinValueSchema)
+})
+
+type StoredDashboardLocalState = typeof storedDashboardLocalStateSchema.Type
+
+const isStoredDashboardLocalState = Schema.is(storedDashboardLocalStateSchema)
+const isStoredDashboardLocalStoragePinValue = Schema.is(dashboardLocalStoragePinValueSchema)
+
+class DashboardLocalStateReadError extends Schema.TaggedErrorClass<DashboardLocalStateReadError>()(
+  'DashboardLocalStateReadError',
+  { cause: Schema.Defect() }
+) {}
+
+export function isDashboardLocalStoragePinValue(value: unknown): boolean {
+  return isStoredDashboardLocalStoragePinValue(value)
+}
+
 export function emptyDashboardLocalState(loaded = false): DashboardLocalState {
   return {
     loaded,
@@ -29,7 +54,7 @@ export function emptyDashboardLocalState(loaded = false): DashboardLocalState {
   }
 }
 
-function dashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState {
+function dashboardLocalStateFromStorage(stored: StoredDashboardLocalState): DashboardLocalState {
   return {
     loaded: true,
     pinnedDomains: normalizePinnedDomains(stored[DOMAIN_PIN_STORAGE_KEY]),
@@ -38,30 +63,43 @@ function dashboardLocalStateFromStorage(stored: Record<string, unknown>): Dashbo
   }
 }
 
-export function validDashboardLocalStateFromStorage(stored: Record<string, unknown>): DashboardLocalState | null {
-  if (DASHBOARD_LOCAL_STORAGE_KEYS.some((key) => stored[key] !== undefined && !Array.isArray(stored[key]))) {
-    return null
-  }
-  return dashboardLocalStateFromStorage(stored)
+export function validDashboardLocalStateFromStorage(stored: unknown): DashboardLocalState | null {
+  return isStoredDashboardLocalState(stored)
+    ? dashboardLocalStateFromStorage(stored)
+    : null
 }
 
-export async function loadDashboardLocalStateResult(): Promise<DashboardLocalStateLoadResult> {
+export const loadDashboardLocalStateResultEffect = Effect.fn(
+  'dashboardLocalState.load'
+)(function*() {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     return { ok: true, state: emptyDashboardLocalState(true) }
   }
-  try {
-    const stored = await chrome.storage.local.get([...DASHBOARD_LOCAL_STORAGE_KEYS])
-    const state = validDashboardLocalStateFromStorage(stored)
-    return state
-      ? { ok: true, state }
-      : { ok: false, state: emptyDashboardLocalState(true) }
-  } catch {
+  const stored = yield* Effect.result(Effect.tryPromise({
+    try: () => chrome.storage.local.get([...DASHBOARD_LOCAL_STORAGE_KEYS]),
+    catch: (cause) => DashboardLocalStateReadError.make({ cause })
+  }))
+  if (Result.isFailure(stored)) {
     return { ok: false, state: emptyDashboardLocalState(true) }
   }
+  const state = validDashboardLocalStateFromStorage(stored.success)
+  return state
+    ? { ok: true, state }
+    : { ok: false, state: emptyDashboardLocalState(true) }
+})
+
+export function loadDashboardLocalStateResult(): Promise<DashboardLocalStateLoadResult> {
+  return getAppRuntime().runPromise(loadDashboardLocalStateResultEffect())
 }
 
-export async function loadDashboardLocalState(): Promise<DashboardLocalState> {
-  return (await loadDashboardLocalStateResult()).state
+export const loadDashboardLocalStateEffect = Effect.fn(
+  'dashboardLocalState.loadValue'
+)(function*() {
+  return (yield* loadDashboardLocalStateResultEffect()).state
+})
+
+export function loadDashboardLocalState(): Promise<DashboardLocalState> {
+  return getAppRuntime().runPromise(loadDashboardLocalStateEffect())
 }
 
 export function sameStringOrder(left: readonly string[], right: readonly string[]): boolean {

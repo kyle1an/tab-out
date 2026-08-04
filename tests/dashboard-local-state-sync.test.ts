@@ -95,3 +95,22 @@ test('storage pin reconciliation applies external changes and treats removed key
   })
   assert.deepEqual(result.appliedKeys, ['pinnedDomains', 'pinnedSectionIds'])
 })
+
+test('storage pin reconciliation ignores malformed cross-page pin values', () => {
+  const result = reconcileDashboardLocalStateStorageChanges(
+    CURRENT_STATE,
+    {
+      [DOMAIN_PIN_STORAGE_KEY]: {
+        oldValue: CURRENT_STATE.pinnedDomains,
+        newValue: { domain: 'external.test' }
+      }
+    },
+    {
+      pinnedDomains: false,
+      pinnedSectionIds: false,
+      pinnedPageChipIds: false
+    }
+  )
+
+  assert.equal(result, null)
+})

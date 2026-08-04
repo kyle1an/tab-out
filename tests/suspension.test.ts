@@ -99,6 +99,41 @@ test('getSuspendTarget: a slow stored read cannot overwrite a target learned fro
   assert.deepEqual(await store.get(), { id: liveId, template: liveTemplate })
 })
 
+test('getSuspendTarget: rejects malformed persisted targets at the storage boundary', async () => {
+  for (const storedTarget of [
+    null,
+    'not-a-target',
+    { id: '', template: TEMPLATE },
+    { id: SUSPENDER_ID, template: '' },
+    { id: SUSPENDER_ID, template: 42 }
+  ]) {
+    const store = createSuspendTargetStore({
+      now: () => 1_000,
+      read: async () => storedTarget,
+      runExclusive: (task) => task(),
+      write: async () => {}
+    })
+
+    assert.equal(await store.get(), null)
+  }
+})
+
+test('suspend-target persistence treats a non-finite stored observation as unversioned', async () => {
+  const lockManager = createSharedLockManager()
+  const writes: unknown[] = []
+  const store = createSuspendTargetStore({
+    now: () => 1_000,
+    read: async () => ({ id: 'newer', template: TEMPLATE, observedAt: Number.POSITIVE_INFINITY }),
+    runExclusive: (task) => lockManager.request('suspend-target', task),
+    write: async (value) => { writes.push(value) }
+  })
+
+  store.rememberFromTabs([{ suspended: true, rawUrl: TEMPLATE }])
+  await lockManager.drain()
+
+  assert.equal(writes.length, 1)
+})
+
 test('rememberSuspendTargetFromTabs: persistence keeps the newest target when an older write is slow', async () => {
   const olderId = 'dddddddddddddddddddddddddddddddd'
   const newerId = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'

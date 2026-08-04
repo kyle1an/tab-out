@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { parseTabHistorySwitchDirection } from '../src/extension/runtime-messages.js'
 import { fetchTabHistorySnapshotResult } from '../src/extension/tab-history.js'
 
 test('history client distinguishes unavailable service state from a valid empty snapshot', async () => {
@@ -34,4 +35,19 @@ test('history client rejects malformed successful responses', async () => {
   } as unknown as typeof globalThis.chrome
 
   assert.equal((await fetchTabHistorySnapshotResult()).ok, false)
+
+  globalThis.chrome = {
+    runtime: {
+      sendMessage: async () => ({ ok: 1, snapshot: { entries: [] } })
+    }
+  } as unknown as typeof globalThis.chrome
+
+  assert.equal((await fetchTabHistorySnapshotResult()).ok, false)
+})
+
+test('history switch messages preserve the previous-direction fallback', () => {
+  assert.equal(parseTabHistorySwitchDirection({ type: 'tab-out:switch-tab-history' }), -1)
+  assert.equal(parseTabHistorySwitchDirection({ type: 'tab-out:switch-tab-history', direction: 'invalid' }), -1)
+  assert.equal(parseTabHistorySwitchDirection({ type: 'tab-out:switch-tab-history', direction: 1 }), 1)
+  assert.equal(parseTabHistorySwitchDirection({ type: 'other-message', direction: 1 }), null)
 })

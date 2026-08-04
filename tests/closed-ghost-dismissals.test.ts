@@ -101,6 +101,7 @@ test('normalizeClosedGhostDismissals drops invalid and expired records', () => {
   assert.equal(normalized.get('keep'), now - 1000)
   assert.equal(normalized.has('expired'), false)
   assert.equal(normalized.has('bad'), false)
+  assert.deepEqual(normalizeClosedGhostDismissals([now], now), new Map())
 })
 
 test('loadClosedGhostDismissalsResult distinguishes a rejected read from confirmed dismissals', async () => {
@@ -206,4 +207,27 @@ test('a failed dismissal write rejects without returning false state and does no
   const persisted = await mutations.dismiss(entry, 1000)
   assert.equal(stored[key], 1000)
   assert.equal(persisted.get(key), 1000)
+})
+
+test('a rejected dismissal lock preserves the failure and releases local serialization', async () => {
+  let stored: Record<string, number> = {}
+  let lockAttempts = 0
+  const lockFailure = new Error('lock unavailable')
+  const mutations = createClosedGhostDismissalMutationStore({
+    read: async () => structuredClone(stored),
+    write: async (value) => {
+      stored = structuredClone(value)
+    },
+    runExclusive: async (task) => {
+      lockAttempts += 1
+      if (lockAttempts === 1) throw lockFailure
+      return task()
+    }
+  })
+  const entry = { url: 'https://example.test/article', lastClosedAt: 100 }
+
+  await assert.rejects(mutations.dismiss(entry, 1000), (error) => error === lockFailure)
+  const persisted = await mutations.dismiss(entry, 1000)
+
+  assert.equal(persisted.get(closedGhostDismissalKey(entry)), 1000)
 })

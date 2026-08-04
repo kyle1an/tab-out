@@ -5,13 +5,15 @@ import test from 'node:test'
 import {
   assertBrowserTestFloorMatchesPolicy,
   assertGeneratedManifestMatchesPolicy,
-  chromeVersionHistoryUrl
+  chromeVersionHistoryUrl,
+  parsePlaywrightChromiumVersion
 } from '../scripts/chrome-support.js'
 import {
   assessChromeSupport,
   chromeSupportPolicy,
   createBumpedChromeSupportPolicy,
   deriveMinimumChromeMajor,
+  isChromeStableVersions,
   parseLatestStableVersion,
   type ChromeStableVersions,
   type ChromeSupportPolicy
@@ -53,6 +55,17 @@ test('check CLI runs the deterministic offline consistency check', () => {
   )
 })
 
+test('CLI rejects an unknown command with the usage exit code', () => {
+  const result = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', 'scripts/chrome-support.ts', 'unknown'],
+    { encoding: 'utf8' }
+  )
+
+  assert.equal(result.status, 2)
+  assert.match(result.stderr, /Usage: chrome-support\.ts <check\|bump\|release-check>/)
+})
+
 test('offline verification rejects generated manifest drift', () => {
   assert.doesNotThrow(() => assertGeneratedManifestMatchesPolicy(
     { minimum_chrome_version: '149' },
@@ -77,6 +90,16 @@ test('offline verification pins browser tests to the minimum supported Chrome ma
     () => assertBrowserTestFloorMatchesPolicy(null, validPolicy),
     /Update @playwright\/test/
   )
+})
+
+test('Playwright metadata selects only the default bundled Chromium', () => {
+  assert.equal(parsePlaywrightChromiumVersion({
+    browsers: [
+      { name: 'chromium', installByDefault: false, browserVersion: '148.0.0.0' },
+      { name: 'chromium', installByDefault: true, browserVersion: '149.0.7827.55' }
+    ]
+  }), '149.0.7827.55')
+  assert.equal(parsePlaywrightChromiumVersion({ browsers: 'malformed' }), null)
 })
 
 test('browser harness owns its server and uses the bundled full Chromium', () => {
@@ -146,5 +169,7 @@ test('uses the first Stable version from the descending VersionHistory response'
 })
 
 test('derives the common latest-two floor from the slowest supported platform', () => {
+  assert.equal(isChromeStableVersions(stableVersions), true)
+  assert.equal(isChromeStableVersions({ ...stableVersions, linux: undefined }), false)
   assert.equal(deriveMinimumChromeMajor(stableVersions), 149)
 })
