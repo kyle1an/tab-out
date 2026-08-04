@@ -86,10 +86,11 @@ display it must still be directly beneath the created window. Command-W remains
 Chrome-owned when multiple tabs are present. Unhandled close paths receive
 best-effort final focus repair but may still show a transient Chrome frame.
 
-The private helper uses undocumented WindowServer calls and is allowlisted only
-for the qualified macOS build `25F84`. Do not update the allowlist until both
-create and reuse routes have passed the live Remote Display Preservation oracle
-for both shortcuts on the new build.
+The private helper uses undocumented WindowServer calls. It resolves the
+required private symbols and connection at runtime and Safe Aborts when those
+capabilities are unavailable; it is not restricted to an exact macOS build.
+After a macOS update, exercise both create and reuse routes with both shortcuts
+against the live Remote Display Preservation oracle.
 
 ## Source layout
 

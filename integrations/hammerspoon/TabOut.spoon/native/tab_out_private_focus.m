@@ -2,9 +2,7 @@
 #import <Cocoa/Cocoa.h>
 #import <LuaSkin/LuaSkin.h>
 #import <dlfcn.h>
-#import <sys/sysctl.h>
 
-static const char *kAllowedOSBuild = "25F84";
 static const uint32_t kCPSUserGenerated = 0x200;
 
 enum {
@@ -41,30 +39,7 @@ static int pushFailure(lua_State *L, NSString *message) {
   return 2;
 }
 
-static NSString *currentOSBuild(void) {
-  size_t size = 0;
-  if (sysctlbyname("kern.osversion", NULL, &size, NULL, 0) != 0 || size < 2) return nil;
-
-  char *buffer = calloc(size, 1);
-  if (!buffer) return nil;
-
-  NSString *build = nil;
-  if (sysctlbyname("kern.osversion", buffer, &size, NULL, 0) == 0) {
-    build = [NSString stringWithUTF8String:buffer];
-  }
-  free(buffer);
-  return build;
-}
-
 static NSString *baseCapabilityError(void) {
-  NSString *osBuild = currentOSBuild();
-  if (!osBuild || ![osBuild isEqualToString:[NSString stringWithUTF8String:kAllowedOSBuild]]) {
-    return [NSString stringWithFormat:
-      @"unsupported macOS build %@; allowed build is %s",
-      osBuild ?: @"unknown",
-      kAllowedOSBuild
-    ];
-  }
   if (!AXIsProcessTrusted()) return @"Hammerspoon does not have Accessibility permission";
   return nil;
 }

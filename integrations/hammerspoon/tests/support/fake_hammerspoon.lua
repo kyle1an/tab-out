@@ -718,7 +718,7 @@ local function runShortcut(kind, options)
   local privateFocus = {
     capability = function()
       if not privateFocusAvailable then
-        return nil, "unsupported macOS build"
+        return nil, "private focus capability unavailable"
       end
       return true
     end,
