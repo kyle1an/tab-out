@@ -14,7 +14,16 @@ import {
 } from './native-window-placement.js'
 
 export const NATIVE_PLACEMENT_BRIDGE_VERSION = 1
-const NATIVE_PLACEMENT_RECONNECT_DELAYS_MS = [250, 1_000, 5_000, 15_000] as const
+// The final delay deliberately exceeds Chrome's normal 30-second MV3 idle
+// window. A missing optional host can therefore let an otherwise idle worker
+// terminate, while a later worker wake restarts the fast reconnect sequence.
+const NATIVE_PLACEMENT_UNAVAILABLE_RETRY_MS = 60_000
+const NATIVE_PLACEMENT_RECONNECT_DELAYS_MS = [
+  250,
+  1_000,
+  5_000,
+  NATIVE_PLACEMENT_UNAVAILABLE_RETRY_MS
+] as const
 const NATIVE_PLACEMENT_HOST_NAME = 'com.tabout.native_bridge'
 
 export type NativePlacementBridgeResponse = {
@@ -248,7 +257,8 @@ function makeNativePlacementBridgeLayer(
         reconnectAttempt,
         NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.length - 1
       )
-      const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.at(delayIndex) ?? 15_000
+      const delay = NATIVE_PLACEMENT_RECONNECT_DELAYS_MS.at(delayIndex) ??
+        NATIVE_PLACEMENT_UNAVAILABLE_RETRY_MS
       reconnectAttempt += 1
       yield* Effect.sleep(delay)
     })

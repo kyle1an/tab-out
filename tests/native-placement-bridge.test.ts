@@ -323,6 +323,40 @@ test('native placement bridge escalates delays across connection failures', asyn
   }
 })
 
+test('native placement bridge backs off beyond the MV3 idle window when the host stays unavailable', async () => {
+  const clock = FakeTimers.install({ toFake: ['setTimeout', 'clearTimeout'] })
+  const previousWarn = console.warn
+  let connectionCount = 0
+  let disposeRuntime = async () => {}
+  console.warn = () => {}
+  const { chromeApi } = createChromeApi()
+  chromeApi.runtime.connectNative = () => {
+    connectionCount += 1
+    throw new Error('Native host unavailable')
+  }
+
+  try {
+    const runtime = ManagedRuntime.make(NativePlacementBridge.layer(chromeApi))
+    disposeRuntime = () => runtime.dispose()
+    runtime.runSync(Effect.void)
+    assert.equal(connectionCount, 1)
+
+    await clock.tickAsync(250)
+    assert.equal(connectionCount, 2)
+    await clock.tickAsync(1_000)
+    assert.equal(connectionCount, 3)
+    await clock.tickAsync(5_000)
+    assert.equal(connectionCount, 4)
+
+    await clock.tickAsync(30_000)
+    assert.equal(connectionCount, 4)
+  } finally {
+    await disposeRuntime()
+    console.warn = previousWarn
+    clock.uninstall()
+  }
+})
+
 test('native placement bridge resets backoff after a native message', async () => {
   const clock = FakeTimers.install({
     now: nowMs,

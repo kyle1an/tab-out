@@ -45,10 +45,14 @@ mode.
 
 The same two visible Hammerspoon shortcuts now work with any display count and
 the four hidden Chrome shortcut assignments disappear. Installation adds one
-compiled executable and one Chrome Native Messaging manifest. Chrome keeps one
-small host process and the extension service worker alive while the browser is
-running; closing Chrome ends the process. Extension or protocol upgrades may
-require rebuilding the host and reloading the unpacked extension.
+compiled executable and one Chrome Native Messaging manifest. While the native
+port is connected, Chrome keeps one small host process and the extension service
+worker alive; closing Chrome ends the process. After a disconnect, a short
+fast-reconnect sequence ends in a delay longer than Chrome's normal service-worker
+idle window. An unavailable optional host therefore lets an otherwise idle worker
+terminate; the extension retries from the fast sequence on its next ordinary wake,
+without a reconnect alarm. Extension or protocol upgrades may require rebuilding
+the host and reloading the unpacked extension.
 
 The host socket still has one active extension peer, so the supported setup
 installs Tab Out only in the configured automation profile. Hammerspoon uses the
