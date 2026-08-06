@@ -52,6 +52,20 @@ test('shouldAnimateMasonryResize only changes when the column count changes', ()
   assert.equal(shouldAnimateMasonryResize(1390, undefined), false)
 })
 
+test('filter routing updates local and bookmark results immediately while coalescing History searches', () => {
+  const routingSource = readFileSync(new URL('../src/hooks/useFilterRouting.ts', import.meta.url), 'utf8')
+  const appSource = readFileSync(new URL('../src/components/App.tsx', import.meta.url), 'utf8')
+  const refreshSource = readFileSync(new URL('../src/hooks/useDashboardRefresh.ts', import.meta.url), 'utf8')
+
+  assert.match(routingSource, /const filter = filterInput/)
+  assert.doesNotMatch(routingSource, /FILTER_UPDATE_DELAY_MS/)
+  assert.match(routingSource, /const FILTER_SEARCH_UPDATE_DELAY_MS = 200/)
+  assert.match(routingSource, /setFilterSearch\(filterInput\)/)
+  assert.match(appSource, /bookmarkFilter: filter/)
+  assert.match(appSource, /filter: filterSearch/)
+  assert.match(refreshSource, /appDashboardStore\.hydrateBookmarkCompanion\(\)/)
+})
+
 test('masonry card motion uses transform instead of layout-property transitions', () => {
   const css = readFileSync(new URL('../extension/base.css', import.meta.url), 'utf8')
   const domainCardSource = readFileSync(new URL('../src/components/DomainCard.tsx', import.meta.url), 'utf8')

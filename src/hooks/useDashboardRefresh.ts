@@ -4,6 +4,7 @@ import { appDashboardStore, settleDashboardRefresh, type MissionOrderMap } from 
 import type { DashboardData, DashboardSource } from '../extension/types'
 
 type UseDashboardRefreshOptions = {
+  bookmarkFilter: string
   dashboard: DashboardData | null
   source: DashboardSource
   filter: string
@@ -22,6 +23,7 @@ type UseDashboardRefreshOptions = {
  * The latest-wins arbitration itself lives in the store.
  */
 export function useDashboardRefresh({
+  bookmarkFilter,
   dashboard,
   source,
   filter,
@@ -33,6 +35,7 @@ export function useDashboardRefresh({
   onBeforePinnedRefresh
 }: UseDashboardRefreshOptions) {
   const callbacksRef = useRef({ onBeforePinnedRefresh })
+  const bookmarkSearchActive = source === 'tabs' && bookmarkFilter.trim() !== ''
 
   useEffect(() => {
     callbacksRef.current = { onBeforePinnedRefresh }
@@ -41,6 +44,11 @@ export function useDashboardRefresh({
   useLayoutEffect(() => {
     appDashboardStore.setRefreshInputs({ filter, localStateLoaded, pinnedDomains, previousOrder })
   }, [filter, localStateLoaded, pinnedDomains, previousOrder])
+
+  useEffect(() => {
+    if (!localStateLoaded || !dashboard || !bookmarkSearchActive || dashboard.bookmarkSearchReady) return
+    void settleDashboardRefresh(appDashboardStore.hydrateBookmarkCompanion())
+  }, [bookmarkSearchActive, dashboard, localStateLoaded, pinnedDomains])
 
   useEffect(() => {
     if (!localStateLoaded || !dashboardNeedsFilterSearchRefresh(dashboard, { source, filter, historyRange, historyFilterEnabled })) return

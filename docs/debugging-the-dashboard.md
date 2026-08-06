@@ -116,9 +116,10 @@ npx react-scan@latest http://127.0.0.1:8765/tests/fixtures/dashboard-resize.html
 Hover chips and type in the filter; render flashes and counts show up live.
 Expected after the compiler-coverage wave: a hover re-renders the chips and
 the history panel (they consume `HoverStateContext` by design) but not
-`DomainCard`, `HeaderBar`, or the missions plumbing; a filter keystroke
-(before the 200 ms debounce commits) re-renders only `App` → `DashboardShell`
-→ `HeaderBar`. No dependency needed — the fixture page is plain http.
+`DomainCard`, `HeaderBar`, or the missions plumbing. A filter keystroke rebuilds
+the filter-dependent view models immediately. The bookmark tree starts loading
+on the first non-empty keystroke, while History candidate reads remain coalesced
+for 200 ms. No dependency needed — the fixture page is plain http.
 
 ## Debugging startup order / CLS
 

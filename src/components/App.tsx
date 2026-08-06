@@ -274,7 +274,6 @@ function DashboardMissionsList({ filter, historyRangeAction, onRetryHistorySearc
 
 type DashboardShellProps = {
   closedTabs: readonly ClosedTabEntry[]
-  commitFilterInput: () => void
   savedKeys?: readonly string[] | undefined
   filter: string
   filterInput: string
@@ -302,7 +301,6 @@ type DashboardShellProps = {
 
 function DashboardShell({
   closedTabs,
-  commitFilterInput,
   savedKeys,
   filter,
   filterInput,
@@ -379,12 +377,10 @@ function DashboardShell({
               stats={stats}
               ready={isReady}
               filter={filterInput}
-              committedFilter={filter}
               filterResultCandidates={filterResultCandidates}
               filterResultSearchSettled={filterResultSearchSettled}
               historyRange={historyRange}
               onFilterChange={setFilterInput}
-              onFilterCommit={commitFilterInput}
               onSourceChange={onSourceChange}
               onCloseFiltered={onCloseFiltered}
               onDedupAll={onDedupAll}
@@ -493,12 +489,12 @@ export function App() {
     layoutMoveRectsRef.current = prepareDomainCardMoveAnimation(currentMissionContainers())
   }, [currentMissionContainers])
 
-  const handleBeforeFilterCommit = useCallback(function handleBeforeFilterCommit() {
+  const handleBeforeFilterChange = useCallback(function handleBeforeFilterChange() {
     appDashboardStore.clearStartupPriority()
     filterCardMoveRef.current = true
     primeCardMoveAnimation()
   }, [primeCardMoveAnimation])
-  const { filterInput, filter, commitFilterInput, setFilterInput } = useFilterRouting({ onBeforeFilterCommit: handleBeforeFilterCommit })
+  const { filterInput, filter, filterSearch, setFilterInput } = useFilterRouting({ onBeforeFilterChange: handleBeforeFilterChange })
   const handleFilterInputChange = useCallback(function handleFilterInputChange(nextFilterInput: string) {
     if (nextFilterInput.trim()) void loadHistoryRangeSelect().catch(() => {})
     setFilterInput(nextFilterInput)
@@ -554,9 +550,10 @@ export function App() {
       : null
   // react-doctor-disable-next-line react-hooks-js/refs -- the order/chip refs are mutable caches the refresh reads at call time, intentionally outside React's render-tracked state.
   const { refreshDashboard } = useDashboardRefresh({
+    bookmarkFilter: filter,
     dashboard,
     source,
-    filter,
+    filter: filterSearch,
     historyRange,
     historyFilterEnabled,
     pinnedDomains,
@@ -806,7 +803,6 @@ export function App() {
       <HoverStateProvider store={hoverStateStore}>
         <DashboardShell
           closedTabs={dashboardContentVisible ? closedTabs : EMPTY_CLOSED_TABS}
-          commitFilterInput={commitFilterInput}
           savedKeys={visibleDashboard?.savedKeys}
           filter={filter}
           filterInput={filterInput}

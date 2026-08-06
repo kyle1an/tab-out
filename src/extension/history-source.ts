@@ -6,7 +6,7 @@ export { DEFAULT_HISTORY_RANGE, HISTORY_FILTER_OFF, HISTORY_RANGE_OPTIONS, isHis
 
 type HistoryItemLike = Pick<chrome.history.HistoryItem, 'id' | 'title' | 'url'>
 
-const HISTORY_MAX_RESULTS = 30
+const HISTORY_MAX_RESULTS = 100
 
 export type HistorySourceSearchResult = {
   status: 'ready' | 'error'

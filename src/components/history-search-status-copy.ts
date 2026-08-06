@@ -29,25 +29,25 @@ export function historySearchStatusCopy(summary: HistorySearchSummary): HistoryS
   const settled = (() => {
     if (summary.totalMatches === 0) {
       return {
-        title: 'No History matches',
+        title: 'No returned History matches',
         detail: 'Try a wider range.'
       }
     }
     if (summary.dedupedMatches === 0) {
       return {
-        title: `${summary.totalMatches} History ${pluralMatches(summary.totalMatches)}`,
-        detail: 'All appear below.'
+        title: `${summary.totalMatches} returned History ${pluralMatches(summary.totalMatches)}`,
+        detail: 'All returned matches appear below.'
       }
     }
     if (summary.visibleMatches === 0) {
       return {
         title: `${summary.dedupedMatches} shown in Tabs`,
-        detail: 'Not repeated below.'
+        detail: 'No returned matches repeated below.'
       }
     }
     return {
-      title: `${summary.dedupedMatches} of ${summary.totalMatches} shown in Tabs`,
-      detail: `${summary.visibleMatches} more appear below.`
+      title: `${summary.dedupedMatches} shown in Tabs`,
+      detail: `${summary.visibleMatches} of ${summary.totalMatches} returned matches appear below.`
     }
   })()
 

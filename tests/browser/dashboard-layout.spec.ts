@@ -22,6 +22,7 @@ type BookmarkFetchGate = {
   completedCount: number
   release: () => void
   started: boolean
+  startedAt: number | null
 }
 
 type HistoryReorderEvent = {
@@ -221,12 +222,14 @@ async function installBookmarkFetchGate(
       callCount: 0,
       completedCount: 0,
       release,
-      started: false
+      started: false,
+      startedAt: null
     }
     fixtureWindow.__tabOutBookmarkFetchGate = gate
     window.chrome.bookmarks.getTree = async () => {
       gate.callCount += 1
       gate.started = true
+      gate.startedAt ??= performance.now()
       await blocked
       const tree = nextTree ?? await originalGetTree()
       gate.completedCount += 1
@@ -250,6 +253,53 @@ async function waitForBookmarkFetch(page: Page) {
       .__tabOutBookmarkFetchGate?.started === true
   ))
 }
+
+test('bookmark companion hydration starts before the coalesced History search', async ({ page }) => {
+  await page.goto('/tests/fixtures/dashboard-resize.html')
+  await expect.poll(() => page.locator('[data-tabout="domain-card"]').count()).toBeGreaterThanOrEqual(12)
+  await installBookmarkFetchGate(page)
+
+  await page.evaluate(() => {
+    const state = window as unknown as {
+      __tabOutHistorySearchStartedAt: number | null
+    }
+    state.__tabOutHistorySearchStartedAt = null
+    window.chrome.history.search = async () => {
+      state.__tabOutHistorySearchStartedAt = performance.now()
+      return []
+    }
+  })
+
+  await page.locator('[data-tabout="filter-query"] input').fill('Bookmark')
+  await waitForBookmarkFetch(page)
+  await releaseBookmarkFetchGate(page)
+  await expect.poll(() => page.evaluate(() => (
+    (window as unknown as { __tabOutHistorySearchStartedAt: number | null })
+      .__tabOutHistorySearchStartedAt
+  ))).not.toBeNull()
+  await expect(page.locator('[data-tabout="history-search-status"]')).toHaveAttribute(
+    'data-tabout-history-phase',
+    'ready'
+  )
+
+  const timing = await page.evaluate(() => {
+    const state = window as unknown as {
+      __tabOutBookmarkFetchGate?: BookmarkFetchGate
+      __tabOutHistorySearchStartedAt: number | null
+    }
+    return {
+      bookmark: state.__tabOutBookmarkFetchGate?.startedAt ?? null,
+      history: state.__tabOutHistorySearchStartedAt
+    }
+  })
+  expect(timing.bookmark).not.toBeNull()
+  expect(timing.history).not.toBeNull()
+  expect(timing.history! - timing.bookmark!).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => (
+    (window as typeof window & { __tabOutBookmarkFetchGate?: BookmarkFetchGate })
+      .__tabOutBookmarkFetchGate?.callCount ?? 0
+  ))).toBe(1)
+})
 
 async function collapsedTitleFadeState(title: Locator, truncatedClass: string) {
   return title.evaluate((element, className) => {
@@ -2406,7 +2456,7 @@ test('failed history searches show a retryable status without becoming no matche
   const historyStatus = page.locator('[data-tabout="history-search-status"]')
   await expect(historyStatus).toHaveAttribute('data-tabout-history-phase', 'error')
   await expect(historyStatus).toContainText('History update failed')
-  await expect(historyStatus).not.toContainText('No History matches')
+  await expect(historyStatus).not.toContainText('No returned History matches')
   await expect(globalEmptyState).toHaveCount(0)
   await expect.poll(() => historyStatus.locator('[data-tabout-part="retry-button"]').evaluate((element) => (
     getComputedStyle(element).fontSize
@@ -2618,8 +2668,8 @@ test('closing an open search match promotes its matching history result', async 
   await openChip.locator('[data-tabout-part="close-button"]').click({ force: true })
   await expect(openCard).toHaveCount(0)
   await expect(historyCard).toHaveCount(1)
-  await expect(historyStatus).toContainText('1 History match')
-  await expect(historyStatus).toContainText('All appear below')
+  await expect(historyStatus).toContainText('1 returned History match')
+  await expect(historyStatus).toContainText('All returned matches appear below')
   await expect(historyCard).toContainText('Example 2 with enough tooltip text')
 })
 

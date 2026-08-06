@@ -12,6 +12,7 @@ import { Effect, FiberHandle, Result, Schema } from 'effect'
 
 import { getAppRuntime } from './app-runtime.js'
 import { BrowserTabs } from './browser-tabs-service.js'
+import type { BrowserReadResult } from './browser-tabs-gateway.js'
 import {
   closedTabFetchSuppressionRemainingMs,
   fetchClosedTabsResultEffect,
@@ -32,7 +33,7 @@ import { loadSavedPagesStoreResultEffect } from './saved-pages-storage.js'
 import { persistSavedPageMetadataUpdatesEffect } from './saved-pages-mutations.js'
 import { buildTabsDashboardStartupSnapshotEffect, type DashboardStartupSnapshot } from './startup-snapshot.js'
 import { showToast } from './toast.js'
-import type { DashboardData, DashboardSource, TabHistorySnapshot, WorkingSetSnapshot } from './types'
+import type { DashboardData, DashboardSource, DashboardTab, TabHistorySnapshot, WorkingSetSnapshot } from './types'
 
 export type MissionOrderMap = Record<DashboardSource, Map<string, number>>
 
@@ -66,6 +67,7 @@ export type DashboardSnapshotOptions = {
   historyRange: string
   historyFilterEnabled: boolean
   pinnedDomains: string[]
+  prefetchedBookmarkTabs?: DashboardTab[]
   savedPagesStore?: SavedPagesStore
   previousOrder: MissionOrderMap
 }
@@ -74,6 +76,7 @@ export type DashboardRefreshSnapshot = {
   tabHistory?: TabHistorySnapshot
   workingSet?: WorkingSetSnapshot
 }
+type BookmarkCompanionSnapshot = Pick<Required<DashboardData>, 'bookmarkTabs' | 'bookmarkDomainGroups'>
 
 type LatestRefreshRequest<T> = {
   apply: (value: T) => void
@@ -235,18 +238,38 @@ let startupSnapshotFlight: {
   promise: Promise<DashboardStartupSnapshot>
 } | null = null
 
+// Keep the first-keystroke bookmark read reachable across the delayed History
+// refresh scheduling seam. This grace period delays neither browser read.
+const BOOKMARK_COMPANION_FLIGHT_GRACE_MS = 200
+let bookmarkCompanionSourceItemsFlight: Promise<BrowserReadResult<DashboardTab[]>> | null = null
+
+function fetchBookmarksSourceItemsShared(
+  holdForCompanion = false,
+  reuseCompanion = false
+): Promise<BrowserReadResult<DashboardTab[]>> {
+  if (reuseCompanion && bookmarkCompanionSourceItemsFlight) return bookmarkCompanionSourceItemsFlight
+
+  const flight = import('../extension/bookmarks.js')
+    .then((bookmarks) => bookmarks.fetchBookmarksSourceItemsResult())
+  if (holdForCompanion) {
+    bookmarkCompanionSourceItemsFlight = flight
+    const clearFlight = () => {
+      if (bookmarkCompanionSourceItemsFlight === flight) bookmarkCompanionSourceItemsFlight = null
+    }
+    void flight.then(
+      () => setTimeout(clearFlight, BOOKMARK_COMPANION_FLIGHT_GRACE_MS),
+      clearFlight
+    )
+  }
+  return flight
+}
+
 const fetchBookmarksSourceItemsLazyEffect = Effect.fn(
   'dashboardIntake.fetchBookmarks'
-)(function*() {
-  const bookmarks = yield* Effect.tryPromise({
-    try: () => import('../extension/bookmarks.js'),
-    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
-  })
-  return yield* Effect.tryPromise({
-    try: () => bookmarks.fetchBookmarksSourceItemsResult(),
-    catch: (cause) => DashboardSnapshotFetchError.make({ cause })
-  })
-})
+)((holdForCompanion = false, reuseCompanion = false) => Effect.tryPromise({
+  try: () => fetchBookmarksSourceItemsShared(holdForCompanion, reuseCompanion),
+  catch: (cause) => DashboardSnapshotFetchError.make({ cause })
+}))
 
 const fetchHistorySourceItemsLazyEffect = Effect.fn(
   'dashboardIntake.fetchHistory'
@@ -259,6 +282,29 @@ const fetchHistorySourceItemsLazyEffect = Effect.fn(
     try: () => history.fetchHistorySourceSearch(query, range),
     catch: (cause) => DashboardSnapshotFetchError.make({ cause })
   })
+})
+
+const fetchBookmarkCompanionSnapshotEffect = Effect.fn(
+  'dashboardIntake.fetchBookmarkCompanion'
+)(function*({ pinnedDomains, previousOrder }: Pick<DashboardSnapshotOptions, 'pinnedDomains' | 'previousOrder'>) {
+  const bookmarkTabsResult = yield* fetchBookmarksSourceItemsLazyEffect(true, true)
+  if (!bookmarkTabsResult.ok) return yield* Effect.fail(dashboardSnapshotReadError('Could not read bookmarks'))
+
+  const bookmarkDashboard = yield* fetchDashboardDataEffect(
+    previousOrder.bookmarks || new Map(),
+    'bookmarks',
+    {
+      pinnedDomains,
+      bookmarkTabs: bookmarkTabsResult.value
+    }
+  ).pipe(
+    Effect.mapError((error) => DashboardSnapshotFetchError.make({ cause: error.cause }))
+  )
+
+  return {
+    bookmarkTabs: bookmarkDashboard.realTabs,
+    bookmarkDomainGroups: bookmarkDashboard.domainGroups
+  }
 })
 
 function startupSnapshotFlightKey({ pinnedDomains, previousOrder, savedPagesStore }: DashboardSnapshotOptions): string {
@@ -279,7 +325,7 @@ function dashboardStartupSnapshotReadError(message: string): DashboardStartupSna
 
 const fetchTabsDashboardSnapshotEffect = Effect.fn(
   'dashboardIntake.fetchTabsSnapshot'
-)(function*({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, savedPagesStore, previousOrder }: DashboardSnapshotOptions) {
+)(function*({ source, filter, historyRange, historyFilterEnabled, pinnedDomains, prefetchedBookmarkTabs, savedPagesStore, previousOrder }: DashboardSnapshotOptions) {
   const filterSearch = buildFilterSearchRequest({ source, filter, historyRange, historyFilterEnabled })
   const [currentWindowResult, serviceStateResult, savedPagesResult, bookmarkTabsResult, historySearch] = yield* Effect.all([
     getCurrentWindowIdResultEffect(),
@@ -288,7 +334,9 @@ const fetchTabsDashboardSnapshotEffect = Effect.fn(
       ? Effect.succeed({ ok: true as const, value: savedPagesStore })
       : loadSavedPagesStoreResultEffect(),
     filterSearch.includeBookmarkMatches
-      ? fetchBookmarksSourceItemsLazyEffect()
+      ? prefetchedBookmarkTabs === undefined
+        ? fetchBookmarksSourceItemsLazyEffect(false, true)
+        : Effect.succeed({ ok: true as const, value: prefetchedBookmarkTabs })
       : Effect.succeed({ ok: true as const, value: [] }),
     filterSearch.includeHistoryMatches
       ? fetchHistorySourceItemsLazyEffect(filterSearch.query, filterSearch.historyRange)
@@ -755,6 +803,7 @@ export type AppDashboardStore = {
   applyStartup: (startup: { historyRange: string; snapshot: DashboardStartupSnapshot | null }) => void
   clearStartupPriority: () => void
   dispatch: (action: AppDashboardAction) => void
+  hydrateBookmarkCompanion: () => Promise<void>
   read: () => AppDashboardState
   readBuildTime: () => AppDashboardState
   refresh: (options?: DashboardRefreshRequestOptions) => Promise<void>
@@ -804,6 +853,8 @@ export function createAppDashboardStore(
     | { kind: 'startup'; snapshot: DashboardStartupSnapshot }
     | { kind: 'standard'; snapshot: DashboardRefreshSnapshot }
   const refreshRunner = createLatestRefreshRunner<DashboardRefreshResult>()
+  const bookmarkCompanionRunner = createLatestRefreshRunner<BookmarkCompanionSnapshot>()
+  let prefetchedBookmarkTabs: DashboardTab[] | null = null
   let startupRefreshPending = false
   let animatedRefreshPending = false
   let historySearchPendingRevision = 0
@@ -879,6 +930,34 @@ export function createAppDashboardStore(
 
   function startClosedTabUpdates(): () => void {
     return getAppRuntime().runCallback(Effect.scoped(runClosedTabUpdates()))
+  }
+
+  async function hydrateBookmarkCompanion(): Promise<void> {
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
+    if (state.source !== 'tabs' || state.sourceSelection !== 'tabs' || state.dashboard?.bookmarkSearchReady) return
+    const inputs = refreshInputs
+    if (!inputs?.localStateLoaded) return
+    const pinnedDomains = [...inputs.pinnedDomains]
+
+    await bookmarkCompanionRunner.requestEffect(
+      fetchBookmarkCompanionSnapshotEffect({
+        pinnedDomains,
+        previousOrder: inputs.previousOrder
+      }),
+      (bookmarkCompanion) => {
+        const dashboard = state.dashboard
+        if (!dashboard || state.source !== 'tabs' || state.sourceSelection !== 'tabs') return
+        prefetchedBookmarkTabs = bookmarkCompanion.bookmarkTabs
+        dispatch({
+          type: 'dashboard',
+          dashboard: {
+            ...dashboard,
+            ...bookmarkCompanion,
+            bookmarkSearchReady: true
+          }
+        })
+      }
+    )
   }
 
   function refreshContextFromInputs(
@@ -1029,18 +1108,24 @@ export function createAppDashboardStore(
     }
     const { filter, historyFilterEnabled, historyRange, pinnedDomains, source } = requestContext
     const previousOrder = inputs.previousOrder
-    const tracksHistorySearch = buildFilterSearchRequest(requestContext).includeHistoryMatches
+    const filterSearch = buildFilterSearchRequest(requestContext)
+    const tracksHistorySearch = filterSearch.includeHistoryMatches
     const historySearchRevision = tracksHistorySearch ? historySearchPendingRevision + 1 : 0
     if (tracksHistorySearch) {
       historySearchPendingRevision = historySearchRevision
       dispatch({ type: 'historySearchPending', historySearchPending: true })
     }
+    const reusableBookmarkTabs = filterSearch.includeBookmarkMatches
+      ? prefetchedBookmarkTabs
+      : null
+    if (reusableBookmarkTabs !== null) prefetchedBookmarkTabs = null
     const snapshotOptions: DashboardSnapshotOptions = {
       source,
       filter,
       historyRange,
       historyFilterEnabled,
       pinnedDomains: [...pinnedDomains],
+      ...(reusableBookmarkTabs === null ? {} : { prefetchedBookmarkTabs: reusableBookmarkTabs }),
       previousOrder
     }
     const fetchRefreshSnapshot = Effect.gen(function*() {
@@ -1105,6 +1190,7 @@ export function createAppDashboardStore(
       dispatch({ type: 'startupPriorityCleared' })
     },
     dispatch,
+    hydrateBookmarkCompanion,
     read: () => state,
     readBuildTime: () => buildTimeState,
     refresh,

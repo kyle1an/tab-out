@@ -36,12 +36,10 @@ function isSourceSwitchValue(value: unknown): value is DashboardSource {
 interface HeaderBarProps {
   stats: DashboardStats
   filter: string
-  committedFilter?: string
   filterResultCandidates?: readonly FilterResultCandidate[]
   filterResultSearchSettled?: boolean
   historyRange: string
   onFilterChange: (filter: string) => void
-  onFilterCommit?: () => void
   onCloseFiltered: () => void | Promise<void>
   onDedupAll: () => void | Promise<void>
   onSourceChange: (source: DashboardSource) => void | Promise<void>
@@ -194,12 +192,10 @@ function SourceSwitch({ source, onSourceChange }: SourceSwitchProps) {
 
 export function HeaderBar({
   filter,
-  committedFilter = filter,
   filterResultCandidates = EMPTY_FILTER_RESULT_CANDIDATES,
   filterResultSearchSettled = true,
   historyRange,
   onFilterChange,
-  onFilterCommit,
   onCloseFiltered,
   onDedupAll,
   onSourceChange,
@@ -214,7 +210,7 @@ export function HeaderBar({
   const filterResultSelectionRef = useRef(EMPTY_FILTER_RESULT_SELECTION)
   const filterResultSourceRef = useRef({ source, sourceSelection })
   const filterResultNavigationEnabled = source === sourceSelection
-  const committedCandidates = filterResultNavigationEnabled && filter === committedFilter
+  const availableCandidates = filterResultNavigationEnabled
     ? filterResultCandidates
     : EMPTY_FILTER_RESULT_CANDIDATES
 
@@ -244,12 +240,11 @@ export function HeaderBar({
 
   useLayoutEffect(() => {
     const pendingAction = pendingFilterResultActionRef.current
-    const pendingActionMatches = pendingAction?.query === committedFilter &&
+    const pendingActionMatches = pendingAction?.query === filter &&
       pendingAction.source === source &&
-      filterResultNavigationEnabled &&
-      filter === committedFilter
+      filterResultNavigationEnabled
     const mountedCandidates = pendingActionMatches && pendingAction.kind === 'move'
-      ? mountedFilterResultCandidates(committedCandidates)
+      ? mountedFilterResultCandidates(availableCandidates)
       : null
     let nextSelection: FilterResultSelection
     let nextCandidate: FilterResultCandidate | undefined
@@ -264,7 +259,7 @@ export function HeaderBar({
       const reconciledResult = reconcileVisibleFilterResultSelection(
         filterResultSelectionRef.current,
         filter,
-        committedCandidates,
+        availableCandidates,
         isMountedFilterResultCandidate
       )
       nextSelection = reconciledResult.selection
@@ -272,7 +267,7 @@ export function HeaderBar({
     }
 
     if (pendingActionMatches && pendingAction.kind === 'activate' && !nextCandidate) {
-      nextCandidate = committedCandidates.find(isMountedFilterResultCandidate)
+      nextCandidate = availableCandidates.find(isMountedFilterResultCandidate)
     }
     let pendingActivation: Extract<PendingFilterResultAction, { kind: 'activate' }> | null = null
     let scrollSelection = false
@@ -289,7 +284,7 @@ export function HeaderBar({
       if (pendingAction.kind === 'move') {
         nextSelection = moveFilterResultSelection(
           nextSelection,
-          committedFilter,
+          filter,
           mountedCandidates ?? EMPTY_FILTER_RESULT_CANDIDATES,
           pendingAction.direction
         )
@@ -305,7 +300,7 @@ export function HeaderBar({
 
     selectedFilterResultElementRef.current = applyFilterResultSelection(
       nextSelection,
-      mountedCandidates ?? committedCandidates,
+      mountedCandidates ?? availableCandidates,
       inputRef.current,
       selectedFilterResultElementRef.current,
       scrollSelection
@@ -316,8 +311,7 @@ export function HeaderBar({
       dispatchFilterResultActivation(nextCandidate, pendingActivation.modifiers)
     }
   }, [
-    committedCandidates,
-    committedFilter,
+    availableCandidates,
     filter,
     filterResultNavigationEnabled,
     filterResultSearchSettled,
@@ -374,16 +368,10 @@ export function HeaderBar({
           source
         }
 
-    if (filter !== committedFilter) {
-      pendingFilterResultActionRef.current = action
-      onFilterCommit?.()
-      return
-    }
-
-    const mountedCandidates = mountedFilterResultCandidates(committedCandidates)
+    const mountedCandidates = mountedFilterResultCandidates(availableCandidates)
     const currentSelection = reconcileFilterResultSelection(
       filterResultSelectionRef.current,
-      committedFilter,
+      filter,
       mountedCandidates
     )
 
@@ -395,7 +383,7 @@ export function HeaderBar({
     if (action.kind === 'move') {
       const nextSelection = moveFilterResultSelection(
         currentSelection,
-        committedFilter,
+        filter,
         mountedCandidates,
         action.direction
       )

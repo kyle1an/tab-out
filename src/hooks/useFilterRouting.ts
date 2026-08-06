@@ -1,12 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { FOCUS_FILTER_PARAM, filterInputFromSearch, titleForFilterInput, urlForFilterInput } from '../extension/app-url.js'
 import { readFilterFocusPendingInput, releaseFilterFocusBootValue } from '../extension/filter-focus-buffer.js'
 
-const FILTER_UPDATE_DELAY_MS = 200
+const FILTER_SEARCH_UPDATE_DELAY_MS = 200
 const FILTER_URL_SYNC_DELAY_MS = 600
 
 type UseFilterRoutingOptions = {
-  onBeforeFilterCommit?: () => void
+  onBeforeFilterChange?: () => void
 }
 
 function filterInputFromCurrentUrl() {
@@ -33,37 +33,40 @@ function clearFocusFilterParam() {
   window.history.replaceState(null, '', nextUrl)
 }
 
-export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptions = {}) {
-  const [filterInput, setFilterInput] = useState('')
-  const [filter, setFilter] = useState('')
-  const onBeforeFilterCommitRef = useRef(onBeforeFilterCommit)
+export function useFilterRouting({ onBeforeFilterChange }: UseFilterRoutingOptions = {}) {
+  const [filterInput, setFilterInputState] = useState('')
+  const [filterSearch, setFilterSearch] = useState('')
+  const filterInputRef = useRef('')
+  const onBeforeFilterChangeRef = useRef(onBeforeFilterChange)
+  // Local tab results and bookmark hydration follow the controlled input.
+  // Only the larger browser-owned History search retains a coalescing window.
+  const filter = filterInput
 
   useEffect(() => {
-    onBeforeFilterCommitRef.current = onBeforeFilterCommit
-  }, [onBeforeFilterCommit])
+    onBeforeFilterChangeRef.current = onBeforeFilterChange
+  }, [onBeforeFilterChange])
 
   useLayoutEffect(() => {
     const next = initialFilterInput()
-    setFilterInput(next)
-    setFilter(next)
+    filterInputRef.current = next
+    setFilterInputState(next)
+    setFilterSearch(next)
     clearFocusFilterParam()
     queueMicrotask(releaseFilterFocusBootValue)
   }, [])
 
   useEffect(() => {
-    if (filterInput === filter) return
+    if (filterInput === filterSearch) return
     if (filterInput === '') {
-      onBeforeFilterCommitRef.current?.()
-      setFilter('')
+      setFilterSearch('')
       return
     }
 
     const timer = window.setTimeout(() => {
-      onBeforeFilterCommitRef.current?.()
-      setFilter(filterInput)
-    }, FILTER_UPDATE_DELAY_MS)
+      setFilterSearch(filterInput)
+    }, FILTER_SEARCH_UPDATE_DELAY_MS)
     return () => clearTimeout(timer)
-  }, [filterInput, filter])
+  }, [filterInput, filterSearch])
 
   useEffect(() => {
     document.title = titleForFilterInput(filterInput)
@@ -79,11 +82,12 @@ export function useFilterRouting({ onBeforeFilterCommit }: UseFilterRoutingOptio
     return () => clearTimeout(timer)
   }, [filterInput])
 
-  function commitFilterInput() {
-    if (filterInput === filter) return
-    onBeforeFilterCommitRef.current?.()
-    setFilter(filterInput)
-  }
+  const setFilterInput = useCallback(function setFilterInput(next: string) {
+    if (next === filterInputRef.current) return
+    onBeforeFilterChangeRef.current?.()
+    filterInputRef.current = next
+    setFilterInputState(next)
+  }, [])
 
-  return { filterInput, filter, commitFilterInput, setFilterInput }
+  return { filterInput, filter, filterSearch, setFilterInput }
 }

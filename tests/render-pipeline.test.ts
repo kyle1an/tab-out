@@ -2398,8 +2398,8 @@ test('history search status copy distinguishes visible, deduped, empty, and upda
     visibleMatches: 2,
     dedupedMatches: 2
   }), {
-    title: '2 of 4 shown in Tabs',
-    detail: '2 more appear below.'
+    title: '2 shown in Tabs',
+    detail: '2 of 4 returned matches appear below.'
   })
   assert.deepEqual(historySearchStatusCopy({
     phase: 'ready',
@@ -2408,7 +2408,7 @@ test('history search status copy distinguishes visible, deduped, empty, and upda
     dedupedMatches: 3
   }), {
     title: '3 shown in Tabs',
-    detail: 'Not repeated below.'
+    detail: 'No returned matches repeated below.'
   })
   assert.deepEqual(historySearchStatusCopy({
     phase: 'ready',
@@ -2416,7 +2416,7 @@ test('history search status copy distinguishes visible, deduped, empty, and upda
     visibleMatches: 0,
     dedupedMatches: 0
   }), {
-    title: 'No History matches',
+    title: 'No returned History matches',
     detail: 'Try a wider range.'
   })
   assert.deepEqual(historySearchStatusCopy({
@@ -2425,7 +2425,7 @@ test('history search status copy distinguishes visible, deduped, empty, and upda
     visibleMatches: 1,
     dedupedMatches: 0
   }), {
-    title: '1 History match',
+    title: '1 returned History match',
     detail: 'Updating…'
   })
   assert.deepEqual(historySearchStatusCopy({
@@ -2474,7 +2474,7 @@ test('all-time history search starts at the Unix epoch', async () => {
   try {
     await fetchHistorySourceSearch('example', 'all')
     assert.equal(searchQuery.text, 'example')
-    assert.equal(searchQuery.maxResults, 30)
+    assert.equal(searchQuery.maxResults, 100)
     assert.equal(searchQuery.startTime, 0)
   } finally {
     if (originalHistory === undefined) delete (globalThis.chrome as any).history
